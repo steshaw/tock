@@ -23,7 +23,24 @@ occamStyle
     , P.identStart     = letter
     , P.identLetter    = alphaNum <|> char '.'
     , P.opStart        = oneOf "+-/*"
-    , P.reservedOpNames= []
+    , P.reservedOpNames= [
+                          "+",
+                          "-",
+                          "*",
+                          "/",
+                          "\\",
+                          "/\\",
+                          "\\/",
+                          "><",
+                          "=",
+                          "<>",
+                          "<",
+                          ">",
+                          ">=",
+                          "<=",
+                          "-",
+                          "~"
+                         ]
     , P.reservedNames  = [
                           "AFTER",
                           "ALT",
@@ -193,8 +210,8 @@ eol = symbol "@"
 abbreviation
     =   try (do { n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "is", n, v] })
     <|> try (do { s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "is", s, n, v] })
-    <|> try (do { sVAL ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "val-is", n, v] })
-    <|> try (do { sVAL ; s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "val-is", s, n, v] })
+    <|> try (do { sVAL ; n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ List [Item "val-is", n, e] })
+    <|> try (do { sVAL ; s <- specifier ; n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ List [Item "val-is", s, n, e] })
     <|> try (do { n <- name ; sIS ; v <- channel ; sColon ; eol ; return $ List [Item "is", n, v] })
     <|> try (do { s <- specifier ; n <- name ; sIS ; v <- channel ; sColon ; eol ; return $ List [Item "is", s, n, v] })
     <|> try (do { n <- name ; sIS ; sLeft ; v <- sepBy1 channel sComma ; sRight ; sColon ; eol ; return $ List [Item "is", n, List v] })
@@ -206,11 +223,11 @@ abbreviation
     <?> "abbreviation"
 
 actual
-    =   try variable
+    =   try expression
+    <|> try variable
     <|> try channel
     <|> try timer
-    <|> try port
-    <|> expression
+    <|> port
     <?> "actual"
 
 allocation
@@ -245,7 +262,7 @@ boolean
     <?> "boolean"
 
 byte
-    =   do { char '\'' ; c <- character ; char '\'' ; return c }
+    =   lexeme (do { char '\'' ; c <- character ; char '\'' ; return $ Item ("'" ++ (case c of Item s -> s) ++ "'") })
     <?> "byte"
 
 caseExpression
@@ -272,9 +289,10 @@ channelType
     <|> do { sLeft ; s <- expression ; sRight ; t <- channelType ; return $ List [Item "array", s, t] }
     <?> "channelType"
 
--- XXX wrong
 character
-    =   do { l <- letter ; return $ Item [l] }
+    =   try (do { char '*' ; char '#' ; a <- hexDigit ; b <- hexDigit ; return $ Item ['*', '#', a, b] })
+    <|> try (do { char '*' ; c <- anyChar ; return $ Item ['*', c] })
+    <|> do { c <- anyChar ; return $ Item [c] }
     <?> "character"
 
 occamChoice
@@ -312,10 +330,10 @@ dataType
     <?> "data type"
 
 declaration
-    =   try (do { d <- dataType ; n <- name ; sColon ; eol ; return $ List [d, n] })
-    <|> try (do { d <- channelType ; n <- name ; sColon ; eol ; return $ List [d, n] })
-    <|> try (do { d <- timerType ; n <- name ; sColon ; eol ; return $ List [d, n] })
-    <|> try (do { d <- portType ; n <- name ; sColon ; eol ; return $ List [d, n] })
+    =   try (do { d <- dataType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ List (d : ns) })
+    <|> try (do { d <- channelType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ List (d : ns) })
+    <|> try (do { d <- timerType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ List (d : ns) })
+    <|> try (do { d <- portType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ List (d : ns) })
     <?> "declaration"
 
 definition
@@ -323,7 +341,7 @@ definition
     <|> try (do { sDATA ; sTYPE ; n <- name ; eol ; indent ; t <- structuredType ; outdent ; sColon ; eol ; return $ List [Item "data-type", n, t] })
     <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- simpleProtocol ; sColon ; eol ; return $ List [Item "protocol", n, p] })
     <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- sequentialProtocol ; sColon ; eol ; return $ List [Item "protocol", n, p] })
-    <|> try (do { sPROTOCOL ; n <- name ; eol ; indent ; sCASE ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ List [Item "protocol", n, List ps] })
+    <|> try (do { sPROTOCOL ; n <- name ; eol ; indent ; sCASE ; eol ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ List [Item "protocol", n, List ps] })
     <|> try (do { sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return $ List [Item "proc", n, fs, p] })
     <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return $ List [Item "fun", List rs, n, fs, vp] })
     <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; sIS ; el <- expressionList ; sColon ; eol ; return $ List [Item "fun-is", List rs, n, fs, el] })
@@ -347,28 +365,28 @@ digits
     <?> "digits"
 
 dyadicOperator
-    =   try (do { reserved "+" ; return $ Item "+" })
-    <|> try (do { reserved "-" ; return $ Item "-" })
-    <|> try (do { reserved "*" ; return $ Item "*" })
-    <|> try (do { reserved "/" ; return $ Item "/" })
-    <|> try (do { reserved "\\" ; return $ Item "mod" })
+    =   try (do { reservedOp "+" ; return $ Item "+" })
+    <|> try (do { reservedOp "-" ; return $ Item "-" })
+    <|> try (do { reservedOp "*" ; return $ Item "*" })
+    <|> try (do { reservedOp "/" ; return $ Item "/" })
+    <|> try (do { reservedOp "\\" ; return $ Item "mod" })
     <|> try (do { sREM ; return $ Item "rem" })
     <|> try (do { sPLUS ; return $ Item "plus" })
     <|> try (do { sMINUS ; return $ Item "minus" })
     <|> try (do { sTIMES ; return $ Item "times" })
-    <|> try (do { reserved "/\\" ; return $ Item "bitand" })
-    <|> try (do { reserved "\\/" ; return $ Item "bitor" })
-    <|> try (do { reserved "><" ; return $ Item "bitxor" })
+    <|> try (do { reservedOp "/\\" ; return $ Item "bitand" })
+    <|> try (do { reservedOp "\\/" ; return $ Item "bitor" })
+    <|> try (do { reservedOp "><" ; return $ Item "bitxor" })
     <|> try (do { sBITAND ; return $ Item "bitand" })
     <|> try (do { sBITOR ; return $ Item "bitor" })
     <|> try (do { sAND ; return $ Item "and" })
     <|> try (do { sOR ; return $ Item "or" })
-    <|> try (do { reserved "=" ; return $ Item "=" })
-    <|> try (do { reserved "<>" ; return $ Item "<>" })
-    <|> try (do { reserved "<" ; return $ Item "<" })
-    <|> try (do { reserved ">" ; return $ Item ">" })
-    <|> try (do { reserved ">=" ; return $ Item ">=" })
-    <|> try (do { reserved "<=" ; return $ Item "<=" })
+    <|> try (do { reservedOp "=" ; return $ Item "=" })
+    <|> try (do { reservedOp "<>" ; return $ Item "<>" })
+    <|> try (do { reservedOp "<" ; return $ Item "<" })
+    <|> try (do { reservedOp ">" ; return $ Item ">" })
+    <|> try (do { reservedOp ">=" ; return $ Item ">=" })
+    <|> try (do { reservedOp "<=" ; return $ Item "<=" })
     <|> try (do { sAFTER ; return $ Item "after" })
     <?> "dyadicOperator"
 
@@ -387,8 +405,8 @@ expression
     <?> "expression"
 
 expressionList
-    =   try (do { es <- sepBy1 expression sComma ; return $ List es })
-    <|> try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ List ([Item "call", n] ++ as) })
+    =   try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ List ([Item "call", n] ++ as) })
+    <|> try (do { es <- sepBy1 expression sComma ; return $ List es })
 -- XXX value process
     <?> "expressionList"
 
@@ -419,7 +437,7 @@ functionHeader
 
 guard
     =   try input
-    <|> try (do { b <- boolean ; sAmp ; i <- input ; eol ; return $ List [Item "guarded", b, i] })
+    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ List [Item "guarded", b, i] })
     <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ List [Item "guarded", b, Item "skip"] })
     <?> "guard"
 
@@ -434,6 +452,11 @@ guardedChoice
 hexDigits
     =   do { d <- many1 hexDigit ; return $ Item d }
     <?> "hexDigits"
+
+-- XXX how does the syntax handle multiline regular CASE inputs?
+-- chan ? CASE
+--   foo
+--     ...
 
 input
     =   try (do { c <- channel ; sQuest ; is <- sepBy1 inputItem sSemi ; eol ; return $ List ([Item "?", c] ++ is) })
@@ -468,9 +491,9 @@ loop
     =   do { sWHILE ; b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ List [Item "while", p] }
 
 monadicOperator
-    =   try (do { reserved "-" ; return $ Item "-" })
+    =   try (do { reservedOp "-" ; return $ Item "-" })
     <|> try (do { sMINUS ; return $ Item "-" })
-    <|> try (do { reserved "~" ; return $ Item "bitnot" })
+    <|> try (do { reservedOp "~" ; return $ Item "bitnot" })
     <|> try (do { sBITNOT ; return $ Item "bitnot" })
     <|> try (do { sNOT ; return $ Item "not" })
     <|> do { sSIZE ; return $ Item "size" }
@@ -481,7 +504,7 @@ name
     <?> "name"
 
 occamString
-    =   do { char '"' ; s <- many (noneOf "\"") ; char '"' ; return $ Item ("\"" ++ s ++ "\"") }
+    =   lexeme (do { char '"' ; s <- many (noneOf "\"") ; char '"' ; return $ Item ("\"" ++ s ++ "\"") })
     <?> "string"
 
 operand
@@ -602,9 +625,9 @@ sequentialProtocol
     <?> "sequentialProtocol"
 
 simpleProtocol
-    =   try dataType
-    <|> try (do { try (sANY) ; return $ Item "any" })
-    <|> do { l <- dataType ; sColons ; r <- dataType ; return $ List [Item "::", l, r] }
+    =   try (do { l <- dataType ; sColons ; sLeft ; sRight ; r <- dataType ; return $ List [Item "::", l, r] })
+    <|> try dataType
+    <|> do { try (sANY) ; return $ Item "any" }
     <?> "simpleProtocol"
 
 specification
@@ -625,9 +648,11 @@ specifier
 structuredType
     =   try (do { sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ List ([Item "record"] ++ fs) })
     <|> do { sPACKED ; sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ List ([Item "packed-record"] ++ fs) }
+    <?> "structuredType"
 
 structuredTypeField
     =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; eol ; return $ List (t : fs) }
+    <?> "structuredTypeField"
 
 -- XXX (<name> <string>) not (<string> <name>) in case 2 for consistency with literal
 table
@@ -653,8 +678,8 @@ taggedList
     <?> "taggedList"
 
 taggedProtocol
-    =   try (do { t <- tag ; return $ List [t] })
-    <|> try (do { t <- tag ; sp <- sequentialProtocol ; return $ List (t : case sp of List ps -> ps) })
+    =   try (do { t <- tag ; eol ; return $ List [t] })
+    <|> try (do { t <- tag ; sSemi ; sp <- sequentialProtocol ; eol ; return $ List (t : case sp of List ps -> ps) })
 
 timer
     =   do { v <- timer' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\ v e -> List [Item "sub", v, e]) v es }
@@ -703,6 +728,7 @@ variant
 -- -------------------------------------------------------------
 
 -- XXX this doesn't handle multi-line strings
+-- XXX or VALOF processes
 
 countIndent :: String -> Int
 countIndent (' ':' ':cs) = 1 + (countIndent cs)
@@ -713,51 +739,39 @@ stripIndent :: String -> String
 stripIndent (' ':cs) = stripIndent cs
 stripIndent cs = cs
 
+stripComment :: String -> String
+stripComment [] = []
+stripComment ('-':'-':s) = []
+stripComment ('"':s) = '"' : stripCommentInString s
+stripComment (c:s) = c : stripComment s
+
+stripCommentInString :: String -> String
+stripCommentInString [] = error "In string at end of line"
+stripCommentInString ('"':s) = '"' : stripComment s
+stripCommentInString (c:s) = c : stripCommentInString s
+
 flatten :: [String] -> String
 flatten ls = concat $ intersperse "@" $ flatten' ls 0
   where
     rep n i = take n (repeat i)
     flatten' [] level = [rep level '}']
     flatten' (s:ss) level
+      | stripped == ""   = flatten' ss level
       | newLevel > level = (rep (newLevel - level) '{' ++ stripped) : rest
       | newLevel < level = (rep (level - newLevel) '}' ++ stripped) : rest
       | otherwise        = stripped : rest
       where newLevel = countIndent s
-            stripped = stripIndent s
+            stripped = stripIndent $ stripComment s
             rest = flatten' ss newLevel
 
 -- -------------------------------------------------------------
 
-ex = [
-  "INT foo:",
-  "[42]CHAN OF [25][9]INT thingy:",
-  "ALT",
-  "  c ? v",
-  "    SKIP",
-  "  d ? [x FROM 42 FOR thing + 1]",
-  "    STOP",
-  "  ALT i = 0 FOR n",
-  "    c[i] ? v",
-  "      oc ! v",
-  "  tc ? CASE",
-  "    One",
-  "      SKIP",
-  "    BOOL b:",
-  "    Two ; b",
-  "      PAR",
-  "        SEQ i = 0 FOR 1234",
-  "          SKIP",
-  "        SKIP",
-  "        IF",
-  "          b = 0",
-  "            STOP",
-  "          TRUE",
-  "            SKIP"
-  ]
+-- XXX We have to tack SKIP on the end to make it a process.
+-- XXX Doesn't handle preprocessor instructions.
 
-foo = """Hello
-world"""
+flattenFile fn = do d <- readFile fn
+                    return $ flatten $ lines (d ++ "\nSKIP\n")
 
-flat = putStr $ show $ flatten ex
-main = parseTest process $ flatten ex
+parseFile fn = do d <- flattenFile fn
+                  parseTest process d
 
