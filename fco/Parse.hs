@@ -24,12 +24,76 @@ occamStyle
     , P.identLetter    = alphaNum <|> char '.'
     , P.opStart        = oneOf "+-/*"
     , P.reservedOpNames= []
-    , P.reservedNames  = ["CHAN", "OF", "BOOL", "BYTE", "INT", "INT16", "INT32", "INT64", "REAL32", "REAL64", "ANY", "FROM", "FOR", "VAL", "IS", "PLACE", "AT", "ALT", "PRI", "SKIP", "STOP", "CASE", "ROUND", "TRUNC", "MOSTPOS", "MOSTNEG", "SIZE", "BYTESIN", "OFFSETOF", "TRUE", "FALSE", "MINUS", "BITNOT", "NOT", "SIZE", "AFTER", "DATA", "TYPE", "PROTOCOL", "PROC", "RETYPES", "RESHAPES", "FUNCTION", "VALOF", "RESULT", "RECORD", "PACKED"]
+    , P.reservedNames  = [
+                          "AFTER",
+                          "ALT",
+                          "AND",
+                          "ANY",
+                          "AT",
+                          "BITAND",
+                          "BITNOT",
+                          "BITOR",
+                          "BOOL",
+                          "BYTE",
+                          "BYTESIN",
+                          "CASE",
+                          "CHAN",
+                          "DATA",
+                          "ELSE",
+                          "FALSE",
+                          "FOR",
+                          "FROM",
+                          "FUNCTION",
+                          "IF",
+                          "INT",
+                          "INT16",
+                          "INT32",
+                          "INT64",
+                          "IS",
+                          "MINUS",
+                          "MOSTNEG",
+                          "MOSTPOS",
+                          "NOT",
+                          "OF",
+                          "OFFSETOF",
+                          "OR",
+                          "PACKED",
+                          "PAR",
+                          "PLACE",
+                          "PLACED",
+                          "PLUS",
+                          "PORT",
+                          "PRI",
+                          "PROC",
+                          "PROCESSOR",
+                          "PROTOCOL",
+                          "REAL32",
+                          "REAL64",
+                          "RECORD",
+                          "REM",
+                          "RESHAPES",
+                          "RESULT",
+                          "RETYPES",
+                          "ROUND",
+                          "SEQ",
+                          "SIZE",
+                          "SKIP",
+                          "STOP",
+                          "TIMER",
+                          "TIMES",
+                          "TRUE",
+                          "TRUNC",
+                          "TYPE",
+                          "VAL",
+                          "VALOF",
+                          "WHILE"
+                         ]
     , P.caseSensitive  = True
     }
 
 lexer :: P.TokenParser ()
 lexer  = P.makeTokenParser occamStyle
+-- XXX replace whitespace with something that doesn't eat \ns
 
 whiteSpace = P.whiteSpace lexer
 lexeme    = P.lexeme lexer
@@ -56,57 +120,89 @@ sQuest = symbol "?"
 sBang = symbol "!"
 sEq = symbol "="
 
-sFROM = reserved "FROM"
-sFOR = reserved "FOR"
-sVAL = reserved "VAL"
-sIS = reserved "IS"
-sPLACE = reserved "PLACE"
-sAT = reserved "AT"
+sAFTER = reserved "AFTER"
 sALT = reserved "ALT"
+sAND = reserved "AND"
+sANY = reserved "ANY"
+sAT = reserved "AT"
+sBITAND = reserved "BITAND"
+sBITNOT = reserved "BITNOT"
+sBITOR = reserved "BITOR"
+sBOOL = reserved "BOOL"
+sBYTE = reserved "BYTE"
+sBYTESIN = reserved "BYTESIN"
+sCASE = reserved "CASE"
+sCHAN = reserved "CHAN"
+sDATA = reserved "DATA"
+sELSE = reserved "ELSE"
+sFALSE = reserved "FALSE"
+sFOR = reserved "FOR"
+sFROM = reserved "FROM"
+sFUNCTION = reserved "FUNCTION"
+sIF = reserved "IF"
+sINT = reserved "INT"
+sINT16 = reserved "INT16"
+sINT32 = reserved "INT32"
+sINT64 = reserved "INT64"
+sIS = reserved "IS"
+sMINUS = reserved "MINUS"
+sMOSTNEG = reserved "MOSTNEG"
+sMOSTPOS = reserved "MOSTPOS"
+sNOT = reserved "NOT"
+sOF = reserved "OF"
+sOFFSETOF = reserved "OFFSETOF"
+sOR = reserved "OR"
+sPACKED = reserved "PACKED"
+sPAR = reserved "PAR"
+sPLACE = reserved "PLACE"
+sPLACED = reserved "PLACED"
+sPLUS = reserved "PLUS"
+sPORT = reserved "PORT"
 sPRI = reserved "PRI"
+sPROC = reserved "PROC"
+sPROCESSOR = reserved "PROCESSOR"
+sPROTOCOL = reserved "PROTOCOL"
+sREAL32 = reserved "REAL32"
+sREAL64 = reserved "REAL64"
+sRECORD = reserved "RECORD"
+sREM = reserved "REM"
+sRESHAPES = reserved "RESHAPES"
+sRESULT = reserved "RESULT"
+sRETYPES = reserved "RETYPES"
+sROUND = reserved "ROUND"
+sSEQ = reserved "SEQ"
+sSIZE = reserved "SIZE"
 sSKIP = reserved "SKIP"
 sSTOP = reserved "STOP"
-sCASE = reserved "CASE"
-sROUND = reserved "ROUND"
-sTRUNC = reserved "TRUNC"
-sMOSTPOS = reserved "MOSTPOS"
-sMOSTNEG = reserved "MOSTNEG"
-sSIZE = reserved "SIZE"
-sBYTESIN = reserved "BYTESIN"
-sOFFSETOF = reserved "OFFSETOF"
+sTIMER = reserved "TIMER"
+sTIMES = reserved "TIMES"
 sTRUE = reserved "TRUE"
-sFALSE = reserved "FALSE"
-sAFTER = reserved "AFTER"
-sDATA = reserved "DATA"
+sTRUNC = reserved "TRUNC"
 sTYPE = reserved "TYPE"
-sPROTOCOL = reserved "PROTOCOL"
-sPROC = reserved "PROC"
-sRETYPES = reserved "RETYPES"
-sRESHAPES = reserved "RESHAPES"
-sFUNCTION = reserved "FUNCTION"
+sVAL = reserved "VAL"
 sVALOF = reserved "VALOF"
-sRESULT = reserved "RESULT"
-sRECORD = reserved "RECORD"
-sPACKED = reserved "PACKED"
+sWHILE = reserved "WHILE"
 
-sIn = symbol "{"
-sOut = symbol "}"
+-- XXX could handle VALOF by translating each step to one { and matching multiple ones?
+indent = symbol "{"
+outdent = symbol "}"
+eol = symbol "@"
 
--- All of these have type "Parser SExp".
+-- Most of these have type "Parser SExp".
 
 abbreviation
-    =   try (do { n <- name ; sIS ; v <- variable ; sColon ; return $ List [Item "is", n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; return $ List [Item "is", s, n, v] })
-    <|> try (do { sVAL ; n <- name ; sIS ; v <- variable ; sColon ; return $ List [Item "val-is", n, v] })
-    <|> try (do { sVAL ; s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; return $ List [Item "val-is", s, n, v] })
-    <|> try (do { n <- name ; sIS ; v <- channel ; sColon ; return $ List [Item "is", n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- channel ; sColon ; return $ List [Item "is", s, n, v] })
-    <|> try (do { n <- name ; sIS ; sLeft ; v <- sepBy1 channel sComma ; sRight ; sColon ; return $ List [Item "is", n, List v] })
+    =   try (do { n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "is", n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "is", s, n, v] })
+    <|> try (do { sVAL ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "val-is", n, v] })
+    <|> try (do { sVAL ; s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ List [Item "val-is", s, n, v] })
+    <|> try (do { n <- name ; sIS ; v <- channel ; sColon ; eol ; return $ List [Item "is", n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- channel ; sColon ; eol ; return $ List [Item "is", s, n, v] })
+    <|> try (do { n <- name ; sIS ; sLeft ; v <- sepBy1 channel sComma ; sRight ; sColon ; eol ; return $ List [Item "is", n, List v] })
     <|> try (do { s <- specifier ; n <- name ; sIS ; sLeft ; v <- sepBy1 channel sComma ; return $ List [Item "is", s, n, List v] })
-    <|> try (do { n <- name ; sIS ; v <- timer ; sColon ; return $ List [Item "is", n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- timer ; sColon ; return $ List [Item "is", s, n, v] })
-    <|> try (do { n <- name ; sIS ; v <- port ; sColon ; return $ List [Item "is", n, v] })
-    <|> do { s <- specifier ; n <- name ; sIS ; v <- port ; sColon ; return $ List [Item "is", s, n, v] }
+    <|> try (do { n <- name ; sIS ; v <- timer ; sColon ; eol ; return $ List [Item "is", n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- timer ; sColon ; eol ; return $ List [Item "is", s, n, v] })
+    <|> try (do { n <- name ; sIS ; v <- port ; sColon ; eol ; return $ List [Item "is", n, v] })
+    <|> do { s <- specifier ; n <- name ; sIS ; v <- port ; sColon ; eol ; return $ List [Item "is", s, n, v] }
     <?> "abbreviation"
 
 actual
@@ -118,26 +214,26 @@ actual
     <?> "actual"
 
 allocation
-    =   do { sPLACE ; n <- name ; sAT ; e <- expression ; return $ List [Item "place-at", n, e] }
+    =   do { sPLACE ; n <- name ; sAT ; e <- expression ; sColon ; eol ; return $ List [Item "place-at", n, e] }
     <?> "allocation"
 
 alternation
-    =   try (do { sALT ; sIn ; as <- many1 alternative ; sOut ; return $ List ([Item "alt"] ++ as) })
-    <|> try (do { sALT ; r <- replicator ; sIn ; a <- alternative ; sOut ; return $ List ([Item "alt", r, a]) })
-    <|> try (do { sPRI ; sALT ; sIn ; as <- many1 alternative ; sOut ; return $ List ([Item "pri-alt"] ++ as) })
-    <|> do { sPRI ; sALT ; r <- replicator ; sIn ; a <- alternative ; sOut ; return $ List ([Item "pri-alt", r, a]) }
+    =   try (do { sALT ; eol ; indent ; as <- many1 alternative ; outdent ; return $ List ([Item "alt"] ++ as) })
+    <|> try (do { sALT ; r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ List ([Item "alt", r, a]) })
+    <|> try (do { sPRI ; sALT ; eol ; indent ; as <- many1 alternative ; outdent ; return $ List ([Item "pri-alt"] ++ as) })
+    <|> do { sPRI ; sALT ; r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ List ([Item "pri-alt", r, a]) }
     <?> "alternation"
 
 alternative
     =   try guardedAlternative
     <|> try alternation
-    <|> try (do { c <- channel ; sQuest ; sCASE ; sIn ; vs <- many1 variant ; sOut ; return $ List ([Item "?case", c] ++ vs) })
-    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; sIn ; vs <- many1 variant ; sOut ; return $ List ([Item "?case-guarded", b, c] ++ vs) })
+    <|> try (do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ List ([Item "?case", c] ++ vs) })
+    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ List ([Item "?case-guarded", b, c] ++ vs) })
     <|> do { s <- specification ; a <- alternative ; return $ List [Item ":", s, a] }
     <?> "alternative"
 
 assignment
-    =   do { vs <- variableList ; sAssign ; es <- expressionList ; return $ List [Item ":=", vs, es] }
+    =   do { vs <- variableList ; sAssign ; es <- expressionList ; eol ; return $ List [Item ":=", vs, es] }
     <?> "assignment"
 
 base
@@ -152,6 +248,14 @@ byte
     =   do { char '\'' ; c <- character ; char '\'' ; return c }
     <?> "byte"
 
+caseExpression
+    =   expression
+    <?> "caseExpression"
+
+caseInput
+    =   do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ List ([Item "?case", c] ++ vs) }
+    <?> "caseInput"
+
 channel
     =   do { v <- channel' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\ v e -> List [Item "sub", v, e]) v es }
     <?> "channel"
@@ -164,7 +268,7 @@ channel'
     <?> "channel'"
 
 channelType
-    =   try (do { reserved "CHAN" ; reserved "OF" ; p <- protocol ; return $ List [Item "chan-of", p] })
+    =   try (do { sCHAN ; sOF ; p <- protocol ; return $ List [Item "chan-of", p] })
     <|> do { sLeft ; s <- expression ; sRight ; t <- channelType ; return $ List [Item "array", s, t] }
     <?> "channelType"
 
@@ -172,6 +276,17 @@ channelType
 character
     =   do { l <- letter ; return $ Item [l] }
     <?> "character"
+
+occamChoice
+    =   try guardedChoice
+    <|> try conditional
+    <|> do { s <- specification ; c <- occamChoice ; return $ List [Item ":", s, c] }
+    <?> "choice"
+
+conditional
+    =   try (do { sIF ; eol ; indent ; cs <- many1 occamChoice ; outdent ; return $ List ([Item "if"] ++ cs) })
+    <|> do { sIF ; r <- replicator ; eol ; indent ; c <- occamChoice ; outdent ; return $ List [Item "if", r, c] }
+    <?> "conditional"
 
 conversion
     =   try (do { t <- dataType ; o <- operand ; return $ List [Item "conv", t, o] })
@@ -184,46 +299,46 @@ occamCount
     <?> "count"
 
 dataType
-    =   do { try (reserved "BOOL") ; return $ Item "bool" }
-    <|> do { try (reserved "BYTE") ; return $ Item "byte" }
-    <|> do { try (reserved "INT") ; return $ Item "int" }
-    <|> do { try (reserved "INT16") ; return $ Item "int16" }
-    <|> do { try (reserved "INT32") ; return $ Item "int32" }
-    <|> do { try (reserved "INT64") ; return $ Item "int64" }
-    <|> do { try (reserved "REAL32") ; return $ Item "real32" }
-    <|> do { try (reserved "REAL64") ; return $ Item "real64" }
+    =   do { try sBOOL ; return $ Item "bool" }
+    <|> do { try sBYTE ; return $ Item "byte" }
+    <|> do { try sINT ; return $ Item "int" }
+    <|> do { try sINT16 ; return $ Item "int16" }
+    <|> do { try sINT32 ; return $ Item "int32" }
+    <|> do { try sINT64 ; return $ Item "int64" }
+    <|> do { try sREAL32 ; return $ Item "real32" }
+    <|> do { try sREAL64 ; return $ Item "real64" }
     <|> try (do { sLeft ; s <- expression ; sRight ; t <- dataType ; return $ List [Item "array", s, t] })
     <|> name
     <?> "data type"
 
 declaration
-    =   try (do { d <- dataType ; n <- name ; sColon ; return $ List [d, n] })
-    <|> try (do { d <- channelType ; n <- name ; sColon ; return $ List [d, n] })
-    <|> try (do { d <- timerType ; n <- name ; sColon ; return $ List [d, n] })
-    <|> try (do { d <- portType ; n <- name ; sColon ; return $ List [d, n] })
+    =   try (do { d <- dataType ; n <- name ; sColon ; eol ; return $ List [d, n] })
+    <|> try (do { d <- channelType ; n <- name ; sColon ; eol ; return $ List [d, n] })
+    <|> try (do { d <- timerType ; n <- name ; sColon ; eol ; return $ List [d, n] })
+    <|> try (do { d <- portType ; n <- name ; sColon ; eol ; return $ List [d, n] })
     <?> "declaration"
 
 definition
-    =   try (do { sDATA ; sTYPE ; n <- name ; sIS ; t <- dataType ; sColon ; return $ List [Item "data-type", n, t] })
-    <|> try (do { sDATA ; sTYPE ; n <- name ; sIn ; t <- structuredType ; sOut ; sColon ; return $ List [Item "data-type", n, t] })
-    <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- simpleProtocol ; sColon ; return $ List [Item "protocol", n, p] })
-    <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- sequentialProtocol ; sColon ; return $ List [Item "protocol", n, p] })
-    <|> try (do { sPROTOCOL ; n <- name ; sIn ; sCASE ; sIn ; ps <- many1 taggedProtocol ; sOut ; sOut ; sColon ; return $ List [Item "protocol", n, List ps] })
-    <|> try (do { sPROC ; n <- name ; fs <- formalList ; sIn ; p <- process ; sOut ; sColon ; return $ List [Item "proc", n, fs, p] })
-    <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; sIn ; vp <- valueProcess ; sOut ; sColon ; return $ List [Item "fun", List rs, n, fs, vp] })
-    <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; sIS ; el <- expressionList ; sColon ; return $ List [Item "fun-is", List rs, n, fs, el] })
-    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- variable ; sColon ; return $ List [Item "retypes", s, n, v] })
-    <|> try (do { sVAL ; s <- specifier ; n <- name ; sRETYPES ; v <- variable ; sColon ; return $ List [Item "val-retypes", s, n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- channel ; sColon ; return $ List [Item "retypes", s, n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- port ; sColon ; return $ List [Item "retypes", s, n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sRESHAPES ; v <- variable ; sColon ; return $ List [Item "reshapes", s, n, v] })
-    <|> try (do { sVAL ; s <- specifier ; n <- name ; sRESHAPES ; v <- variable ; sColon ; return $ List [Item "val-reshapes", s, n, v] })
-    <|> try (do { s <- specifier ; n <- name ; sRESHAPES ; v <- channel ; sColon ; return $ List [Item "reshapes", s, n, v] })
-    <|> do { s <- specifier ; n <- name ; sRESHAPES ; v <- port ; sColon ; return $ List [Item "reshapes", s, n, v] }
+    =   try (do { sDATA ; sTYPE ; n <- name ; sIS ; t <- dataType ; sColon ; eol ; return $ List [Item "data-type", n, t] })
+    <|> try (do { sDATA ; sTYPE ; n <- name ; eol ; indent ; t <- structuredType ; outdent ; sColon ; eol ; return $ List [Item "data-type", n, t] })
+    <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- simpleProtocol ; sColon ; eol ; return $ List [Item "protocol", n, p] })
+    <|> try (do { sPROTOCOL ; n <- name ; sIS ; p <- sequentialProtocol ; sColon ; eol ; return $ List [Item "protocol", n, p] })
+    <|> try (do { sPROTOCOL ; n <- name ; eol ; indent ; sCASE ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ List [Item "protocol", n, List ps] })
+    <|> try (do { sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return $ List [Item "proc", n, fs, p] })
+    <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return $ List [Item "fun", List rs, n, fs, vp] })
+    <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ; sIS ; el <- expressionList ; sColon ; eol ; return $ List [Item "fun-is", List rs, n, fs, el] })
+    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- variable ; sColon ; eol ; return $ List [Item "retypes", s, n, v] })
+    <|> try (do { sVAL ; s <- specifier ; n <- name ; sRETYPES ; v <- variable ; sColon ; eol ; return $ List [Item "val-retypes", s, n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- channel ; sColon ; eol ; return $ List [Item "retypes", s, n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sRETYPES ; v <- port ; sColon ; eol ; return $ List [Item "retypes", s, n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sRESHAPES ; v <- variable ; sColon ; eol ; return $ List [Item "reshapes", s, n, v] })
+    <|> try (do { sVAL ; s <- specifier ; n <- name ; sRESHAPES ; v <- variable ; sColon ; eol ; return $ List [Item "val-reshapes", s, n, v] })
+    <|> try (do { s <- specifier ; n <- name ; sRESHAPES ; v <- channel ; sColon ; eol ; return $ List [Item "reshapes", s, n, v] })
+    <|> do { s <- specifier ; n <- name ; sRESHAPES ; v <- port ; sColon ; eol ; return $ List [Item "reshapes", s, n, v] }
     <?> "definition"
 
 delayedInput
-    =   try (do { c <- channel ; sQuest ; sAFTER ; e <- expression ; return $ List [Item "?after", c, e] })
+    =   try (do { c <- channel ; sQuest ; sAFTER ; e <- expression ; eol ; return $ List [Item "?after", c, e] })
     <?> "delayedInput"
 
 -- NB does not return an SExp
@@ -237,17 +352,17 @@ dyadicOperator
     <|> try (do { reserved "*" ; return $ Item "*" })
     <|> try (do { reserved "/" ; return $ Item "/" })
     <|> try (do { reserved "\\" ; return $ Item "mod" })
-    <|> try (do { reserved "REM" ; return $ Item "rem" })
-    <|> try (do { reserved "PLUS" ; return $ Item "plus" })
-    <|> try (do { reserved "MINUS" ; return $ Item "minus" })
-    <|> try (do { reserved "TIMES" ; return $ Item "times" })
+    <|> try (do { sREM ; return $ Item "rem" })
+    <|> try (do { sPLUS ; return $ Item "plus" })
+    <|> try (do { sMINUS ; return $ Item "minus" })
+    <|> try (do { sTIMES ; return $ Item "times" })
     <|> try (do { reserved "/\\" ; return $ Item "bitand" })
     <|> try (do { reserved "\\/" ; return $ Item "bitor" })
     <|> try (do { reserved "><" ; return $ Item "bitxor" })
-    <|> try (do { reserved "BITAND" ; return $ Item "bitand" })
-    <|> try (do { reserved "BITOR" ; return $ Item "bitor" })
-    <|> try (do { reserved "AND" ; return $ Item "and" })
-    <|> try (do { reserved "OR" ; return $ Item "or" })
+    <|> try (do { sBITAND ; return $ Item "bitand" })
+    <|> try (do { sBITOR ; return $ Item "bitor" })
+    <|> try (do { sAND ; return $ Item "and" })
+    <|> try (do { sOR ; return $ Item "or" })
     <|> try (do { reserved "=" ; return $ Item "=" })
     <|> try (do { reserved "<>" ; return $ Item "<>" })
     <|> try (do { reserved "<" ; return $ Item "<" })
@@ -259,6 +374,7 @@ dyadicOperator
 
 occamExponent
     =   try (do { c <- oneOf "+-" ; d <- digits ; return $ c : d })
+    <?> "exponent"
 
 expression
     =   try (do { o <- monadicOperator ; v <- operand ; return $ List [o, v] })
@@ -283,6 +399,7 @@ fieldName
 -- This is rather different from the grammar.
 formalList
     =   do { sLeftR ; fs <- sepBy formalArg sComma ; sRightR ; return $ List (map List (reverse (reduce (reverse fs) []))) }
+    <?> "formalList"
     where
       formalArg :: Parser ([[SExp]] -> [[SExp]])
       formalArg =   try (do { sVAL ; s <- specifier ; n <- name ; return $ addToList [Item "val", s] n })
@@ -298,27 +415,32 @@ formalList
 
 functionHeader
     =   do { sFUNCTION ; n <- name ; fs <- formalList ; return $ (n, fs) }
+    <?> "functionHeader"
 
 guard
     =   try input
-    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ List [Item "guarded", b, i] })
-    <|> try (do { b <- boolean ; sAmp ; sSKIP ; return $ List [Item "guarded", b, Item "skip"] })
+    <|> try (do { b <- boolean ; sAmp ; i <- input ; eol ; return $ List [Item "guarded", b, i] })
+    <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ List [Item "guarded", b, Item "skip"] })
     <?> "guard"
 
 guardedAlternative
-    =   do { g <- guard ; sIn ; p <- process ; sOut ; return $ List [g, p] }
+    =   do { g <- guard ; indent ; p <- process ; outdent ; return $ List [g, p] }
     <?> "guardedAlternative"
+
+guardedChoice
+    =   do { b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ List [b, p] }
+    <?> "guardedChoice"
 
 hexDigits
     =   do { d <- many1 hexDigit ; return $ Item d }
     <?> "hexDigits"
 
 input
-    =   try (do { c <- channel ; sQuest ; is <- sepBy1 inputItem sSemi ; return $ List ([Item "?", c] ++ is) })
-    <|> try (do { c <- channel ; sQuest ; sCASE ; tl <- taggedList ; return $ List [Item "?case", c, tl] })
+    =   try (do { c <- channel ; sQuest ; is <- sepBy1 inputItem sSemi ; eol ; return $ List ([Item "?", c] ++ is) })
+    <|> try (do { c <- channel ; sQuest ; sCASE ; tl <- taggedList ; eol ; return $ List [Item "?case", c, tl] })
     <|> timerInput
     <|> delayedInput
-    <|> do { p <- port ; sQuest ; v <- variable ; return $ List [Item "?", p, v] }
+    <|> do { p <- port ; sQuest ; v <- variable ; eol ; return $ List [Item "?", p, v] }
     <?> "input"
 
 inputItem
@@ -342,13 +464,16 @@ literal
     <|> do { sFALSE ; return $ Item "false" }
     <?> "literal"
 
+loop
+    =   do { sWHILE ; b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ List [Item "while", p] }
+
 monadicOperator
     =   try (do { reserved "-" ; return $ Item "-" })
-    <|> try (do { reserved "MINUS" ; return $ Item "-" })
+    <|> try (do { sMINUS ; return $ Item "-" })
     <|> try (do { reserved "~" ; return $ Item "bitnot" })
-    <|> try (do { reserved "BITNOT" ; return $ Item "bitnot" })
-    <|> try (do { reserved "NOT" ; return $ Item "not" })
-    <|> do { reserved "SIZE" ; return $ Item "size" }
+    <|> try (do { sBITNOT ; return $ Item "bitnot" })
+    <|> try (do { sNOT ; return $ Item "not" })
+    <|> do { sSIZE ; return $ Item "size" }
     <?> "monadicOperator"
 
 name
@@ -375,17 +500,37 @@ operand'
     <|> try (do { sOFFSETOF ; sLeftR ; n <- name ; sComma ; f <- fieldName ; sRightR ; return $ List [Item "offsetof", n, f] })
     <?> "operand'"
 
+occamOption
+    =   try (do { ces <- sepBy caseExpression sComma ; eol ; indent ; p <- process ; outdent ; return $ List [List ces, p] })
+    <|> try (do { sELSE ; eol ; indent ; p <- process ; outdent ; return $ List [Item "else", p] })
+    <|> do { s <- specification ; o <- occamOption ; return $ List [Item ":", s, o] }
+    <?> "option"
+
 output
-    =   try (do { c <- channel ; sBang ; os <- sepBy1 outputItem sSemi ; return $ List ([Item "!", c] ++ os) })
-    <|> try (do { c <- channel ; sBang ; t <- tag ; sSemi ; os <- sepBy1 outputItem sSemi ; return $ List ([Item "!", c, t] ++ os) })
-    <|> try (do { c <- channel ; sBang ; t <- tag ; return $ List [Item "!", c, t] })
-    <|> do { p <- port ; sBang ; e <- expression ; return $ List [Item "!", p, e] }
+    =   try (do { c <- channel ; sBang ; os <- sepBy1 outputItem sSemi ; eol ; return $ List ([Item "!", c] ++ os) })
+    <|> try (do { c <- channel ; sBang ; t <- tag ; sSemi ; os <- sepBy1 outputItem sSemi ; eol ; return $ List ([Item "!", c, t] ++ os) })
+    <|> try (do { c <- channel ; sBang ; t <- tag ; eol ; return $ List [Item "!", c, t] })
+    <|> do { p <- port ; sBang ; e <- expression ; eol ; return $ List [Item "!", p, e] }
     <?> "output"
 
 outputItem
     =   try (do { a <- expression ; sColons ; b <- expression ; return $ List [Item "::", a, b] })
     <|> expression
     <?> "outputItem"
+
+parallel
+    =   try (do { sPAR ; eol ; indent ; ps <- many1 process ; outdent ; return $ List ([Item "par"] ++ ps) })
+    <|> try (do { sPAR ; r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ List ([Item "par", r, p]) })
+    <|> try (do { sPRI ; sPAR ; eol ; indent ; ps <- many1 process ; outdent ; return $ List ([Item "pri-par"] ++ ps) })
+    <|> try (do { sPRI ; sPAR ; r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ List ([Item "pri-par", r, p]) })
+    <|> placedpar
+    <?> "parallel"
+
+placedpar
+    =   try (do { sPLACED ; sPAR ; eol ; indent ; ps <- many1 placedpar ; outdent ; return $ List ([Item "placed-par"] ++ ps) })
+    <|> try (do { sPLACED ; sPAR ; r <- replicator ; eol ; indent ; p <- placedpar ; outdent ; return $ List ([Item "placed-par", r, p]) })
+    <|> do { sPROCESSOR ; e <- expression ; eol ; indent ; p <- process ; outdent ; return $ List ([Item "processor", e, p]) }
+    <?> "placedpar"
 
 port
     =   do { v <- port' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\ v e -> List [Item "sub", v, e]) v es }
@@ -399,18 +544,28 @@ port'
     <?> "port'"
 
 portType
-    =   try (do { reserved "PORT" ; reserved "OF" ; p <- protocol ; return $ List [Item "port-of", p] })
+    =   try (do { sPORT ; sOF ; p <- protocol ; return $ List [Item "port-of", p] })
     <|> do { sLeft ; s <- expression ; sRight ; t <- portType ; return $ List [Item "array", s, t] }
     <?> "portType"
+
+procInstance
+    =   do { n <- name ; sLeftR ; as <- sepBy actual sComma ; sRightR ; eol ; return $ List (n : as) }
+    <?> "procInstance"
 
 process
     =   try assignment
     <|> try input
     <|> try output
---XXX lots more
-    <|> try (do { sSKIP ; return $ Item "skip" })
-    <|> try (do { sSTOP ; return $ Item "stop" })
+    <|> try (do { sSKIP ; eol ; return $ Item "skip" })
+    <|> try (do { sSTOP ; eol ; return $ Item "stop" })
+    <|> try occamSequence
+    <|> try conditional
+    <|> try selection
+    <|> try loop
+    <|> try parallel
     <|> try alternation
+    <|> try caseInput
+    <|> try procInstance
     <|> try (do { s <- specification ; p <- process ; return $ List [Item ":", s, p] })
     <|> do { a <- allocation ; p <- process ; return $ List [Item ":", a, p] }
     <?> "process"
@@ -429,13 +584,26 @@ replicator
     =   do { n <- name ; sEq ; b <- base ; sFOR ; c <- occamCount ; return $ List [Item "for", n, b, c] }
     <?> "replicator"
 
+selection
+    =   do { sCASE ; s <- selector ; eol ; indent ; os <- many1 occamOption ; outdent ; return $ List ([Item "case", s] ++ os) }
+    <?> "selection"
+
+selector
+    =   expression
+    <?> "selector"
+
+occamSequence
+    =   try (do { sSEQ ; eol ; indent ; ps <- many1 process ; outdent ; return $ List ([Item "seq"] ++ ps) })
+    <|> do { sSEQ ; r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ List ([Item "seq", r, p]) }
+    <?> "sequence"
+
 sequentialProtocol
     =   do { l <- sepBy1 simpleProtocol sSemi ; return $ List l }
     <?> "sequentialProtocol"
 
 simpleProtocol
     =   try dataType
-    <|> try (do { try (reserved "ANY") ; return $ Item "any" })
+    <|> try (do { try (sANY) ; return $ Item "any" })
     <|> do { l <- dataType ; sColons ; r <- dataType ; return $ List [Item "::", l, r] }
     <?> "simpleProtocol"
 
@@ -455,11 +623,11 @@ specifier
     <?> "specifier"
 
 structuredType
-    =   try (do { sRECORD ; sIn ; fs <- many1 structuredTypeField ; sOut ; return $ List ([Item "record"] ++ fs) })
-    <|> do { sPACKED ; sRECORD ; sIn ; fs <- many1 structuredTypeField ; sOut ; return $ List ([Item "packed-record"] ++ fs) }
+    =   try (do { sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ List ([Item "record"] ++ fs) })
+    <|> do { sPACKED ; sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ List ([Item "packed-record"] ++ fs) }
 
 structuredTypeField
-    =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; return $ List (t : fs) }
+    =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; eol ; return $ List (t : fs) }
 
 -- XXX (<name> <string>) not (<string> <name>) in case 2 for consistency with literal
 table
@@ -500,16 +668,16 @@ timer'
     <?> "timer'"
 
 timerInput
-    =   try (do { c <- channel ; sQuest ; v <- variable ; return $ List [Item "?", c, v] })
+    =   try (do { c <- channel ; sQuest ; v <- variable ; eol ; return $ List [Item "?", c, v] })
     <?> "timerInput"
 
 timerType
-    =   try (do { reserved "TIMER" ; return $ Item "timer" })
+    =   try (do { sTIMER ; return $ Item "timer" })
     <|> do { sLeft ; s <- expression ; sRight ; t <- timerType ; return $ List [Item "array", s, t] }
     <?> "timerType"
 
 valueProcess
-    =   try (do { sVALOF ; sIn ; p <- process ; sRESULT ; el <- expressionList ; sOut ; return $ List [Item "valof", p, el] })
+    =   try (do { sVALOF ; eol ; indent ; p <- process ; sRESULT ; el <- expressionList ; eol ; outdent ; return $ List [Item "valof", p, el] })
     <|> do { s <- specification ; v <- valueProcess ; return $ List [Item ":", s, v] }
 
 variable
@@ -528,14 +696,13 @@ variableList
     <?> "variableList"
 
 variant
-    =   try (do { t <- taggedList ; sIn ; p <- process ; sOut ; return $ List [t, p] })
+    =   try (do { t <- taggedList ; eol ; indent ; p <- process ; outdent ; return $ List [t, p] })
     <|> do { s <- specification ; v <- variant ; return $ List [Item ":", s, v] }
     <?> "variant"
 
 -- -------------------------------------------------------------
 
 -- XXX this doesn't handle multi-line strings
--- It also discards end-of-lines, but I think that *might* be OK...
 
 countIndent :: String -> Int
 countIndent (' ':' ':cs) = 1 + (countIndent cs)
@@ -547,10 +714,10 @@ stripIndent (' ':cs) = stripIndent cs
 stripIndent cs = cs
 
 flatten :: [String] -> String
-flatten ls = concat $ intersperse "\n" $ flatten' ls 0
+flatten ls = concat $ intersperse "@" $ flatten' ls 0
   where
     rep n i = take n (repeat i)
-    flatten' [] level = rep level "}"
+    flatten' [] level = [rep level '}']
     flatten' (s:ss) level
       | newLevel > level = (rep (newLevel - level) '{' ++ stripped) : rest
       | newLevel < level = (rep (level - newLevel) '}' ++ stripped) : rest
@@ -577,8 +744,19 @@ ex = [
   "      SKIP",
   "    BOOL b:",
   "    Two ; b",
-  "      SKIP"
+  "      PAR",
+  "        SEQ i = 0 FOR 1234",
+  "          SKIP",
+  "        SKIP",
+  "        IF",
+  "          b = 0",
+  "            STOP",
+  "          TRUE",
+  "            SKIP"
   ]
+
+foo = """Hello
+world"""
 
 flat = putStr $ show $ flatten ex
 main = parseTest process $ flatten ex
