@@ -1,5 +1,9 @@
--- Parse occam2.1 code into soccam2.1.
 -- vim:et:ts=2
+-- Parse occam2.1 code into soccam2.1.
+-- Adam Sampson <ats@offog.org>
+-- To compile:       ghc -o occ2socc --make Parse
+-- Then run with:    ./occ2socc <my.occ >my.socc
+-- Or to interpret:  ghci Parse.hs
 
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -769,9 +773,11 @@ flatten ls = concat $ intersperse "@" $ flatten' ls 0
 -- XXX We have to tack SKIP on the end to make it a process.
 -- XXX Doesn't handle preprocessor instructions.
 
-flattenFile fn = do d <- readFile fn
-                    return $ flatten $ lines (d ++ "\nSKIP\n")
+prepare d = flatten $ lines (d ++ "\nSKIP\n")
 
-parseFile fn = do d <- flattenFile fn
-                  parseTest process d
+parseFile fn = do d <- readFile fn
+                  parseTest process (prepare d)
+
+main = do d <- getContents
+          parseTest process (prepare d)
 
