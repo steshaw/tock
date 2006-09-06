@@ -1,15 +1,18 @@
 -- Parse occam code
 
-module Parse where
+module Parse (parseSourceFile) where
 
 import Data.List
 import Text.ParserCombinators.Parsec
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Language (emptyDef)
+import qualified IO
 
 import Tree
 
 -- -------------------------------------------------------------
+
+mainMarker = "##MAGIC-FCO-MAIN-PROCESS##"
 
 occamStyle
     = emptyDef
@@ -98,7 +101,8 @@ occamStyle
                           "TYPE",
                           "VAL",
                           "VALOF",
-                          "WHILE"
+                          "WHILE",
+                          mainMarker
                          ]
     , P.caseSensitive  = True
     }
@@ -194,11 +198,16 @@ sTYPE = reserved "TYPE"
 sVAL = reserved "VAL"
 sVALOF = reserved "VALOF"
 sWHILE = reserved "WHILE"
+sMainMarker = reserved mainMarker
 
 -- XXX could handle VALOF by translating each step to one { and matching multiple ones?
 indent = symbol "{"
 outdent = symbol "}"
 eol = symbol "@"
+
+-- -------------------------------------------------------------
+
+-- These productions are based on the syntax in the occam2.1 manual.
 
 abbreviation
     =   try (do { n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ OcIs n v })
@@ -591,6 +600,7 @@ process
     <|> try alternation
     <|> try caseInput
     <|> try procInstance
+    <|> try (do { sMainMarker ; eol ; return $ OcMainProcess })
     <|> try (do { s <- specification ; p <- process ; return $ OcDecl s p })
     <|> do { a <- allocation ; p <- process ; return $ OcDecl a p }
     <?> "process"
@@ -731,6 +741,14 @@ variant
 
 -- -------------------------------------------------------------
 
+-- This is only really true once we've tacked a process onto the bottom; a
+-- source file is really a series of specifications, but the later ones need to
+-- have the earlier ones in scope, so we can't parse them separately.
+
+sourceFile = process
+
+-- -------------------------------------------------------------
+
 -- XXX this doesn't handle multi-line strings
 -- XXX or VALOF processes
 
@@ -770,11 +788,15 @@ flatten ls = concat $ intersperse "@" $ flatten' ls 0
 
 -- -------------------------------------------------------------
 
--- XXX We have to tack SKIP on the end to make it a process.
 -- XXX Doesn't handle preprocessor instructions.
 
-prepare d = flatten $ lines (d ++ "\nSKIP\n")
+prepare d = flatten $ lines (d ++ "\n" ++ mainMarker)
 
-parseFile fn = do d <- readFile fn
-                  parseTest process (prepare d)
+parseSourceFile :: String -> IO Node
+parseSourceFile fn
+  = do  f <- IO.openFile fn IO.ReadMode
+        d <- IO.hGetContents f
+        return $ case (parse sourceFile "occam" $ prepare d) of
+           Left err -> error ("Parsing error: " ++ (show err))
+           Right defs -> defs
 

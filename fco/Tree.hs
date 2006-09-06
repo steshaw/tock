@@ -36,6 +36,7 @@ data Node =
   | OcSeq [Node]
   | OcSeqRep Node Node
   | OcProcCall Node [Node]
+  | OcMainProcess
 
   | OcVars Node [Node]
   | OcIs Node Node
