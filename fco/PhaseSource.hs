@@ -9,7 +9,7 @@ phaseSource
   = (Phase "Source rewriting"
       [basePass1]
       [
-        ("Nuke variable names", nukeVars)
+        ("C-ify identifiers", cifyIdentifiers)
       ])
 
 -- {{{ BEGIN basePass1
@@ -140,9 +140,9 @@ basePass1 next top node
       _ -> next node
 -- }}} END
 
-nukeVars :: Pass
-nukeVars next top node
+cifyIdentifiers :: Pass
+cifyIdentifiers next top node
   = case node of
-      OcName n -> OcName "fish"
+      OcName n -> OcName [if c == '.' then '_' else c | c <- n]
       _ -> next node
 
