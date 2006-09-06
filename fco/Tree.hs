@@ -3,6 +3,7 @@
 module Tree where
 
 data Node =
+-- {{{ BEGIN PhaseSource.hs basePass1
   OcDecl Node Node
   | OcAlt [Node]
   | OcAltRep Node Node
@@ -136,6 +137,7 @@ data Node =
   | OcTrue
   | OcFalse
   | OcName String
+-- }}} END
 
   deriving (Show, Eq)
 
