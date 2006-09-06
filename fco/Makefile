@@ -1,5 +1,5 @@
-all: occ2socc
+all: fco
 
-occ2socc: Parse.hs
-	ghc -o occ2socc --make Parse
+fco: Main.hs Parse.hs Tree.hs
+	ghc -o fco --make Main
 
