@@ -434,6 +434,7 @@ formalList
                 <|> try (do { n <- name ; return $ (Nothing, n) })
 
       markTypes :: [(Maybe Node, Node)] -> [Node]
+      markTypes [] = []
       markTypes ((Nothing, _):_) = error "Formal list must start with a type"
       markTypes ((Just ft,fn):is) = (OcFormal ft fn) : markRest ft is
 
