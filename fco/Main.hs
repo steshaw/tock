@@ -8,9 +8,10 @@ import Parse
 import Tree
 import Pass
 import PhaseSource
+import PhaseIntermediate
 import PhaseOutput
 
-phaseList = [phaseSource, phaseOutput]
+phaseList = [phaseSource, phaseIntermediate, phaseOutput]
 
 doPhases :: [Phase] -> Node -> IO Node
 doPhases [] n = do return n

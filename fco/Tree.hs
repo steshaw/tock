@@ -139,6 +139,10 @@ data Node =
   | OcName String
 -- }}} END
 
+-- {{{ BEGIN basePassInt
+  | IntDeclSet [Node] Node
+-- }}} END
+
 -- {{{ BEGIN basePassC
   | CCode String
 -- }}} END

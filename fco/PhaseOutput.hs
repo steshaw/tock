@@ -8,7 +8,7 @@ import BasePasses
 
 phaseOutput
   = (Phase "C output"
-      [basePassOc, basePassC]
+      [basePassOc, basePassInt, basePassC]
       [
         ("Convert expressions", convExpressions)
       ])
