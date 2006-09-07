@@ -3,7 +3,7 @@
 module Tree where
 
 data Node =
--- {{{ BEGIN PhaseSource.hs basePass1
+-- {{{ BEGIN basePassOc
   OcDecl Node Node
   | OcAlt [Node]
   | OcAltRep Node Node
@@ -139,7 +139,7 @@ data Node =
   | OcName String
 -- }}} END
 
--- {{{ BEGIN PhaseOutput.hs basePass9
+-- {{{ BEGIN basePassC
   | CCode String
 -- }}} END
 

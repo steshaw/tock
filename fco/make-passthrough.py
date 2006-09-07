@@ -7,19 +7,8 @@ def die(*s):
 	print >>sys.stderr, "Fatal: " + "".join(map(str, s))
 	sys.exit(1)
 
-def update_def(fn, func, f):
-	origf = open(fn)
-	newf = open(fn + ".new", "w")
-
-	while True:
-		s = origf.readline()
-		if s == "":
-			die("Couldn't find start marker for ", func, " in ", fn)
-		newf.write(s)
-		if s.strip().startswith("-- {{{ BEGIN " + func):
-			break
-
-	newf.write(func + " :: Pass\n")
+def update_def(func, f, newf):
+	newf.write("\n" + func + " :: Pass\n")
 	newf.write(func + " next top node\n")
 	newf.write("  = case node of\n")
 	while True:
@@ -59,29 +48,27 @@ def update_def(fn, func, f):
 		newf.write("      " + name + space + " ".join(lhs) + " -> " + name + space + " ".join(rhs) + "\n")
 	newf.write("      _ -> next node\n")
 
-	while True:
-		s = origf.readline()
-		if s == "":
-			die("Couldn't find end marker for ", func, " in ", fn)
-		if s.strip().startswith("-- }}} END"):
-			newf.write(s)
-			break
-
-	newf.write(origf.read())
-
-	origf.close()
-	newf.close()
-	os.rename(fn + ".new", fn)
-
 def main():
 	f = open("Tree.hs")
+	newf = open("BasePasses.hs", "w")
+
+	newf.write("""-- Base passes
+-- Automatically generated from Tree.hs -- do not edit!
+
+module BasePasses where
+
+import Tree
+import Pass
+""")
+
 	while 1:
 		s = f.readline()
 		if s == "":
 			break
 		if s.startswith("-- {{{ BEGIN"):
 			ss = s.strip().split()
-			update_def(ss[3], ss[4], f)
+			update_def(ss[3], f, newf)
 	f.close()
+	newf.close()
 
 main()

@@ -4,22 +4,14 @@ module PhaseOutput (phaseOutput) where
 
 import Tree
 import Pass
-import PhaseSource
+import BasePasses
 
 phaseOutput
   = (Phase "C output"
-      [basePass1, basePass9]
+      [basePassOc, basePassC]
       [
         ("Convert expressions", convExpressions)
       ])
-
--- {{{ BEGIN basePass9
-basePass9 :: Pass
-basePass9 next top node
-  = case node of
-      CCode a -> CCode a
-      _ -> next node
--- }}} END
 
 convExpressions :: Pass
 convExpressions next top node
