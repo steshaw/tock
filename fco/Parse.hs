@@ -351,7 +351,6 @@ definition
               do { sIS ; p <- sequentialProtocol ; sColon ; eol ; return $ OcProtocol n p }
               <|> do { eol ; indent ; sCASE ; eol ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ OcTaggedProtocol n ps } }
     <|> do { sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return $ OcProc n fs p }
--- Again, don't know why this has to be entirely try ()...
     <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ;
                   do { sIS ; el <- expressionList ; sColon ; eol ; return $ OcFuncIs n rs fs el }
                   <|> do { eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return $ OcFunc n rs fs vp } })
@@ -363,7 +362,6 @@ definition
               <|> do { sRESHAPES ; v <- variable ; sColon ; eol ; return $ OcValReshapes s n v } }
     <?> "definition"
 
--- NB does not return an SExp
 digits
     =   many1 digit
     <?> "digits"
@@ -626,7 +624,6 @@ sequentialProtocol
     <?> "sequentialProtocol"
 
 simpleProtocol
--- FIXME I don't know why this needs to all be in a try, but I couldn't get it to work otherwise...
     =   try (do { l <- dataType ; sColons ; sLeft ; sRight ; r <- dataType ; return $ OcCounted l r })
     <|> dataType
     <|> do { sANY ; return $ OcAny }
