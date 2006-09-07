@@ -1,0 +1,73 @@
+PROC test.syntax ()
+  INT x:
+  [10]INT xs:
+  CHAN OF INT c:
+  --[10]CHAN OF INT cs:
+
+  SEQ
+    -- abbreviation
+    xx IS x:
+    SKIP
+    INT xx IS x:
+    SKIP
+    VAL xx IS x:
+    SKIP
+    VAL INT xx IS x:
+    SKIP
+
+    -- allocation
+    [2]INT q:
+    -- Doesn't work in KRoC.
+    --PLACE q AT 12345:
+    SKIP
+
+    -- alternation
+    ALT
+      c ? x
+        SKIP
+      TRUE & SKIP
+        SKIP
+    ALT i = 0 FOR 10
+      cs[i] ? xs[i]
+        SKIP
+    PRI ALT
+      c ? x
+        SKIP
+      TRUE & SKIP
+        SKIP
+    PRI ALT i = 0 FOR 10
+      cs[i] ? xs[i]
+        SKIP
+    xx IS x:
+    ALT
+      TRUE & SKIP
+        SKIP
+
+    -- definition
+    DATA TYPE T1 IS INT:
+    DATA TYPE T2
+      RECORD
+        INT x:
+    :
+    PROTOCOL P1 IS INT; INT:
+    PROTOCOL P2 IS ANY:
+    PROTOCOL P3
+      CASE
+        foo
+    :
+    PROC p1 (INT x)
+      SKIP
+    :
+    INT FUNCTION f1 (VAL INT x) IS x:
+    INT FUNCTION f2 (VAL INT x)
+      VALOF
+        SKIP
+        RESULT x
+    :
+    INT xx RETYPES x:
+    INT xx RESHAPES x:
+    VAL INT xx RETYPES x:
+    VAL INT xx RESHAPES x:
+    SKIP
+
+:

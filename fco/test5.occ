@@ -1,0 +1,10 @@
+PROC test.expressions ()
+  INT a:
+  INT b:
+  INT c:
+  SEQ
+    a := 1
+    b := 2
+    c := 3
+    c := (42 * a) + (b - (72 / c))
+:
