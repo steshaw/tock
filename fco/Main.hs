@@ -8,11 +8,15 @@ import Parse
 import Tree
 import Pass
 import PhaseSource
+import PhaseOutput
+
+phaseList = [phaseSource, phaseOutput]
 
 doPhases :: [Phase] -> Node -> IO Node
 doPhases [] n = do return n
 doPhases (p:ps) n = do  n' <- runPhase p n
-                        return n'
+                        n'' <- doPhases ps n'
+                        return n''
 
 main :: IO ()
 main = do args <- getArgs
@@ -20,10 +24,15 @@ main = do args <- getArgs
                       [fn] -> fn
                       _ -> error "Usage: fco [SOURCEFILE]"
           putStrLn $ "Compiling " ++ fn
+          putStrLn ""
 
           parsed <- parseSourceFile fn
-          putStrLn $ "Parsed: " ++ show parsed
+          putStrLn ""
 
-          out <- doPhases [phaseSource] parsed
+          putStrLn $ "Parsed: " ++ show parsed
+          putStrLn ""
+
+          out <- doPhases phaseList parsed
+          putStrLn ""
           putStrLn $ "After phases: " ++ show out
 

@@ -1,6 +1,6 @@
 -- Source-rewriting passes
 
-module PhaseSource (phaseSource) where
+module PhaseSource (phaseSource, basePass1) where
 
 import Tree
 import Pass

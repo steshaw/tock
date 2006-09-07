@@ -139,5 +139,9 @@ data Node =
   | OcName String
 -- }}} END
 
+-- {{{ BEGIN PhaseOutput.hs basePass9
+  | CCode String
+-- }}} END
+
   deriving (Show, Eq)
 
