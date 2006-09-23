@@ -24,12 +24,13 @@ doPhases (p:ps) n progress = do
   n'' <- doPhases ps n' progress
   return n''
 
-data Flag = ParseOnly | Verbose
-  deriving Eq
+data Flag = ParseOnly | SOccamOnly | Verbose
+  deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
-  [ Option ['p'] ["parse-only"] (NoArg ParseOnly) "parse input files and output S-expression"
+  [ Option [] ["parse-tree"] (NoArg ParseOnly) "parse input files and output S-expression parse tree"
+  , Option [] ["soccam"] (NoArg SOccamOnly) "parse input files and output soccam"
   , Option ['v'] ["verbose"] (NoArg Verbose) "show more detail about what's going on"
   ]
 
@@ -54,6 +55,7 @@ main = do
 
   let progress = if Verbose `elem` opts then hPutStrLn stderr else (\s -> return ())
 
+  progress $ "Options: " ++ (show opts)
   progress $ "Compiling " ++ fn
   progress ""
 
@@ -64,9 +66,10 @@ main = do
 
   let parsed = parseSource preprocessed
 
-  if ParseOnly `elem` opts
-    then do
+  if ParseOnly `elem` opts then do
       putStrLn $ show (nodeToSExp parsed)
+    else if SOccamOnly `elem` opts then do
+      putStrLn $ show (nodeToSOccam parsed)
     else do
       progress $ "Parsed: " ++ show parsed
       progress ""

@@ -135,6 +135,7 @@
 	real64
 	<name>
 	(array <expression> <data.type>)
+	(array <data.type)	;; not in occam2.1 syntax?
 
 <declaration> :=
 	(<data.type> <name>+)
@@ -258,7 +259,6 @@
 
 <monadic.operator> :=
 	-
-	minus
 	bitnot	;; also ~
 	not
 	size
@@ -282,7 +282,7 @@
 
 <output> :=
 	(! <channel> <output.item>+)
-	(! <channel> (<tag> <output.item>*))	;; parallel the format of '?case'?
+	(!case <channel> (<tag> <output.item>*))
 	(! <port> <expression>)
 
 <output.item> :=
