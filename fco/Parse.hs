@@ -371,7 +371,7 @@ dyadicOperator
     <|> do { reservedOp "-" ; return $ OcSubtr }
     <|> do { reservedOp "*" ; return $ OcMul }
     <|> do { reservedOp "/" ; return $ OcDiv }
-    <|> do { reservedOp "\\" ; return $ OcMod }
+    <|> do { reservedOp "\\" ; return $ OcRem }
     <|> do { sREM ; return $ OcRem }
     <|> do { sPLUS ; return $ OcPlus }
     <|> do { sMINUS ; return $ OcMinus }

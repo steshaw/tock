@@ -81,7 +81,6 @@ data Node =
   | OcSubtr Node Node
   | OcMul Node Node
   | OcDiv Node Node
-  | OcMod Node Node
   | OcRem Node Node
   | OcPlus Node Node
   | OcMinus Node Node
