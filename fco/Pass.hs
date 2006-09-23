@@ -4,6 +4,8 @@ module Pass where
 
 import Tree
 
+type Progress = (String -> IO ())
+
 -- This is actually a fraction of a pass: an operation upon the tree.
 -- The arguments are:
 -- - "next": the next pass to try if this one doesn't match;
@@ -30,13 +32,14 @@ runPasses passes = top
 
 data Phase = Phase String [Pass] [(String, Pass)]
 
-runPhase :: Phase -> Node -> IO Node
-runPhase (Phase name bases passes) n = do putStrLn $ "Phase: " ++ name
-                                          runPhase' (reverse passes) n
+runPhase :: Phase -> Node -> Progress -> IO Node
+runPhase (Phase name bases passes) n progress = do
+  progress $ "Phase: " ++ name
+  runPhase' (reverse passes) n
   where
     runPhase' :: [(String, Pass)] -> Node -> IO Node
     runPhase' [] n = do return n
     runPhase' ((name, p):ps) n = do rest <- runPhase' ps n
-                                    putStrLn $ "  Pass: " ++ name
+                                    progress $ "  Pass: " ++ name
                                     return $ runPasses (p : bases) rest
 

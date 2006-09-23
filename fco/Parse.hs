@@ -1,6 +1,6 @@
 -- Parse occam code
 
-module Parse (parseSourceFile, prepare) where
+module Parse (readSource, parseSource) where
 
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -764,18 +764,21 @@ flatten ls = concat $ intersperse "\n" $ flatten' ls 0
 
 -- XXX Doesn't handle preprocessor instructions.
 
-prepare d = flatten $ lines (d ++ "\n" ++ mainMarker)
+preprocess :: String -> String
+preprocess d = flatten $ lines (d ++ "\n" ++ mainMarker)
 
-numberedListing :: String -> String
-numberedListing s = concat $ intersperse "\n" $ [(show n) ++ ": " ++ s | (n, s) <- zip [1..] (lines s)]
+readSource :: String -> IO String
+readSource fn = do
+  f <- IO.openFile fn IO.ReadMode
+  d <- IO.hGetContents f
+  let prep = preprocess d
+  return prep
 
-parseSourceFile :: String -> IO Node
-parseSourceFile fn
-  = do  f <- IO.openFile fn IO.ReadMode
-        d <- IO.hGetContents f
-        let prep = prepare d
-        putStrLn $ "Prepared: " ++ numberedListing prep
-        return $ case (parse sourceFile "occam" prep) of
-           Left err -> error ("Parsing error: " ++ (show err))
-           Right defs -> defs
+-- -------------------------------------------------------------
+
+parseSource :: String -> Node
+parseSource prep
+  = case (parse sourceFile "occam" prep) of
+      Left err -> error ("Parsing error: " ++ (show err))
+      Right defs -> defs
 

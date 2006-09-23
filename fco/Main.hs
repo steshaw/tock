@@ -2,8 +2,10 @@
 
 module Main where
 
+import List
 import System
 import System.Console.GetOpt
+import System.IO
 
 import Parse
 import Tree
@@ -15,19 +17,21 @@ import PhaseOutput
 
 phaseList = [phaseSource, phaseIntermediate, phaseOutput]
 
-doPhases :: [Phase] -> Node -> IO Node
-doPhases [] n = do return n
-doPhases (p:ps) n = do
-  n' <- runPhase p n
-  n'' <- doPhases ps n'
+doPhases :: [Phase] -> Node -> Progress -> IO Node
+doPhases [] n progress = do return n
+doPhases (p:ps) n progress = do
+  n' <- runPhase p n progress
+  n'' <- doPhases ps n' progress
   return n''
 
-data Flag = ParseOnly
+data Flag = ParseOnly | Verbose
   deriving Eq
 
 options :: [OptDescr Flag]
 options =
-  [ Option ['p'] ["parse-only"] (NoArg ParseOnly) "parse input files and output S-expression" ]
+  [ Option ['p'] ["parse-only"] (NoArg ParseOnly) "parse input files and output S-expression"
+  , Option ['v'] ["verbose"] (NoArg Verbose) "show more detail about what's going on"
+  ]
 
 getOpts :: [String] -> IO ([Flag], [String])
 getOpts argv =
@@ -35,6 +39,9 @@ getOpts argv =
     (o,n,[]  ) -> return (o,n)
     (_,_,errs) -> error (concat errs ++ usageInfo header options)
   where header = "Usage: fco [OPTION...] SOURCEFILE"
+
+numberedListing :: String -> String
+numberedListing s = concat $ intersperse "\n" $ [(show n) ++ ": " ++ s | (n, s) <- zip [1..] (lines s)]
 
 main :: IO ()
 main = do
@@ -45,20 +52,26 @@ main = do
               [fn] -> fn
               _ -> error "Must specify a single input file"
 
-  putStrLn $ "Compiling " ++ fn
-  putStrLn ""
+  let progress = if Verbose `elem` opts then hPutStrLn stderr else (\s -> return ())
 
-  parsed <- parseSourceFile fn
-  putStrLn ""
+  progress $ "Compiling " ++ fn
+  progress ""
+
+  preprocessed <- readSource fn
+  progress $ "Preprocessed: "
+  progress $ numberedListing preprocessed
+  progress $ ""
+
+  let parsed = parseSource preprocessed
 
   if ParseOnly `elem` opts
     then do
       putStrLn $ show (nodeToSExp parsed)
     else do
-      putStrLn $ "Parsed: " ++ show parsed
-      putStrLn ""
+      progress $ "Parsed: " ++ show parsed
+      progress ""
 
-      out <- doPhases phaseList parsed
-      putStrLn ""
-      putStrLn $ "After phases: " ++ show out
+      out <- doPhases phaseList parsed progress
+      progress ""
+      progress $ "After phases: " ++ show out
 
