@@ -1,0 +1,430 @@
+;; soccam2.1 syntax definition -- based on occam2.1 syntax
+
+;; Sample translation:
+;;
+;; PROC graphics.plex ([num.sprites]CHAN OF SPRITE in, [num.sprites]CHAN OF BOOL in.req, CHAN OF GRAPHICS.COMMAND out, CHAN OF BOOL req)
+;;   [num.sprites][max.graphic]BYTE lump:
+;;   [num.sprites]INT lump.len, x, y, col:
+;;   WHILE TRUE
+;;     SEQ
+;;       BOOL b:
+;;       req ? b
+;;       PAR i = 0 FOR num.sprites
+;;         SEQ
+;;           in.req[i] ! TRUE
+;;           in[i] ? lump.len[i]::lump[i] ; x[i] ; y[i] ; col[i]
+;;       SEQ i = 0 FOR num.sprites
+;;         out ! sprite ; lump.len[i]::lump[i] ; x[i] ; y[i] ; col[i]
+;;       out ! flip
+;; :
+;;
+;; becomes:
+;;
+;; (proc graphics.plex (((array num.sprites (chan-of sprite)) in)
+;;                      ((array num.sprites (chan-of bool)) in.req)
+;;                      ((chan-of graphics.command) out)
+;;                      ((chan-of bool) req))
+;;       (: ((array num.sprites (array max.graphic byte)) lump)
+;;          (: ((array num.sprites int) lump.len x y col)
+;;             (while true
+;;                    (seq
+;;                     (: (bool b) (? req b))
+;;                     (par (for i 0 num.sprites)
+;;                          (seq
+;;                           (! (sub in.req i) true)
+;;                           (? (sub in i) ((:: (sub lump.len i) (sub lump i)) (sub x i) (sub y i) (sub col i)))))
+;;                     (seq (for i 0 num.sprites)
+;;                          (! out (sprite (:: (sub lump.len i) (sub lump i)) (sub x i) (sub y i) (sub col i))))
+;;                     (! out flip))))))
+
+;; deprecate non-specifier forms in this
+<abbreviation> :=
+	(is <name> <variable>)
+	(is <specifier> <name> <variable>)
+	(val-is <name> <expression>)
+	(val-is <specifier> <name> <expression>)
+	(is <name> <channel>)
+	(is <specifier> <name> <channel>)
+	(is <name> (<channel>+))		;; is this really only 1d?
+	(is <specifier> <name> (<channel>+))
+	(is <name> <timer>)
+	(is <specifier> <name> <timer>)
+	(is <name> <port>)
+	(is <specifier> <name> <port>)
+
+<actual> :=
+	<variable>
+	<channel>
+	<timer>
+	<port>
+	<expression>
+
+<allocation> :=
+	(place-at <name> <expression>)
+
+<alternation> :=
+	(alt <alternative>+)
+	(alt <replicator> <alternative>)
+	(pri-alt <alternative>+)
+	(pri-alt <replicator> <alternative>)
+
+<alternative> :=
+	<guarded.alternative>
+	<alternation>
+	(?case <channel> <variant>+)
+	(?case-guarded <boolean> <channel> <variant>+)
+	(: <specification> <alternative>)
+
+<assignment> :=
+	(:= <variable-list> <expression-list>)
+
+<base> :=
+	<expression>
+
+<boolean> :=
+	<expression>
+
+<byte> :=
+	'<character>'
+
+<case.expression> :=
+	<expression>
+
+<case.input> :=
+	(?case <channel> <variant>+)
+
+;; unsure about "sub" -- the subscript forms could be generalised
+<channel> :=
+	<name>
+	(sub <channel> <expression>)
+	(sub-from-for <channel> <base> <count>)
+	(sub-from <channel> <base>)
+	(sub-for <channel> <count>)
+
+<channel.type> :=
+	(chan-of <protocol>)
+	(array <expression> <channel.type>)
+
+;; occam2.1 syntax doesn't define <character>, which can include * escapes
+
+<choice> :=
+	<guarded.choice>
+	<conditional>
+	(: <specification> <choice>)
+
+<conditional> :=
+	(if <choice>+)
+	(if <replicator> <choice>)
+
+<conversion> :=
+	(conv <data.type> <operand>)
+	(round <data.type> <operand>)
+	(trunc <data.type> <operand>)
+
+<count> :=
+	<expression>
+
+<data.type> :=
+	bool
+	byte
+	int
+	int16
+	int32
+	int64
+	real32
+	real64
+	<name>
+	(array <expression> <data.type>)
+
+<declaration> :=
+	(<data.type> <name>+)
+	(<channel.type> <name>+)
+	(<timer.type> <name>+)
+	(<port.type> <name>+)
+
+;; deprecate reshapes?
+<definition> :=
+	(data-type <name> <data.type>)
+	(data-type <name> <structured.type>)
+	(protocol <name> <simple.protocol>)
+	(protocol <name> <sequential.protocol>)
+	(protocol <name> (<tagged-protocol>+))
+	(proc <name> (<formal>*) <process>)
+	(function (<data.type>+) <function-header> <value.process>)
+	(function-is (<data.type>+) <function-header> <expression.list>)
+	(retypes <specifier> <name> <variable>)
+	(val-retypes <specifier> <name> <expression>)
+	(retypes <specifier> <name> <channel>)
+	(retypes <specifier> <name> <port>)
+	(reshapes <specifier> <name> <variable>)
+	(val-reshapes <specifier> <name> <expression>)
+	(reshapes <specifier> <name> <channel>)
+	(reshapes <specifier> <name> <port>)
+
+<delayed.input> :=
+	(?after <timer> <expression>)
+
+<dyadic.operator> :=
+	+
+	-
+	*
+	/
+	mod	;; was \
+	rem
+	plus
+	minus
+	times
+	bitand	;; also /\
+	bitor	;; also \/
+	bitxor	;; was ><
+	and
+	or
+	=
+	<>	;; probably want != or something
+	<
+	>
+	>=
+	<=
+	after
+
+<exponent> :=
+	+<digits>
+	-<digits>
+
+<expression> :=
+	<operand>
+	(<monadic.operator> <operand>)
+	(<dyadic.operator> <operand> <operand>)
+	(mostpos <data.type>)
+	(mostneg <data.type>)
+	(size <data.type>)
+	<conversion>
+
+;; This is an oddity in the syntax, since it has to allow for multi-valued results from functions.
+<expression.list> :=
+	(<expression>+)
+	(call <name> <expression>*)	;; eww, but necessary?
+	value-process>
+
+<field.name> :=
+	<name>
+
+<formal> :=
+	(<specifier> <name>+)
+	(val <specifier> <name>+)
+
+;; Yuck -- this bit of the syntax really doesn't work nicely for soccam.
+<function.header> :=
+	<name> (<formal>*)
+
+<guard> :=
+	<input>
+	(guarded <boolean> <input>)	;; overloaded meaning of "guard" here
+	(guarded <boolean> skip)
+
+<guarded.alternative> :=
+	(<guard> <process>)
+
+<guarded.choice> :=
+	(<bool-exp> <process>)
+
+<input> := 
+	(? <channel> <input.item>+)
+	(?case <channel> <tagged.list>)
+	<timer.input>
+	<delayed.input>
+	(? <port> <variable>)
+
+<input.item> :=
+	<variable>
+	(:: <variable> <variable>)
+
+<integer> :=
+	<digits>
+	#<hex.digits>
+
+<literal> :=
+	<integer>
+	<byte>
+	<real>
+	(<data.type> <integer>)
+	(<data.type> <byte>)
+	(<data.type> <real>)
+	true
+	false
+
+<loop> :=
+	(while <boolean> <process>)
+
+<monadic.operator> :=
+	-
+	minus
+	bitnot	;; also ~
+	not
+	size
+
+<operand> :=
+	<variable>
+	<literal>
+	<table>
+	<expression>		;; rather than (expression)
+	<value.process>
+	(call <name> <expression>*)	;; eww, as above
+	(sub <operand> <expression>)	;; nothing explicit for field names? I guess they're treated as arrays
+	(bytesin <operand>)
+	(bytesin <data.type>)
+	(offsetof <name> <field.name>)
+
+<option> :=
+	((<case.expression>+) <process>)
+	(else <process>)
+	(: <specification> <option>)
+
+<output> :=
+	(! <channel> <output.item>+)
+	(! <channel> (<tag> <output.item>*))	;; parallel the format of '?case'?
+	(! <port> <expression>)
+
+<output.item> :=
+	<expression>
+	(:: <expression> <expression>)
+
+<parallel> :=
+	(par <process>+)
+	(par <replicator> <process>)
+	(pri-par <process>+)
+	(pri-par <replicator> <process>)
+	<placedpar>
+
+<placedpar> :=
+	(placed-par <placedpar>+)
+	(placed-par <replicator> <placedpar>)
+	(processor <expression> <process>)
+
+<port> :=
+	<name>
+	(sub <port> <expression>)
+	(sub-from-for <port> <base> <count>)
+	(sub-from <port> <base>)
+	(sub-for <port> <count>)
+
+<port.type> :=
+	(port-of <data.type>)
+	(array <expression> <port.type>)
+
+<proc.instance> :=
+	(<name> <actual>*)
+
+<process> := 
+	<assignment>
+	<input>
+	<output>
+	skip
+	stop
+	<sequence>
+	<conditional>
+	<selection>
+	<loop>
+	<parallel>
+	<alternation>
+	<case.input>
+	<proc.instance>
+	(: <specification> <process>)
+	(: <allocation> <process>)
+
+<protocol> :=
+	<name>
+	<simple.protocol>
+
+<real> :=
+	<digits>.<digits>
+	<digits>.<digits>e<exponent>
+
+<replicator> := 
+	(for <name> <base> <count>)
+
+<selection> :=
+	(case <selector> <option>+)
+
+<selector> :=
+	<expression>
+
+<sequence> :=
+	(seq <process>+)
+	(seq <replicator> <process>)
+
+<sequential.protocol> :=
+	(<simple.protocol>+)
+
+<simple.protocol> :=
+	<data.type>
+	any			;; deprecate
+	(:: <data.type> <data.type>)
+
+<specification> :=
+	<declaration>
+	<abbreviation>
+	<definition>
+
+<specifier> :=
+	<data.type>
+	<channel.type>
+	<timer.type>
+	<port.type>
+	(array <specifier>)
+	(array <expression> <specifier>)
+
+<structured.type> :=
+	(record (<data.type> <field.name>+)+)
+	(packed-record (<data.type> <field.name>+)+)
+
+<table> :=
+	<string>
+	(<string> <name>)	;; this is literals of named types, e.g. "foo"(FILENAME)
+	(<expression>+)
+	(sub <table> <expression>)
+	(sub-from-for <table> <base> <count>)
+	(sub-from <table> <base>)
+	(sub-for <table> <count>)
+
+<tag> :=
+	<name>
+
+<tagged.list> :=
+	(<tag> <input.item>*)
+
+<tagged.protocol> :=
+	(<tag> <sequential.protocol>*)
+
+<timer.input> :=
+	(? <timer> <variable>)
+
+<timer> :=
+	<name>
+	(sub <timer> <expression>)
+	(sub-from-for <timer> <base> <count>)
+	(sub-from <timer> <base>)
+	(sub-for <timer> <count>)
+
+<timer.type> :=
+	timer
+	(array <expression> <timer.type>)	;; nope, I don't know why you'd want an array of timers either
+
+<value.process> :=
+	(valof <process> <expression.list>)
+	(: <specification> <value.process>)
+
+<variable> :=
+	<name>
+	(sub <variable> <expression>)
+	(sub-from-for <variable> <base> <count>)
+	(sub-from <variable> <base>)
+	(sub-for <variable> <count>)
+
+<variable.list> :=
+	(<variable>+)
+
+<variant> :=
+	(<tagged.list> <process>)
+	(: <specification> <variant>)
+
