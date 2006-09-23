@@ -128,8 +128,8 @@ nodeToSExp node
       OcLitReal a -> wrap "real-literal" (Item a)
       OcLitInt a -> wrap "integer-literal" (Item a)
       OcLitHex a -> wrap "hex-literal" (Item a)
-      OcLitByte a -> wrap "byte-literal" (Item a)
-      OcLitString a -> wrap "string-literal" (Item a)
+      OcLitByte a -> wrap "byte-literal" (Item ("'" ++ a ++ "'"))
+      OcLitString a -> wrap "string-literal" (Item ("\"" ++ a ++ "\""))
       OcLitArray a -> wrapl "array-literal" (map top a)
       OcTrue -> Item "true"
       OcFalse -> Item "false"
