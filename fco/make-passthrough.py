@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Update the boring bass passes from the data type definition in Tree.
+# Generate the base transforms from the data type definition in Tree.
 
 import os, sys, re
 
@@ -8,7 +8,7 @@ def die(*s):
 	sys.exit(1)
 
 def update_def(func, f, newf):
-	newf.write("\n" + func + " :: Pass\n")
+	newf.write("\n" + func + " :: Transform st\n")
 	newf.write(func + " next top node\n")
 	newf.write("  = case node of\n")
 	while True:
@@ -28,37 +28,45 @@ def update_def(func, f, newf):
 		args = fields[1:]
 
 		lhs = []
+		lines = []
 		rhs = []
-		i = 0
+		i = 1
 		for arg in args:
-			n = "abcdefghijklm"[i]
+			n = "a" + str(i)
 			i += 1
 
 			lhs.append(n)
+			var = "v" + n
 			if arg == "Node":
-				rhs.append("(top " + n + ")")
+				lines.append(var + " <- top " + n)
+				rhs.append(var)
 			elif arg == "[Node]":
-				rhs.append("(map top " + n + ")")
+				lines.append(var + " <- mapM top " + n)
+				rhs.append(var)
 			else:
 				rhs.append(n)
 
 		space = ""
 		if lhs != []:
 			space = " "
-		newf.write("      " + name + space + " ".join(lhs) + " -> " + name + space + " ".join(rhs) + "\n")
+		newf.write("      " + name + space + " ".join(lhs) + " -> do\n")
+		for l in lines:
+			newf.write("        " + l + "\n")
+		newf.write("        return $ " + name + space + " ".join(rhs) + "\n")
 	newf.write("      _ -> next node\n")
 
 def main():
 	f = open("Tree.hs")
-	newf = open("BasePasses.hs", "w")
+	newf = open("BaseTransforms.hs", "w")
 
-	newf.write("""-- Base passes
+	newf.write("""-- Base transforms
 -- Automatically generated from Tree.hs -- do not edit!
 
-module BasePasses where
+module BaseTransforms where
 
 import Tree
 import Pass
+import Control.Monad
 """)
 
 	while 1:

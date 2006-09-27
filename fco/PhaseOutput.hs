@@ -4,16 +4,17 @@ module PhaseOutput (phaseOutput) where
 
 import Tree
 import Pass
-import BasePasses
+import BaseTransforms
+
+bases = [baseTransformOc, baseTransformInt, baseTransformC]
 
 phaseOutput
   = (Phase "C output"
-      [basePassOc, basePassInt, basePassC]
       [
-        ("Convert expressions", convExpressions)
+        ("Convert expressions", makePass () convExpressions bases)
       ])
 
-convExpressions :: Pass
+convExpressions :: Transform ()
 convExpressions next top node
   = case node of
     _ -> next node

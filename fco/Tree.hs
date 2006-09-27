@@ -3,7 +3,7 @@
 module Tree where
 
 data Node =
--- {{{ BEGIN basePassOc
+-- {{{ BEGIN baseTransformOc
   OcDecl Node Node
   | OcAlt [Node]
   | OcAltRep Node Node
@@ -138,11 +138,11 @@ data Node =
   | OcName String
 -- }}} END
 
--- {{{ BEGIN basePassInt
+-- {{{ BEGIN baseTransformInt
   | IntDeclSet [Node] Node
 -- }}} END
 
--- {{{ BEGIN basePassC
+-- {{{ BEGIN baseTransformC
   | CCode String
 -- }}} END
 
