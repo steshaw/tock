@@ -55,8 +55,8 @@ data Node =
   | Protocol Node [Node]
   | TaggedProtocol Node [Node]
   | Tag Node [Node]
--- e.g. Proc (Name "out.string") [Formal Int (Name "x"), Formal Bool (Name "y")]
-  | Formal Node Node
+-- e.g. Proc (Name "out.string") [Formals Int [Name "x", Name "y"], Formal Bool [Name "z"]]
+  | Formals Node [Node]
   | Proc Node [Node] Node
   | Func Node [Node] [Node] Node
   | FuncIs Node [Node] [Node] Node

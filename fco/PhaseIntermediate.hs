@@ -23,17 +23,6 @@ nestDecls l n = foldl (\a b -> b a) n [N.IntDecl n d | (N.Name n, d) <- l]
 markDecls :: Transform ()
 markDecls next top node
   = case node of
-      N.Decl (N.Proc nn@(N.Name n) args code) body -> do
-        body' <- top body
-        code' <- top code
-        let pdecl = nestDecls [(n, d) | d@(N.Formal _ n) <- args] (N.Proc nn args code')
-        return $ N.IntDecl n pdecl body'
-      N.Decl (N.Func nn@(N.Name n) args rets code) body -> do
-        error "blah"
-        body' <- top body
-        code' <- top code
-        let pdecl = nestDecls [(n, d) | d@(N.Formal _ n) <- args] (N.Func nn args rets code')
-        return $ N.IntDecl n pdecl body'
       -- FIXME same for functions
       N.Decl d body -> do
         body' <- top body

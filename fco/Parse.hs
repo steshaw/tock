@@ -417,8 +417,8 @@ fieldName
     =   name
     <?> "fieldName"
 
--- This is rather different from the grammar.
--- FIXME should this lot actually be done in a pass? probably...
+-- This is rather different from the grammar, since I had some difficulty
+-- getting Parsec to parse it as a list of lists of arguments.
 formalList
     =   do { sLeftR ; fs <- sepBy formalArg sComma ; sRightR ; return $ markTypes fs }
     <?> "formalList"
@@ -431,12 +431,12 @@ formalList
       markTypes :: [(Maybe N.Node, N.Node)] -> [N.Node]
       markTypes [] = []
       markTypes ((Nothing, _):_) = error "Formal list must start with a type"
-      markTypes ((Just ft,fn):is) = (N.Formal ft fn) : markRest ft is
+      markTypes ((Just ft, fn):is) = markRest ft [fn] is
 
-      markRest :: N.Node -> [(Maybe N.Node, N.Node)] -> [N.Node]
-      markRest _ [] = []
-      markRest t ((Nothing, n):is) = (N.Formal t n) : markRest t is
-      markRest _ ((Just t, n):is) = (N.Formal t n) : markRest t is
+      markRest :: N.Node -> [N.Node] -> [(Maybe N.Node, N.Node)] -> [N.Node]
+      markRest lt ns [] = [N.Formals lt ns]
+      markRest lt ns ((Nothing, n):is) = markRest lt (ns ++ [n]) is
+      markRest lt ns ((Just t, n):is) = (markRest lt ns []) ++ (markRest t [n] is)
 
 functionHeader
     =   do { sFUNCTION ; n <- name ; fs <- formalList ; return $ (n, fs) }
