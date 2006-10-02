@@ -1,3 +1,13 @@
+PROC p (VAL INT x, y, INT z)
+  z := x + y
+:
+
+INT FUNCTION f (VAL INT x, y)
+  VALOF
+    SKIP
+    RESULT x + y
+:
+
 PROC test.expressions ()
   INT a:
   INT b:
@@ -7,4 +17,5 @@ PROC test.expressions ()
     b := 2
     c := 3
     c := (42 * a) + (b - (72 / c))
+    p (a, b, c)
 :

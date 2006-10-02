@@ -12,22 +12,20 @@ bases = [baseTransformOc]
 phaseSource
   = (Phase "Source rewriting"
       [
-        ("C-ify identifiers", makePass () cifyIdentifiers bases),
-        ("Number identifiers", makePass 0 numberIdentifiers bases)
+        ("Simplify", makePass () simplify bases),
+        ("C-ify identifiers", makePass () cifyIdentifiers bases)
       ])
+
+simplify :: Transform ()
+simplify next top node
+  = case node of
+      -- FIXME rewrite stuff like OcFuncIs -> OcFunc
+      -- FIXME could we even rewrite procs and functions to the same thing?
+      _ -> next node
 
 cifyIdentifiers :: Transform ()
 cifyIdentifiers next top node
   = case node of
       OcName n -> return $ OcName [if c == '.' then '_' else c | c <- n]
-      _ -> next node
-
-numberIdentifiers :: Transform Int
-numberIdentifiers next top node
-  = case node of
-      OcName n -> do
-        i <- get
-        put $ i + 1
-        return $ OcName (n ++ "." ++ (show i))
       _ -> next node
 

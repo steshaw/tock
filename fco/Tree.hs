@@ -139,7 +139,7 @@ data Node =
 -- }}} END
 
 -- {{{ BEGIN baseTransformInt
-  | IntDeclSet [Node] Node
+  | IntDecl String Node Node
 -- }}} END
 
 -- {{{ BEGIN baseTransformC
