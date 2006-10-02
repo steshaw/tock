@@ -538,6 +538,7 @@ occamOption
 
 -- XXX This can't tell at parse time in "c ! x; y" whether x is a variable or a tag...
 -- ... so this now wants "c ! CASE x" if it's a tag, to match input.
+-- We can fix this with a pass later...
 output
     =   do  c <- channel
             sBang

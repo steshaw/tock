@@ -15,6 +15,8 @@ import PhaseSource
 import PhaseIntermediate
 import PhaseOutput
 
+import qualified OccamTypes as O
+
 phaseList = [phaseSource, phaseIntermediate, phaseOutput]
 
 doPhases :: [Phase] -> Node -> Progress -> IO Node
