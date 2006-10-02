@@ -2,7 +2,7 @@
 
 module PhaseSource (phaseSource) where
 
-import Tree
+import qualified Tree as N
 import Pass
 import BaseTransforms
 import Control.Monad.State
@@ -19,13 +19,13 @@ phaseSource
 simplify :: Transform ()
 simplify next top node
   = case node of
-      -- FIXME rewrite stuff like OcFuncIs -> OcFunc
+      -- FIXME rewrite stuff like N.FuncIs -> N.Func
       -- FIXME could we even rewrite procs and functions to the same thing?
       _ -> next node
 
 cifyIdentifiers :: Transform ()
 cifyIdentifiers next top node
   = case node of
-      OcName n -> return $ OcName [if c == '.' then '_' else c | c <- n]
+      N.Name n -> return $ N.Name [if c == '.' then '_' else c | c <- n]
       _ -> next node
 

@@ -2,12 +2,12 @@
 
 module Pass where
 
-import Tree
+import qualified Tree as N
 import Control.Monad.State
 
 type Progress = (String -> IO ())
 
-type ITransform st = Node -> State st Node
+type ITransform st = N.Node -> State st N.Node
 -- This is actually a fraction of a pass: an operation upon the tree.
 -- The arguments are:
 -- - "next": the next pass to try if this one doesn't match;
@@ -15,7 +15,7 @@ type ITransform st = Node -> State st Node
 -- - the input node.
 type Transform st = ITransform st -> ITransform st -> ITransform st
 
-runTransforms :: st -> [Transform st] -> Node -> Node
+runTransforms :: st -> [Transform st] -> N.Node -> N.Node
 runTransforms initState passes node = evalState (top node) initState
   where
     fail :: ITransform st
@@ -29,19 +29,19 @@ runTransforms initState passes node = evalState (top node) initState
 
     top = head passList
 
-type Pass = Node -> Node
+type Pass = N.Node -> N.Node
 
 makePass :: st -> Transform st -> [Transform st] -> Pass
 makePass initState t bases = runTransforms initState (t : bases)
 
 data Phase = Phase String [(String, Pass)]
 
-runPhase :: Phase -> Node -> Progress -> IO Node
+runPhase :: Phase -> N.Node -> Progress -> IO N.Node
 runPhase (Phase name passes) n progress = do
   progress $ "Phase: " ++ name
   runPhase' (reverse passes) n
   where
-    runPhase' :: [(String, Pass)] -> Node -> IO Node
+    runPhase' :: [(String, Pass)] -> N.Node -> IO N.Node
     runPhase' [] n = do return n
     runPhase' ((name, pass):passes) n = do
       rest <- runPhase' passes n

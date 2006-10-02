@@ -24,7 +24,7 @@ def update_def(func, f, newf):
 		s = s.replace("| ", "")
 
 		fields = s.split()
-		name = fields[0]
+		name = "N." + fields[0]
 		args = fields[1:]
 
 		lhs = []
@@ -64,7 +64,7 @@ def main():
 
 module BaseTransforms where
 
-import Tree
+import qualified Tree as N
 import Pass
 import Control.Monad
 """)

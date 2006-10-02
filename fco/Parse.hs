@@ -8,7 +8,7 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Language (emptyDef)
 import qualified IO
 
-import Tree
+import qualified Tree as N
 
 -- -------------------------------------------------------------
 
@@ -212,11 +212,11 @@ eol = symbol "@"
 -- The way productions should work is that each production should only consume input if it's sure that it's unambiguous.
 
 abbreviation
-    =   try (do { n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ OcIs n v })
-    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ OcIsType s n v })
+    =   try (do { n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ N.Is n v })
+    <|> try (do { s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return $ N.IsType s n v })
     <|> do {  sVAL ;
-              try (do { n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ OcValIs n e })
-              <|> do { s <- specifier ; n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ OcValIsType s n e } }
+              try (do { n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ N.ValIs n e })
+              <|> do { s <- specifier ; n <- name ; sIS ; e <- expression ; sColon ; eol ; return $ N.ValIsType s n e } }
     <?> "abbreviation"
 
 actual
@@ -226,28 +226,28 @@ actual
     <?> "actual"
 
 allocation
-    =   do { sPLACE ; n <- name ; sAT ; e <- expression ; sColon ; eol ; return $ OcPlace n e }
+    =   do { sPLACE ; n <- name ; sAT ; e <- expression ; sColon ; eol ; return $ N.Place n e }
     <?> "allocation"
 
 alternation
     =   do {  sALT ;
-              do { eol ; indent ; as <- many1 alternative ; outdent ; return $ OcAlt as }
-              <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ OcAltRep r a } }
+              do { eol ; indent ; as <- many1 alternative ; outdent ; return $ N.Alt as }
+              <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ N.AltRep r a } }
     <|> do {  sPRI ; sALT ;
-              do { eol ; indent ; as <- many1 alternative ; outdent ; return $ OcPriAlt as }
-              <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ OcPriAltRep r a } }
+              do { eol ; indent ; as <- many1 alternative ; outdent ; return $ N.PriAlt as }
+              <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ N.PriAltRep r a } }
     <?> "alternation"
 
 alternative
     =   guardedAlternative
     <|> alternation
-    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ OcInCaseGuard b c vs })
-    <|> try (do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ OcInCase c vs })
-    <|> do { s <- specification ; a <- alternative ; return $ OcDecl s a }
+    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCaseGuard b c vs })
+    <|> try (do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCase c vs })
+    <|> do { s <- specification ; a <- alternative ; return $ N.Decl s a }
     <?> "alternative"
 
 assignment
-    =   do { vs <- variableList ; sAssign ; es <- expressionList ; eol ; return $ OcAssign vs es }
+    =   do { vs <- variableList ; sAssign ; es <- expressionList ; eol ; return $ N.Assign vs es }
     <?> "assignment"
 
 base
@@ -259,7 +259,7 @@ boolean
     <?> "boolean"
 
 byte
-    =   lexeme (do { char '\'' ; s <- character ; char '\'' ; return $ OcLitByte s })
+    =   lexeme (do { char '\'' ; s <- character ; char '\'' ; return $ N.LitByte s })
     <?> "byte"
 
 caseExpression
@@ -267,26 +267,26 @@ caseExpression
     <?> "caseExpression"
 
 caseInput
-    =   do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ OcInCase c vs }
+    =   do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCase c vs }
     <?> "caseInput"
 
 -- This is also used for timers and ports, since the syntax is identical (and
 -- the parser really can't tell at this stage which is which).
 channel
-    =   do { v <- channel' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl OcSub v es }
+    =   do { v <- channel' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
     <?> "channel"
 
 channel'
     =   try name
-    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ OcSubFromFor n e f })
-    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sRight ; return $ OcSubFrom n e })
-    <|> do { sLeft ; n <- channel ; sFOR ; e <- expression ; sRight ; return $ OcSubFor n e }
+    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
+    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
+    <|> do { sLeft ; n <- channel ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e }
     <?> "channel'"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
 channelType
-    =   do { sCHAN ; sOF ; p <- protocol ; return $ OcChanOf p }
-    <|> try (do { sLeft ; s <- expression ; sRight ; t <- channelType ; return $ OcArray s t })
+    =   do { sCHAN ; sOF ; p <- protocol ; return $ N.ChanOf p }
+    <|> try (do { sLeft ; s <- expression ; sRight ; t <- channelType ; return $ N.Array s t })
     <?> "channelType"
 
 -- FIXME this isn't at all the right way to return the character!
@@ -300,18 +300,18 @@ character
 occamChoice
     =   guardedChoice
     <|> conditional
-    <|> do { s <- try specification ; c <- occamChoice ; return $ OcDecl s c }
+    <|> do { s <- try specification ; c <- occamChoice ; return $ N.Decl s c }
     <?> "choice"
 
 conditional
     =   do {  sIF ;
-              do { eol ; indent ; cs <- many1 occamChoice ; outdent ; return $ OcIf cs }
-              <|> do { r <- replicator ; eol ; indent ; c <- occamChoice ; outdent ; return $ OcIfRep r c } }
+              do { eol ; indent ; cs <- many1 occamChoice ; outdent ; return $ N.If cs }
+              <|> do { r <- replicator ; eol ; indent ; c <- occamChoice ; outdent ; return $ N.IfRep r c } }
     <?> "conditional"
 
 conversion
     =   do  t <- dataType
-            do { sROUND ; o <- operand ; return $ OcRound t o } <|> do { sTRUNC ; o <- operand ; return $ OcTrunc t o } <|> do { o <- operand ; return $ OcConv t o }
+            do { sROUND ; o <- operand ; return $ N.Round t o } <|> do { sTRUNC ; o <- operand ; return $ N.Trunc t o } <|> do { o <- operand ; return $ N.Conv t o }
     <?> "conversion"
 
 occamCount
@@ -319,15 +319,15 @@ occamCount
     <?> "count"
 
 dataType
-    =   do { sBOOL ; return $ OcBool }
-    <|> do { sBYTE ; return $ OcByte }
-    <|> do { sINT ; return $ OcInt }
-    <|> do { sINT16 ; return $ OcInt16 }
-    <|> do { sINT32 ; return $ OcInt32 }
-    <|> do { sINT64 ; return $ OcInt64 }
-    <|> do { sREAL32 ; return $ OcReal32 }
-    <|> do { sREAL64 ; return $ OcReal64 }
-    <|> try (do { sLeft ; s <- expression ; sRight ; t <- dataType ; return $ OcArray s t })
+    =   do { sBOOL ; return $ N.Bool }
+    <|> do { sBYTE ; return $ N.Byte }
+    <|> do { sINT ; return $ N.Int }
+    <|> do { sINT16 ; return $ N.Int16 }
+    <|> do { sINT32 ; return $ N.Int32 }
+    <|> do { sINT64 ; return $ N.Int64 }
+    <|> do { sREAL32 ; return $ N.Real32 }
+    <|> do { sREAL64 ; return $ N.Real64 }
+    <|> try (do { sLeft ; s <- expression ; sRight ; t <- dataType ; return $ N.Array s t })
     <|> name
     <?> "data type"
 
@@ -338,28 +338,28 @@ declType
     <|> portType
 
 -- FIXME this originally had four lines like this, one for each of the above;
--- it might be nicer to generate a different Node for each type of declaration
+-- it might be nicer to generate a different N.Node for each type of declaration
 declaration
-    =   do { d <- declType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ OcVars d ns }
+    =   do { d <- declType ; ns <- sepBy1 name sComma ; sColon ; eol ; return $ N.Vars d ns }
     <?> "declaration"
 
 definition
     =   do {  sDATA ; sTYPE ; n <- name ;
-              do {sIS ; t <- dataType ; sColon ; eol ; return $ OcDataType n t }
-              <|> do { eol ; indent ; t <- structuredType ; outdent ; sColon ; eol ; return $ OcDataType n t } }
+              do {sIS ; t <- dataType ; sColon ; eol ; return $ N.DataType n t }
+              <|> do { eol ; indent ; t <- structuredType ; outdent ; sColon ; eol ; return $ N.DataType n t } }
     <|> do {  sPROTOCOL ; n <- name ;
-              do { sIS ; p <- sequentialProtocol ; sColon ; eol ; return $ OcProtocol n p }
-              <|> do { eol ; indent ; sCASE ; eol ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ OcTaggedProtocol n ps } }
-    <|> do { sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return $ OcProc n fs p }
+              do { sIS ; p <- sequentialProtocol ; sColon ; eol ; return $ N.Protocol n p }
+              <|> do { eol ; indent ; sCASE ; eol ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return $ N.TaggedProtocol n ps } }
+    <|> do { sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return $ N.Proc n fs p }
     <|> try (do { rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ;
-                  do { sIS ; el <- expressionList ; sColon ; eol ; return $ OcFuncIs n rs fs el }
-                  <|> do { eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return $ OcFunc n rs fs vp } })
+                  do { sIS ; el <- expressionList ; sColon ; eol ; return $ N.FuncIs n rs fs el }
+                  <|> do { eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return $ N.Func n rs fs vp } })
     <|> try (do { s <- specifier ; n <- name ;
-                  do { sRETYPES ; v <- variable ; sColon ; eol ; return $ OcRetypes s n v }
-                  <|> do { try sRESHAPES ; v <- variable ; sColon ; eol ; return $ OcReshapes s n v } })
+                  do { sRETYPES ; v <- variable ; sColon ; eol ; return $ N.Retypes s n v }
+                  <|> do { try sRESHAPES ; v <- variable ; sColon ; eol ; return $ N.Reshapes s n v } })
     <|> do {  sVAL ; s <- specifier ; n <- name ;
-              do { sRETYPES ; v <- variable ; sColon ; eol ; return $ OcValRetypes s n v }
-              <|> do { sRESHAPES ; v <- variable ; sColon ; eol ; return $ OcValReshapes s n v } }
+              do { sRETYPES ; v <- variable ; sColon ; eol ; return $ N.ValRetypes s n v }
+              <|> do { sRESHAPES ; v <- variable ; sColon ; eol ; return $ N.ValReshapes s n v } }
     <?> "definition"
 
 digits
@@ -367,49 +367,49 @@ digits
     <?> "digits"
 
 dyadicOperator
-    =   do { reservedOp "+" ; return $ OcAdd }
-    <|> do { reservedOp "-" ; return $ OcSubtr }
-    <|> do { reservedOp "*" ; return $ OcMul }
-    <|> do { reservedOp "/" ; return $ OcDiv }
-    <|> do { reservedOp "\\" ; return $ OcRem }
-    <|> do { sREM ; return $ OcRem }
-    <|> do { sPLUS ; return $ OcPlus }
-    <|> do { sMINUS ; return $ OcMinus }
-    <|> do { sTIMES ; return $ OcTimes }
-    <|> do { reservedOp "/\\" ; return $ OcBitAnd }
-    <|> do { reservedOp "\\/" ; return $ OcBitOr }
-    <|> do { reservedOp "><" ; return $ OcBitXor }
-    <|> do { sBITAND ; return $ OcBitAnd }
-    <|> do { sBITOR ; return $ OcBitOr }
-    <|> do { sAND ; return $ OcAnd }
-    <|> do { sOR ; return $ OcOr }
-    <|> do { reservedOp "=" ; return $ OcEq }
-    <|> do { reservedOp "<>" ; return $ OcNEq }
-    <|> do { reservedOp "<" ; return $ OcLess }
-    <|> do { reservedOp ">" ; return $ OcMore }
-    <|> do { reservedOp "<=" ; return $ OcLessEq }
-    <|> do { reservedOp ">=" ; return $ OcMoreEq }
-    <|> do { sAFTER ; return $ OcAfter }
+    =   do { reservedOp "+" ; return $ N.Add }
+    <|> do { reservedOp "-" ; return $ N.Subtr }
+    <|> do { reservedOp "*" ; return $ N.Mul }
+    <|> do { reservedOp "/" ; return $ N.Div }
+    <|> do { reservedOp "\\" ; return $ N.Rem }
+    <|> do { sREM ; return $ N.Rem }
+    <|> do { sPLUS ; return $ N.Plus }
+    <|> do { sMINUS ; return $ N.Minus }
+    <|> do { sTIMES ; return $ N.Times }
+    <|> do { reservedOp "/\\" ; return $ N.BitAnd }
+    <|> do { reservedOp "\\/" ; return $ N.BitOr }
+    <|> do { reservedOp "><" ; return $ N.BitXor }
+    <|> do { sBITAND ; return $ N.BitAnd }
+    <|> do { sBITOR ; return $ N.BitOr }
+    <|> do { sAND ; return $ N.And }
+    <|> do { sOR ; return $ N.Or }
+    <|> do { reservedOp "=" ; return $ N.Eq }
+    <|> do { reservedOp "<>" ; return $ N.NEq }
+    <|> do { reservedOp "<" ; return $ N.Less }
+    <|> do { reservedOp ">" ; return $ N.More }
+    <|> do { reservedOp "<=" ; return $ N.LessEq }
+    <|> do { reservedOp ">=" ; return $ N.MoreEq }
+    <|> do { sAFTER ; return $ N.After }
     <?> "dyadicOperator"
 
 occamExponent
     =   try (do { c <- oneOf "+-" ; d <- digits ; return $ c : d })
     <?> "exponent"
 
-expression :: Parser Node
+expression :: Parser N.Node
 expression
     =   try (do { o <- monadicOperator ; v <- operand ; return $ o v })
-    <|> do { a <- sMOSTPOS ; t <- dataType ; return $ OcMostPos t }
-    <|> do { a <- sMOSTNEG ; t <- dataType ; return $ OcMostNeg t }
-    <|> do { a <- sSIZE ; t <- dataType ; return $ OcSize t }
+    <|> do { a <- sMOSTPOS ; t <- dataType ; return $ N.MostPos t }
+    <|> do { a <- sMOSTNEG ; t <- dataType ; return $ N.MostNeg t }
+    <|> do { a <- sSIZE ; t <- dataType ; return $ N.Size t }
     <|> try (do { a <- operand ; o <- dyadicOperator ; b <- operand ; return $ o a b })
     <|> try conversion
     <|> operand
     <?> "expression"
 
 expressionList
-    =   try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ OcCall n as })
-    <|> do { es <- sepBy1 expression sComma ; return $ OcExpList es }
+    =   try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ N.Call n as })
+    <|> do { es <- sepBy1 expression sComma ; return $ N.ExpList es }
 -- XXX value process
     <?> "expressionList"
 
@@ -423,20 +423,20 @@ formalList
     =   do { sLeftR ; fs <- sepBy formalArg sComma ; sRightR ; return $ markTypes fs }
     <?> "formalList"
     where
-      formalArg :: Parser (Maybe Node, Node)
-      formalArg =   try (do { sVAL ; s <- specifier ; n <- name ; return $ (Just (OcVal s), n) })
+      formalArg :: Parser (Maybe N.Node, N.Node)
+      formalArg =   try (do { sVAL ; s <- specifier ; n <- name ; return $ (Just (N.Val s), n) })
                 <|> try (do { s <- specifier ; n <- name ; return $ (Just s, n) })
                 <|> try (do { n <- name ; return $ (Nothing, n) })
 
-      markTypes :: [(Maybe Node, Node)] -> [Node]
+      markTypes :: [(Maybe N.Node, N.Node)] -> [N.Node]
       markTypes [] = []
       markTypes ((Nothing, _):_) = error "Formal list must start with a type"
-      markTypes ((Just ft,fn):is) = (OcFormal ft fn) : markRest ft is
+      markTypes ((Just ft,fn):is) = (N.Formal ft fn) : markRest ft is
 
-      markRest :: Node -> [(Maybe Node, Node)] -> [Node]
+      markRest :: N.Node -> [(Maybe N.Node, N.Node)] -> [N.Node]
       markRest _ [] = []
-      markRest t ((Nothing, n):is) = (OcFormal t n) : markRest t is
-      markRest _ ((Just t, n):is) = (OcFormal t n) : markRest t is
+      markRest t ((Nothing, n):is) = (N.Formal t n) : markRest t is
+      markRest _ ((Just t, n):is) = (N.Formal t n) : markRest t is
 
 functionHeader
     =   do { sFUNCTION ; n <- name ; fs <- formalList ; return $ (n, fs) }
@@ -444,20 +444,20 @@ functionHeader
 
 guard
     =   try input
-    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ OcGuarded b i })
-    <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ OcGuarded b OcSkip })
+    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ N.Guarded b i })
+    <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ N.Guarded b N.Skip })
     <?> "guard"
 
 guardedAlternative
-    =   do { g <- guard ; indent ; p <- process ; outdent ; return $ OcGuarded g p }
+    =   do { g <- guard ; indent ; p <- process ; outdent ; return $ N.Guarded g p }
     <?> "guardedAlternative"
 
 guardedChoice
-    =   do { b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ OcGuarded b p }
+    =   do { b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ N.Guarded b p }
     <?> "guardedChoice"
 
 hexDigits
-    =   do { d <- many1 hexDigit ; return $ OcLitHex d }
+    =   do { d <- many1 hexDigit ; return $ N.LitHex d }
     <?> "hexDigits"
 
 -- XXX how does the syntax handle multiline regular CASE inputs?
@@ -468,18 +468,18 @@ hexDigits
 input
     =   do  c <- channel
             sQuest
-            (do { sCASE ; tl <- taggedList ; eol ; return $ OcInTag c tl }
-             <|> do { sAFTER ; e <- expression ; eol ; return $ OcInAfter c e }
-             <|> do { is <- sepBy1 inputItem sSemi ; eol ; return $ OcIn c is })
+            (do { sCASE ; tl <- taggedList ; eol ; return $ N.InTag c tl }
+             <|> do { sAFTER ; e <- expression ; eol ; return $ N.InAfter c e }
+             <|> do { is <- sepBy1 inputItem sSemi ; eol ; return $ N.In c is })
     <?> "input"
 
 inputItem
-    =   try (do { v <- variable ; sColons ; w <- variable ; return $ OcCounted v w })
+    =   try (do { v <- variable ; sColons ; w <- variable ; return $ N.Counted v w })
     <|> variable
     <?> "inputItem"
 
 integer
-    =   try (do { d <- lexeme digits ; return $ OcLitInt d })
+    =   try (do { d <- lexeme digits ; return $ N.LitInt d })
     <|> do { char '#' ; d <- lexeme hexDigits ; return $ d }
     <?> "integer"
 
@@ -487,35 +487,35 @@ literal
     =   try real
     <|> try integer
     <|> try byte
-    <|> try (do { v <- real ; sLeftR ; t <- dataType ; sRightR ; return $ OcTypedLit t v })
-    <|> try (do { v <- integer ; sLeftR ; t <- dataType ; sRightR ; return $ OcTypedLit t v })
-    <|> try (do { v <- byte ; sLeftR ; t <- dataType ; sRightR ; return $ OcTypedLit t v })
-    <|> try (do { sTRUE ; return $ OcTrue })
-    <|> do { sFALSE ; return $ OcFalse }
+    <|> try (do { v <- real ; sLeftR ; t <- dataType ; sRightR ; return $ N.TypedLit t v })
+    <|> try (do { v <- integer ; sLeftR ; t <- dataType ; sRightR ; return $ N.TypedLit t v })
+    <|> try (do { v <- byte ; sLeftR ; t <- dataType ; sRightR ; return $ N.TypedLit t v })
+    <|> try (do { sTRUE ; return $ N.True })
+    <|> do { sFALSE ; return $ N.False }
     <?> "literal"
 
 loop
-    =   do { sWHILE ; b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ OcWhile b p }
+    =   do { sWHILE ; b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ N.While b p }
 
 monadicOperator
-    =   do { reservedOp "-" ; return $ OcMonSub }
-    <|> do { sMINUS ; return $ OcMonSub }
-    <|> do { reservedOp "~" ; return $ OcMonBitNot }
-    <|> do { sBITNOT ; return $ OcMonBitNot }
-    <|> do { sNOT ; return $ OcMonNot }
-    <|> do { sSIZE ; return $ OcSize }
+    =   do { reservedOp "-" ; return $ N.MonSub }
+    <|> do { sMINUS ; return $ N.MonSub }
+    <|> do { reservedOp "~" ; return $ N.MonBitNot }
+    <|> do { sBITNOT ; return $ N.MonBitNot }
+    <|> do { sNOT ; return $ N.MonNot }
+    <|> do { sSIZE ; return $ N.Size }
     <?> "monadicOperator"
 
 name
-    =   do { s <- identifier ; return $ OcName s }
+    =   do { s <- identifier ; return $ N.Name s }
     <?> "name"
 
 occamString
-    =   lexeme (do { char '"' ; s <- many (noneOf "\"") ; char '"' ; return $ OcLitString s })
+    =   lexeme (do { char '"' ; s <- many (noneOf "\"") ; char '"' ; return $ N.LitString s })
     <?> "string"
 
 operand
-    =   do { v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl OcSub v es }
+    =   do { v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
     <?> "operand"
 
 operand'
@@ -524,16 +524,16 @@ operand'
     <|> try table
     <|> try (do { sLeftR ; e <- expression ; sRightR ; return e })
 -- XXX value process
-    <|> try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ OcCall n as })
-    <|> try (do { sBYTESIN ; sLeftR ; o <- operand ; sRightR ; return $ OcBytesIn o })
-    <|> try (do { sBYTESIN ; sLeftR ; o <- dataType ; sRightR ; return $ OcBytesIn o })
-    <|> try (do { sOFFSETOF ; sLeftR ; n <- name ; sComma ; f <- fieldName ; sRightR ; return $ OcOffsetOf n f })
+    <|> try (do { n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ N.Call n as })
+    <|> try (do { sBYTESIN ; sLeftR ; o <- operand ; sRightR ; return $ N.BytesIn o })
+    <|> try (do { sBYTESIN ; sLeftR ; o <- dataType ; sRightR ; return $ N.BytesIn o })
+    <|> try (do { sOFFSETOF ; sLeftR ; n <- name ; sComma ; f <- fieldName ; sRightR ; return $ N.OffsetOf n f })
     <?> "operand'"
 
 occamOption
-    =   try (do { ces <- sepBy caseExpression sComma ; eol ; indent ; p <- process ; outdent ; return $ OcCaseExps ces p })
-    <|> try (do { sELSE ; eol ; indent ; p <- process ; outdent ; return $ OcElse p })
-    <|> do { s <- specification ; o <- occamOption ; return $ OcDecl s o }
+    =   try (do { ces <- sepBy caseExpression sComma ; eol ; indent ; p <- process ; outdent ; return $ N.CaseExps ces p })
+    <|> try (do { sELSE ; eol ; indent ; p <- process ; outdent ; return $ N.Else p })
+    <|> do { s <- specification ; o <- occamOption ; return $ N.Decl s o }
     <?> "option"
 
 -- XXX This can't tell at parse time in "c ! x; y" whether x is a variable or a tag...
@@ -542,43 +542,43 @@ occamOption
 output
     =   do  c <- channel
             sBang
-            (do { sCASE ; t <- tag ; sSemi ; os <- sepBy1 outputItem sSemi ; eol ; return $ OcOutCase c t os }
-             <|> do { sCASE ; t <- tag ; eol ; return $ OcOutCase c t [] }
-             <|> do { os <- sepBy1 outputItem sSemi ; eol ; return $ OcOut c os })
+            (do { sCASE ; t <- tag ; sSemi ; os <- sepBy1 outputItem sSemi ; eol ; return $ N.OutCase c t os }
+             <|> do { sCASE ; t <- tag ; eol ; return $ N.OutCase c t [] }
+             <|> do { os <- sepBy1 outputItem sSemi ; eol ; return $ N.Out c os })
     <?> "output"
 
 outputItem
-    =   try (do { a <- expression ; sColons ; b <- expression ; return $ OcCounted a b })
+    =   try (do { a <- expression ; sColons ; b <- expression ; return $ N.Counted a b })
     <|> expression
     <?> "outputItem"
 
 parallel
-    =   do { sPAR ; do { eol ; indent ; ps <- many1 process ; outdent ; return $ OcPar ps } <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ OcParRep r p } }
-    <|> do { sPRI ; sPAR ; do { eol ; indent ; ps <- many1 process ; outdent ; return $ OcPriPar ps } <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ OcPriParRep r p } }
+    =   do { sPAR ; do { eol ; indent ; ps <- many1 process ; outdent ; return $ N.Par ps } <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ N.ParRep r p } }
+    <|> do { sPRI ; sPAR ; do { eol ; indent ; ps <- many1 process ; outdent ; return $ N.PriPar ps } <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ N.PriParRep r p } }
     <|> placedpar
     <?> "parallel"
 
 -- XXX PROCESSOR as a process isn't really legal, surely?
 placedpar
-    =   do { sPLACED ; sPAR ; do { eol ; indent ; ps <- many1 placedpar ; outdent ; return $ OcPlacedPar ps } <|> do { r <- replicator ; eol ; indent ; p <- placedpar ; outdent ; return $ OcPlacedParRep r p } }
-    <|> do { sPROCESSOR ; e <- expression ; eol ; indent ; p <- process ; outdent ; return $ OcProcessor e p }
+    =   do { sPLACED ; sPAR ; do { eol ; indent ; ps <- many1 placedpar ; outdent ; return $ N.PlacedPar ps } <|> do { r <- replicator ; eol ; indent ; p <- placedpar ; outdent ; return $ N.PlacedParRep r p } }
+    <|> do { sPROCESSOR ; e <- expression ; eol ; indent ; p <- process ; outdent ; return $ N.Processor e p }
     <?> "placedpar"
 
 portType
-    =   do { sPORT ; sOF ; p <- protocol ; return $ OcPortOf p }
-    <|> do { try sLeft ; s <- try expression ; try sRight ; t <- portType ; return $ OcArray s t }
+    =   do { sPORT ; sOF ; p <- protocol ; return $ N.PortOf p }
+    <|> do { try sLeft ; s <- try expression ; try sRight ; t <- portType ; return $ N.Array s t }
     <?> "portType"
 
 procInstance
-    =   do { n <- name ; sLeftR ; as <- sepBy actual sComma ; sRightR ; eol ; return $ OcProcCall n as }
+    =   do { n <- name ; sLeftR ; as <- sepBy actual sComma ; sRightR ; eol ; return $ N.ProcCall n as }
     <?> "procInstance"
 
 process
     =   try assignment
     <|> try input
     <|> try output
-    <|> do { sSKIP ; eol ; return $ OcSkip }
-    <|> do { sSTOP ; eol ; return $ OcStop }
+    <|> do { sSKIP ; eol ; return $ N.Skip }
+    <|> do { sSTOP ; eol ; return $ N.Stop }
     <|> occamSequence
     <|> conditional
     <|> selection
@@ -587,9 +587,9 @@ process
     <|> alternation
     <|> try caseInput
     <|> try procInstance
-    <|> do { sMainMarker ; eol ; return $ OcMainProcess }
-    <|> do { a <- allocation ; p <- process ; return $ OcDecl a p }
-    <|> do { s <- specification ; p <- process ; return $ OcDecl s p }
+    <|> do { sMainMarker ; eol ; return $ N.MainProcess }
+    <|> do { a <- allocation ; p <- process ; return $ N.Decl a p }
+    <|> do { s <- specification ; p <- process ; return $ N.Decl s p }
     <?> "process"
 
 protocol
@@ -598,16 +598,16 @@ protocol
     <?> "protocol"
 
 real
-    =   try (do { l <- digits ; char '.' ; r <- digits ; char 'e' ; e <- lexeme occamExponent ; return $ OcLitReal (l ++ "." ++ r ++ "e" ++ e) })
-    <|> do { l <- digits ; char '.' ; r <- lexeme digits ; return $ OcLitReal (l ++ "." ++ r) }
+    =   try (do { l <- digits ; char '.' ; r <- digits ; char 'e' ; e <- lexeme occamExponent ; return $ N.LitReal (l ++ "." ++ r ++ "e" ++ e) })
+    <|> do { l <- digits ; char '.' ; r <- lexeme digits ; return $ N.LitReal (l ++ "." ++ r) }
     <?> "real"
 
 replicator
-    =   do { n <- name ; sEq ; b <- base ; sFOR ; c <- occamCount ; return $ OcFor n b c }
+    =   do { n <- name ; sEq ; b <- base ; sFOR ; c <- occamCount ; return $ N.For n b c }
     <?> "replicator"
 
 selection
-    =   do { sCASE ; s <- selector ; eol ; indent ; os <- many1 occamOption ; outdent ; return $ OcCase s os }
+    =   do { sCASE ; s <- selector ; eol ; indent ; os <- many1 occamOption ; outdent ; return $ N.Case s os }
     <?> "selection"
 
 selector
@@ -616,8 +616,8 @@ selector
 
 occamSequence
     =   do  sSEQ
-            (do { eol ; indent ; ps <- many1 process ; outdent ; return $ OcSeq ps }
-             <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ OcSeqRep r p })
+            (do { eol ; indent ; ps <- many1 process ; outdent ; return $ N.Seq ps }
+             <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ N.SeqRep r p })
     <?> "sequence"
 
 sequentialProtocol
@@ -625,9 +625,9 @@ sequentialProtocol
     <?> "sequentialProtocol"
 
 simpleProtocol
-    =   try (do { l <- dataType ; sColons ; sLeft ; sRight ; r <- dataType ; return $ OcCounted l r })
+    =   try (do { l <- dataType ; sColons ; sLeft ; sRight ; r <- dataType ; return $ N.Counted l r })
     <|> dataType
-    <|> do { sANY ; return $ OcAny }
+    <|> do { sANY ; return $ N.Any }
     <?> "simpleProtocol"
 
 specification
@@ -636,39 +636,39 @@ specification
     <|> definition
     <?> "specification"
 
-specifier :: Parser Node
+specifier :: Parser N.Node
 specifier
     =   try dataType
     <|> try channelType
     <|> try timerType
     <|> try portType
-    <|> try (do { sLeft ; sRight ; s <- specifier ; return $ OcArrayUnsized s })
-    <|> do { sLeft ; e <- expression ; sRight ; s <- specifier ; return $ OcArray e s }
+    <|> try (do { sLeft ; sRight ; s <- specifier ; return $ N.ArrayUnsized s })
+    <|> do { sLeft ; e <- expression ; sRight ; s <- specifier ; return $ N.Array e s }
     <?> "specifier"
 
 structuredType
-    =   try (do { sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ OcRecord fs })
-    <|> do { sPACKED ; sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ OcPackedRecord fs }
+    =   try (do { sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ N.Record fs })
+    <|> do { sPACKED ; sRECORD ; eol ; indent ; fs <- many1 structuredTypeField ; outdent ; return $ N.PackedRecord fs }
     <?> "structuredType"
 
 -- FIXME this should use the same type-folding code as proc/func definitions
 structuredTypeField
-    =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; eol ; return $ OcFields t fs }
+    =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; eol ; return $ N.Fields t fs }
     <?> "structuredTypeField"
 
 -- i.e. array literal
 table
-    =   do { v <- table' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl OcSub v es }
+    =   do { v <- table' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
     <?> "table"
 
 table'
     =   try occamString
-    <|> try (do { s <- occamString ; sLeftR ; n <- name ; sRightR ; return $ OcTypedLit n s })
+    <|> try (do { s <- occamString ; sLeftR ; n <- name ; sRightR ; return $ N.TypedLit n s })
     <|> do {  sLeft ;
-              try (do { es <- sepBy1 expression sComma ; sRight ; return $ OcLitArray es })
-              <|> try (do { n <- table ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ OcSubFromFor n e f })
-              <|> try (do { n <- table ; sFROM ; e <- expression ; sRight ; return $ OcSubFrom n e })
-              <|> do { n <- table ; sFOR ; e <- expression ; sRight ; return $ OcSubFor n e } }
+              try (do { es <- sepBy1 expression sComma ; sRight ; return $ N.LitArray es })
+              <|> try (do { n <- table ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
+              <|> try (do { n <- table ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
+              <|> do { n <- table ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e } }
     <?> "table'"
 
 tag
@@ -676,32 +676,32 @@ tag
     <?> "tag"
 
 taggedList
-    =   try (do { t <- tag ; sSemi ; is <- sepBy1 inputItem sSemi ; return $ OcTag t is })
-    <|> do { t <- tag ; return $ OcTag t [] }
+    =   try (do { t <- tag ; sSemi ; is <- sepBy1 inputItem sSemi ; return $ N.Tag t is })
+    <|> do { t <- tag ; return $ N.Tag t [] }
     <?> "taggedList"
 
 taggedProtocol
-    =   try (do { t <- tag ; eol ; return $ OcTag t [] })
-    <|> try (do { t <- tag ; sSemi ; sp <- sequentialProtocol ; eol ; return $ OcTag t sp })
+    =   try (do { t <- tag ; eol ; return $ N.Tag t [] })
+    <|> try (do { t <- tag ; sSemi ; sp <- sequentialProtocol ; eol ; return $ N.Tag t sp })
 
 timerType
-    =   do { sTIMER ; return $ OcTimer }
-    <|> do { try sLeft ; s <- try expression ; try sRight ; t <- timerType ; return $ OcArray s t }
+    =   do { sTIMER ; return $ N.Timer }
+    <|> do { try sLeft ; s <- try expression ; try sRight ; t <- timerType ; return $ N.Array s t }
     <?> "timerType"
 
 valueProcess
-    =   try (do { sVALOF ; eol ; indent ; p <- process ; sRESULT ; el <- expressionList ; eol ; outdent ; return $ OcValOf p el })
-    <|> do { s <- specification ; v <- valueProcess ; return $ OcDecl s v }
+    =   try (do { sVALOF ; eol ; indent ; p <- process ; sRESULT ; el <- expressionList ; eol ; outdent ; return $ N.ValOf p el })
+    <|> do { s <- specification ; v <- valueProcess ; return $ N.Decl s v }
 
 variable
-    =   do { v <- variable' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl OcSub v es }
+    =   do { v <- variable' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
     <?> "variable"
 
 variable'
     =   try name
-    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ OcSubFromFor n e f })
-    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sRight ; return $ OcSubFrom n e })
-    <|> do { sLeft ; n <- variable ; sFOR ; e <- expression ; sRight ; return $ OcSubFor n e }
+    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
+    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
+    <|> do { sLeft ; n <- variable ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e }
     <?> "variable'"
 
 variableList
@@ -709,8 +709,8 @@ variableList
     <?> "variableList"
 
 variant
-    =   try (do { t <- taggedList ; eol ; indent ; p <- process ; outdent ; return $ OcVariant t p })
-    <|> do { s <- specification ; v <- variant ; return $ OcDecl s v }
+    =   try (do { t <- taggedList ; eol ; indent ; p <- process ; outdent ; return $ N.Variant t p })
+    <|> do { s <- specification ; v <- variant ; return $ N.Decl s v }
     <?> "variant"
 
 -- -------------------------------------------------------------
@@ -777,7 +777,7 @@ readSource fn = do
 
 -- -------------------------------------------------------------
 
-parseSource :: String -> Node
+parseSource :: String -> N.Node
 parseSource prep
   = case (parse sourceFile "occam" prep) of
       Left err -> error ("Parsing error: " ++ (show err))
