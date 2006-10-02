@@ -67,9 +67,10 @@ data Node =
   | ValOf Node Node
 
   | Sub Node Node
-  | SubFromFor Node Node Node
-  | SubFrom Node Node
-  | SubFor Node Node
+  | SubPlain Node
+  | SubFromFor Node Node
+  | SubFrom Node
+  | SubFor Node
 
   | CaseExps [Node] Node
   | Else Node

@@ -273,14 +273,14 @@ caseInput
 -- This is also used for timers and ports, since the syntax is identical (and
 -- the parser really can't tell at this stage which is which).
 channel
-    =   do { v <- channel' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
+    =   do { v <- channel' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\s e -> N.Sub (N.SubPlain s) e) v es }
     <?> "channel"
 
 channel'
     =   try name
-    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
-    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
-    <|> do { sLeft ; n <- channel ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e }
+    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.Sub (N.SubFromFor e f) n })
+    <|> try (do { sLeft ; n <- channel ; sFROM ; e <- expression ; sRight ; return $ N.Sub (N.SubFrom e) n })
+    <|> do { sLeft ; n <- channel ; sFOR ; e <- expression ; sRight ; return $ N.Sub (N.SubFor e) n }
     <?> "channel'"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
@@ -515,7 +515,7 @@ occamString
     <?> "string"
 
 operand
-    =   do { v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
+    =   do { v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\s e -> N.Sub (N.SubPlain s) e) v es }
     <?> "operand"
 
 operand'
@@ -658,7 +658,7 @@ structuredTypeField
 
 -- i.e. array literal
 table
-    =   do { v <- table' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
+    =   do { v <- table' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\s e -> N.Sub (N.SubPlain s) e) v es }
     <?> "table"
 
 table'
@@ -666,9 +666,9 @@ table'
     <|> try (do { s <- occamString ; sLeftR ; n <- name ; sRightR ; return $ N.TypedLit n s })
     <|> do {  sLeft ;
               try (do { es <- sepBy1 expression sComma ; sRight ; return $ N.LitArray es })
-              <|> try (do { n <- table ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
-              <|> try (do { n <- table ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
-              <|> do { n <- table ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e } }
+              <|> try (do { n <- table ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.Sub (N.SubFromFor e f) n })
+              <|> try (do { n <- table ; sFROM ; e <- expression ; sRight ; return $ N.Sub (N.SubFrom e) n })
+              <|> do { n <- table ; sFOR ; e <- expression ; sRight ; return $ N.Sub (N.SubFor e) n } }
     <?> "table'"
 
 tag
@@ -694,14 +694,14 @@ valueProcess
     <|> do { s <- specification ; v <- valueProcess ; return $ N.Decl s v }
 
 variable
-    =   do { v <- variable' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl N.Sub v es }
+    =   do { v <- variable' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\s e -> N.Sub (N.SubPlain s) e) v es }
     <?> "variable"
 
 variable'
     =   try name
-    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.SubFromFor n e f })
-    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sRight ; return $ N.SubFrom n e })
-    <|> do { sLeft ; n <- variable ; sFOR ; e <- expression ; sRight ; return $ N.SubFor n e }
+    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ N.Sub (N.SubFromFor e f) n })
+    <|> try (do { sLeft ; n <- variable ; sFROM ; e <- expression ; sRight ; return $ N.Sub (N.SubFrom e) n })
+    <|> do { sLeft ; n <- variable ; sFOR ; e <- expression ; sRight ; return $ N.Sub (N.SubFor e) n }
     <?> "variable'"
 
 variableList
