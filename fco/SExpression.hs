@@ -11,6 +11,36 @@ instance Show SExp where
   show (Item s) = s
   show (List is) = "(" ++ (concat $ intersperse " " $ map show is) ++ ")"
 
+dyadicName :: N.Node -> String
+dyadicName n = case n of
+  N.Add -> "+"
+  N.Subtr -> "-"
+  N.Mul -> "*"
+  N.Div -> "/"
+  N.Rem -> "mod"
+  N.Plus -> "plus"
+  N.Minus -> "minus"
+  N.Times -> "times"
+  N.BitAnd -> "bitand"
+  N.BitOr -> "bitor"
+  N.BitXor -> "bitxor"
+  N.And -> "and"
+  N.Or -> "or"
+  N.Eq -> "="
+  N.NEq -> "<>"
+  N.Less -> "<"
+  N.More -> ">"
+  N.LessEq -> "<="
+  N.MoreEq -> ">="
+  N.After -> "after"
+
+monadicName :: N.Node -> String
+monadicName n = case n of
+  N.MonSub -> "-"
+  N.MonBitNot -> "bitnot"
+  N.MonNot -> "not"
+  N.MonSize -> "size"
+
 nodeToSExp :: N.Node -> SExp
 nodeToSExp node
   = case node of
@@ -78,29 +108,8 @@ nodeToSExp node
       N.Conv a b -> wrap2 "conv" (top a) (top b)
       N.Round a b -> wrap2 "round" (top a) (top b)
       N.Trunc a b -> wrap2 "trunc" (top a) (top b)
-      N.Add a b -> wrap2 "+" (top a) (top b)
-      N.Subtr a b -> wrap2 "-" (top a) (top b)
-      N.Mul a b -> wrap2 "*" (top a) (top b)
-      N.Div a b -> wrap2 "/" (top a) (top b)
-      N.Rem a b -> wrap2 "mod" (top a) (top b)
-      N.Plus a b -> wrap2 "plus" (top a) (top b)
-      N.Minus a b -> wrap2 "minus" (top a) (top b)
-      N.Times a b -> wrap2 "times" (top a) (top b)
-      N.BitAnd a b -> wrap2 "bitand" (top a) (top b)
-      N.BitOr a b -> wrap2 "bitor" (top a) (top b)
-      N.BitXor a b -> wrap2 "bitxor" (top a) (top b)
-      N.And a b -> wrap2 "and" (top a) (top b)
-      N.Or a b -> wrap2 "or" (top a) (top b)
-      N.Eq a b -> wrap2 "=" (top a) (top b)
-      N.NEq a b -> wrap2 "<>" (top a) (top b)
-      N.Less a b -> wrap2 "<" (top a) (top b)
-      N.More a b -> wrap2 ">" (top a) (top b)
-      N.LessEq a b -> wrap2 "<=" (top a) (top b)
-      N.MoreEq a b -> wrap2 ">=" (top a) (top b)
-      N.After a b -> wrap2 "after" (top a) (top b)
-      N.MonSub a -> wrap "-" (top a)
-      N.MonBitNot a -> wrap "bitnot" (top a)
-      N.MonNot a -> wrap "not" (top a)
+      N.DyadicOp o a b -> wrap2 (dyadicName o) (top a) (top b)
+      N.MonadicOp o a -> wrap (monadicName o) (top a)
       N.MostPos a -> wrap "mostpos" (top a)
       N.MostNeg a -> wrap "mostneg" (top a)
       N.Size a -> wrap "size" (top a)
@@ -211,29 +220,8 @@ nodeToSOccam node
       N.Conv a b -> wrap2 "conv" (top a) (top b)
       N.Round a b -> wrap2 "round" (top a) (top b)
       N.Trunc a b -> wrap2 "trunc" (top a) (top b)
-      N.Add a b -> wrap2 "+" (top a) (top b)
-      N.Subtr a b -> wrap2 "-" (top a) (top b)
-      N.Mul a b -> wrap2 "*" (top a) (top b)
-      N.Div a b -> wrap2 "/" (top a) (top b)
-      N.Rem a b -> wrap2 "mod" (top a) (top b)
-      N.Plus a b -> wrap2 "plus" (top a) (top b)
-      N.Minus a b -> wrap2 "minus" (top a) (top b)
-      N.Times a b -> wrap2 "times" (top a) (top b)
-      N.BitAnd a b -> wrap2 "bitand" (top a) (top b)
-      N.BitOr a b -> wrap2 "bitor" (top a) (top b)
-      N.BitXor a b -> wrap2 "bitxor" (top a) (top b)
-      N.And a b -> wrap2 "and" (top a) (top b)
-      N.Or a b -> wrap2 "or" (top a) (top b)
-      N.Eq a b -> wrap2 "=" (top a) (top b)
-      N.NEq a b -> wrap2 "<>" (top a) (top b)
-      N.Less a b -> wrap2 "<" (top a) (top b)
-      N.More a b -> wrap2 ">" (top a) (top b)
-      N.LessEq a b -> wrap2 "<=" (top a) (top b)
-      N.MoreEq a b -> wrap2 ">=" (top a) (top b)
-      N.After a b -> wrap2 "after" (top a) (top b)
-      N.MonSub a -> wrap "-" (top a)
-      N.MonBitNot a -> wrap "bitnot" (top a)
-      N.MonNot a -> wrap "not" (top a)
+      N.DyadicOp o a b -> wrap2 (dyadicName o) (top a) (top b)
+      N.MonadicOp o a -> wrap (monadicName o) (top a)
       N.MostPos a -> wrap "mostpos" (top a)
       N.MostNeg a -> wrap "mostneg" (top a)
       N.Size a -> wrap "size" (top a)

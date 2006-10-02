@@ -398,11 +398,11 @@ occamExponent
 
 expression :: Parser N.Node
 expression
-    =   try (do { o <- monadicOperator ; v <- operand ; return $ o v })
+    =   try (do { o <- monadicOperator ; v <- operand ; return $ N.MonadicOp o v })
     <|> do { a <- sMOSTPOS ; t <- dataType ; return $ N.MostPos t }
     <|> do { a <- sMOSTNEG ; t <- dataType ; return $ N.MostNeg t }
     <|> do { a <- sSIZE ; t <- dataType ; return $ N.Size t }
-    <|> try (do { a <- operand ; o <- dyadicOperator ; b <- operand ; return $ o a b })
+    <|> try (do { a <- operand ; o <- dyadicOperator ; b <- operand ; return $ N.DyadicOp o a b })
     <|> try conversion
     <|> operand
     <?> "expression"
@@ -503,7 +503,7 @@ monadicOperator
     <|> do { reservedOp "~" ; return $ N.MonBitNot }
     <|> do { sBITNOT ; return $ N.MonBitNot }
     <|> do { sNOT ; return $ N.MonNot }
-    <|> do { sSIZE ; return $ N.Size }
+    <|> do { sSIZE ; return $ N.MonSize }
     <?> "monadicOperator"
 
 name

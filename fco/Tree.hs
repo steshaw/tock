@@ -1,4 +1,4 @@
--- Tree datatype and operations
+-- occam parse tree
 -- This is intended to be imported qualified:
 --   import qualified Tree as N
 
@@ -79,29 +79,35 @@ data Node =
   | Conv Node Node
   | Round Node Node
   | Trunc Node Node
-  | Add Node Node
-  | Subtr Node Node
-  | Mul Node Node
-  | Div Node Node
-  | Rem Node Node
-  | Plus Node Node
-  | Minus Node Node
-  | Times Node Node
-  | BitAnd Node Node
-  | BitOr Node Node
-  | BitXor Node Node
-  | And Node Node
-  | Or Node Node
-  | Eq Node Node
-  | NEq Node Node
-  | Less Node Node
-  | More Node Node
-  | LessEq Node Node
-  | MoreEq Node Node
-  | After Node Node
-  | MonSub Node
-  | MonBitNot Node
-  | MonNot Node
+
+  | DyadicOp Node Node Node
+  | Add
+  | Subtr
+  | Mul
+  | Div
+  | Rem
+  | Plus
+  | Minus
+  | Times
+  | BitAnd
+  | BitOr
+  | BitXor
+  | And
+  | Or
+  | Eq
+  | NEq
+  | Less
+  | More
+  | LessEq
+  | MoreEq
+  | After
+
+  | MonadicOp Node Node
+  | MonSub
+  | MonBitNot
+  | MonNot
+  | MonSize
+
   | MostPos Node
   | MostNeg Node
   | Size Node
