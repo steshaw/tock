@@ -10,6 +10,7 @@ sources = \
 	PhaseSource.hs \
 	SExpression.hs \
 	Tree.hs \
+	TreeToAST.hs \
 	Main.hs
 
 fco: $(sources)
@@ -18,3 +19,16 @@ fco: $(sources)
 BaseTransforms.hs: Tree.hs make-passthrough.py
 	python make-passthrough.py
 
+tests = $(wildcard test*.occ)
+
+test: fco $(tests)
+	@set -e; for x in $(tests); do \
+		echo -n "$$x: " ; \
+		if ! ./fco --raw-parse-tree $$x >/dev/null ; then \
+			echo "parse failed" ; \
+		elif ! ./fco --ast $$x >/dev/null ; then \
+			echo "ast failed" ; \
+		else \
+			echo "ok" ; \
+		fi ; \
+	done

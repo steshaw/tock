@@ -1,0 +1,9 @@
+PROC other (CHAN OF INT c)
+  SKIP
+:
+
+PROC foo ()
+  [10]CHAN OF INT xs:
+  PAR i = 0 FOR SIZE xs
+    other (xs[i])
+:

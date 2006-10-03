@@ -15,7 +15,7 @@ import PhaseSource
 import PhaseIntermediate
 import PhaseOutput
 
-import qualified OccamTypes as O
+import TreeToAST
 
 phaseList = [phaseSource, phaseIntermediate, phaseOutput]
 
@@ -26,13 +26,15 @@ doPhases (p:ps) n progress = do
   n'' <- doPhases ps n' progress
   return n''
 
-data Flag = ParseOnly | SOccamOnly | Verbose
+data Flag = ParseOnly | SOccamOnly | RawParseOnly | ASTOnly | Verbose
   deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
   [ Option [] ["parse-tree"] (NoArg ParseOnly) "parse input files and output S-expression parse tree"
   , Option [] ["soccam"] (NoArg SOccamOnly) "parse input files and output soccam"
+  , Option [] ["raw-parse-tree"] (NoArg RawParseOnly) "parse input files and output parse tree"
+  , Option [] ["ast"] (NoArg ASTOnly) "parse input files and output AST"
   , Option ['v'] ["verbose"] (NoArg Verbose) "show more detail about what's going on"
   ]
 
@@ -72,6 +74,10 @@ main = do
       putStrLn $ show (nodeToSExp parsed)
     else if SOccamOnly `elem` opts then do
       putStrLn $ show (nodeToSOccam parsed)
+    else if RawParseOnly `elem` opts then do
+      putStrLn $ show parsed
+    else if ASTOnly `elem` opts then do
+      putStrLn $ show (treeToAST parsed)
     else do
       progress $ "Parsed: " ++ show parsed
       progress ""
