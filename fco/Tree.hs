@@ -11,20 +11,22 @@ data Node =
   | AltRep Node Node
   | PriAlt [Node]
   | PriAltRep Node Node
-  | In Node [Node]
--- e.g. InCase (Name "c") [Variant .., Variant ..]
+
+  | In Node Node
+  | InSimple [Node]
+-- e.g. In (Name "c") (InCase [Variant .., Variant ..])
   | Variant Node Node
-  | InCase Node [Node]
-  | InCaseGuard Node Node [Node]
+  | InCase [Node]
 -- FIXME can turn into InCase ... (Variant .. Skip)
-  | InTag Node Node
+  | InTag Node
+  | InAfter Node
+
   | Out Node [Node]
   | OutCase Node Node [Node]
   | ExpList [Node]
   | Assign [Node] Node
   | If [Node]
   | IfRep Node Node
-  | InAfter Node Node
   | While Node Node
   | Par [Node]
   | ParRep Node Node
@@ -116,7 +118,10 @@ data Node =
   | BytesIn Node
   | OffsetOf Node Node
 
-  | Guarded Node Node
+  | Guard Node Node
+  | CondGuard Node Node
+
+  | Choice Node Node
 
   | Val Node
   | ChanOf Node

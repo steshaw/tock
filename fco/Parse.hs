@@ -238,11 +238,14 @@ alternation
               <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return $ N.PriAltRep r a } }
     <?> "alternation"
 
+-- The reason the CASE guards end up here is because they have to be handled
+-- specially: you can't tell until parsing the guts of the CASE what the processes
+-- are.
 alternative
     =   guardedAlternative
     <|> alternation
-    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCaseGuard b c vs })
-    <|> try (do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCase c vs })
+    <|> try (do { b <- boolean ; sAmp ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.CondGuard b (N.In c (N.InCase vs)) })
+    <|> try (do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.In c (N.InCase vs) })
     <|> do { s <- specification ; a <- alternative ; return $ N.Decl s a }
     <?> "alternative"
 
@@ -267,7 +270,7 @@ caseExpression
     <?> "caseExpression"
 
 caseInput
-    =   do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.InCase c vs }
+    =   do { c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ N.In c (N.InCase vs) }
     <?> "caseInput"
 
 -- This is also used for timers and ports, since the syntax is identical (and
@@ -444,33 +447,28 @@ functionHeader
 
 guard
     =   try input
-    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ N.Guarded b i })
-    <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ N.Guarded b N.Skip })
+    <|> try (do { b <- boolean ; sAmp ; i <- input ; return $ N.CondGuard b i })
+    <|> try (do { b <- boolean ; sAmp ; sSKIP ; eol ; return $ N.CondGuard b N.Skip })
     <?> "guard"
 
 guardedAlternative
-    =   do { g <- guard ; indent ; p <- process ; outdent ; return $ N.Guarded g p }
+    =   do { g <- guard ; indent ; p <- process ; outdent ; return $ N.Guard g p }
     <?> "guardedAlternative"
 
 guardedChoice
-    =   do { b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ N.Guarded b p }
+    =   do { b <- boolean ; eol ; indent ; p <- process ; outdent ; return $ N.Choice b p }
     <?> "guardedChoice"
 
 hexDigits
     =   do { d <- many1 hexDigit ; return $ N.LitHex d }
     <?> "hexDigits"
 
--- XXX how does the syntax handle multiline regular CASE inputs?
--- chan ? CASE
---   foo
---     ...
-
 input
     =   do  c <- channel
             sQuest
-            (do { sCASE ; tl <- taggedList ; eol ; return $ N.InTag c tl }
-             <|> do { sAFTER ; e <- expression ; eol ; return $ N.InAfter c e }
-             <|> do { is <- sepBy1 inputItem sSemi ; eol ; return $ N.In c is })
+            (do { sCASE ; tl <- taggedList ; eol ; return $ N.In c (N.InTag tl) }
+             <|> do { sAFTER ; e <- expression ; eol ; return $ N.In c (N.InAfter e) }
+             <|> do { is <- sepBy1 inputItem sSemi ; eol ; return $ N.In c (N.InSimple is) })
     <?> "input"
 
 inputItem
