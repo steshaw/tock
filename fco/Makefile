@@ -1,23 +1,18 @@
 all: fco
 
 sources = \
-	BaseTransforms.hs \
-	OccamTypes.hs \
+	AST.hs \
+	ASTPasses.hs \
 	Parse.hs \
 	Pass.hs \
-	PhaseIntermediate.hs \
-	PhaseOutput.hs \
-	PhaseSource.hs \
+	PT.hs \
+	PTPasses.hs \
 	SExpression.hs \
-	Tree.hs \
-	TreeToAST.hs \
+	PTToAST.hs \
 	Main.hs
 
 fco: $(sources)
 	ghc -fglasgow-exts -o fco --make Main
-
-BaseTransforms.hs: Tree.hs make-passthrough.py
-	python make-passthrough.py
 
 tests = $(wildcard test*.occ)
 

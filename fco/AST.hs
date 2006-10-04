@@ -1,8 +1,8 @@
 -- Data types for occam abstract syntax
 -- This is intended to be imported qualified:
---   import qualified OccamTypes as O
+--   import qualified AST as O
 
-module OccamTypes where
+module AST where
 
 import Data.Generics
 

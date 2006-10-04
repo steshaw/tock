@@ -1,9 +1,9 @@
 -- Convert the parse tree into the AST
 
-module TreeToAST (treeToAST) where
+module PTToAST (ptToAST) where
 
-import qualified Tree as N
-import qualified OccamTypes as O
+import qualified PT as N
+import qualified AST as O
 
 doName :: N.Node -> O.Name
 doName (N.Name s) = O.Name s
@@ -245,6 +245,6 @@ doProcess n = case n of
   N.PriAltRep _ _ -> O.Alt True $ doAlt n
   N.ProcCall p es -> O.ProcCall (doName p) (map doExpression es)
 
-treeToAST :: N.Node -> O.Process
-treeToAST = doProcess
+ptToAST :: N.Node -> O.Process
+ptToAST = doProcess
 

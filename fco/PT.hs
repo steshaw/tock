@@ -1,8 +1,10 @@
 -- occam parse tree
 -- This is intended to be imported qualified:
---   import qualified Tree as N
+--   import qualified PT as N
 
-module Tree where
+module PT where
+
+import Data.Generics
 
 data Node =
 -- {{{ BEGIN baseTransformOc
@@ -160,5 +162,5 @@ data Node =
   | CCode String
 -- }}} END
 
-  deriving (Show, Eq)
+  deriving (Show, Eq, Typeable, Data)
 

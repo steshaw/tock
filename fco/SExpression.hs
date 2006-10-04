@@ -3,7 +3,7 @@
 module SExpression where
 
 import List
-import qualified Tree as N
+import qualified PT as N
 
 data SExp = Item String | List [SExp]
 

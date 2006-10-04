@@ -8,33 +8,19 @@ import System.Console.GetOpt
 import System.IO
 
 import Parse
-import Tree
 import SExpression
 import Pass
-import PhaseSource
-import PhaseIntermediate
-import PhaseOutput
+import PTPasses
+import PTToAST
+import ASTPasses
 
-import TreeToAST
-
-phaseList = [phaseSource, phaseIntermediate, phaseOutput]
-
-doPhases :: [Phase] -> Node -> Progress -> IO Node
-doPhases [] n progress = do return n
-doPhases (p:ps) n progress = do
-  n' <- runPhase p n progress
-  n'' <- doPhases ps n' progress
-  return n''
-
-data Flag = ParseOnly | SOccamOnly | RawParseOnly | ASTOnly | Verbose
+data Flag = ParseOnly | SOccamOnly | Verbose
   deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
   [ Option [] ["parse-tree"] (NoArg ParseOnly) "parse input files and output S-expression parse tree"
   , Option [] ["soccam"] (NoArg SOccamOnly) "parse input files and output soccam"
-  , Option [] ["raw-parse-tree"] (NoArg RawParseOnly) "parse input files and output parse tree"
-  , Option [] ["ast"] (NoArg ASTOnly) "parse input files and output AST"
   , Option ['v'] ["verbose"] (NoArg Verbose) "show more detail about what's going on"
   ]
 
@@ -63,26 +49,33 @@ main = do
   progress $ "Compiling " ++ fn
   progress ""
 
+  progress $ "{{{ Preprocessor"
   preprocessed <- readSource fn
-  progress $ "Preprocessed: "
   progress $ numberedListing preprocessed
-  progress $ ""
+  progress $ "}}}"
 
-  let parsed = parseSource preprocessed
+  progress $ "{{{ Parser"
+  let pt = parseSource preprocessed
+  progress $ show pt
+  progress $ "}}}"
 
   if ParseOnly `elem` opts then do
-      putStrLn $ show (nodeToSExp parsed)
+      putStrLn $ show (nodeToSExp pt)
     else if SOccamOnly `elem` opts then do
-      putStrLn $ show (nodeToSOccam parsed)
-    else if RawParseOnly `elem` opts then do
-      putStrLn $ show parsed
-    else if ASTOnly `elem` opts then do
-      putStrLn $ show (treeToAST parsed)
+      putStrLn $ show (nodeToSOccam pt)
     else do
-      progress $ "Parsed: " ++ show parsed
-      progress ""
+      progress $ "{{{ PT passes"
+      pt' <- runPasses ptPasses progress pt
+      progress $ "}}}"
 
-      out <- doPhases phaseList parsed progress
-      progress ""
-      progress $ "After phases: " ++ show out
+      progress $ "{{{ PT to AST"
+      let ast = ptToAST pt'
+      progress $ show ast
+      progress $ "}}}"
+
+      progress $ "{{{ AST passes"
+      ast' <- runPasses astPasses progress ast
+      progress $ "}}}"
+
+      progress $ "Done"
 

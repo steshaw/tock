@@ -8,7 +8,7 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.ParserCombinators.Parsec.Language (emptyDef)
 import qualified IO
 
-import qualified Tree as N
+import qualified PT as N
 
 -- -------------------------------------------------------------
 
