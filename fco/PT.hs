@@ -7,7 +7,6 @@ module PT where
 import Data.Generics
 
 data Node =
--- {{{ BEGIN baseTransformOc
   Decl Node Node
   | Alt [Node]
   | AltRep Node Node
@@ -19,7 +18,6 @@ data Node =
 -- e.g. In (Name "c") (InCase [Variant .., Variant ..])
   | Variant Node Node
   | InCase [Node]
--- FIXME can turn into InCase ... (Variant .. Skip)
   | InTag Node
   | InAfter Node
 
@@ -152,15 +150,6 @@ data Node =
   | True
   | False
   | Name String
--- }}} END
-
--- {{{ BEGIN baseTransformInt
-  | IntDecl String Node Node
--- }}} END
-
--- {{{ BEGIN baseTransformC
-  | CCode String
--- }}} END
 
   deriving (Show, Eq, Typeable, Data)
 
