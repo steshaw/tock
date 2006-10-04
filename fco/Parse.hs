@@ -755,8 +755,8 @@ flatten ls = concat $ intersperse "\n" $ flatten' ls 0
       | newLevel < level = (rep (level - newLevel) '}' ++ stripped) : rest
       | otherwise        = stripped : rest
       where newLevel = countIndent s
-            stripped' = stripIndent $ stripComment s
-            stripped = if stripped' == "" then "" else (stripped' ++ "@")
+            stripped' = stripComment s
+            stripped = if stripIndent stripped' == "" then "" else (stripped' ++ "@")
             rest = flatten' ss newLevel
 
 -- -------------------------------------------------------------
