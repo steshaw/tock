@@ -4,12 +4,16 @@ module SExpression where
 
 import List
 import qualified PT as N
+import Text.PrettyPrint.HughesPJ
 
 data SExp = Item String | List [SExp]
 
+sexpToDoc :: SExp -> Doc
+sexpToDoc (Item s) = text s
+sexpToDoc (List is) = parens $ sep (map sexpToDoc is)
+
 instance Show SExp where
-  show (Item s) = s
-  show (List is) = "(" ++ (concat $ intersperse " " $ map show is) ++ ")"
+  show s = render $ sexpToDoc s
 
 dyadicName :: N.Node -> String
 dyadicName n = case n of

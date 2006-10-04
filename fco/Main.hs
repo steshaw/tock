@@ -7,6 +7,7 @@ import System
 import System.Console.GetOpt
 import System.IO
 
+import PrettyShow
 import Parse
 import SExpression
 import Pass
@@ -56,7 +57,7 @@ main = do
 
   progress $ "{{{ Parser"
   let pt = parseSource preprocessed
-  progress $ show pt
+  progress $ pshow pt
   progress $ "}}}"
 
   if ParseOnly `elem` opts then do
@@ -70,7 +71,7 @@ main = do
 
       progress $ "{{{ PT to AST"
       let ast = ptToAST pt'
-      progress $ show ast
+      progress $ pshow ast
       progress $ "}}}"
 
       progress $ "{{{ AST passes"

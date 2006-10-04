@@ -16,6 +16,12 @@ number (A.Name s) = do
   put (i + 1)
   return $ A.Name (s ++ "." ++ (show i))
 
+number' :: A.Tag -> State Int A.Tag
+number' (A.Tag s) = do
+  i <- get
+  put (i + 1)
+  return $ A.Tag (s ++ "." ++ (show i))
+
 numberPass :: A.Process -> A.Process
-numberPass n = evalState (everywhereM (mkM number) n) 0
+numberPass n = evalState (everywhereM (mkM (number `extM` number')) n) 0
 
