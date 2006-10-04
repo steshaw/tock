@@ -2,7 +2,6 @@
 
 module PrettyShow (pshow) where
 
-import List
 import Data.Generics
 import Text.PrettyPrint.HughesPJ
 
