@@ -3,14 +3,15 @@ all: fco
 sources = \
 	AST.hs \
 	ASTPasses.hs \
+	Main.hs \
+	Metadata.hs \
 	Parse.hs \
 	Pass.hs \
 	PrettyShow.hs \
 	PT.hs \
 	PTPasses.hs \
 	SExpression.hs \
-	PTToAST.hs \
-	Main.hs
+	PTToAST.hs
 
 fco: $(sources)
 	ghc -fglasgow-exts -o fco --make Main

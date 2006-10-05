@@ -5,8 +5,12 @@
 module PT where
 
 import Data.Generics
+import Metadata
 
-data Node =
+data Node = Node Meta NodeType
+  deriving (Show, Eq, Typeable, Data)
+
+data NodeType =
   Decl Node Node
   | Alt [Node]
   | AltRep Node Node

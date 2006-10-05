@@ -56,7 +56,7 @@ main = do
   progress $ "}}}"
 
   progress $ "{{{ Parser"
-  let pt = parseSource preprocessed
+  let pt = parseSource preprocessed fn
   progress $ pshow pt
   progress $ "}}}"
 

@@ -16,7 +16,7 @@ instance Show SExp where
   show s = render $ sexpToDoc s
 
 dyadicName :: N.Node -> String
-dyadicName n = case n of
+dyadicName (N.Node meta node) = case node of
   N.Add -> "+"
   N.Subtr -> "-"
   N.Mul -> "*"
@@ -39,25 +39,25 @@ dyadicName n = case n of
   N.After -> "after"
 
 monadicName :: N.Node -> String
-monadicName n = case n of
+monadicName (N.Node meta node) = case node of
   N.MonSub -> "-"
   N.MonBitNot -> "bitnot"
   N.MonNot -> "not"
   N.MonSize -> "size"
 
 nodeToSExp :: N.Node -> SExp
-nodeToSExp node
+nodeToSExp (N.Node meta node)
   = case node of
       N.Decl a b -> wrap2 ":" (top a) (top b)
       N.Alt a -> wrapl "alt" (map top a)
       N.AltRep a b -> wrap2 "alt-rep" (top a) (top b)
       N.PriAlt a -> wrapl "pri-alt" (map top a)
       N.PriAltRep a b -> wrap2 "pri-alt-rep" (top a) (top b)
-      N.In a (N.InSimple b) -> wrapl1 "?" (top a) (map top b)
+      N.In a (N.Node _ (N.InSimple b)) -> wrapl1 "?" (top a) (map top b)
       N.Variant a b -> wrap2 "variant" (top a) (top b)
-      N.In a (N.InCase b) -> wrapl1 "?case" (top a) (map top b)
-      N.In a (N.InTag b) -> wrap2 "?case-tag" (top a) (top b)
-      N.In a (N.InAfter b) -> wrap2 "?after" (top a) (top b)
+      N.In a (N.Node _ (N.InCase b)) -> wrapl1 "?case" (top a) (map top b)
+      N.In a (N.Node _ (N.InTag b)) -> wrap2 "?case-tag" (top a) (top b)
+      N.In a (N.Node _ (N.InAfter b)) -> wrap2 "?after" (top a) (top b)
       N.Out a b -> wrapl1 "!" (top a) (map top b)
       N.OutCase a b c -> wrapl2 "!case" (top a) (top b) (map top c)
       N.ExpList a -> wrapl "exp-list" (map top a)
@@ -101,10 +101,10 @@ nodeToSExp node
       N.Reshapes a b c -> wrap3 "reshapes" (top a) (top b) (top c)
       N.ValReshapes a b c -> wrap3 "val-reshapes" (top a) (top b) (top c)
       N.ValOf a b -> wrap2 "valof" (top a) (top b)
-      N.Sub (N.SubPlain b) a -> wrap2 "sub" (top a) (top b)
-      N.Sub (N.SubFromFor b c) a -> wrap3 "sub-from-for" (top a) (top b) (top c)
-      N.Sub (N.SubFrom b) a -> wrap2 "sub-from" (top a) (top b)
-      N.Sub (N.SubFor b) a -> wrap2 "sub-for" (top a) (top b)
+      N.Sub (N.Node _ (N.SubPlain b)) a -> wrap2 "sub" (top a) (top b)
+      N.Sub (N.Node _ (N.SubFromFor b c)) a -> wrap3 "sub-from-for" (top a) (top b) (top c)
+      N.Sub (N.Node _ (N.SubFrom b)) a -> wrap2 "sub-from" (top a) (top b)
+      N.Sub (N.Node _ (N.SubFor b)) a -> wrap2 "sub-for" (top a) (top b)
       N.CaseExps a b -> wrap2 "case-exps" (List $ map top a) (top b)
       N.Else a -> wrap "else" (top a)
       N.For a b c -> wrap3 "for" (top a) (top b) (top c)
@@ -159,18 +159,18 @@ nodeToSExp node
           wrapl2 name arg1 arg2 args = List ((Item name) : arg1 : arg2 : args)
 
 nodeToSOccam :: N.Node -> SExp
-nodeToSOccam node
+nodeToSOccam (N.Node meta node)
   = case node of
       N.Decl a b -> wrap2 ":" (top a) (top b)
       N.Alt a -> wrapl "alt" (map top a)
       N.AltRep a b -> wrap2 "alt" (top a) (top b)
       N.PriAlt a -> wrapl "pri-alt" (map top a)
       N.PriAltRep a b -> wrap2 "pri-alt" (top a) (top b)
-      N.In a (N.InSimple b) -> wrapl1 "?" (top a) (map top b)
+      N.In a (N.Node _ (N.InSimple b)) -> wrapl1 "?" (top a) (map top b)
       N.Variant a b -> wrap2 "variant" (top a) (top b)
-      N.In a (N.InCase b) -> wrapl1 "?case" (top a) (map top b)
-      N.In a (N.InTag b) -> wrap2 "?case-tag" (top a) (top b)
-      N.In a (N.InAfter b) -> wrap2 "?after" (top a) (top b)
+      N.In a (N.Node _ (N.InCase b)) -> wrapl1 "?case" (top a) (map top b)
+      N.In a (N.Node _ (N.InTag b)) -> wrap2 "?case-tag" (top a) (top b)
+      N.In a (N.Node _ (N.InAfter b)) -> wrap2 "?after" (top a) (top b)
       N.Out a b -> wrapl1 "!" (top a) (map top b)
       N.OutCase a b c -> wrapl2 "!case" (top a) (top b) (map top c)
       N.ExpList a -> List (map top a)
@@ -214,10 +214,10 @@ nodeToSOccam node
       N.Reshapes a b c -> wrap3 "reshapes" (top a) (top b) (top c)
       N.ValReshapes a b c -> wrap3 "val-reshapes" (top a) (top b) (top c)
       N.ValOf a b -> wrap2 "valof" (top a) (top b)
-      N.Sub (N.SubPlain b) a -> wrap2 "sub" (top a) (top b)
-      N.Sub (N.SubFromFor b c) a -> wrap3 "sub-from-for" (top a) (top b) (top c)
-      N.Sub (N.SubFrom b) a -> wrap2 "sub-from" (top a) (top b)
-      N.Sub (N.SubFor b) a -> wrap2 "sub-for" (top a) (top b)
+      N.Sub (N.Node _ (N.SubPlain b)) a -> wrap2 "sub" (top a) (top b)
+      N.Sub (N.Node _ (N.SubFromFor b c)) a -> wrap3 "sub-from-for" (top a) (top b) (top c)
+      N.Sub (N.Node _ (N.SubFrom b)) a -> wrap2 "sub-from" (top a) (top b)
+      N.Sub (N.Node _ (N.SubFor b)) a -> wrap2 "sub-for" (top a) (top b)
       N.CaseExps a b -> l2 (List $ map top a) (top b)
       N.Else a -> wrap "else" (top a)
       N.For a b c -> wrap3 "for" (top a) (top b) (top c)

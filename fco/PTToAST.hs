@@ -6,14 +6,14 @@ import qualified PT as N
 import qualified AST as O
 
 doName :: N.Node -> O.Name
-doName (N.Name s) = O.Name s
+doName (N.Node _ (N.Name s)) = O.Name s
 doName n = error $ "Can't do name: " ++ (show n)
 
 doTag :: N.Node -> O.Tag
-doTag (N.Name s) = O.Tag s
+doTag (N.Node _ (N.Name s)) = O.Tag s
 
 doType :: N.Node -> O.Type
-doType n = case n of
+doType n@(N.Node _ nt) = case nt of
   N.Bool -> O.Bool
   N.Byte -> O.Byte
   N.Int -> O.Int
@@ -33,14 +33,14 @@ doType n = case n of
   N.Val t -> O.Val (doType t)
 
 doMonadicOp :: N.Node -> O.MonadicOp
-doMonadicOp n = case n of
+doMonadicOp n@(N.Node _ nt) = case nt of
   N.MonSub -> O.MonadicSubtr
   N.MonBitNot -> O.MonadicBitNot
   N.MonNot -> O.MonadicNot
   N.MonSize -> O.MonadicSize
 
 doDyadicOp :: N.Node -> O.DyadicOp
-doDyadicOp n = case n of
+doDyadicOp n@(N.Node _ nt) = case nt of
   N.Add -> O.Add
   N.Subtr -> O.Subtr
   N.Mul -> O.Mul
@@ -63,14 +63,14 @@ doDyadicOp n = case n of
   N.After -> O.After
 
 doSubscript :: N.Node -> O.Subscript
-doSubscript n = case n of
+doSubscript n@(N.Node _ nt) = case nt of
   N.SubPlain e -> O.Subscript (doExpression e)
   N.SubFromFor e f -> O.SubFromFor (doExpression e) (doExpression f)
   N.SubFrom e -> O.SubFrom (doExpression e)
   N.SubFor f -> O.SubFor (doExpression f)
 
 doLiteral :: N.Node -> O.Literal
-doLiteral n = case n of
+doLiteral n@(N.Node _ nt) = case nt of
   N.TypedLit t l -> O.Literal (doType t) rep where (O.Literal _ rep) = doLiteral l
   N.LitReal s -> O.Literal O.Real32 (O.RealLiteral s)
   N.LitInt s -> O.Literal O.Int (O.IntLiteral s)
@@ -81,12 +81,12 @@ doLiteral n = case n of
   N.Sub s l -> O.SubscriptedLiteral (doSubscript s) (doLiteral l)
 
 doVariable :: N.Node -> O.Variable
-doVariable n = case n of
+doVariable n@(N.Node _ nt) = case nt of
   N.Name _ -> O.Variable (doName n)
   N.Sub s v -> O.SubscriptedVariable (doSubscript s) (doVariable v)
 
 doExpression :: N.Node -> O.Expression
-doExpression n = case n of
+doExpression n@(N.Node _ nt) = case nt of
   N.MonadicOp o a -> O.Monadic (doMonadicOp o) (doExpression a)
   N.DyadicOp o a b -> O.Dyadic (doDyadicOp o) (doExpression a) (doExpression b)
   N.MostPos t -> O.MostPos (doType t)
@@ -110,67 +110,67 @@ doExpression n = case n of
   otherwise -> O.ExprVariable (doVariable n)
 
 doExpressionList :: N.Node -> O.ExpressionList
-doExpressionList n = case n of
+doExpressionList n@(N.Node _ nt) = case nt of
   N.Call f es -> O.FunctionCallList (doName f) (map doExpression es)
   N.ExpList es -> O.ExpressionList (map doExpression es)
 
 doReplicator :: N.Node -> O.Replicator
-doReplicator n = case n of
+doReplicator n@(N.Node _ nt) = case nt of
   N.For v f t -> O.For (doName v) (doExpression f) (doExpression t)
 
 doFields :: [N.Node] -> [(O.Type, O.Tag)]
-doFields ns = concat $ [[(doType t, doTag f) | f <- fs] | (N.Fields t fs) <- ns]
+doFields ns = concat $ [[(doType t, doTag f) | f <- fs] | (N.Node _ (N.Fields t fs)) <- ns]
 
 doFormals :: [N.Node] -> [(O.Type, O.Name)]
-doFormals fs = concat $ [[(doType t, doName n) | n <- ns] | (N.Formals t ns) <- fs]
+doFormals fs = concat $ [[(doType t, doName n) | n <- ns] | (N.Node _ (N.Formals t ns)) <- fs]
 
 doVariant :: N.Node -> O.Structured O.Variant
-doVariant n = case n of
-  N.Variant (N.Tag t is) p -> O.Only $ O.Variant (doTag t) (map doInputItem is) (doProcess p)
+doVariant n@(N.Node _ nt) = case nt of
+  N.Variant (N.Node _ (N.Tag t is)) p -> O.Only $ O.Variant (doTag t) (map doInputItem is) (doProcess p)
   N.Decl s v -> doSpecifications s O.Spec (doVariant v)
 
 doChoice :: N.Node -> O.Structured O.Choice
-doChoice n = case n of
+doChoice n@(N.Node _ nt) = case nt of
   N.If cs -> O.Several $ map doChoice cs
   N.IfRep r c -> O.Rep (doReplicator r) (doChoice c)
   N.Choice b p -> O.Only $ O.Choice (doExpression b) (doProcess p)
   N.Decl s c -> doSpecifications s O.Spec (doChoice c)
 
 doOption :: N.Node -> O.Structured O.Option
-doOption n = case n of
+doOption n@(N.Node _ nt) = case nt of
   N.CaseExps cs p -> O.Only $ O.Option (map doExpression cs) (doProcess p)
   N.Else p -> O.Only $ O.Else (doProcess p)
   N.Decl s o -> doSpecifications s O.Spec (doOption o)
 
 doInputItem :: N.Node -> O.InputItem
-doInputItem n = case n of
+doInputItem n@(N.Node _ nt) = case nt of
   N.Counted c d -> O.InCounted (doVariable c) (doVariable d)
   otherwise -> O.InVariable (doVariable n)
 
 doOutputItem :: N.Node -> O.OutputItem
-doOutputItem n = case n of
+doOutputItem n@(N.Node _ nt) = case nt of
   N.Counted c d -> O.OutCounted (doExpression c) (doExpression d)
   otherwise -> O.OutExpression (doExpression n)
 
 doInputMode :: N.Node -> O.InputMode
-doInputMode n = case n of
+doInputMode n@(N.Node _ nt) = case nt of
   N.InSimple is -> O.InputSimple (map doInputItem is)
   N.InCase vs -> O.InputCase (O.Several $ map doVariant vs)
-  N.InTag (N.Tag t is) -> O.InputCase (O.Only $ O.Variant (doTag t) (map doInputItem is) O.Skip)
+  N.InTag (N.Node _ (N.Tag t is)) -> O.InputCase (O.Only $ O.Variant (doTag t) (map doInputItem is) O.Skip)
   N.InAfter e -> O.InputAfter (doExpression e)
 
 doSimpleSpec :: N.Node -> O.Specification
-doSimpleSpec n = case n of
+doSimpleSpec n@(N.Node _ nt) = case nt of
   N.Is d v -> (doName d, O.Is O.Infer (doVariable v))
   N.IsType t d v -> (doName d, O.Is (doType t) (doVariable v))
   N.ValIs d e -> (doName d, O.ValIs O.Infer (doExpression e))
   N.ValIsType t d e -> (doName d, O.ValIs (doType t) (doExpression e))
   N.Place v e -> (doName v, O.Place (doExpression e))
-  N.DataType n (N.Record fs) -> (doName n, O.DataTypeRecord False (doFields fs))
-  N.DataType n (N.PackedRecord fs) -> (doName n, O.DataTypeRecord True (doFields fs))
+  N.DataType n (N.Node _ (N.Record fs)) -> (doName n, O.DataTypeRecord False (doFields fs))
+  N.DataType n (N.Node _ (N.PackedRecord fs)) -> (doName n, O.DataTypeRecord True (doFields fs))
   N.DataType n t -> (doName n, O.DataTypeIs (doType t))
   N.Protocol n is -> (doName n, O.ProtocolIs (map doType is))
-  N.TaggedProtocol n ts -> (doName n, O.ProtocolCase [(doTag tn, map doType tts) | (N.Tag tn tts) <- ts])
+  N.TaggedProtocol n ts -> (doName n, O.ProtocolCase [(doTag tn, map doType tts) | (N.Node _ (N.Tag tn tts)) <- ts])
   N.Proc n fs p -> (doName n, O.Proc (doFormals fs) (doProcess p))
   N.Func n rs fs vp -> (doName n, O.Function (map doType rs) (doFormals fs) (doValueProcess vp))
   N.FuncIs n rs fs el -> (doName n, O.Function (map doType rs) (doFormals fs) (O.ValOf O.Skip (doExpressionList el)))
@@ -180,24 +180,24 @@ doSimpleSpec n = case n of
   N.ValReshapes t d s -> (doName d, O.ValReshapes (doType t) (doVariable s))
 
 doSpecifications :: N.Node -> (O.Specification -> a -> a) -> a -> a
-doSpecifications n comb arg = case n of
+doSpecifications n@(N.Node m nt) comb arg = case nt of
   N.Vars t [] -> arg
-  N.Vars t (v:vs) -> comb (doName v, O.Declaration (doType t)) (doSpecifications (N.Vars t vs) comb arg)
+  N.Vars t (v:vs) -> comb (doName v, O.Declaration (doType t)) (doSpecifications (N.Node m (N.Vars t vs)) comb arg)
   otherwise -> comb (doSimpleSpec n) arg
 
 doAlternative :: N.Node -> O.Alternative
-doAlternative n = case n of
-  N.Guard (N.In c m) p -> O.Alternative (doVariable c) (doInputMode m) (doProcess p)
-  N.Guard (N.CondGuard b (N.In c m)) p -> O.AlternativeCond (doExpression b) (doVariable c) (doInputMode m) (doProcess p)
-  N.Guard (N.CondGuard b N.Skip) p -> O.AlternativeSkip (doExpression b) (doProcess p)
+doAlternative n@(N.Node _ nt) = case nt of
+  N.Guard (N.Node _ (N.In c m)) p -> O.Alternative (doVariable c) (doInputMode m) (doProcess p)
+  N.Guard (N.Node _ (N.CondGuard b (N.Node _ (N.In c m)))) p -> O.AlternativeCond (doExpression b) (doVariable c) (doInputMode m) (doProcess p)
+  N.Guard (N.Node _ (N.CondGuard b (N.Node _ N.Skip))) p -> O.AlternativeSkip (doExpression b) (doProcess p)
   -- ALT over "? CASE": the O.Skip that gets inserted here doesn't correspond
   -- to anything in real occam; it's just there to let us handle these the same
   -- way as the regular ALT inputs.
-  N.In c m@(N.InCase _) -> O.Alternative (doVariable c) (doInputMode m) O.Skip
-  N.CondGuard b (N.In c m@(N.InCase _)) -> O.AlternativeCond (doExpression b) (doVariable c) (doInputMode m) O.Skip
+  N.In c m@(N.Node _ (N.InCase _)) -> O.Alternative (doVariable c) (doInputMode m) O.Skip
+  N.CondGuard b (N.Node _ (N.In c m@(N.Node _ (N.InCase _)))) -> O.AlternativeCond (doExpression b) (doVariable c) (doInputMode m) O.Skip
 
 doAlt :: N.Node -> O.Structured O.Alternative
-doAlt n = case n of
+doAlt n@(N.Node _ nt) = case nt of
   N.Alt ns -> O.Several $ map doAlt ns
   N.PriAlt ns -> O.Several $ map doAlt ns
   N.AltRep r n -> O.Rep (doReplicator r) (doAlt n)
@@ -206,19 +206,19 @@ doAlt n = case n of
   otherwise -> O.Only $ doAlternative n
 
 doValueProcess :: N.Node -> O.ValueProcess
-doValueProcess n = case n of
+doValueProcess n@(N.Node _ nt) = case nt of
   N.Decl s n -> doSpecifications s O.ValOfSpec (doValueProcess n)
   N.ValOf p el -> O.ValOf (doProcess p) (doExpressionList el)
 
 doPlacedPar :: N.Node -> O.Structured O.Process
-doPlacedPar n = case n of
+doPlacedPar n@(N.Node _ nt) = case nt of
   N.PlacedPar ps -> O.Several $ map doPlacedPar ps
   N.PlacedParRep r p -> O.Rep (doReplicator r) (doPlacedPar p)
   N.Processor e p -> O.Only $ O.Processor (doExpression e) (doProcess p)
   N.Decl s p -> doSpecifications s O.Spec (doPlacedPar p)
 
 doProcess :: N.Node -> O.Process
-doProcess n = case n of
+doProcess n@(N.Node _ nt) = case nt of
   N.Decl s p -> doSpecifications s O.ProcSpec (doProcess p)
   N.Assign vs el -> O.Assign (map doVariable vs) (doExpressionList el)
   N.In c m -> O.Input (doVariable c) (doInputMode m)
