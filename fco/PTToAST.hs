@@ -7,7 +7,7 @@ import qualified AST as O
 
 doName :: N.Node -> O.Name
 doName (N.Node _ (N.Name s)) = O.Name s
-doName n = error $ "Can't do name: " ++ (show n)
+doName n = error $ "Failed to translate to Name: " ++ (show n)
 
 doTag :: N.Node -> O.Tag
 doTag (N.Node _ (N.Name s)) = O.Tag s
@@ -84,6 +84,7 @@ doVariable :: N.Node -> O.Variable
 doVariable n@(N.Node _ nt) = case nt of
   N.Name _ -> O.Variable (doName n)
   N.Sub s v -> O.SubscriptedVariable (doSubscript s) (doVariable v)
+  _ -> error $ "Failed to translate to Variable: " ++ (show n)
 
 doExpression :: N.Node -> O.Expression
 doExpression n@(N.Node _ nt) = case nt of
@@ -92,9 +93,9 @@ doExpression n@(N.Node _ nt) = case nt of
   N.MostPos t -> O.MostPos (doType t)
   N.MostNeg t -> O.MostNeg (doType t)
   N.Size t -> O.Size (doType t)
-  N.Conv t e -> O.Conversion O.DefaultConversion (doExpression e)
-  N.Round t e -> O.Conversion O.Round (doExpression e)
-  N.Trunc t e -> O.Conversion O.Trunc (doExpression e)
+  N.Conv t e -> O.Conversion O.DefaultConversion (doType t) (doExpression e)
+  N.Round t e -> O.Conversion O.Round (doType t) (doExpression e)
+  N.Trunc t e -> O.Conversion O.Trunc (doType t) (doExpression e)
   N.TypedLit _ _ -> O.ExprLiteral $ doLiteral n
   N.LitReal _ -> O.ExprLiteral $ doLiteral n
   N.LitInt _ -> O.ExprLiteral $ doLiteral n

@@ -67,7 +67,7 @@ data Expression =
   | MostPos Type
   | MostNeg Type
   | Size Type
-  | Conversion ConversionMode Expression
+  | Conversion ConversionMode Type Expression
   | ExprVariable Variable
   | ExprLiteral Literal
   | True

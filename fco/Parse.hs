@@ -323,10 +323,9 @@ conditional
               <|> do { r <- replicator ; eol ; indent ; c <- occamChoice ; outdent ; return $ nd m $ N.IfRep r c } }
     <?> "conditional"
 
+-- This uses operandNotTable to resolve the "x[y]" ambiguity.
 conversion
-    =   do  m <- md
-            t <- dataType
-            do { sROUND ; o <- operand ; return $ nd m $ N.Round t o } <|> do { sTRUNC ; o <- operand ; return $ nd m $ N.Trunc t o } <|> do { o <- operand ; return $ nd m $ N.Conv t o }
+    =   try (do { m <- md ; t <- dataType; do { sROUND ; o <- operand ; return $ nd m $ N.Round t o } <|> do { sTRUNC ; o <- operand ; return $ nd m $ N.Trunc t o } <|> do { o <- operandNotTable ; return $ nd m $ N.Conv t o } })
     <?> "conversion"
 
 occamCount
@@ -524,20 +523,28 @@ occamString
     =   lexeme (do { m <- md ; char '"' ; s <- many (noneOf "\"") ; char '"' ; return $ nd m $ N.LitString s })
     <?> "string"
 
-operand
-    =   do { m <- md ; v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\e s -> nd m $ N.Sub (nd m $ N.SubPlain s) e) v es }
-    <?> "operand"
+operandNotTable
+    =   do { m <- md ; v <- operandNotTable' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\e s -> nd m $ N.Sub (nd m $ N.SubPlain s) e) v es }
+    <?> "operandNotTable"
 
-operand'
+operandNotTable'
     =   try variable
     <|> try literal
-    <|> try table
     <|> try (do { sLeftR ; e <- expression ; sRightR ; return e })
 -- XXX value process
     <|> try (do { m <- md ; n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ nd m $ N.Call n as })
     <|> try (do { m <- md ; sBYTESIN ; sLeftR ; o <- operand ; sRightR ; return $ nd m $ N.BytesIn o })
     <|> try (do { m <- md ; sBYTESIN ; sLeftR ; o <- dataType ; sRightR ; return $ nd m $ N.BytesIn o })
     <|> try (do { m <- md ; sOFFSETOF ; sLeftR ; n <- name ; sComma ; f <- fieldName ; sRightR ; return $ nd m $ N.OffsetOf n f })
+    <?> "operandNotTable'"
+
+operand
+    =   do { m <- md ; v <- operand' ; es <- many (do { sLeft ; e <- expression ; sRight ; return e }) ; return $ foldl (\e s -> nd m $ N.Sub (nd m $ N.SubPlain s) e) v es }
+    <?> "operand"
+
+operand'
+    =   try table
+    <|> operandNotTable'
     <?> "operand'"
 
 occamOption
