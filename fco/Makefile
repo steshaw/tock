@@ -16,7 +16,7 @@ sources = \
 fco: $(sources)
 	ghc -fglasgow-exts -o fco --make Main
 
-tests = $(wildcard test*.occ)
+tests = $(wildcard testcases/*.occ)
 
 test: fco $(tests)
 	@set -e; for x in $(tests); do \
