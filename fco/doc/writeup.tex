@@ -1,0 +1,153 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{times}
+\usepackage{a4wide}
+\usepackage{xspace}
+
+\def\occam{{\sffamily occam}\xspace}
+\def\occampi{{\sffamily occam-\Pisymbol{psy}{112}}\xspace}
+
+\begin{document}
+
+\title{Compiling \occam using Haskell}
+\author{Adam Sampson}
+\maketitle
+
+\section{Introduction}
+
+This is the ongoing story of FCO, a functional compiler for \occam.
+
+Spike solution. Try the techniques we'd need in a real compiler.
+
+I'll assume the reader has some knowledge of both \occam and Haskell; if
+there's anything that's not clear, please let me know so I can clarify
+it.
+
+Why Haskell? Like Scheme, it's a popular, mature, well-documented
+functional language, it's used heavily by people who're into programming
+language research, and it's been used to implement a number of solid
+compilers for other languages. There's lots of Haskell experience in the
+department already. It's the only language other than Java that our
+undergrads are guaranteed to have experience with, which might be useful
+for student projects.
+
+What am I building? Compiler from \occam 2.1 subset to natural-looking
+ANSI C with CIF -- enough to do commstime. Whole-program compiler
+(optimisation advantages; can still do modules as preparsed, prechecked
+tree chunks).
+
+\section{Existing work}
+
+42 -- \occam to ETC, Scheme
+
+JHC -- Haskell to C, Haskell
+
+Pugs -- Perl 6 to various, Haskell
+
+GHC -- probably not!
+
+Mincaml -- ML subset to assembler, ML
+
+\section{Technologies}
+
+\subsection{Monads}
+
+\subsection{SYB Generics}
+
+\cite{syb1}
+
+\label{gen-par-prob} Using generics with parametric types confuses the
+hell out of the typechecker; you can work around this by giving explicit
+instances of the types you want to use, but it's not very nice.
+
+\subsection{Parsec}
+
+Parsec is a combinator-based parsing library, which means that you're
+essentially writing productions that look like BNF with variable
+bindings, and the library takes care of matching and backtracking as
+appropriate. Parsec's dead easy to use.
+
+The parsing operations are actually operations in the \verb|Parser t|
+monad.
+
+\section{Parsing}
+
+The parser is based on the grammar from the \occam 2.1 manual, with a
+number of alterations:
+
+\begin{itemize}
+
+\item I took a leaf out of Haskell's book for handling the
+indentation-based syntax: a preprocessor analyses the indentation and
+adds explicit markers for "indent", "outdent" and "end of significant
+line" that the parser can match later. The preprocessor's a bit limited
+at the moment; it doesn't handle continuation lines or inline
+\verb|VALOF|.
+
+\item The original compiler assumes you're keeping track of what's in
+scope while you're parsing, which we don't want to do. This makes some
+things ambiguous, and some productions in the grammar turn out to be
+identical if you don't know what type things are (for example, you can't
+tell the difference between channels, ports and timers at parse time, so
+the FCO grammar handles them all with a single set of productions).
+
+(I think it'd be possible to simulate the behaviour of the original
+compiler by using the GenParser monad rather than Parser, since that
+lets you keep state. I'm pretty sure we wouldn't want to track scope
+this way, but it might turn out not to be too painful to handle
+indentation directly in the parser.)
+
+\item Left-recursive productions (those that parse subscripts) don't
+work; I split each into two productions, one which parses everything
+that isn't left-recursive in the original grammar, and one which parses
+the first followed by one or more subscripts.
+
+\item The original grammar would parse \verb|x[y]| as a conversion of
+the array literal \verb|[y]| to type \verb|x|, which isn't legal \occam.
+I split the \verb|operand| production into a version that didn't include
+\verb|table| and a version that did, so \verb|conversion| can now
+explicitly match an operand that isn't an array literal.
+
+\item Similarly, you can't tell at parse time whether in \verb|c ! a; b|
+or \verb|x[a]| whether \verb|a| is a variable or a tag -- I'll have to
+fix this up in a later pass.
+
+\item I rewrote the production for lists of formal arguments, since the
+original one's specified as lists of lists of arguments which might be
+typed, and that doesn't work correctly in Parsec when written in the
+obvious way. (It should be possible to express it more elegantly with a
+bit more work.)
+
+\end{itemize}
+
+The parser was the first bit of FCO I wrote, and partly as a result my
+Haskell coding style in the parser is especially poor; the Pugs parser,
+also using Parsec, is a much better example. (But theirs doesn't parse
+\occam, obviously.)
+
+\section{Data structures}
+
+\subsection{Parse tree}
+
+\subsection{AST}
+
+My first version of the AST types included a parametric
+\verb|Structured t| type used to represent things that could include
+replicators and specifications, such as \verb|IF| and \verb|ALT|
+processes; I couldn't combine generic operations over these with others,
+though (see \ref{gen-par-prob}).
+
+\section{C generation}
+
+\section{Future work}
+
+The obvious bit of future work is writing the full compiler that this
+was a prototype of.
+
+Turns out I quite like Haskell -- and there are tools provided with GHC
+to parse Haskell. If we wrote a Haskell concurrency library (CSP-style),
+we should investigate writing an \occam-style usage checker for it.
+
+\bibliographystyle{unsrt}
+\bibliography{the}
+\end{document}
