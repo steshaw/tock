@@ -3,6 +3,7 @@ all: fco
 sources = \
 	AST.hs \
 	ASTPasses.hs \
+	COutput.hs \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \

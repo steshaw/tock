@@ -7,6 +7,15 @@ PROC x ()
     SEQ
       r := a[b]
 
+    DATA TYPE T
+      RECORD
+        INT b:
+    :
+    T a:
+    INT r:
+    SEQ
+      r := a[b]
+
     DATA TYPE a IS [1]INT:
     INT b:
     a r:

@@ -37,6 +37,7 @@ data ConversionMode =
 
 data Subscript =
   Subscript Expression
+  | SubscriptTag Tag
   | SubFromFor Expression Expression
   | SubFrom Expression
   | SubFor Expression

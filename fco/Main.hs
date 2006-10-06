@@ -14,6 +14,7 @@ import Pass
 import PTPasses
 import PTToAST
 import ASTPasses
+import COutput
 
 data Flag = ParseOnly | SOccamOnly | Verbose
   deriving (Eq, Show)
@@ -50,33 +51,37 @@ main = do
   progress $ "Compiling " ++ fn
   progress ""
 
-  progress $ "{{{ Preprocessor"
+  progress "{{{ Preprocessor"
   preprocessed <- readSource fn
   progress $ numberedListing preprocessed
-  progress $ "}}}"
+  progress "}}}"
 
-  progress $ "{{{ Parser"
+  progress "{{{ Parser"
   let pt = parseSource preprocessed fn
   progress $ pshow pt
-  progress $ "}}}"
+  progress "}}}"
 
   if ParseOnly `elem` opts then do
       putStrLn $ show (nodeToSExp pt)
     else if SOccamOnly `elem` opts then do
       putStrLn $ show (nodeToSOccam pt)
     else do
-      progress $ "{{{ PT passes"
+      progress "{{{ PT passes"
       pt' <- runPasses ptPasses progress pt
-      progress $ "}}}"
+      progress "}}}"
 
-      progress $ "{{{ PT to AST"
+      progress "{{{ PT to AST"
       let ast = ptToAST pt'
       progress $ pshow ast
-      progress $ "}}}"
+      progress "}}}"
 
-      progress $ "{{{ AST passes"
+      progress "{{{ AST passes"
       ast' <- runPasses astPasses progress ast
-      progress $ "}}}"
+      progress "}}}"
 
-      progress $ "Done"
+      progress "{{{ C output"
+      putStr $ writeC ast'
+      progress "}}}"
+
+      progress "Done"
 
