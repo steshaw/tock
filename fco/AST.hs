@@ -131,16 +131,22 @@ data Variant = Variant Tag [InputItem] Process
   deriving (Show, Eq, Typeable, Data)
 
 -- This represents something that can contain local replicators and specifications.
-data Structured t =
-  Rep Replicator (Structured t)
-  | Spec Specification (Structured t)
-  | Only t
-  | Several [Structured t]
+-- (This ought to be a parametric type, "Structured Variant" etc., but doing so
+-- makes using generic functions across it hard.)
+data Structured =
+  Rep Replicator Structured
+  | Spec Specification Structured
+  | OnlyV Variant
+  | OnlyC Choice
+  | OnlyO Option
+  | OnlyP Process
+  | OnlyA Alternative
+  | Several [Structured]
   deriving (Show, Eq, Typeable, Data)
 
 data InputMode =
   InputSimple [InputItem]
-  | InputCase (Structured Variant)
+  | InputCase Structured
   | InputAfter Expression
   deriving (Show, Eq, Typeable, Data)
 
@@ -178,14 +184,14 @@ data Process =
   | Main
   | Seq [Process]
   | ReplicatedSeq Replicator Process
-  | If (Structured Choice)
-  | Case Expression (Structured Option)
+  | If Structured
+  | Case Expression Structured
   | While Expression Process
   | Par Bool [Process]
   | ParRep Bool Replicator Process
-  | PlacedPar (Structured Process)
+  | PlacedPar Structured
   | Processor Expression Process
-  | Alt Bool (Structured Alternative)
+  | Alt Bool Structured
   | ProcCall Name [Expression]
   deriving (Show, Eq, Typeable, Data)
 

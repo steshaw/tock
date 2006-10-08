@@ -125,22 +125,22 @@ doFields ns = concat $ [[(doType t, doTag f) | f <- fs] | (N.Node _ (N.Fields t 
 doFormals :: [N.Node] -> [(O.Type, O.Name)]
 doFormals fs = concat $ [[(doType t, doName n) | n <- ns] | (N.Node _ (N.Formals t ns)) <- fs]
 
-doVariant :: N.Node -> O.Structured O.Variant
+doVariant :: N.Node -> O.Structured
 doVariant n@(N.Node _ nt) = case nt of
-  N.Variant (N.Node _ (N.Tag t is)) p -> O.Only $ O.Variant (doTag t) (map doInputItem is) (doProcess p)
+  N.Variant (N.Node _ (N.Tag t is)) p -> O.OnlyV $ O.Variant (doTag t) (map doInputItem is) (doProcess p)
   N.Decl s v -> doSpecifications s O.Spec (doVariant v)
 
-doChoice :: N.Node -> O.Structured O.Choice
+doChoice :: N.Node -> O.Structured
 doChoice n@(N.Node _ nt) = case nt of
   N.If cs -> O.Several $ map doChoice cs
   N.IfRep r c -> O.Rep (doReplicator r) (doChoice c)
-  N.Choice b p -> O.Only $ O.Choice (doExpression b) (doProcess p)
+  N.Choice b p -> O.OnlyC $ O.Choice (doExpression b) (doProcess p)
   N.Decl s c -> doSpecifications s O.Spec (doChoice c)
 
-doOption :: N.Node -> O.Structured O.Option
+doOption :: N.Node -> O.Structured
 doOption n@(N.Node _ nt) = case nt of
-  N.CaseExps cs p -> O.Only $ O.Option (map doExpression cs) (doProcess p)
-  N.Else p -> O.Only $ O.Else (doProcess p)
+  N.CaseExps cs p -> O.OnlyO $ O.Option (map doExpression cs) (doProcess p)
+  N.Else p -> O.OnlyO $ O.Else (doProcess p)
   N.Decl s o -> doSpecifications s O.Spec (doOption o)
 
 doInputItem :: N.Node -> O.InputItem
@@ -157,7 +157,7 @@ doInputMode :: N.Node -> O.InputMode
 doInputMode n@(N.Node _ nt) = case nt of
   N.InSimple is -> O.InputSimple (map doInputItem is)
   N.InCase vs -> O.InputCase (O.Several $ map doVariant vs)
-  N.InTag (N.Node _ (N.Tag t is)) -> O.InputCase (O.Only $ O.Variant (doTag t) (map doInputItem is) O.Skip)
+  N.InTag (N.Node _ (N.Tag t is)) -> O.InputCase (O.OnlyV $ O.Variant (doTag t) (map doInputItem is) O.Skip)
   N.InAfter e -> O.InputAfter (doExpression e)
 
 doSimpleSpec :: N.Node -> O.Specification
@@ -197,25 +197,25 @@ doAlternative n@(N.Node _ nt) = case nt of
   N.In c m@(N.Node _ (N.InCase _)) -> O.Alternative (doVariable c) (doInputMode m) O.Skip
   N.CondGuard b (N.Node _ (N.In c m@(N.Node _ (N.InCase _)))) -> O.AlternativeCond (doExpression b) (doVariable c) (doInputMode m) O.Skip
 
-doAlt :: N.Node -> O.Structured O.Alternative
+doAlt :: N.Node -> O.Structured
 doAlt n@(N.Node _ nt) = case nt of
   N.Alt ns -> O.Several $ map doAlt ns
   N.PriAlt ns -> O.Several $ map doAlt ns
   N.AltRep r n -> O.Rep (doReplicator r) (doAlt n)
   N.PriAltRep r n -> O.Rep (doReplicator r) (doAlt n)
   N.Decl s n -> doSpecifications s O.Spec (doAlt n)
-  otherwise -> O.Only $ doAlternative n
+  otherwise -> O.OnlyA $ doAlternative n
 
 doValueProcess :: N.Node -> O.ValueProcess
 doValueProcess n@(N.Node _ nt) = case nt of
   N.Decl s n -> doSpecifications s O.ValOfSpec (doValueProcess n)
   N.ValOf p el -> O.ValOf (doProcess p) (doExpressionList el)
 
-doPlacedPar :: N.Node -> O.Structured O.Process
+doPlacedPar :: N.Node -> O.Structured
 doPlacedPar n@(N.Node _ nt) = case nt of
   N.PlacedPar ps -> O.Several $ map doPlacedPar ps
   N.PlacedParRep r p -> O.Rep (doReplicator r) (doPlacedPar p)
-  N.Processor e p -> O.Only $ O.Processor (doExpression e) (doProcess p)
+  N.Processor e p -> O.OnlyP $ O.Processor (doExpression e) (doProcess p)
   N.Decl s p -> doSpecifications s O.Spec (doPlacedPar p)
 
 doProcess :: N.Node -> O.Process

@@ -3,6 +3,7 @@
 module ASTPasses (astPasses) where
 
 import qualified AST as A
+import List
 import Data.Generics
 import Control.Monad.State
 
@@ -24,7 +25,8 @@ check only Main is left
 -}
 
 astPasses =
-  [ ("C-style names", cStyleNamesPass)
+  [ ("Unique names", uniqueNamesPass)
+  , ("C-style names", cStyleNamesPass)
   ]
 
 {-
@@ -43,6 +45,30 @@ numberPass n = evalState (everywhereM (mkM (number `extM` number')) n) 0
       put (i + 1)
       return $ A.Tag (s ++ "." ++ (show i))
 -}
+
+type Transform t = t -> t
+
+everyContext :: Data a => (forall b. Data b => (c, b) -> (c, b)) -> c -> a -> a
+everyContext f c x = gmapT innerT x'
+  where
+    (c', x') = f (c, x)
+    innerT xi = everyContext f c' xi
+
+uniqueNamesPass :: Transform A.Process
+uniqueNamesPass n = everyContext doAny [] n
+  where
+    doAny :: Data t => Transform ([String], t)
+    doAny = (mkT doP) `extT` doV `extT` doS `extT` doN
+    doP :: Transform ([String], A.Process)
+    doP (c, p) = case p of
+      A.ProcSpec ((A.Name n), _) _ -> (n : c, p)
+      otherwise -> (c, p)
+    doV :: Transform ([String], A.ValueProcess)
+    doV = undefined
+    doS :: Transform ([String], A.Structured)
+    doS = undefined
+    doN :: Transform ([String], A.Name)
+    doN (c, A.Name s) = (c, A.Name (s ++ "=" ++ (concat $ intersperse "," c)))
 
 cStyleNamesPass :: A.Process -> A.Process
 cStyleNamesPass = everywhere (mkT doName)
