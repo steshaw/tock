@@ -16,25 +16,49 @@
 \section{Introduction}
 
 This is the ongoing story of FCO, a functional compiler for \occam.
+FCO is a spike solution (albeit a fairly elaborate one): the aim is to
+implement just enough of a compiler in Haskell to tell us whether
+using it for a proper compiler would be a sensible idea.
 
-Spike solution. Try the techniques we'd need in a real compiler.
+The result is that my goal is fairly modest: FCO translates an \occam 2.1
+subset into ANSI C, using CIF for concurrency facilities. It should
+support enough of the \occam language to do commstime and q7-ats1.
+
+By design, FCO is a whole-program compiler: it does not support separate
+compilation of libraries. The downside is that you need to have the
+AST for the entire program, including the standard library, available at
+code-generation time; the major upside for now is that it's much easier
+to write. I believe that the whole-program strategy may be worth
+pursuing in a production compiler, since it would also allow
+whole-program optimisations and specialisations; it need not cause
+horrendous performance problems, since libraries can still be parsed and
+usage-checked ahead of time.
 
 I'll assume the reader has some knowledge of both \occam and Haskell; if
-there's anything that's not clear, please let me know so I can clarify
-it.
+there's anything that's not clear, please let me know. I'll also assume
+the reader has access to the source of FCO while reading this document.
 
-Why Haskell? Like Scheme, it's a popular, mature, well-documented
+I would throroughly recommend the Haskell history paper (cite) -- it
+explains many of the design decisions behind Haskell, and it's an
+excellent overview of the features available in the language.
+
+\section{Why Haskell?}
+
+Why should we consider Haskell as an option for an implementation
+language? Like Scheme, it's a popular, mature, well-documented
 functional language, it's used heavily by people who're into programming
 language research, and it's been used to implement a number of solid
-compilers for other languages. There's lots of Haskell experience in the
-department already. It's the only language other than Java that our
-undergrads are guaranteed to have experience with, which might be useful
-for student projects.
+compilers for other languages. The result is that there are a number of
+useful libraries that we can take advantage of.
 
-What am I building? Compiler from \occam 2.1 subset to natural-looking
-ANSI C with CIF -- enough to do commstime. Whole-program compiler
-(optimisation advantages; can still do modules as preparsed, prechecked
-tree chunks).
+There's lots of Haskell experience in the department already. It's the
+only language other than Java that our undergrads are guaranteed to have
+experience with, which might be useful for student projects.
+
+Haskell also has some similarities with \occam: it has an
+indentation-based syntax, and it has excellent support for lightweight
+concurrency. \occam may therefore be of interest to some Haskell
+programmers.
 
 \section{Existing work}
 
@@ -59,6 +83,15 @@ Mincaml -- ML subset to assembler, ML
 \label{gen-par-prob} Using generics with parametric types confuses the
 hell out of the typechecker; you can work around this by giving explicit
 instances of the types you want to use, but it's not very nice.
+(This is a downside of using a statically-typed language; code that's
+obviously correct sometimes needs very non-obvious type declarations, or
+can't be statically typed at all.)
+
+There's also Strafunski. (Which differs how?)
+
+And HSXML. Actually looks more useful -- but would require using DrIFT
+to generate instances of the classes.
+http://article.gmane.org/gmane.comp.lang.haskell.general/13589
 
 \subsection{Parsec}
 
@@ -127,6 +160,9 @@ also using Parsec, is a much better example. (But theirs doesn't parse
 
 \section{Data structures}
 
+I've experimented with two different ways of encoding the abstract
+syntax tree in FCO.
+
 \subsection{Parse tree}
 
 \subsection{AST}
@@ -136,6 +172,10 @@ My first version of the AST types included a parametric
 replicators and specifications, such as \verb|IF| and \verb|ALT|
 processes; I couldn't combine generic operations over these with others,
 though (see \ref{gen-par-prob}).
+
+\section{Generic strategies}
+
+Need to walk over the tree, tracking state.
 
 \section{C generation}
 
