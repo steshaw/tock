@@ -1,4 +1,6 @@
-all: fco
+targets = fco
+
+all: $(targets)
 
 sources = \
 	AST.hs \
@@ -14,12 +16,12 @@ sources = \
 	SExpression.hs \
 	PTToAST.hs
 
-fco: $(sources)
+$(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main
 
 tests = $(wildcard testcases/*.occ)
 
-test: fco $(tests)
+test: $(targets) $(tests)
 	@set -e; for x in $(tests); do \
 		echo -n "$$x: " ; \
 		if ! ./fco --parse-tree $$x >$$x.log 2>&1 ; then \
@@ -30,3 +32,7 @@ test: fco $(tests)
 			echo "ok" ; \
 		fi ; \
 	done
+
+clean:
+	rm -f $(targets) *.o *.hi
+
