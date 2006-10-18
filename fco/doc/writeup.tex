@@ -173,9 +173,18 @@ replicators and specifications, such as \verb|IF| and \verb|ALT|
 processes; I couldn't combine generic operations over these with others,
 though (see \ref{gen-par-prob}).
 
+Some things are simplified in the AST when compared with the grammar:
+channels are just variables, for example.
+
+Need to pass metadata through to the AST.
+
 \section{Generic strategies}
 
 Need to walk over the tree, tracking state.
+
+Unique naming comes out nicer in Haskell than in Scheme, since I can
+just use monads and generic transformations, and don't need to write out
+all the productions again just to add an extra argument.
 
 \section{C generation}
 

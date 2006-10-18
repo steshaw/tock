@@ -1,6 +1,7 @@
 -- Parses across the AST
 
-module ASTPasses (astPasses) where
+--module ASTPasses (astPasses) where
+module ASTPasses where
 
 import qualified AST as A
 import List
@@ -29,46 +30,52 @@ astPasses =
   , ("C-style names", cStyleNamesPass)
   ]
 
-{-
-numberPass :: A.Process -> A.Process
-numberPass n = evalState (everywhereM (mkM (number `extM` number')) n) 0
+type UniqueState = (Int, [(String, String)])
+type UniqueM t = State UniqueState t
+
+uniqueNamesPass :: A.Process -> A.Process
+uniqueNamesPass p = evalState (doAny p) (0, [])
   where
-    number :: A.Name -> State Int A.Name
-    number (A.Name s) = do
-      i <- get
-      put (i + 1)
-      return $ A.Name (s ++ "." ++ (show i))
+    doAny :: Data t => t -> UniqueM t
+    doAny = doGeneric `extM` doName `extM` doProcess `extM` doValueProcess `extM` doStructured
 
-    number' :: A.Tag -> State Int A.Tag
-    number' (A.Tag s) = do
-      i <- get
-      put (i + 1)
-      return $ A.Tag (s ++ "." ++ (show i))
--}
+    doGeneric :: Data t => t -> UniqueM t
+    doGeneric = gmapM doAny
 
-type Transform t = t -> t
+-- this is wrong for "v IS v:" -- name shouldn't come into scope until after the spec
+    withSpec :: Data t => A.Specification -> t -> UniqueM t
+    withSpec (A.Name n, _) p = do
+      (_, vars) <- get
+      (count, vars) <- get
+      put (count + 1, (n, n ++ "." ++ show count) : vars)
+      p' <- doGeneric p
+      (count', _) <- get
+      put (count', vars)
+      return p'
 
-everyContext :: Data a => (forall b. Data b => (c, b) -> (c, b)) -> c -> a -> a
-everyContext f c x = gmapT innerT x'
-  where
-    (c', x') = f (c, x)
-    innerT xi = everyContext f c' xi
+    doProcess :: A.Process -> UniqueM A.Process
+    doProcess p = case p of
+      A.ProcSpec s _ -> withSpec s p
+      otherwise -> doGeneric p
 
-uniqueNamesPass :: Transform A.Process
-uniqueNamesPass n = everyContext doAny [] n
-  where
-    doAny :: Data t => Transform ([String], t)
-    doAny = (mkT doP) `extT` doV `extT` doS `extT` doN
-    doP :: Transform ([String], A.Process)
-    doP (c, p) = case p of
-      A.ProcSpec ((A.Name n), _) _ -> (n : c, p)
-      otherwise -> (c, p)
-    doV :: Transform ([String], A.ValueProcess)
-    doV = undefined
-    doS :: Transform ([String], A.Structured)
-    doS = undefined
-    doN :: Transform ([String], A.Name)
-    doN (c, A.Name s) = (c, A.Name (s ++ "=" ++ (concat $ intersperse "," c)))
+    doValueProcess :: A.ValueProcess -> UniqueM A.ValueProcess
+    doValueProcess p = case p of
+      A.ValOfSpec s _ -> withSpec s p
+      otherwise -> doGeneric p
+
+    doStructured :: A.Structured -> UniqueM A.Structured
+    doStructured p = case p of
+      A.Spec s _ -> withSpec s p
+      otherwise -> doGeneric p
+
+    doName :: A.Name -> UniqueM A.Name
+    doName (A.Name s) = do
+      (_, vars) <- get
+      let s' = case lookup s vars of
+                 Just n -> n
+                 Nothing -> "(not-declared-" ++ s ++ ")"
+                 --Nothing -> error $ "Name " ++ s ++ " not declared before use"
+      return $ A.Name s'
 
 cStyleNamesPass :: A.Process -> A.Process
 cStyleNamesPass = everywhere (mkT doName)
