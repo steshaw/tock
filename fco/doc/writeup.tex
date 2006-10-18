@@ -56,9 +56,10 @@ only language other than Java that our undergrads are guaranteed to have
 experience with, which might be useful for student projects.
 
 Haskell also has some similarities with \occam: it has an
-indentation-based syntax, and it has excellent support for lightweight
-concurrency. \occam may therefore be of interest to some Haskell
-programmers.
+indentation-based syntax, it makes a point of distinguishing between
+side-effecting and functional code, it emphasises compile-time safety
+checks, and it has excellent support for lightweight concurrency. \occam
+may therefore be of interest to some Haskell programmers.
 
 \section{Existing work}
 
@@ -185,6 +186,10 @@ Need to walk over the tree, tracking state.
 Unique naming comes out nicer in Haskell than in Scheme, since I can
 just use monads and generic transformations, and don't need to write out
 all the productions again just to add an extra argument.
+
+Generics appear to work better in GHC 6.6 than GHC 6.4, since some
+restrictions on the types of mutually recursive functions have been
+lifted. (Check this against release notes.)
 
 \section{C generation}
 

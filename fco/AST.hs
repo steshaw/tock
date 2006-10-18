@@ -150,6 +150,8 @@ data InputMode =
   | InputAfter Expression
   deriving (Show, Eq, Typeable, Data)
 
+type Formals = [(Type, Name)]
+
 type Specification = (Name, SpecType)
 data SpecType =
   Place Expression
@@ -160,8 +162,8 @@ data SpecType =
   | DataTypeRecord Bool [(Type, Tag)]
   | ProtocolIs [Type]
   | ProtocolCase [(Tag, [Type])]
-  | Proc [(Type, Name)] Process
-  | Function [Type] [(Type, Name)] ValueProcess
+  | Proc Formals Process
+  | Function [Type] Formals ValueProcess
   | Retypes Type Variable
   | Reshapes Type Variable
   | ValRetypes Type Variable
@@ -183,7 +185,7 @@ data Process =
   | Stop
   | Main
   | Seq [Process]
-  | ReplicatedSeq Replicator Process
+  | SeqRep Replicator Process
   | If Structured
   | Case Expression Structured
   | While Expression Process

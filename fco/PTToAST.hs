@@ -229,7 +229,7 @@ doProcess n@(N.Node _ nt) = case nt of
   N.Stop -> O.Stop
   N.MainProcess -> O.Main
   N.Seq ps -> O.Seq (map doProcess ps)
-  N.SeqRep r p -> O.ReplicatedSeq (doReplicator r) (doProcess p)
+  N.SeqRep r p -> O.SeqRep (doReplicator r) (doProcess p)
   N.If _ -> O.If $ doChoice n
   N.Case e os -> O.Case (doExpression e) (O.Several $ map doOption os)
   N.While e p -> O.While (doExpression e) (doProcess p)

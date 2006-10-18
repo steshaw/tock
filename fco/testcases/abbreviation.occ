@@ -1,0 +1,13 @@
+PROC main ()
+  INT a, b:
+  VAL INT c IS 42:
+  VAL INT d IS a + b:
+  INT e IS a:
+
+  [4]BYTE a RETYPES a:
+  VAL BYTE b IS a[0]:
+
+  SEQ i = (a + 20) FOR (b + 30)
+    VAL INT ii IS (i + 40):
+    SKIP
+:
