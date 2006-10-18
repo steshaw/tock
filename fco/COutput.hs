@@ -4,13 +4,14 @@ module COutput where
 
 import List
 import Data.Generics
+import Metadata
 import qualified AST as A
 
 concatWith x l = concat $ intersperse x l
 bracketed s = "(" ++ s ++ ")"
 
 unimp :: Data a => a -> String
-unimp = unimpG `extQ` unimpS
+unimp = unimpG `extQ` unimpS `extQ` unimpM
   where
     unimpG :: Data a => a -> String
     unimpG t = rep
@@ -22,16 +23,19 @@ unimp = unimpG `extQ` unimpS
     unimpS :: String -> String
     unimpS s = show s
 
+    unimpM :: Meta -> String
+    unimpM m = formatSourcePos m
+
 writeC :: A.Process -> String
 writeC p = header ++ doProcess p
   where
     header = "#include <stdint.h>\n"
 
     doName :: A.Name -> String
-    doName (A.Name n) = n
+    doName (A.Name _ n) = n
 
     doUserType :: A.Type -> String
-    doUserType (A.UserType (A.Name n)) = "usertype_" ++ n
+    doUserType (A.UserType (A.Name _ n)) = "usertype_" ++ n
 
     doType :: A.Type -> String
     doType (A.Val t) = "const " ++ (doType t)
@@ -47,18 +51,18 @@ writeC p = header ++ doProcess p
     doType t = unimp t
 
     doVariable :: A.Variable -> String
-    doVariable (A.Variable n) = doName n
+    doVariable (A.Variable _ n) = doName n
 
     doLiteralRepr :: A.LiteralRepr -> String
     doLiteralRepr r = case r of
-      A.IntLiteral s -> s
+      A.IntLiteral _ s -> s
 
     doLiteral :: A.Literal -> String
-    doLiteral (A.Literal t r) = doLiteralRepr r
+    doLiteral (A.Literal _ t r) = doLiteralRepr r
 
     doFunction :: A.ValueProcess -> String
-    doFunction (A.ValOfSpec s p) = doSpecification s ++ doFunction p
-    doFunction (A.ValOf p el) = doProcess p ++ "return " ++ doExpressionListOne el ++ ";\n"
+    doFunction (A.ValOfSpec _ s p) = doSpecification s ++ doFunction p
+    doFunction (A.ValOf _ p el) = doProcess p ++ "return " ++ doExpressionListOne el ++ ";\n"
     -- FIXME handle multi-value return
 
     makeDecl :: A.Type -> A.Name -> String
@@ -69,16 +73,16 @@ writeC p = header ++ doProcess p
 
     doSpecification :: A.Specification -> String
     doSpecification s@(n, st) = case st of
-      A.Declaration t -> makeDecl t n ++ ";\n"
-      A.Proc fs p -> "void " ++ doName n ++ " " ++ makeFormals fs ++ " {\n" ++ doProcess p ++ "}\n"
-      A.Function [r] fs vp -> doType r ++ " " ++ doName n ++ " " ++ makeFormals fs ++ " {\n" ++ doFunction vp ++ "}\n"
+      A.Declaration _ t -> makeDecl t n ++ ";\n"
+      A.Proc _ fs p -> "void " ++ doName n ++ " " ++ makeFormals fs ++ " {\n" ++ doProcess p ++ "}\n"
+      A.Function _ [r] fs vp -> doType r ++ " " ++ doName n ++ " " ++ makeFormals fs ++ " {\n" ++ doFunction vp ++ "}\n"
       _ -> unimp s
 
     doProcSpec :: A.Process -> String
     doProcSpec p = doP [] p
       where
         doP :: [A.Specification] -> A.Process -> String
-        doP ss (A.ProcSpec s p) = doP (ss ++ [s]) p
+        doP ss (A.ProcSpec _ s p) = doP (ss ++ [s]) p
         doP ss p = "{\n" ++ concat (map doSpecification ss) ++ doProcess p ++ "}\n"
 
     doActuals :: [A.Expression] -> String
@@ -101,27 +105,27 @@ writeC p = header ++ doProcess p
 
     doExpression :: A.Expression -> String
     doExpression e = case e of
-      A.Monadic o a -> doMonadic o a
-      A.Dyadic o a b -> doDyadic o a b
-      A.ExprVariable v -> doVariable v
-      A.ExprLiteral l -> doLiteral l
+      A.Monadic _ o a -> doMonadic o a
+      A.Dyadic _ o a b -> doDyadic o a b
+      A.ExprVariable _ v -> doVariable v
+      A.ExprLiteral _ l -> doLiteral l
 
     doExpressionListOne :: A.ExpressionList -> String
     doExpressionListOne e = case e of
-      A.FunctionCallList n as -> doFunctionCall n as
-      A.ExpressionList [e] -> doExpression e
+      A.FunctionCallList _ n as -> doFunctionCall n as
+      A.ExpressionList _ [e] -> doExpression e
 
     doAssign :: A.Process -> String
     doAssign a = case a of
-      A.Assign [v] el -> (doVariable v) ++ " = " ++ (doExpressionListOne el) ++ ";\n"
+      A.Assign _ [v] el -> (doVariable v) ++ " = " ++ (doExpressionListOne el) ++ ";\n"
 
     doProcess :: A.Process -> String
-    doProcess s@(A.ProcSpec _ _) = doProcSpec s
-    doProcess a@(A.Assign _ _) = doAssign a
-    doProcess A.Skip = "/* SKIP */;\n"
-    doProcess A.Stop = "SetErr ();\n"
-    doProcess A.Main = "/* MAIN-PROCESS */\n";
-    doProcess (A.Seq ps) = concatWith "" (map doProcess ps)
-    doProcess (A.ProcCall n as) = doName n ++ " " ++ doActuals as ++ ";\n"
+    doProcess s@(A.ProcSpec _ _ _) = doProcSpec s
+    doProcess a@(A.Assign _ _ _) = doAssign a
+    doProcess (A.Skip _) = "/* SKIP */;\n"
+    doProcess (A.Stop _) = "SetErr ();\n"
+    doProcess (A.Main _) = "/* MAIN-PROCESS */\n";
+    doProcess (A.Seq _ ps) = concatWith "" (map doProcess ps)
+    doProcess (A.ProcCall _ n as) = doName n ++ " " ++ doActuals as ++ ";\n"
     doProcess n = unimp n
 

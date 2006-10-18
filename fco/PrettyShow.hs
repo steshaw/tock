@@ -1,9 +1,13 @@
 -- A generic show implementation that pretty-prints expressions
+-- This ought to use a class (like show does), so that it can be extended
+-- properly without me needing to have FCO-specific cases in here -- see the
+-- appropriate SYB paper.
 
 module PrettyShow (pshow) where
 
 import Data.Generics
 import Text.PrettyPrint.HughesPJ
+import Metadata
 
 -- This is ugly -- but it looks like you can't easily define a generic function
 -- even for a single tuple type, since it has to parameterise over multiple Data
@@ -34,8 +38,11 @@ doList t = brackets $ sep $ punctuate (text ",") (map doAny t)
 doString :: String -> Doc
 doString s = text $ show s
 
+doMeta :: Meta -> Doc
+doMeta m = text $ formatSourcePos m
+
 doAny :: Data a => a -> Doc
-doAny = doGeneral `ext1Q` doList `extQ` doString
+doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta
 
 pshow :: Data a => a -> String
 pshow x = render $ doAny x

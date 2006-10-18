@@ -45,7 +45,7 @@ uniqueNamesPass p = evalState (doAny p) (0, [])
     withNames :: Data t => [A.Name] -> t -> UniqueM ([A.Name], t)
     withNames ns b = do
       (count, vars) <- get
-      let names = [s | A.Name s <- ns]
+      let (ms, names) = unzip [(m, s) | A.Name m s <- ns]
       let names' = [n ++ "." ++ show (count + i) | (n, i) <- zip names [0..]]
       put (count + length ns, (zip names names') ++ vars)
 
@@ -54,7 +54,7 @@ uniqueNamesPass p = evalState (doAny p) (0, [])
       (count', _) <- get
       put (count', vars)
 
-      return (map A.Name names', b')
+      return ([A.Name m n | (m, n) <- zip ms names'], b')
 
     withName :: Data t => A.Name -> t -> UniqueM (A.Name, t)
     withName n b = do
@@ -70,57 +70,57 @@ uniqueNamesPass p = evalState (doAny p) (0, [])
     withSpec :: Data t => A.Specification -> t -> UniqueM (A.Specification, t)
     withSpec (n, st) b = do
       st' <- case st of
-        A.Proc fs pp -> do (fs', pp') <- withFormals fs pp
-                           return $ A.Proc fs' pp'
-        A.Function rt fs pp -> do (fs', pp') <- withFormals fs pp
-                                  return $ A.Function rt fs' pp'
+        A.Proc m fs pp -> do (fs', pp') <- withFormals fs pp
+                             return $ A.Proc m fs' pp'
+        A.Function m rt fs pp -> do (fs', pp') <- withFormals fs pp
+                                    return $ A.Function m rt fs' pp'
         otherwise -> doAny st
       (n', b') <- withName n b
       return ((n', st'), b')
 
     withRep :: Data t => A.Replicator -> t -> UniqueM (A.Replicator, t)
-    withRep (A.For n f1 f2) b = do
+    withRep (A.For m n f1 f2) b = do
       (n', b') <- withName n b
       f1' <- doAny f1
       f2' <- doAny f2
-      return $ (A.For n' f1' f2', b')
+      return $ (A.For m n' f1' f2', b')
 
     doProcess :: A.Process -> UniqueM A.Process
     doProcess p = case p of
-      A.ProcSpec s b -> do (s', b') <- withSpec s b
-                           return $ A.ProcSpec s' b'
-      A.SeqRep r b -> do (r', b') <- withRep r b
-                         return $ A.SeqRep r' b'
-      A.ParRep pri r b -> do (r', b') <- withRep r b
-                             return $ A.ParRep pri r' b'
+      A.ProcSpec m s b -> do (s', b') <- withSpec s b
+                             return $ A.ProcSpec m s' b'
+      A.SeqRep m r b -> do (r', b') <- withRep r b
+                           return $ A.SeqRep m r' b'
+      A.ParRep m pri r b -> do (r', b') <- withRep r b
+                               return $ A.ParRep m pri r' b'
       otherwise -> doGeneric p
 
     doValueProcess :: A.ValueProcess -> UniqueM A.ValueProcess
     doValueProcess p = case p of
-      A.ValOfSpec s b -> do (s', b') <- withSpec s b
-                            return $ A.ValOfSpec s' b'
+      A.ValOfSpec m s b -> do (s', b') <- withSpec s b
+                              return $ A.ValOfSpec m s' b'
       otherwise -> doGeneric p
 
     doStructured :: A.Structured -> UniqueM A.Structured
     doStructured p = case p of
-      A.Rep r b -> do (r', b') <- withRep r b
-                      return $ A.Rep r' b'
-      A.Spec s b -> do (s', b') <- withSpec s b
-                       return $ A.Spec s' b'
+      A.Rep m r b -> do (r', b') <- withRep r b
+                        return $ A.Rep m r' b'
+      A.Spec m s b -> do (s', b') <- withSpec s b
+                         return $ A.Spec m s' b'
       otherwise -> doGeneric p
 
     doName :: A.Name -> UniqueM A.Name
-    doName (A.Name s) = do
+    doName (A.Name m s) = do
       (_, vars) <- get
       let s' = case lookup s vars of
                  Just n -> n
                  Nothing -> "(not-declared-" ++ s ++ ")"
                  --Nothing -> error $ "Name " ++ s ++ " not declared before use"
-      return $ A.Name s'
+      return $ A.Name m s'
 
 cStyleNamesPass :: A.Process -> A.Process
 cStyleNamesPass = everywhere (mkT doName)
   where
     doName :: A.Name -> A.Name
-    doName (A.Name s) = A.Name [if c == '.' then '_' else c | c <- s]
+    doName (A.Name m s) = A.Name m [if c == '.' then '_' else c | c <- s]
 
