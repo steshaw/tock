@@ -1,0 +1,624 @@
+\documentclass[adam,pdf,slideColor]{prosper}
+\usepackage{graphicx}
+\usepackage{pifont}
+\usepackage{xspace}
+\usepackage{alltt}
+\def\occampi{{occam-\Pisymbol{psy}{112}}\xspace}
+\def\picalculus{{\Pisymbol{psy}{112}-calculus}\xspace}
+\definecolor{Red}{rgb}{0.6,0.0,0.0}
+\definecolor{Green}{rgb}{0.0,0.6,0.0}
+\definecolor{Blue}{rgb}{0.0,0.0,0.6}
+\definecolor{Purple}{rgb}{0.6,0.0,0.6}
+\definecolor{Brown}{rgb}{0.5,0.5,0.0}
+\def\keyword#1{{\color{Green}#1}}
+\def\operator#1{{\color{Purple}#1}}
+\def\highlight#1{{\color{Brown}#1}}
+
+\Logo(-1.0,7.3){\includegraphics[width=3cm]{kent.eps}}
+
+\title{Exploring nanopass compilation in Haskell}
+\author{Adam Sampson}
+\email{{\tt ats1@kent.ac.uk}}
+\institution{University of Kent\\ {\tt http://www.cs.kent.ac.uk/}}
+\slideCaption{FCO}
+
+\begin{document}
+
+\maketitle
+
+\begin{slide}{Why?}
+\begin{itemize}
+\item We've been looking at using Scheme
+\begin{itemize}
+\item Popular in the States, less so over here
+\item Good libraries for compilation
+\end{itemize}
+\item Lots of Haskell users in the lab already
+\begin{itemize}
+\item \ldots including all our undergrads
+\item Also heavily used for compiler work
+\end{itemize}
+\item Should we use Haskell instead?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{What I've been doing}
+\begin{itemize}
+\item Building bits of FCO: a nanopass occam compiler in Haskell
+\begin{itemize}
+\item Functional Compiler for occam
+\end{itemize}
+\item This is an exploration -- a ``spike solution''
+\item Checking that all the things we want to do are possible
+\item Warning: may contain traces of handwaving
+\item I'll assume some knowledge of occam and Haskell; if anything's
+  not clear, please shout
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Haskell}
+\begin{itemize}
+\item Mature purely-functional language
+\item Open spec; several implementations
+\item Powerful static type system
+\item Built-in pattern matching
+\item Good support for monadic programming
+\item Lazy evaluation
+\item Supports lightweight concurrency
+\item Nice syntax (for occam programmers)
+\item Lots of cool recent work (some of which I'll show later)
+\item See the ``History of Haskell'' HoPL paper
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Existing work}
+\begin{itemize}
+\item occam2.1 language spec -- with a BNF syntax
+\item 42 -- the model for this, in Scheme
+\item occ21 -- the only full existing implementation, in C
+\item JHC -- Haskell to C, in Haskell
+\item Pugs -- Perl 6 to various, in Haskell
+\item (Also GHC, Mincaml and a few others)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{A nanopass refresher}
+\begin{itemize}
+\item Parse language into AST
+\item Do many small passes over the AST
+\begin{itemize}
+\item Checks
+\item Annotations
+\item Transformations
+\end{itemize}
+\item Output
+\end{itemize}
+\end{slide}
+
+\begin{slide}{FCO's target}
+\begin{itemize}
+\item Translate occam to idiomatic C
+\begin{itemize}
+\item Use CIF for concurrency
+\item Bugbear: calculating stack usage
+\end{itemize}
+\item Whole-program compilation
+\begin{itemize}
+\item Allows whole-program optimisations and checks
+\item Can still do separate parsing/checks/early passes; just do final
+  translation at ``link time''
+\end{itemize}
+\item FCO is not finished, but I believe the approach is sound
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Challenges}
+\begin{itemize}
+\item Parsing
+\item Data structures
+\item Writing transformations
+\item Driver and IO
+\item Extensibility
+\item Debugging and tracing
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Parsing}
+\begin{itemize}
+\item 42 hasn't tackled this yet
+\item occam2.1 has some oddities:
+\begin{itemize}
+\item Lots of lookahead needed
+\item Indentation-based syntax
+\item Odd line-continuation rules
+\item Ambiguities
+\item Left-recursive productions
+\end{itemize}
+\item occ21's parser keeps lots of state; we don't want to do that
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Parsing by passes}
+\begin{itemize}
+\item Break down ``parsing'' into several passes:
+\begin{itemize}
+\item Execute (some) preprocessor instructions
+\item Detect and rejoin continuation lines
+\item Convert indentation changes to tokens
+\item \ldots then just use a regular parser
+\item Resolve ambiguities later
+\end{itemize}
+\item (\verb|occamdoc| does much of this already)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Parsing by Parsec}
+\begin{itemize}
+\item A combinator-based parsing library for Haskell
+\item Productions look pretty much like BNF, e.g.:
+\begin{verbatim}
+specification = declaration
+                <|> abbreviation
+                <|> definition
+sequence = do { sSEQ ; eol ; indent ;
+                ps <- many1 process ;
+                ...
+\end{verbatim}
+\item Uses Prolog-style backtracking and cuts -- no lookahead problems
+\item All done using monads
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Monads}
+\begin{itemize}
+\item A data type that wraps a value
+\item A monadic function can return a value and/or change the wrapper
+\item For example:
+\begin{itemize}
+\item \verb|State| monad contains a user-defined state value
+\item \verb|IO| monad has ``state of the world'' (so IO functions
+  can interact with the world)
+\item \verb|Parser| monad (from Parsec) keeps track of file location,
+  backtracking, etc.
+\end{itemize}
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Monad combinators}
+\begin{itemize}
+\item Combinators let you chain monadic functions together
+\item Each monad defines how the ``bind'' operator (a standard
+  combinator) works -- e.g. pass state through, backtrack upon
+  failure, etc.
+\item Haskell has special syntax (\verb|do| blocks) for bind
+\item Monads can define their own combinators (e.g. \verb,<|>, in Parsec)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Monad example}
+\begin{itemize}
+\item Function in \verb|State| monad that returns unique ID
+\item The \verb|get| and \verb|put| functions come from the monad
+\item \verb|return| wraps a value in the monad
+\item \verb|do| block chains the three functions together
+\end{itemize}
+\begin{verbatim}
+-- Define our own monad based on State.
+-- The state is a single Int.
+type UniqueState t = State Int t
+
+-- This returns an Int in our monad.
+getID :: UniqueState Int
+getID = do  counter <- get
+            put (counter + 1)
+            return counter
+\end{verbatim}
+\end{slide}
+
+\begin{slide}{Ambiguities}
+\begin{itemize}
+\item Two ambiguities in occam 2.1 syntax as specified in the
+  manual
+\item \verb|c ! x ; y|
+\begin{itemize}
+\item Is \verb|x| a tag or a variable name?
+\end{itemize}
+\item \verb|foo[x]|
+\begin{itemize}
+\item Is this an array element, or\ldots
+\item \ldots is this retyping the array literal \verb|[x]| to the
+  user-defined type \verb|foo|?
+\item You can't retype an array -- fix the grammar to reflect this
+\end{itemize}
+\item Any more? What about \occampi?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Data structures}
+\begin{itemize}
+\item Represent an AST node
+\item Metadata
+\begin{itemize}
+\item Source position
+\item Annotations from passes
+\end{itemize}
+\item In occ21 and 42, a record for each node type
+\item In Haskell, I've tried two approaches
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Data structures: ``parse tree''}
+\begin{itemize}
+\item A catch-all \verb|Node| ADT
+\item \verb|Meta| contains metadata
+\begin{verbatim}
+data Node = (Meta, NodeType)
+
+data NodeType = Seq [Node]
+                | AltGuard Node Node
+                | Name String
+                | ...
+\end{verbatim}
+\item Pattern matching's easy
+\item Straightforward to write traversal code
+\item This feels a bit non-Haskell-ish
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Data structures: ``AST''}
+\begin{itemize}
+\item One ADT per production (with simplifications)
+\begin{verbatim}
+data Process = Seq Meta [Process]
+               | Alt Meta [AltGrd]
+               | Assign [Var] ExpList
+               | Skip Meta | ...
+
+data AltGrd = AltGrd Meta Guard Process
+              | ...
+\end{verbatim}
+\item This is what other compilers do
+\item \ldots but writing code to process it is harder
+\item (I'll come back to this later)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Transformations}
+\begin{itemize}
+\item Walk over the tree, finding interesting bits of it and Doing
+  Stuff to them
+\item Some bits are purely functional; some must carry state
+\item Checks and annotations are just transformations that don't
+  change the tree
+\item 42 does this using PLT's pattern-matching library
+\item Can we use Haskell's built-in pattern-matching?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Pattern-matching}
+\begin{itemize}
+\item Yes! At least, it's trivial for the \verb|Node| data structure:
+\begin{verbatim}
+myPass n = case n of
+  Seq ps -> doSeq (map myPass ps)
+  Name s -> doName s
+  ...
+\end{verbatim}
+\item Writing the boilerplate like that for every pass is rather
+  boring (and hard to extend), though
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Base passes}
+\begin{itemize}
+\item Rather than direct recursion, have a
+  ``base pass'' function
+\begin{verbatim}
+basePass top n = case n of
+  Seq ps -> Seq (map top ps)
+  Name s -> Name s
+\end{verbatim}
+\item Then every pass can use that:
+\begin{verbatim}
+doStuff n = case n of
+  Thing a -> doThing (pt a)
+  otherwise -> pt a
+  where  pt = basePass doStuff
+\end{verbatim}
+\item Slightly fancier glue for error handling, etc.
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Generated base passes}
+\begin{itemize}
+\item No need to write the base passes by hand
+\item Generate them automatically from the data type definition (using
+  Template Haskell, or simpler approaches)
+\item Can generate several base passes for different subsets of the
+  allowed productions
+\end{itemize}
+\end{slide}
+
+\begin{slide}{The bad news}
+\begin{itemize}
+\item However, this all only works because we're restricted to one
+  data type
+\item And complicated passes get very messy\ldots
+\item How do we do this for the ``AST'' data types?
+\item We'd need to write \emph{generic} functions that would work on
+  several data types
+\item Fortunately\ldots
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Scrap Your Boilerplate}
+\begin{itemize}
+\item The ``SYB'' Generics package lets you turn:
+\begin{verbatim}
+foo :: Process -> Process
+\end{verbatim}
+into:
+\begin{verbatim}
+foo :: Typeable a => a -> a
+\end{verbatim}
+\ldots a function you can apply to any \verb|Typeable| type
+\item A \emph{really} cute hack to provide introspection and dynamic
+  typing (\verb|cast|) in Haskell
+\end{itemize}
+\end{slide}
+
+\begin{slide}{An aside on typeclasses}
+\begin{itemize}
+\item Typeclasses are really nothing like OO classes
+\item A typeclass is an interface: a set of functions
+\begin{itemize}
+\item The \verb|Show| typeclass provides the \verb|show| function
+\item \verb|Eq| provides equality tests
+\item \verb|Typeable| provides ``what's the type of this value?''
+\end{itemize}
+\item If a type is an instance of a typeclass, then it has
+  implementations of all that typeclass's functions for that type
+\item The Haskell compiler can ``derive'' instances of the built-in
+  typeclasses (including \verb|Typeable| and \verb|Data|) automatically
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Scrap More Boilerplate}
+\begin{itemize}
+\item These functions do not automatically recurse
+\item Instead, you get \verb|gmapT| -- ``generic map'', which peers
+  carefully at the value's type, and maps across all the type
+  constructor arguments
+\item For example:
+\end{itemize}
+\begin{verbatim}
+data Thing = Thing Foo Bar Baz
+  deriving (Typeable, Data)
+v :: Thing                 -- some Thing
+t :: Typeable a => a -> a  -- a transform
+f = gmap t v
+f' (Thing x y z) = Thing (t x) (t y) (t z)
+\end{verbatim}
+\begin{itemize}
+\item \verb|f| and \verb|f'| are equivalent -- but f is itself generic.
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Scrap The Whole Boiler}
+\begin{itemize}
+\item Using this, you can write a function that'll recurse across an
+  entire data structure, applying the transform wherever it can
+\item \ldots and, actually, they give it to you -- \verb|everywhere|
+\item You also get functions to extend a generic transform with a
+  type-specific case
+\begin{verbatim}
+doAny = doGen `extT` doPar
+              `extT` doSeq ...
+\end{verbatim}
+\item There are monadic and query (i.e. returning a result rather than
+  doing a transformation) versions of all these facilities too
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Scrapping My Boilerplate}
+\begin{itemize}
+\item By making \verb|Node| derive \verb|Data|, we can do away with
+  the base passes in favour of generic functions
+\item This works for any set of ADTs
+\item For example:
+\begin{verbatim}
+doName :: Name -> Name
+doName (Name s) =
+  Name [if c == '.' then '_' else c
+        | c <- s]
+
+cIshNamesPass = everywhere (mkT doName)
+\end{verbatim}
+\item This can be applied to a \verb|Name|, \verb|Process|,
+  \verb|Declaration|, etc. and works recursively
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Scrap Your Boilerstate}
+\begin{itemize}
+\item Passes that need state can use the \verb|State| monad
+\item For example, tracking variable scope
+\item I have a marvellous example of this but this slide is too small
+  to contain it -- see the real code
+\item The ``unique names'' pass is rather more concise in FCO than
+  in 42 owing to the use of generics
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Driver and IO}
+\begin{itemize}
+\item The code that sets up and runs all the bits of the compiler, and
+  interacts with the OS
+\item Dead easy in Haskell -- very good OS interfacing
+\item Worth cribbing from for \occampi's standard libraries\ldots
+\item We have lists of passes to apply (like 42)
+\item Passes are functions from one tree to another
+\item The tree is pretty-printed after each pass (in debug mode)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility}
+\begin{itemize}
+\item Want to be able to add:
+\begin{itemize}
+\item New AST node types
+\item New passes
+\end{itemize}
+\item Also accessibility, really
+\begin{itemize}
+\item Undergrads should be able to write extensions
+\end{itemize}
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility problems}
+\begin{itemize}
+\item Slotting in new passes is pretty trivial
+\item Creating new types of nodes is harder
+\item You can't extend an ADT
+\item More generally, transformations can't replace a value with a
+  different type of value
+\item Several ways we could get around this\ldots
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility: ``plan ahead''}
+\begin{itemize}
+\item We could\ldots
+\item Include everything you could ever possibly want in your data
+  types ahead of time
+\item Doable with \verb|Node|
+\begin{itemize}
+\item Early version of FCO extracted comment annotations in
+  the \verb|Node| definition to decide which passes each node type was
+  valid in
+\item Metaprogramming -- you can do it (Template Haskell), but it's a
+  bit experimental\ldots
+\end{itemize}
+\item Really nasty with lots of ADTs
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility: ``whatEVERRRRR''}
+\begin{itemize}
+\item We could\ldots
+\item Use a very general data type
+\begin{verbatim}
+data Node = Node String Meta [Node]
+\end{verbatim}
+\item Emulating dynamic typing
+\item So why use a statically-typed language?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility: ``from time to time''}
+\begin{itemize}
+\item We could\ldots
+\item Have several sets of ADTs
+\item When we need to change the language, have a big transformation
+  pass between them
+\item This is what JHC/Pugs do (and what FCO does currently)
+\item Not really nanopass any more
+\begin{itemize}
+\item The transformation passes aren't necessarily entirely mechanical
+\end{itemize}
+\item Awkward to extend
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility: ``deep magic''}
+\begin{itemize}
+\item We could\ldots
+\item Use typeclasses and existential types (a la \verb|HList|)
+\item Doable but very messy
+\item Could require generating class instances automatically (using
+  DrIFT or similar) as ``glue''
+\item Not clear how this interacts with generics
+\item Makes pattern-matching awkward (impossible?)
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Extensibility: the big worry}
+\begin{itemize}
+\item I feel like I'm fighting the type system\ldots
+\item Is the nanopass approach fundamentally incompatible with static
+  typing?
+\item Or, alternately, is the Haskell type system insufficiently
+  powerful to express it cleanly?
+\begin{itemize}
+\item Given the Haskell type system is one of the most powerful out
+  there, these two are essentially equivalent
+\end{itemize}
+\item Is there some clean approach to this that I'm not seeing?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Debugging}
+\begin{itemize}
+\item Even with static typing, many programs do not work right first
+  time \verb|:-)|
+\item Haskell lacks debugging facilities
+\item Lazy evaluation can make debugging harder
+\item At the very least, we need tracing (as 42 has) -- ``\verb|printf|
+  debugging''
+\item To do that, you need to use another monad
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Monad transformers}
+\begin{itemize}
+\item Much of our code will be running in a monad already
+\item \ldots but if you want to use more than one monad?
+\item Monad transformers let you ``stack up'' monads (e.g. State
+  around IO)
+\item Getting at actions in the ``inner'' monads is slightly awkward
+  (\verb|liftM|)
+\item \ldots and we want tracing, plus error-handling, plus the monads
+  each pass needs -- perhaps four stacked monads in some code
+\item Lots of wrapper functions
+\begin{verbatim}
+trace' = liftM . liftM . liftM . trace
+\end{verbatim}
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Conclusions}
+\begin{itemize}
+\item Haskell's a really elegant language\ldots
+\item \ldots but I don't think it's suited to this particular problem
+\item A number of useful things have come out of FCO, though\ldots
+\end{itemize}
+\end{slide}
+
+\begin{slide}{Lessons}
+\begin{itemize}
+\item Decomposing the parser makes it simpler
+\item Use a backtracking parser
+\item Look at the full language
+\begin{itemize}
+\item Subtleties can require big changes
+\item Can test on real code
+\end{itemize}
+\item Take advantage of generic/introspective programming (perhaps
+  with Scheme record annotations)
+\item Consider doing occam-to-C translation
+\begin{itemize}
+\item At a higher level than the VM
+\end{itemize}
+\end{itemize}
+\end{slide}
+
+\begin{slide}{And finally}
+\begin{itemize}
+\item The code's on my web site
+\item Ask me for references for the Haskell stuff
+\item Any questions?
+\end{itemize}
+\end{slide}
+
+\end{document}
