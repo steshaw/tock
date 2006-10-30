@@ -1,12 +1,12 @@
--- Parses across the AST
+-- Passes across the AST
 
---module ASTPasses (astPasses) where
-module ASTPasses where
+module ASTPasses (astPasses) where
 
-import qualified AST as A
 import List
 import Data.Generics
 import Control.Monad.State
+import Metadata
+import qualified AST as A
 
 {- FIXME: Passes to add:
 calculate types
@@ -114,8 +114,7 @@ uniqueNamesPass p = evalState (doAny p) (0, [])
       (_, vars) <- get
       let s' = case lookup s vars of
                  Just n -> n
-                 Nothing -> "(not-declared-" ++ s ++ ")"
-                 --Nothing -> error $ "Name " ++ s ++ " not declared before use"
+                 Nothing -> dieP m $ "Name " ++ s ++ " not declared before use"
       return $ A.Name m s'
 
 cStyleNamesPass :: A.Process -> A.Process
