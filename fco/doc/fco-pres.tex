@@ -587,6 +587,17 @@ trace' = liftM . liftM . liftM . trace
 \end{itemize}
 \end{slide}
 
+\begin{slide}{Tracing}
+\begin{itemize}
+\item Awkward to insert tracing into monadic code
+\item \ldots but it's much more awkward to trace (or support failure
+  in) functional code, because you have to first make it monadic
+\item Can't be hidden with wrappers
+\item \ldots so, in practice, everything becomes monadic
+\item A downside of the purely functional approach
+\end{itemize}
+\end{slide}
+
 \begin{slide}{Conclusions}
 \begin{itemize}
 \item Haskell's a really elegant language\ldots
@@ -615,9 +626,24 @@ trace' = liftM . liftM . liftM . trace
 
 \begin{slide}{And finally}
 \begin{itemize}
-\item The code's on my web site
-\item Ask me for references for the Haskell stuff
 \item Any questions?
+\end{itemize}
+\end{slide}
+
+\begin{slide}{References}
+\begin{itemize}
+\item The code's on my web site: \\
+\verb|http://offog.org/darcs/research/fco/|
+\item Wikibooks Haskell tutorial: \\
+\verb|http://en.wikibooks.org/wiki/Haskell|
+\item History of Haskell: \\
+{\tiny \verb|http://haskell.org/haskellwiki/History_of_Haskell|}
+\item JHC: \\
+\verb|http://repetae.net/john/computer/jhc/|
+\item Pugs: \\
+\verb|http://www.pugscode.org/|
+\item Scrap Your Boilerplate: \\
+\verb|http://www.cs.vu.nl/boilerplate/|
 \end{itemize}
 \end{slide}
 
