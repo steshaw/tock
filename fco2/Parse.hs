@@ -221,7 +221,7 @@ maybeSubscripted :: String -> Parser a -> (Meta -> A.Subscript -> a -> a) -> Par
 maybeSubscripted prodName inner subscripter
     =   do m <- md
            v <- inner
-           es <- many (do { sLeft ; e <- expression ; sRight ; return e })
+           es <- many (do { sLeft; e <- expression; sRight; return e })
            return $ foldl (\e s -> subscripter m (A.Subscript m s) e) v es
     <?> prodName
 
@@ -230,9 +230,9 @@ maybeSliced inner subscripter
     =   do m <- md
            sLeft
            v <- inner
-           (try (do { sFROM ; e <- expression ; sFOR ; f <- expression ; sRight ; return $ subscripter m (A.SubscriptFromFor m e f) v })
-            <|> do { sFROM ; e <- expression ; sRight ; return $ subscripter m (A.SubscriptFrom m e) v }
-            <|> do { sFOR ; e <- expression ; sRight ; return $ subscripter m (A.SubscriptFor m e) v })
+           (try (do { sFROM; e <- expression; sFOR; f <- expression; sRight; return $ subscripter m (A.SubscriptFromFor m e f) v })
+            <|> do { sFROM; e <- expression; sRight; return $ subscripter m (A.SubscriptFrom m e) v }
+            <|> do { sFOR; e <- expression; sRight; return $ subscripter m (A.SubscriptFor m e) v })
 
 handleSpecs :: Parser [A.Specification] -> Parser a -> (Meta -> A.Specification -> a -> a) -> Parser a
 handleSpecs specs inner specMarker
@@ -249,22 +249,22 @@ handleSpecs specs inner specMarker
 
 abbreviation :: Parser A.Specification
 abbreviation
-    =   try (do { m <- md ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return (n, A.Is m A.Infer v) })
-    <|> try (do { m <- md ; s <- specifier ; n <- name ; sIS ; v <- variable ; sColon ; eol ; return (n, A.Is m s v) })
-    <|> do { m <- md ; sVAL ;
-              try (do { n <- name ; sIS ; e <- expression ; sColon ; eol ; return (n, A.ValIs m A.Infer e) })
-              <|> do { s <- specifier ; n <- name ; sIS ; e <- expression ; sColon ; eol ; return (n, A.ValIs m s e) } }
+    =   try (do { m <- md; n <- name; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Infer v) })
+    <|> try (do { m <- md; s <- specifier; n <- name; sIS; v <- variable; sColon; eol; return (n, A.Is m s v) })
+    <|> do { m <- md; sVAL ;
+              try (do { n <- name; sIS; e <- expression; sColon; eol; return (n, A.ValIs m A.Infer e) })
+              <|> do { s <- specifier; n <- name; sIS; e <- expression; sColon; eol; return (n, A.ValIs m s e) } }
     <?> "abbreviation"
 
 actual :: Parser A.Actual
 actual
-    =   try (do { e <- expression ; return $ A.ActualExpression e })
-    <|> try (do { c <- channel ; return $ A.ActualChannel c })
+    =   try (do { e <- expression; return $ A.ActualExpression e })
+    <|> try (do { c <- channel; return $ A.ActualChannel c })
     <?> "actual"
 
 allocation :: Parser [A.Specification]
 allocation
-    =   do { m <- md ; sPLACE ; n <- name ; sAT ; e <- expression ; sColon ; eol ; return [(n, A.Place m e)] }
+    =   do { m <- md; sPLACE; n <- name; sAT; e <- expression; sColon; eol; return [(n, A.Place m e)] }
     <?> "allocation"
 
 altProcess :: Parser A.Process
@@ -276,16 +276,16 @@ altProcess
 
 altKeyword :: Parser Bool
 altKeyword
-    =   do { sALT ; return False }
+    =   do { sALT; return False }
     -- FIXME Can this be relaxed to just wrap sPRI in "try"?
-    <|> try (do { sPRI ; sALT ; return True })
+    <|> try (do { sPRI; sALT; return True })
     <?> "altKeyword"
 
 alternation :: Parser (Bool, A.Structured)
 alternation
-    =   do {  m <- md ; isPri <- altKeyword ;
-              do { eol ; indent ; as <- many1 alternative ; outdent ; return (isPri, A.Several m as) }
-              <|> do { r <- replicator ; eol ; indent ; a <- alternative ; outdent ; return (isPri, A.Rep m r a) } }
+    =   do {  m <- md; isPri <- altKeyword ;
+              do { eol; indent; as <- many1 alternative; outdent; return (isPri, A.Several m as) }
+              <|> do { r <- replicator; eol; indent; a <- alternative; outdent; return (isPri, A.Rep m r a) } }
     <?> "alternation"
 
 -- The reason the CASE guards end up here is because they have to be handled
@@ -295,7 +295,7 @@ alternative :: Parser A.Structured
 alternative
     =   guardedAlternative
     -- FIXME: Check we don't have PRI ALT inside ALT.
-    <|> do { (isPri, a) <- alternation ; return a }
+    <|> do { (isPri, a) <- alternation; return a }
     <|> try (do m <- md
                 b <- boolean
                 sAmp
@@ -321,7 +321,7 @@ alternative
 
 assignment :: Parser A.Process
 assignment
-    =   do { m <- md ; vs <- variableList ; sAssign ; es <- expressionList ; eol ; return $ A.Assign m vs es }
+    =   do { m <- md; vs <- variableList; sAssign; es <- expressionList; eol; return $ A.Assign m vs es }
     <?> "assignment"
 
 repBase :: Parser A.Expression
@@ -338,7 +338,7 @@ boolean
 
 byte :: Parser A.LiteralRepr
 byte
-    =   lexeme (do { m <- md ; char '\'' ; s <- character ; char '\'' ; return $ A.ByteLiteral m s })
+    =   lexeme (do { m <- md; char '\''; s <- character; char '\''; return $ A.ByteLiteral m s })
     <?> "byte"
 
 caseExpression :: Parser A.Expression
@@ -349,7 +349,7 @@ caseExpression
 
 caseInput :: Parser A.Process
 caseInput
-    =   do { m <- md ; c <- channel ; sQuest ; sCASE ; eol ; indent ; vs <- many1 variant ; outdent ; return $ A.Input m c (A.InputCase m (A.Several m vs)) }
+    =   do { m <- md; c <- channel; sQuest; sCASE; eol; indent; vs <- many1 variant; outdent; return $ A.Input m c (A.InputCase m (A.Several m vs)) }
     <?> "caseInput"
 
 -- This is also used for timers and ports, since the syntax is identical (and
@@ -363,15 +363,15 @@ channel
 
 channel' :: Parser A.Channel
 channel'
-    =   try (do { m <- md ; n <- name ; return $ A.Channel m n })
+    =   try (do { m <- md; n <- name; return $ A.Channel m n })
     <|> try (maybeSliced channel A.SubscriptedChannel)
     <?> "channel'"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
 channelType :: Parser A.Type
 channelType
-    =   do { sCHAN ; sOF ; p <- protocol ; return $ A.Chan p }
-    <|> try (do { sLeft ; s <- expression ; sRight ; t <- channelType ; return $ A.Array s t })
+    =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
+    <|> try (do { sLeft; s <- expression; sRight; t <- channelType; return $ A.Array s t })
     <?> "channelType"
 
 character :: Parser String
@@ -382,8 +382,8 @@ character
                      b <- hexDigit
                      return $ ['*', '#', a, b]
                   -- FIXME: Handle *\n, which is just a line continuation?
-                  <|> do { c <- anyChar ; return ['*', c] } })
-    <|> do { c <- anyChar ; return [c] }
+                  <|> do { c <- anyChar; return ['*', c] } })
+    <|> do { c <- anyChar; return [c] }
     <?> "character"
 
 ifProcess :: Parser A.Process
@@ -402,17 +402,17 @@ caseChoice
 
 conditional :: Parser A.Structured
 conditional
-    =   do {  m <- md ; sIF ;
-              do { eol ; indent ; cs <- many1 caseChoice ; outdent ; return $ A.Several m cs }
-              <|> do { r <- replicator ; eol ; indent ; c <- caseChoice ; outdent ; return $ A.Rep m r c } }
+    =   do {  m <- md; sIF ;
+              do { eol; indent; cs <- many1 caseChoice; outdent; return $ A.Several m cs }
+              <|> do { r <- replicator; eol; indent; c <- caseChoice; outdent; return $ A.Rep m r c } }
     <?> "conditional"
 
 conversionMode :: Parser (A.ConversionMode, A.Expression)
 conversionMode
-    =   do { sROUND ; o <- operand ; return (A.Round, o) }
-    <|> do { sTRUNC ; o <- operand ; return (A.Trunc, o) }
+    =   do { sROUND; o <- operand; return (A.Round, o) }
+    <|> do { sTRUNC; o <- operand; return (A.Trunc, o) }
     -- This uses operandNotTable to resolve the "x[y]" ambiguity.
-    <|> do { o <- operandNotTable ; return (A.DefaultConversion, o) }
+    <|> do { o <- operandNotTable; return (A.DefaultConversion, o) }
     <?> "conversionMode"
 
 conversion :: Parser A.Expression
@@ -431,16 +431,16 @@ repCount
 
 dataType :: Parser A.Type
 dataType
-    =   do { sBOOL ; return A.Bool }
-    <|> do { sBYTE ; return A.Byte }
-    <|> do { sINT ; return A.Int }
-    <|> do { sINT16 ; return A.Int16 }
-    <|> do { sINT32 ; return A.Int32 }
-    <|> do { sINT64 ; return A.Int64 }
-    <|> do { sREAL32 ; return A.Real32 }
-    <|> do { sREAL64 ; return A.Real64 }
-    <|> try (do { sLeft ; s <- expression ; sRight ; t <- dataType ; return $ A.Array s t })
-    <|> do { n <- name ; return $ A.UserType n }
+    =   do { sBOOL; return A.Bool }
+    <|> do { sBYTE; return A.Byte }
+    <|> do { sINT; return A.Int }
+    <|> do { sINT16; return A.Int16 }
+    <|> do { sINT32; return A.Int32 }
+    <|> do { sINT64; return A.Int64 }
+    <|> do { sREAL32; return A.Real32 }
+    <|> do { sREAL64; return A.Real64 }
+    <|> try (do { sLeft; s <- expression; sRight; t <- dataType; return $ A.Array s t })
+    <|> do { n <- name; return $ A.UserType n }
     <?> "dataType"
 
 declType :: Parser A.Type
@@ -455,27 +455,27 @@ declType
 -- it will need to register them as different types of name
 declaration :: Parser ([A.Name], A.SpecType)
 declaration
-    =   do { m <- md ; d <- declType ; ns <- sepBy1 name sComma ; sColon ; eol ; return (ns, A.Declaration m d) }
+    =   do { m <- md; d <- declType; ns <- sepBy1 name sComma; sColon; eol; return (ns, A.Declaration m d) }
     <?> "declaration"
 
 definition :: Parser A.Specification
 definition
-    =   do {  m <- md ; sDATA ; sTYPE ; n <- name ;
-              do {sIS ; t <- dataType ; sColon ; eol ; return (n, A.DataType m t) }
-              <|> do { eol ; indent ; rec <- structuredType ; outdent ; sColon ; eol ; return (n, rec) } }
-    <|> do {  m <- md ; sPROTOCOL ; n <- name ;
-              do { sIS ; p <- sequentialProtocol ; sColon ; eol ; return (n, A.Protocol m p) }
-              <|> do { eol ; indent ; sCASE ; eol ; indent ; ps <- many1 taggedProtocol ; outdent ; outdent ; sColon ; eol ; return (n, A.ProtocolCase m ps) } }
-    <|> do { m <- md ; sPROC ; n <- name ; fs <- formalList ; eol ; indent ; p <- process ; outdent ; sColon ; eol ; return (n, A.Proc m fs p) }
-    <|> try (do { m <- md ; rs <- sepBy1 dataType sComma ; (n, fs) <- functionHeader ;
-                  do { sIS ; el <- expressionList ; sColon ; eol ; return (n, A.Function m rs fs (A.ValOf m (A.Skip m) el)) }
-                  <|> do { eol ; indent ; vp <- valueProcess ; outdent ; sColon ; eol ; return (n, A.Function m rs fs vp) } })
-    <|> try (do { m <- md ; s <- specifier ; n <- name ;
-                  do { sRETYPES ; v <- variable ; sColon ; eol ; return (n, A.Retypes m s v) }
-                  <|> do { try sRESHAPES ; v <- variable ; sColon ; eol ; return (n, A.Reshapes m s v) } })
-    <|> do {  m <- md ; sVAL ; s <- specifier ; n <- name ;
-              do { sRETYPES ; v <- variable ; sColon ; eol ; return (n, A.ValRetypes m s v) }
-              <|> do { sRESHAPES ; v <- variable ; sColon ; eol ; return (n, A.ValReshapes m s v) } }
+    =   do {  m <- md; sDATA; sTYPE; n <- name ;
+              do {sIS; t <- dataType; sColon; eol; return (n, A.DataType m t) }
+              <|> do { eol; indent; rec <- structuredType; outdent; sColon; eol; return (n, rec) } }
+    <|> do {  m <- md; sPROTOCOL; n <- name ;
+              do { sIS; p <- sequentialProtocol; sColon; eol; return (n, A.Protocol m p) }
+              <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return (n, A.ProtocolCase m ps) } }
+    <|> do { m <- md; sPROC; n <- name; fs <- formalList; eol; indent; p <- process; outdent; sColon; eol; return (n, A.Proc m fs p) }
+    <|> try (do { m <- md; rs <- sepBy1 dataType sComma; (n, fs) <- functionHeader ;
+                  do { sIS; el <- expressionList; sColon; eol; return (n, A.Function m rs fs (A.ValOf m (A.Skip m) el)) }
+                  <|> do { eol; indent; vp <- valueProcess; outdent; sColon; eol; return (n, A.Function m rs fs vp) } })
+    <|> try (do { m <- md; s <- specifier; n <- name ;
+                  do { sRETYPES; v <- variable; sColon; eol; return (n, A.Retypes m s v) }
+                  <|> do { try sRESHAPES; v <- variable; sColon; eol; return (n, A.Reshapes m s v) } })
+    <|> do {  m <- md; sVAL; s <- specifier; n <- name ;
+              do { sRETYPES; v <- variable; sColon; eol; return (n, A.ValRetypes m s v) }
+              <|> do { sRESHAPES; v <- variable; sColon; eol; return (n, A.ValReshapes m s v) } }
     <?> "definition"
 
 digits :: Parser String
@@ -485,46 +485,46 @@ digits
 
 dyadicOperator :: Parser A.DyadicOp
 dyadicOperator
-    =   do { reservedOp "+" ; return A.Add }
-    <|> do { reservedOp "-" ; return A.Subtr }
-    <|> do { reservedOp "*" ; return A.Mul }
-    <|> do { reservedOp "/" ; return A.Div }
-    <|> do { reservedOp "\\" ; return A.Rem }
-    <|> do { sREM ; return A.Rem }
-    <|> do { sPLUS ; return A.Plus }
-    <|> do { sMINUS ; return A.Minus }
-    <|> do { sTIMES ; return A.Times }
+    =   do { reservedOp "+"; return A.Add }
+    <|> do { reservedOp "-"; return A.Subtr }
+    <|> do { reservedOp "*"; return A.Mul }
+    <|> do { reservedOp "/"; return A.Div }
+    <|> do { reservedOp "\\"; return A.Rem }
+    <|> do { sREM; return A.Rem }
+    <|> do { sPLUS; return A.Plus }
+    <|> do { sMINUS; return A.Minus }
+    <|> do { sTIMES; return A.Times }
     <|> do { reservedOp "/\\" <|> sBITAND; return A.BitAnd }
     <|> do { reservedOp "\\/" <|> sBITOR; return A.BitOr }
     <|> do { reservedOp "><"; return A.BitXor }
-    <|> do { sAND ; return A.And }
-    <|> do { sOR ; return A.Or }
-    <|> do { reservedOp "=" ; return A.Eq }
-    <|> do { reservedOp "<>" ; return A.NotEq }
-    <|> do { reservedOp "<" ; return A.Less }
-    <|> do { reservedOp ">" ; return A.More }
-    <|> do { reservedOp "<=" ; return A.LessEq }
-    <|> do { reservedOp ">=" ; return A.MoreEq }
-    <|> do { sAFTER ; return A.After }
+    <|> do { sAND; return A.And }
+    <|> do { sOR; return A.Or }
+    <|> do { reservedOp "="; return A.Eq }
+    <|> do { reservedOp "<>"; return A.NotEq }
+    <|> do { reservedOp "<"; return A.Less }
+    <|> do { reservedOp ">"; return A.More }
+    <|> do { reservedOp "<="; return A.LessEq }
+    <|> do { reservedOp ">="; return A.MoreEq }
+    <|> do { sAFTER; return A.After }
     <?> "dyadicOperator"
 
 expression :: Parser A.Expression
 expression
-    =   try (do { m <- md ; o <- monadicOperator ; v <- operand ; return $ A.Monadic m o v })
-    <|> do { m <- md ; sMOSTPOS ; t <- dataType ; return $ A.MostPos m t }
-    <|> do { m <- md ; sMOSTNEG ; t <- dataType ; return $ A.MostNeg m t }
-    <|> do { m <- md ; sSIZE ; t <- dataType ; return $ A.Size m t }
-    <|> do { m <- md ; sTRUE ; return $ A.True m }
-    <|> do { m <- md ; sFALSE ; return $ A.False m }
-    <|> try (do { m <- md ; l <- operand ; o <- dyadicOperator ; r <- operand ; return $ A.Dyadic m o l r })
+    =   try (do { m <- md; o <- monadicOperator; v <- operand; return $ A.Monadic m o v })
+    <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
+    <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
+    <|> do { m <- md; sSIZE; t <- dataType; return $ A.Size m t }
+    <|> do { m <- md; sTRUE; return $ A.True m }
+    <|> do { m <- md; sFALSE; return $ A.False m }
+    <|> try (do { m <- md; l <- operand; o <- dyadicOperator; r <- operand; return $ A.Dyadic m o l r })
     <|> try conversion
     <|> operand
     <?> "expression"
 
 expressionList :: Parser A.ExpressionList
 expressionList
-    =   try (do { m <- md ; n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ A.FunctionCallList m n as })
-    <|> do { m <- md ; es <- sepBy1 expression sComma ; return $ A.ExpressionList m es }
+    =   try (do { m <- md; n <- name; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as })
+    <|> do { m <- md; es <- sepBy1 expression sComma; return $ A.ExpressionList m es }
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expressionList"
 
@@ -535,13 +535,13 @@ fieldName = tag
 -- getting Parsec to parse it as a list of lists of arguments.
 formalList :: Parser A.Formals
 formalList
-    =   do { m <- md ; sLeftR ; fs <- sepBy formalArg sComma ; sRightR ; return $ markTypes m fs }
+    =   do { m <- md; sLeftR; fs <- sepBy formalArg sComma; sRightR; return $ markTypes m fs }
     <?> "formalList"
     where
       formalArg :: Parser (Maybe A.Type, A.Name)
-      formalArg =   try (do { sVAL ; s <- specifier ; n <- name ; return $ (Just (A.Val s), n) })
-                <|> try (do { s <- specifier ; n <- name ; return $ (Just s, n) })
-                <|> try (do { n <- name ; return $ (Nothing, n) })
+      formalArg =   try (do { sVAL; s <- specifier; n <- name; return $ (Just (A.Val s), n) })
+                <|> try (do { s <- specifier; n <- name; return $ (Just s, n) })
+                <|> try (do { n <- name; return $ (Nothing, n) })
 
       markTypes :: Meta -> [(Maybe A.Type, A.Name)] -> A.Formals
       markTypes _ [] = []
@@ -555,14 +555,14 @@ formalList
 
 functionHeader :: Parser (A.Name, A.Formals)
 functionHeader
-    =   do { sFUNCTION ; n <- name ; fs <- formalList ; return $ (n, fs) }
+    =   do { sFUNCTION; n <- name; fs <- formalList; return $ (n, fs) }
     <?> "functionHeader"
 
 guard :: Parser (A.Process -> A.Alternative)
 guard
-    =   try (do { m <- md ; (c, im) <- input ; return $ A.Alternative m c im })
-    <|> try (do { m <- md ; b <- boolean ; sAmp ; (c, im) <- input ; return $ A.AlternativeCond m b c im })
-    <|> try (do { m <- md ; b <- boolean ; sAmp ; sSKIP ; eol ; return $ A.AlternativeSkip m b })
+    =   try (do { m <- md; (c, im) <- input; return $ A.Alternative m c im })
+    <|> try (do { m <- md; b <- boolean; sAmp; (c, im) <- input; return $ A.AlternativeCond m b c im })
+    <|> try (do { m <- md; b <- boolean; sAmp; sSKIP; eol; return $ A.AlternativeSkip m b })
     <?> "guard"
 
 guardedAlternative :: Parser A.Structured
@@ -597,31 +597,31 @@ input
     =   do  m <- md
             c <- channel
             sQuest
-            (do { sCASE ; tl <- taggedList ; eol ; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
-             <|> do { sAFTER ; e <- expression ; eol ; return (c, A.InputAfter m e) }
-             <|> do { is <- sepBy1 inputItem sSemi ; eol ; return (c, A.InputSimple m is) })
+            (do { sCASE; tl <- taggedList; eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
+             <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) }
+             <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) })
     <?> "input"
 
 inputItem :: Parser A.InputItem
 inputItem
-    =   try (do { m <- md ; v <- variable ; sColons ; w <- variable ; return $ A.InCounted m v w })
-    <|> do { m <- md ; v <- variable ; return $ A.InVariable m v }
+    =   try (do { m <- md; v <- variable; sColons; w <- variable; return $ A.InCounted m v w })
+    <|> do { m <- md; v <- variable; return $ A.InVariable m v }
     <?> "inputItem"
 
 integer :: Parser A.LiteralRepr
 integer
-    =   try (do { m <- md ; d <- lexeme digits ; return $ A.IntLiteral m d })
-    <|> do { m <- md ; char '#' ; d <- many1 hexDigit ; return $ A.HexLiteral m d }
+    =   try (do { m <- md; d <- lexeme digits; return $ A.IntLiteral m d })
+    <|> do { m <- md; char '#'; d <- many1 hexDigit; return $ A.HexLiteral m d }
     <?> "integer"
 
 literal :: Parser A.Literal
 literal
-    =   try (do { m <- md ; v <- real ; sLeftR ; t <- dataType ; sRightR ; return $ A.Literal m t v })
-    <|> try (do { m <- md ; v <- integer ; sLeftR ; t <- dataType ; sRightR ; return $ A.Literal m t v })
-    <|> try (do { m <- md ; v <- byte ; sLeftR ; t <- dataType ; sRightR ; return $ A.Literal m t v })
-    <|> try (do { m <- md ; r <- real ; return $ A.Literal m A.Infer r })
-    <|> try (do { m <- md ; r <- integer ; return $ A.Literal m A.Infer r })
-    <|> try (do { m <- md ; r <- byte ; return $ A.Literal m A.Infer r })
+    =   try (do { m <- md; v <- real; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
+    <|> try (do { m <- md; v <- integer; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
+    <|> try (do { m <- md; v <- byte; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
+    <|> try (do { m <- md; r <- real; return $ A.Literal m A.Infer r })
+    <|> try (do { m <- md; r <- integer; return $ A.Literal m A.Infer r })
+    <|> try (do { m <- md; r <- byte; return $ A.Literal m A.Infer r })
     <?> "literal"
 
 whileProcess :: Parser A.Process
@@ -638,10 +638,10 @@ whileProcess
 
 monadicOperator :: Parser A.MonadicOp
 monadicOperator
-    =   do { reservedOp "-" <|> sMINUS ; return A.MonadicSubtr }
-    <|> do { reservedOp "~" <|> sBITNOT ; return A.MonadicBitNot }
-    <|> do { sNOT ; return A.MonadicNot }
-    <|> do { sSIZE ; return A.MonadicSize }
+    =   do { reservedOp "-" <|> sMINUS; return A.MonadicSubtr }
+    <|> do { reservedOp "~" <|> sBITNOT; return A.MonadicBitNot }
+    <|> do { sNOT; return A.MonadicNot }
+    <|> do { sSIZE; return A.MonadicSize }
     <?> "monadicOperator"
 
 name :: Parser A.Name
@@ -653,7 +653,7 @@ name
 
 stringLiteral :: Parser A.LiteralRepr
 stringLiteral
-    =   lexeme (do { m <- md ; char '"' ; cs <- many character ; char '"' ; return $ A.StringLiteral m (concat cs) })
+    =   lexeme (do { m <- md; char '"'; cs <- many character; char '"'; return $ A.StringLiteral m (concat cs) })
     <?> "string"
 
 operandNotTable :: Parser A.Expression
@@ -666,26 +666,26 @@ operand
 
 operandNotTable' :: Parser A.Expression
 operandNotTable'
-    =   try (do { m <- md ; v <- variable ; return $ A.ExprVariable m v })
-    <|> try (do { m <- md ; l <- literal ; return $ A.ExprLiteral m l })
-    <|> try (do { sLeftR ; e <- expression ; sRightR ; return e })
+    =   try (do { m <- md; v <- variable; return $ A.ExprVariable m v })
+    <|> try (do { m <- md; l <- literal; return $ A.ExprLiteral m l })
+    <|> try (do { sLeftR; e <- expression; sRightR; return e })
 -- XXX value process
-    <|> try (do { m <- md ; n <- name ; sLeftR ; as <- sepBy expression sComma ; sRightR ; return $ A.FunctionCall m n as })
-    <|> try (do { m <- md ; sBYTESIN ; sLeftR ; o <- operand ; sRightR ; return $ A.BytesInExpr m o })
-    <|> try (do { m <- md ; sBYTESIN ; sLeftR ; t <- dataType ; sRightR ; return $ A.BytesInType m t })
-    <|> try (do { m <- md ; sOFFSETOF ; sLeftR ; t <- dataType ; sComma ; f <- fieldName ; sRightR ; return $ A.OffsetOf m t f })
+    <|> try (do { m <- md; n <- name; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as })
+    <|> try (do { m <- md; sBYTESIN; sLeftR; o <- operand; sRightR; return $ A.BytesInExpr m o })
+    <|> try (do { m <- md; sBYTESIN; sLeftR; t <- dataType; sRightR; return $ A.BytesInType m t })
+    <|> try (do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f })
     <?> "operandNotTable'"
 
 operand' :: Parser A.Expression
 operand'
-    =   try (do { m <- md ; l <- table ; return $ A.ExprLiteral m l })
+    =   try (do { m <- md; l <- table; return $ A.ExprLiteral m l })
     <|> operandNotTable'
     <?> "operand'"
 
 caseOption :: Parser A.Structured
 caseOption
-    =   try (do { m <- md ; ces <- sepBy caseExpression sComma ; eol ; indent ; p <- process ; outdent ; return $ A.OnlyO m (A.Option m ces p) })
-    <|> try (do { m <- md ; sELSE ; eol ; indent ; p <- process ; outdent ; return $ A.OnlyO m (A.Else m p) })
+    =   try (do { m <- md; ces <- sepBy caseExpression sComma; eol; indent; p <- process; outdent; return $ A.OnlyO m (A.Option m ces p) })
+    <|> try (do { m <- md; sELSE; eol; indent; p <- process; outdent; return $ A.OnlyO m (A.Else m p) })
     <|> handleSpecs specification caseOption A.Spec
     <?> "option"
 
@@ -697,29 +697,29 @@ output
     =   do  m <- md
             c <- channel
             sBang
-            (do { sCASE ; t <- tag ; sSemi ; os <- sepBy1 outputItem sSemi ; eol ; return $ A.OutputCase m c t os }
-             <|> do { sCASE ; t <- tag ; eol ; return $ A.OutputCase m c t [] }
-             <|> do { os <- sepBy1 outputItem sSemi ; eol ; return $ A.Output m c os })
+            (do { sCASE; t <- tag; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os }
+             <|> do { sCASE; t <- tag; eol; return $ A.OutputCase m c t [] }
+             <|> do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os })
     <?> "output"
 
 outputItem :: Parser A.OutputItem
 outputItem
-    =   try (do { m <- md ; a <- expression ; sColons ; b <- expression ; return $ A.OutCounted m a b })
-    <|> do { m <- md ; e <- expression ; return $ A.OutExpression m e }
+    =   try (do { m <- md; a <- expression; sColons; b <- expression; return $ A.OutCounted m a b })
+    <|> do { m <- md; e <- expression; return $ A.OutExpression m e }
     <?> "outputItem"
 
 parKeyword :: Parser A.ParMode
 parKeyword
-    =   do { sPAR ; return A.PlainPar }
-    <|> try (do { sPRI ; sPAR ; return A.PriPar })
+    =   do { sPAR; return A.PlainPar }
+    <|> try (do { sPRI; sPAR; return A.PriPar })
     <?> "parKeyword"
 
 parallel :: Parser A.Process
 parallel
     =   do m <- md
            isPri <- parKeyword
-           (do { eol ; indent ; ps <- many1 process ; outdent ; return $ A.Par m isPri ps }
-            <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ A.ParRep m isPri r p })
+           (do { eol; indent; ps <- many1 process; outdent; return $ A.Par m isPri ps }
+            <|> do { r <- replicator; eol; indent; p <- process; outdent; return $ A.ParRep m isPri r p })
     <|> placedpar
     <?> "parallel"
 
@@ -729,20 +729,20 @@ placedpar
     =   do m <- md
            sPLACED
            sPAR
-           (do { eol ; indent ; ps <- many1 placedpar ; outdent ; return $ A.Par m A.PlacedPar ps  }
-            <|> do { r <- replicator ; eol ; indent ; p <- placedpar ; outdent ; return $ A.ParRep m A.PlacedPar r p })
-    <|> do { m <- md ; sPROCESSOR ; e <- expression ; eol ; indent ; p <- process ; outdent ; return $ A.Processor m e p }
+           (do { eol; indent; ps <- many1 placedpar; outdent; return $ A.Par m A.PlacedPar ps  }
+            <|> do { r <- replicator; eol; indent; p <- placedpar; outdent; return $ A.ParRep m A.PlacedPar r p })
+    <|> do { m <- md; sPROCESSOR; e <- expression; eol; indent; p <- process; outdent; return $ A.Processor m e p }
     <?> "placedpar"
 
 portType :: Parser A.Type
 portType
-    =   do { sPORT ; sOF ; p <- dataType ; return $ A.Port p }
-    <|> do { m <- md ; try sLeft ; s <- try expression ; try sRight ; t <- portType ; return $ A.Array s t }
+    =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
+    <|> do { m <- md; try sLeft; s <- try expression; try sRight; t <- portType; return $ A.Array s t }
     <?> "portType"
 
 procInstance :: Parser A.Process
 procInstance
-    =   do { m <- md ; n <- name ; sLeftR ; as <- sepBy actual sComma ; sRightR ; eol ; return $ A.ProcCall m n as }
+    =   do { m <- md; n <- name; sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
     <?> "procInstance"
 
 process :: Parser A.Process
@@ -750,8 +750,8 @@ process
     =   try assignment
     <|> try inputProcess
     <|> try output
-    <|> do { m <- md ; sSKIP ; eol ; return $ A.Skip m }
-    <|> do { m <- md ; sSTOP ; eol ; return $ A.Stop m }
+    <|> do { m <- md; sSKIP; eol; return $ A.Skip m }
+    <|> do { m <- md; sSTOP; eol; return $ A.Stop m }
     <|> seqProcess
     <|> ifProcess
     <|> caseProcess
@@ -760,7 +760,7 @@ process
     <|> altProcess
     <|> try caseInput
     <|> try procInstance
-    <|> do { m <- md ; sMainMarker ; eol ; return $ A.Main m }
+    <|> do { m <- md; sMainMarker; eol; return $ A.Main m }
     <|> handleSpecs (allocation <|> specification) process A.ProcSpec
     <?> "process"
 
@@ -773,7 +773,7 @@ protocol
 
 occamExponent :: Parser String
 occamExponent
-    =   try (do { c <- oneOf "+-" ; d <- digits ; return $ c : d })
+    =   try (do { c <- oneOf "+-"; d <- digits; return $ c : d })
     <?> "exponent"
 
 real :: Parser A.LiteralRepr
@@ -794,12 +794,12 @@ real
 
 replicator :: Parser A.Replicator
 replicator
-    =   do { m <- md ; n <- name ; sEq ; b <- repBase ; sFOR ; c <- repCount ; return $ A.For m n b c }
+    =   do { m <- md; n <- name; sEq; b <- repBase; sFOR; c <- repCount; return $ A.For m n b c }
     <?> "replicator"
 
 caseProcess :: Parser A.Process
 caseProcess
-    =   do { m <- md ; sCASE ; s <- selector ; eol ; indent ; os <- many1 caseOption ; outdent ; return $ A.Case m s (A.Several m os) }
+    =   do { m <- md; sCASE; s <- selector; eol; indent; os <- many1 caseOption; outdent; return $ A.Case m s (A.Several m os) }
     <?> "caseProcess"
 
 selector :: Parser A.Expression
@@ -812,27 +812,27 @@ seqProcess :: Parser A.Process
 seqProcess
     =   do  m <- md
             sSEQ
-            (do { eol ; indent ; ps <- many1 process ; outdent ; return $ A.Seq m ps }
-             <|> do { r <- replicator ; eol ; indent ; p <- process ; outdent ; return $ A.SeqRep m r p })
+            (do { eol; indent; ps <- many1 process; outdent; return $ A.Seq m ps }
+             <|> do { r <- replicator; eol; indent; p <- process; outdent; return $ A.SeqRep m r p })
     <?> "seqProcess"
 
 sequentialProtocol :: Parser [A.Type]
 sequentialProtocol
-    =   do { l <- try $ sepBy1 simpleProtocol sSemi ; return l }
+    =   do { l <- try $ sepBy1 simpleProtocol sSemi; return l }
     <?> "sequentialProtocol"
 
 simpleProtocol :: Parser A.Type
 simpleProtocol
-    =   try (do { l <- dataType ; sColons ; sLeft ; sRight ; r <- dataType ; return $ A.Counted l r })
+    =   try (do { l <- dataType; sColons; sLeft; sRight; r <- dataType; return $ A.Counted l r })
     <|> dataType
-    <|> do { sANY ; return $ A.Any }
+    <|> do { sANY; return $ A.Any }
     <?> "simpleProtocol"
 
 specification :: Parser [A.Specification]
 specification
-    =   try (do { (ns, d) <- declaration ; return [(n, d) | n <- ns] })
-    <|> try (do { a <- abbreviation ; return [a] })
-    <|> do { d <- definition ; return [d] }
+    =   try (do { (ns, d) <- declaration; return [(n, d) | n <- ns] })
+    <|> try (do { a <- abbreviation; return [a] })
+    <|> do { d <- definition; return [d] }
     <?> "specification"
 
 specifier :: Parser A.Type
@@ -841,14 +841,14 @@ specifier
     <|> try channelType
     <|> try timerType
     <|> try portType
-    <|> try (do { sLeft ; sRight ; s <- specifier ; return $ A.ArrayUnsized s })
-    <|> do { sLeft ; e <- expression ; sRight ; s <- specifier ; return $ A.Array e s }
+    <|> try (do { sLeft; sRight; s <- specifier; return $ A.ArrayUnsized s })
+    <|> do { sLeft; e <- expression; sRight; s <- specifier; return $ A.Array e s }
     <?> "specifier"
 
 recordKeyword :: Parser Bool
 recordKeyword
-    =   do { sPACKED ; sRECORD ; return True }
-    <|> do { sRECORD ; return False }
+    =   do { sPACKED; sRECORD; return True }
+    <|> do { sRECORD; return False }
     <?> "recordKeyword"
 
 structuredType :: Parser A.SpecType
@@ -865,7 +865,7 @@ structuredType
 -- FIXME this should use the same type-folding code as proc/func definitions
 structuredTypeField :: Parser [(A.Type, A.Tag)]
 structuredTypeField
-    =   do { t <- dataType ; fs <- many1 fieldName ; sColon ; eol ; return [(t, f) | f <- fs]  }
+    =   do { t <- dataType; fs <- many1 fieldName; sColon; eol; return [(t, f) | f <- fs]  }
     <?> "structuredTypeField"
 
 -- i.e. array literal
@@ -875,9 +875,9 @@ table
 
 table' :: Parser A.Literal
 table'
-    =   try (do { m <- md ; s <- stringLiteral ; sLeftR ; t <- dataType ; sRightR ; return $ A.Literal m t s })
-    <|> try (do { m <- md ; s <- stringLiteral ; return $ A.Literal m A.Infer s })
-    <|> try (do { m <- md ; sLeft ; es <- sepBy1 expression sComma ; sRight ; return $ A.Literal m A.Infer (A.ArrayLiteral m es) })
+    =   try (do { m <- md; s <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
+    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m A.Infer s })
+    <|> try (do { m <- md; sLeft; es <- sepBy1 expression sComma; sRight; return $ A.Literal m A.Infer (A.ArrayLiteral m es) })
     <|> try (maybeSliced table A.SubscriptedLiteral)
     <?> "table'"
 
@@ -891,25 +891,25 @@ tag
 
 taggedList :: Parser (A.Process -> A.Variant)
 taggedList
-    =   try (do { m <- md ; t <- tag ; sSemi ; is <- sepBy1 inputItem sSemi ; return $ A.Variant m t is })
-    <|> do { m <- md ; t <- tag ; return $ A.Variant m t [] }
+    =   try (do { m <- md; t <- tag; sSemi; is <- sepBy1 inputItem sSemi; return $ A.Variant m t is })
+    <|> do { m <- md; t <- tag; return $ A.Variant m t [] }
     <?> "taggedList"
 
 taggedProtocol :: Parser (A.Tag, [A.Type])
 taggedProtocol
-    =   try (do { t <- tag ; eol ; return (t, [])  })
-    <|> try (do { t <- tag ; sSemi ; sp <- sequentialProtocol ; eol ; return (t, sp) })
+    =   try (do { t <- tag; eol; return (t, [])  })
+    <|> try (do { t <- tag; sSemi; sp <- sequentialProtocol; eol; return (t, sp) })
     <?> "taggedProtocol"
 
 timerType :: Parser A.Type
 timerType
-    =   do { sTIMER ; return $ A.Timer }
-    <|> try (do { sLeft ; s <- expression ; sRight ; t <- timerType ; return $ A.Array s t })
+    =   do { sTIMER; return $ A.Timer }
+    <|> try (do { sLeft; s <- expression; sRight; t <- timerType; return $ A.Array s t })
     <?> "timerType"
 
 valueProcess :: Parser A.ValueProcess
 valueProcess
-    =   try (do { m <- md ; sVALOF ; eol ; indent ; p <- process ; sRESULT ; el <- expressionList ; eol ; outdent ; return $ A.ValOf m p el })
+    =   try (do { m <- md; sVALOF; eol; indent; p <- process; sRESULT; el <- expressionList; eol; outdent; return $ A.ValOf m p el })
     <|> handleSpecs specification valueProcess A.ValOfSpec
 
 variable :: Parser A.Variable
@@ -918,18 +918,18 @@ variable
 
 variable' :: Parser A.Variable
 variable'
-    =   try (do { m <- md ; n <- name ; return $ A.Variable m n })
+    =   try (do { m <- md; n <- name; return $ A.Variable m n })
     <|> try (maybeSliced variable A.SubscriptedVariable)
     <?> "variable'"
 
 variableList :: Parser [A.Variable]
 variableList
-    =   do { vs <- sepBy1 variable sComma ; return $ vs }
+    =   do { vs <- sepBy1 variable sComma; return $ vs }
     <?> "variableList"
 
 variant :: Parser A.Structured
 variant
-    =   try (do { m <- md ; tl <- taggedList ; eol ; indent ; p <- process ; outdent ; return $ A.OnlyV m (tl p) })
+    =   try (do { m <- md; tl <- taggedList; eol; indent; p <- process; outdent; return $ A.OnlyV m (tl p) })
     <|> handleSpecs specification variant A.Spec
     <?> "variant"
 
@@ -939,7 +939,7 @@ variant
 -- source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
 
-sourceFile = do { whiteSpace ; process }
+sourceFile = do { whiteSpace; process }
 
 -- -------------------------------------------------------------
 
