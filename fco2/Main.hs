@@ -9,20 +9,13 @@ import System.IO
 
 import PrettyShow
 import Parse
-import SExpression
-import Pass
-import PTPasses
-import PTToAST
-import ASTPasses
-import COutput
 
-data Flag = ParseOnly | SOccamOnly | Verbose
+data Flag = ParseOnly | Verbose
   deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
-  [ Option [] ["parse-tree"] (NoArg ParseOnly) "parse input files and output S-expression parse tree"
-  , Option [] ["soccam"] (NoArg SOccamOnly) "parse input files and output soccam"
+  [ Option [] ["parse-only"] (NoArg ParseOnly) "only parse input file"
   , Option ['v'] ["verbose"] (NoArg Verbose) "show more detail about what's going on"
   ]
 
@@ -62,26 +55,7 @@ main = do
   progress "}}}"
 
   if ParseOnly `elem` opts then do
-      putStrLn $ show (nodeToSExp pt)
-    else if SOccamOnly `elem` opts then do
-      putStrLn $ show (nodeToSOccam pt)
+      putStrLn $ show pt
     else do
-      progress "{{{ PT passes"
-      pt' <- runPasses ptPasses progress pt
-      progress "}}}"
-
-      progress "{{{ PT to AST"
-      let ast = ptToAST pt'
-      progress $ pshow ast
-      progress "}}}"
-
-      progress "{{{ AST passes"
-      ast' <- runPasses astPasses progress ast
-      progress "}}}"
-
-      progress "{{{ C output"
-      putStr $ writeC ast'
-      progress "}}}"
-
       progress "Done"
 

@@ -4,17 +4,10 @@ all: $(targets)
 
 sources = \
 	AST.hs \
-	ASTPasses.hs \
-	COutput.hs \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \
-	Pass.hs \
-	PrettyShow.hs \
-	PT.hs \
-	PTPasses.hs \
-	SExpression.hs \
-	PTToAST.hs
+	PrettyShow.hs
 
 $(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main

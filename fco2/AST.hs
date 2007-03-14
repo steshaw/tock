@@ -1,6 +1,6 @@
 -- Data types for occam abstract syntax
 -- This is intended to be imported qualified:
---   import qualified AST as O
+--   import qualified AST as A
 
 module AST where
 
@@ -39,9 +39,9 @@ data ConversionMode =
 data Subscript =
   Subscript Meta Expression
   | SubscriptTag Meta Tag
-  | SubFromFor Meta Expression Expression
-  | SubFrom Meta Expression
-  | SubFor Meta Expression
+  | SubscriptFromFor Meta Expression Expression
+  | SubscriptFrom Meta Expression
+  | SubscriptFor Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 data LiteralRepr =
@@ -56,6 +56,11 @@ data LiteralRepr =
 data Literal =
   Literal Meta Type LiteralRepr
   | SubscriptedLiteral Meta Subscript Literal
+  deriving (Show, Eq, Typeable, Data)
+
+data Channel =
+  Channel Meta Name
+  | SubscriptedChannel Meta Subscript Channel
   deriving (Show, Eq, Typeable, Data)
 
 data Variable =
@@ -75,6 +80,8 @@ data Expression =
   | True Meta
   | False Meta
   | FunctionCall Meta Name [Expression]
+  | SubscriptedExpr Meta Subscript Expression
+  | BytesInExpr Meta Expression
   | BytesInType Meta Type
   | OffsetOf Meta Type Tag
   deriving (Show, Eq, Typeable, Data)
@@ -85,8 +92,7 @@ data ExpressionList =
   deriving (Show, Eq, Typeable, Data)
 
 data MonadicOp =
-  MonadicBytesIn
-  | MonadicSubtr
+  MonadicSubtr
   | MonadicBitNot
   | MonadicNot
   | MonadicSize
@@ -118,8 +124,8 @@ data Choice = Choice Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
 data Alternative =
-  Alternative Meta Variable InputMode Process
-  | AlternativeCond Meta Expression Variable InputMode Process
+  Alternative Meta Channel InputMode Process
+  | AlternativeCond Meta Expression Channel InputMode Process
   | AlternativeSkip Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
@@ -140,7 +146,6 @@ data Structured =
   | OnlyV Meta Variant
   | OnlyC Meta Choice
   | OnlyO Meta Option
-  | OnlyP Meta Process
   | OnlyA Meta Alternative
   | Several Meta [Structured]
   deriving (Show, Eq, Typeable, Data)
@@ -158,9 +163,9 @@ data SpecType =
   | Declaration Meta Type
   | Is Meta Type Variable
   | ValIs Meta Type Expression
-  | DataTypeIs Meta Type
+  | DataType Meta Type
   | DataTypeRecord Meta Bool [(Type, Tag)]
-  | ProtocolIs Meta [Type]
+  | Protocol Meta [Type]
   | ProtocolCase Meta [(Tag, [Type])]
   | Proc Meta Formals Process
   | Function Meta [Type] Formals ValueProcess
@@ -170,17 +175,26 @@ data SpecType =
   | ValReshapes Meta Type Variable
   deriving (Show, Eq, Typeable, Data)
 
+data Actual =
+  ActualExpression Expression
+  | ActualChannel Channel
+  deriving (Show, Eq, Typeable, Data)
+
 data ValueProcess =
   ValOfSpec Meta Specification ValueProcess
   | ValOf Meta Process ExpressionList
   deriving (Show, Eq, Typeable, Data)
 
+data ParMode =
+  PlainPar | PriPar | PlacedPar
+  deriving (Show, Eq, Typeable, Data)
+
 data Process =
   ProcSpec Meta Specification Process
   | Assign Meta [Variable] ExpressionList
-  | Input Meta Variable InputMode
-  | Output Meta Variable [OutputItem]
-  | OutputCase Meta Variable Tag [OutputItem]
+  | Input Meta Channel InputMode
+  | Output Meta Channel [OutputItem]
+  | OutputCase Meta Channel Tag [OutputItem]
   | Skip Meta
   | Stop Meta
   | Main Meta
@@ -189,11 +203,10 @@ data Process =
   | If Meta Structured
   | Case Meta Expression Structured
   | While Meta Expression Process
-  | Par Meta Bool [Process]
-  | ParRep Meta Bool Replicator Process
-  | PlacedPar Meta Structured
+  | Par Meta ParMode [Process]
+  | ParRep Meta ParMode Replicator Process
   | Processor Meta Expression Process
   | Alt Meta Bool Structured
-  | ProcCall Meta Name [Expression]
+  | ProcCall Meta Name [Actual]
   deriving (Show, Eq, Typeable, Data)
 
