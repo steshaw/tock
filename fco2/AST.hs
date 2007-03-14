@@ -7,10 +7,12 @@ module AST where
 import Data.Generics
 import Metadata
 
-data Name = Name Meta String
+data NameType =
+  ChannelName | DataTypeName | FunctionName | FieldName | PortName
+  | ProcName | ProtocolName | TagName | TimerName | VariableName
   deriving (Show, Eq, Typeable, Data)
 
-data Tag = Tag Meta String
+data Name = Name Meta NameType String
   deriving (Show, Eq, Typeable, Data)
 
 data Type =
@@ -20,7 +22,8 @@ data Type =
   | Real32 | Real64
   | Array Expression Type
   | ArrayUnsized Type
-  | UserType Name
+  | UserDataType Name
+  | UserProtocol Name
   | Chan Type
   | Counted Type Type
   | Any
@@ -38,7 +41,7 @@ data ConversionMode =
 
 data Subscript =
   Subscript Meta Expression
-  | SubscriptTag Meta Tag
+  | SubscriptTag Meta Name
   | SubscriptFromFor Meta Expression Expression
   | SubscriptFrom Meta Expression
   | SubscriptFor Meta Expression
@@ -83,7 +86,7 @@ data Expression =
   | SubscriptedExpr Meta Subscript Expression
   | BytesInExpr Meta Expression
   | BytesInType Meta Type
-  | OffsetOf Meta Type Tag
+  | OffsetOf Meta Type Name
   deriving (Show, Eq, Typeable, Data)
 
 data ExpressionList =
@@ -134,7 +137,7 @@ data Option =
   | Else Meta Process
   deriving (Show, Eq, Typeable, Data)
 
-data Variant = Variant Meta Tag [InputItem] Process
+data Variant = Variant Meta Name [InputItem] Process
   deriving (Show, Eq, Typeable, Data)
 
 -- This represents something that can contain local replicators and specifications.
@@ -163,10 +166,12 @@ data SpecType =
   | Declaration Meta Type
   | Is Meta Type Variable
   | ValIs Meta Type Expression
+  | IsChannel Meta Type Channel
+  | IsChannelArray Meta Type [Channel]
   | DataType Meta Type
-  | DataTypeRecord Meta Bool [(Type, Tag)]
+  | DataTypeRecord Meta Bool [(Type, Name)]
   | Protocol Meta [Type]
-  | ProtocolCase Meta [(Tag, [Type])]
+  | ProtocolCase Meta [(Name, [Type])]
   | Proc Meta Formals Process
   | Function Meta [Type] Formals ValueProcess
   | Retypes Meta Type Variable
@@ -194,7 +199,7 @@ data Process =
   | Assign Meta [Variable] ExpressionList
   | Input Meta Channel InputMode
   | Output Meta Channel [OutputItem]
-  | OutputCase Meta Channel Tag [OutputItem]
+  | OutputCase Meta Channel Name [OutputItem]
   | Skip Meta
   | Stop Meta
   | Main Meta

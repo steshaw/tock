@@ -226,8 +226,8 @@ maybeSubscripted :: String -> Parser a -> (Meta -> A.Subscript -> a -> a) -> Par
 maybeSubscripted prodName inner subscripter
     =   do m <- md
            v <- inner
-           es <- many (do { sLeft; e <- expression; sRight; return e })
-           return $ foldl (\e s -> subscripter m (A.Subscript m s) e) v es
+           es <- many (do { m' <- md; sLeft; e <- expression; sRight; return (m', e) })
+           return $ foldl (\e (m', s) -> subscripter m' (A.Subscript m' s) e) v es
     <?> prodName
 
 maybeSliced :: Parser a -> (Meta -> A.Subscript -> a -> a) -> Parser a
@@ -255,23 +255,37 @@ handleSpecs specs inner specMarker
 -- input if it's sure that it's unambiguous.
 
 --{{{ names
-name :: Parser A.Name
-name
+name :: A.NameType -> Parser A.Name
+name nt
     =   do m <- md
            s <- identifier
-           return $ A.Name m s
-    <?> "name"
+           return $ A.Name m nt s
+    <?> show nt
 
--- FIXME Should be another type of name...
-tag :: Parser A.Tag
-tag
-    =   do m <- md
-           s <- identifier
-           return $ A.Tag m s
-    <?> "tag"
+newName :: A.NameType -> Parser A.Name
+newName nt = name nt
 
-fieldName :: Parser A.Tag
-fieldName = tag
+channelName = name A.ChannelName
+dataTypeName = name A.DataTypeName
+functionName = name A.FunctionName
+fieldName = name A.FieldName
+portName = name A.PortName
+procName = name A.ProcName
+protocolName = name A.ProtocolName
+tagName = name A.TagName
+timerName = name A.TimerName
+variableName = name A.VariableName
+
+newChannelName = newName A.ChannelName
+newDataTypeName = newName A.DataTypeName
+newFunctionName = newName A.FunctionName
+newFieldName = newName A.FieldName
+newPortName = newName A.PortName
+newProcName = newName A.ProcName
+newProtocolName = newName A.ProtocolName
+newTagName = newName A.TagName
+newTimerName = newName A.TimerName
+newVariableName = newName A.VariableName
 --}}}
 --{{{ types
 dataType :: Parser A.Type
@@ -285,7 +299,7 @@ dataType
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
     <|> try (do { sLeft; s <- expression; sRight; t <- dataType; return $ A.Array s t })
-    <|> do { n <- name; return $ A.UserType n }
+    <|> do { n <- dataTypeName; return $ A.UserDataType n }
     <?> "dataType"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
@@ -388,7 +402,7 @@ character
 --{{{ expressions
 expressionList :: Parser A.ExpressionList
 expressionList
-    =   try (do { m <- md; n <- name; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as })
+    =   try (do { m <- md; n <- functionName; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as })
     <|> do { m <- md; es <- sepBy1 expression sComma; return $ A.ExpressionList m es }
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expressionList"
@@ -482,27 +496,23 @@ operandNotTable'
     <|> try (do { m <- md; l <- literal; return $ A.ExprLiteral m l })
     <|> try (do { sLeftR; e <- expression; sRightR; return e })
 -- XXX value process
-    <|> try (do { m <- md; n <- name; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as })
+    <|> try (do { m <- md; n <- functionName; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as })
     <|> try (do { m <- md; sBYTESIN; sLeftR; o <- operand; sRightR; return $ A.BytesInExpr m o })
     <|> try (do { m <- md; sBYTESIN; sLeftR; t <- dataType; sRightR; return $ A.BytesInType m t })
     <|> try (do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f })
     <?> "operandNotTable'"
 --}}}
---{{{ variables and channels
+--{{{ variables, channels, timers, ports
 variable :: Parser A.Variable
 variable
     = maybeSubscripted "variable" variable' A.SubscriptedVariable
 
 variable' :: Parser A.Variable
 variable'
-    =   try (do { m <- md; n <- name; return $ A.Variable m n })
+    =   try (do { m <- md; n <- variableName; return $ A.Variable m n })
     <|> try (maybeSliced variable A.SubscriptedVariable)
     <?> "variable'"
 
--- This is also used for timers and ports, since the syntax is identical (and
--- the parser really can't tell at this stage which is which).
--- FIXME: The above isn't true any more -- this should be a more general thing, with a typecheck.
--- FIXME: This should pick up metadata for each subscript expression.
 channel :: Parser A.Channel
 channel
     =   maybeSubscripted "channel" channel' A.SubscriptedChannel
@@ -510,16 +520,15 @@ channel
 
 channel' :: Parser A.Channel
 channel'
-    =   try (do { m <- md; n <- name; return $ A.Channel m n })
+    =   try (do { m <- md; n <- channelName; return $ A.Channel m n })
     <|> try (maybeSliced channel A.SubscriptedChannel)
     <?> "channel'"
 --}}}
 --{{{ protocols
 protocol :: Parser A.Type
 protocol
--- FIXME The ordered syntax has "name" in here too.
--- We should really have protocolName, variableName, functionName, tagName, etc. which operate in different namespaces.
-    =   simpleProtocol
+    =   try (do { n <- protocolName ; return $ A.UserProtocol n })
+    <|> simpleProtocol
     <?> "protocol"
 
 simpleProtocol :: Parser A.Type
@@ -534,16 +543,16 @@ sequentialProtocol
     =   do { l <- try $ sepBy1 simpleProtocol sSemi; return l }
     <?> "sequentialProtocol"
 
-taggedProtocol :: Parser (A.Tag, [A.Type])
+taggedProtocol :: Parser (A.Name, [A.Type])
 taggedProtocol
-    =   try (do { t <- tag; eol; return (t, [])  })
-    <|> try (do { t <- tag; sSemi; sp <- sequentialProtocol; eol; return (t, sp) })
+    =   try (do { t <- newTagName; eol; return (t, [])  })
+    <|> try (do { t <- newTagName; sSemi; sp <- sequentialProtocol; eol; return (t, sp) })
     <?> "taggedProtocol"
 --}}}
 --{{{ replicators
 replicator :: Parser A.Replicator
 replicator
-    =   do { m <- md; n <- name; sEq; b <- repBase; sFOR; c <- repCount; return $ A.For m n b c }
+    =   do { m <- md; n <- newVariableName; sEq; b <- repBase; sFOR; c <- repCount; return $ A.For m n b c }
     <?> "replicator"
 
 repBase :: Parser A.Expression
@@ -561,7 +570,7 @@ repCount
 --{{{ specifications, declarations, allocations
 allocation :: Parser [A.Specification]
 allocation
-    =   do { m <- md; sPLACE; n <- name; sAT; e <- expression; sColon; eol; return [(n, A.Place m e)] }
+    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- expression; sColon; eol; return [(n, A.Place m e)] }
     <?> "allocation"
 
 specification :: Parser [A.Specification]
@@ -571,46 +580,43 @@ specification
     <|> do { d <- definition; return [d] }
     <?> "specification"
 
--- FIXME this originally had four lines like this, one for each of the declTypes;
--- it will need to register them as different types of name
 declaration :: Parser ([A.Name], A.SpecType)
 declaration
-    =   do { m <- md; d <- declType; ns <- sepBy1 name sComma; sColon; eol; return (ns, A.Declaration m d) }
+    =   do { m <- md; d <- dataType; ns <- sepBy1 (newVariableName) sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- channelType; ns <- sepBy1 (newChannelName) sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- timerType; ns <- sepBy1 (newTimerName) sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- portType; ns <- sepBy1 (newPortName) sComma; sColon; eol; return (ns, A.Declaration m d) }
     <?> "declaration"
-
-declType :: Parser A.Type
-declType
-    =   dataType
-    <|> channelType
-    <|> timerType
-    <|> portType
-    <?> "declType"
 
 abbreviation :: Parser A.Specification
 abbreviation
-    =   try (do { m <- md; n <- name; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Infer v) })
-    <|> try (do { m <- md; s <- specifier; n <- name; sIS; v <- variable; sColon; eol; return (n, A.Is m s v) })
+    =   try (do { m <- md; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Infer v) })
+    <|> try (do { m <- md; s <- specifier; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m s v) })
     <|> do { m <- md; sVAL ;
-              try (do { n <- name; sIS; e <- expression; sColon; eol; return (n, A.ValIs m A.Infer e) })
-              <|> do { s <- specifier; n <- name; sIS; e <- expression; sColon; eol; return (n, A.ValIs m s e) } }
+              try (do { n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.ValIs m A.Infer e) })
+              <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.ValIs m s e) } }
+    <|> try (do { m <- md; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m A.Infer c) })
+    <|> try (do { m <- md; s <- specifier; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m s c) })
+    <|> try (do { m <- md; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; return (n, A.IsChannelArray m A.Infer cs) })
+    <|> try (do { m <- md; s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; return (n, A.IsChannelArray m s cs) })
     <?> "abbreviation"
 
 definition :: Parser A.Specification
 definition
-    =   do {  m <- md; sDATA; sTYPE; n <- name ;
+    =   do {  m <- md; sDATA; sTYPE; n <- newDataTypeName ;
               do {sIS; t <- dataType; sColon; eol; return (n, A.DataType m t) }
               <|> do { eol; indent; rec <- structuredType; outdent; sColon; eol; return (n, rec) } }
-    <|> do {  m <- md; sPROTOCOL; n <- name ;
+    <|> do {  m <- md; sPROTOCOL; n <- newProtocolName ;
               do { sIS; p <- sequentialProtocol; sColon; eol; return (n, A.Protocol m p) }
               <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return (n, A.ProtocolCase m ps) } }
-    <|> do { m <- md; sPROC; n <- name; fs <- formalList; eol; indent; p <- process; outdent; sColon; eol; return (n, A.Proc m fs p) }
+    <|> do { m <- md; sPROC; n <- newProcName; fs <- formalList; eol; indent; p <- process; outdent; sColon; eol; return (n, A.Proc m fs p) }
     <|> try (do { m <- md; rs <- sepBy1 dataType sComma; (n, fs) <- functionHeader ;
                   do { sIS; el <- expressionList; sColon; eol; return (n, A.Function m rs fs (A.ValOf m (A.Skip m) el)) }
                   <|> do { eol; indent; vp <- valueProcess; outdent; sColon; eol; return (n, A.Function m rs fs vp) } })
-    <|> try (do { m <- md; s <- specifier; n <- name ;
+    <|> try (do { m <- md; s <- specifier; n <- newVariableName ;
                   do { sRETYPES; v <- variable; sColon; eol; return (n, A.Retypes m s v) }
                   <|> do { try sRESHAPES; v <- variable; sColon; eol; return (n, A.Reshapes m s v) } })
-    <|> do {  m <- md; sVAL; s <- specifier; n <- name ;
+    <|> do {  m <- md; sVAL; s <- specifier; n <- newVariableName ;
               do { sRETYPES; v <- variable; sColon; eol; return (n, A.ValRetypes m s v) }
               <|> do { sRESHAPES; v <- variable; sColon; eol; return (n, A.ValReshapes m s v) } }
     <?> "definition"
@@ -634,9 +640,9 @@ formalList
     <?> "formalList"
     where
       formalArg :: Parser (Maybe A.Type, A.Name)
-      formalArg =   try (do { sVAL; s <- specifier; n <- name; return $ (Just (A.Val s), n) })
-                <|> try (do { s <- specifier; n <- name; return $ (Just s, n) })
-                <|> try (do { n <- name; return $ (Nothing, n) })
+      formalArg =   try (do { sVAL; s <- specifier; n <- newVariableName; return $ (Just (A.Val s), n) })
+                <|> try (do { s <- specifier; n <- newVariableName <|> newChannelName; return $ (Just s, n) })
+                <|> try (do { n <- newVariableName <|> newChannelName; return $ (Nothing, n) })
 
       markTypes :: Meta -> [(Maybe A.Type, A.Name)] -> A.Formals
       markTypes _ [] = []
@@ -650,7 +656,7 @@ formalList
 
 functionHeader :: Parser (A.Name, A.Formals)
 functionHeader
-    =   do { sFUNCTION; n <- name; fs <- formalList; return $ (n, fs) }
+    =   do { sFUNCTION; n <- newFunctionName; fs <- formalList; return $ (n, fs) }
     <?> "functionHeader"
 
 valueProcess :: Parser A.ValueProcess
@@ -676,9 +682,9 @@ recordKeyword
     <|> do { sRECORD; return False }
     <?> "recordKeyword"
 
-structuredTypeField :: Parser [(A.Type, A.Tag)]
+structuredTypeField :: Parser [(A.Type, A.Name)]
 structuredTypeField
-    =   do { t <- dataType; fs <- many1 fieldName; sColon; eol; return [(t, f) | f <- fs]  }
+    =   do { t <- dataType; fs <- many1 newFieldName; sColon; eol; return [(t, f) | f <- fs]  }
     <?> "structuredTypeField"
 --}}}
 --}}}
@@ -732,8 +738,8 @@ input
 
 taggedList :: Parser (A.Process -> A.Variant)
 taggedList
-    =   try (do { m <- md; t <- tag; sSemi; is <- sepBy1 inputItem sSemi; return $ A.Variant m t is })
-    <|> do { m <- md; t <- tag; return $ A.Variant m t [] }
+    =   try (do { m <- md; t <- tagName; sSemi; is <- sepBy1 inputItem sSemi; return $ A.Variant m t is })
+    <|> do { m <- md; t <- tagName; return $ A.Variant m t [] }
     <?> "taggedList"
 
 inputItem :: Parser A.InputItem
@@ -763,8 +769,8 @@ output
     =   do  m <- md
             c <- channel
             sBang
-            (do { sCASE; t <- tag; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os }
-             <|> do { sCASE; t <- tag; eol; return $ A.OutputCase m c t [] }
+            (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os }
+             <|> do { sCASE; t <- tagName; eol; return $ A.OutputCase m c t [] }
              <|> do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os })
     <?> "output"
 
@@ -961,7 +967,7 @@ guard
 --{{{ PROC calls
 procInstance :: Parser A.Process
 procInstance
-    =   do { m <- md; n <- name; sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
+    =   do { m <- md; n <- procName; sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
     <?> "procInstance"
 
 actual :: Parser A.Actual
