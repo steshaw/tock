@@ -50,12 +50,16 @@ main = do
   progress "}}}"
 
   progress "{{{ Parser"
-  let pt = parseSource preprocessed fn
-  progress $ pshow pt
+  let (ast, state) = parseSource preprocessed fn
+  progress $ pshow ast
+  progress "}}}"
+
+  progress "{{{ State after parsing"
+  progress $ pshow state
   progress "}}}"
 
   if ParseOnly `elem` opts then do
-      putStrLn $ show pt
+      putStrLn $ show ast
     else do
       progress "Done"
 

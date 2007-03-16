@@ -7,6 +7,7 @@ sources = \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \
+	ParseState.hs \
 	PrettyShow.hs
 
 $(targets): $(sources)

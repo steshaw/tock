@@ -5,6 +5,7 @@
 module AST where
 
 import Data.Generics
+
 import Metadata
 
 data NameType =
