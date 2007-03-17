@@ -250,31 +250,14 @@ handleSpecs specs inner specMarker
            return $ foldl (\e s -> specMarker m s e) v ss'
 --}}}
 
---{{{ grammar productions
--- These productions are (now rather loosely) based on the ordered syntax in
--- the occam2.1 manual.
---
--- Each production is allowed to consume the thing it's trying to match.
-
---{{{ names
-anyName :: A.NameType -> OccParser A.Name
-anyName nt
-    =   do m <- md
-           s <- identifier
-           return $ A.Name m nt s
-    <?> show nt
-
-name :: A.NameType -> OccParser A.Name
-name nt
-    =   do n@(A.Name m nt s) <- anyName nt
-           st <- getState
-           let s' = case lookup s (localNames st) of
-                      Nothing -> error $ "name " ++ s ++ " is not defined"
-                      Just (NameInfo _ n) -> n
-           return $ A.Name m nt s'
-
-newName :: A.NameType -> OccParser A.Name
-newName nt = anyName nt
+--{{{ name scoping
+findName :: A.Name -> OccParser A.Name
+findName n@(A.Name m nt s)
+    =  do st <- getState
+          let s' = case lookup s (localNames st) of
+                     Nothing -> error $ "name " ++ s ++ " is not defined"
+                     Just (NameInfo _ n) -> n
+          return $ A.Name m nt s'
 
 scopeIn :: A.Name -> OccParser A.Name
 scopeIn n@(A.Name m nt s)
@@ -297,7 +280,6 @@ scopeOut n@(A.Name m nt s)
                        otherwise -> error "scopeOut trying to scope out the wrong name"
           setState $ st { localNames = lns' }
 
--- FIXME: Handle tags
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep r@(A.For m n b c)
@@ -325,27 +307,54 @@ scopeOutFormals fs
     =  do _ <- mapM scopeOut (map snd fs)
           return ()
 
+--}}}
+
+--{{{ grammar productions
+-- These productions are (now rather loosely) based on the ordered syntax in
+-- the occam2.1 manual.
+--
+-- Each production is allowed to consume the thing it's trying to match.
+
+--{{{ names
+anyName :: A.NameType -> OccParser A.Name
+anyName nt
+    =   do m <- md
+           s <- identifier
+           return $ A.Name m nt s
+    <?> show nt
+
+name :: A.NameType -> OccParser A.Name
+name nt
+    =   do n <- anyName nt
+           findName n
+
+newName :: A.NameType -> OccParser A.Name
+newName nt = anyName nt
+
 channelName = name A.ChannelName
 dataTypeName = name A.DataTypeName
 functionName = name A.FunctionName
-fieldName = name A.FieldName
 portName = name A.PortName
 procName = name A.ProcName
 protocolName = name A.ProtocolName
-tagName = name A.TagName
 timerName = name A.TimerName
 variableName = name A.VariableName
 
 newChannelName = newName A.ChannelName
 newDataTypeName = newName A.DataTypeName
 newFunctionName = newName A.FunctionName
-newFieldName = newName A.FieldName
 newPortName = newName A.PortName
 newProcName = newName A.ProcName
 newProtocolName = newName A.ProtocolName
-newTagName = newName A.TagName
 newTimerName = newName A.TimerName
 newVariableName = newName A.VariableName
+
+-- These are special because their scope is only valid within the particular
+-- record or protocol they're used in.
+fieldName = anyName A.FieldName
+tagName = anyName A.TagName
+newFieldName = anyName A.FieldName
+newTagName = anyName A.TagName
 --}}}
 --{{{ types
 dataType :: OccParser A.Type
@@ -829,7 +838,7 @@ output
     =   do  m <- md
             c <- channel
             sBang
-            (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os }
+            (try (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
              <|> do { sCASE; t <- tagName; eol; return $ A.OutputCase m c t [] }
              <|> do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os })
     <?> "output"
