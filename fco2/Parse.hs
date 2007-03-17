@@ -651,10 +651,10 @@ specification
 
 declaration :: OccParser ([A.Name], A.SpecType)
 declaration
-    =   do { m <- md; d <- dataType; ns <- sepBy1 (newVariableName) sComma; sColon; eol; return (ns, A.Declaration m d) }
-    <|> do { m <- md; d <- channelType; ns <- sepBy1 (newChannelName) sComma; sColon; eol; return (ns, A.Declaration m d) }
-    <|> do { m <- md; d <- timerType; ns <- sepBy1 (newTimerName) sComma; sColon; eol; return (ns, A.Declaration m d) }
-    <|> do { m <- md; d <- portType; ns <- sepBy1 (newPortName) sComma; sColon; eol; return (ns, A.Declaration m d) }
+    =   do { m <- md; d <- dataType; ns <- sepBy1 newVariableName sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- channelType; ns <- sepBy1 newChannelName sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- timerType; ns <- sepBy1 newTimerName sComma; sColon; eol; return (ns, A.Declaration m d) }
+    <|> do { m <- md; d <- portType; ns <- sepBy1 newPortName sComma; sColon; eol; return (ns, A.Declaration m d) }
     <?> "declaration"
 
 abbreviation :: OccParser A.Specification
