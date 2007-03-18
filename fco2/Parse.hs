@@ -211,13 +211,13 @@ sWHILE = reserved "WHILE"
 --}}}
 --{{{ markers inserted by the preprocessor
 -- XXX could handle VALOF by translating each step to one { and matching multiple ones?
-mainMarker = "##MAGIC-FCO-MAIN-PROCESS##"
+mainMarker = "__main"
 
 sMainMarker = reserved mainMarker
 
-indent = symbol "{"
-outdent = symbol "}"
-eol = symbol "@"
+indent = symbol "__indent"
+outdent = symbol "__outdent"
+eol = symbol "__eol"
 --}}}
 
 --{{{ helper functions
@@ -1070,6 +1070,7 @@ sourceFile
 --{{{ indentation decoder
 -- XXX this doesn't handle multi-line strings
 -- XXX or VALOF processes
+-- XXX or tabs
 
 countIndent :: String -> Int
 countIndent (' ':' ':cs) = 1 + (countIndent cs)
@@ -1092,19 +1093,20 @@ stripCommentInString ('"':s) = '"' : stripComment s
 stripCommentInString (c:s) = c : stripCommentInString s
 
 flatten :: [String] -> String
-flatten ls = concat $ intersperse "\n" $ flatten' ls 0
+flatten ls = concat $ intersperse "\n" $ lines
   where
-    rep n i = take n (repeat i)
-    flatten' [] level = [rep level '}']
+    (initSuffix, lines) = flatten' ls 0
+    rep n i = concat $ take n (repeat i)
+    flatten' [] level = ("", [rep level " __outdent"])
     flatten' (s:ss) level
-      | stripped == ""   = "" : flatten' ss level
-      | newLevel > level = (rep (newLevel - level) '{' ++ stripped) : rest
-      | newLevel < level = (rep (level - newLevel) '}' ++ stripped) : rest
-      | otherwise        = stripped : rest
+      | stripped == ""   = let (suffix, rest) = flatten' ss level in ("", suffix : rest)
+      | newLevel > level = (rep (newLevel - level) " __indent", stripped : rest)
+      | newLevel < level = (rep (level - newLevel) " __outdent", stripped : rest)
+      | otherwise        = ("", stripped : rest)
       where newLevel = countIndent s
             stripped' = stripComment s
-            stripped = if stripIndent stripped' == "" then "" else (stripped' ++ "@")
-            rest = flatten' ss newLevel
+            stripped = (if stripIndent stripped' == "" then "" else (stripped' ++ " __eol")) ++ suffix
+            (suffix, rest) = flatten' ss newLevel
 --}}}
 
 --{{{ preprocessor
