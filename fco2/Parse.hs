@@ -1,9 +1,7 @@
 -- vim:foldmethod=marker
 -- Parse occam code
 
--- FIXME: Can probably parse indentation using try and char ' ', watching the position?
-
-module Parse (readSource, parseSource) where
+module Parse where
 
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -1124,6 +1122,11 @@ readSource fn = do
 --}}}
 
 --{{{ interface for other modules
+testParse :: Show a => OccParser a -> String -> IO ()
+testParse prod text
+    = do let r = runParser prod emptyState "" text
+         putStrLn $ "Result: " ++ show r
+
 parseSource :: String -> String -> IO (A.Process, ParseState)
 parseSource prep sourceFileName
   = case runParser sourceFile emptyState sourceFileName prep of
