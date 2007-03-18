@@ -1,6 +1,8 @@
 -- vim:foldmethod=marker
 -- Parse occam code
 
+-- FIXME: Can probably parse indentation using try and char ' ', watching the position?
+
 module Parse (readSource, parseSource) where
 
 import Data.List
@@ -13,9 +15,10 @@ import Numeric (readHex)
 import qualified AST as A
 import Metadata
 import ParseState
+import Errors
 
 --{{{ setup stuff for Parsec
-type OccParser a = GenParser Char ParseState a
+type OccParser = GenParser Char ParseState
 
 occamStyle
     = emptyDef
@@ -117,14 +120,14 @@ lexer  = P.makeTokenParser occamStyle
 -- XXX replace whitespace with something that doesn't eat \ns
 
 whiteSpace = P.whiteSpace lexer
-lexeme    = P.lexeme lexer
-symbol    = P.symbol lexer
-natural   = P.natural lexer
-parens    = P.parens lexer
-semi      = P.semi lexer
-identifier= P.identifier lexer
-reserved  = P.reserved lexer
-reservedOp= P.reservedOp lexer
+lexeme = P.lexeme lexer
+symbol = P.symbol lexer
+natural = P.natural lexer
+parens = P.parens lexer
+semi = P.semi lexer
+identifier = P.identifier lexer
+reserved = P.reserved lexer
+reservedOp = P.reservedOp lexer
 --}}}
 
 --{{{ symbols
@@ -218,10 +221,15 @@ eol = symbol "@"
 --}}}
 
 --{{{ helper functions
+getSourcePos :: OccParser OccSourcePos
+getSourcePos
+  =  do pos <- getPosition
+        return $ OccSourcePos (sourceName pos) (sourceLine pos) (sourceColumn pos)
+
 md :: OccParser Meta
-md = do
-  pos <- getPosition
-  return $ [SourcePos (sourceName pos) (sourceLine pos) (sourceColumn pos)]
+md
+  =  do pos <- getSourcePos
+        return [MdSourcePos pos]
 
 maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
 maybeSubscripted prodName inner subscripter
@@ -255,7 +263,7 @@ findName :: A.Name -> OccParser A.Name
 findName n@(A.Name m nt s)
     =  do st <- getState
           let s' = case lookup s (localNames st) of
-                     Nothing -> error $ "name " ++ s ++ " is not defined"
+                     Nothing -> die $ "Name " ++ s ++ " is not defined"
                      Just (NameInfo _ n) -> n
           return $ A.Name m nt s'
 
@@ -277,7 +285,7 @@ scopeOut n@(A.Name m nt s)
     =  do st <- getState
           let lns' = case localNames st of
                        (s, _):ns -> ns
-                       otherwise -> error "scopeOut trying to scope out the wrong name"
+                       otherwise -> dieInternal "scopeOut trying to scope out the wrong name"
           setState $ st { localNames = lns' }
 
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
@@ -715,7 +723,7 @@ formalList
 
       markTypes :: Meta -> [(Maybe A.Type, A.Name)] -> A.Formals
       markTypes _ [] = []
-      markTypes _ ((Nothing, _):_) = error "Formal list must start with a type"
+      markTypes _ ((Nothing, _):_) = die "Formal list must start with a type"
       markTypes m ((Just ft, fn):is) = markRest m ft [fn] is
 
       markRest :: Meta -> A.Type -> [A.Name] -> [(Maybe A.Type, A.Name)] -> A.Formals
@@ -1114,10 +1122,10 @@ readSource fn = do
 --}}}
 
 --{{{ interface for other modules
-parseSource :: String -> String -> (A.Process, ParseState)
+parseSource :: String -> String -> IO (A.Process, ParseState)
 parseSource prep sourceFileName
-  = case (runParser sourceFile emptyState sourceFileName prep) of
-      Left err -> error ("Parsing error: " ++ (show err))
-      Right result -> result
+  = case runParser sourceFile emptyState sourceFileName prep of
+      Left err -> die $ "Parse error: " ++ show err
+      Right result -> return result
 --}}}
 

@@ -50,7 +50,7 @@ main = do
   progress "}}}"
 
   progress "{{{ Parser"
-  let (ast, state) = parseSource preprocessed fn
+  (ast, state) <- parseSource preprocessed fn
   progress $ pshow ast
   progress "}}}"
 

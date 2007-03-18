@@ -4,6 +4,7 @@ all: $(targets)
 
 sources = \
 	AST.hs \
+	Errors.hs \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \
