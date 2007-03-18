@@ -37,12 +37,13 @@ parseIndentation ls = concat $ intersperse "\n" $ lines
     rep n i = concat $ take n (repeat i)
     flatten' [] level = ("", [rep level (' ' : outdentMarker)])
     flatten' (s:ss) level
-      | stripped == ""   = let (suffix, rest) = flatten' ss level in ("", suffix : rest)
-      | newLevel > level = (rep (newLevel - level) (' ' : indentMarker), stripped : rest)
-      | newLevel < level = (rep (level - newLevel) (' ' : outdentMarker), stripped : rest)
-      | otherwise        = ("", stripped : rest)
+      | isBlankLine      = let (suffix, rest) = flatten' ss level in (suffix, "" : rest)
+      | newLevel > level = (rep (newLevel - level) (' ' : indentMarker), processed : rest)
+      | newLevel < level = (rep (level - newLevel) (' ' : outdentMarker), processed : rest)
+      | otherwise        = ("", processed : rest)
       where newLevel = countIndent s
             stripped' = stripComment s
-            stripped = (if stripIndent stripped' == "" then "" else (stripped' ++ (' ' : eolMarker))) ++ suffix
+            isBlankLine = stripIndent stripped' == ""
+            processed = (if isBlankLine then "" else (stripped' ++ (' ' : eolMarker))) ++ suffix
             (suffix, rest) = flatten' ss newLevel
 
