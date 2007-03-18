@@ -14,6 +14,7 @@ import qualified AST as A
 import Metadata
 import ParseState
 import Errors
+import Indentation
 
 --{{{ setup stuff for Parsec
 type OccParser = GenParser Char ParseState
@@ -213,9 +214,9 @@ mainMarker = "__main"
 
 sMainMarker = reserved mainMarker
 
-indent = symbol "__indent"
-outdent = symbol "__outdent"
-eol = symbol "__eol"
+indent = symbol indentMarker
+outdent = symbol outdentMarker
+eol = symbol eolMarker
 --}}}
 
 --{{{ helper functions
@@ -1065,53 +1066,11 @@ sourceFile
 --}}}
 --}}}
 
---{{{ indentation decoder
--- XXX this doesn't handle multi-line strings
--- XXX or VALOF processes
--- XXX or tabs
-
-countIndent :: String -> Int
-countIndent (' ':' ':cs) = 1 + (countIndent cs)
-countIndent (' ':cs) = error "Bad indentation"
-countIndent _ = 0
-
-stripIndent :: String -> String
-stripIndent (' ':cs) = stripIndent cs
-stripIndent cs = cs
-
-stripComment :: String -> String
-stripComment [] = []
-stripComment ('-':'-':s) = []
-stripComment ('"':s) = '"' : stripCommentInString s
-stripComment (c:s) = c : stripComment s
-
-stripCommentInString :: String -> String
-stripCommentInString [] = error "In string at end of line"
-stripCommentInString ('"':s) = '"' : stripComment s
-stripCommentInString (c:s) = c : stripCommentInString s
-
-flatten :: [String] -> String
-flatten ls = concat $ intersperse "\n" $ lines
-  where
-    (initSuffix, lines) = flatten' ls 0
-    rep n i = concat $ take n (repeat i)
-    flatten' [] level = ("", [rep level " __outdent"])
-    flatten' (s:ss) level
-      | stripped == ""   = let (suffix, rest) = flatten' ss level in ("", suffix : rest)
-      | newLevel > level = (rep (newLevel - level) " __indent", stripped : rest)
-      | newLevel < level = (rep (level - newLevel) " __outdent", stripped : rest)
-      | otherwise        = ("", stripped : rest)
-      where newLevel = countIndent s
-            stripped' = stripComment s
-            stripped = (if stripIndent stripped' == "" then "" else (stripped' ++ " __eol")) ++ suffix
-            (suffix, rest) = flatten' ss newLevel
---}}}
-
 --{{{ preprocessor
 -- XXX Doesn't handle preprocessor instructions.
 
 preprocess :: String -> String
-preprocess d = flatten $ lines (d ++ "\n" ++ mainMarker)
+preprocess d = parseIndentation $ lines (d ++ "\n" ++ mainMarker)
 
 readSource :: String -> IO String
 readSource fn = do
