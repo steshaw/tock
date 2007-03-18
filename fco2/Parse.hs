@@ -441,7 +441,7 @@ digits
 
 byte :: OccParser A.LiteralRepr
 byte
-    =   lexeme (do { m <- md; char '\''; s <- character; char '\''; return $ A.ByteLiteral m s })
+    =   do { m <- md; char '\''; s <- character; char '\''; return $ A.ByteLiteral m s }
     <?> "byte"
 
 -- i.e. array literal
@@ -459,8 +459,8 @@ table'
 
 stringLiteral :: OccParser A.LiteralRepr
 stringLiteral
-    =   lexeme (do { m <- md; char '"'; cs <- many character; char '"'; return $ A.StringLiteral m (concat cs) })
-    <?> "string"
+    =   do { m <- md; char '"'; cs <- manyTill character (char '"'); return $ A.StringLiteral m (concat cs) }
+    <?> "stringLiteral"
 
 character :: OccParser String
 character
