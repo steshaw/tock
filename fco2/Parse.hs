@@ -108,6 +108,9 @@ occamStyle
                           "VAL",
                           "VALOF",
                           "WHILE",
+                          indentMarker,
+                          outdentMarker,
+                          eolMarker,
                           mainMarker
                          ]
     , P.caseSensitive  = True
@@ -143,6 +146,9 @@ sAmp = try $ symbol "&"
 sQuest = try $ symbol "?"
 sBang = try $ symbol "!"
 sEq = try $ symbol "="
+sApos = try $ symbol "'"
+sQuote = try $ symbol "\""
+sHash = try $ symbol "#"
 --}}}
 --{{{ keywords
 sAFTER = reserved "AFTER"
@@ -212,11 +218,11 @@ sWHILE = reserved "WHILE"
 -- XXX could handle VALOF by translating each step to one { and matching multiple ones?
 mainMarker = "__main"
 
-sMainMarker = reserved mainMarker
+sMainMarker = do { whiteSpace; reserved mainMarker }
 
-indent = symbol indentMarker
-outdent = symbol outdentMarker
-eol = symbol eolMarker
+indent = do { whiteSpace; reserved indentMarker }
+outdent = do { whiteSpace; reserved outdentMarker }
+eol = do { whiteSpace; reserved eolMarker }
 --}}}
 
 --{{{ helper functions
@@ -432,7 +438,7 @@ occamExponent
 integer :: OccParser A.LiteralRepr
 integer
     =   try (do { m <- md; d <- lexeme digits; return $ A.IntLiteral m d })
-    <|> do { m <- md; char '#'; d <- many1 hexDigit; return $ A.HexLiteral m d }
+    <|> do { m <- md; sHash; d <- many1 hexDigit; return $ A.HexLiteral m d }
     <?> "integer"
 
 digits :: OccParser String
@@ -442,7 +448,7 @@ digits
 
 byte :: OccParser A.LiteralRepr
 byte
-    =   do { m <- md; char '\''; s <- character; char '\''; return $ A.ByteLiteral m s }
+    =   do { m <- md; char '\''; s <- character; sApos; return $ A.ByteLiteral m s }
     <?> "byte"
 
 -- i.e. array literal
@@ -460,7 +466,7 @@ table'
 
 stringLiteral :: OccParser A.LiteralRepr
 stringLiteral
-    =   do { m <- md; char '"'; cs <- manyTill character (char '"'); return $ A.StringLiteral m (concat cs) }
+    =   do { m <- md; char '"'; cs <- manyTill character sQuote; return $ A.StringLiteral m (concat cs) }
     <?> "stringLiteral"
 
 character :: OccParser String
@@ -843,7 +849,7 @@ variant
 output :: OccParser A.Process
 output
     =   do  m <- md
-            c <- channel
+            c <- try channel
             sBang
             (try (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
              <|> do { sCASE; t <- tagName; eol; return $ A.OutputCase m c t [] }
