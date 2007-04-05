@@ -910,13 +910,19 @@ variant
 -- FIXME: We'll be able to deal with this once state is added.
 output :: OccParser A.Process
 output
+    =   channelOutput
+    <|> do { m <- md; p <- port; sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
+    <?> "output"
+
+channelOutput :: OccParser A.Process
+channelOutput
     =   do  m <- md
             c <- try channel
             sBang
             (try (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
              <|> do { sCASE; t <- tagName; eol; return $ A.OutputCase m c t [] }
              <|> do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os })
-    <?> "output"
+    <?> "channelOutput"
 
 outputItem :: OccParser A.OutputItem
 outputItem

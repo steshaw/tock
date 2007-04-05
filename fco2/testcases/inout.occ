@@ -1,0 +1,36 @@
+PROTOCOL TWO IS INT; INT:
+PROTOCOL SEVERAL
+  CASE
+    none
+    one; INT
+:
+
+PROC foo ()
+  CHAN OF INT c:
+  CHAN OF TWO cc:
+  CHAN OF SEVERAL ccc:
+  PORT OF INT p:
+  TIMER tim:
+
+  INT x, y:
+  SEQ
+    c ? x
+    cc ? x; y
+    ccc ? CASE none
+    ccc ? CASE one; x
+    ccc ? CASE
+      none
+        SKIP
+      one; x
+        SKIP
+    tim ? x
+    tim ? AFTER x
+    p ? x
+
+    c ! x + 1
+    cc ! x + 1; y + 1
+    -- FIXME: This is the bodged syntax
+    ccc ! CASE none
+    ccc ! CASE one; x + 1
+    p ! x + 1
+:
