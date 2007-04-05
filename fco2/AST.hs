@@ -13,7 +13,11 @@ data NameType =
   | ProcName | ProtocolName | TagName | TimerName | VariableName
   deriving (Show, Eq, Typeable, Data)
 
-data Name = Name Meta NameType String
+data Name = Name {
+    nameMeta :: Meta,
+    nameType :: NameType,
+    nameName :: String
+  }
   deriving (Show, Eq, Typeable, Data)
 
 data Type =

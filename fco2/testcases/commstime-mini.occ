@@ -1,0 +1,169 @@
+-- A standalone occam 2 version of the stock commstime benchmark.
+
+--{{{  PROC out.string (VAL []BYTE s, VAL INT width, CHAN OF BYTE out)
+PROC out.string (VAL []BYTE s, VAL INT width, CHAN OF BYTE out)
+  SEQ
+    SEQ i = 0 FOR SIZE s
+      out ! s[i]
+    SEQ j = 0 FOR width - (SIZE s)
+      out ! ' '
+:
+--}}}
+
+--{{{  PROC out.int (VAL INT n, VAL INT width, CHAN OF BYTE out)
+PROC out.int (VAL INT n, VAL INT width, CHAN OF BYTE out)
+  BYTE sign:
+  INT val, i:
+  [12]BYTE s:
+  SEQ
+    val, i := n, 0
+    IF
+      n < 0
+        SEQ
+          sign := '-'
+          val := -val
+      TRUE
+        sign := ' '
+    WHILE n > 10
+      SEQ
+        s[i] := '0' + (BYTE (n \ 10))
+        i := i + 1
+        n := n / 10
+    s[i] := '0' + (BYTE n)
+    s[i + 1] := sign
+    i := i + 2
+    SEQ j = 0 FOR width - i
+      out ! ' '
+    WHILE i > 0
+      SEQ
+        i := i - 1
+        out ! s[i]
+:
+--}}}
+
+--{{{  PROC id (CHAN OF INT in, out)
+PROC id (CHAN OF INT in, out)
+  WHILE TRUE
+    INT n:
+    SEQ
+      in ? n
+      out ! n
+:
+--}}}
+
+--{{{  PROC prefix (VAL INT n, CHAN OF INT in, out)
+PROC prefix (VAL INT n, CHAN OF INT in, out)
+  SEQ
+    out ! n
+    id (in, out)
+:
+--}}}
+
+--{{{  PROC delta (CHAN OF INT in, out.0, out.1)
+PROC delta (CHAN OF INT in, out.0, out.1)
+  WHILE TRUE
+    INT n:
+    SEQ
+      in ? n
+      PAR
+        out.0 ! n
+        out.1 ! n
+:
+--}}}
+
+--{{{  PROC seq.delta (CHAN OF INT in, out.0, out.1)
+PROC seq.delta (CHAN OF INT in, out.0, out.1)
+  WHILE TRUE
+    INT n:
+    SEQ
+      in ? n
+      out.0 ! n
+      out.1 ! n
+:
+--}}}
+
+--{{{  PROC succ (CHAN OF INT in, out)
+PROC succ (CHAN OF INT in, out)
+  WHILE TRUE
+    INT n:
+    SEQ
+      in ? n
+      out ! n + 1
+:
+--}}}
+
+--{{{  PROC consume (VAL INT n.loops, CHAN OF INT in, CHAN OF BYTE out)
+PROC consume (VAL INT n.loops, CHAN OF INT in, CHAN OF BYTE out)
+  TIMER tim:
+  INT t0, t1:
+  INT value:
+  SEQ
+    --{{{  warm-up loop
+    VAL INT warm.up IS 16:
+    SEQ i = 0 FOR warm.up
+      in ? value
+    --}}}
+    WHILE TRUE
+      SEQ
+        tim ? t0
+        --{{{  bench-mark loop
+        SEQ i = 0 FOR n.loops
+          in ? value
+        --}}}
+        tim ? t1
+        --{{{  report
+        VAL INT microsecs IS t1 MINUS t0:
+        VAL INT64 nanosecs IS 1000 * (INT64 microsecs):
+        SEQ
+          out.string ("Last value received = ", 0, out)
+          out.int (value, 0, out)
+          out.string ("*c*n", 0, out)
+          out.string ("Time = ", 0, out)
+          out.int (microsecs, 0, out)
+          out.string (" microsecs*c*n", 0, out)
+          out.string ("Time per loop = ", 0, out)
+          out.int (INT (nanosecs/(INT64 n.loops)), 0, out)
+          out.string (" nanosecs*c*n", 0, out)
+          out.string ("Context switch = ", 0, out)
+          out.int (INT ((nanosecs/(INT64 n.loops))/4), 0, out)
+          out.string (" nanosecs*c*n*n", 0, out)
+        --}}}
+:
+--}}}
+
+--{{{  PROC comms.time (CHAN OF BYTE keyboard, screen, error)
+PROC comms.time (CHAN OF BYTE keyboard, screen, error)
+
+  BOOL use.seq.delta:
+
+  SEQ
+
+    --{{{  announce
+    SEQ
+      out.string ("*c*nCommstime in occam ...*c*n*n", 0, screen)
+      out.string ("Using the SEQ-output version of the delta process*c*n", 0, screen)
+      out.string ("yields a more accurate measure of context-switch time*c*n*n", 0, screen)
+      out.string ("Using the PAR-output version carries an extra overhead*c*n", 0, screen)
+      out.string ("of one process startup/shutdown per Commstime loop*c*n*n", 0, screen)
+      out.string ("By comparing **loop** times between the SEQ and PAR versions,*c*n", 0, screen)
+      out.string ("the process startup/shutdown overhead may be deduced*c*n*n", 0, screen)
+    --}}}
+
+    --ask.bool ("Sequential delta ", use.seq.delta, keyboard, screen)
+    use.seq.delta := TRUE
+    out.string ("*nCommstime starting ...*c*n*n", 0, screen)
+
+    CHAN OF INT a, b, c, d:
+    PAR
+      prefix (0, b, a)
+      IF
+        use.seq.delta
+          seq.delta (a, c, d)    -- the one defined above
+        TRUE
+          delta (a, c, d)        -- the one that does a parallel output
+      succ (c, b)
+      consume (1000000, d, screen)
+
+:
+--}}}
+

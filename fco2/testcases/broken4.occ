@@ -1,0 +1,4 @@
+PROC foo ()
+  INT x:
+  x ()
+:

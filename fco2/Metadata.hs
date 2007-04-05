@@ -8,7 +8,10 @@ import Data.List
 type Meta = [Metadatum]
 
 data OccSourcePos = OccSourcePos String Int Int
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Eq, Typeable, Data)
+
+instance Show OccSourcePos where
+  show (OccSourcePos file line col) = file ++ ":" ++ show line ++ ":" ++ show col
 
 data Metadatum =
   MdSourcePos OccSourcePos

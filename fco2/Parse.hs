@@ -261,16 +261,28 @@ handleSpecs specs inner specMarker
            v <- inner
            mapM scopeOutSpec ss'
            return $ foldl (\e s -> specMarker m s e) v ss'
+
+-- Like sepBy1, but not eager: it won't consume the separator unless it finds
+-- another item after it.
+sepBy1NE :: OccParser a -> OccParser b -> OccParser [a]
+sepBy1NE item sep
+    =  do i <- item
+          rest <- option [] $ try (do sep
+                                      sepBy1NE item sep)
+          return $ i : rest
 --}}}
 
 --{{{ name scoping
 findName :: A.Name -> OccParser A.Name
-findName n@(A.Name m nt s)
+findName thisN
     =  do st <- getState
-          let s' = case lookup s (localNames st) of
-                     Nothing -> die $ "Name " ++ s ++ " is not defined"
-                     Just (NameInfo _ n) -> n
-          return $ A.Name m nt s'
+          ni <- case lookup (A.nameName thisN) (localNames st) of
+                  Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
+                  Just ni -> return ni
+          let origN = originalDef ni
+          if A.nameType thisN /= A.nameType origN
+            then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
+            else return $ thisN { A.nameName = A.nameName origN }
 
 scopeIn :: A.Name -> OccParser A.Name
 scopeIn n@(A.Name m nt s)
@@ -491,16 +503,24 @@ expressionList
 
 expression :: OccParser A.Expression
 expression
-    =   try (do { m <- md; o <- monadicOperator; v <- operand; return $ A.Monadic m o v })
+    =   do { m <- md; o <- monadicOperator; v <- operand; return $ A.Monadic m o v }
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
-    <|> do { m <- md; sSIZE; t <- dataType; return $ A.Size m t }
+    <|> sizeExpr
     <|> do { m <- md; sTRUE; return $ A.True m }
     <|> do { m <- md; sFALSE; return $ A.False m }
     <|> try (do { m <- md; l <- operand; o <- dyadicOperator; r <- operand; return $ A.Dyadic m o l r })
     <|> try conversion
     <|> operand
     <?> "expression"
+
+sizeExpr :: OccParser A.Expression
+sizeExpr
+    =  do m <- md
+          sSIZE
+          (try (do { t <- dataType; return $ A.Size m t })
+           <|> do { v <- operand; return $ A.Monadic m A.MonadicSize v })
+    <?> "sizeExpr"
 
 booleanExpr :: OccParser A.Expression
 booleanExpr
@@ -513,7 +533,6 @@ monadicOperator
     =   do { reservedOp "-" <|> sMINUS; return A.MonadicSubtr }
     <|> do { reservedOp "~" <|> sBITNOT; return A.MonadicBitNot }
     <|> do { sNOT; return A.MonadicNot }
-    <|> do { sSIZE; return A.MonadicSize }
     <?> "monadicOperator"
 
 dyadicOperator :: OccParser A.DyadicOp
@@ -605,6 +624,28 @@ channel'
     =   try (do { m <- md; n <- channelName; return $ A.Channel m n })
     <|> try (maybeSliced channel A.SubscriptedChannel)
     <?> "channel'"
+
+timer :: OccParser A.Channel
+timer
+    =   maybeSubscripted "timer" timer' A.SubscriptedChannel
+    <?> "timer"
+
+timer' :: OccParser A.Channel
+timer'
+    =   try (do { m <- md; n <- timerName; return $ A.Channel m n })
+    <|> try (maybeSliced timer A.SubscriptedChannel)
+    <?> "timer'"
+
+port :: OccParser A.Channel
+port
+    =   maybeSubscripted "port" port' A.SubscriptedChannel
+    <?> "port"
+
+port' :: OccParser A.Channel
+port'
+    =   try (do { m <- md; n <- portName; return $ A.Channel m n })
+    <|> try (maybeSliced port A.SubscriptedChannel)
+    <?> "port'"
 --}}}
 --{{{ protocols
 protocol :: OccParser A.Type
@@ -703,6 +744,12 @@ definition
               <|> do { sRESHAPES; v <- variable; sColon; eol; return (n, A.ValReshapes m s v) } }
     <?> "definition"
 
+dataSpecifier :: OccParser A.Type
+dataSpecifier
+    =   try dataType
+    <|> try (do { sLeft; sRight; s <- dataSpecifier; return $ A.ArrayUnsized s })
+    <?> "dataSpecifier"
+
 specifier :: OccParser A.Type
 specifier
     =   try dataType
@@ -710,31 +757,32 @@ specifier
     <|> try timerType
     <|> try portType
     <|> try (do { sLeft; sRight; s <- specifier; return $ A.ArrayUnsized s })
-    <|> do { sLeft; e <- expression; sRight; s <- specifier; return $ A.Array e s }
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs
--- This is rather different from the grammar, since I had some difficulty
--- getting Parsec to parse it as a list of lists of arguments.
 formalList :: OccParser A.Formals
 formalList
-    =   do { m <- md; sLeftR; fs <- sepBy formalArg sComma; sRightR; return $ markTypes m fs }
+    =  do m <- md
+          sLeftR
+          fs <- sepBy formalArgSet sComma
+          sRightR
+          return $ concat fs
     <?> "formalList"
-    where
-      formalArg :: OccParser (Maybe A.Type, A.Name)
-      formalArg =   try (do { sVAL; s <- specifier; n <- newVariableName; return $ (Just (A.Val s), n) })
-                <|> try (do { s <- specifier; n <- newVariableName <|> newChannelName; return $ (Just s, n) })
-                <|> try (do { n <- newVariableName <|> newChannelName; return $ (Nothing, n) })
 
-      markTypes :: Meta -> [(Maybe A.Type, A.Name)] -> A.Formals
-      markTypes _ [] = []
-      markTypes _ ((Nothing, _):_) = die "Formal list must start with a type"
-      markTypes m ((Just ft, fn):is) = markRest m ft [fn] is
+formalArgSet :: OccParser A.Formals
+formalArgSet
+    =   try (do t <- formalVariableType
+                ns <- sepBy1NE newVariableName sComma
+                return [(t, n) | n <- ns])
+    <|> do t <- specifier
+           ns <- sepBy1NE newChannelName sComma
+           return [(t, n) | n <- ns]
+    <?> "formalArgSet"
 
-      markRest :: Meta -> A.Type -> [A.Name] -> [(Maybe A.Type, A.Name)] -> A.Formals
-      markRest m lt ns [] = [(lt, n) | n <- ns]
-      markRest m lt ns ((Nothing, n):is) = markRest m lt (ns ++ [n]) is
-      markRest m lt ns ((Just t, n):is) = (markRest m lt ns []) ++ (markRest m t [n] is)
+formalVariableType :: OccParser A.Type
+    =   try (do { sVAL; s <- dataSpecifier; return $ A.Val s })
+    <|> dataSpecifier
+    <?> "formalVariableType"
 
 functionHeader :: OccParser (A.Name, A.Formals)
 functionHeader
@@ -810,13 +858,27 @@ inputProcess
 
 input :: OccParser (A.Channel, A.InputMode)
 input
+    =   channelInput
+    <|> timerInput
+    <|> do { m <- md; p <- port; sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
+    <?> "input"
+
+channelInput :: OccParser (A.Channel, A.InputMode)
     =   do  m <- md
             c <- channel
             sQuest
             (do { sCASE; tl <- taggedList; eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
              <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) }
              <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) })
-    <?> "input"
+    <?> "channelInput"
+
+timerInput :: OccParser (A.Channel, A.InputMode)
+    =   do  m <- md
+            c <- timer
+            sQuest
+            (do { v <- variable; eol; return (c, A.InputSimple m [A.InVariable m v]) }
+             <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) })
+    <?> "timerInput"
 
 taggedList :: OccParser (A.Process -> A.Variant)
 taggedList

@@ -1,0 +1,25 @@
+PROTOCOL FOO
+  CASE
+    tag.a; INT
+    tag.b; REAL32; REAL32
+    tag.c
+:
+
+PROTOCOL BAR
+  CASE
+    tag.x
+    tag.y
+    tag.z
+:
+
+PROC foo (CHAN OF FOO foo, CHAN OF BAR bar)
+  SEQ
+    -- FIXME: This is the bodgy FCO syntax for now
+    foo ! CASE tag.a; 42
+    foo ! CASE tag.b; 1.2; 3.4
+    foo ! CASE tag.c
+    bar ! CASE tag.x
+    bar ! CASE tag.y
+    bar ! CASE tag.z
+:
+

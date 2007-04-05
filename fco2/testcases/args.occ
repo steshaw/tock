@@ -1,0 +1,11 @@
+PROC O (VAL []BYTE s)
+  SKIP
+:
+
+PROC P (INT a, b, c, BYTE d, CHAN OF INT p, q, r, CHAN OF BYTE s, []INT z, []CHAN OF INT zs, VAL INT va, vb, vc, VAL BYTE vd)
+  SKIP
+:
+
+PROC Q ()
+  SKIP
+:
