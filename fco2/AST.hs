@@ -16,7 +16,8 @@ data NameType =
 data Name = Name {
     nameMeta :: Meta,
     nameType :: NameType,
-    nameName :: String
+    nameName :: String,
+    nameOrigName :: String
   }
   deriving (Show, Eq, Typeable, Data)
 

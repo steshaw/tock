@@ -1,11 +1,23 @@
 -- CO516 q7: Adam Sampson <ats1>          vim:et:ts=2:foldmethod=marker
 -- Dining Frogger^WPhilosophers
 -- This will be a lot more readable in a folding editor (I use VIM).
--- Tiny text version.
+-- Standalone version.
 
+--{{{  stuff from the standard library
 --#INCLUDE "consts.inc"
 --#USE "course.lib"
 VAL BYTE ESCAPE IS 27:
+PROC out.int (VAL INT n, w, CHAN OF BYTE out)
+  STOP
+:
+INT, INT FUNCTION random (VAL INT range, seed) IS 0, 0:
+PROC copy.string ([]BYTE dest, VAL []BYTE src)
+  STOP
+:
+PROC make.string ([]BYTE dest, VAL INT len)
+  STOP
+:
+--}}}
 
 --{{{ Constants
 

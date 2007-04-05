@@ -6,15 +6,9 @@ import Data.Generics
 
 import qualified AST as A
 
-data NameInfo = NameInfo {
-    originalDef :: A.Name,
-    mappedName :: String
-  }
-  deriving (Show, Eq, Typeable, Data)
-
 data ParseState = ParseState {
-    localNames :: [(String, NameInfo)],
-    names :: [(String, NameInfo)],
+    localNames :: [(String, A.Name)],
+    names :: [(String, A.Name)],
     nameCounter :: Int
   }
   deriving (Show, Eq, Typeable, Data)

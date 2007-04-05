@@ -218,11 +218,11 @@ sWHILE = reserved "WHILE"
 -- XXX could handle VALOF by translating each step to one { and matching multiple ones?
 mainMarker = "__main"
 
-sMainMarker = do { whiteSpace; reserved mainMarker }
+sMainMarker = do { whiteSpace; reserved mainMarker } <?> "end of input (top-level process)"
 
-indent = do { whiteSpace; reserved indentMarker }
-outdent = do { whiteSpace; reserved outdentMarker }
-eol = do { whiteSpace; reserved eolMarker }
+indent = do { whiteSpace; reserved indentMarker } <?> "indentation increase"
+outdent = do { whiteSpace; reserved outdentMarker } <?> "indentation decrease"
+eol = do { whiteSpace; reserved eolMarker } <?> "end of line"
 --}}}
 
 --{{{ helper functions
@@ -276,29 +276,28 @@ sepBy1NE item sep
 findName :: A.Name -> OccParser A.Name
 findName thisN
     =  do st <- getState
-          ni <- case lookup (A.nameName thisN) (localNames st) of
-                  Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
-                  Just ni -> return ni
-          let origN = originalDef ni
+          origN <- case lookup (A.nameName thisN) (localNames st) of
+                     Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
+                     Just n -> return n
           if A.nameType thisN /= A.nameType origN
             then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
-            else return $ thisN { A.nameName = A.nameName origN }
+            else return $ thisN { A.nameName = A.nameName origN,
+                                  A.nameOrigName = A.nameName thisN }
 
 scopeIn :: A.Name -> OccParser A.Name
-scopeIn n@(A.Name m nt s)
+scopeIn n@(A.Name m nt s os)
     =  do st <- getState
           let s' = s ++ "_" ++ (show $ nameCounter st)
-          let n' = A.Name m nt s'
-          let ni = NameInfo { originalDef = n, mappedName = s' }
+          let n' = n { A.nameName = s', A.nameOrigName = s }
           setState $ st {
             nameCounter = (nameCounter st) + 1,
-            localNames = (s, ni) : (localNames st),
-            names = (s', ni) : (names st)
+            localNames = (s, n') : (localNames st),
+            names = (s', n') : (names st)
             }
           return n'
 
 scopeOut :: A.Name -> OccParser ()
-scopeOut n@(A.Name m nt s)
+scopeOut n@(A.Name m nt s os)
     =  do st <- getState
           let lns' = case localNames st of
                        (s, _):ns -> ns
@@ -345,7 +344,7 @@ anyName :: A.NameType -> OccParser A.Name
 anyName nt
     =   do m <- md
            s <- identifier
-           return $ A.Name m nt s
+           return $ A.Name m nt s s
     <?> show nt
 
 name :: A.NameType -> OccParser A.Name
