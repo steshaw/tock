@@ -1,0 +1,15 @@
+PROTOCOL PROTO
+  CASE
+    foo
+    bar
+:
+VAL INT max.graphic IS 10:
+PROC P ()
+  CHAN OF PROTO c:
+  c ? CASE
+    [max.graphic]INT x:
+    foo
+      SKIP
+    bar
+      STOP
+:

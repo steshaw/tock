@@ -7,6 +7,7 @@
 --#INCLUDE "consts.inc"
 --#USE "course.lib"
 VAL BYTE ESCAPE IS 27:
+VAL BYTE FLUSH IS 255:
 PROC out.int (VAL INT n, w, CHAN OF BYTE out)
   STOP
 :
@@ -18,6 +19,9 @@ PROC make.string ([]BYTE dest, VAL INT len)
   STOP
 :
 PROC erase.screen (CHAN OF BYTE out)
+  STOP
+:
+PROC goto.x.y (VAL INT x, y, CHAN OF BYTE out)
   STOP
 :
 --}}}

@@ -831,7 +831,7 @@ process :: OccParser A.Process
 process
     =   try assignment
     <|> try inputProcess
-    <|> try caseInput
+    <|> caseInput
     <|> output
     <|> do { m <- md; sSKIP; eol; return $ A.Skip m }
     <|> do { m <- md; sSTOP; eol; return $ A.Stop m }
@@ -903,7 +903,12 @@ inputItem
 --{{{ variant input (? CASE)
 caseInput :: OccParser A.Process
 caseInput
-    =   do { m <- md; c <- channel; sQuest; sCASE; eol; indent; vs <- many1 variant; outdent; return $ A.Input m c (A.InputCase m (A.Several m vs)) }
+    =  do m <- md
+          c <- try (do { c <- channel; sQuest; sCASE; eol; return c })
+          indent
+          vs <- many1 variant
+          outdent
+          return $ A.Input m c (A.InputCase m (A.Several m vs))
     <?> "caseInput"
 
 variant :: OccParser A.Structured
