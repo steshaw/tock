@@ -16,8 +16,15 @@ data NameType =
 data Name = Name {
     nameMeta :: Meta,
     nameType :: NameType,
-    nameName :: String,
-    nameOrigName :: String
+    nameName :: String
+  }
+  deriving (Show, Eq, Typeable, Data)
+
+data NameDef = NameDef {
+    ndMeta :: Meta,
+    ndName :: String,
+    ndOrigName :: String,
+    ndType :: SpecType
   }
   deriving (Show, Eq, Typeable, Data)
 
@@ -37,6 +44,7 @@ data Type =
   | Port Type
   | Val Type
   | Infer   -- for where the type is not given but can be worked out (e.g. "x IS y:")
+  | NoType  -- for where we need a Type, but none exists (e.g. PROCs scoping in)
   deriving (Show, Eq, Typeable, Data)
 
 data ConversionMode =

@@ -15,6 +15,7 @@ import Metadata
 import ParseState
 import Errors
 import Indentation
+import Types
 
 --{{{ setup stuff for Parsec
 type OccParser = GenParser Char ParseState
@@ -276,38 +277,43 @@ sepBy1NE item sep
 findName :: A.Name -> OccParser A.Name
 findName thisN
     =  do st <- getState
-          origN <- case lookup (A.nameName thisN) (localNames st) of
+          origN <- case lookup (A.nameName thisN) (psLocalNames st) of
                      Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
                      Just n -> return n
           if A.nameType thisN /= A.nameType origN
             then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
-            else return $ thisN { A.nameName = A.nameName origN,
-                                  A.nameOrigName = A.nameName thisN }
+            else return $ thisN { A.nameName = A.nameName origN }
 
-scopeIn :: A.Name -> OccParser A.Name
-scopeIn n@(A.Name m nt s os)
+scopeIn :: A.Name -> A.SpecType -> OccParser A.Name
+scopeIn n@(A.Name m nt s) t
     =  do st <- getState
-          let s' = s ++ "_" ++ (show $ nameCounter st)
-          let n' = n { A.nameName = s', A.nameOrigName = s }
+          let s' = s ++ "_" ++ (show $ psNameCounter st)
+          let n' = n { A.nameName = s' }
+          let nd = A.NameDef {
+            A.ndMeta = m,
+            A.ndName = s',
+            A.ndOrigName = s,
+            A.ndType = t
+          }
           setState $ st {
-            nameCounter = (nameCounter st) + 1,
-            localNames = (s, n') : (localNames st),
-            names = (s', n') : (names st)
+            psNameCounter = (psNameCounter st) + 1,
+            psLocalNames = (s, n') : (psLocalNames st),
+            psNames = (s', nd) : (psNames st)
             }
           return n'
 
 scopeOut :: A.Name -> OccParser ()
-scopeOut n@(A.Name m nt s os)
+scopeOut n@(A.Name m nt s)
     =  do st <- getState
-          let lns' = case localNames st of
+          let lns' = case psLocalNames st of
                        (s, _):ns -> ns
                        otherwise -> dieInternal "scopeOut trying to scope out the wrong name"
-          setState $ st { localNames = lns' }
+          setState $ st { psLocalNames = lns' }
 
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep r@(A.For m n b c)
-    =  do n' <- scopeIn n
+    =  do n' <- scopeIn n (A.Declaration m A.Int)
           return $ A.For m n' b c
 
 scopeOutRep :: A.Replicator -> OccParser ()
@@ -315,16 +321,19 @@ scopeOutRep r@(A.For m n b c) = scopeOut n
 
 scopeInSpec :: A.Specification -> OccParser A.Specification
 scopeInSpec s@(n, st)
-    =  do n' <- scopeIn n
+    =  do n' <- scopeIn n st
           return (n', st)
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec s@(n, st) = scopeOut n
 
+scopeInFormal :: (A.Type, A.Name) -> OccParser (A.Type, A.Name)
+scopeInFormal (t, n)
+    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t)
+          return (t, n')
+
 scopeInFormals :: A.Formals -> OccParser A.Formals
-scopeInFormals fs
-    =  do ns' <- mapM scopeIn (map snd fs)
-          return $ zip (map fst fs) ns'
+scopeInFormals fs = mapM scopeInFormal fs
 
 scopeOutFormals :: A.Formals -> OccParser ()
 scopeOutFormals fs
@@ -344,7 +353,7 @@ anyName :: A.NameType -> OccParser A.Name
 anyName nt
     =   do m <- md
            s <- identifier
-           return $ A.Name m nt s s
+           return $ A.Name m nt s
     <?> show nt
 
 name :: A.NameType -> OccParser A.Name
@@ -823,7 +832,7 @@ process
     =   try assignment
     <|> try inputProcess
     <|> try caseInput
-    <|> try output
+    <|> output
     <|> do { m <- md; sSKIP; eol; return $ A.Skip m }
     <|> do { m <- md; sSTOP; eol; return $ A.Stop m }
     <|> seqProcess
@@ -904,13 +913,10 @@ variant
     <?> "variant"
 --}}}
 --{{{ output (!)
--- XXX This can't tell at parse time in "c ! x; y" whether x is a variable or a tag...
--- ... so this now wants "c ! CASE x" if it's a tag, to match input.
--- FIXME: We'll be able to deal with this once state is added.
 output :: OccParser A.Process
 output
     =   channelOutput
-    <|> do { m <- md; p <- port; sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
+    <|> do { m <- md; p <- try port; sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
     <?> "output"
 
 channelOutput :: OccParser A.Process
@@ -918,9 +924,18 @@ channelOutput
     =   do  m <- md
             c <- try channel
             sBang
-            (try (do { sCASE; t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
-             <|> do { sCASE; t <- tagName; eol; return $ A.OutputCase m c t [] }
-             <|> do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os })
+            -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
+            -- whether b is a variable or a tag, without knowing the type of a.
+            st <- getState
+            isCase <- case typeOfChannel st c of
+                        Just t -> return $ isCaseProtocolType st t
+                        Nothing -> fail $ "cannot figure out the type of " ++ show c
+            if isCase
+              then
+                (try (do { t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
+                 <|> do { t <- tagName; eol; return $ A.OutputCase m c t [] })
+              else
+                do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os }
     <?> "channelOutput"
 
 outputItem :: OccParser A.OutputItem

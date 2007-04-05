@@ -17,6 +17,9 @@ PROC copy.string ([]BYTE dest, VAL []BYTE src)
 PROC make.string ([]BYTE dest, VAL INT len)
   STOP
 :
+PROC erase.screen (CHAN OF BYTE out)
+  STOP
+:
 --}}}
 
 --{{{ Constants

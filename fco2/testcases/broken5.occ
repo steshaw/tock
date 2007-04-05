@@ -1,0 +1,8 @@
+PROTOCOL PROTO
+  CASE
+    foo
+:
+PROC P ()
+  CHAN OF INT c:
+  c ! foo
+:

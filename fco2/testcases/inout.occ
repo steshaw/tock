@@ -29,8 +29,7 @@ PROC foo ()
 
     c ! x + 1
     cc ! x + 1; y + 1
-    -- FIXME: This is the bodged syntax
-    ccc ! CASE none
-    ccc ! CASE one; x + 1
+    ccc ! none
+    ccc ! one; x + 1
     p ! x + 1
 :

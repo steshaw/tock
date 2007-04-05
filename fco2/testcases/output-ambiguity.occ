@@ -1,0 +1,12 @@
+PROTOCOL PROTO
+  CASE
+    foo
+:
+VAL INT foo IS 42:
+PROC P ()
+  CHAN OF PROTO c1:
+  CHAN OF INT c2:
+  SEQ
+    c1 ! foo
+    c2 ! foo
+:

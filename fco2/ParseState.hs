@@ -7,16 +7,19 @@ import Data.Generics
 import qualified AST as A
 
 data ParseState = ParseState {
-    localNames :: [(String, A.Name)],
-    names :: [(String, A.Name)],
-    nameCounter :: Int
+    psLocalNames :: [(String, A.Name)],
+    psNames :: [(String, A.NameDef)],
+    psNameCounter :: Int
   }
   deriving (Show, Eq, Typeable, Data)
 
 emptyState :: ParseState
 emptyState = ParseState {
-    localNames = [],
-    names = [],
-    nameCounter = 0
+    psLocalNames = [],
+    psNames = [],
+    psNameCounter = 0
   }
+
+psLookupName :: ParseState -> A.Name -> Maybe A.NameDef
+psLookupName ps n = lookup (A.nameName n) (psNames ps)
 

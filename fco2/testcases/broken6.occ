@@ -1,0 +1,8 @@
+PROTOCOL PROTO
+  CASE
+    foo
+:
+PROC P ()
+  CHAN OF PROTO c:
+  c ! 42
+:

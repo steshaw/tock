@@ -10,7 +10,8 @@ sources = \
 	Metadata.hs \
 	Parse.hs \
 	ParseState.hs \
-	PrettyShow.hs
+	PrettyShow.hs \
+	Types.hs
 
 $(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main
