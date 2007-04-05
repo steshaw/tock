@@ -271,6 +271,9 @@ sepBy1NE item sep
           rest <- option [] $ try (do sep
                                       sepBy1NE item sep)
           return $ i : rest
+
+tryTrail :: OccParser a -> OccParser b -> OccParser a
+tryTrail p q = try (do { v <- p; q; return v })
 --}}}
 
 --{{{ name scoping
@@ -829,9 +832,9 @@ structuredTypeField
 --{{{ processes
 process :: OccParser A.Process
 process
-    =   try assignment
-    <|> try inputProcess
+    =   assignment
     <|> caseInput
+    <|> inputProcess
     <|> output
     <|> do { m <- md; sSKIP; eol; return $ A.Skip m }
     <|> do { m <- md; sSTOP; eol; return $ A.Stop m }
@@ -839,9 +842,9 @@ process
     <|> ifProcess
     <|> caseProcess
     <|> whileProcess
-    <|> try parallel
+    <|> parallel
     <|> altProcess
-    <|> try procInstance
+    <|> procInstance
     <|> do { m <- md; sMainMarker; eol; return $ A.Main m }
     <|> handleSpecs (allocation <|> specification) process A.ProcSpec
     <?> "process"
@@ -849,7 +852,7 @@ process
 --{{{ assignment (:=)
 assignment :: OccParser A.Process
 assignment
-    =   do { m <- md; vs <- variableList; sAssign; es <- expressionList; eol; return $ A.Assign m vs es }
+    =   do { m <- md; vs <- tryTrail variableList sAssign; es <- expressionList; eol; return $ A.Assign m vs es }
     <?> "assignment"
 
 variableList :: OccParser [A.Variable]
@@ -868,22 +871,20 @@ input :: OccParser (A.Channel, A.InputMode)
 input
     =   channelInput
     <|> timerInput
-    <|> do { m <- md; p <- port; sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
+    <|> do { m <- md; p <- tryTrail port sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
     <?> "input"
 
 channelInput :: OccParser (A.Channel, A.InputMode)
     =   do  m <- md
-            c <- channel
-            sQuest
-            (do { sCASE; tl <- taggedList; eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
+            c <- tryTrail channel sQuest
+            (do { tl <- try (do { sCASE; taggedList }); eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
              <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) }
              <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) })
     <?> "channelInput"
 
 timerInput :: OccParser (A.Channel, A.InputMode)
     =   do  m <- md
-            c <- timer
-            sQuest
+            c <- tryTrail timer sQuest
             (do { v <- variable; eol; return (c, A.InputSimple m [A.InVariable m v]) }
              <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) })
     <?> "timerInput"
@@ -904,7 +905,7 @@ inputItem
 caseInput :: OccParser A.Process
 caseInput
     =  do m <- md
-          c <- try (do { c <- channel; sQuest; sCASE; eol; return c })
+          c <- tryTrail channel (do {sQuest; sCASE; eol})
           indent
           vs <- many1 variant
           outdent
@@ -921,14 +922,13 @@ variant
 output :: OccParser A.Process
 output
     =   channelOutput
-    <|> do { m <- md; p <- try port; sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
+    <|> do { m <- md; p <- tryTrail port sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
     <?> "output"
 
 channelOutput :: OccParser A.Process
 channelOutput
     =   do  m <- md
-            c <- try channel
-            sBang
+            c <- tryTrail channel sBang
             -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
             -- whether b is a variable or a tag, without knowing the type of a.
             st <- getState
@@ -1081,7 +1081,6 @@ alternation
 altKeyword :: OccParser Bool
 altKeyword
     =   do { sALT; return False }
-    -- FIXME Can this be relaxed to just wrap sPRI in "try"?
     <|> try (do { sPRI; sALT; return True })
     <?> "altKeyword"
 
@@ -1136,7 +1135,7 @@ guard
 --{{{ PROC calls
 procInstance :: OccParser A.Process
 procInstance
-    =   do { m <- md; n <- procName; sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
+    =   do { m <- md; n <- tryTrail procName sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
     <?> "procInstance"
 
 actual :: OccParser A.Actual
