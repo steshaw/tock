@@ -9,6 +9,7 @@ import System.IO
 
 import PrettyShow
 import Parse
+import GenerateC
 
 data Flag = ParseOnly | Verbose
   deriving (Eq, Show)
@@ -61,5 +62,9 @@ main = do
   if ParseOnly `elem` opts then do
       putStrLn $ show ast
     else do
+      progress "{{{ Generate C"
+      c <- generateC state ast
+      putStr c
+      progress "}}}"
       progress "Done"
 

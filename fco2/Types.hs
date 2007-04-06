@@ -40,15 +40,46 @@ subscriptType _ = Nothing
 typeOfChannel :: ParseState -> A.Channel -> Maybe A.Type
 typeOfChannel ps (A.Channel m n) = typeOfName ps n
 typeOfChannel ps (A.SubscriptedChannel m s c)
-    = case typeOfChannel ps c of
-        Just t -> subscriptType t
-        _ -> Nothing
+    = typeOfChannel ps c >>= subscriptType
 
 typeOfVariable :: ParseState -> A.Variable -> Maybe A.Type
-typeOfVariable ps v = Nothing
+typeOfVariable ps (A.Variable m n) = typeOfName ps n
+typeOfVariable ps (A.SubscriptedVariable m s v)
+    = typeOfVariable ps v >>= subscriptType
 
 typeOfExpression :: ParseState -> A.Expression -> Maybe A.Type
-typeOfExpression ps e = Nothing
+typeOfExpression ps e
+    = case e of
+        A.Monadic m op e -> typeOfExpression ps e
+        A.Dyadic m op e f -> typeOfExpression ps e   -- assume f's been checked!
+        A.MostPos m t -> Just t
+        A.MostNeg m t -> Just t
+        A.Size m t -> Just A.Int
+        A.Conversion m cm t e -> Just t
+        A.ExprVariable m v -> typeOfVariable ps v `perhaps` noVal
+        A.ExprLiteral m l -> typeOfLiteral ps l
+        A.True m -> Just A.Bool
+        A.False m -> Just A.Bool
+        A.FunctionCall m n es
+            -> case returnTypesOfFunction ps n of
+                 Just [t] -> Just t
+                 _ -> Nothing
+        A.SubscriptedExpr m s e
+            -> typeOfExpression ps e >>= subscriptType
+        A.BytesInExpr m e -> Just A.Int
+        A.BytesInType m t -> Just A.Int
+        A.OffsetOf m t n -> Just A.Int
+
+typeOfLiteral :: ParseState -> A.Literal -> Maybe A.Type
+typeOfLiteral ps (A.Literal m t lr) = Just t
+typeOfLiteral ps (A.SubscriptedLiteral m s l)
+    = typeOfLiteral ps l >>= subscriptType
+
+returnTypesOfFunction :: ParseState -> A.Name -> Maybe [A.Type]
+returnTypesOfFunction ps n
+    = case specTypeOfName ps n of
+        Just (A.Function m rs fs vp) -> Just rs
+        _ -> Nothing
 
 isCaseProtocolType :: ParseState -> A.Type -> Bool
 isCaseProtocolType ps (A.Chan (A.UserProtocol pr))
@@ -56,4 +87,8 @@ isCaseProtocolType ps (A.Chan (A.UserProtocol pr))
         Just (A.ProtocolCase _ _) -> True
         _ -> False
 isCaseProtocolType ps _ = False
+
+noVal :: A.Type -> A.Type
+noVal (A.Val t) = t
+noVal t = t
 

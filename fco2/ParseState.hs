@@ -9,7 +9,8 @@ import qualified AST as A
 data ParseState = ParseState {
     psLocalNames :: [(String, A.Name)],
     psNames :: [(String, A.NameDef)],
-    psNameCounter :: Int
+    psNameCounter :: Int,
+    psNonceCounter :: Int
   }
   deriving (Show, Eq, Typeable, Data)
 
@@ -17,7 +18,8 @@ emptyState :: ParseState
 emptyState = ParseState {
     psLocalNames = [],
     psNames = [],
-    psNameCounter = 0
+    psNameCounter = 0,
+    psNonceCounter = 0
   }
 
 psLookupName :: ParseState -> A.Name -> Maybe A.NameDef

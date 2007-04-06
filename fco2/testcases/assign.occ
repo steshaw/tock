@@ -1,0 +1,7 @@
+PROC P ()
+  INT a, b, c:
+  INT d, e, f:
+  SEQ
+    a := d
+    a, b, c := d, e, f
+:
