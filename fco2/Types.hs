@@ -21,19 +21,15 @@ typeOfName :: ParseState -> A.Name -> Maybe A.Type
 typeOfName ps n
     = case specTypeOfName ps n of
         Just (A.Declaration m t) -> Just t
-        Just (A.Is m t v) -> typeOfVariable ps v
-        Just (A.ValIs m t e) -> typeOfExpression ps e `perhaps` A.Val
+        Just (A.Is m am t v) -> typeOfVariable ps v
         Just (A.IsChannel m t c) -> typeOfChannel ps c
         Just (A.IsChannelArray m t (c:_)) -> typeOfChannel ps c `perhaps` A.ArrayUnsized
-        Just (A.Retypes m t v) -> Just t
-        Just (A.Reshapes m t v) -> Just t
-        Just (A.ValRetypes m t v) -> Just (A.Val t)
-        Just (A.ValReshapes m t v) -> Just (A.Val t)
+        Just (A.Retypes m am t v) -> Just t
+        Just (A.RetypesExpr m am t e) -> Just t
         _ -> Nothing
 
 -- FIXME: This should fail if the subscript is invalid...
 subscriptType :: A.Type -> Maybe A.Type
-subscriptType (A.Val t) = subscriptType t `perhaps` A.Val
 subscriptType (A.Array e t) = Just t
 subscriptType (A.ArrayUnsized t) = Just t
 subscriptType _ = Nothing
@@ -57,7 +53,7 @@ typeOfExpression ps e
         A.MostNeg m t -> Just t
         A.Size m t -> Just A.Int
         A.Conversion m cm t e -> Just t
-        A.ExprVariable m v -> typeOfVariable ps v `perhaps` noVal
+        A.ExprVariable m v -> typeOfVariable ps v
         A.ExprLiteral m l -> typeOfLiteral ps l
         A.True m -> Just A.Bool
         A.False m -> Just A.Bool
@@ -89,7 +85,14 @@ isCaseProtocolType ps (A.Chan (A.UserProtocol pr))
         _ -> False
 isCaseProtocolType ps _ = False
 
-noVal :: A.Type -> A.Type
-noVal (A.Val t) = t
-noVal t = t
+abbrevModeOfSpec :: A.SpecType -> A.AbbrevMode
+abbrevModeOfSpec s
+    = case s of
+        A.Is _ am _ _ -> am
+        A.IsExpr _ am _ _ -> am
+        A.IsChannel _ _ _ -> A.Abbrev
+        A.IsChannelArray _ _ _ -> A.Abbrev
+        A.Retypes _ am _ _ -> am
+        A.RetypesExpr _ am _ _ -> am
+        _ -> A.ValAbbrev
 

@@ -24,7 +24,8 @@ data NameDef = NameDef {
     ndMeta :: Meta,
     ndName :: String,
     ndOrigName :: String,
-    ndType :: SpecType
+    ndType :: SpecType,
+    ndAbbrevMode :: AbbrevMode
   }
   deriving (Show, Eq, Typeable, Data)
 
@@ -42,7 +43,6 @@ data Type =
   | Any
   | Timer
   | Port Type
-  | Val Type
   | Infer   -- for where the type is not given but can be worked out (e.g. "x IS y:")
   | NoType  -- for where we need a Type, but none exists (e.g. PROCs scoping in)
   deriving (Show, Eq, Typeable, Data)
@@ -173,25 +173,31 @@ data InputMode =
   | InputAfter Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
-type Formals = [(Type, Name)]
+data AbbrevMode =
+  Abbrev
+  | ValAbbrev
+  deriving (Show, Eq, Typeable, Data)
+
 type Specification = (Name, SpecType)
 data SpecType =
   Place Meta Expression
   | Declaration Meta Type
-  | Is Meta Type Variable
-  | ValIs Meta Type Expression
+  | Is Meta AbbrevMode Type Variable
+  | IsExpr Meta AbbrevMode Type Expression
   | IsChannel Meta Type Channel
   | IsChannelArray Meta Type [Channel]
   | DataType Meta Type
   | DataTypeRecord Meta Bool [(Type, Name)]
   | Protocol Meta [Type]
   | ProtocolCase Meta [(Name, [Type])]
-  | Proc Meta Formals Process
-  | Function Meta [Type] Formals ValueProcess
-  | Retypes Meta Type Variable
-  | Reshapes Meta Type Variable
-  | ValRetypes Meta Type Variable
-  | ValReshapes Meta Type Variable
+  | Proc Meta [Formal] Process
+  | Function Meta [Type] [Formal] ValueProcess
+  | Retypes Meta AbbrevMode Type Variable
+  | RetypesExpr Meta AbbrevMode Type Expression
+  deriving (Show, Eq, Typeable, Data)
+
+data Formal =
+  Formal AbbrevMode Type Name
   deriving (Show, Eq, Typeable, Data)
 
 data Actual =

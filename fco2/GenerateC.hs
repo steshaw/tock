@@ -14,9 +14,6 @@ module GenerateC where
 -- FIXME: There should be a pass that pulls PAR branches (that aren't already
 -- PROC calls) out into PROCs.
 
--- FIXME: Val shouldn't be part of the type -- it's part of the *abbeviation*.
--- That is, we should have an AbbreviationMode (which can also do RESULT etc. later).
-
 -- FIXME: Arrays. Should be a struct that contains the data and size, and we
 -- then use a pointer to the struct to pass around.
 
@@ -97,10 +94,13 @@ genType (ArrayUnsized t)
 genType (UserDataType n) = genName n
 genType (Chan t)
     =  do tell ["Channel*"]
-genType (Val t)
-    =  do tell ["const "]
-          genType t
 genType t = missing $ "genType " ++ show t
+--}}}
+
+--{{{  abbreviations
+genConst :: AbbrevMode -> CGen ()
+genConst Abbrev = return ()
+genConst ValAbbrev = tell ["const "]
 --}}}
 
 --{{{  conversions
@@ -353,15 +353,16 @@ introduceSpec (n, Declaration m t)
                     tell [" "]
                     genName n
                     tell [";\n"]
-introduceSpec (n, Is m t v)
-    =  do genType t
+introduceSpec (n, Is m am t v)
+    =  do genConst am
+          genType t
           tell ["& "]
           genName n
           tell [" = "]
           genVariable v
           tell [";\n"]
-introduceSpec (n, ValIs m t e)
-    =  do tell ["const "]
+introduceSpec (n, IsExpr m am t e)
+    =  do genConst am
           genType t
           tell [" "]
           genName n
@@ -405,21 +406,19 @@ genActual :: Actual -> CGen ()
 genActual (ActualExpression e) = genExpression e
 genActual (ActualChannel c) = genChannel c
 
-genFormals :: Formals -> CGen ()
+genFormals :: [Formal] -> CGen ()
 genFormals fs = sequence_ $ intersperse genComma (map genFormal fs)
 
 -- Arrays must be handled specially
-genFormal :: (Type, Name) -> CGen ()
-genFormal (ft, n)
-    =  do case ft of
-            Val t ->
-              do tell ["const "]
+genFormal :: Formal -> CGen ()
+genFormal (Formal am t n)
+    =  do case am of
+            ValAbbrev ->
+              do genConst am
                  genType t
                  tell [" "]
-            Chan t ->
-              tell ["Channel *"]
-            _ ->
-              do genType ft
+            Abbrev ->
+              do genType t
                  tell ["& "]
           genName n
 --}}}

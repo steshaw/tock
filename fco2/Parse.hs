@@ -287,8 +287,8 @@ findName thisN
             then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
-scopeIn :: A.Name -> A.SpecType -> OccParser A.Name
-scopeIn n@(A.Name m nt s) t
+scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
+scopeIn n@(A.Name m nt s) t am
     =  do st <- getState
           let s' = s ++ "_" ++ (show $ psNameCounter st)
           let n' = n { A.nameName = s' }
@@ -296,7 +296,8 @@ scopeIn n@(A.Name m nt s) t
             A.ndMeta = m,
             A.ndName = s',
             A.ndOrigName = s,
-            A.ndType = t
+            A.ndType = t,
+            A.ndAbbrevMode = am
           }
           setState $ st {
             psNameCounter = (psNameCounter st) + 1,
@@ -316,7 +317,7 @@ scopeOut n@(A.Name m nt s)
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep r@(A.For m n b c)
-    =  do n' <- scopeIn n (A.Declaration m A.Int)
+    =  do n' <- scopeIn n (A.Declaration m A.Int) A.ValAbbrev
           return $ A.For m n' b c
 
 scopeOutRep :: A.Replicator -> OccParser ()
@@ -324,24 +325,22 @@ scopeOutRep r@(A.For m n b c) = scopeOut n
 
 scopeInSpec :: A.Specification -> OccParser A.Specification
 scopeInSpec s@(n, st)
-    =  do n' <- scopeIn n st
+    =  do n' <- scopeIn n st (abbrevModeOfSpec st)
           return (n', st)
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec s@(n, st) = scopeOut n
 
-scopeInFormal :: (A.Type, A.Name) -> OccParser (A.Type, A.Name)
-scopeInFormal (t, n)
-    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t)
-          return (t, n')
+scopeInFormal :: A.Formal -> OccParser A.Formal
+scopeInFormal (A.Formal am t n)
+    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t) am
+          return (A.Formal am t n')
 
-scopeInFormals :: A.Formals -> OccParser A.Formals
+scopeInFormals :: [A.Formal] -> OccParser [A.Formal]
 scopeInFormals fs = mapM scopeInFormal fs
 
-scopeOutFormals :: A.Formals -> OccParser ()
-scopeOutFormals fs
-    =  do _ <- mapM scopeOut (map snd fs)
-          return ()
+scopeOutFormals :: [A.Formal] -> OccParser ()
+scopeOutFormals fs = sequence_ [scopeOut n | (A.Formal am t n) <- fs]
 
 --}}}
 
@@ -724,11 +723,11 @@ declaration
 
 abbreviation :: OccParser A.Specification
 abbreviation
-    =   try (do { m <- md; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Infer v) })
-    <|> try (do { m <- md; s <- specifier; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m s v) })
+    =   try (do { m <- md; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Abbrev A.Infer v) })
+    <|> try (do { m <- md; s <- specifier; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Abbrev s v) })
     <|> do { m <- md; sVAL ;
-              try (do { n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.ValIs m A.Infer e) })
-              <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.ValIs m s e) } }
+              try (do { n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.IsExpr m A.ValAbbrev A.Infer e) })
+              <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.IsExpr m A.ValAbbrev s e) } }
     <|> try (do { m <- md; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m A.Infer c) })
     <|> try (do { m <- md; s <- specifier; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m s c) })
     <|> try (do { m <- md; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; return (n, A.IsChannelArray m A.Infer cs) })
@@ -748,11 +747,9 @@ definition
                   do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return (n, A.Function m rs fs' (A.ValOf m (A.Skip m) el)) }
                   <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return (n, A.Function m rs fs' vp) } })
     <|> try (do { m <- md; s <- specifier; n <- newVariableName ;
-                  do { sRETYPES; v <- variable; sColon; eol; return (n, A.Retypes m s v) }
-                  <|> do { try sRESHAPES; v <- variable; sColon; eol; return (n, A.Reshapes m s v) } })
+                  sRETYPES <|> sRESHAPES; v <- variable; sColon; eol; return (n, A.Retypes m A.Abbrev s v) })
     <|> do {  m <- md; sVAL; s <- specifier; n <- newVariableName ;
-              do { sRETYPES; v <- variable; sColon; eol; return (n, A.ValRetypes m s v) }
-              <|> do { sRESHAPES; v <- variable; sColon; eol; return (n, A.ValReshapes m s v) } }
+              sRETYPES <|> sRESHAPES; e <- expression; sColon; eol; return (n, A.RetypesExpr m A.ValAbbrev s e) }
     <?> "definition"
 
 dataSpecifier :: OccParser A.Type
@@ -771,7 +768,7 @@ specifier
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs
-formalList :: OccParser A.Formals
+formalList :: OccParser [A.Formal]
 formalList
     =  do m <- md
           sLeftR
@@ -780,22 +777,22 @@ formalList
           return $ concat fs
     <?> "formalList"
 
-formalArgSet :: OccParser A.Formals
+formalArgSet :: OccParser [A.Formal]
 formalArgSet
-    =   try (do t <- formalVariableType
+    =   try (do (am, t) <- formalVariableType
                 ns <- sepBy1NE newVariableName sComma
-                return [(t, n) | n <- ns])
+                return [A.Formal am t n | n <- ns])
     <|> do t <- specifier
            ns <- sepBy1NE newChannelName sComma
-           return [(t, n) | n <- ns]
+           return [A.Formal A.Abbrev t n | n <- ns]
     <?> "formalArgSet"
 
-formalVariableType :: OccParser A.Type
-    =   try (do { sVAL; s <- dataSpecifier; return $ A.Val s })
-    <|> dataSpecifier
+formalVariableType :: OccParser (A.AbbrevMode, A.Type)
+    =   try (do { sVAL; s <- dataSpecifier; return (A.ValAbbrev, s) })
+    <|> do { s <- dataSpecifier; return (A.Abbrev, s) }
     <?> "formalVariableType"
 
-functionHeader :: OccParser (A.Name, A.Formals)
+functionHeader :: OccParser (A.Name, [A.Formal])
 functionHeader
     =   do { sFUNCTION; n <- newFunctionName; fs <- formalList; return $ (n, fs) }
     <?> "functionHeader"
