@@ -1,3 +1,4 @@
+-- | Type inference and checking.
 module Types where
 
 import qualified AST as A

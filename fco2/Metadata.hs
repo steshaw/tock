@@ -1,5 +1,4 @@
--- Metadata types
-
+-- | Metadata.
 module Metadata where
 
 import Data.Generics

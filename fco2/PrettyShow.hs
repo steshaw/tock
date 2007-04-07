@@ -1,8 +1,7 @@
--- A generic show implementation that pretty-prints expressions
+-- | A generic show implementation that pretty-prints expressions.
 -- This ought to use a class (like show does), so that it can be extended
 -- properly without me needing to have FCO-specific cases in here -- see the
 -- appropriate SYB paper.
-
 module PrettyShow (pshow) where
 
 import Data.Generics
@@ -44,6 +43,8 @@ doMeta m = text $ formatSourcePos m
 doAny :: Data a => a -> Doc
 doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta
 
+-- | Convert an arbitrary data structure to a string in a reasonably pretty way.
+-- This is currently rather slow.
 pshow :: Data a => a -> String
 pshow x = render $ doAny x
 

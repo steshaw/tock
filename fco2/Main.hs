@@ -1,5 +1,4 @@
--- Driver for FCO
-
+-- | Driver for the compiler.
 module Main where
 
 import List
@@ -62,6 +61,8 @@ main = do
 
   progress "{{{ Unnest"
   (state, ast) <- unnest state ast
+  progress $ pshow ast
+  progress $ pshow state
   progress "}}}"
 
   if ParseOnly `elem` opts then do

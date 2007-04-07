@@ -1,5 +1,4 @@
--- vim:foldmethod=marker
-
+-- | Generate C++ code from the mangled AST.
 module GenerateC where
 
 -- FIXME: Checks should be done in the parser, not here -- for example, the
@@ -49,13 +48,6 @@ missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 
 genComma :: CGen ()
 genComma = tell [", "]
-
-makeNonce :: CGen String
-makeNonce
-    =  do st <- get
-          let i = psNonceCounter st
-          put $ st { psNonceCounter = i + 1 }
-          return $ "nonce" ++ show i
 
 withPS :: (ParseState -> a) -> CGen a
 withPS f

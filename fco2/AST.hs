@@ -1,7 +1,5 @@
--- Data types for occam abstract syntax
--- This is intended to be imported qualified:
---   import qualified AST as A
-
+-- | Data types for occam abstract syntax.
+-- This is intended to be imported qualified as A.
 module AST where
 
 import Data.Generics

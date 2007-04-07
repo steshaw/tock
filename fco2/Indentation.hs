@@ -1,3 +1,4 @@
+-- | Parse indentation in occam source.
 module Indentation (parseIndentation, indentMarker, outdentMarker, eolMarker) where
 
 import Data.List

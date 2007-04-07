@@ -1,3 +1,4 @@
+-- | Error handling and reporting.
 module Errors where
 
 import Data.Generics

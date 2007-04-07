@@ -1,12 +1,10 @@
--- vim:foldmethod=marker
--- Parse occam code
+-- | Parse occam code into an AST.
+module Parse where
 
 -- FIXME: Need to:
 -- - insert type checks
 -- - remove as many trys as possible; every production should consume input
 --   when it's unambiguous
-
-module Parse where
 
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -333,10 +331,9 @@ scopeIn n@(A.Name m nt s) t am
             A.ndType = t,
             A.ndAbbrevMode = am
           }
-          setState $ st {
+          setState $ psDefineName n' nd $ st {
             psNameCounter = (psNameCounter st) + 1,
-            psLocalNames = (s, n') : (psLocalNames st),
-            psNames = (s', nd) : (psNames st)
+            psLocalNames = (s, n') : (psLocalNames st)
             }
           return n'
 

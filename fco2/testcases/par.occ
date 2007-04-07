@@ -1,0 +1,11 @@
+PROC Q (VAL INT v)
+  SKIP
+:
+PROC P ()
+  PAR
+    Q (1)
+    Q (2)
+    Q (3)
+    PAR i = 4 FOR 4
+      Q (i)
+:
