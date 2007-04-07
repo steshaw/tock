@@ -1,0 +1,5 @@
+PROC P ()
+  INT x:
+  BOOL y IS x:
+  SKIP
+:

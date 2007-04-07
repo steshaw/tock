@@ -113,7 +113,7 @@ PROC consume (VAL INT n.loops, CHAN OF INT in, CHAN OF BYTE out)
         tim ? t1
         --{{{  report
         VAL INT microsecs IS t1 MINUS t0:
-        VAL INT64 nanosecs IS 1000 * (INT64 microsecs):
+        VAL INT64 nanosecs IS 1000 (INT64) * (INT64 microsecs):
         SEQ
           out.string ("Last value received = ", 0, out)
           out.int (value, 0, out)

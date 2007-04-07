@@ -12,7 +12,8 @@ sources = \
 	Parse.hs \
 	ParseState.hs \
 	PrettyShow.hs \
-	Types.hs
+	Types.hs \
+	Unnest.hs
 
 $(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main

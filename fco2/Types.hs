@@ -22,6 +22,7 @@ typeOfName ps n
     = case specTypeOfName ps n of
         Just (A.Declaration m t) -> Just t
         Just (A.Is m am t v) -> typeOfVariable ps v
+        Just (A.IsExpr m am t e) -> typeOfExpression ps e
         Just (A.IsChannel m t c) -> typeOfChannel ps c
         Just (A.IsChannelArray m t (c:_)) -> typeOfChannel ps c `perhaps` A.ArrayUnsized
         Just (A.Retypes m am t v) -> Just t

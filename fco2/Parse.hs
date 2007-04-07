@@ -1,6 +1,11 @@
 -- vim:foldmethod=marker
 -- Parse occam code
 
+-- FIXME: Need to:
+-- - insert type checks
+-- - remove as many trys as possible; every production should consume input
+--   when it's unambiguous
+
 module Parse where
 
 import Data.List
@@ -274,6 +279,35 @@ sepBy1NE item sep
 
 tryTrail :: OccParser a -> OccParser b -> OccParser a
 tryTrail p q = try (do { v <- p; q; return v })
+
+listType :: [A.Type] -> OccParser A.Type
+listType [] = fail "expected non-empty list"
+listType [t] = return $ A.ArrayUnsized t
+listType (t1 : rest@(t2 : _))
+    = if t1 == t2 then listType rest
+                  else fail "multiple types in list"
+
+matchType :: A.Type -> A.Type -> OccParser ()
+matchType et rt
+    = if rt == et then return ()
+                  else fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
+
+checkMaybe :: String -> Maybe a -> OccParser a
+checkMaybe msg op
+    = case op of
+        Just t -> return t
+        Nothing -> fail msg
+
+pTypeOf :: (ParseState -> a -> Maybe A.Type) -> a -> OccParser A.Type
+pTypeOf f item
+    =  do st <- getState
+          case f st item of
+            Just t -> return t
+            Nothing -> fail "cannot compute type"
+
+pTypeOfVariable = pTypeOf typeOfVariable
+pTypeOfChannel = pTypeOf typeOfChannel
+pTypeOfExpression = pTypeOf typeOfExpression
 --}}}
 
 --{{{ name scoping
@@ -431,9 +465,9 @@ literal
     =   try (do { m <- md; v <- real; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
     <|> try (do { m <- md; v <- integer; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
     <|> try (do { m <- md; v <- byte; sLeftR; t <- dataType; sRightR; return $ A.Literal m t v })
-    <|> try (do { m <- md; r <- real; return $ A.Literal m A.Infer r })
-    <|> try (do { m <- md; r <- integer; return $ A.Literal m A.Infer r })
-    <|> try (do { m <- md; r <- byte; return $ A.Literal m A.Infer r })
+    <|> try (do { m <- md; r <- real; return $ A.Literal m A.Real32 r })
+    <|> try (do { m <- md; r <- integer; return $ A.Literal m A.Int r })
+    <|> try (do { m <- md; r <- byte; return $ A.Literal m A.Byte r })
     <?> "literal"
 
 real :: OccParser A.LiteralRepr
@@ -481,9 +515,14 @@ table
 table' :: OccParser A.Literal
 table'
     =   try (do { m <- md; s <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
-    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m A.Infer s })
-    <|> try (do { m <- md; sLeft; es <- sepBy1 expression sComma; sRight; return $ A.Literal m A.Infer (A.ArrayLiteral m es) })
-    <|> try (maybeSliced table A.SubscriptedLiteral)
+    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m (A.ArrayUnsized A.Byte) s })
+    <|> do m <- md
+           es <- tryTrail (do { sLeft; sepBy1 expression sComma }) sRight
+           ps <- getState
+           ets <- mapM (\e -> checkMaybe "can't type expression" $ typeOfExpression ps e) es
+           t <- listType ets
+           return $ A.Literal m t (A.ArrayLiteral m es)
+    <|> maybeSliced table A.SubscriptedLiteral
     <?> "table'"
 
 stringLiteral :: OccParser A.LiteralRepr
@@ -723,15 +762,16 @@ declaration
 
 abbreviation :: OccParser A.Specification
 abbreviation
-    =   try (do { m <- md; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Abbrev A.Infer v) })
-    <|> try (do { m <- md; s <- specifier; n <- newVariableName; sIS; v <- variable; sColon; eol; return (n, A.Is m A.Abbrev s v) })
-    <|> do { m <- md; sVAL ;
-              try (do { n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.IsExpr m A.ValAbbrev A.Infer e) })
-              <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; return (n, A.IsExpr m A.ValAbbrev s e) } }
-    <|> try (do { m <- md; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m A.Infer c) })
-    <|> try (do { m <- md; s <- specifier; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; return (n, A.IsChannel m s c) })
-    <|> try (do { m <- md; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; return (n, A.IsChannelArray m A.Infer cs) })
-    <|> try (do { m <- md; s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; return (n, A.IsChannelArray m s cs) })
+    =   do m <- md
+           (do { (n, v) <- try (do { n <- newVariableName; sIS; v <- variable; return (n, v) }); sColon; eol; t <- pTypeOfVariable v; return (n, A.Is m A.Abbrev t v) }
+            <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- pTypeOfVariable v; matchType s t; return (n, A.Is m A.Abbrev s v) }
+            <|> do { sVAL ;
+                      do { (n, e) <- try (do { n <- newVariableName; sIS; e <- expression; return (n, e) }); sColon; eol; t <- pTypeOfExpression e; return (n, A.IsExpr m A.ValAbbrev t e) }
+                      <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return (n, A.IsExpr m A.ValAbbrev s e) } }
+            <|> try (do { n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; t <- pTypeOfChannel c; return (n, A.IsChannel m t c) })
+            <|> try (do { s <- specifier; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; t <- pTypeOfChannel c; matchType s t; return (n, A.IsChannel m s c) })
+            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfChannel cs; t <- listType ts; return (n, A.IsChannelArray m t cs) })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfChannel cs; t <- listType ts; matchType s t; return (n, A.IsChannelArray m s cs) }))
     <?> "abbreviation"
 
 definition :: OccParser A.Specification

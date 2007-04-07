@@ -5,17 +5,13 @@ module GenerateC where
 -- FIXME: Checks should be done in the parser, not here -- for example, the
 -- expressionList production should take an argument with a list of types.
 
--- FIXME: There should be an earlier pass across the AST that resolves Infer
--- types.
-
--- ... and the sum of the above two is that we should really have a
--- typechecking pass after the Parser.
-
 -- FIXME: There should be a pass that pulls PAR branches (that aren't already
 -- PROC calls) out into PROCs.
 
 -- FIXME: Arrays. Should be a struct that contains the data and size, and we
 -- then use a pointer to the struct to pass around.
+
+-- FIXME: The show instance for types should produce occam-looking types.
 
 import Data.List
 import Data.Maybe
@@ -23,7 +19,7 @@ import Control.Monad.Writer
 import Control.Monad.Error
 import Control.Monad.State
 
-import AST
+import qualified AST as A
 import Metadata
 import ParseState
 import Errors
@@ -34,14 +30,14 @@ type CGen a = WriterT [String] (ErrorT String (StateT ParseState IO)) a
 --}}}
 
 --{{{  top-level
-generateC :: ParseState -> Process -> IO String
+generateC :: ParseState -> A.Process -> IO String
 generateC st ast
     =  do v <- evalStateT (runErrorT (runWriterT (genTopLevel ast))) st
           case v of
             Left e -> die e
             Right (_, ss) -> return $ concat ss
 
-genTopLevel :: Process -> CGen ()
+genTopLevel :: A.Process -> CGen ()
 genTopLevel p
     =  do tell ["#include <fco_support.h>\n"]
           genProcess p
@@ -68,44 +64,44 @@ withPS f
 --}}}
 
 --{{{  names
-genName :: Name -> CGen ()
-genName n = tell [[if c == '.' then '_' else c | c <- nameName n]]
+genName :: A.Name -> CGen ()
+genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 --}}}
 
 --{{{  types
-genType :: Type -> CGen ()
-genType Bool = tell ["bool"]
+genType :: A.Type -> CGen ()
+genType A.Bool = tell ["bool"]
 -- FIXME: This probably isn't right; we might have to explicitly cast string literals...
-genType Byte = tell ["char"]
-genType Int = tell ["int"]
-genType Int16 = tell ["int16_t"]
-genType Int32 = tell ["int32_t"]
-genType Int64 = tell ["int64_t"]
-genType Real32 = tell ["float"]
-genType Real64 = tell ["double"]
-genType (Array e t)
+genType A.Byte = tell ["char"]
+genType A.Int = tell ["int"]
+genType A.Int16 = tell ["int16_t"]
+genType A.Int32 = tell ["int32_t"]
+genType A.Int64 = tell ["int64_t"]
+genType A.Real32 = tell ["float"]
+genType A.Real64 = tell ["double"]
+genType (A.Array e t)
     =  do genType t
           tell ["["]
           genExpression e
           tell ["]"]
-genType (ArrayUnsized t)
+genType (A.ArrayUnsized t)
     =  do genType t
           tell ["[]"]
-genType (UserDataType n) = genName n
-genType (Chan t)
+genType (A.UserDataType n) = genName n
+genType (A.Chan t)
     =  do tell ["Channel*"]
 genType t = missing $ "genType " ++ show t
 --}}}
 
 --{{{  abbreviations
-genConst :: AbbrevMode -> CGen ()
-genConst Abbrev = return ()
-genConst ValAbbrev = tell ["const "]
+genConst :: A.AbbrevMode -> CGen ()
+genConst A.Abbrev = return ()
+genConst A.ValAbbrev = tell ["const "]
 --}}}
 
 --{{{  conversions
-genConversion :: ConversionMode -> Type -> Expression -> CGen ()
-genConversion DefaultConversion t e
+genConversion :: A.ConversionMode -> A.Type -> A.Expression -> CGen ()
+genConversion A.DefaultConversion t e
     =  do tell ["(("]
           genType t
           tell [") "]
@@ -115,13 +111,13 @@ genConversion cm t e = missing $ "genConversion " ++ show cm
 --}}}
 
 --{{{  subscripts
-genSubscript :: Subscript -> CGen () -> CGen ()
-genSubscript (Subscript m e) p
+genSubscript :: A.Subscript -> CGen () -> CGen ()
+genSubscript (A.Subscript m e) p
     =  do p
           tell ["["]
           genExpression e
           tell ["]"]
-genSubscript (SubscriptTag m n) p
+genSubscript (A.SubscriptTag m n) p
     =  do p
           tell ["."]
           genName n
@@ -129,17 +125,17 @@ genSubscript s p = missing $ "genSubscript " ++ show s
 --}}}
 
 --{{{  literals
-genLiteral :: Literal -> CGen ()
-genLiteral (Literal m t lr) = genLiteralRepr lr
+genLiteral :: A.Literal -> CGen ()
+genLiteral (A.Literal m t lr) = genLiteralRepr lr
 genLiteral l = missing $ "genLiteral " ++ show l
 
-genLiteralRepr :: LiteralRepr -> CGen ()
-genLiteralRepr (RealLiteral m s) = tell [s]
-genLiteralRepr (IntLiteral m s) = tell [s]
-genLiteralRepr (HexLiteral m s) = case s of ('#':rest) -> tell ["0x", rest]
-genLiteralRepr (ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
-genLiteralRepr (StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
-genLiteralRepr (ArrayLiteral m es)
+genLiteralRepr :: A.LiteralRepr -> CGen ()
+genLiteralRepr (A.RealLiteral m s) = tell [s]
+genLiteralRepr (A.IntLiteral m s) = tell [s]
+genLiteralRepr (A.HexLiteral m s) = case s of ('#':rest) -> tell ["0x", rest]
+genLiteralRepr (A.ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
+genLiteralRepr (A.StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
+genLiteralRepr (A.ArrayLiteral m es)
     =  do tell ["{"]
           sequence_ $ intersperse genComma (map genExpression es)
           tell ["}"]
@@ -159,56 +155,56 @@ convStringStar c = [c]
 --}}}
 
 --{{{  channels, variables
-genChannel :: Channel -> CGen ()
-genChannel (Channel m n) = genName n
-genChannel (SubscriptedChannel m s c) = genSubscript s (genChannel c)
+genChannel :: A.Channel -> CGen ()
+genChannel (A.Channel m n) = genName n
+genChannel (A.SubscriptedChannel m s c) = genSubscript s (genChannel c)
 
-genVariable :: Variable -> CGen ()
-genVariable (Variable m n) = genName n
-genVariable (SubscriptedVariable m s v) = genSubscript s (genVariable v)
+genVariable :: A.Variable -> CGen ()
+genVariable (A.Variable m n) = genName n
+genVariable (A.SubscriptedVariable m s v) = genSubscript s (genVariable v)
 --}}}
 
 --{{{  expressions
-genExpression :: Expression -> CGen ()
-genExpression (Monadic m op e) = genMonadic op e
-genExpression (Dyadic m op e f) = genDyadic op e f
-genExpression (MostPos m t) = genTypeConstant "mostpos" t
-genExpression (MostNeg m t) = genTypeConstant "mostneg" t
---genExpression (Size m t)
-genExpression (Conversion m cm t e) = genConversion cm t e
-genExpression (ExprVariable m v) = genVariable v
-genExpression (ExprLiteral m l) = genLiteral l
-genExpression (AST.True m) = tell ["true"]
-genExpression (AST.False m) = tell ["false"]
---genExpression (FunctionCall m n es)
---genExpression (SubscriptedExpr m s e)
---genExpression (BytesInExpr m e)
-genExpression (BytesInType m t)
+genExpression :: A.Expression -> CGen ()
+genExpression (A.Monadic m op e) = genMonadic op e
+genExpression (A.Dyadic m op e f) = genDyadic op e f
+genExpression (A.MostPos m t) = genTypeConstant "mostpos" t
+genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
+--genExpression (A.Size m t)
+genExpression (A.Conversion m cm t e) = genConversion cm t e
+genExpression (A.ExprVariable m v) = genVariable v
+genExpression (A.ExprLiteral m l) = genLiteral l
+genExpression (A.True m) = tell ["true"]
+genExpression (A.False m) = tell ["false"]
+--genExpression (A.FunctionCall m n es)
+--genExpression (A.SubscriptedExpr m s e)
+--genExpression (A.BytesInExpr m e)
+genExpression (A.BytesInType m t)
     =  do tell ["sizeof ("]
           genType t
           tell [")"]
---genExpression (OffsetOf m t n)
+--genExpression (A.OffsetOf m t n)
 genExpression t = missing $ "genExpression " ++ show t
 
-genTypeConstant :: String -> Type -> CGen ()
+genTypeConstant :: String -> A.Type -> CGen ()
 genTypeConstant s t = missing $ "genTypeConstant " ++ show t
 --}}}
 
 --{{{  operators
-genSimpleMonadic :: String -> Expression -> CGen ()
+genSimpleMonadic :: String -> A.Expression -> CGen ()
 genSimpleMonadic s e
     =  do tell ["(", s]
           genExpression e
           tell [")"]
 
-genMonadic :: MonadicOp -> Expression -> CGen ()
-genMonadic MonadicSubtr e = genSimpleMonadic "-" e
-genMonadic MonadicBitNot e = genSimpleMonadic "~" e
-genMonadic MonadicNot e = genSimpleMonadic "!" e
---genMonadic MonadicSize e
+genMonadic :: A.MonadicOp -> A.Expression -> CGen ()
+genMonadic A.MonadicSubtr e = genSimpleMonadic "-" e
+genMonadic A.MonadicBitNot e = genSimpleMonadic "~" e
+genMonadic A.MonadicNot e = genSimpleMonadic "!" e
+--genMonadic A.MonadicSize e
 genMonadic op e = missing $ "genMonadic " ++ show op
 
-genSimpleDyadic :: String -> Expression -> Expression -> CGen ()
+genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
 genSimpleDyadic s e f
     =  do tell ["("]
           genExpression e
@@ -216,7 +212,7 @@ genSimpleDyadic s e f
           genExpression f
           tell [")"]
 
-genFuncDyadic :: String -> Expression -> Expression -> CGen ()
+genFuncDyadic :: String -> A.Expression -> A.Expression -> CGen ()
 genFuncDyadic s e f
     =  do tell [s, " ("]
           genExpression e
@@ -224,40 +220,40 @@ genFuncDyadic s e f
           genExpression f
           tell [")"]
 
-genDyadic :: DyadicOp -> Expression -> Expression -> CGen ()
-genDyadic Add e f = genFuncDyadic "occam_add" e f
-genDyadic Subtr e f = genFuncDyadic "occam_subtr" e f
-genDyadic Mul e f = genFuncDyadic "occam_mul" e f
-genDyadic Div e f = genFuncDyadic "occam_div" e f
-genDyadic Rem e f = genFuncDyadic "occam_rem" e f
-genDyadic Plus e f = genSimpleDyadic "+" e f
-genDyadic Minus e f = genSimpleDyadic "-" e f
-genDyadic Times e f = genSimpleDyadic "*" e f
-genDyadic BitAnd e f = genSimpleDyadic "&" e f
-genDyadic BitOr e f = genSimpleDyadic "|" e f
-genDyadic BitXor e f = genSimpleDyadic "^" e f
-genDyadic And e f = genSimpleDyadic "&&" e f
-genDyadic Or e f = genSimpleDyadic "||" e f
-genDyadic Eq e f = genSimpleDyadic "==" e f
-genDyadic NotEq e f = genSimpleDyadic "!=" e f
-genDyadic Less e f = genSimpleDyadic "<" e f
-genDyadic More e f = genSimpleDyadic ">" e f
-genDyadic LessEq e f = genSimpleDyadic "<=" e f
-genDyadic MoreEq e f = genSimpleDyadic ">=" e f
-genDyadic After e f = genFuncDyadic "occam_after" e f
+genDyadic :: A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
+genDyadic A.Add e f = genFuncDyadic "occam_add" e f
+genDyadic A.Subtr e f = genFuncDyadic "occam_subtr" e f
+genDyadic A.Mul e f = genFuncDyadic "occam_mul" e f
+genDyadic A.Div e f = genFuncDyadic "occam_div" e f
+genDyadic A.Rem e f = genFuncDyadic "occam_rem" e f
+genDyadic A.Plus e f = genSimpleDyadic "+" e f
+genDyadic A.Minus e f = genSimpleDyadic "-" e f
+genDyadic A.Times e f = genSimpleDyadic "*" e f
+genDyadic A.BitAnd e f = genSimpleDyadic "&" e f
+genDyadic A.BitOr e f = genSimpleDyadic "|" e f
+genDyadic A.BitXor e f = genSimpleDyadic "^" e f
+genDyadic A.And e f = genSimpleDyadic "&&" e f
+genDyadic A.Or e f = genSimpleDyadic "||" e f
+genDyadic A.Eq e f = genSimpleDyadic "==" e f
+genDyadic A.NotEq e f = genSimpleDyadic "!=" e f
+genDyadic A.Less e f = genSimpleDyadic "<" e f
+genDyadic A.More e f = genSimpleDyadic ">" e f
+genDyadic A.LessEq e f = genSimpleDyadic "<=" e f
+genDyadic A.MoreEq e f = genSimpleDyadic ">=" e f
+genDyadic A.After e f = genFuncDyadic "occam_after" e f
 --}}}
 
 --{{{  input/output items
-genInputItem :: Channel -> InputItem -> CGen ()
-genInputItem c (InCounted m cv av)
-    =  do genInputItem c (InVariable m cv)
+genInputItem :: A.Channel -> A.InputItem -> CGen ()
+genInputItem c (A.InCounted m cv av)
+    =  do genInputItem c (A.InVariable m cv)
           -- need to then input as much as appropriate
           missing "genInputItem counted"
-genInputItem c (InVariable m v)
+genInputItem c (A.InVariable m v)
     =  do ps <- get
           let t = fromJust $ typeOfVariable ps v
           case t of
-            Int ->
+            A.Int ->
               do tell ["ChanInInt ("]
                  genChannel c
                  tell [", &"]
@@ -272,16 +268,16 @@ genInputItem c (InVariable m v)
                  genType t
                  tell ["));\n"]
 
-genOutputItem :: Channel -> OutputItem -> CGen ()
-genOutputItem c (OutCounted m ce ae)
-    =  do genOutputItem c (OutExpression m ce)
+genOutputItem :: A.Channel -> A.OutputItem -> CGen ()
+genOutputItem c (A.OutCounted m ce ae)
+    =  do genOutputItem c (A.OutExpression m ce)
           missing "genOutputItem counted"
-genOutputItem c (OutExpression m e)
+genOutputItem c (A.OutExpression m e)
     =  do n <- makeNonce
           ps <- get
           let t = fromJust $ typeOfExpression ps e
           case t of
-            Int ->
+            A.Int ->
               do tell ["ChanOutInt ("]
                  genChannel c
                  tell [", "]
@@ -302,7 +298,7 @@ genOutputItem c (OutExpression m e)
 --}}}
 
 --{{{  replicators
-genReplicator :: Replicator -> CGen () -> CGen ()
+genReplicator :: A.Replicator -> CGen () -> CGen ()
 genReplicator rep body
     =  do tell ["for ("]
           genReplicatorLoop rep
@@ -312,8 +308,8 @@ genReplicator rep body
 
 -- FIXME This should be special-cased for when base == 0 to generate the sort
 -- of loop a C programmer would normally write.
-genReplicatorLoop :: Replicator -> CGen ()
-genReplicatorLoop (For m n base count)
+genReplicatorLoop :: A.Replicator -> CGen ()
+genReplicatorLoop (A.For m n base count)
     =  do counter <- makeNonce
           tell ["int ", counter, " = "]
           genExpression count
@@ -333,27 +329,29 @@ genReplicatorLoop (For m n base count)
 --}}}
 
 --{{{  specifications
-genSpec :: Specification -> CGen () -> CGen ()
+genSpec :: A.Specification -> CGen () -> CGen ()
 genSpec spec body
     =  do introduceSpec spec
           body
           removeSpec spec
 
-introduceSpec :: Specification -> CGen ()
-introduceSpec (n, Declaration m Timer) = return ()
-introduceSpec (n, Declaration m t)
+introduceSpec :: A.Specification -> CGen ()
+introduceSpec (n, A.Declaration m A.Timer) = return ()
+introduceSpec (n, A.Declaration m t)
     =  do case t of
-            Chan _ -> do cn <- makeNonce
-                         tell ["Channel ", cn, ";\n"]
-                         tell ["ChanInit (&", cn, ");\n"]
-                         tell ["Channel *"]
-                         genName n
-                         tell [" = &", cn, ";\n"]
-            _ -> do genType t
-                    tell [" "]
-                    genName n
-                    tell [";\n"]
-introduceSpec (n, Is m am t v)
+            A.Chan _ ->
+              do cn <- makeNonce
+                 tell ["Channel ", cn, ";\n"]
+                 tell ["ChanInit (&", cn, ");\n"]
+                 tell ["Channel *"]
+                 genName n
+                 tell [" = &", cn, ";\n"]
+            _ ->
+              do genType t
+                 tell [" "]
+                 genName n
+                 tell [";\n"]
+introduceSpec (n, A.Is m am t v)
     =  do genConst am
           genType t
           tell ["& "]
@@ -361,7 +359,7 @@ introduceSpec (n, Is m am t v)
           tell [" = "]
           genVariable v
           tell [";\n"]
-introduceSpec (n, IsExpr m am t e)
+introduceSpec (n, A.IsExpr m am t e)
     =  do genConst am
           genType t
           tell [" "]
@@ -369,21 +367,21 @@ introduceSpec (n, IsExpr m am t e)
           tell [" = "]
           genExpression e
           tell [";\n"]
-introduceSpec (n, IsChannel m t c)
+introduceSpec (n, A.IsChannel m t c)
     =  do genType t
           tell [" "]
           genName n
           tell [" = "]
           genChannel c
           tell [";\n"]
-introduceSpec (n, IsChannelArray m t cs)
+introduceSpec (n, A.IsChannelArray m t cs)
     =  do genType t
           tell [" "]
           genName n
           tell [" = {"]
           sequence_ $ intersperse genComma (map genChannel cs)
           tell ["};\n"]
-introduceSpec (n, Proc m fs p)
+introduceSpec (n, A.Proc m fs p)
     =  do tell ["void "]
           genName n
           tell [" ("]
@@ -394,30 +392,30 @@ introduceSpec (n, Proc m fs p)
 -- CASE protocol should generate an enum for the tags
 introduceSpec (n, t) = missing $ "introduceSpec " ++ show t
 
-removeSpec :: Specification -> CGen ()
+removeSpec :: A.Specification -> CGen ()
 removeSpec _ = return ()
 --}}}
 
 --{{{  actuals/formals
-genActuals :: [Actual] -> CGen ()
+genActuals :: [A.Actual] -> CGen ()
 genActuals as = sequence_ $ intersperse genComma (map genActual as)
 
-genActual :: Actual -> CGen ()
-genActual (ActualExpression e) = genExpression e
-genActual (ActualChannel c) = genChannel c
+genActual :: A.Actual -> CGen ()
+genActual (A.ActualExpression e) = genExpression e
+genActual (A.ActualChannel c) = genChannel c
 
-genFormals :: [Formal] -> CGen ()
+genFormals :: [A.Formal] -> CGen ()
 genFormals fs = sequence_ $ intersperse genComma (map genFormal fs)
 
 -- Arrays must be handled specially
-genFormal :: Formal -> CGen ()
-genFormal (Formal am t n)
+genFormal :: A.Formal -> CGen ()
+genFormal (A.Formal am t n)
     =  do case am of
-            ValAbbrev ->
+            A.ValAbbrev ->
               do genConst am
                  genType t
                  tell [" "]
-            Abbrev ->
+            A.Abbrev ->
               do genType t
                  tell ["& "]
           genName n
@@ -427,33 +425,33 @@ genFormal (Formal am t n)
 --}}}
 
 --{{{  processes
-genProcess :: Process -> CGen ()
+genProcess :: A.Process -> CGen ()
 genProcess p = case p of
-  ProcSpec m s p -> genSpec s (genProcess p)
-  Assign m vs es -> genAssign vs es
-  Input m c im -> genInput c im
-  Output m c ois -> genOutput c ois
-  --OutputCase m c t ois
-  Skip m -> tell ["/* skip */\n"]
-  Stop m -> genStop
-  Main m -> tell ["/* main */\n"]
-  Seq m ps -> sequence_ $ map genProcess ps
-  SeqRep m r p -> genReplicator r (genProcess p)
-  If m s -> genIf s
-  --Case m e s
-  While m e p -> genWhile e p
-  --Par m pm ps
-  --ParRep m pm r p
-  --Processor m e p
-  --Alt m b s
-  ProcCall m n as -> genProcCall n as
+  A.ProcSpec m s p -> genSpec s (genProcess p)
+  A.Assign m vs es -> genAssign vs es
+  A.Input m c im -> genInput c im
+  A.Output m c ois -> genOutput c ois
+  --A.OutputCase m c t ois
+  A.Skip m -> tell ["/* skip */\n"]
+  A.Stop m -> genStop
+  A.Main m -> tell ["/* main */\n"]
+  A.Seq m ps -> sequence_ $ map genProcess ps
+  A.SeqRep m r p -> genReplicator r (genProcess p)
+  A.If m s -> genIf s
+  --A.Case m e s
+  A.While m e p -> genWhile e p
+  --A.Par m pm ps
+  --A.ParRep m pm r p
+  --A.Processor m e p
+  --A.Alt m b s
+  A.ProcCall m n as -> genProcCall n as
   _ -> missing $ "genProcess " ++ show p
 
-genAssign :: [Variable] -> ExpressionList -> CGen ()
+genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
 genAssign vs el
     = case el of
-        FunctionCallList m n es -> missing "function call"
-        ExpressionList m es -> case vs of
+        A.FunctionCallList m n es -> missing "function call"
+        A.ExpressionList m es -> case vs of
           [v] ->
             do genVariable v
                tell [" = "]
@@ -474,19 +472,19 @@ genAssign vs el
                     (zip vs ns)
                tell ["}\n"]
 
-genInput :: Channel -> InputMode -> CGen ()
+genInput :: A.Channel -> A.InputMode -> CGen ()
 genInput c im
     =  do ps <- get
           let t = fromJust $ typeOfChannel ps c
           case t of
-            Timer -> case im of 
-                       InputSimple m [InVariable m' v] -> genTimerRead v
-                       InputAfter m e -> genTimerWait e
+            A.Timer -> case im of 
+              A.InputSimple m [A.InVariable m' v] -> genTimerRead v
+              A.InputAfter m e -> genTimerWait e
             _ -> case im of
-                   InputSimple m is -> sequence_ $ map (genInputItem c) is
-                   _ -> missing $ "genInput " ++ show im
+              A.InputSimple m is -> sequence_ $ map (genInputItem c) is
+              _ -> missing $ "genInput " ++ show im
 
-genTimerRead :: Variable -> CGen ()
+genTimerRead :: A.Variable -> CGen ()
 genTimerRead v
     =  do n <- makeNonce
           tell ["{\n"]
@@ -496,13 +494,13 @@ genTimerRead v
           tell [" = ", n, ";\n"]
           tell ["}\n"]
 
-genTimerWait :: Expression -> CGen ()
+genTimerWait :: A.Expression -> CGen ()
 genTimerWait e
     =  do tell ["ProcTimeAfter ("]
           genExpression e
           tell [");\n"]
 
-genOutput :: Channel -> [OutputItem] -> CGen ()
+genOutput :: A.Channel -> [A.OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
 genStop :: CGen ()
@@ -510,7 +508,7 @@ genStop = tell ["SetErr ();\n"]
 
 -- FIXME: This could be special-cased to generate if ... else if ... for bits
 -- that aren't replicated and don't have specs.
-genIf :: Structured -> CGen ()
+genIf :: A.Structured -> CGen ()
 genIf s
     =  do label <- makeNonce
           genIfBody label s
@@ -518,19 +516,19 @@ genIf s
           tell [label, ":\n;\n"]
 
 -- FIXME: This should be generic for any Structured type.
-genIfBody :: String -> Structured -> CGen ()
-genIfBody label (Rep m rep s) = genReplicator rep (genIfBody label s)
-genIfBody label (Spec m spec s) = genSpec spec (genIfBody label s)
-genIfBody label (OnlyC m (Choice m' e p))
+genIfBody :: String -> A.Structured -> CGen ()
+genIfBody label (A.Rep m rep s) = genReplicator rep (genIfBody label s)
+genIfBody label (A.Spec m spec s) = genSpec spec (genIfBody label s)
+genIfBody label (A.OnlyC m (A.Choice m' e p))
     =  do tell ["if ("]
           genExpression e
           tell [") {\n"]
           genProcess p
           tell ["goto ", label, ";\n"]
           tell ["}\n"]
-genIfBody label (Several m ss) = sequence_ $ map (genIfBody label) ss
+genIfBody label (A.Several m ss) = sequence_ $ map (genIfBody label) ss
 
-genWhile :: Expression -> Process -> CGen ()
+genWhile :: A.Expression -> A.Process -> CGen ()
 genWhile e p
     =  do tell ["while ("]
           genExpression e
@@ -538,7 +536,7 @@ genWhile e p
           genProcess p
           tell ["}\n"]
 
-genProcCall :: Name -> [Actual] -> CGen ()
+genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as
     =  do genName n
           tell [" ("]

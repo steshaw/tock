@@ -1,0 +1,4 @@
+PROC P ()
+  VAL []INT foo IS [2, 4, 6, "herring", 1]:
+  SKIP
+:

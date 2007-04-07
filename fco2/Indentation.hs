@@ -2,9 +2,10 @@ module Indentation (parseIndentation, indentMarker, outdentMarker, eolMarker) wh
 
 import Data.List
 
--- XXX this doesn't handle multi-line strings
--- XXX or VALOF processes
--- XXX or tabs
+-- FIXME this doesn't handle multi-line strings
+-- FIXME or VALOF processes
+-- FIXME or tabs
+-- FIXME or continuation lines...
 
 indentMarker = "__indent"
 outdentMarker = "__outdent"

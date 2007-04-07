@@ -1,0 +1,4 @@
+PROC P ()
+  VAL []INT numbers IS [2, 4, 6, 0, 1]:
+  SKIP
+:

@@ -9,6 +9,7 @@ import System.IO
 
 import PrettyShow
 import Parse
+import Unnest
 import GenerateC
 
 data Flag = ParseOnly | Verbose
@@ -57,6 +58,10 @@ main = do
 
   progress "{{{ State after parsing"
   progress $ pshow state
+  progress "}}}"
+
+  progress "{{{ Unnest"
+  (state, ast) <- unnest state ast
   progress "}}}"
 
   if ParseOnly `elem` opts then do

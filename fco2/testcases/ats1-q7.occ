@@ -6,8 +6,8 @@
 --{{{  stuff from the standard library
 --#INCLUDE "consts.inc"
 --#USE "course.lib"
-VAL BYTE ESCAPE IS 27:
-VAL BYTE FLUSH IS 255:
+VAL BYTE ESCAPE IS 27 (BYTE):
+VAL BYTE FLUSH IS 255 (BYTE):
 PROC out.int (VAL INT n, w, CHAN OF BYTE out)
   STOP
 :
