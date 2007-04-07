@@ -8,6 +8,18 @@ module GenerateC where
 -- FIXME: There should be an earlier pass across the AST that resolves Infer
 -- types.
 
+-- ... and the sum of the above two is that we should really have a
+-- typechecking pass after the Parser.
+
+-- FIXME: There should be a pass that pulls PAR branches (that aren't already
+-- PROC calls) out into PROCs.
+
+-- FIXME: Val shouldn't be part of the type -- it's part of the *abbeviation*.
+-- That is, we should have an AbbreviationMode (which can also do RESULT etc. later).
+
+-- FIXME: Arrays. Should be a struct that contains the data and size, and we
+-- then use a pointer to the struct to pass around.
+
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -40,7 +52,7 @@ genTopLevel p
 
 --{{{  utilities
 missing :: String -> CGen ()
-missing s = tell ["\nUnimplemented: ", s, "\n"]
+missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 
 genComma :: CGen ()
 genComma = tell [", "]
@@ -50,7 +62,7 @@ makeNonce
     =  do st <- get
           let i = psNonceCounter st
           put $ st { psNonceCounter = i + 1 }
-          return $ "nonce_" ++ show i
+          return $ "nonce" ++ show i
 
 withPS :: (ParseState -> a) -> CGen a
 withPS f
@@ -290,6 +302,28 @@ genOutputItem c (OutExpression m e)
 --}}}
 
 --{{{  replicators
+genReplicator :: Replicator -> CGen () -> CGen ()
+genReplicator rep body
+    =  do tell ["for ("]
+          genReplicatorLoop rep
+          tell [") {\n"]
+          body
+          tell ["}\n"]
+
+-- FIXME This should be special-cased for when base == 0 to generate the sort
+-- of loop a C programmer would normally write.
+genReplicatorLoop :: Replicator -> CGen ()
+genReplicatorLoop (For m n base count)
+    =  do counter <- makeNonce
+          tell ["int ", counter, " = "]
+          genExpression count
+          tell [", "]
+          genName n
+          tell [" = "]
+          genExpression base
+          tell ["; ", counter, " > 0; ", counter, "--, "]
+          genName n
+          tell ["++"]
 --}}}
 
 --{{{  choice/alternatives/options/variants
@@ -299,8 +333,8 @@ genOutputItem c (OutExpression m e)
 --}}}
 
 --{{{  specifications
-genSpec :: Meta -> Specification -> CGen () -> CGen ()
-genSpec m spec body
+genSpec :: Specification -> CGen () -> CGen ()
+genSpec spec body
     =  do introduceSpec spec
           body
           removeSpec spec
@@ -396,17 +430,17 @@ genFormal (ft, n)
 --{{{  processes
 genProcess :: Process -> CGen ()
 genProcess p = case p of
-  ProcSpec m s p -> genSpec m s (genProcess p)
+  ProcSpec m s p -> genSpec s (genProcess p)
   Assign m vs es -> genAssign vs es
   Input m c im -> genInput c im
   Output m c ois -> genOutput c ois
   --OutputCase m c t ois
   Skip m -> tell ["/* skip */\n"]
-  Stop m -> tell ["SetErr ();\n"]
+  Stop m -> genStop
   Main m -> tell ["/* main */\n"]
   Seq m ps -> sequence_ $ map genProcess ps
-  --SeqRep m r p
-  --If m s
+  SeqRep m r p -> genReplicator r (genProcess p)
+  If m s -> genIf s
   --Case m e s
   While m e p -> genWhile e p
   --Par m pm ps
@@ -471,6 +505,31 @@ genTimerWait e
 
 genOutput :: Channel -> [OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
+
+genStop :: CGen ()
+genStop = tell ["SetErr ();\n"]
+
+-- FIXME: This could be special-cased to generate if ... else if ... for bits
+-- that aren't replicated and don't have specs.
+genIf :: Structured -> CGen ()
+genIf s
+    =  do label <- makeNonce
+          genIfBody label s
+          genStop
+          tell [label, ":\n;\n"]
+
+-- FIXME: This should be generic for any Structured type.
+genIfBody :: String -> Structured -> CGen ()
+genIfBody label (Rep m rep s) = genReplicator rep (genIfBody label s)
+genIfBody label (Spec m spec s) = genSpec spec (genIfBody label s)
+genIfBody label (OnlyC m (Choice m' e p))
+    =  do tell ["if ("]
+          genExpression e
+          tell [") {\n"]
+          genProcess p
+          tell ["goto ", label, ";\n"]
+          tell ["}\n"]
+genIfBody label (Several m ss) = sequence_ $ map (genIfBody label) ss
 
 genWhile :: Expression -> Process -> CGen ()
 genWhile e p

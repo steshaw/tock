@@ -33,6 +33,7 @@ typeOfName ps n
 
 -- FIXME: This should fail if the subscript is invalid...
 subscriptType :: A.Type -> Maybe A.Type
+subscriptType (A.Val t) = subscriptType t `perhaps` A.Val
 subscriptType (A.Array e t) = Just t
 subscriptType (A.ArrayUnsized t) = Just t
 subscriptType _ = Nothing
