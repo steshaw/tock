@@ -22,6 +22,7 @@ data NameDef = NameDef {
     ndMeta :: Meta,
     ndName :: String,
     ndOrigName :: String,
+    ndNameType :: NameType,
     ndType :: SpecType,
     ndAbbrevMode :: AbbrevMode
   }

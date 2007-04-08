@@ -328,6 +328,7 @@ scopeIn n@(A.Name m nt s) t am
             A.ndMeta = m,
             A.ndName = s',
             A.ndOrigName = s,
+            A.ndNameType = A.nameType n',
             A.ndType = t,
             A.ndAbbrevMode = am
           }

@@ -14,6 +14,18 @@ perhapsM m f
 perhaps :: Maybe a -> (a -> b) -> Maybe b
 perhaps m f = m `perhapsM` (Just . f)
 
+-- FIXME: Eww, this shouldn't be necessary -- the lookups should really work on
+-- Strings.
+makeDummyName :: String -> A.Name
+makeDummyName s = A.Name {
+                    A.nameMeta = [],
+                    A.nameType = A.ChannelName,
+                    A.nameName = s
+                  }
+
+sameName :: A.Name -> A.Name -> Bool
+sameName a b = A.nameName a == A.nameName b
+
 specTypeOfName :: ParseState -> A.Name -> Maybe A.SpecType
 specTypeOfName ps n
     = (psLookupName ps n) `perhaps` A.ndType

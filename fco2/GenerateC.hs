@@ -432,7 +432,7 @@ genProcess p = case p of
   A.If m s -> genIf s
   --A.Case m e s
   A.While m e p -> genWhile e p
-  --A.Par m pm ps
+  A.Par m pm ps -> genPar pm ps
   --A.ParRep m pm r p
   --A.Processor m e p
   --A.Alt m b s
@@ -527,6 +527,13 @@ genWhile e p
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
+
+-- FIXME Stubbed out for now so I can see what the branches look like...
+genPar :: A.ParMode -> [A.Process] -> CGen ()
+genPar pm ps
+    =  do tell ["#error PAR not implemented\n"]
+          sequence_ $ map genProcess ps
+          tell ["#error end PAR\n"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as

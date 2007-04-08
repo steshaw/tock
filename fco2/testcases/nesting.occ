@@ -1,0 +1,15 @@
+PROC outer (CHAN OF INT channel)
+  VAL INT constant IS 42:
+  INT count:
+  PROC inner1 ()
+    count := count + constant
+  :
+  PROC inner2 (VAL INT count)
+    SEQ i = 0 FOR constant
+      channel ! count + i
+  :
+  SEQ
+    count := 0
+    inner1 ()
+    inner2 (count)
+:
