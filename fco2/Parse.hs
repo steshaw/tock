@@ -266,7 +266,7 @@ handleSpecs specs inner specMarker
            mapM scopeOutSpec ss'
            return $ foldl (\e s -> specMarker m s e) v ss'
 
--- Like sepBy1, but not eager: it won't consume the separator unless it finds
+-- | Like sepBy1, but not eager: it won't consume the separator unless it finds
 -- another item after it.
 sepBy1NE :: OccParser a -> OccParser b -> OccParser [a]
 sepBy1NE item sep
@@ -274,6 +274,20 @@ sepBy1NE item sep
           rest <- option [] $ try (do sep
                                       sepBy1NE item sep)
           return $ i : rest
+
+-- | Run several different parsers with a separator between them.
+-- If you give it [a, b, c] and s, it'll parse [a, s, b, s, c] then
+-- give you back the results from [a, b, c].
+intersperseP :: [OccParser a] -> OccParser b -> OccParser [a]
+intersperseP [] _ = return []
+intersperseP [f] _
+    =  do a <- f
+          return [a]
+intersperseP (f:fs) sep
+    =  do a <- f
+          sep
+          as <- intersperseP fs sep
+          return $ a : as
 
 tryTrail :: OccParser a -> OccParser b -> OccParser a
 tryTrail p q = try (do { v <- p; q; return v })
@@ -296,7 +310,7 @@ checkMaybe msg op
         Just t -> return t
         Nothing -> fail msg
 
-pTypeOf :: (ParseState -> a -> Maybe A.Type) -> a -> OccParser A.Type
+pTypeOf :: (ParseState -> a -> Maybe b) -> a -> OccParser b
 pTypeOf f item
     =  do st <- getState
           case f st item of
@@ -306,6 +320,7 @@ pTypeOf f item
 pTypeOfVariable = pTypeOf typeOfVariable
 pTypeOfChannel = pTypeOf typeOfChannel
 pTypeOfExpression = pTypeOf typeOfExpression
+pSpecTypeOfName = pTypeOf specTypeOfName
 --}}}
 
 --{{{ name scoping
@@ -1170,14 +1185,28 @@ guard
 --{{{ PROC calls
 procInstance :: OccParser A.Process
 procInstance
-    =   do { m <- md; n <- tryTrail procName sLeftR; as <- sepBy actual sComma; sRightR; eol; return $ A.ProcCall m n as }
+    =  do m <- md
+          n <- tryTrail procName sLeftR
+          st <- pSpecTypeOfName n
+          let fs = case st of A.Proc _ fs _ -> fs
+          as <- actuals fs
+          sRightR
+          eol
+          return $ A.ProcCall m n as
     <?> "procInstance"
 
-actual :: OccParser A.Actual
-actual
-    =   try (do { e <- expression; return $ A.ActualExpression e })
-    <|> try (do { c <- channel; return $ A.ActualChannel c })
-    <?> "actual"
+actuals :: [A.Formal] -> OccParser [A.Actual]
+actuals fs = intersperseP (map actual fs) sComma
+
+actual :: A.Formal -> OccParser A.Actual
+actual (A.Formal am t n)
+    =  do case am of
+            A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression e } <?> "actual expression for " ++ an
+            _ -> case t of
+                   A.Chan _ -> do { c <- channel; ct <- pTypeOfChannel c; matchType t ct; return $ A.ActualChannel c } <?> "actual channel for " ++ an
+                   _ -> do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
+    where
+      an = A.nameName n
 --}}}
 --}}}
 --{{{ top-level forms

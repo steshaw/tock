@@ -1,18 +1,13 @@
 -- | Type inference and checking.
 module Types where
 
+import Control.Monad
+
 import qualified AST as A
 import ParseState
 
--- I'm pretty sure this is in the standard library, but I can't find it!
-perhapsM :: Maybe a -> (a -> Maybe b) -> Maybe b
-perhapsM m f
-    = case m of
-        Just v -> f v
-        _ -> Nothing
-
 perhaps :: Maybe a -> (a -> b) -> Maybe b
-perhaps m f = m `perhapsM` (Just . f)
+perhaps m f = m >>= (Just . f)
 
 -- FIXME: Eww, this shouldn't be necessary -- the lookups should really work on
 -- Strings.
@@ -29,6 +24,10 @@ sameName a b = A.nameName a == A.nameName b
 specTypeOfName :: ParseState -> A.Name -> Maybe A.SpecType
 specTypeOfName ps n
     = (psLookupName ps n) `perhaps` A.ndType
+
+abbrevModeOfName :: ParseState -> A.Name -> Maybe A.AbbrevMode
+abbrevModeOfName ps n
+    = (psLookupName ps n) `perhaps` A.ndAbbrevMode
 
 typeOfName :: ParseState -> A.Name -> Maybe A.Type
 typeOfName ps n
@@ -108,5 +107,5 @@ abbrevModeOfSpec s
         A.IsChannelArray _ _ _ -> A.Abbrev
         A.Retypes _ am _ _ -> am
         A.RetypesExpr _ am _ _ -> am
-        _ -> A.ValAbbrev
+        _ -> A.Original
 

@@ -171,7 +171,8 @@ data InputMode =
   deriving (Show, Eq, Typeable, Data)
 
 data AbbrevMode =
-  Abbrev
+  Original
+  | Abbrev
   | ValAbbrev
   deriving (Show, Eq, Typeable, Data)
 
@@ -198,8 +199,9 @@ data Formal =
   deriving (Show, Eq, Typeable, Data)
 
 data Actual =
-  ActualExpression Expression
+  ActualVariable Variable
   | ActualChannel Channel
+  | ActualExpression Expression
   deriving (Show, Eq, Typeable, Data)
 
 data ValueProcess =
