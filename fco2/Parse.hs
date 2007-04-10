@@ -322,7 +322,7 @@ findName thisN
 scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
 scopeIn n@(A.Name m nt s) t am
     =  do st <- getState
-          let s' = s ++ "_" ++ (show $ psNameCounter st)
+          let s' = s ++ "_u" ++ (show $ psNameCounter st)
           let n' = n { A.nameName = s' }
           let nd = A.NameDef {
             A.ndMeta = m,

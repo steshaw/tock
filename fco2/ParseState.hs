@@ -36,10 +36,10 @@ psLookupName :: ParseState -> A.Name -> Maybe A.NameDef
 psLookupName ps n = lookup (A.nameName n) (psNames ps)
 
 -- | Generate a throwaway unique name.
-makeNonce :: MonadState ParseState m => m String
-makeNonce
+makeNonce :: MonadState ParseState m => String -> m String
+makeNonce s
     =  do ps <- get
           let i = psNonceCounter ps
           put ps { psNonceCounter = i + 1 }
-          return $ "nonce" ++ show i
+          return $ s ++ "_n" ++ show i
 

@@ -16,7 +16,7 @@ type UnM a = StateT ParseState IO a
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: Meta -> A.Process -> UnM A.Specification
 makeNonceProc m p
-    =  do ns <- makeNonce
+    =  do ns <- makeNonce "wrapper_proc"
           let n = A.Name m A.ProcName ns
           let st = A.Proc m [] p
           let nd = A.NameDef {

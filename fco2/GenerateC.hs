@@ -271,7 +271,7 @@ genOutputItem c (A.OutCounted m ce ae)
     =  do genOutputItem c (A.OutExpression m ce)
           missing "genOutputItem counted"
 genOutputItem c (A.OutExpression m e)
-    =  do n <- makeNonce
+    =  do n <- makeNonce "output_item"
           ps <- get
           let t = fromJust $ typeOfExpression ps e
           case t of
@@ -308,7 +308,7 @@ genReplicator rep body
 -- of loop a C programmer would normally write.
 genReplicatorLoop :: A.Replicator -> CGen ()
 genReplicatorLoop (A.For m n base count)
-    =  do counter <- makeNonce
+    =  do counter <- makeNonce "replicator_count"
           tell ["int ", counter, " = "]
           genExpression count
           tell [", "]
@@ -338,7 +338,7 @@ introduceSpec (n, A.Declaration m A.Timer) = return ()
 introduceSpec (n, A.Declaration m t)
     =  do case t of
             A.Chan _ ->
-              do cn <- makeNonce
+              do cn <- makeNonce "channel"
                  tell ["Channel ", cn, ";\n"]
                  tell ["ChanInit (&", cn, ");\n"]
                  tell ["Channel *"]
@@ -457,7 +457,7 @@ genAssign vs el
                tell [";\n"]
           vs ->
             do tell ["{\n"]
-               ns <- mapM (\_ -> makeNonce) vs
+               ns <- mapM (\_ -> makeNonce "assign_tmp") vs
                mapM (\(v, n, e) -> do st <- get
                                       let t = typeOfVariable st v
                                       genType (fromJust t)
@@ -484,7 +484,7 @@ genInput c im
 
 genTimerRead :: A.Variable -> CGen ()
 genTimerRead v
-    =  do n <- makeNonce
+    =  do n <- makeNonce "time"
           tell ["{\n"]
           tell ["Time ", n, ";\n"]
           tell ["ProcTime (&", n, ");\n"]
@@ -508,7 +508,7 @@ genStop = tell ["SetErr ();\n"]
 -- that aren't replicated and don't have specs.
 genIf :: A.Structured -> CGen ()
 genIf s
-    =  do label <- makeNonce
+    =  do label <- makeNonce "if_end"
           genIfBody label s
           genStop
           tell [label, ":\n;\n"]
@@ -534,12 +534,27 @@ genWhile e p
           genProcess p
           tell ["}\n"]
 
--- FIXME Stubbed out for now so I can see what the branches look like...
 genPar :: A.ParMode -> [A.Process] -> CGen ()
 genPar pm ps
-    =  do tell ["#error PAR not implemented\n"]
-          sequence_ $ map genProcess ps
-          tell ["#error end PAR\n"]
+    =  do pids <- mapM (\_ -> makeNonce "pid") ps
+          sequence_ $ map genProcAlloc (zip pids ps)
+          case pm of
+            A.PlainPar ->
+              do tell ["ProcPar ("]
+                 sequence_ $ [tell [pid, ", "] | pid <- pids]
+                 tell ["NULL);\n"]
+            _ -> missing $ "genPar " ++ show pm
+          sequence_ $ [tell ["ProcAllocClean (", pid, ");\n"] | pid <- pids]
+
+genProcAlloc :: (String, A.Process) -> CGen ()
+genProcAlloc (pid, A.ProcCall m n as)
+    =  do tell ["Process *", pid, " = ProcAlloc ("]
+          genName n
+          -- FIXME stack size fixed here
+          tell [", 4096"]
+          sequence_ $ map (\a -> do tell [", "]
+                                    genActual a) as
+          tell [");\n"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as
