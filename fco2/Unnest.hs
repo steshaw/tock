@@ -158,7 +158,6 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
              let newAs = [case A.nameType n of
                             A.ChannelName -> A.ActualChannel (A.Channel m n)
                             A.VariableName -> A.ActualExpression (A.ExprVariable m (A.Variable m n))
-                            _ -> error $ "not handled: " ++ show n
                           | (t, n) <- zip types freeNames]
              child' <- removeFreeNames (addToCalls n newAs child)
              return (spec', child')
@@ -168,18 +167,41 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
              return (spec', child')
 
 -- | Pull nested declarations to the top level.
-removeNesting :: Data t => t -> UnM t
-removeNesting = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
+removeNesting :: A.Process -> UnM A.Process
+removeNesting p
+    =  do p' <- pullSpecs p
+          st <- get
+          let pulled = psPulledSpecs st
+          put $ st { psPulledSpecs = [] }
+          return $ foldl (\p (m, spec) -> A.ProcSpec m spec p) p' pulled
   where
+    pullSpecs :: Data t => t -> UnM t
+    pullSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
+
     doGeneric :: Data t => t -> UnM t
-    doGeneric = gmapM removeNesting
+    doGeneric = gmapM pullSpecs
 
     doProcess :: A.Process -> UnM A.Process
+    doProcess orig@(A.ProcSpec m spec p) = doSpec orig m spec p
     doProcess p = doGeneric p
 
     doStructured :: A.Structured -> UnM A.Structured
+    doStructured orig@(A.Spec m spec s) = doSpec orig m spec s
     doStructured s = doGeneric s
 
     doValueProcess :: A.ValueProcess -> UnM A.ValueProcess
+    doValueProcess orig@(A.ValOfSpec m spec vp) = doSpec orig m spec vp
     doValueProcess vp = doGeneric vp
 
+    doSpec :: Data t => t -> Meta -> A.Specification -> t -> UnM t
+    doSpec orig m spec@(_, st) child
+        = if canPull st then
+            do spec' <- pullSpecs spec
+               modify $ (\ps -> ps { psPulledSpecs = (m, spec') : psPulledSpecs ps })
+               child' <- pullSpecs child
+               return child'
+          else doGeneric orig
+
+    canPull :: A.SpecType -> Bool
+    canPull (A.Proc _ _ _) = True
+    canPull _ = False

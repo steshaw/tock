@@ -1,6 +1,12 @@
 -- | Generate C++ code from the mangled AST.
 module GenerateC where
 
+-- FIXME: Use AbbrevMode to track whether something is an abbreviation at all
+-- (and hence make it a pointer or not -- so we can go to C proper).
+
+-- FIXME: Use Structured for Par and Seq (and ValOf, etc.). This would make it
+-- easier to put {} around sets of declarations.
+
 -- FIXME: Checks should be done in the parser, not here -- for example, the
 -- expressionList production should take an argument with a list of types.
 
