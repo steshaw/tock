@@ -204,4 +204,10 @@ removeNesting p
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _) = True
+    canPull (A.DataType _ _) = True
+    canPull (A.DataTypeRecord _ _ _) = True
+    canPull (A.Protocol _ _) = True
+    canPull (A.ProtocolCase _ _) = True
+    -- FIXME: Should pull up constant expressions too
     canPull _ = False
+

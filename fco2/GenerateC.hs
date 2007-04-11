@@ -7,8 +7,8 @@ module GenerateC where
 -- FIXME: Checks should be done in the parser, not here -- for example, the
 -- expressionList production should take an argument with a list of types.
 
--- FIXME: Arrays. Should be a struct that contains the data and size, and we
--- then use a pointer to the struct to pass around.
+-- FIXME: Arrays should support multiple dimensions (and never be nested).
+-- AST should have A.Array [Expression] Type.
 
 -- FIXME: The show instance for types should produce occam-looking types.
 
@@ -74,16 +74,19 @@ genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 --}}}
 
 --{{{  types
-genType :: A.Type -> CGen ()
-genType A.Bool = tell ["bool"]
+scalarType :: A.Type -> Maybe String
+scalarType A.Bool = Just "bool"
 -- FIXME: This probably isn't right; we might have to explicitly cast string literals...
-genType A.Byte = tell ["char"]
-genType A.Int = tell ["int"]
-genType A.Int16 = tell ["int16_t"]
-genType A.Int32 = tell ["int32_t"]
-genType A.Int64 = tell ["int64_t"]
-genType A.Real32 = tell ["float"]
-genType A.Real64 = tell ["double"]
+scalarType A.Byte = Just "char"
+scalarType A.Int = Just "int"
+scalarType A.Int16 = Just "int16_t"
+scalarType A.Int32 = Just "int32_t"
+scalarType A.Int64 = Just "int64_t"
+scalarType A.Real32 = Just "float"
+scalarType A.Real64 = Just "double"
+scalarType _ = Nothing
+
+genType :: A.Type -> CGen ()
 genType (A.Array e t)
     =  do genType t
           tell ["["]
@@ -93,9 +96,11 @@ genType (A.ArrayUnsized t)
     =  do genType t
           tell ["[]"]
 genType (A.UserDataType n) = genName n
-genType (A.Chan t)
-    =  do tell ["Channel*"]
-genType t = missing $ "genType " ++ show t
+genType (A.Chan t) = tell ["Channel *"]
+genType t
+    = case scalarType t of
+        Just s -> tell [s]
+        Nothing -> missing $ "genType " ++ show t
 --}}}
 
 --{{{  declarations
@@ -226,6 +231,7 @@ genExpression (A.False m) = tell ["false"]
 --genExpression (A.FunctionCall m n es)
 --genExpression (A.SubscriptedExpr m s e)
 --genExpression (A.BytesInExpr m e)
+-- FIXME This needs to do special stuff with arrays.
 genExpression (A.BytesInType m t)
     =  do tell ["sizeof ("]
           genType t
@@ -234,7 +240,10 @@ genExpression (A.BytesInType m t)
 genExpression t = missing $ "genExpression " ++ show t
 
 genTypeConstant :: String -> A.Type -> CGen ()
-genTypeConstant s t = missing $ "genTypeConstant " ++ show t
+genTypeConstant s t
+    = case scalarType t of
+        Just ct -> tell ["occam_", s, "_", ct]
+        Nothing -> missing $ "genTypeConstant " ++ show t
 --}}}
 
 --{{{  operators

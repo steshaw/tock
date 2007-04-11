@@ -109,3 +109,9 @@ abbrevModeOfSpec s
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original
 
+isArrayType :: ParseState -> A.Type -> Bool
+isArrayType ps (A.Array _ _) = True
+isArrayType ps (A.ArrayUnsized _) = True
+-- FIXME Should handle user data types
+isArrayType _ _ = False
+
