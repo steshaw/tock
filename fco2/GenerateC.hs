@@ -171,45 +171,54 @@ convStringStar 's' = " "
 convStringStar c = [c]
 --}}}
 
---{{{  channels, variables
+--{{{  variables
 {-
-Channel c;      -> &c         \ Original
-Channel c[10];  -> &c[i]      /
-Channel *c;     -> c          \ Abbrev
-Channel **c;    -> c[i]       /
+                                  Original      Abbrev
+                                  ValAbbrev
 
-But if I say genChannel on cs, then I want cs back either way, not &cs...
--}
-genChannel :: A.Channel -> CGen ()
-genChannel (A.Channel m n)
-    =  do ps <- get
-          am <- checkJust $ abbrevModeOfName ps n
-          case am of
-            A.Original -> tell ["&"]
-            A.Abbrev -> return ()
-          genName n
-genChannel (A.SubscriptedChannel m s c) = genSubscript s (genChannel c)
+INT x:                x           x             *x         int x;          int *x;
+[10]INT xs:           xs[i]       xs[i]         xs[i]      int xs[10];     int *xs;
+                      xs          xs            xs
 
-{-
-int x;          -> x          \ Original, ValAbbrev
-int x[10];      -> x[i]       /
-int *x;         -> (*x)       \ Abbrev
-int **x;        -> x[i]       /
+                                  Original      Abbrev
+
+CHAN OF INT c:        c           &c            c          Channel c;      Channel *c;
+[10]CHAN OF INT cs:   cs[i]       &cs[i]        cs[i]      Channel cs[10]; Channel **cs;
+                      cs          cs            cs
+
+[2][2]INT xss:        xss[i][j]   xss[i][j]     xss[i][j]
+                      xss         xss           xss
+[2][2]CHAN INT css:   css[i][j]   &css[i][j]    css[i][j]
+                      css         css           css
+
+I suspect there's probably a nicer way of doing this, but as a translation of
+the above table this isn't too horrible...
 -}
 genVariable :: A.Variable -> CGen ()
-genVariable (A.Variable m n)
+genVariable v
     =  do ps <- get
-          am <- checkJust $ abbrevModeOfName ps n
-          t <- checkJust $ typeOfName ps n
-          let doName = genName n
-          case (am, t) of
-            (_, A.Array _ _) -> doName
-            (A.Abbrev, _) ->
-              do tell ["(*"]
-                 doName
-                 tell [")"]
-            _ -> doName
-genVariable (A.SubscriptedVariable m s v) = genSubscript s (genVariable v)
+          am <- checkJust $ abbrevModeOfVariable ps v
+          t <- checkJust $ typeOfVariable ps v
+
+          let isArray = case t of
+                          A.Array _ _ -> True
+                          _ -> False
+          let isSubbed = case v of
+                           A.SubscriptedVariable _ _ _ -> True
+                           _ -> False
+          let isChan = case stripArrayType t of
+                         A.Chan _ -> True
+                         _ -> False
+
+          case am of
+            A.Abbrev -> if isChan || isArray then return () else tell ["*"]
+            A.ValAbbrev -> if isSubbed || not isArray then tell ["&"] else return ()
+            _ -> return ()
+
+          inner v
+  where
+    inner (A.Variable m n) = genName n
+    inner (A.SubscriptedVariable m s v) = genSubscript s (inner v)
 --}}}
 
 --{{{  expressions
@@ -297,7 +306,7 @@ genDyadic A.After e f = genFuncDyadic "occam_after" e f
 --}}}
 
 --{{{  input/output items
-genInputItem :: A.Channel -> A.InputItem -> CGen ()
+genInputItem :: A.Variable -> A.InputItem -> CGen ()
 genInputItem c (A.InCounted m cv av)
     =  do genInputItem c (A.InVariable m cv)
           -- need to then input as much as appropriate
@@ -308,20 +317,20 @@ genInputItem c (A.InVariable m v)
           case t of
             A.Int ->
               do tell ["ChanInInt ("]
-                 genChannel c
+                 genVariable c
                  tell [", &"]
                  genVariable v
                  tell [");\n"]
             _ ->
               do tell ["ChanIn ("]
-                 genChannel c
+                 genVariable c
                  tell [", &"]
                  genVariable v
                  tell [", sizeof ("]
                  genType t
                  tell ["));\n"]
 
-genOutputItem :: A.Channel -> A.OutputItem -> CGen ()
+genOutputItem :: A.Variable -> A.OutputItem -> CGen ()
 genOutputItem c (A.OutCounted m ce ae)
     =  do genOutputItem c (A.OutExpression m ce)
           missing "genOutputItem counted"
@@ -332,18 +341,19 @@ genOutputItem c (A.OutExpression m e)
           case t of
             A.Int ->
               do tell ["ChanOutInt ("]
-                 genChannel c
+                 genVariable c
                  tell [", "]
                  genExpression e
                  tell [");\n"]
             _ ->
               do tell ["{\n"]
+                 tell ["const "]
                  genType t
                  tell [" ", n, " = "]
                  genExpression e
                  tell [";\n"]
                  tell ["ChanOut ("]
-                 genChannel c
+                 genVariable c
                  tell [", &", n, ", sizeof ("]
                  genType t
                  tell ["));\n"]
@@ -400,7 +410,7 @@ introduceSpec (n, A.Declaration m t)
           do tell ["Channel "]
              genName n
              tell [";\n"]
-             tell ["ChanInit (&"]
+             tell ["ChanInit ("]
              genName n
              tell [");\n"]
         A.Array ds t ->
@@ -430,23 +440,29 @@ introduceSpec (n, A.Declaration m t)
 INT x IS y:       int *x = &y;    int *x = &(*y);
 []INT xs IS ys:   int *xs = ys;   int *xs = ys;
                   const int xs_sizes[] = ys_sizes;
+
+[10]CHAN OF INT:          Channel c[10];
+CHAN OF INT c IS d:       Channel *c = d;
+[]CHAN OF INT cs IS ds:   Channel **cs = ds;
+                          const int cs_sizes[] = ds_sizes;
 -}
 introduceSpec (n, A.Is m am t v)
     = case t of
         A.Array _ _ ->
           do genDecl am t n
              tell [" = "]
-             let name = case v of A.Variable _ name -> name
-             genName name
+             genVariable v
              tell [";\n"]
              tell ["const int "]
              genName n
              tell ["_sizes[] = "]
-             genName name
+             genVariable v
              tell ["_sizes;\n"]
         _ ->
           do genDecl am t n
-             tell [" = &"]
+             case t of
+               A.Chan _ -> tell [" = "]
+               _ -> tell [" = &"]
              genVariable v
              tell [";\n"]
 introduceSpec (n, A.IsExpr m am t e)
@@ -454,33 +470,10 @@ introduceSpec (n, A.IsExpr m am t e)
           tell [" = "]
           genExpression e
           tell [";\n"]
-{-
-CHAN OF INT c IS d:       Channel *c = d;
-[]CHAN OF INT cs IS ds:   Channel **cs = ds;
-                          const int cs_sizes[] = ds_sizes;
--}
-introduceSpec (n, A.IsChannel m t c)
-    = case t of
-        A.Array _ _ ->
-          do genDecl A.Abbrev t n
-             tell [" = "]
-             let name = case c of A.Channel _ name -> name
-             genName name
-             tell [";\n"]
-             tell ["const int "]
-             genName n
-             tell ["_sizes[] = "]
-             genName name
-             tell ["_sizes;\n"]
-        _ ->
-          do genDecl A.Abbrev t n
-             tell [" = "]
-             genChannel c
-             tell [";\n"]
 introduceSpec (n, A.IsChannelArray m t cs)
     =  do genDecl A.Abbrev t n
           tell [" = {"]
-          sequence_ $ intersperse genComma (map genChannel cs)
+          sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
 introduceSpec (n, A.Proc m fs p)
     =  do tell ["void "]
@@ -509,16 +502,6 @@ genActual (A.ActualExpression e)
           case t of
             (A.Array _ t') -> missing "array expression actual"
             _ -> genExpression e
-genActual (A.ActualChannel c)
-    =  do ps <- get
-          t <- checkJust $ typeOfChannel ps c
-          case t of
-            (A.Array _ t') ->
-              do genChannel c
-                 tell [", "]
-                 genChannel c
-                 tell ["_sizes"]
-            _ -> genChannel c
 genActual (A.ActualVariable v)
     =  do ps <- get
           t <- checkJust $ typeOfVariable ps v
@@ -597,10 +580,10 @@ genAssign vs el
                     (zip vs ns)
                tell ["}\n"]
 
-genInput :: A.Channel -> A.InputMode -> CGen ()
+genInput :: A.Variable -> A.InputMode -> CGen ()
 genInput c im
     =  do ps <- get
-          t <- checkJust $ typeOfChannel ps c
+          t <- checkJust $ typeOfVariable ps c
           case t of
             A.Timer -> case im of 
               A.InputSimple m [A.InVariable m' v] -> genTimerRead v
@@ -625,7 +608,7 @@ genTimerWait e
           genExpression e
           tell [");\n"]
 
-genOutput :: A.Channel -> [A.OutputItem] -> CGen ()
+genOutput :: A.Variable -> [A.OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
 genStop :: CGen ()

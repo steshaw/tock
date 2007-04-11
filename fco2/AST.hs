@@ -76,11 +76,6 @@ data Literal =
   | SubscriptedLiteral Meta Subscript Literal
   deriving (Show, Eq, Typeable, Data)
 
-data Channel =
-  Channel Meta Name
-  | SubscriptedChannel Meta Subscript Channel
-  deriving (Show, Eq, Typeable, Data)
-
 data Variable =
   Variable Meta Name
   | SubscriptedVariable Meta Subscript Variable
@@ -142,8 +137,8 @@ data Choice = Choice Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
 data Alternative =
-  Alternative Meta Channel InputMode Process
-  | AlternativeCond Meta Expression Channel InputMode Process
+  Alternative Meta Variable InputMode Process
+  | AlternativeCond Meta Expression Variable InputMode Process
   | AlternativeSkip Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
@@ -186,9 +181,8 @@ data SpecType =
   | Declaration Meta Type
   | Is Meta AbbrevMode Type Variable
   | IsExpr Meta AbbrevMode Type Expression
-  | IsChannel Meta Type Channel
   -- FIXME Can these be multidimensional?
-  | IsChannelArray Meta Type [Channel]
+  | IsChannelArray Meta Type [Variable]
   | DataType Meta Type
   | DataTypeRecord Meta Bool [(Type, Name)]
   | Protocol Meta [Type]
@@ -205,7 +199,6 @@ data Formal =
 
 data Actual =
   ActualVariable Variable
-  | ActualChannel Channel
   | ActualExpression Expression
   deriving (Show, Eq, Typeable, Data)
 
@@ -221,9 +214,9 @@ data ParMode =
 data Process =
   ProcSpec Meta Specification Process
   | Assign Meta [Variable] ExpressionList
-  | Input Meta Channel InputMode
-  | Output Meta Channel [OutputItem]
-  | OutputCase Meta Channel Name [OutputItem]
+  | Input Meta Variable InputMode
+  | Output Meta Variable [OutputItem]
+  | OutputCase Meta Variable Name [OutputItem]
   | Skip Meta
   | Stop Meta
   | Main Meta

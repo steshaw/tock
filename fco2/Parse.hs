@@ -322,7 +322,6 @@ pTypeOf f item
             Nothing -> fail "cannot compute type"
 
 pTypeOfVariable = pTypeOf typeOfVariable
-pTypeOfChannel = pTypeOf typeOfChannel
 pTypeOfExpression = pTypeOf typeOfExpression
 pSpecTypeOfName = pTypeOf specTypeOfName
 --}}}
@@ -682,37 +681,37 @@ variable'
     <|> try (maybeSliced variable A.SubscriptedVariable)
     <?> "variable'"
 
-channel :: OccParser A.Channel
+channel :: OccParser A.Variable
 channel
-    =   maybeSubscripted "channel" channel' A.SubscriptedChannel
+    =   maybeSubscripted "channel" channel' A.SubscriptedVariable
     <?> "channel"
 
-channel' :: OccParser A.Channel
+channel' :: OccParser A.Variable
 channel'
-    =   try (do { m <- md; n <- channelName; return $ A.Channel m n })
-    <|> try (maybeSliced channel A.SubscriptedChannel)
+    =   try (do { m <- md; n <- channelName; return $ A.Variable m n })
+    <|> try (maybeSliced channel A.SubscriptedVariable)
     <?> "channel'"
 
-timer :: OccParser A.Channel
+timer :: OccParser A.Variable
 timer
-    =   maybeSubscripted "timer" timer' A.SubscriptedChannel
+    =   maybeSubscripted "timer" timer' A.SubscriptedVariable
     <?> "timer"
 
-timer' :: OccParser A.Channel
+timer' :: OccParser A.Variable
 timer'
-    =   try (do { m <- md; n <- timerName; return $ A.Channel m n })
-    <|> try (maybeSliced timer A.SubscriptedChannel)
+    =   try (do { m <- md; n <- timerName; return $ A.Variable m n })
+    <|> try (maybeSliced timer A.SubscriptedVariable)
     <?> "timer'"
 
-port :: OccParser A.Channel
+port :: OccParser A.Variable
 port
-    =   maybeSubscripted "port" port' A.SubscriptedChannel
+    =   maybeSubscripted "port" port' A.SubscriptedVariable
     <?> "port"
 
-port' :: OccParser A.Channel
+port' :: OccParser A.Variable
 port'
-    =   try (do { m <- md; n <- portName; return $ A.Channel m n })
-    <|> try (maybeSliced port A.SubscriptedChannel)
+    =   try (do { m <- md; n <- portName; return $ A.Variable m n })
+    <|> try (maybeSliced port A.SubscriptedVariable)
     <?> "port'"
 --}}}
 --{{{ protocols
@@ -787,10 +786,14 @@ abbreviation
             <|> do { sVAL ;
                       do { (n, e) <- try (do { n <- newVariableName; sIS; e <- expression; return (n, e) }); sColon; eol; t <- pTypeOfExpression e; return (n, A.IsExpr m A.ValAbbrev t e) }
                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return (n, A.IsExpr m A.ValAbbrev s e) } }
-            <|> try (do { n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; t <- pTypeOfChannel c; return (n, A.IsChannel m t c) })
-            <|> try (do { s <- specifier; n <- newChannelName <|> newTimerName <|> newPortName; sIS; c <- channel; sColon; eol; t <- pTypeOfChannel c; matchType s t; return (n, A.IsChannel m s c) })
-            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfChannel cs; t <- listType ts; return (n, A.IsChannelArray m t cs) })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfChannel cs; t <- listType ts; matchType s t; return (n, A.IsChannelArray m s cs) }))
+            <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; return (n, A.Is m A.Abbrev t c) })
+            <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; return (n, A.Is m A.Abbrev t c) })
+            <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; return (n, A.Is m A.Abbrev t c) })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
+            <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
+            <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
+            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType ts; return (n, A.IsChannelArray m t cs) })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType ts; matchType s t; return (n, A.IsChannelArray m s cs) }))
     <?> "abbreviation"
 
 definition :: OccParser A.Specification
@@ -923,14 +926,14 @@ inputProcess
            (c, i) <- input
            return $ A.Input m c i
 
-input :: OccParser (A.Channel, A.InputMode)
+input :: OccParser (A.Variable, A.InputMode)
 input
     =   channelInput
     <|> timerInput
     <|> do { m <- md; p <- tryTrail port sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
     <?> "input"
 
-channelInput :: OccParser (A.Channel, A.InputMode)
+channelInput :: OccParser (A.Variable, A.InputMode)
     =   do  m <- md
             c <- tryTrail channel sQuest
             (do { tl <- try (do { sCASE; taggedList }); eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
@@ -938,7 +941,7 @@ channelInput :: OccParser (A.Channel, A.InputMode)
              <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) })
     <?> "channelInput"
 
-timerInput :: OccParser (A.Channel, A.InputMode)
+timerInput :: OccParser (A.Variable, A.InputMode)
     =   do  m <- md
             c <- tryTrail timer sQuest
             (do { v <- variable; eol; return (c, A.InputSimple m [A.InVariable m v]) }
@@ -988,7 +991,7 @@ channelOutput
             -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
             -- whether b is a variable or a tag, without knowing the type of a.
             st <- getState
-            isCase <- case typeOfChannel st c of
+            isCase <- case typeOfVariable st c of
                         Just t -> return $ isCaseProtocolType st t
                         Nothing -> fail $ "cannot figure out the type of " ++ show c
             if isCase
@@ -1209,7 +1212,7 @@ actual (A.Formal am t n)
     =  do case am of
             A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression e } <?> "actual expression for " ++ an
             _ -> if isChannelType t
-                   then do { c <- channel; ct <- pTypeOfChannel c; matchType t ct; return $ A.ActualChannel c } <?> "actual channel for " ++ an
+                   then do { c <- channel; ct <- pTypeOfVariable c; matchType t ct; return $ A.ActualVariable c } <?> "actual channel for " ++ an
                    else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
     where
       an = A.nameName n

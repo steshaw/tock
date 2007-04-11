@@ -35,8 +35,7 @@ typeOfName ps n
         Just (A.Declaration m t) -> Just t
         Just (A.Is m am t v) -> typeOfVariable ps v
         Just (A.IsExpr m am t e) -> typeOfExpression ps e
-        Just (A.IsChannel m t c) -> typeOfChannel ps c
-        Just (A.IsChannelArray m t (c:_)) -> typeOfChannel ps c `perhaps` A.Array [A.UnknownDimension]
+        Just (A.IsChannelArray m t (c:_)) -> typeOfVariable ps c `perhaps` A.Array [A.UnknownDimension]
         Just (A.Retypes m am t v) -> Just t
         Just (A.RetypesExpr m am t e) -> Just t
         _ -> Nothing
@@ -47,15 +46,14 @@ subscriptType (A.Array [_] t) = Just t
 subscriptType (A.Array (_:ds) t) = Just $ A.Array ds t
 subscriptType _ = Nothing
 
-typeOfChannel :: ParseState -> A.Channel -> Maybe A.Type
-typeOfChannel ps (A.Channel m n) = typeOfName ps n
-typeOfChannel ps (A.SubscriptedChannel m s c)
-    = typeOfChannel ps c >>= subscriptType
-
 typeOfVariable :: ParseState -> A.Variable -> Maybe A.Type
 typeOfVariable ps (A.Variable m n) = typeOfName ps n
 typeOfVariable ps (A.SubscriptedVariable m s v)
     = typeOfVariable ps v >>= subscriptType
+
+abbrevModeOfVariable :: ParseState -> A.Variable -> Maybe A.AbbrevMode
+abbrevModeOfVariable ps (A.Variable _ n) = abbrevModeOfName ps n
+abbrevModeOfVariable ps (A.SubscriptedVariable _ _ v) = abbrevModeOfVariable ps v
 
 typeOfExpression :: ParseState -> A.Expression -> Maybe A.Type
 typeOfExpression ps e
@@ -103,7 +101,6 @@ abbrevModeOfSpec s
     = case s of
         A.Is _ am _ _ -> am
         A.IsExpr _ am _ _ -> am
-        A.IsChannel _ _ _ -> A.Abbrev
         A.IsChannelArray _ _ _ -> A.Abbrev
         A.Retypes _ am _ _ -> am
         A.RetypesExpr _ am _ _ -> am
@@ -119,4 +116,8 @@ isChannelType :: A.Type -> Bool
 isChannelType (A.Array _ t) = isChannelType t
 isChannelType (A.Chan _) = True
 isChannelType _ = False
+
+stripArrayType :: A.Type -> A.Type
+stripArrayType (A.Array _ t) = stripArrayType t
+stripArrayType t = t
 

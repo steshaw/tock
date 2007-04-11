@@ -150,15 +150,19 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
                                     _ -> False]
              ps <- get
              let types = [fromJust $ typeOfName ps n | n <- freeNames]
+             let ams = [case fromJust $ abbrevModeOfName ps n of
+                          A.Original -> A.Abbrev
+                          t -> t
+                        | n <- freeNames]
              -- Add formals for each of the free names
-             let newFs = [A.Formal A.Abbrev t n | (t, n) <- zip types freeNames]
+             let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types freeNames]
              p' <- removeFreeNames p
              let spec' = (n, A.Proc m (fs ++ newFs) p')
              -- Add extra arguments to calls of this proc
-             let newAs = [case A.nameType n of
-                            A.ChannelName -> A.ActualChannel (A.Channel m n)
-                            A.VariableName -> A.ActualExpression (A.ExprVariable m (A.Variable m n))
-                          | (t, n) <- zip types freeNames]
+             let newAs = [case am of
+                            A.Abbrev -> A.ActualVariable (A.Variable m n)
+                            _ -> A.ActualExpression (A.ExprVariable m (A.Variable m n))
+                          | (am, n) <- zip ams freeNames]
              child' <- removeFreeNames (addToCalls n newAs child)
              return (spec', child')
         _ ->

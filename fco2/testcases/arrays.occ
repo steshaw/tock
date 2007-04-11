@@ -37,19 +37,23 @@ PROC P ()
       R (val.abbrev2)
 
     PROC S1 ([]CHAN OF INT chan.arg.arg)
-      SKIP
+      chan.arg.arg[0] ! 42
     :
     PROC S ([]CHAN OF INT chan.arg)
-      S1 (chan.arg)
+      SEQ
+        chan.arg[0] ! 42
+        S1 (chan.arg)
     :
     [10]CHAN OF INT chan.array:
     SEQ
+      chan.array[0] ! 42
       S (chan.array)
       []CHAN OF INT chan.abbrev IS chan.array:
       SEQ
+        chan.abbrev[0] ! 42
         S (chan.abbrev)
         []CHAN OF INT chan.abbrev.abbrev IS chan.abbrev:
-        SKIP
+        chan.abbrev.abbrev[0] ! 42
       chan.abbrev2 IS chan.array:
       S (chan.abbrev2)
 :
