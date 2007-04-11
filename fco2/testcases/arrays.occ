@@ -1,0 +1,55 @@
+--** Test array abbreviations and parameters.
+
+PROC P ()
+  SEQ
+    PROC Q1 ([]INT arg.arg)
+      SKIP
+    :
+    PROC Q ([]INT arg)
+      Q1 (arg)
+    :
+    PROC R1 (VAL []INT val.arg.arg)
+      SKIP
+    :
+    PROC R (VAL []INT val.arg)
+      R1 (val.arg)
+    :
+    [10]INT array:
+    SEQ
+      Q (array)
+      R (array)
+      []INT abbrev IS array:
+      SEQ
+        Q (abbrev)
+        R (abbrev)
+        []INT abbrev.abbrev IS abbrev:
+        SKIP
+      VAL []INT val.abbrev IS array:
+      SEQ
+        R (val.abbrev)
+        VAL []INT val.abbrev.abbrev IS val.abbrev:
+        SKIP
+      abbrev2 IS array:
+      SEQ
+        Q (abbrev2)
+        R (abbrev2)
+      VAL val.abbrev2 IS array:
+      R (val.abbrev2)
+
+    PROC S1 ([]CHAN OF INT chan.arg.arg)
+      SKIP
+    :
+    PROC S ([]CHAN OF INT chan.arg)
+      S1 (chan.arg)
+    :
+    [10]CHAN OF INT chan.array:
+    SEQ
+      S (chan.array)
+      []CHAN OF INT chan.abbrev IS chan.array:
+      SEQ
+        S (chan.abbrev)
+        []CHAN OF INT chan.abbrev.abbrev IS chan.abbrev:
+        SKIP
+      chan.abbrev2 IS chan.array:
+      S (chan.abbrev2)
+:

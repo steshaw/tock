@@ -1,12 +1,12 @@
--- FIXME This should check arrays too.
-PROC O (VAL INT val1, val2, INT abbr, CHAN OF INT channel)
+PROC O (VAL INT val1, val2, VAL []INT varray, INT abbr, []INT array, CHAN OF INT channel)
   SKIP
 :
-PROC P (VAL INT val1, val2, INT abbr, CHAN OF INT channel)
-  O (val1, val2, abbr, channel)
+PROC P (VAL INT val1, val2, VAL []INT varray, INT abbr, []INT array, CHAN OF INT channel)
+  O (val1, val2, varray, abbr, array, channel)
 :
 PROC Q ()
   INT x, y:
+  [10]INT xs, ys:
   CHAN OF INT c:
-  P (42, x, y, c)
+  P (42, x, xs, y, ys, c)
 :

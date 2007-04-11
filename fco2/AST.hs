@@ -33,8 +33,7 @@ data Type =
   | Byte
   | Int | Int16 | Int32 | Int64
   | Real32 | Real64
-  | Array Expression Type
-  | ArrayUnsized Type
+  | Array [Dimension] Type
   | UserDataType Name
   | UserProtocol Name
   | Chan Type
@@ -42,6 +41,11 @@ data Type =
   | Any
   | Timer
   | Port Type
+  deriving (Show, Eq, Typeable, Data)
+
+data Dimension =
+  Dimension Expression
+  | UnknownDimension
   deriving (Show, Eq, Typeable, Data)
 
 data ConversionMode =
@@ -183,6 +187,7 @@ data SpecType =
   | Is Meta AbbrevMode Type Variable
   | IsExpr Meta AbbrevMode Type Expression
   | IsChannel Meta Type Channel
+  -- FIXME Can these be multidimensional?
   | IsChannelArray Meta Type [Channel]
   | DataType Meta Type
   | DataTypeRecord Meta Bool [(Type, Name)]

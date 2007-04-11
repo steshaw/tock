@@ -36,15 +36,15 @@ typeOfName ps n
         Just (A.Is m am t v) -> typeOfVariable ps v
         Just (A.IsExpr m am t e) -> typeOfExpression ps e
         Just (A.IsChannel m t c) -> typeOfChannel ps c
-        Just (A.IsChannelArray m t (c:_)) -> typeOfChannel ps c `perhaps` A.ArrayUnsized
+        Just (A.IsChannelArray m t (c:_)) -> typeOfChannel ps c `perhaps` A.Array [A.UnknownDimension]
         Just (A.Retypes m am t v) -> Just t
         Just (A.RetypesExpr m am t e) -> Just t
         _ -> Nothing
 
 -- FIXME: This should fail if the subscript is invalid...
 subscriptType :: A.Type -> Maybe A.Type
-subscriptType (A.Array e t) = Just t
-subscriptType (A.ArrayUnsized t) = Just t
+subscriptType (A.Array [_] t) = Just t
+subscriptType (A.Array (_:ds) t) = Just $ A.Array ds t
 subscriptType _ = Nothing
 
 typeOfChannel :: ParseState -> A.Channel -> Maybe A.Type
@@ -109,9 +109,14 @@ abbrevModeOfSpec s
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original
 
-isArrayType :: ParseState -> A.Type -> Bool
-isArrayType ps (A.Array _ _) = True
-isArrayType ps (A.ArrayUnsized _) = True
--- FIXME Should handle user data types
-isArrayType _ _ = False
+-- | Add an array dimension to a type; if it's already an array it'll just add
+-- a new dimension to the existing array.
+makeArrayType :: A.Dimension -> A.Type -> A.Type
+makeArrayType d (A.Array ds t) = A.Array (d : ds) t
+makeArrayType d t = A.Array [d] t
+
+isChannelType :: A.Type -> Bool
+isChannelType (A.Array _ t) = isChannelType t
+isChannelType (A.Chan _) = True
+isChannelType _ = False
 

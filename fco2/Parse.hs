@@ -294,15 +294,19 @@ tryTrail p q = try (do { v <- p; q; return v })
 
 listType :: [A.Type] -> OccParser A.Type
 listType [] = fail "expected non-empty list"
-listType [t] = return $ A.ArrayUnsized t
+listType [t] = return $ makeArrayType A.UnknownDimension t
 listType (t1 : rest@(t2 : _))
     = if t1 == t2 then listType rest
                   else fail "multiple types in list"
 
 matchType :: A.Type -> A.Type -> OccParser ()
 matchType et rt
-    = if rt == et then return ()
-                  else fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
+    = case (et, rt) of
+        ((A.Array ds t), (A.Array ds' t')) ->
+          if length ds == length ds' then return () else bad
+        _ -> if rt == et then return () else bad
+  where
+    bad = fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
 
 checkMaybe :: String -> Maybe a -> OccParser a
 checkMaybe msg op
@@ -449,7 +453,7 @@ dataType
     <|> do { sINT64; return A.Int64 }
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
-    <|> try (do { sLeft; s <- expression; sRight; t <- dataType; return $ A.Array s t })
+    <|> try (do { sLeft; s <- expression; sRight; t <- dataType; return $ makeArrayType (A.Dimension s) t })
     <|> do { n <- dataTypeName; return $ A.UserDataType n }
     <?> "dataType"
 
@@ -457,19 +461,19 @@ dataType
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
-    <|> try (do { sLeft; s <- expression; sRight; t <- channelType; return $ A.Array s t })
+    <|> try (do { sLeft; s <- expression; sRight; t <- channelType; return $ makeArrayType (A.Dimension s) t })
     <?> "channelType"
 
 timerType :: OccParser A.Type
 timerType
     =   do { sTIMER; return $ A.Timer }
-    <|> try (do { sLeft; s <- expression; sRight; t <- timerType; return $ A.Array s t })
+    <|> try (do { sLeft; s <- expression; sRight; t <- timerType; return $ makeArrayType (A.Dimension s) t })
     <?> "timerType"
 
 portType :: OccParser A.Type
 portType
     =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
-    <|> do { m <- md; try sLeft; s <- try expression; try sRight; t <- portType; return $ A.Array s t }
+    <|> do { m <- md; try sLeft; s <- try expression; try sRight; t <- portType; return $ makeArrayType (A.Dimension s) t }
     <?> "portType"
 --}}}
 --{{{ literals
@@ -525,10 +529,12 @@ table :: OccParser A.Literal
 table
     = maybeSubscripted "table" table' A.SubscriptedLiteral
 
+-- FIXME This should put the sizes into the types, since it knows them and
+-- we'll need them when generating code.
 table' :: OccParser A.Literal
 table'
     =   try (do { m <- md; s <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
-    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m (A.ArrayUnsized A.Byte) s })
+    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m (A.Array [A.UnknownDimension] A.Byte) s })
     <|> do m <- md
            es <- tryTrail (do { sLeft; sepBy1 expression sComma }) sRight
            ps <- getState
@@ -808,7 +814,7 @@ definition
 dataSpecifier :: OccParser A.Type
 dataSpecifier
     =   try dataType
-    <|> try (do { sLeft; sRight; s <- dataSpecifier; return $ A.ArrayUnsized s })
+    <|> try (do { sLeft; sRight; s <- dataSpecifier; return $ makeArrayType A.UnknownDimension s })
     <?> "dataSpecifier"
 
 specifier :: OccParser A.Type
@@ -817,7 +823,7 @@ specifier
     <|> try channelType
     <|> try timerType
     <|> try portType
-    <|> try (do { sLeft; sRight; s <- specifier; return $ A.ArrayUnsized s })
+    <|> try (do { sLeft; sRight; s <- specifier; return $ makeArrayType A.UnknownDimension s })
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs
@@ -1202,9 +1208,9 @@ actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
             A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression e } <?> "actual expression for " ++ an
-            _ -> case t of
-                   A.Chan _ -> do { c <- channel; ct <- pTypeOfChannel c; matchType t ct; return $ A.ActualChannel c } <?> "actual channel for " ++ an
-                   _ -> do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
+            _ -> if isChannelType t
+                   then do { c <- channel; ct <- pTypeOfChannel c; matchType t ct; return $ A.ActualChannel c } <?> "actual channel for " ++ an
+                   else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
 --}}}
