@@ -1,14 +1,14 @@
 -- A standalone occam 2 version of the stock commstime benchmark.
 
 --{{{  stuff from libcourse
---{{{  PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN BYTE out)
+--{{{  PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN OF BYTE out)
 --* Write a character repeatedly to a channel.
 -- This outputs [@code ch] down the channel [@code out] [@code n] times. If
 -- [@code n] is negative, nothing happens.
 -- @param ch Character
 -- @param n Number of times to output (negative values result in no output)
 -- @param out Channel to write to
-PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN BYTE out)
+PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN OF BYTE out)
   --{{{  
   IF
     n > 0
@@ -19,42 +19,42 @@ PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN BYTE out)
   --}}}
 :
 --}}}
---{{{  PROC out.string (VAL []BYTE s, VAL INT field, CHAN BYTE out)
+--{{{  PROC out.string (VAL []BYTE s, VAL INT field, CHAN OF BYTE out)
 --* Write a string to a channel.
 -- This outputs [@code s] in a fieldwidth [@code field] down [@code out].
 -- @param s String
 -- @param field Field width to right-justify in
 -- @param out Channel to write to
-PROC out.string (VAL []BYTE s, VAL INT field, CHAN BYTE out)
+PROC out.string (VAL []BYTE s, VAL INT field, CHAN OF BYTE out)
   --{{{  
   VAL INT length IS SIZE s:
   SEQ
-    out.repeat (' ', field - length, out!)
+    out.repeat (' ', field - length, out)
     SEQ i = 0 FOR length
       out ! s[i]
   --}}}
 :
 --}}}
---{{{  PROC out.int (VAL INT n, VAL INT field, CHAN BYTE out)
+--{{{  PROC out.int (VAL INT n, VAL INT field, CHAN OF BYTE out)
 --* Write an integer in decimal to a channel.
 -- This outputs [@code n] in a fieldwidth [@code field] down [@code out].  The
 -- rules for fieldwidth are as [@ref out.byte].
 -- @param n Integer
 -- @param field Field width to right-justify in
 -- @param out Channel to write to
-PROC out.int (VAL INT n, VAL INT field, CHAN BYTE out)
+PROC out.int (VAL INT n, VAL INT field, CHAN OF BYTE out)
   --{{{  
   IF
     n = (MOSTNEG INT)
       --{{{  minint
-      out.string ("-2147483648", field, out!)
+      out.string ("-2147483648", field, out)
       --}}}
     n = 0
       --{{{  zero
       SEQ
         IF
           1 < field
-            out.repeat (' ', field - 1, out!)
+            out.repeat (' ', field - 1, out)
           TRUE
             SKIP
         out ! '0'
@@ -84,10 +84,10 @@ PROC out.int (VAL INT n, VAL INT field, CHAN BYTE out)
         --{{{  pad
         IF
           n > 0
-            out.repeat (' ', field - i, out!)
+            out.repeat (' ', field - i, out)
           TRUE
             SEQ
-              out.repeat (' ', (field - 1) - i, out!)
+              out.repeat (' ', (field - 1) - i, out)
               out ! '-'
         --}}}
         --{{{  output

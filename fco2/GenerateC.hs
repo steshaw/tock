@@ -247,7 +247,11 @@ genExpression (A.Monadic m op e) = genMonadic op e
 genExpression (A.Dyadic m op e f) = genDyadic op e f
 genExpression (A.MostPos m t) = genTypeConstant "mostpos" t
 genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
---genExpression (A.Size m t)
+--genExpression (A.SizeType m t)
+-- FIXME This needs to cope with subscripts
+genExpression (A.SizeExpr m e)
+    =  do genExpression e
+          tell ["_sizes[0]"]
 genExpression (A.Conversion m cm t e) = genConversion cm t e
 genExpression (A.ExprVariable m v) = genVariable v
 genExpression (A.ExprLiteral m l) = genLiteral l
@@ -282,10 +286,6 @@ genMonadic :: A.MonadicOp -> A.Expression -> CGen ()
 genMonadic A.MonadicSubtr e = genSimpleMonadic "-" e
 genMonadic A.MonadicBitNot e = genSimpleMonadic "~" e
 genMonadic A.MonadicNot e = genSimpleMonadic "!" e
--- FIXME This needs to cope with subscripts
-genMonadic A.MonadicSize e
-    =  do genExpression e
-          tell ["_sizes[0]"]
 
 genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
 genSimpleDyadic s e f
@@ -616,6 +616,11 @@ genActual (actual, A.Formal am t _)
                     r
                Nothing -> return ()
 
+numCArgs :: [A.Formal] -> Int
+numCArgs [] = 0
+numCArgs (A.Formal _ (A.Array _ _) _:fs) = 2 + numCArgs fs
+numCArgs (_:fs) = 1 + numCArgs fs
+
 genFormals :: [A.Formal] -> CGen ()
 genFormals fs = sequence_ $ intersperse genComma (map genFormal fs)
 
@@ -764,7 +769,8 @@ genProcAlloc (pid, A.ProcCall m n as)
           ps <- get
           let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
           -- FIXME stack size fixed here
-          tell [", 4096"]
+          let stackSize = 4096
+          tell [", ", show stackSize, ", ", show $ numCArgs fs]
           sequence_ $ map (\a -> do tell [", "]
                                     genActual a) (zip as fs)
           tell [");\n"]

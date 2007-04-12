@@ -18,6 +18,12 @@ sources = \
 $(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main
 
+%.fco.c: %.occ fco
+	./fco $< >$@
+
+%.fco.o: %.fco.c
+	gcc -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath` -c $<
+
 tests = $(wildcard testcases/*.occ)
 
 test: $(targets) $(tests)

@@ -3,9 +3,13 @@
 #ifndef FCO_SUPPORT_H
 #define FCO_SUPPORT_H
 
+#include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 #include <float.h>
+
+#include <cifccsp.h>
 
 #define occam_mostneg_bool false
 #define occam_mostpos_bool true
@@ -25,28 +29,28 @@
 #define occam_mostpos_double DBL_MAX
 
 /* FIXME All of these need to check for overflow and report errors appropriately. */
-static int occam_add(int a, int b) {
+static int occam_add (int a, int b) {
 	return a + b;
 }
-static int occam_subtr(int a, int b) {
+static int occam_subtr (int a, int b) {
 	return a - b;
 }
-static int occam_mul(int a, int b) {
+static int occam_mul (int a, int b) {
 	return a * b;
 }
-static int occam_div(int a, int b) {
+static int occam_div (int a, int b) {
 	if (b == 0) {
 		SetErr ();
 	}
 	return a / b;
 }
-static int occam_rem(int a, int b) {
+static int occam_rem (int a, int b) {
 	if (b == 0) {
 		SetErr ();
 	}
 	return a % b;
 }
-static bool occam_after(int a, int b) {
+static bool occam_after (int a, int b) {
 	return (a - b) > 0;
 }
 

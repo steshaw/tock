@@ -86,7 +86,8 @@ data Expression =
   | Dyadic Meta DyadicOp Expression Expression
   | MostPos Meta Type
   | MostNeg Meta Type
-  | Size Meta Type
+  | SizeType Meta Type
+  | SizeExpr Meta Expression
   | Conversion Meta ConversionMode Type Expression
   | ExprVariable Meta Variable
   | ExprLiteral Meta Literal
@@ -108,7 +109,6 @@ data MonadicOp =
   MonadicSubtr
   | MonadicBitNot
   | MonadicNot
-  | MonadicSize
   deriving (Show, Eq, Typeable, Data)
 
 data DyadicOp =

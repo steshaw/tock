@@ -590,8 +590,8 @@ sizeExpr :: OccParser A.Expression
 sizeExpr
     =  do m <- md
           sSIZE
-          (try (do { t <- dataType; return $ A.Size m t })
-           <|> do { v <- operand; return $ A.Monadic m A.MonadicSize v })
+          (try (do { t <- dataType; return $ A.SizeType m t })
+           <|> do { v <- operand; return $ A.SizeExpr m v })
     <?> "sizeExpr"
 
 booleanExpr :: OccParser A.Expression
@@ -815,8 +815,8 @@ definition
                   <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return (n, A.Function m rs fs' vp) } })
     <|> try (do { m <- md; s <- specifier; n <- newVariableName ;
                   sRETYPES <|> sRESHAPES; v <- variable; sColon; eol; return (n, A.Retypes m A.Abbrev s v) })
-    <|> do {  m <- md; sVAL; s <- specifier; n <- newVariableName ;
-              sRETYPES <|> sRESHAPES; e <- expression; sColon; eol; return (n, A.RetypesExpr m A.ValAbbrev s e) }
+    <|> try (do {  m <- md; sVAL; s <- specifier; n <- newVariableName ;
+                   sRETYPES <|> sRESHAPES; e <- expression; sColon; eol; return (n, A.RetypesExpr m A.ValAbbrev s e) })
     <?> "definition"
 
 dataSpecifier :: OccParser A.Type

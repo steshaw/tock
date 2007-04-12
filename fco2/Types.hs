@@ -48,25 +48,37 @@ abbrevModeOfVariable :: ParseState -> A.Variable -> Maybe A.AbbrevMode
 abbrevModeOfVariable ps (A.Variable _ n) = abbrevModeOfName ps n
 abbrevModeOfVariable ps (A.SubscriptedVariable _ _ v) = abbrevModeOfVariable ps v
 
+dyadicIsBoolean :: A.DyadicOp -> Bool
+dyadicIsBoolean A.Eq = True
+dyadicIsBoolean A.NotEq = True
+dyadicIsBoolean A.Less = True
+dyadicIsBoolean A.More = True
+dyadicIsBoolean A.LessEq = True
+dyadicIsBoolean A.MoreEq = True
+dyadicIsBoolean A.After = True
+dyadicIsBoolean _ = False
+
 typeOfExpression :: ParseState -> A.Expression -> Maybe A.Type
 typeOfExpression ps e
     = case e of
         A.Monadic m op e -> typeOfExpression ps e
-        A.Dyadic m op e f -> typeOfExpression ps e   -- assume f's been checked!
+        A.Dyadic m op e f ->
+          if dyadicIsBoolean op then Just A.Bool else typeOfExpression ps e
         A.MostPos m t -> Just t
         A.MostNeg m t -> Just t
-        A.Size m t -> Just A.Int
+        A.SizeType m t -> Just A.Int
+        A.SizeExpr m t -> Just A.Int
         A.Conversion m cm t e -> Just t
         A.ExprVariable m v -> typeOfVariable ps v
         A.ExprLiteral m l -> typeOfLiteral ps l
         A.True m -> Just A.Bool
         A.False m -> Just A.Bool
-        A.FunctionCall m n es
-            -> case returnTypesOfFunction ps n of
-                 Just [t] -> Just t
-                 _ -> Nothing
-        A.SubscriptedExpr m s e
-            -> typeOfExpression ps e >>= subscriptType
+        A.FunctionCall m n es ->
+          case returnTypesOfFunction ps n of
+            Just [t] -> Just t
+            _ -> Nothing
+        A.SubscriptedExpr m s e ->
+          typeOfExpression ps e >>= subscriptType
         A.BytesInExpr m e -> Just A.Int
         A.BytesInType m t -> Just A.Int
         A.OffsetOf m t n -> Just A.Int
