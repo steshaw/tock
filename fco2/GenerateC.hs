@@ -53,6 +53,14 @@ genTopLevel :: A.Process -> CGen ()
 genTopLevel p
     =  do tell ["#include <fco_support.h>\n"]
           genProcess p
+
+          ps <- get
+          let mainName = fromJust $ psMainName ps
+          tell ["void fco_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
+          genName mainName
+          -- FIXME This should depend on what interface it's actually got.
+          tell [" (me, in, out, err);\n"]
+          tell ["}\n"]
 --}}}
 
 --{{{  utilities
@@ -571,7 +579,7 @@ introduceSpec (n, A.IsChannelArray m t cs)
 introduceSpec (n, A.Proc m fs p)
     =  do tell ["void "]
           genName n
-          tell [" ("]
+          tell [" (Process *me"]
           genFormals fs
           tell [") {\n"]
           genProcess p
@@ -591,8 +599,11 @@ removeSpec _ = return ()
 --}}}
 
 --{{{  actuals/formals
+prefixComma :: [CGen ()] -> CGen ()
+prefixComma cs = sequence_ [genComma >> c | c <- cs]
+
 genActuals :: [(A.Actual, A.Formal)] -> CGen ()
-genActuals afs = sequence_ $ intersperse genComma (map genActual afs)
+genActuals afs = prefixComma (map genActual afs)
 
 genActual :: (A.Actual, A.Formal) -> CGen ()
 genActual (actual, A.Formal am t _)
@@ -620,7 +631,7 @@ numCArgs (A.Formal _ (A.Array _ _) _:fs) = 2 + numCArgs fs
 numCArgs (_:fs) = 1 + numCArgs fs
 
 genFormals :: [A.Formal] -> CGen ()
-genFormals fs = sequence_ $ intersperse genComma (map genFormal fs)
+genFormals fs = prefixComma (map genFormal fs)
 
 genFormal :: A.Formal -> CGen ()
 genFormal (A.Formal am t n)
@@ -769,8 +780,7 @@ genProcAlloc (pid, A.ProcCall m n as)
           -- FIXME stack size fixed here
           let stackSize = 4096
           tell [", ", show stackSize, ", ", show $ numCArgs fs]
-          sequence_ $ map (\a -> do tell [", "]
-                                    genActual a) (zip as fs)
+          genActuals (zip as fs)
           tell [");\n"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
@@ -778,7 +788,7 @@ genProcCall n as
     =  do genName n
           ps <- get
           let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
-          tell [" ("]
+          tell [" (me"]
           genActuals (zip as fs)
           tell [");\n"]
 --}}}

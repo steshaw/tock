@@ -909,7 +909,7 @@ process
     <|> parallel
     <|> altProcess
     <|> procInstance
-    <|> do { m <- md; sMainMarker; eol; return $ A.Main m }
+    <|> mainProcess
     <|> handleSpecs (allocation <|> specification) process A.ProcSpec
     <?> "process"
 
@@ -1221,6 +1221,17 @@ actual (A.Formal am t n)
                    else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
+--}}}
+--{{{ main process
+mainProcess :: OccParser A.Process
+mainProcess
+    =  do m <- md
+          sMainMarker
+          eol
+          -- Find the last thing that was defined; it should be a PROC of the right type.
+          -- FIXME We should check that it's using a valid TLP interface.
+          updateState $ (\ps -> ps { psMainName = Just $ snd $ head $ psLocalNames ps })
+          return $ A.Main m
 --}}}
 --}}}
 --{{{ top-level forms

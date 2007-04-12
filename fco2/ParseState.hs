@@ -14,7 +14,8 @@ data ParseState = ParseState {
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
     psNonceCounter :: Int,
-    psPulledItems :: [A.Process -> A.Process]
+    psPulledItems :: [A.Process -> A.Process],
+    psMainName :: Maybe A.Name
   }
   deriving (Show, Data, Typeable)
 
@@ -27,7 +28,8 @@ emptyState = ParseState {
     psNames = [],
     psNameCounter = 0,
     psNonceCounter = 0,
-    psPulledItems = []
+    psPulledItems = [],
+    psMainName = Nothing
   }
 
 -- | Add the definition of a name.
