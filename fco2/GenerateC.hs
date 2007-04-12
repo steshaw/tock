@@ -24,6 +24,9 @@ module GenerateC where
 -- FIXME: The timer read mess can be cleaned up -- when you declare a timer,
 -- that declares the temp variable...
 
+-- FIXME: There should be a wrapper for SetErr that takes a Meta and an error
+-- message. Ops and array references should use it.
+
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -69,6 +72,20 @@ withPS f
 checkJust :: Maybe t -> CGen t
 checkJust (Just v) = return v
 checkJust Nothing = fail "checkJust failed"
+
+overArray :: A.Name -> A.Type -> (CGen () -> Maybe (CGen ())) -> CGen ()
+overArray n (A.Array ds _) func
+    =  do indices <- mapM (\_ -> makeNonce "i") ds
+          let arg = sequence_ [tell ["[", i, "]"] | i <- indices]
+          case func arg of
+            Just p ->
+              do sequence_ [do tell ["for (int ", i, " = 0; ", i, " < "]
+                               genName n
+                               tell ["_sizes[", show v, "]; ", i, "++) {\n"]
+                            | (v, i) <- zip [0..] indices]
+                 p
+                 sequence_ [tell ["}\n"] | i <- indices]
+            Nothing -> return ()
 --}}}
 
 --{{{  names
@@ -104,10 +121,12 @@ genType t
 --{{{  declarations
 genDeclType :: A.AbbrevMode -> A.Type -> CGen ()
 genDeclType am t
-    =  do case am of
-            A.ValAbbrev -> tell ["const "]
-            _ -> return ()
+    =  do when (am == A.ValAbbrev) $ tell ["const "]
           genType t
+          case t of
+            A.Array _ _ -> return ()
+            A.Chan _ -> return ()
+            _ -> when (am == A.Abbrev) $ tell [" *"]
 
 genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
 genDecl am t n
@@ -182,13 +201,13 @@ INT x:                x           x             *x         int x;          int *
 
                                   Original      Abbrev
 
-CHAN OF INT c:        c           &c            c          Channel c;      Channel *c;
-[10]CHAN OF INT cs:   cs[i]       &cs[i]        cs[i]      Channel cs[10]; Channel **cs;
+CHAN OF INT c:        c           &c            c          Channel c;       Channel *c;
+[10]CHAN OF INT cs:   cs[i]       cs[i]         cs[i]      Channel *cs[10]; Channel **cs;
                       cs          cs            cs
 
 [2][2]INT xss:        xss[i][j]   xss[i][j]     xss[i][j]
                       xss         xss           xss
-[2][2]CHAN INT css:   css[i][j]   &css[i][j]    css[i][j]
+[2][2]CHAN INT css:   css[i][j]   css[i][j]     css[i][j]
                       css         css           css
 
 I suspect there's probably a nicer way of doing this, but as a translation of
@@ -210,10 +229,11 @@ genVariable v
                          A.Chan _ -> True
                          _ -> False
 
-          case am of
-            A.Abbrev -> if isChan || isArray then return () else tell ["*"]
-            A.ValAbbrev -> if isSubbed || not isArray then tell ["&"] else return ()
-            _ -> return ()
+          when ((am == A.Abbrev) && (not (isChan || isArray || isSubbed))) $
+               tell ["*"]
+
+          when ((am == A.Original) && isChan && not (isArray || isSubbed)) $
+               tell ["&"]
 
           inner v
   where
@@ -262,6 +282,7 @@ genMonadic :: A.MonadicOp -> A.Expression -> CGen ()
 genMonadic A.MonadicSubtr e = genSimpleMonadic "-" e
 genMonadic A.MonadicBitNot e = genSimpleMonadic "~" e
 genMonadic A.MonadicNot e = genSimpleMonadic "!" e
+-- FIXME This needs to cope with subscripts
 genMonadic A.MonadicSize e
     =  do genExpression e
           tell ["_sizes[0]"]
@@ -391,6 +412,38 @@ genReplicatorLoop (A.For m n base count)
 --{{{  structured
 --}}}
 
+--{{{  abbreviations
+-- | Generate the right-hand side of an abbreviation of a variable.
+abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), Maybe (CGen ()))
+abbrevVariable am (A.Array _ _) v
+    = (genVariable v, Just $ do { genVariable v; tell ["_sizes"] })
+abbrevVariable am (A.Chan _) v
+    = (genVariable v, Nothing)
+abbrevVariable am t v
+    = (do { when (am == A.Abbrev) $ tell ["&"]; genVariable v }, Nothing)
+
+-- | Generate the right-hand side of an abbreviation of an expression.
+abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), Maybe (CGen ()))
+abbrevExpression am t@(A.Array _ _) e
+    = case e of
+        A.ExprVariable _ v -> abbrevVariable am t v
+        A.ExprLiteral _ l ->
+          case l of
+            A.Literal _ litT r -> (genExpression e, Just $ genTypeSize litT)
+            A.SubscriptedLiteral _ _ _ -> bad
+        _ -> bad
+  where
+    bad = (missing "array expression abbreviation", Just $ missing "AEA size")
+
+    genTypeSize :: A.Type -> CGen ()
+    genTypeSize (A.Array ds _)
+        =  do tell ["{ "]
+              sequence_ $ intersperse genComma [genExpression e | A.Dimension e <- ds]
+              tell [" }"]
+abbrevExpression am _ e
+    = (genExpression e, Nothing)
+--}}}
+
 --{{{  specifications
 genSpec :: A.Specification -> CGen () -> CGen ()
 genSpec spec body
@@ -398,10 +451,40 @@ genSpec spec body
           body
           removeSpec spec
 
--- FIXME This needs to be rather smarter than it is -- in particular,
--- when declaring arrays of things (like channels) it needs to make sure
--- they're initialised.  Probably split into declare/init parts so that
--- it can just recurse sensibly.
+-- | Generate the C type corresponding to a variable being declared.
+-- It must be possible to use this in arrays.
+declareType :: A.Type -> CGen ()
+declareType (A.Chan _) = tell ["Channel *"]
+declareType t = genType t
+
+-- | Initialise an item being declared.
+declareInit :: A.Type -> CGen () -> CGen () -> Maybe (CGen ())
+declareInit (A.Chan _) name index
+    = Just $ do tell ["ChanInit (&"]
+                name
+                index
+                tell [");\n"]
+declareInit _ _ _ = Nothing
+
+-- | Free a declared item that's going out of scope.
+declareFree :: A.Type -> CGen () -> CGen () -> Maybe (CGen ())
+declareFree _ _ _ = Nothing
+
+{-
+                  Original        Abbrev
+INT x IS y:       int *x = &y;    int *x = &(*y);
+[]INT xs IS ys:   int *xs = ys;   int *xs = ys;
+                  const int xs_sizes[] = ys_sizes;
+
+CHAN OF INT c IS d:       Channel *c = d;
+
+[10]CHAN OF INT cs:       Channel tmp[10];
+                          Channel *cs[10];
+                          for (...) { cs[i] = &tmp[i]; ChanInit(cs[i]); }
+                          const int cs_sizes[] = { 10 };
+[]CHAN OF INT ds IS cs:   Channel **ds = cs;
+                          const int ds_sizes[] = cs_sizes;
+-}
 introduceSpec :: A.Specification -> CGen ()
 introduceSpec (n, A.Declaration m t)
     = case t of
@@ -410,66 +493,78 @@ introduceSpec (n, A.Declaration m t)
           do tell ["Channel "]
              genName n
              tell [";\n"]
-             tell ["ChanInit ("]
+             tell ["ChanInit (&"]
              genName n
              tell [");\n"]
-        A.Array ds t ->
-          do genType t
+        A.Array ds t' ->
+          do declareType t'
              tell [" "]
              genName n
-             sequence_ $ map (\d -> case d of
+             let dim = sequence_ $ [case d of
                                       A.Dimension e ->
                                         do tell ["["]
                                            genExpression e
                                            tell ["]"]
                                       A.UnknownDimension ->
-                                        missing "unknown dimension in declaration") ds
+                                        missing "unknown dimension in declaration"
+                                    | d <- ds]
+             dim
              tell [";\n"]
+             init <- case t' of
+                       A.Chan _ ->
+                         do store <- makeNonce "storage"
+                            tell ["Channel ", store]
+                            dim
+                            tell [";\n"]
+                            return (\index -> Just $ do fromJust $ declareInit t' (tell [store]) index
+                                                        genName n
+                                                        index
+                                                        tell [" = &", store]
+                                                        index
+                                                        tell [";\n"])
+                       _ -> return $ declareInit t' (genName n)
              tell ["const int "]
              genName n
              tell ["_sizes[] = { "]
              sequence_ $ intersperse genComma [genExpression e | (A.Dimension e) <- ds]
              tell [" };\n"]
+             overArray n t init
         _ ->
-          do genType t
+          do declareType t
              tell [" "]
              genName n
              tell [";\n"]
-{-
-                  Original        Abbrev
-INT x IS y:       int *x = &y;    int *x = &(*y);
-[]INT xs IS ys:   int *xs = ys;   int *xs = ys;
-                  const int xs_sizes[] = ys_sizes;
-
-[10]CHAN OF INT:          Channel c[10];
-CHAN OF INT c IS d:       Channel *c = d;
-[]CHAN OF INT cs IS ds:   Channel **cs = ds;
-                          const int cs_sizes[] = ds_sizes;
--}
+             case declareInit t (genName n) (return ()) of
+               Just p -> p
+               Nothing -> return ()
 introduceSpec (n, A.Is m am t v)
-    = case t of
-        A.Array _ _ ->
-          do genDecl am t n
-             tell [" = "]
-             genVariable v
-             tell [";\n"]
-             tell ["const int "]
-             genName n
-             tell ["_sizes[] = "]
-             genVariable v
-             tell ["_sizes;\n"]
-        _ ->
-          do genDecl am t n
-             case t of
-               A.Chan _ -> tell [" = "]
-               _ -> tell [" = &"]
-             genVariable v
-             tell [";\n"]
-introduceSpec (n, A.IsExpr m am t e)
-    =  do genDecl am t n
+    =  do let (rhs, rhsSizes) = abbrevVariable am t v
+          genDecl am t n
           tell [" = "]
-          genExpression e
+          rhs
           tell [";\n"]
+          case rhsSizes of
+            Just r ->
+              do tell ["const int "]
+                 genName n
+                 tell ["_sizes[] = "]
+                 r
+                 tell [";\n"]
+            Nothing -> return ()
+introduceSpec (n, A.IsExpr m am t e)
+    =  do let (rhs, rhsSizes) = abbrevExpression am t e
+          genDecl am t n
+          tell [" = "]
+          rhs
+          tell [";\n"]
+          case rhsSizes of
+            Just r ->
+              do tell ["const int "]
+                 genName n
+                 tell ["_sizes[] = "]
+                 r
+                 tell [";\n"]
+            Nothing -> return ()
 introduceSpec (n, A.IsChannelArray m t cs)
     =  do genDecl A.Abbrev t n
           tell [" = {"]
@@ -487,33 +582,39 @@ introduceSpec (n, A.Proc m fs p)
 introduceSpec (n, t) = missing $ "introduceSpec " ++ show t
 
 removeSpec :: A.Specification -> CGen ()
+removeSpec (n, A.Declaration m t)
+    = case t of
+        A.Array _ t' -> overArray n t (declareFree t' (genName n))
+        _ ->
+          do case declareFree t (genName n) (return ()) of
+               Just p -> p
+               Nothing -> return ()
 removeSpec _ = return ()
 --}}}
 
 --{{{  actuals/formals
-genActuals :: [A.Actual] -> CGen ()
-genActuals as = sequence_ $ intersperse genComma (map genActual as)
+genActuals :: [(A.Actual, A.Formal)] -> CGen ()
+genActuals afs = sequence_ $ intersperse genComma (map genActual afs)
 
-genActual :: A.Actual -> CGen ()
--- FIXME Handle expressions that return arrays
-genActual (A.ActualExpression e)
-    =  do ps <- get
-          t <- checkJust $ typeOfExpression ps e
-          case t of
-            (A.Array _ t') -> missing "array expression actual"
-            _ -> genExpression e
-genActual (A.ActualVariable v)
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps v
-          case t of
-            (A.Array _ t') ->
-              do genVariable v
-                 tell [", "]
-                 genVariable v
-                 tell ["_sizes"]
-            _ ->
-              do tell ["&"]
-                 genVariable v
+genActual :: (A.Actual, A.Formal) -> CGen ()
+genActual (actual, A.Formal am t _)
+    = case actual of
+        A.ActualExpression e ->
+          do let (rhs, rhsSizes) = abbrevExpression am t e
+             rhs
+             case rhsSizes of
+               Just r ->
+                 do tell [", "]
+                    r
+               Nothing -> return ()
+        A.ActualVariable v ->
+          do let (rhs, rhsSizes) = abbrevVariable am t v
+             rhs
+             case rhsSizes of
+               Just r ->
+                 do tell [", "]
+                    r
+               Nothing -> return ()
 
 genFormals :: [A.Formal] -> CGen ()
 genFormals fs = sequence_ $ intersperse genComma (map genFormal fs)
@@ -660,17 +761,21 @@ genProcAlloc :: (String, A.Process) -> CGen ()
 genProcAlloc (pid, A.ProcCall m n as)
     =  do tell ["Process *", pid, " = ProcAlloc ("]
           genName n
+          ps <- get
+          let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
           -- FIXME stack size fixed here
           tell [", 4096"]
           sequence_ $ map (\a -> do tell [", "]
-                                    genActual a) as
+                                    genActual a) (zip as fs)
           tell [");\n"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as
     =  do genName n
+          ps <- get
+          let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
           tell [" ("]
-          genActuals as
+          genActuals (zip as fs)
           tell [");\n"]
 --}}}
 

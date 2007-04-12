@@ -292,12 +292,14 @@ intersperseP (f:fs) sep
 tryTrail :: OccParser a -> OccParser b -> OccParser a
 tryTrail p q = try (do { v <- p; q; return v })
 
-listType :: [A.Type] -> OccParser A.Type
-listType [] = fail "expected non-empty list"
-listType [t] = return $ makeArrayType A.UnknownDimension t
-listType (t1 : rest@(t2 : _))
-    = if t1 == t2 then listType rest
-                  else fail "multiple types in list"
+listType :: Meta -> [A.Type] -> OccParser A.Type
+listType m l = listType' m (length l) l
+  where
+    listType' m len [] = fail "expected non-empty list"
+    listType' m len [t] = return $ makeArrayType (A.Dimension $ makeConstant m len) t
+    listType' m len (t1 : rest@(t2 : _))
+        = if t1 == t2 then listType' m len rest
+                      else fail "multiple types in list"
 
 matchType :: A.Type -> A.Type -> OccParser ()
 matchType et rt
@@ -324,6 +326,10 @@ pTypeOf f item
 pTypeOfVariable = pTypeOf typeOfVariable
 pTypeOfExpression = pTypeOf typeOfExpression
 pSpecTypeOfName = pTypeOf specTypeOfName
+
+-- | Generate a constant expression from an integer -- for array sizes and the like.
+makeConstant :: Meta -> Int -> A.Expression
+makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
 --}}}
 
 --{{{ name scoping
@@ -528,24 +534,23 @@ table :: OccParser A.Literal
 table
     = maybeSubscripted "table" table' A.SubscriptedLiteral
 
--- FIXME This should put the sizes into the types, since it knows them and
--- we'll need them when generating code.
 table' :: OccParser A.Literal
 table'
-    =   try (do { m <- md; s <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
-    <|> try (do { m <- md; s <- stringLiteral; return $ A.Literal m (A.Array [A.UnknownDimension] A.Byte) s })
+    -- FIXME Check dimensions match
+    =   try (do { m <- md; (s, dim) <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
+    <|> try (do { m <- md; (s, dim) <- stringLiteral; return $ A.Literal m (A.Array [dim] A.Byte) s })
     <|> do m <- md
            es <- tryTrail (do { sLeft; sepBy1 expression sComma }) sRight
            ps <- getState
            ets <- mapM (\e -> checkMaybe "can't type expression" $ typeOfExpression ps e) es
-           t <- listType ets
+           t <- listType m ets
            return $ A.Literal m t (A.ArrayLiteral m es)
     <|> maybeSliced table A.SubscriptedLiteral
     <?> "table'"
 
-stringLiteral :: OccParser A.LiteralRepr
+stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
 stringLiteral
-    =   do { m <- md; char '"'; cs <- manyTill character sQuote; return $ A.StringLiteral m (concat cs) }
+    =   do { m <- md; char '"'; cs <- manyTill character sQuote; return $ (A.StringLiteral m $ concat cs, A.Dimension $ makeConstant m $ length cs) }
     <?> "stringLiteral"
 
 character :: OccParser String
@@ -792,8 +797,8 @@ abbreviation
             <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
             <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
             <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; matchType s t; return (n, A.Is m A.Abbrev s c) })
-            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType ts; return (n, A.IsChannelArray m t cs) })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType ts; matchType s t; return (n, A.IsChannelArray m s cs) }))
+            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; return (n, A.IsChannelArray m t cs) })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; matchType s t; return (n, A.IsChannelArray m s cs) }))
     <?> "abbreviation"
 
 definition :: OccParser A.Specification

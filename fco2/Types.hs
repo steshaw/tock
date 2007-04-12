@@ -1,6 +1,8 @@
 -- | Type inference and checking.
 module Types where
 
+-- FIXME: This module is a mess -- sort it and document the functions.
+
 import Control.Monad
 
 import qualified AST as A
@@ -8,15 +10,6 @@ import ParseState
 
 perhaps :: Maybe a -> (a -> b) -> Maybe b
 perhaps m f = m >>= (Just . f)
-
--- FIXME: Eww, this shouldn't be necessary -- the lookups should really work on
--- Strings.
-makeDummyName :: String -> A.Name
-makeDummyName s = A.Name {
-                    A.nameMeta = [],
-                    A.nameType = A.ChannelName,
-                    A.nameName = s
-                  }
 
 sameName :: A.Name -> A.Name -> Bool
 sameName a b = A.nameName a == A.nameName b

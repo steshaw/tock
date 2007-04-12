@@ -104,6 +104,18 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ
     doSpecType (A.Function _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
     doSpecType st = doGeneric st
 
+-- | Replace names.
+replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
+replaceNames map p = everywhere (mkT $ doName) p
+  where
+    smap = [(A.nameName f, t) | (f, t) <- map]
+
+    doName :: A.Name -> A.Name
+    doName n
+        = case lookup (A.nameName n) smap of
+            Just n' -> n'
+            Nothing -> n
+
 -- | Turn free names in PROCs into arguments.
 removeFreeNames :: Data t => t -> UnM t
 removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
@@ -154,10 +166,22 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
                           A.Original -> A.Abbrev
                           t -> t
                         | n <- freeNames]
+             -- Generate and define new names to replace them with
+             newNamesS <- sequence [makeNonce (A.nameName n) | n <- freeNames]
+             let newNames = [on { A.nameName = nn } | (on, nn) <- zip freeNames newNamesS]
+             sequence_ [let ond = fromJust $ psLookupName ps on
+                          in modify $ psDefineName nn (ond { A.ndName = A.nameName nn,
+                                                             A.ndAbbrevMode = am })
+                        | (on, nn, am) <- zip3 freeNames newNames ams]
+             ps' <- get
              -- Add formals for each of the free names
-             let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types freeNames]
-             p' <- removeFreeNames p
-             let spec' = (n, A.Proc m (fs ++ newFs) p')
+             let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
+             p' <- removeFreeNames $ replaceNames (zip freeNames newNames) p
+             let st' = A.Proc m (fs ++ newFs) p'
+             let spec' = (n, st')
+             -- Update the definition of the proc
+             let nameDef = fromJust $ psLookupName ps n
+             modify $ psDefineName n (nameDef { A.ndType = st' })
              -- Add extra arguments to calls of this proc
              let newAs = [case am of
                             A.Abbrev -> A.ActualVariable (A.Variable m n)
