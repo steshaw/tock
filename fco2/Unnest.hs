@@ -193,10 +193,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
 removeNesting :: A.Process -> PassM A.Process
 removeNesting p
     =  do p' <- pullSpecs p
-          st <- get
-          let pulled = psPulledSpecs st
-          put $ st { psPulledSpecs = [] }
-          return $ foldl (\p (m, spec) -> A.ProcSpec m spec p) p' pulled
+          applyPulled p'
   where
     pullSpecs :: Data t => t -> PassM t
     pullSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
@@ -220,7 +217,7 @@ removeNesting p
     doSpec orig m spec@(_, st) child
         = if canPull st then
             do spec' <- pullSpecs spec
-               modify $ (\ps -> ps { psPulledSpecs = (m, spec') : psPulledSpecs ps })
+               addPulled $ A.ProcSpec m spec'
                child' <- pullSpecs child
                return child'
           else doGeneric orig

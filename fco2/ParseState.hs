@@ -14,9 +14,12 @@ data ParseState = ParseState {
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
     psNonceCounter :: Int,
-    psPulledSpecs :: [(Meta, A.Specification)]
+    psPulledItems :: [A.Process -> A.Process]
   }
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Data, Typeable)
+
+instance Show (A.Process -> A.Process) where
+  show p = "(function on A.Process)"
 
 emptyState :: ParseState
 emptyState = ParseState {
@@ -24,7 +27,7 @@ emptyState = ParseState {
     psNames = [],
     psNameCounter = 0,
     psNonceCounter = 0,
-    psPulledSpecs = []
+    psPulledItems = []
   }
 
 -- | Add the definition of a name.
@@ -43,3 +46,16 @@ makeNonce s
           put ps { psNonceCounter = i + 1 }
           return $ s ++ "_n" ++ show i
 
+-- | Add a pulled item to the collection.
+addPulled :: MonadState ParseState m => (A.Process -> A.Process) -> m ()
+addPulled item
+    =  do ps <- get
+          put $ ps { psPulledItems = item : psPulledItems ps }
+
+-- | Apply pulled items to a Process.
+applyPulled :: MonadState ParseState m => A.Process -> m A.Process
+applyPulled ast
+    =  do ps <- get
+          let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
+          put $ ps { psPulledItems = [] }
+          return ast'
