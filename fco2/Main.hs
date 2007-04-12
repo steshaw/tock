@@ -6,10 +6,18 @@ import System
 import System.Console.GetOpt
 import System.IO
 
+import Pass
 import PrettyShow
 import Parse
+import SimplifyExprs
 import Unnest
 import GenerateC
+
+passes :: [(String, Pass)]
+passes =
+  [ ("Simplify expressions", simplifyExprs)
+  , ("Flatten nested declarations", unnest)
+  ]
 
 data Flag = ParseOnly | Verbose
   deriving (Eq, Show)
@@ -53,23 +61,16 @@ main = do
   progress "{{{ Parser"
   (ast, state) <- parseSource preprocessed fn
   progress $ pshow ast
-  progress "}}}"
-
-  progress "{{{ State after parsing"
   progress $ pshow state
   progress "}}}"
 
-  progress "{{{ Unnest"
-  (state, ast) <- unnest state ast
-  progress $ pshow ast
-  progress $ pshow state
-  progress "}}}"
-
-  if ParseOnly `elem` opts then do
+  if ParseOnly `elem` opts then
       putStrLn $ show ast
     else do
+      (ast', state') <- runPass (runPasses passes) ast state
+
       progress "{{{ Generate C"
-      c <- generateC state ast
+      c <- generateC state' ast'
       putStr c
       progress "}}}"
       progress "Done"

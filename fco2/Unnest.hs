@@ -1,5 +1,5 @@
 -- | Flatten nested declarations.
-module Unnest where
+module Unnest (unnest) where
 
 import Control.Monad.State
 import Data.Generics
@@ -10,11 +10,13 @@ import qualified AST as A
 import Metadata
 import ParseState
 import Types
+import Pass
 
-type UnM a = StateT ParseState IO a
+unnest :: A.Process -> PassM A.Process
+unnest p = parsToProcs p >>= removeFreeNames >>= removeNesting
 
 -- | Generate and define a no-arg wrapper PROC around a process.
-makeNonceProc :: Meta -> A.Process -> UnM A.Specification
+makeNonceProc :: Meta -> A.Process -> PassM A.Specification
 makeNonceProc m p
     =  do ns <- makeNonce "wrapper_proc"
           let n = A.Name m A.ProcName ns
@@ -30,21 +32,14 @@ makeNonceProc m p
           modify $ psDefineName n nd
           return (n, st)
 
-unnest :: ParseState -> A.Process -> IO (ParseState, A.Process)
-unnest ps ast
-    =  do (ast', ps') <- runStateT (parsToProcs ast) ps
-          (ast'', ps'') <- runStateT (removeFreeNames ast') ps'
-          (ast''', ps''') <- runStateT (removeNesting ast'') ps''
-          return (ps''', ast''')
-
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
-parsToProcs :: Data t => t -> UnM t
+parsToProcs :: Data t => t -> PassM t
 parsToProcs = doGeneric `extM` doProcess
   where
-    doGeneric :: Data t => t -> UnM t
+    doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM parsToProcs
 
-    doProcess :: A.Process -> UnM A.Process
+    doProcess :: A.Process -> PassM A.Process
     doProcess (A.Par m pm ps)
         =  do ps' <- mapM parsToProcs ps
               procs <- mapM (makeNonceProc m) ps'
@@ -117,25 +112,25 @@ replaceNames map p = everywhere (mkT $ doName) p
             Nothing -> n
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: Data t => t -> UnM t
+removeFreeNames :: Data t => t -> PassM t
 removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
   where
-    doGeneric :: Data t => t -> UnM t
+    doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM removeFreeNames
 
-    doProcess :: A.Process -> UnM A.Process
+    doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcSpec m spec p)
         =  do (spec', p') <- doSpec m spec p
               return $ A.ProcSpec m spec' p'
     doProcess p = doGeneric p
 
-    doStructured :: A.Structured -> UnM A.Structured
+    doStructured :: A.Structured -> PassM A.Structured
     doStructured (A.Spec m spec s)
         =  do (spec', s') <- doSpec m spec s
               return $ A.Spec m spec' s'
     doStructured s = doGeneric s
 
-    doValueProcess :: A.ValueProcess -> UnM A.ValueProcess
+    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
     doValueProcess (A.ValOfSpec m spec vp)
         =  do (spec', vp') <- doSpec m spec vp
               return $ A.ValOfSpec m spec' vp'
@@ -149,7 +144,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
             = if sameName n matchN then A.ProcCall m n (as ++ newAs) else p
         atcProc p = p
 
-    doSpec :: Data t => Meta -> A.Specification -> t -> UnM (A.Specification, t)
+    doSpec :: Data t => Meta -> A.Specification -> t -> PassM (A.Specification, t)
     doSpec m spec child = case spec of
         (n, st@(A.Proc m fs p)) ->
           do
@@ -195,7 +190,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
              return (spec', child')
 
 -- | Pull nested declarations to the top level.
-removeNesting :: A.Process -> UnM A.Process
+removeNesting :: A.Process -> PassM A.Process
 removeNesting p
     =  do p' <- pullSpecs p
           st <- get
@@ -203,25 +198,25 @@ removeNesting p
           put $ st { psPulledSpecs = [] }
           return $ foldl (\p (m, spec) -> A.ProcSpec m spec p) p' pulled
   where
-    pullSpecs :: Data t => t -> UnM t
+    pullSpecs :: Data t => t -> PassM t
     pullSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
 
-    doGeneric :: Data t => t -> UnM t
+    doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullSpecs
 
-    doProcess :: A.Process -> UnM A.Process
+    doProcess :: A.Process -> PassM A.Process
     doProcess orig@(A.ProcSpec m spec p) = doSpec orig m spec p
     doProcess p = doGeneric p
 
-    doStructured :: A.Structured -> UnM A.Structured
+    doStructured :: A.Structured -> PassM A.Structured
     doStructured orig@(A.Spec m spec s) = doSpec orig m spec s
     doStructured s = doGeneric s
 
-    doValueProcess :: A.ValueProcess -> UnM A.ValueProcess
+    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
     doValueProcess orig@(A.ValOfSpec m spec vp) = doSpec orig m spec vp
     doValueProcess vp = doGeneric vp
 
-    doSpec :: Data t => t -> Meta -> A.Specification -> t -> UnM t
+    doSpec :: Data t => t -> Meta -> A.Specification -> t -> PassM t
     doSpec orig m spec@(_, st) child
         = if canPull st then
             do spec' <- pullSpecs spec

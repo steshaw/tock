@@ -11,7 +11,9 @@ sources = \
 	Metadata.hs \
 	Parse.hs \
 	ParseState.hs \
+	Pass.hs \
 	PrettyShow.hs \
+	SimplifyExprs.hs \
 	Types.hs \
 	Unnest.hs
 
