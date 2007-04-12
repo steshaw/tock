@@ -67,7 +67,7 @@ main = do
   if ParseOnly `elem` opts then
       putStrLn $ show ast
     else do
-      (ast', state') <- runPass (runPasses passes) ast state
+      (ast', state') <- runPass (runPasses progress passes) ast state
 
       progress "{{{ Generate C"
       c <- generateC state' ast'

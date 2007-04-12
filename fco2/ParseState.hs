@@ -59,3 +59,30 @@ applyPulled ast
           let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
           put $ ps { psPulledItems = [] }
           return ast'
+
+-- | Generate and define a nonce specification.
+defineNonce :: MonadState ParseState m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
+defineNonce m s st nt am
+    =  do ns <- makeNonce s
+          let n = A.Name m A.ProcName ns
+          let nd = A.NameDef {
+                     A.ndMeta = m,
+                     A.ndName = ns,
+                     A.ndOrigName = ns,
+                     A.ndNameType = nt,
+                     A.ndType = st,
+                     A.ndAbbrevMode = am
+                   }
+          modify $ psDefineName n nd
+          return (n, st)
+
+-- | Generate and define a no-arg wrapper PROC around a process.
+makeNonceProc :: MonadState ParseState m => Meta -> A.Process -> m A.Specification
+makeNonceProc m p
+    = defineNonce m "wrapper_proc" (A.Proc m [] p) A.ProcName A.Abbrev
+
+-- | Generate and define a VAL abbreviation.
+makeNonceValIs :: MonadState ParseState m => Meta -> A.Type -> A.Expression -> m A.Specification
+makeNonceValIs m t e
+    = defineNonce m "expr" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+

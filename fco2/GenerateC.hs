@@ -17,9 +17,7 @@ module GenerateC where
 -- FIXME: Should have a pass that converts functions to procs, and calls to a
 -- call outside the enclosing process (which can be found by a generic pass
 -- over the tree).
--- Array constants need pulling up at the same time (might as well avoid
--- walking the tree twice!).
--- And slices. Subscripts generally?
+-- And array subscripts also.
 
 -- FIXME: The timer read mess can be cleaned up -- when you declare a timer,
 -- that declares the temp variable...
@@ -69,7 +67,7 @@ withPS f
     =  do st <- get
           return $ f st
 
-checkJust :: Maybe t -> CGen t
+checkJust :: Monad m => Maybe t -> m t
 checkJust (Just v) = return v
 checkJust Nothing = fail "checkJust failed"
 
@@ -483,7 +481,7 @@ CHAN OF INT c IS d:       Channel *c = d;
                           for (...) { cs[i] = &tmp[i]; ChanInit(cs[i]); }
                           const int cs_sizes[] = { 10 };
 []CHAN OF INT ds IS cs:   Channel **ds = cs;
-                          const int ds_sizes[] = cs_sizes;
+                          const int *ds_sizes = cs_sizes;
 -}
 introduceSpec :: A.Specification -> CGen ()
 introduceSpec (n, A.Declaration m t)
@@ -545,9 +543,9 @@ introduceSpec (n, A.Is m am t v)
           tell [";\n"]
           case rhsSizes of
             Just r ->
-              do tell ["const int "]
+              do tell ["const int *"]
                  genName n
-                 tell ["_sizes[] = "]
+                 tell ["_sizes = "]
                  r
                  tell [";\n"]
             Nothing -> return ()

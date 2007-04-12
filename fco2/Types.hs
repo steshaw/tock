@@ -3,6 +3,9 @@ module Types where
 
 -- FIXME: This module is a mess -- sort it and document the functions.
 
+-- FIXME: These functions should have state-monadic versions.
+-- It'd be nice if we could provide an instance of StateMonad for the Parsec state...
+
 import Control.Monad
 
 import qualified AST as A

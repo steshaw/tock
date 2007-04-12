@@ -15,23 +15,6 @@ import Pass
 unnest :: A.Process -> PassM A.Process
 unnest p = parsToProcs p >>= removeFreeNames >>= removeNesting
 
--- | Generate and define a no-arg wrapper PROC around a process.
-makeNonceProc :: Meta -> A.Process -> PassM A.Specification
-makeNonceProc m p
-    =  do ns <- makeNonce "wrapper_proc"
-          let n = A.Name m A.ProcName ns
-          let st = A.Proc m [] p
-          let nd = A.NameDef {
-                     A.ndMeta = m,
-                     A.ndName = ns,
-                     A.ndOrigName = ns,
-                     A.ndNameType = A.ProcName,
-                     A.ndType = st,
-                     A.ndAbbrevMode = A.Abbrev
-                   }
-          modify $ psDefineName n nd
-          return (n, st)
-
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
 parsToProcs :: Data t => t -> PassM t
 parsToProcs = doGeneric `extM` doProcess
