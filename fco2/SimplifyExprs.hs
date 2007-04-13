@@ -17,7 +17,7 @@ simplifyExprs = pullUp
 -- | Find things that need to be moved up to their enclosing process, and do
 -- so.
 pullUp :: Data t => t -> PassM t
-pullUp = doGeneric `extM` doProcess `extM` doExpression
+pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullUp
@@ -52,7 +52,27 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression
         pull t e
             = do -- FIXME Should get Meta from somewhere...
                  let m = []
-                 spec@(n, _) <- makeNonceValIs m t e
+                 spec@(n, _) <- makeNonceIsExpr m t e
                  addPulled $ A.ProcSpec m spec
                  return $ A.ExprVariable m (A.Variable m n)
+
+    -- | Pull array actual slices.
+    doActual :: A.Actual -> PassM A.Actual
+    doActual a@(A.ActualVariable _ _ _)
+        =  do a' <- doGeneric a
+              let (am, t, v) = case a' of A.ActualVariable am t v -> (am, t, v)
+              case v of
+                A.SubscriptedVariable m s _ ->
+                  if isSliceSubscript s
+                    then do v' <- pull m am t v
+                            return $ A.ActualVariable am t v'
+                    else return a'
+                _ -> return a'
+      where
+        pull :: Meta -> A.AbbrevMode -> A.Type -> A.Variable -> PassM A.Variable
+        pull m am t v
+            = do spec@(n, _) <- makeNonceIs m t am v
+                 addPulled $ A.ProcSpec m spec
+                 return $ A.Variable m n
+    doActual a = doGeneric a
 

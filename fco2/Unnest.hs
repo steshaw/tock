@@ -162,9 +162,9 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
              modify $ psDefineName n (nameDef { A.ndType = st' })
              -- Add extra arguments to calls of this proc
              let newAs = [case am of
-                            A.Abbrev -> A.ActualVariable (A.Variable m n)
-                            _ -> A.ActualExpression (A.ExprVariable m (A.Variable m n))
-                          | (am, n) <- zip ams freeNames]
+                            A.Abbrev -> A.ActualVariable am t (A.Variable m n)
+                            _ -> A.ActualExpression t (A.ExprVariable m (A.Variable m n))
+                          | (am, n, t) <- zip3 ams freeNames types]
              child' <- removeFreeNames (addToCalls n newAs child)
              return (spec', child')
         _ ->

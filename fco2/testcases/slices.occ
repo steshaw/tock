@@ -1,0 +1,19 @@
+PROC A ([]INT unsized)
+  SKIP
+:
+PROC B ([5]INT sized)
+  SKIP
+:
+PROC P ()
+  [20]INT foo:
+  SEQ
+    A (foo)
+    A ([foo FROM 10 FOR 5])
+    A ([foo FOR 12])
+    A ([foo FROM 12])
+    B ([foo FOR 5])
+    []INT a IS [foo FROM 10 FOR 3]:
+    SKIP
+    VAL []INT v IS [foo FROM 10 FOR 3]:
+    SKIP
+:

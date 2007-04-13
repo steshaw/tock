@@ -1264,10 +1264,10 @@ actuals fs = intersperseP (map actual fs) sComma
 actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
-            A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression e } <?> "actual expression for " ++ an
+            A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
             _ -> if isChannelType t
-                   then do { c <- channel; ct <- pTypeOfVariable c; matchType t ct; return $ A.ActualVariable c } <?> "actual channel for " ++ an
-                   else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable v } <?> "actual variable for " ++ an
+                   then do { c <- channel; ct <- pTypeOfVariable c; matchType t ct; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
+                   else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
 --}}}

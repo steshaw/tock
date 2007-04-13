@@ -204,8 +204,8 @@ data Formal =
   deriving (Show, Eq, Typeable, Data)
 
 data Actual =
-  ActualVariable Variable
-  | ActualExpression Expression
+  ActualVariable AbbrevMode Type Variable
+  | ActualExpression Type Expression
   deriving (Show, Eq, Typeable, Data)
 
 data ValueProcess =

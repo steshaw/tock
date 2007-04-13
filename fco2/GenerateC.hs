@@ -489,8 +489,26 @@ genReplicatorSize (A.For m n base count) = genExpression count
 --}}}
 
 --{{{  abbreviations
+genSlice :: A.Variable -> A.Expression -> A.Expression -> (CGen (), Maybe (CGen ()))
+genSlice v start count
+    = ((do tell ["&"]
+           genVariable v
+           tell ["["]
+           genExpression start
+           tell ["]"]),
+       (Just $ do tell ["{ "]
+                  genExpression count
+                  -- FIXME Add remaining dimensions
+                  tell [" }"]))
+
 -- | Generate the right-hand side of an abbreviation of a variable.
 abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), Maybe (CGen ()))
+abbrevVariable am _ (A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) v)
+    = genSlice v start count
+abbrevVariable am _ (A.SubscriptedVariable m (A.SubscriptFrom _ start) v)
+    = genSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v)) start)
+abbrevVariable am _ (A.SubscriptedVariable m (A.SubscriptFor _ count) v)
+    = genSlice v (makeConstant m 0) count
 abbrevVariable am (A.Array _ _) v
     = (genVariable v, Just $ do { genVariable v; tell ["_sizes"] })
 abbrevVariable am (A.Chan _) v
@@ -708,21 +726,21 @@ removeSpec _ = return ()
 prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
-genActuals :: [(A.Actual, A.Formal)] -> CGen ()
-genActuals afs = prefixComma (map genActual afs)
+genActuals :: [A.Actual] -> CGen ()
+genActuals as = prefixComma (map genActual as)
 
-genActual :: (A.Actual, A.Formal) -> CGen ()
-genActual (actual, A.Formal am t _)
+genActual :: A.Actual -> CGen ()
+genActual actual
     = case actual of
-        A.ActualExpression e ->
-          do let (rhs, rhsSizes) = abbrevExpression am t e
+        A.ActualExpression t e ->
+          do let (rhs, rhsSizes) = abbrevExpression A.ValAbbrev t e
              rhs
              case rhsSizes of
                Just r ->
                  do tell [", "]
                     r
                Nothing -> return ()
-        A.ActualVariable v ->
+        A.ActualVariable am t v ->
           do let (rhs, rhsSizes) = abbrevVariable am t v
              rhs
              case rhsSizes of
@@ -731,9 +749,10 @@ genActual (actual, A.Formal am t _)
                     r
                Nothing -> return ()
 
-numCArgs :: [A.Formal] -> Int
+numCArgs :: [A.Actual] -> Int
 numCArgs [] = 0
-numCArgs (A.Formal _ (A.Array _ _) _:fs) = 2 + numCArgs fs
+numCArgs (A.ActualVariable _ (A.Array _ _) _:fs) = 2 + numCArgs fs
+numCArgs (A.ActualExpression (A.Array _ _) _:fs) = 2 + numCArgs fs
 numCArgs (_:fs) = 1 + numCArgs fs
 
 genFormals :: [A.Formal] -> CGen ()
@@ -987,21 +1006,17 @@ genProcAlloc :: A.Process -> CGen ()
 genProcAlloc (A.ProcCall m n as)
     =  do tell ["ProcAlloc ("]
           genName n
-          ps <- get
-          let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
           -- FIXME stack size fixed here
           let stackSize = 4096
-          tell [", ", show stackSize, ", ", show $ numCArgs fs]
-          genActuals (zip as fs)
+          tell [", ", show stackSize, ", ", show $ numCArgs as]
+          genActuals as
           tell [")"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as
     =  do genName n
-          ps <- get
-          let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
           tell [" (me"]
-          genActuals (zip as fs)
+          genActuals as
           tell [");\n"]
 --}}}
 
