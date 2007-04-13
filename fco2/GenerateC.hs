@@ -29,6 +29,13 @@ module GenerateC where
 -- immediately inside another spec (which'd require some extra boolean
 -- arguments to find out).
 
+-- FIXME: If the assembler-analysis approach to working out process sizes
+-- works, then we can put the sizes in variables in a separate object file and
+-- only generate/compile that after we've done the main one.
+
+-- FIXME: Before code generation, have a pass that resolves all the DATA TYPE
+-- .. IS directives to their real types.
+
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -154,6 +161,7 @@ genDeclType am t
           case t of
             A.Array _ _ -> return ()
             A.Chan _ -> return ()
+            A.UserDataType _ -> tell [" *"]
             _ -> when (am == A.Abbrev) $ tell [" *"]
 
 genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
@@ -181,11 +189,9 @@ genSubscript (A.Subscript m e) p
           tell ["["]
           genExpression e
           tell ["]"]
--- FIXME: Either this needs to be -> in some circumstances, or we should always
--- generate records as & and use -> -- probably the latter.
 genSubscript (A.SubscriptField m n) p
     =  do p
-          tell ["."]
+          tell ["->"]
           genName n
 genSubscript s p = missing $ "genSubscript " ++ show s
 --}}}
@@ -222,23 +228,35 @@ convStringStar c = [c]
 
 --{{{  variables
 {-
-                                  Original      Abbrev
-                                  ValAbbrev
+The various types are generated like this:
 
-INT x:                x           x             *x         int x;          int *x;
-[10]INT xs:           xs[i]       xs[i]         xs[i]      int xs[10];     int *xs;
-                      xs          xs            xs
+                        ================= Use =================
+                        Original        ValAbbrev   Abbrev
+                        --------------------------------------
+INT x:                  int x;          int x;      int *x;
+  x                     x               x           *x
+[10]INT xs:             int xs[10];     int *xs;    int *xs;
+  xs                    xs              xs          xs
+  xs[i]                 xs[i]           xs[i]       xs[i]
 
-                                  Original      Abbrev
+MYREC r:                MYREC r;        MYREC *r;   MYREC *r;
+  r                     &r              r           r
+  r[F]                  (&r)->F         (r)->F      (r)->F
+[10]MYREC rs:           MYREC rs[10];   MYREC *rs;  MYREC *rs;
+  rs                    rs              rs          rs
+  rs[i]                 &rs[i]          &rs[i]      &rs[i]
+  rs[i][F]              (&rs[i])->F     (&rs[i])->F (&rs[i])->F
+                           -- depending on what F is -- if it's another record...
 
-CHAN OF INT c:        c           &c            c          Channel c;       Channel *c;
-[10]CHAN OF INT cs:   cs[i]       cs[i]         cs[i]      Channel *cs[10]; Channel **cs;
-                      cs          cs            cs
+CHAN OF INT c:          Channel c;                  Channel *c;
+  c                     &c                          c
+[10]CHAN OF INT cs:     Channel **cs;               Channel **cs;
+  cs                    cs                          cs
+  cs[i]                 cs[i]                       cs[i]
 
-[2][2]INT xss:        xss[i][j]   xss[i][j]     xss[i][j]
-                      xss         xss           xss
-[2][2]CHAN INT css:   css[i][j]   css[i][j]     css[i][j]
-                      css         css           css
+Should treat record fields as if they're Originals.
+
+FIXME: Deal with multidimensional arrays, which are (slightly) more awkward again.
 
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
@@ -249,26 +267,21 @@ genVariable v
           am <- checkJust $ abbrevModeOfVariable ps v
           t <- checkJust $ typeOfVariable ps v
 
-          let isArray = case t of
-                          A.Array _ _ -> True
-                          _ -> False
-          let isSubbed = case v of
-                           A.SubscriptedVariable _ _ _ -> True
-                           _ -> False
-          let isChan = case stripArrayType t of
-                         A.Chan _ -> True
-                         _ -> False
+          let prefix = case (am, t) of
+                         (_, A.Array _ _) -> ""
+                         (A.Original, A.Chan _) -> "&"
+                         (A.Abbrev, A.Chan _) -> ""
+                         (A.Original, A.UserDataType _) -> "&"
+                         (A.Abbrev, A.UserDataType _) -> ""
+                         (A.Abbrev, _) -> "*"
+                         _ -> ""
 
-          when ((am == A.Abbrev) && (not (isChan || isArray || isSubbed))) $
-               tell ["*"]
-
-          when ((am == A.Original) && isChan && not (isArray || isSubbed)) $
-               tell ["&"]
-
+          when (prefix /= "") $ tell ["(", prefix]
           inner v
+          when (prefix /= "") $ tell [")"]
   where
-    inner (A.Variable m n) = genName n
-    inner (A.SubscriptedVariable m s v) = genSubscript s (inner v)
+    inner (A.Variable _ n) = genName n
+    inner (A.SubscriptedVariable _ s v) = genSubscript s (genVariable v)
 --}}}
 
 --{{{  expressions
@@ -482,6 +495,8 @@ abbrevVariable am (A.Array _ _) v
     = (genVariable v, Just $ do { genVariable v; tell ["_sizes"] })
 abbrevVariable am (A.Chan _) v
     = (genVariable v, Nothing)
+abbrevVariable am (A.UserDataType _) v
+    = (genVariable v, Nothing)
 abbrevVariable am t v
     = (do { when (am == A.Abbrev) $ tell ["&"]; genVariable v }, Nothing)
 
@@ -644,16 +659,16 @@ introduceSpec (n, A.IsChannelArray m t cs)
           tell ["};\n"]
 --introduceSpec (n, A.DataType m t)
 introduceSpec (n, A.DataTypeRecord _ b fs)
-    =  do when b $ missing "packed record"
-          tell ["typedef struct {\n"]
+    =  do tell ["typedef struct {\n"]
           sequence_ [case t of
                        _ ->
                          do declareType t
                             tell [" "]
                             genName n
-                            tell [";"]
+                            tell [";\n"]
                      | (n, t) <- fs]
           tell ["} "]
+          when b $ tell ["occam_struct_packed "]
           genName n
           tell [";\n"]
 introduceSpec (n, A.Protocol _ _) = return ()

@@ -25,6 +25,7 @@ PROC T (VAL PLAIN.REC rec)
 PROC P ()
   PLAIN.REC plain:
   PACKED.REC packed:
+  [10]PLAIN.REC array:
   SEQ
     plain[i] := 42
     plain[b] := FALSE
@@ -34,6 +35,24 @@ PROC P ()
     packed[b] := FALSE
     Q (packed[i], packed[b])
     R (packed[i], packed[b])
+    array[5][i] := 42
+    Q (array[5][i], array[5][b])
     S (plain)
     T (plain)
+    S (array[5])
+    T (array[5])
+    PLAIN.REC abbrev IS plain:
+    SEQ
+      abbrev[i] := 42
+      S (abbrev)
+      T (abbrev)
+    VAL PLAIN.REC val.ab IS plain:
+    SEQ
+      packed[i] := val.ab[i]
+      T (val.ab)
+    []PLAIN.REC arr.ab IS array:
+    SEQ
+      arr.ab[0][i] := 42
+      S (arr.ab[0])
+      T (arr.ab[0])
 :

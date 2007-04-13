@@ -28,6 +28,12 @@
 #define occam_mostneg_double -DBL_MAX
 #define occam_mostpos_double DBL_MAX
 
+#ifdef __GNUC__
+#define occam_struct_packed __attribute__ ((packed))
+#else
+#warning No PACKED implementation for this compiler
+#endif
+
 /* FIXME All of these need to check for overflow and report errors appropriately. */
 static int occam_add (int a, int b) {
 	return a + b;

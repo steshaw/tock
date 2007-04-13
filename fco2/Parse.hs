@@ -257,21 +257,28 @@ maybeSubscripted prodName inner subscripter typer
     =  do m <- md
           v <- inner
           t <- typer v
-          subs <- many (postSubscript t)
+          subs <- postSubscripts t
           return $ foldl (\var sub -> subscripter m sub var) v subs
     <?> prodName
+
+postSubscripts :: A.Type -> OccParser [A.Subscript]
+postSubscripts t
+    = (do sub <- postSubscript t
+          t' <- pSubscriptType sub t
+          rest <- postSubscripts t'
+          return $ sub : rest)
+      <|> return []
 
 postSubscript :: A.Type -> OccParser A.Subscript
 postSubscript t
     =  do m <- md
-          sLeft
           case t of
             A.UserDataType _ ->
-              do f <- fieldName
+              do f <- tryXV sLeft fieldName
                  sRight
                  return $ A.SubscriptField m f
             A.Array _ _ ->
-              do e <- intExpr
+              do e <- tryXV sLeft intExpr
                  sRight
                  return $ A.Subscript m e
             _ ->
@@ -364,14 +371,17 @@ checkMaybe msg op
 pTypeOf :: (ParseState -> a -> Maybe b) -> a -> OccParser b
 pTypeOf f item
     =  do st <- getState
-          case f st item of
-            Just t -> return t
-            Nothing -> fail "cannot compute type"
+          checkMaybe "cannot compute type" $ f st item
 
 pTypeOfVariable = pTypeOf typeOfVariable
 pTypeOfLiteral = pTypeOf typeOfLiteral
 pTypeOfExpression = pTypeOf typeOfExpression
 pSpecTypeOfName = pTypeOf specTypeOfName
+
+pSubscriptType :: A.Subscript -> A.Type -> OccParser A.Type
+pSubscriptType sub t
+    =  do st <- getState
+          checkMaybe "cannot subscript type" $ subscriptType st sub t
 --}}}
 
 --{{{ name scoping

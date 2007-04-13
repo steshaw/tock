@@ -58,7 +58,14 @@ typeOfVariable ps (A.SubscriptedVariable m s v)
 
 abbrevModeOfVariable :: ParseState -> A.Variable -> Maybe A.AbbrevMode
 abbrevModeOfVariable ps (A.Variable _ n) = abbrevModeOfName ps n
-abbrevModeOfVariable ps (A.SubscriptedVariable _ _ v) = abbrevModeOfVariable ps v
+abbrevModeOfVariable ps (A.SubscriptedVariable _ sub v)
+    =  do am <- abbrevModeOfVariable ps v
+          return $ case (am, sub) of
+                     (A.ValAbbrev, A.Subscript _ _) -> A.ValAbbrev
+                     (_, A.Subscript _ _) -> A.Original
+                     (A.ValAbbrev, A.SubscriptField _ _) -> A.ValAbbrev
+                     (_, A.SubscriptField _ _) -> A.Original
+                     _ -> am
 
 dyadicIsBoolean :: A.DyadicOp -> Bool
 dyadicIsBoolean A.Eq = True
