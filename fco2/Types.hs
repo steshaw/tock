@@ -141,11 +141,6 @@ isChannelType (A.Array _ t) = isChannelType t
 isChannelType (A.Chan _) = True
 isChannelType _ = False
 
-isSliceSubscript :: A.Subscript -> Bool
-isSliceSubscript (A.Subscript _ _) = False
-isSliceSubscript (A.SubscriptField _ _) = False
-isSliceSubscript _ = True
-
 stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t

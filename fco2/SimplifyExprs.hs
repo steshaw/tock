@@ -35,7 +35,7 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
               modify (\ps -> ps { psPulledItems = psPulledItems origPS })
               return p'
 
-    -- | Pull array expressions that aren't already variables.
+    -- | Pull array expressions that aren't already non-subscripted variables.
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
         =  do e' <- doGeneric e
@@ -44,7 +44,7 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
               case t of
                 A.Array _ _ ->
                   case e of
-                    A.ExprVariable _ _ -> return e'
+                    A.ExprVariable _ (A.Variable _ _) -> return e'
                     _ -> pull t e'
                 _ -> return e'
       where
@@ -52,26 +52,31 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
         pull t e
             = do -- FIXME Should get Meta from somewhere...
                  let m = []
-                 spec@(n, _) <- makeNonceIsExpr m t e
+                 spec@(n, _) <- makeNonceIsExpr "array_expr" m t e
                  addPulled $ A.ProcSpec m spec
                  return $ A.ExprVariable m (A.Variable m n)
 
-    -- | Pull array actual slices.
+    -- FIXME: We really want to pull *any* array slice that isn't already
+    -- an abbreviation and turn it into one -- should be straightforward using
+    -- a rule that matches abbrevs.
+
+    -- | Pull any actual that's a subscript resulting in an array.
     doActual :: A.Actual -> PassM A.Actual
     doActual a@(A.ActualVariable _ _ _)
         =  do a' <- doGeneric a
               let (am, t, v) = case a' of A.ActualVariable am t v -> (am, t, v)
               case v of
-                A.SubscriptedVariable m s _ ->
-                  if isSliceSubscript s
-                    then do v' <- pull m am t v
-                            return $ A.ActualVariable am t v'
-                    else return a'
+                A.SubscriptedVariable m _ _ ->
+                  case t of
+                    A.Array _ _ ->
+                      do v' <- pull m am t v
+                         return $ A.ActualVariable am t v'
+                    _ -> return a'
                 _ -> return a'
       where
         pull :: Meta -> A.AbbrevMode -> A.Type -> A.Variable -> PassM A.Variable
         pull m am t v
-            = do spec@(n, _) <- makeNonceIs m t am v
+            = do spec@(n, _) <- makeNonceIs "subscript_actual" m t am v
                  addPulled $ A.ProcSpec m spec
                  return $ A.Variable m n
     doActual a = doGeneric a

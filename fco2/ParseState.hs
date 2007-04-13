@@ -84,12 +84,12 @@ makeNonceProc m p
     = defineNonce m "wrapper_proc" (A.Proc m [] p) A.ProcName A.Abbrev
 
 -- | Generate and define a variable abbreviation.
-makeNonceIs :: MonadState ParseState m => Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
-makeNonceIs m t am v
-    = defineNonce m "var" (A.Is m am t v) A.VariableName am
+makeNonceIs :: MonadState ParseState m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
+makeNonceIs s m t am v
+    = defineNonce m s (A.Is m am t v) A.VariableName am
 
 -- | Generate and define an expression abbreviation.
-makeNonceIsExpr :: MonadState ParseState m => Meta -> A.Type -> A.Expression -> m A.Specification
-makeNonceIsExpr m t e
-    = defineNonce m "expr" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+makeNonceIsExpr :: MonadState ParseState m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
+makeNonceIsExpr s m t e
+    = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
 
