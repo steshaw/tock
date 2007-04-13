@@ -14,12 +14,11 @@ PROTOCOL BAR
 
 PROC foo (CHAN OF FOO foo, CHAN OF BAR bar)
   SEQ
-    -- FIXME: This is the bodgy FCO syntax for now
-    foo ! CASE tag.a; 42
-    foo ! CASE tag.b; 1.2; 3.4
-    foo ! CASE tag.c
-    bar ! CASE tag.x
-    bar ! CASE tag.y
-    bar ! CASE tag.z
+    foo ! tag.a; 42
+    foo ! tag.b; 1.2; 3.4
+    foo ! tag.c
+    bar ! tag.x
+    bar ! tag.y
+    bar ! tag.z
 :
 

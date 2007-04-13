@@ -674,7 +674,8 @@ introduceSpec (n, A.DataTypeRecord _ b fs)
 introduceSpec (n, A.Protocol _ _) = return ()
 introduceSpec (n, A.ProtocolCase _ ts)
     =  do tell ["typedef enum {\n"]
-          sequence_ $ intersperse genComma [genName tag | (tag, _) <- ts]
+          sequence_ $ intersperse genComma [genName tag >> tell ["_"] >> genName n
+                                            | (tag, _) <- ts]
           tell ["\n"]
           tell ["} "]
           genName n
@@ -825,27 +826,29 @@ genInputCase c s
           genVariable c
           tell [", &", tag, ");\n"]
           tell ["switch (", tag, ") {\n"]
-          genInputCaseBody c (return ()) s
+          genInputCaseBody proto c (return ()) s
           tell ["default:\n"]
           genStop
           tell ["}\n"]
 
 -- This handles specs in a slightly odd way, because we can't insert specs into
 -- the body of a switch.
-genInputCaseBody :: A.Variable -> CGen () -> A.Structured -> CGen ()
-genInputCaseBody c coll (A.Spec _ spec s)
-    = genInputCaseBody c (genSpec spec coll) s
-genInputCaseBody c coll (A.OnlyV _ (A.Variant _ n iis p))
+genInputCaseBody :: A.Name -> A.Variable -> CGen () -> A.Structured -> CGen ()
+genInputCaseBody proto c coll (A.Spec _ spec s)
+    = genInputCaseBody proto c (genSpec spec coll) s
+genInputCaseBody proto c coll (A.OnlyV _ (A.Variant _ n iis p))
     =  do tell ["case "]
           genName n
+          tell ["_"]
+          genName proto
           tell [": {\n"]
           coll
           sequence_ $ map (genInputItem c) iis
           genProcess p
           tell ["break;\n"]
           tell ["}\n"]
-genInputCaseBody c coll (A.Several _ ss)
-    = sequence_ $ map (genInputCaseBody c coll) ss
+genInputCaseBody proto c coll (A.Several _ ss)
+    = sequence_ $ map (genInputCaseBody proto c coll) ss
 
 genTimerRead :: A.Variable -> CGen ()
 genTimerRead v
@@ -867,11 +870,16 @@ genOutput :: A.Variable -> [A.OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
 genOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
-genOutputCase c t ois
-    =  do tell ["ChanOutInt ("]
+genOutputCase c tag ois
+    =  do ps <- get
+          t <- checkJust $ typeOfVariable ps c
+          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          tell ["ChanOutInt ("]
           genVariable c
           tell [", "]
-          genName t
+          genName tag
+          tell ["_"]
+          genName proto
           tell [");\n"]
           genOutput c ois
 
