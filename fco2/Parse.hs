@@ -240,30 +240,70 @@ md
   =  do pos <- getSourcePos
         return [MdSourcePos pos]
 
-maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
-maybeSubscripted prodName inner subscripter
-    =   do m <- md
-           v <- inner
-           subs <- many postSubscript
-           return $ foldl (\var sub -> subscripter m sub var) v subs
+tryVX :: OccParser a -> OccParser b -> OccParser a
+tryVX p q = try (do { v <- p; q; return v })
+
+tryXV :: OccParser a -> OccParser b -> OccParser b
+tryXV p q = try (do { p; q })
+
+tryXVV :: OccParser a -> OccParser b -> OccParser c -> OccParser (b, c)
+tryXVV a b c = try (do { a; bv <- b; cv <- c; return (bv, cv) })
+
+tryXVX :: OccParser a -> OccParser b -> OccParser c -> OccParser b
+tryXVX a b c = try (do { a; bv <- b; c; return bv })
+
+maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
+maybeSubscripted prodName inner subscripter typer
+    =  do m <- md
+          v <- inner
+          t <- typer v
+          subs <- many (postSubscript t)
+          return $ foldl (\var sub -> subscripter m sub var) v subs
     <?> prodName
 
-postSubscript :: OccParser A.Subscript
-postSubscript
+postSubscript :: A.Type -> OccParser A.Subscript
+postSubscript t
     =  do m <- md
           sLeft
-          --(do { f <- tryTrail fieldName sRight; return $ A.SubscriptField m f }
-          -- <|>
-          do { e <- expression; sRight; return $ A.Subscript m e } --)
+          case t of
+            A.UserDataType _ ->
+              do f <- fieldName
+                 sRight
+                 return $ A.SubscriptField m f
+            A.Array _ _ ->
+              do e <- intExpr
+                 sRight
+                 return $ A.Subscript m e
+            _ ->
+              fail $ "subscript of non-array/record type " ++ show t
 
-maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
-maybeSliced inner subscripter
-    =   do m <- md
-           sLeft
-           v <- inner
-           (try (do { sFROM; e <- expression; sFOR; f <- expression; sRight; return $ subscripter m (A.SubscriptFromFor m e f) v })
-            <|> do { sFROM; e <- expression; sRight; return $ subscripter m (A.SubscriptFrom m e) v }
-            <|> do { sFOR; e <- expression; sRight; return $ subscripter m (A.SubscriptFor m e) v })
+maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
+maybeSliced inner subscripter typer
+    =  do m <- md
+
+          (v, ff1) <- tryXVV sLeft inner fromOrFor
+          t <- typer v
+          case t of
+            (A.Array _ _) -> return ()
+            _ -> fail $ "slice of non-array type " ++ show t
+
+          e <- intExpr
+          sub <- case ff1 of
+                   "FROM" ->
+                     (do f <- tryXV sFOR intExpr
+                         sRight
+                         return $ A.SubscriptFromFor m e f)
+                     <|>
+                     (do sRight
+                         return $ A.SubscriptFrom m e)
+                   "FOR" ->
+                     do sRight
+                        return $ A.SubscriptFor m e
+
+          return $ subscripter m sub v
+  where
+    fromOrFor :: OccParser String
+    fromOrFor = (sFROM >> return "FROM") <|> (sFOR >> return "FOR")
 
 handleSpecs :: OccParser [A.Specification] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
 handleSpecs specs inner specMarker
@@ -297,9 +337,6 @@ intersperseP (f:fs) sep
           as <- intersperseP fs sep
           return $ a : as
 
-tryTrail :: OccParser a -> OccParser b -> OccParser a
-tryTrail p q = try (do { v <- p; q; return v })
-
 listType :: Meta -> [A.Type] -> OccParser A.Type
 listType m l = listType' m (length l) l
   where
@@ -332,6 +369,7 @@ pTypeOf f item
             Nothing -> fail "cannot compute type"
 
 pTypeOfVariable = pTypeOf typeOfVariable
+pTypeOfLiteral = pTypeOf typeOfLiteral
 pTypeOfExpression = pTypeOf typeOfExpression
 pSpecTypeOfName = pTypeOf specTypeOfName
 --}}}
@@ -462,7 +500,7 @@ dataType
     <|> do { sINT64; return A.Int64 }
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
-    <|> try (do { sLeft; s <- expression; sRight; t <- dataType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- intExpr; sRight; t <- dataType; return $ makeArrayType (A.Dimension s) t })
     <|> do { n <- dataTypeName; return $ A.UserDataType n }
     <?> "dataType"
 
@@ -470,19 +508,19 @@ dataType
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
-    <|> try (do { sLeft; s <- expression; sRight; t <- channelType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- intExpr; sRight; t <- channelType; return $ makeArrayType (A.Dimension s) t })
     <?> "channelType"
 
 timerType :: OccParser A.Type
 timerType
     =   do { sTIMER; return $ A.Timer }
-    <|> try (do { sLeft; s <- expression; sRight; t <- timerType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- intExpr; sRight; t <- timerType; return $ makeArrayType (A.Dimension s) t })
     <?> "timerType"
 
 portType :: OccParser A.Type
 portType
     =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
-    <|> do { m <- md; try sLeft; s <- try expression; try sRight; t <- portType; return $ makeArrayType (A.Dimension s) t }
+    <|> do { m <- md; try sLeft; s <- try intExpr; try sRight; t <- portType; return $ makeArrayType (A.Dimension s) t }
     <?> "portType"
 --}}}
 --{{{ literals
@@ -536,7 +574,7 @@ byte
 -- i.e. array literal
 table :: OccParser A.Literal
 table
-    = maybeSubscripted "table" table' A.SubscriptedLiteral
+    = maybeSubscripted "table" table' A.SubscriptedLiteral pTypeOfLiteral
 
 table' :: OccParser A.Literal
 table'
@@ -544,12 +582,12 @@ table'
     =   try (do { m <- md; (s, dim) <- stringLiteral; sLeftR; t <- dataType; sRightR; return $ A.Literal m t s })
     <|> try (do { m <- md; (s, dim) <- stringLiteral; return $ A.Literal m (A.Array [dim] A.Byte) s })
     <|> do m <- md
-           es <- tryTrail (do { sLeft; sepBy1 expression sComma }) sRight
+           es <- tryXVX sLeft (sepBy1 expression sComma) sRight
            ps <- getState
            ets <- mapM (\e -> checkMaybe "can't type expression" $ typeOfExpression ps e) es
            t <- listType m ets
            return $ A.Literal m t (A.ArrayLiteral m es)
-    <|> maybeSliced table A.SubscriptedLiteral
+    <|> maybeSliced table A.SubscriptedLiteral pTypeOfLiteral
     <?> "table'"
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
@@ -598,11 +636,15 @@ sizeExpr
            <|> do { v <- operand; return $ A.SizeExpr m v })
     <?> "sizeExpr"
 
-booleanExpr :: OccParser A.Expression
-booleanExpr
-    -- FIXME: Check the type is BOOL
-    =   expression
-    <?> "booleanExpr"
+exprOfType :: A.Type -> OccParser A.Expression
+exprOfType wantT
+    =  do e <- expression
+          t <- pTypeOfExpression e
+          matchType wantT t
+          return e
+
+intExpr = exprOfType A.Int <?> "integer expression"
+booleanExpr = exprOfType A.Bool <?> "boolean expression"
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
@@ -655,7 +697,7 @@ conversionMode
 --{{{ operands
 operand :: OccParser A.Expression
 operand
-    = maybeSubscripted "operand" operand' A.SubscriptedExpr
+    = maybeSubscripted "operand" operand' A.SubscriptedExpr pTypeOfExpression
 
 operand' :: OccParser A.Expression
 operand'
@@ -665,7 +707,7 @@ operand'
 
 operandNotTable :: OccParser A.Expression
 operandNotTable
-    = maybeSubscripted "operandNotTable" operandNotTable' A.SubscriptedExpr
+    = maybeSubscripted "operandNotTable" operandNotTable' A.SubscriptedExpr pTypeOfExpression
 
 operandNotTable' :: OccParser A.Expression
 operandNotTable'
@@ -682,45 +724,45 @@ operandNotTable'
 --{{{ variables, channels, timers, ports
 variable :: OccParser A.Variable
 variable
-    = maybeSubscripted "variable" variable' A.SubscriptedVariable
+    = maybeSubscripted "variable" variable' A.SubscriptedVariable pTypeOfVariable
 
 variable' :: OccParser A.Variable
 variable'
     =   try (do { m <- md; n <- variableName; return $ A.Variable m n })
-    <|> try (maybeSliced variable A.SubscriptedVariable)
+    <|> try (maybeSliced variable A.SubscriptedVariable pTypeOfVariable)
     <?> "variable'"
 
 channel :: OccParser A.Variable
 channel
-    =   maybeSubscripted "channel" channel' A.SubscriptedVariable
+    =   maybeSubscripted "channel" channel' A.SubscriptedVariable pTypeOfVariable
     <?> "channel"
 
 channel' :: OccParser A.Variable
 channel'
     =   try (do { m <- md; n <- channelName; return $ A.Variable m n })
-    <|> try (maybeSliced channel A.SubscriptedVariable)
+    <|> try (maybeSliced channel A.SubscriptedVariable pTypeOfVariable)
     <?> "channel'"
 
 timer :: OccParser A.Variable
 timer
-    =   maybeSubscripted "timer" timer' A.SubscriptedVariable
+    =   maybeSubscripted "timer" timer' A.SubscriptedVariable pTypeOfVariable
     <?> "timer"
 
 timer' :: OccParser A.Variable
 timer'
     =   try (do { m <- md; n <- timerName; return $ A.Variable m n })
-    <|> try (maybeSliced timer A.SubscriptedVariable)
+    <|> try (maybeSliced timer A.SubscriptedVariable pTypeOfVariable)
     <?> "timer'"
 
 port :: OccParser A.Variable
 port
-    =   maybeSubscripted "port" port' A.SubscriptedVariable
+    =   maybeSubscripted "port" port' A.SubscriptedVariable pTypeOfVariable
     <?> "port"
 
 port' :: OccParser A.Variable
 port'
     =   try (do { m <- md; n <- portName; return $ A.Variable m n })
-    <|> try (maybeSliced port A.SubscriptedVariable)
+    <|> try (maybeSliced port A.SubscriptedVariable pTypeOfVariable)
     <?> "port'"
 --}}}
 --{{{ protocols
@@ -751,25 +793,18 @@ taggedProtocol
 --{{{ replicators
 replicator :: OccParser A.Replicator
 replicator
-    =   do { m <- md; n <- newVariableName; sEq; b <- repBase; sFOR; c <- repCount; return $ A.For m n b c }
+    =  do m <- md
+          n <- tryVX newVariableName sEq
+          b <- intExpr
+          sFOR
+          c <- intExpr
+          return $ A.For m n b c
     <?> "replicator"
-
-repBase :: OccParser A.Expression
-repBase
-    -- FIXME: Check the type is INT (and probably collapse all of these into "intExpression")
-    =   expression
-    <?> "repBase"
-
-repCount :: OccParser A.Expression
-repCount
-    -- FIXME: Check type
-    =   expression
-    <?> "repCount"
 --}}}
 --{{{ specifications, declarations, allocations
 allocation :: OccParser [A.Specification]
 allocation
-    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- expression; sColon; eol; return [(n, A.Place m e)] }
+    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- intExpr; sColon; eol; return [(n, A.Place m e)] }
     <?> "allocation"
 
 specification :: OccParser [A.Specification]
@@ -920,7 +955,7 @@ process
 --{{{ assignment (:=)
 assignment :: OccParser A.Process
 assignment
-    =   do { m <- md; vs <- tryTrail variableList sAssign; es <- expressionList; eol; return $ A.Assign m vs es }
+    =   do { m <- md; vs <- tryVX variableList sAssign; es <- expressionList; eol; return $ A.Assign m vs es }
     <?> "assignment"
 
 variableList :: OccParser [A.Variable]
@@ -939,22 +974,22 @@ input :: OccParser (A.Variable, A.InputMode)
 input
     =   channelInput
     <|> timerInput
-    <|> do { m <- md; p <- tryTrail port sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
+    <|> do { m <- md; p <- tryVX port sQuest; v <- variable; eol; return (p, A.InputSimple m [A.InVariable m v]) }
     <?> "input"
 
 channelInput :: OccParser (A.Variable, A.InputMode)
     =   do  m <- md
-            c <- tryTrail channel sQuest
+            c <- tryVX channel sQuest
             (do { tl <- try (do { sCASE; taggedList }); eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
-             <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) }
+             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) }
              <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) })
     <?> "channelInput"
 
 timerInput :: OccParser (A.Variable, A.InputMode)
     =   do  m <- md
-            c <- tryTrail timer sQuest
+            c <- tryVX timer sQuest
             (do { v <- variable; eol; return (c, A.InputSimple m [A.InVariable m v]) }
-             <|> do { sAFTER; e <- expression; eol; return (c, A.InputAfter m e) })
+             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) })
     <?> "timerInput"
 
 taggedList :: OccParser (A.Process -> A.Variant)
@@ -973,7 +1008,7 @@ inputItem
 caseInput :: OccParser A.Process
 caseInput
     =  do m <- md
-          c <- tryTrail channel (do {sQuest; sCASE; eol})
+          c <- tryVX channel (do {sQuest; sCASE; eol})
           indent
           vs <- many1 variant
           outdent
@@ -990,13 +1025,13 @@ variant
 output :: OccParser A.Process
 output
     =   channelOutput
-    <|> do { m <- md; p <- tryTrail port sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
+    <|> do { m <- md; p <- tryVX port sBang; e <- expression; eol; return $ A.Output m p [A.OutExpression m e] }
     <?> "output"
 
 channelOutput :: OccParser A.Process
 channelOutput
     =   do  m <- md
-            c <- tryTrail channel sBang
+            c <- tryVX channel sBang
             -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
             -- whether b is a variable or a tag, without knowing the type of a.
             st <- getState
@@ -1013,7 +1048,7 @@ channelOutput
 
 outputItem :: OccParser A.OutputItem
 outputItem
-    =   try (do { m <- md; a <- expression; sColons; b <- expression; return $ A.OutCounted m a b })
+    =   try (do { m <- md; a <- intExpr; sColons; b <- expression; return $ A.OutCounted m a b })
     <|> do { m <- md; e <- expression; return $ A.OutExpression m e }
     <?> "outputItem"
 --}}}
@@ -1128,7 +1163,7 @@ placedpar
            sPAR
            (do { eol; indent; ps <- many1 placedpar; outdent; return $ A.Par m A.PlacedPar ps  }
             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- placedpar; scopeOutRep r'; outdent; return $ A.ParRep m A.PlacedPar r' p })
-    <|> do { m <- md; sPROCESSOR; e <- expression; eol; indent; p <- process; outdent; return $ A.Processor m e p }
+    <|> do { m <- md; sPROCESSOR; e <- intExpr; eol; indent; p <- process; outdent; return $ A.Processor m e p }
     <?> "placedpar"
 --}}}
 --{{{ ALT
@@ -1204,7 +1239,7 @@ guard
 procInstance :: OccParser A.Process
 procInstance
     =  do m <- md
-          n <- tryTrail procName sLeftR
+          n <- tryVX procName sLeftR
           st <- pSpecTypeOfName n
           let fs = case st of A.Proc _ fs _ -> fs
           as <- actuals fs

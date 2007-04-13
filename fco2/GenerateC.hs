@@ -25,6 +25,10 @@ module GenerateC where
 -- FIXME: There should be a wrapper for SetErr that takes a Meta and an error
 -- message. Ops and array references should use it.
 
+-- FIXME: We could have genSpec generate {} around specs if it's not
+-- immediately inside another spec (which'd require some extra boolean
+-- arguments to find out).
+
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -177,6 +181,8 @@ genSubscript (A.Subscript m e) p
           tell ["["]
           genExpression e
           tell ["]"]
+-- FIXME: Either this needs to be -> in some circumstances, or we should always
+-- generate records as & and use -> -- probably the latter.
 genSubscript (A.SubscriptField m n) p
     =  do p
           tell ["."]
