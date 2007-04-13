@@ -244,9 +244,17 @@ maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> 
 maybeSubscripted prodName inner subscripter
     =   do m <- md
            v <- inner
-           es <- many (do { m' <- md; sLeft; e <- expression; sRight; return (m', e) })
-           return $ foldl (\e (m', s) -> subscripter m' (A.Subscript m' s) e) v es
+           subs <- many postSubscript
+           return $ foldl (\var sub -> subscripter m sub var) v subs
     <?> prodName
+
+postSubscript :: OccParser A.Subscript
+postSubscript
+    =  do m <- md
+          sLeft
+          --(do { f <- tryTrail fieldName sRight; return $ A.SubscriptField m f }
+          -- <|>
+          do { e <- expression; sRight; return $ A.Subscript m e } --)
 
 maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
 maybeSliced inner subscripter
@@ -326,10 +334,6 @@ pTypeOf f item
 pTypeOfVariable = pTypeOf typeOfVariable
 pTypeOfExpression = pTypeOf typeOfExpression
 pSpecTypeOfName = pTypeOf specTypeOfName
-
--- | Generate a constant expression from an integer -- for array sizes and the like.
-makeConstant :: Meta -> Int -> A.Expression
-makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
 --}}}
 
 --{{{ name scoping
@@ -887,9 +891,9 @@ recordKeyword
     <|> do { sRECORD; return False }
     <?> "recordKeyword"
 
-structuredTypeField :: OccParser [(A.Type, A.Name)]
+structuredTypeField :: OccParser [(A.Name, A.Type)]
 structuredTypeField
-    =   do { t <- dataType; fs <- many1 newFieldName; sColon; eol; return [(t, f) | f <- fs]  }
+    =   do { t <- dataType; fs <- many1 newFieldName; sColon; eol; return [(f, t) | f <- fs]  }
     <?> "structuredTypeField"
 --}}}
 --}}}

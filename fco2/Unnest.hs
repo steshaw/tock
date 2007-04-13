@@ -124,7 +124,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
       where
         atcProc :: A.Process -> A.Process
         atcProc p@(A.ProcCall m n as)
-            = if sameName n matchN then A.ProcCall m n (as ++ newAs) else p
+            = if n == matchN then A.ProcCall m n (as ++ newAs) else p
         atcProc p = p
 
     doSpec :: Data t => Meta -> A.Specification -> t -> PassM (A.Specification, t)

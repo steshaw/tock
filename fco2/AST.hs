@@ -16,7 +16,13 @@ data Name = Name {
     nameType :: NameType,
     nameName :: String
   }
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Typeable, Data)
+
+instance Show Name where
+  show n = show $ nameName n
+
+instance Eq Name where
+  (==) a b = nameName a == nameName b
 
 data NameDef = NameDef {
     ndMeta :: Meta,
@@ -56,7 +62,7 @@ data ConversionMode =
 
 data Subscript =
   Subscript Meta Expression
-  | SubscriptTag Meta Name
+  | SubscriptField Meta Name
   | SubscriptFromFor Meta Expression Expression
   | SubscriptFrom Meta Expression
   | SubscriptFor Meta Expression
@@ -184,7 +190,7 @@ data SpecType =
   -- FIXME Can these be multidimensional?
   | IsChannelArray Meta Type [Variable]
   | DataType Meta Type
-  | DataTypeRecord Meta Bool [(Type, Name)]
+  | DataTypeRecord Meta Bool [(Name, Type)]
   | Protocol Meta [Type]
   | ProtocolCase Meta [(Name, [Type])]
   | Proc Meta [Formal] Process

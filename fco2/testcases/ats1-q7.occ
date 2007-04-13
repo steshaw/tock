@@ -12,7 +12,7 @@ PROC out.int (VAL INT n, w, CHAN OF BYTE out)
   STOP
 :
 INT, INT FUNCTION random (VAL INT range, seed) IS 0, 0:
-PROC copy.string ([]BYTE dest, VAL []BYTE src)
+PROC copy.string (VAL []BYTE src, []BYTE dest)
   STOP
 :
 PROC make.string ([]BYTE dest, VAL INT len)

@@ -10,12 +10,10 @@ import Control.Monad
 
 import qualified AST as A
 import ParseState
+import Metadata
 
 perhaps :: Maybe a -> (a -> b) -> Maybe b
 perhaps m f = m >>= (Just . f)
-
-sameName :: A.Name -> A.Name -> Bool
-sameName a b = A.nameName a == A.nameName b
 
 specTypeOfName :: ParseState -> A.Name -> Maybe A.SpecType
 specTypeOfName ps n
@@ -36,16 +34,27 @@ typeOfName ps n
         Just (A.RetypesExpr m am t e) -> Just t
         _ -> Nothing
 
--- FIXME: This should fail if the subscript is invalid...
-subscriptType :: A.Type -> Maybe A.Type
-subscriptType (A.Array [_] t) = Just t
-subscriptType (A.Array (_:ds) t) = Just $ A.Array ds t
-subscriptType _ = Nothing
+typeOfRecordField :: ParseState -> A.Type -> A.Name -> Maybe A.Type
+typeOfRecordField ps (A.UserDataType rec) field
+    =  do st <- specTypeOfName ps rec
+          case st of
+            A.DataTypeRecord _ _ fs -> lookup field fs
+            _ -> Nothing
+typeOfRecordField _ _ _ = Nothing
+
+subscriptType :: ParseState -> A.Subscript -> A.Type -> Maybe A.Type
+subscriptType _ (A.SubscriptFromFor _ _ _) t = Just t
+subscriptType _ (A.SubscriptFrom _ _) t = Just t
+subscriptType _ (A.SubscriptFor _ _) t = Just t
+subscriptType ps (A.SubscriptField _ tag) t = typeOfRecordField ps t tag
+subscriptType _ (A.Subscript _ _) (A.Array [_] t) = Just t
+subscriptType _ (A.Subscript _ _) (A.Array (_:ds) t) = Just $ A.Array ds t
+subscriptType _ _ _ = Nothing
 
 typeOfVariable :: ParseState -> A.Variable -> Maybe A.Type
 typeOfVariable ps (A.Variable m n) = typeOfName ps n
 typeOfVariable ps (A.SubscriptedVariable m s v)
-    = typeOfVariable ps v >>= subscriptType
+    = typeOfVariable ps v >>= subscriptType ps s
 
 abbrevModeOfVariable :: ParseState -> A.Variable -> Maybe A.AbbrevMode
 abbrevModeOfVariable ps (A.Variable _ n) = abbrevModeOfName ps n
@@ -81,7 +90,7 @@ typeOfExpression ps e
             Just [t] -> Just t
             _ -> Nothing
         A.SubscriptedExpr m s e ->
-          typeOfExpression ps e >>= subscriptType
+          typeOfExpression ps e >>= subscriptType ps s
         A.BytesInExpr m e -> Just A.Int
         A.BytesInType m t -> Just A.Int
         A.OffsetOf m t n -> Just A.Int
@@ -89,7 +98,7 @@ typeOfExpression ps e
 typeOfLiteral :: ParseState -> A.Literal -> Maybe A.Type
 typeOfLiteral ps (A.Literal m t lr) = Just t
 typeOfLiteral ps (A.SubscriptedLiteral m s l)
-    = typeOfLiteral ps l >>= subscriptType
+    = typeOfLiteral ps l >>= subscriptType ps s
 
 returnTypesOfFunction :: ParseState -> A.Name -> Maybe [A.Type]
 returnTypesOfFunction ps n
@@ -129,3 +138,6 @@ stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t
 
+-- | Generate a constant expression from an integer -- for array sizes and the like.
+makeConstant :: Meta -> Int -> A.Expression
+makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)

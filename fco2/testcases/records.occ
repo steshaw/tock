@@ -1,0 +1,39 @@
+DATA TYPE PLAIN.REC
+  RECORD
+    INT i:
+    BOOL b:
+:
+DATA TYPE PACKED.REC
+  PACKED RECORD
+    INT i:
+    BOOL b:
+:
+PROC Q (INT i, BOOL b)
+  SKIP
+:
+PROC R (VAL INT i, VAL BOOL b)
+  SKIP
+:
+PROC S (PLAIN.REC rec)
+  SEQ
+    Q (rec[i], rec[b])
+    R (rec[i], rec[b])
+:
+PROC T (VAL PLAIN.REC rec)
+  R (rec[i], rec[b])
+:
+PROC P ()
+  PLAIN.REC plain:
+  PACKED.REC packed:
+  SEQ
+    plain[i] := 42
+    plain[b] := FALSE
+    Q (plain[i], plain[b])
+    R (plain[i], plain[b])
+    packed[i] := 42
+    packed[b] := FALSE
+    Q (packed[i], packed[b])
+    R (packed[i], packed[b])
+    S (plain)
+    T (plain)
+:

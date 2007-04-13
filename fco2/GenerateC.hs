@@ -79,14 +79,14 @@ checkJust :: Monad m => Maybe t -> m t
 checkJust (Just v) = return v
 checkJust Nothing = fail "checkJust failed"
 
-overArray :: A.Name -> A.Type -> (CGen () -> Maybe (CGen ())) -> CGen ()
-overArray n (A.Array ds _) func
+overArray :: CGen () -> A.Type -> (CGen () -> Maybe (CGen ())) -> CGen ()
+overArray name (A.Array ds _) func
     =  do indices <- mapM (\_ -> makeNonce "i") ds
           let arg = sequence_ [tell ["[", i, "]"] | i <- indices]
           case func arg of
             Just p ->
               do sequence_ [do tell ["for (int ", i, " = 0; ", i, " < "]
-                               genName n
+                               name
                                tell ["_sizes[", show v, "]; ", i, "++) {\n"]
                             | (v, i) <- zip [0..] indices]
                  p
@@ -117,11 +117,29 @@ genType (A.Array _ t)
     =  do genType t
           tell ["*"]
 genType (A.UserDataType n) = genName n
+-- UserProtocol -- not used
 genType (A.Chan t) = tell ["Channel *"]
+-- Counted -- not used
+-- Any -- not used
+--genType A.Timer =
+--genType (A.Port t) =
 genType t
     = case scalarType t of
         Just s -> tell [s]
         Nothing -> missing $ "genType " ++ show t
+
+genBytesInType :: A.Type -> CGen ()
+genBytesInType (A.Array ds t) = genBytesInDims ds >> genBytesInType t
+  where
+    genBytesInDims [] = return ()
+    genBytesInDims ((A.Dimension e):ds)
+        = genBytesInDims ds >> genExpression e >> tell [" * "]
+    genBytesInDims _ = missing "genBytesInType with empty dimension"
+--bytesInType (A.UserDataType n)
+genBytesInType t
+    = case scalarType t of
+        Just s -> tell ["sizeof (", s, ")"]
+        Nothing -> missing $ "genBytesInType " ++ show t
 --}}}
 
 --{{{  declarations
@@ -159,7 +177,7 @@ genSubscript (A.Subscript m e) p
           tell ["["]
           genExpression e
           tell ["]"]
-genSubscript (A.SubscriptTag m n) p
+genSubscript (A.SubscriptField m n) p
     =  do p
           tell ["."]
           genName n
@@ -254,7 +272,6 @@ genExpression (A.Dyadic m op e f) = genDyadic op e f
 genExpression (A.MostPos m t) = genTypeConstant "mostpos" t
 genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
 --genExpression (A.SizeType m t)
--- FIXME This needs to cope with subscripts
 genExpression (A.SizeExpr m e)
     =  do genExpression e
           tell ["_sizes[0]"]
@@ -266,11 +283,7 @@ genExpression (A.False m) = tell ["false"]
 --genExpression (A.FunctionCall m n es)
 --genExpression (A.SubscriptedExpr m s e)
 --genExpression (A.BytesInExpr m e)
--- FIXME This needs to do special stuff with arrays.
-genExpression (A.BytesInType m t)
-    =  do tell ["sizeof ("]
-          genType t
-          tell [")"]
+genExpression (A.BytesInType m t) = genBytesInType t
 --genExpression (A.OffsetOf m t n)
 genExpression t = missing $ "genExpression " ++ show t
 
@@ -336,44 +349,80 @@ genDyadic A.After e f = genFuncDyadic "occam_after" e f
 genInputItem :: A.Variable -> A.InputItem -> CGen ()
 genInputItem c (A.InCounted m cv av)
     =  do genInputItem c (A.InVariable m cv)
-          -- need to then input as much as appropriate
-          missing "genInputItem counted"
+          ps <- get
+          t <- checkJust $ typeOfVariable ps av
+          tell ["ChanIn ("]
+          genVariable c
+          tell [", "]
+          let (rhs, rhsS) = abbrevVariable A.Abbrev t av
+          rhs
+          tell [", "]
+          let subT = fromJust $ subscriptType ps (A.Subscript m $ makeConstant m 0) t
+          genVariable cv
+          tell [" * "]
+          genBytesInType subT
+          tell [");\n"]
 genInputItem c (A.InVariable m v)
     =  do ps <- get
           t <- checkJust $ typeOfVariable ps v
+          let (rhs, rhsS) = abbrevVariable A.Abbrev t v
           case t of
             A.Int ->
               do tell ["ChanInInt ("]
                  genVariable c
-                 tell [", &"]
-                 genVariable v
+                 tell [", "]
+                 rhs
                  tell [");\n"]
             _ ->
               do tell ["ChanIn ("]
                  genVariable c
-                 tell [", &"]
-                 genVariable v
-                 tell [", sizeof ("]
-                 genType t
-                 tell ["));\n"]
+                 tell [", "]
+                 rhs
+                 tell [", "]
+                 genBytesInType t
+                 tell [");\n"]
 
 genOutputItem :: A.Variable -> A.OutputItem -> CGen ()
 genOutputItem c (A.OutCounted m ce ae)
     =  do genOutputItem c (A.OutExpression m ce)
-          missing "genOutputItem counted"
-genOutputItem c (A.OutExpression m e)
-    =  do n <- makeNonce "output_item"
           ps <- get
+          t <- checkJust $ typeOfExpression ps ae
+          case ae of
+            A.ExprVariable m v ->
+              do tell ["ChanOut ("]
+                 genVariable c
+                 tell [", "]
+                 let (rhs, rhsS) = abbrevVariable A.Abbrev t v
+                 rhs
+                 tell [", "]
+                 let subT = fromJust $ subscriptType ps (A.Subscript m $ makeConstant m 0) t
+                 genExpression ce
+                 tell [" * "]
+                 genBytesInType subT
+                 tell [");\n"]
+genOutputItem c (A.OutExpression m e)
+    =  do ps <- get
           t <- checkJust $ typeOfExpression ps e
-          case t of
-            A.Int ->
+          case (t, e) of
+            (A.Int, _) ->
               do tell ["ChanOutInt ("]
                  genVariable c
                  tell [", "]
                  genExpression e
                  tell [");\n"]
+            (_, A.ExprVariable _ v) ->
+              do tell ["ChanOut ("]
+                 genVariable c
+                 tell [", "]
+                 let (rhs, rhsS) = abbrevVariable A.Abbrev t v
+                 rhs
+                 tell [", "]
+                 genBytesInType t
+                 tell [");\n"]
+            -- FIXME It would be cleaner to do this with a pullup,
+            -- which would reduce it to the previous case.
             _ ->
-              do tell ["{\n"]
+              do n <- makeNonce "output_item"
                  tell ["const "]
                  genType t
                  tell [" ", n, " = "]
@@ -381,10 +430,9 @@ genOutputItem c (A.OutExpression m e)
                  tell [";\n"]
                  tell ["ChanOut ("]
                  genVariable c
-                 tell [", &", n, ", sizeof ("]
-                 genType t
-                 tell ["));\n"]
-                 tell ["}\n"]
+                 tell [", &", n, ", "]
+                 genBytesInType t
+                 tell [");\n"]
 --}}}
 
 --{{{  replicators
@@ -410,6 +458,9 @@ genReplicatorLoop (A.For m n base count)
           tell ["; ", counter, " > 0; ", counter, "--, "]
           genName n
           tell ["++"]
+
+genReplicatorSize :: A.Replicator -> CGen ()
+genReplicatorSize (A.For m n base count) = genExpression count
 --}}}
 
 --{{{  choice/alternatives/options/variants
@@ -463,6 +514,43 @@ declareType :: A.Type -> CGen ()
 declareType (A.Chan _) = tell ["Channel *"]
 declareType t = genType t
 
+genDimensions :: [A.Dimension] -> CGen ()
+genDimensions ds
+     = sequence_ $ [case d of
+                      A.Dimension e ->
+                        do tell ["["]
+                           genExpression e
+                           tell ["]"]
+                      A.UnknownDimension ->
+                        missing "unknown dimension in declaration"
+                    | d <- ds]
+
+genDeclaration :: A.Type -> A.Name -> CGen ()
+genDeclaration A.Timer n = return ()
+genDeclaration (A.Chan _) n
+    =  do tell ["Channel "]
+          genName n
+          tell [";\n"]
+genDeclaration (A.Array ds t) n
+    =  do declareType t
+          tell [" "]
+          genName n
+          genDimensions ds
+          tell [";\n"]
+genDeclaration t n
+    =  do declareType t
+          tell [" "]
+          genName n
+          tell [";\n"]
+
+declareArraySizes :: [A.Dimension] -> CGen () -> CGen ()
+declareArraySizes ds name
+    =  do tell ["const int "]
+          name
+          tell ["_sizes[] = { "]
+          sequence_ $ intersperse genComma [genExpression e | (A.Dimension e) <- ds]
+          tell [" };\n"]
+
 -- | Initialise an item being declared.
 declareInit :: A.Type -> CGen () -> CGen () -> Maybe (CGen ())
 declareInit (A.Chan _) name index
@@ -470,6 +558,21 @@ declareInit (A.Chan _) name index
                 name
                 index
                 tell [");\n"]
+declareInit t@(A.Array ds t') name _    -- index ignored because arrays can't nest
+    = Just $ do init <- case t' of
+                          A.Chan _ ->
+                            do store <- makeNonce "storage"
+                               tell ["Channel ", store]
+                               genDimensions ds
+                               tell [";\n"]
+                               return (\index -> Just $ do fromJust $ declareInit t' (tell [store]) index
+                                                           name
+                                                           index
+                                                           tell [" = &", store]
+                                                           index
+                                                           tell [";\n"])
+                          _ -> return $ declareInit t' name
+                overArray name t init
 declareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
@@ -493,56 +596,13 @@ CHAN OF INT c IS d:       Channel *c = d;
 -}
 introduceSpec :: A.Specification -> CGen ()
 introduceSpec (n, A.Declaration m t)
-    = case t of
-        A.Timer -> return ()
-        A.Chan _ ->
-          do tell ["Channel "]
-             genName n
-             tell [";\n"]
-             tell ["ChanInit (&"]
-             genName n
-             tell [");\n"]
-        A.Array ds t' ->
-          do declareType t'
-             tell [" "]
-             genName n
-             let dim = sequence_ $ [case d of
-                                      A.Dimension e ->
-                                        do tell ["["]
-                                           genExpression e
-                                           tell ["]"]
-                                      A.UnknownDimension ->
-                                        missing "unknown dimension in declaration"
-                                    | d <- ds]
-             dim
-             tell [";\n"]
-             init <- case t' of
-                       A.Chan _ ->
-                         do store <- makeNonce "storage"
-                            tell ["Channel ", store]
-                            dim
-                            tell [";\n"]
-                            return (\index -> Just $ do fromJust $ declareInit t' (tell [store]) index
-                                                        genName n
-                                                        index
-                                                        tell [" = &", store]
-                                                        index
-                                                        tell [";\n"])
-                       _ -> return $ declareInit t' (genName n)
-             tell ["const int "]
-             genName n
-             tell ["_sizes[] = { "]
-             sequence_ $ intersperse genComma [genExpression e | (A.Dimension e) <- ds]
-             tell [" };\n"]
-             overArray n t init
-        _ ->
-          do declareType t
-             tell [" "]
-             genName n
-             tell [";\n"]
-             case declareInit t (genName n) (return ()) of
-               Just p -> p
-               Nothing -> return ()
+    = do genDeclaration t n
+         case t of
+           A.Array ds _ -> declareArraySizes ds (genName n)
+           _ -> return ()
+         case declareInit t (genName n) (return ()) of
+           Just p -> p
+           Nothing -> return ()
 introduceSpec (n, A.Is m am t v)
     =  do let (rhs, rhsSizes) = abbrevVariable am t v
           genDecl am t n
@@ -576,6 +636,28 @@ introduceSpec (n, A.IsChannelArray m t cs)
           tell [" = {"]
           sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
+--introduceSpec (n, A.DataType m t)
+introduceSpec (n, A.DataTypeRecord _ b fs)
+    =  do when b $ missing "packed record"
+          tell ["typedef struct {\n"]
+          sequence_ [case t of
+                       _ ->
+                         do declareType t
+                            tell [" "]
+                            genName n
+                            tell [";"]
+                     | (n, t) <- fs]
+          tell ["} "]
+          genName n
+          tell [";\n"]
+introduceSpec (n, A.Protocol _ _) = return ()
+introduceSpec (n, A.ProtocolCase _ ts)
+    =  do tell ["typedef enum {\n"]
+          sequence_ $ intersperse genComma [genName tag | (tag, _) <- ts]
+          tell ["\n"]
+          tell ["} "]
+          genName n
+          tell [";\n"]
 introduceSpec (n, A.Proc m fs p)
     =  do tell ["void "]
           genName n
@@ -584,13 +666,15 @@ introduceSpec (n, A.Proc m fs p)
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
--- CASE protocol should generate an enum for the tags
+introduceSpec (n, A.Function _ _ _ _) = missing "introduceSpec function"
+--introduceSpec (n, A.Retypes m am t v)
+--introduceSpec (n, A.RetypesExpr m am t e)
 introduceSpec (n, t) = missing $ "introduceSpec " ++ show t
 
 removeSpec :: A.Specification -> CGen ()
 removeSpec (n, A.Declaration m t)
     = case t of
-        A.Array _ t' -> overArray n t (declareFree t' (genName n))
+        A.Array _ t' -> overArray (genName n) t (declareFree t' (genName n))
         _ ->
           do case declareFree t (genName n) (return ()) of
                Just p -> p
@@ -654,17 +738,17 @@ genProcess p = case p of
   A.Assign m vs es -> genAssign vs es
   A.Input m c im -> genInput c im
   A.Output m c ois -> genOutput c ois
-  --A.OutputCase m c t ois
+  A.OutputCase m c t ois -> genOutputCase c t ois
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> genStop
   A.Main m -> tell ["/* main */\n"]
   A.Seq m ps -> sequence_ $ map genProcess ps
   A.SeqRep m r p -> genReplicator r (genProcess p)
   A.If m s -> genIf s
-  --A.Case m e s
+  A.Case m e s -> genCase e s
   A.While m e p -> genWhile e p
   A.Par m pm ps -> genPar pm ps
-  --A.ParRep m pm r p
+  A.ParRep m pm r p -> genParRep pm r p
   --A.Processor m e p
   --A.Alt m b s
   A.ProcCall m n as -> genProcCall n as
@@ -705,7 +789,42 @@ genInput c im
               A.InputAfter m e -> genTimerWait e
             _ -> case im of
               A.InputSimple m is -> sequence_ $ map (genInputItem c) is
+              A.InputCase m s -> genInputCase c s
               _ -> missing $ "genInput " ++ show im
+
+genInputCase :: A.Variable -> A.Structured -> CGen ()
+genInputCase c s
+    =  do ps <- get
+          t <- checkJust $ typeOfVariable ps c
+          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          tag <- makeNonce "case_tag"
+          genName proto
+          tell [" ", tag, ";\n"]
+          tell ["ChanInInt ("]
+          genVariable c
+          tell [", &", tag, ");\n"]
+          tell ["switch (", tag, ") {\n"]
+          genInputCaseBody c (return ()) s
+          tell ["default:\n"]
+          genStop
+          tell ["}\n"]
+
+-- This handles specs in a slightly odd way, because we can't insert specs into
+-- the body of a switch.
+genInputCaseBody :: A.Variable -> CGen () -> A.Structured -> CGen ()
+genInputCaseBody c coll (A.Spec _ spec s)
+    = genInputCaseBody c (genSpec spec coll) s
+genInputCaseBody c coll (A.OnlyV _ (A.Variant _ n iis p))
+    =  do tell ["case "]
+          genName n
+          tell [": {\n"]
+          coll
+          sequence_ $ map (genInputItem c) iis
+          genProcess p
+          tell ["break;\n"]
+          tell ["}\n"]
+genInputCaseBody c coll (A.Several _ ss)
+    = sequence_ $ map (genInputCaseBody c coll) ss
 
 genTimerRead :: A.Variable -> CGen ()
 genTimerRead v
@@ -726,11 +845,21 @@ genTimerWait e
 genOutput :: A.Variable -> [A.OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
+genOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
+genOutputCase c t ois
+    =  do tell ["ChanOutInt ("]
+          genVariable c
+          tell [", "]
+          genName t
+          tell [");\n"]
+          genOutput c ois
+
 genStop :: CGen ()
 genStop = tell ["SetErr ();\n"]
 
 -- FIXME: This could be special-cased to generate if ... else if ... for bits
 -- that aren't replicated and don't have specs.
+-- FIXME: As with CASE, this could use a flag to detect whether to generate the STOP.
 genIf :: A.Structured -> CGen ()
 genIf s
     =  do label <- makeNonce "if_end"
@@ -738,7 +867,6 @@ genIf s
           genStop
           tell [label, ":\n;\n"]
 
--- FIXME: This should be generic for any Structured type.
 genIfBody :: String -> A.Structured -> CGen ()
 genIfBody label (A.Rep m rep s) = genReplicator rep (genIfBody label s)
 genIfBody label (A.Spec m spec s) = genSpec spec (genIfBody label s)
@@ -751,6 +879,38 @@ genIfBody label (A.OnlyC m (A.Choice m' e p))
           tell ["}\n"]
 genIfBody label (A.Several m ss) = sequence_ $ map (genIfBody label) ss
 
+genCase :: A.Expression -> A.Structured -> CGen ()
+genCase e s
+    =  do tell ["switch ("]
+          genExpression e
+          tell [") {\n"]
+          seenDefault <- genCaseBody (return ()) s
+          when (not seenDefault) $ tell ["default:\n"] >> genStop
+          tell ["}\n"]
+
+-- FIXME -- can this be made common with genInputCaseBody above?
+genCaseBody :: CGen () -> A.Structured -> CGen Bool
+genCaseBody coll (A.Spec _ spec s)
+    = genCaseBody (genSpec spec coll) s
+genCaseBody coll (A.OnlyO _ (A.Option _ es p))
+    =  do sequence_ [tell ["case "] >> genExpression e >> tell [":\n"] | e <- es]
+          tell ["{\n"]
+          coll
+          genProcess p
+          tell ["break;\n"]
+          tell ["}\n"]
+          return False
+genCaseBody coll (A.OnlyO _ (A.Else _ p))
+    =  do tell ["default:\n"]
+          tell ["{\n"]
+          coll
+          genProcess p
+          tell ["}\n"]
+          return True
+genCaseBody coll (A.Several _ ss)
+    =  do seens <- mapM (genCaseBody coll) ss
+          return $ or seens
+
 genWhile :: A.Expression -> A.Process -> CGen ()
 genWhile e p
     =  do tell ["while ("]
@@ -762,7 +922,10 @@ genWhile e p
 genPar :: A.ParMode -> [A.Process] -> CGen ()
 genPar pm ps
     =  do pids <- mapM (\_ -> makeNonce "pid") ps
-          sequence_ $ map genProcAlloc (zip pids ps)
+          sequence_ $ [do tell ["Process *", pid, " = "]
+                          genProcAlloc p
+                          tell [";\n"]
+                       | (pid, p) <- (zip pids ps)]
           case pm of
             A.PlainPar ->
               do tell ["ProcPar ("]
@@ -771,9 +934,29 @@ genPar pm ps
             _ -> missing $ "genPar " ++ show pm
           sequence_ $ [tell ["ProcAllocClean (", pid, ");\n"] | pid <- pids]
 
-genProcAlloc :: (String, A.Process) -> CGen ()
-genProcAlloc (pid, A.ProcCall m n as)
-    =  do tell ["Process *", pid, " = ProcAlloc ("]
+-- FIXME -- This'll require a C99 dynamic array for a dynamic PAR count,
+-- which may turn out to be a bad idea for very large counts (since I assume
+-- it'll allocate off the stack). We should probably do a malloc if it's
+-- not determinable at compile time.
+genParRep :: A.ParMode -> A.Replicator -> A.Process -> CGen ()
+genParRep pm rep p
+    =  do pids <- makeNonce "pids"
+          index <- makeNonce "i"
+          tell ["Process *", pids, "["]
+          genReplicatorSize rep
+          tell [" + 1];\n"]
+          tell ["int ", index, " = 0;\n"]
+          genReplicator rep $ do tell [pids, "[", index, "++] = "]
+                                 genProcAlloc p
+                                 tell [";\n"]
+          tell [pids, "[", index, "] = NULL;\n"]
+          tell ["ProcParList (", pids, ");\n"]
+          tell [index, " = 0;\n"]
+          genReplicator rep $ tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
+
+genProcAlloc :: A.Process -> CGen ()
+genProcAlloc (A.ProcCall m n as)
+    =  do tell ["ProcAlloc ("]
           genName n
           ps <- get
           let fs = case fromJust $ specTypeOfName ps n of A.Proc _ fs _ -> fs
@@ -781,7 +964,7 @@ genProcAlloc (pid, A.ProcCall m n as)
           let stackSize = 4096
           tell [", ", show stackSize, ", ", show $ numCArgs fs]
           genActuals (zip as fs)
-          tell [");\n"]
+          tell [")"]
 
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as

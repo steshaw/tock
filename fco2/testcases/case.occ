@@ -1,0 +1,18 @@
+PROC P ()
+  INT n:
+  SEQ
+    CASE n    -- with ELSE
+      1, 2
+        SKIP
+      3
+        SKIP
+      4, 5, 6, 7, 8
+        SKIP
+      ELSE
+        SKIP
+    CASE n    -- without ELSE
+      1
+        SKIP
+      2
+        SKIP
+:

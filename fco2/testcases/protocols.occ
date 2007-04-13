@@ -1,0 +1,45 @@
+PROTOCOL SIMPLE IS INT; BOOL; BYTE:
+PROTOCOL COMPLEX
+  CASE
+    three.args; INT; BOOL; BYTE
+    one.arg; INT
+    no.args
+:
+PROTOCOL ARRAY IS [10]BYTE:
+PROTOCOL COUNTED IS INT::[]BYTE:
+PROC P ()
+  CHAN OF SIMPLE simple:
+  CHAN OF COMPLEX complex:
+  CHAN OF ARRAY array:
+  CHAN OF COUNTED counted:
+  INT i:
+  BOOL b:
+  BYTE y:
+  [10]BYTE is:
+  PAR
+    SEQ
+      simple ! 42; TRUE; 42
+      complex ! three.args; 42; TRUE; 42
+      complex ! one.arg; 42
+      complex ! no.args
+      complex ! one.arg; 24
+      array ! "abcdefghij"
+      counted ! 5::"abcde"
+    SEQ
+      simple ? i; b; y
+      complex ? CASE three.args; i; b; y
+      complex ? CASE one.arg; i
+      complex ? CASE no.args
+      complex ? CASE
+        INT ii:
+        BOOL bb:
+        three.args; ii; bb; y
+          STOP
+        INT ii:
+        one.arg; ii
+          SKIP
+        no.args
+          STOP
+      array ? is
+      counted ? i::is
+:
