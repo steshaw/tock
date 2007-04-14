@@ -76,7 +76,7 @@ defineNonce m s st nt am
                      A.ndAbbrevMode = am
                    }
           modify $ psDefineName n nd
-          return (n, st)
+          return $ A.Specification n st
 
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: MonadState ParseState m => Meta -> A.Process -> m A.Specification

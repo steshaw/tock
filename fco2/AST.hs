@@ -181,7 +181,10 @@ data AbbrevMode =
   | ValAbbrev
   deriving (Show, Eq, Typeable, Data)
 
-type Specification = (Name, SpecType)
+data Specification =
+  Specification Name SpecType
+  deriving (Show, Eq, Typeable, Data)
+
 data SpecType =
   Place Meta Expression
   | Declaration Meta Type

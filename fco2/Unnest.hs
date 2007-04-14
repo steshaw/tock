@@ -26,12 +26,12 @@ parsToProcs = doGeneric `extM` doProcess
     doProcess (A.Par m pm ps)
         =  do ps' <- mapM parsToProcs ps
               procs <- mapM (makeNonceProc m) ps'
-              let calls = [A.ProcSpec m s (A.ProcCall m n []) | s@(n, _) <- procs]
+              let calls = [A.ProcSpec m s (A.ProcCall m n []) | s@(A.Specification n _) <- procs]
               return $ A.Par m pm calls
     doProcess (A.ParRep m pm rep p)
         =  do p' <- parsToProcs p
               rep' <- parsToProcs rep
-              s@(n, _) <- makeNonceProc m p'
+              s@(A.Specification n _) <- makeNonceProc m p'
               let call = A.ProcSpec m s (A.ProcCall m n [])
               return $ A.ParRep m pm rep' call
     doProcess p = doGeneric p
@@ -65,7 +65,7 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ
     doValueProcess vp = doGeneric vp
 
     doSpec :: Data t => A.Specification -> t -> NameMap
-    doSpec (n, st) child
+    doSpec (A.Specification n st) child
         = Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child
       where
         fns = freeNamesIn st
@@ -129,7 +129,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
 
     doSpec :: Data t => Meta -> A.Specification -> t -> PassM (A.Specification, t)
     doSpec m spec child = case spec of
-        (n, st@(A.Proc m fs p)) ->
+        A.Specification n st@(A.Proc m fs p) ->
           do
              -- Figure out the free names
              let allFreeNames = Map.elems $ freeNamesIn st
@@ -156,7 +156,7 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
              p' <- removeFreeNames $ replaceNames (zip freeNames newNames) p
              let st' = A.Proc m (fs ++ newFs) p'
-             let spec' = (n, st')
+             let spec' = A.Specification n st'
              -- Update the definition of the proc
              let nameDef = fromJust $ psLookupName ps n
              modify $ psDefineName n (nameDef { A.ndType = st' })
@@ -197,7 +197,7 @@ removeNesting p
     doValueProcess vp = doGeneric vp
 
     doSpec :: Data t => t -> Meta -> A.Specification -> t -> PassM t
-    doSpec orig m spec@(_, st) child
+    doSpec orig m spec@(A.Specification _ st) child
         = if canPull st then
             do spec' <- pullSpecs spec
                addPulled $ A.ProcSpec m spec'
