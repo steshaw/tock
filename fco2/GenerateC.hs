@@ -19,9 +19,6 @@ module GenerateC where
 -- over the tree).
 -- And array subscripts also.
 
--- FIXME: The timer read mess can be cleaned up -- when you declare a timer,
--- that declares the temp variable...
-
 -- FIXME: There should be a wrapper for SetErr that takes a Meta and an error
 -- message. Ops and array references should use it.
 
@@ -121,6 +118,7 @@ scalarType A.Int32 = Just "int32_t"
 scalarType A.Int64 = Just "int64_t"
 scalarType A.Real32 = Just "float"
 scalarType A.Real64 = Just "double"
+scalarType A.Timer = Just "Time"
 scalarType _ = Nothing
 
 genType :: A.Type -> CGen ()
@@ -132,7 +130,6 @@ genType (A.UserDataType n) = genName n
 genType (A.Chan t) = tell ["Channel *"]
 -- Counted -- not used
 -- Any -- not used
---genType A.Timer =
 --genType (A.Port t) =
 genType t
     = case scalarType t of
@@ -620,7 +617,6 @@ genDimensions ds
           tell ["]"]
 
 genDeclaration :: A.Type -> A.Name -> CGen ()
-genDeclaration A.Timer n = return ()
 genDeclaration (A.Chan _) n
     =  do tell ["Channel "]
           genName n
@@ -867,7 +863,7 @@ genInput c im
           t <- checkJust $ typeOfVariable ps c
           case t of
             A.Timer -> case im of 
-              A.InputSimple m [A.InVariable m' v] -> genTimerRead v
+              A.InputSimple m [A.InVariable m' v] -> genTimerRead c v
               A.InputAfter m e -> genTimerWait e
             _ -> case im of
               A.InputSimple m is -> sequence_ $ map (genInputItem c) is
@@ -910,15 +906,15 @@ genInputCaseBody proto c coll (A.OnlyV _ (A.Variant _ n iis p))
 genInputCaseBody proto c coll (A.Several _ ss)
     = sequence_ $ map (genInputCaseBody proto c coll) ss
 
-genTimerRead :: A.Variable -> CGen ()
-genTimerRead v
-    =  do n <- makeNonce "time"
-          tell ["{\n"]
-          tell ["Time ", n, ";\n"]
-          tell ["ProcTime (&", n, ");\n"]
+genTimerRead :: A.Variable -> A.Variable -> CGen ()
+genTimerRead c v
+    =  do tell ["ProcTime (&"]
+          genVariable c
+          tell [");\n"]
           genVariable v
-          tell [" = ", n, ";\n"]
-          tell ["}\n"]
+          tell [" = "]
+          genVariable c
+          tell [";\n"]
 
 genTimerWait :: A.Expression -> CGen ()
 genTimerWait e
