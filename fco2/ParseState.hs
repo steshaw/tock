@@ -15,6 +15,7 @@ data ParseState = ParseState {
     psNameCounter :: Int,
     psNonceCounter :: Int,
     psPulledItems :: [A.Process -> A.Process],
+    psAdditionalArgs :: [(String, [A.Actual])],
     psMainName :: Maybe A.Name
   }
   deriving (Show, Data, Typeable)
@@ -29,6 +30,7 @@ emptyState = ParseState {
     psNameCounter = 0,
     psNonceCounter = 0,
     psPulledItems = [],
+    psAdditionalArgs = [],
     psMainName = Nothing
   }
 
@@ -76,7 +78,7 @@ defineNonce m s st nt am
                      A.ndAbbrevMode = am
                    }
           modify $ psDefineName n nd
-          return $ A.Specification n st
+          return $ A.Specification m n st
 
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: MonadState ParseState m => Meta -> A.Process -> m A.Specification

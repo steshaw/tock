@@ -2,6 +2,7 @@
 module Pass where
 
 import Control.Monad.State
+import System.IO
 
 import qualified AST as A
 import ParseState
@@ -21,4 +22,7 @@ runPasses progress ((s, p):ps) ast
           liftIO $ progress $ "}}}"
           ast'' <- runPasses progress ps ast'
           return ast''
+
+debug :: String -> PassM ()
+debug s = liftIO $ hPutStrLn stderr s
 

@@ -3,9 +3,12 @@ PROC p (VAL INT x, y, INT z)
 :
 
 INT FUNCTION f (VAL INT x, y)
+  INT q:
   VALOF
-    SKIP
-    RESULT x + y
+    SEQ
+      q := x
+      q := q + y
+    RESULT q
 :
 
 PROC test.expressions ()

@@ -685,7 +685,7 @@ CHAN OF INT c IS d:       Channel *c = d;
                           const int *ds_sizes = cs_sizes;
 -}
 introduceSpec :: A.Specification -> CGen ()
-introduceSpec (A.Specification n (A.Declaration m t))
+introduceSpec (A.Specification _ n (A.Declaration _ t))
     = do genDeclaration t n
          case t of
            A.Array ds _ -> declareArraySizes ds (genName n)
@@ -693,27 +693,27 @@ introduceSpec (A.Specification n (A.Declaration m t))
          case declareInit t (genName n) (return ()) of
            Just p -> p
            Nothing -> return ()
-introduceSpec (A.Specification n (A.Is m am t v))
+introduceSpec (A.Specification _ n (A.Is _ am t v))
     =  do let (rhs, rhsSizes) = abbrevVariable am t v
           genDecl am t n
           tell [" = "]
           rhs
           tell [";\n"]
           rhsSizes n
-introduceSpec (A.Specification n (A.IsExpr m am t e))
+introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
     =  do let (rhs, rhsSizes) = abbrevExpression am t e
           genDecl am t n
           tell [" = "]
           rhs
           tell [";\n"]
           rhsSizes n
-introduceSpec (A.Specification n (A.IsChannelArray m t cs))
+introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
     =  do genDecl A.Abbrev t n
           tell [" = {"]
           sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
---introduceSpec (A.Specification n (A.DataType m t))
-introduceSpec (A.Specification n (A.DataTypeRecord _ b fs))
+--introduceSpec (A.Specification m n (A.DataType m t))
+introduceSpec (A.Specification _ n (A.DataTypeRecord _ b fs))
     =  do tell ["typedef struct {\n"]
           sequence_ [case t of
                        _ ->
@@ -726,8 +726,8 @@ introduceSpec (A.Specification n (A.DataTypeRecord _ b fs))
           when b $ tell ["occam_struct_packed "]
           genName n
           tell [";\n"]
-introduceSpec (A.Specification n (A.Protocol _ _)) = return ()
-introduceSpec (A.Specification n (A.ProtocolCase _ ts))
+introduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
+introduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum {\n"]
           sequence_ $ intersperse genComma [genName tag >> tell ["_"] >> genName n
                                             | (tag, _) <- ts]
@@ -735,7 +735,7 @@ introduceSpec (A.Specification n (A.ProtocolCase _ ts))
           tell ["} "]
           genName n
           tell [";\n"]
-introduceSpec (A.Specification n (A.Proc m fs p))
+introduceSpec (A.Specification _ n (A.Proc _ fs p))
     =  do tell ["void "]
           genName n
           tell [" (Process *me"]
@@ -743,13 +743,13 @@ introduceSpec (A.Specification n (A.Proc m fs p))
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
-introduceSpec (A.Specification n (A.Function _ _ _ _)) = missing "introduceSpec function"
---introduceSpec (A.Specification n (A.Retypes m am t v))
---introduceSpec (A.Specification n (A.RetypesExpr m am t e))
-introduceSpec (A.Specification n t) = missing $ "introduceSpec " ++ show t
+introduceSpec (A.Specification _ n (A.Function _ _ _ _)) = missing "introduceSpec function"
+--introduceSpec (A.Specification _ n (A.Retypes _ am t v))
+--introduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
+introduceSpec n = missing $ "introduceSpec " ++ show n
 
 removeSpec :: A.Specification -> CGen ()
-removeSpec (A.Specification n (A.Declaration m t))
+removeSpec (A.Specification _ n (A.Declaration _ t))
     = case t of
         A.Array _ t' -> overArray (genName n) t (declareFree t' (genName n))
         _ ->

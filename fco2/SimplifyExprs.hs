@@ -52,7 +52,7 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
         pull t e
             = do -- FIXME Should get Meta from somewhere...
                  let m = []
-                 spec@(A.Specification n _) <- makeNonceIsExpr "array_expr" m t e
+                 spec@(A.Specification _ n _) <- makeNonceIsExpr "array_expr" m t e
                  addPulled $ A.ProcSpec m spec
                  return $ A.ExprVariable m (A.Variable m n)
 
@@ -76,7 +76,7 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual
       where
         pull :: Meta -> A.AbbrevMode -> A.Type -> A.Variable -> PassM A.Variable
         pull m am t v
-            = do spec@(A.Specification n _) <- makeNonceIs "subscript_actual" m t am v
+            = do spec@(A.Specification _ n _) <- makeNonceIs "subscript_actual" m t am v
                  addPulled $ A.ProcSpec m spec
                  return $ A.Variable m n
     doActual a = doGeneric a

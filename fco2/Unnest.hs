@@ -13,7 +13,11 @@ import Types
 import Pass
 
 unnest :: A.Process -> PassM A.Process
-unnest p = parsToProcs p >>= removeFreeNames >>= removeNesting
+unnest p
+    = parsToProcs p
+       >>= removeFreeNames
+       >>= removeNesting
+       >>= removeNoSpecs
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
 parsToProcs :: Data t => t -> PassM t
@@ -26,12 +30,12 @@ parsToProcs = doGeneric `extM` doProcess
     doProcess (A.Par m pm ps)
         =  do ps' <- mapM parsToProcs ps
               procs <- mapM (makeNonceProc m) ps'
-              let calls = [A.ProcSpec m s (A.ProcCall m n []) | s@(A.Specification n _) <- procs]
+              let calls = [A.ProcSpec m s (A.ProcCall m n []) | s@(A.Specification m n _) <- procs]
               return $ A.Par m pm calls
     doProcess (A.ParRep m pm rep p)
         =  do p' <- parsToProcs p
               rep' <- parsToProcs rep
-              s@(A.Specification n _) <- makeNonceProc m p'
+              s@(A.Specification _ n _) <- makeNonceProc m p'
               let call = A.ProcSpec m s (A.ProcCall m n [])
               return $ A.ParRep m pm rep' call
     doProcess p = doGeneric p
@@ -45,7 +49,6 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ
     doGeneric :: Data t => t -> NameMap
     doGeneric n = Map.unions $ gmapQ freeNamesIn n
 
-    -- FIXME This won't do the right thing with tags.
     doName :: A.Name -> NameMap
     doName n = Map.singleton (A.nameName n) n
 
@@ -65,7 +68,7 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ
     doValueProcess vp = doGeneric vp
 
     doSpec :: Data t => A.Specification -> t -> NameMap
-    doSpec (A.Specification n st) child
+    doSpec (A.Specification _ n st) child
         = Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child
       where
         fns = freeNamesIn st
@@ -96,40 +99,14 @@ replaceNames map p = everywhere (mkT $ doName) p
 
 -- | Turn free names in PROCs into arguments.
 removeFreeNames :: Data t => t -> PassM t
-removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
+removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM removeFreeNames
 
-    doProcess :: A.Process -> PassM A.Process
-    doProcess (A.ProcSpec m spec p)
-        =  do (spec', p') <- doSpec m spec p
-              return $ A.ProcSpec m spec' p'
-    doProcess p = doGeneric p
-
-    doStructured :: A.Structured -> PassM A.Structured
-    doStructured (A.Spec m spec s)
-        =  do (spec', s') <- doSpec m spec s
-              return $ A.Spec m spec' s'
-    doStructured s = doGeneric s
-
-    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
-    doValueProcess (A.ValOfSpec m spec vp)
-        =  do (spec', vp') <- doSpec m spec vp
-              return $ A.ValOfSpec m spec' vp'
-    doValueProcess vp = doGeneric vp
-
-    addToCalls :: Data t => A.Name -> [A.Actual] -> t -> t
-    addToCalls matchN newAs = everywhere (mkT atcProc)
-      where
-        atcProc :: A.Process -> A.Process
-        atcProc p@(A.ProcCall m n as)
-            = if n == matchN then A.ProcCall m n (as ++ newAs) else p
-        atcProc p = p
-
-    doSpec :: Data t => Meta -> A.Specification -> t -> PassM (A.Specification, t)
-    doSpec m spec child = case spec of
-        A.Specification n st@(A.Proc m fs p) ->
+    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification spec = case spec of
+        A.Specification m n st@(A.Proc _ fs p) ->
           do
              -- Figure out the free names
              let allFreeNames = Map.elems $ freeNamesIn st
@@ -151,26 +128,34 @@ removeFreeNames = doGeneric `extM` doProcess `extM` doStructured `extM` doValueP
                           in modify $ psDefineName nn (ond { A.ndName = A.nameName nn,
                                                              A.ndAbbrevMode = am })
                         | (on, nn, am) <- zip3 freeNames newNames ams]
-             ps' <- get
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
              p' <- removeFreeNames $ replaceNames (zip freeNames newNames) p
              let st' = A.Proc m (fs ++ newFs) p'
-             let spec' = A.Specification n st'
+             let spec' = A.Specification m n st'
              -- Update the definition of the proc
              let nameDef = fromJust $ psLookupName ps n
              modify $ psDefineName n (nameDef { A.ndType = st' })
-             -- Add extra arguments to calls of this proc
+             -- Note that we should add extra arguments to calls of this proc
+             -- when we find them
              let newAs = [case am of
                             A.Abbrev -> A.ActualVariable am t (A.Variable m n)
                             _ -> A.ActualExpression t (A.ExprVariable m (A.Variable m n))
                           | (am, n, t) <- zip3 ams freeNames types]
-             child' <- removeFreeNames (addToCalls n newAs child)
-             return (spec', child')
-        _ ->
-          do spec' <- removeFreeNames spec
-             child' <- removeFreeNames child
-             return (spec', child')
+             case newAs of
+               [] -> return ()
+               _ -> modify $ (\ps -> ps { psAdditionalArgs = (A.nameName n, newAs) : psAdditionalArgs ps })
+             return spec'
+        _ -> doGeneric spec
+
+    -- | Add the extra arguments we recorded when we saw the definition.
+    doProcess :: A.Process -> PassM A.Process
+    doProcess p@(A.ProcCall m n as)
+        =  do st <- get
+              case lookup (A.nameName n) (psAdditionalArgs st) of
+                Just add -> doGeneric $ A.ProcCall m n (as ++ add)
+                Nothing -> doGeneric p
+    doProcess p = doGeneric p
 
 -- | Pull nested declarations to the top level.
 removeNesting :: A.Process -> PassM A.Process
@@ -179,31 +164,18 @@ removeNesting p
           applyPulled p'
   where
     pullSpecs :: Data t => t -> PassM t
-    pullSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
+    pullSpecs = doGeneric `extM` doSpecification
 
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullSpecs
 
-    doProcess :: A.Process -> PassM A.Process
-    doProcess orig@(A.ProcSpec m spec p) = doSpec orig m spec p
-    doProcess p = doGeneric p
-
-    doStructured :: A.Structured -> PassM A.Structured
-    doStructured orig@(A.Spec m spec s) = doSpec orig m spec s
-    doStructured s = doGeneric s
-
-    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
-    doValueProcess orig@(A.ValOfSpec m spec vp) = doSpec orig m spec vp
-    doValueProcess vp = doGeneric vp
-
-    doSpec :: Data t => t -> Meta -> A.Specification -> t -> PassM t
-    doSpec orig m spec@(A.Specification _ st) child
+    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification spec@(A.Specification m _ st)
         = if canPull st then
-            do spec' <- pullSpecs spec
+            do spec' <- doGeneric spec
                addPulled $ A.ProcSpec m spec'
-               child' <- pullSpecs child
-               return child'
-          else doGeneric orig
+               return A.NoSpecification
+          else doGeneric spec
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _) = True
@@ -214,3 +186,21 @@ removeNesting p
     -- FIXME: Should pull up constant expressions too
     canPull _ = False
 
+-- | Remove specifications that have been turned into NoSpecifications.
+removeNoSpecs :: Data t => t -> PassM t
+removeNoSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric n = gmapM removeNoSpecs n
+
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.ProcSpec _ A.NoSpecification p) = removeNoSpecs p
+    doProcess p = doGeneric p
+
+    doStructured :: A.Structured -> PassM A.Structured
+    doStructured (A.Spec _ A.NoSpecification s) = removeNoSpecs s
+    doStructured s = doGeneric s
+
+    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
+    doValueProcess (A.ValOfSpec _ A.NoSpecification vp) = removeNoSpecs vp
+    doValueProcess vp = doGeneric vp

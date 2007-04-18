@@ -435,12 +435,12 @@ scopeOutRep :: A.Replicator -> OccParser ()
 scopeOutRep (A.For m n b c) = scopeOut n
 
 scopeInSpec :: A.Specification -> OccParser A.Specification
-scopeInSpec (A.Specification n st)
+scopeInSpec (A.Specification m n st)
     =  do n' <- scopeIn n st (abbrevModeOfSpec st)
-          return $ A.Specification n' st
+          return $ A.Specification m n' st
 
 scopeOutSpec :: A.Specification -> OccParser ()
-scopeOutSpec (A.Specification n st) = scopeOut n
+scopeOutSpec (A.Specification _ n _) = scopeOut n
 
 scopeInFormal :: A.Formal -> OccParser A.Formal
 scopeInFormal (A.Formal am t n)
@@ -817,12 +817,12 @@ replicator
 --{{{ specifications, declarations, allocations
 allocation :: OccParser [A.Specification]
 allocation
-    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- intExpr; sColon; eol; return [A.Specification n (A.Place m e)] }
+    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- intExpr; sColon; eol; return [A.Specification m n (A.Place m e)] }
     <?> "allocation"
 
 specification :: OccParser [A.Specification]
 specification
-    =   try (do { (ns, d) <- declaration; return [A.Specification n d | n <- ns] })
+    =   try (do { m <- md; (ns, d) <- declaration; return [A.Specification m n d | n <- ns] })
     <|> try (do { a <- abbreviation; return [a] })
     <|> do { d <- definition; return [d] }
     <?> "specification"
@@ -838,37 +838,37 @@ declaration
 abbreviation :: OccParser A.Specification
 abbreviation
     =   do m <- md
-           (do { (n, v) <- tryVXV newVariableName sIS variable; sColon; eol; t <- pTypeOfVariable v; return $ A.Specification n $ A.Is m A.Abbrev t v }
-            <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- pTypeOfVariable v; matchType s t; return $ A.Specification n $ A.Is m A.Abbrev s v }
+           (do { (n, v) <- tryVXV newVariableName sIS variable; sColon; eol; t <- pTypeOfVariable v; return $ A.Specification m n $ A.Is m A.Abbrev t v }
+            <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- pTypeOfVariable v; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s v }
             <|> do { sVAL ;
-                      do { (n, e) <- try (do { n <- newVariableName; sIS; e <- expression; return (n, e) }); sColon; eol; t <- pTypeOfExpression e; return $ A.Specification n $ A.IsExpr m A.ValAbbrev t e }
-                      <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return $ A.Specification n $ A.IsExpr m A.ValAbbrev s e } }
-            <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification n $ A.Is m A.Abbrev t c })
-            <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification n $ A.Is m A.Abbrev t c })
-            <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification n $ A.Is m A.Abbrev t c })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification n $ A.Is m A.Abbrev s c })
-            <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification n $ A.Is m A.Abbrev s c })
-            <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification n $ A.Is m A.Abbrev s c })
-            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; return $ A.Specification n $ A.IsChannelArray m t cs })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; matchType s t; return $ A.Specification n $ A.IsChannelArray m s cs }))
+                      do { (n, e) <- try (do { n <- newVariableName; sIS; e <- expression; return (n, e) }); sColon; eol; t <- pTypeOfExpression e; return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e }
+                      <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return $ A.Specification m n $ A.IsExpr m A.ValAbbrev s e } }
+            <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; return $ A.Specification m n $ A.IsChannelArray m t cs })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; matchType s t; return $ A.Specification m n $ A.IsChannelArray m s cs }))
     <?> "abbreviation"
 
 definition :: OccParser A.Specification
 definition
     =   do {  m <- md; sDATA; sTYPE; n <- newDataTypeName ;
-              do {sIS; t <- dataType; sColon; eol; return $ A.Specification n (A.DataType m t) }
-              <|> do { eol; indent; rec <- structuredType; outdent; sColon; eol; return $ A.Specification n rec } }
+              do {sIS; t <- dataType; sColon; eol; return $ A.Specification m n (A.DataType m t) }
+              <|> do { eol; indent; rec <- structuredType; outdent; sColon; eol; return $ A.Specification m n rec } }
     <|> do {  m <- md; sPROTOCOL; n <- newProtocolName ;
-              do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification n $ A.Protocol m p }
-              <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return $ A.Specification n $ A.ProtocolCase m ps } }
-    <|> do { m <- md; sPROC; n <- newProcName; fs <- formalList; eol; indent; fs' <- scopeInFormals fs; p <- process; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification n $ A.Proc m fs' p }
+              do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification m n $ A.Protocol m p }
+              <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps } }
+    <|> do { m <- md; sPROC; n <- newProcName; fs <- formalList; eol; indent; fs' <- scopeInFormals fs; p <- process; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Proc m fs' p }
     <|> try (do { m <- md; rs <- sepBy1 dataType sComma; (n, fs) <- functionHeader ;
-                  do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return $ A.Specification n $ A.Function m rs fs' (A.ValOf m (A.Skip m) el) }
-                  <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification n $ A.Function m rs fs' vp } })
+                  do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.ValOf m (A.Skip m) el) }
+                  <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' vp } })
     <|> try (do { m <- md; s <- specifier; n <- newVariableName ;
-                  sRETYPES <|> sRESHAPES; v <- variable; sColon; eol; return $ A.Specification n $ A.Retypes m A.Abbrev s v })
+                  sRETYPES <|> sRESHAPES; v <- variable; sColon; eol; return $ A.Specification m n $ A.Retypes m A.Abbrev s v })
     <|> try (do {  m <- md; sVAL; s <- specifier; n <- newVariableName ;
-                   sRETYPES <|> sRESHAPES; e <- expression; sColon; eol; return $ A.Specification n $ A.RetypesExpr m A.ValAbbrev s e })
+                   sRETYPES <|> sRESHAPES; e <- expression; sColon; eol; return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e })
     <?> "definition"
 
 dataSpecifier :: OccParser A.Type

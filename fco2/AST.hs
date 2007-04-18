@@ -182,7 +182,8 @@ data AbbrevMode =
   deriving (Show, Eq, Typeable, Data)
 
 data Specification =
-  Specification Name SpecType
+  Specification Meta Name SpecType
+  | NoSpecification   -- ^ A specification that's been removed by a pass.
   deriving (Show, Eq, Typeable, Data)
 
 data SpecType =
