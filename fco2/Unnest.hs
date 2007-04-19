@@ -108,14 +108,17 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doSpecification spec = case spec of
         A.Specification m n st@(A.Proc _ fs p) ->
           do
-             -- Figure out the free names
+             ps <- get
+             -- Figure out the free names. We only want to do this for channels
+             -- and variables, and we don't want to do it for constants because
+             -- they'll get pulled to the top level anyway.
              let allFreeNames = Map.elems $ freeNamesIn st
              let freeNames = [n | n <- allFreeNames,
                                   case A.nameType n of
                                     A.ChannelName -> True
                                     A.VariableName -> True
-                                    _ -> False]
-             ps <- get
+                                    _ -> False,
+                                  not $ isConstName ps n]
              let types = [fromJust $ typeOfName ps n | n <- freeNames]
              let ams = [case fromJust $ abbrevModeOfName ps n of
                           A.Original -> A.Abbrev
@@ -171,20 +174,20 @@ removeNesting p
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec@(A.Specification m _ st)
-        = if canPull st then
-            do spec' <- doGeneric spec
-               addPulled $ A.ProcSpec m spec'
-               return A.NoSpecification
-          else doGeneric spec
+        = do ps <- get
+             if canPull ps st then
+                 do spec' <- doGeneric spec
+                    addPulled $ A.ProcSpec m spec'
+                    return A.NoSpecification
+               else doGeneric spec
 
-    canPull :: A.SpecType -> Bool
-    canPull (A.Proc _ _ _) = True
-    canPull (A.DataType _ _) = True
-    canPull (A.DataTypeRecord _ _ _) = True
-    canPull (A.Protocol _ _) = True
-    canPull (A.ProtocolCase _ _) = True
-    -- FIXME: Should pull up constant expressions too
-    canPull _ = False
+    canPull :: ParseState -> A.SpecType -> Bool
+    canPull _ (A.Proc _ _ _) = True
+    canPull _ (A.DataType _ _) = True
+    canPull _ (A.DataTypeRecord _ _ _) = True
+    canPull _ (A.Protocol _ _) = True
+    canPull _ (A.ProtocolCase _ _) = True
+    canPull ps st = isConstSpecType ps st
 
 -- | Remove specifications that have been turned into NoSpecifications.
 removeNoSpecs :: Data t => t -> PassM t

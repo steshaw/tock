@@ -513,7 +513,7 @@ dataType
     <|> do { sINT64; return A.Int64 }
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
-    <|> try (do { sLeft; s <- intExpr; sRight; t <- dataType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- constIntExpr; sRight; t <- dataType; return $ makeArrayType (A.Dimension s) t })
     <|> do { n <- dataTypeName; return $ A.UserDataType n }
     <?> "dataType"
 
@@ -521,19 +521,19 @@ dataType
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
-    <|> try (do { sLeft; s <- intExpr; sRight; t <- channelType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- constIntExpr; sRight; t <- channelType; return $ makeArrayType (A.Dimension s) t })
     <?> "channelType"
 
 timerType :: OccParser A.Type
 timerType
     =   do { sTIMER; return $ A.Timer }
-    <|> try (do { sLeft; s <- intExpr; sRight; t <- timerType; return $ makeArrayType (A.Dimension s) t })
+    <|> try (do { sLeft; s <- constIntExpr; sRight; t <- timerType; return $ makeArrayType (A.Dimension s) t })
     <?> "timerType"
 
 portType :: OccParser A.Type
 portType
     =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
-    <|> do { m <- md; try sLeft; s <- try intExpr; try sRight; t <- portType; return $ makeArrayType (A.Dimension s) t }
+    <|> do { m <- md; try sLeft; s <- try constIntExpr; try sRight; t <- portType; return $ makeArrayType (A.Dimension s) t }
     <?> "portType"
 --}}}
 --{{{ literals
@@ -658,6 +658,16 @@ exprOfType wantT
 
 intExpr = exprOfType A.Int <?> "integer expression"
 booleanExpr = exprOfType A.Bool <?> "boolean expression"
+
+constExprOfType :: A.Type -> OccParser A.Expression
+constExprOfType wantT
+    =  do e <- exprOfType wantT
+          ps <- getState
+          if isConstExpression ps e
+            then return e
+            else fail "expected constant expression"
+
+constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
