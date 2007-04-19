@@ -532,7 +532,7 @@ genSlice v (A.Variable _ on) start count ds
 
 genArrayAbbrev :: A.Variable -> (CGen (), A.Name -> CGen ())
 genArrayAbbrev v
-    = (genVariable v, genAASize v 0)
+    = (tell ["&"] >> genVariable v, genAASize v 0)
   where
     genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
         = genAASize v (arg + 1)
@@ -557,6 +557,11 @@ genArraySize isPtr size n
 noSize :: A.Name -> CGen ()
 noSize n = return ()
 
+genVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
+genVariableAM v am
+    =  do when (am == A.Abbrev) $ tell ["&"]
+          genVariable v
+
 -- | Generate the right-hand side of an abbreviation of a variable.
 abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
 abbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
@@ -574,7 +579,7 @@ abbrevVariable am (A.Chan _) v
 abbrevVariable am (A.UserDataType _) v
     = (genVariable v, noSize)
 abbrevVariable am t v
-    = (do { when (am == A.Abbrev) $ tell ["&"]; genVariable v }, noSize)
+    = (genVariableAM v am, noSize)
 
 -- | Generate the right-hand side of an abbreviation of an expression.
 abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
