@@ -1,0 +1,26 @@
+PROC A ([]INT a1)
+  SKIP
+:
+PROC B (VAL [][]INT a2)
+  SKIP
+:
+PROC P ()
+  INT zero:
+  [10]INT one:
+  [10][10]INT two:
+  [10][10][10]INT three:
+  SEQ
+    zero := 42
+    one[1] := zero
+    zero := one[1]
+    two[1][2] := zero
+    zero := two[1][2]
+    three[1][2][3] := zero
+    zero := three[1][2][3]
+
+    A (one)
+    A (two[1])
+    A (three[1][2])
+    B (two)
+    B (three[1])
+:

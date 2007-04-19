@@ -1,0 +1,24 @@
+PROC P ()
+  INT X:
+  SEQ
+    X := 42
+
+    -- These should be pulled out of the proc...
+    VAL INT a IS 42:
+    VAL INT b IS a + 1:
+    VAL INT c IS a + b:
+    VAL []INT d IS [1, 2, 3, 4]:
+    VAL INT e IS d[2]:
+    VAL INT32 f RETYPES a:
+    VAL INT g IS BYTESIN (a):
+    -- ... and these shouldn't.
+    INT A:
+    VAL INT B IS A:
+    VAL INT C IS X:
+    VAL []INT D IS [1, 2, X, 4]:
+    VAL INT E IS D[2]:   -- technically the others should be OK, but I think that's excessive analysis!
+    INT32 F RETYPES A:
+    VAL INT G IS BYTESIN (E):
+
+    SKIP
+:
