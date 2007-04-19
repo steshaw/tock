@@ -259,10 +259,13 @@ genVariable v
     =  do ps <- get
           am <- checkJust $ abbrevModeOfVariable ps v
           t <- checkJust $ typeOfVariable ps v
+          let isSub = case v of
+                        A.Variable _ _ -> False
+                        A.SubscriptedVariable _ _ _ -> True
 
           let prefix = case (am, t) of
                          (_, A.Array _ _) -> ""
-                         (A.Original, A.Chan _) -> "&"
+                         (A.Original, A.Chan _) -> if isSub then "" else "&"
                          (A.Abbrev, A.Chan _) -> ""
                          (A.Original, A.UserDataType _) -> "&"
                          (A.Abbrev, A.UserDataType _) -> ""
