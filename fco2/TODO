@@ -15,5 +15,3 @@ handles different types.)
 Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
-String conversion is broken -- it needs to escape backslashes.
-

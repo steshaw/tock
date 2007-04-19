@@ -38,6 +38,8 @@ import Data.Maybe
 import Control.Monad.Writer
 import Control.Monad.Error
 import Control.Monad.State
+import Numeric
+import Text.Printf
 
 import qualified AST as A
 import Metadata
@@ -195,9 +197,14 @@ genLiteralRepr (A.ArrayLiteral m es)
           sequence_ $ intersperse genComma (map genExpression es)
           tell ["}"]
 
+hexToOct :: String -> String
+hexToOct h = printf "%03o" (fst $ head $ readHex h)
+
 convStringLiteral :: String -> String
 convStringLiteral [] = []
-convStringLiteral ('*':'#':a:b:s) = "\\x" ++ [a, b] ++ convStringLiteral s
+convStringLiteral ('\\':s) = "\\\\" ++ convStringLiteral s
+convStringLiteral ('*':'#':'0':'0':s) = "\\0" ++ convStringLiteral s
+convStringLiteral ('*':'#':a:b:s) = "\\" ++ hexToOct [a, b] ++ convStringLiteral s
 convStringLiteral ('*':c:s) = convStringStar c ++ convStringLiteral s
 convStringLiteral (c:s) = c : convStringLiteral s
 
