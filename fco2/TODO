@@ -1,0 +1,7 @@
+To-do list for FCO
+------------------
+
+Have a "compiler options" field in ParseState, which can contain things like:
+- optional tracing in passes
+- whether to compile out overflow/bounds checks
+
