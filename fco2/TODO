@@ -11,9 +11,17 @@ unchecked +.
 Parallel assignment should be handled by a simplification pass, not by GenerateC.
 (Then things get proper names and we can write a genAssignment function that
 handles different types.)
+ - and then array assignment can be made to work properly.
 
 Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
 Multidimensional array literals won't work.
 
+We do need to have a constant folding pass -- irritatingly -- because C won't do it.
+
+ALT needs to detect when it's being used over timers, and calculate when the
+next timeout fires.
+
+Array indexing needs to be checked against the bounds (which'll do away with a
+lot of the "_sizes unused" warnings).

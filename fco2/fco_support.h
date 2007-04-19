@@ -59,5 +59,7 @@ static int occam_rem (int a, int b) {
 static bool occam_after (int a, int b) {
 	return (a - b) > 0;
 }
+#define occam_unchecked_after (a, b) \
+	(((a) - (b)) > 0)
 
 #endif

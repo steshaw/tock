@@ -11,14 +11,16 @@ PROC P ()
     VAL INT e IS d[2]:
     VAL INT32 f RETYPES a:
     VAL INT g IS BYTESIN (a):
+    VAL BOOL aft IS a AFTER b:
     -- ... and these shouldn't.
     INT A:
-    VAL INT B IS A:
-    VAL INT C IS X:
+    VAL INT B IS A + 1:
+    VAL INT C IS X + B:
     VAL []INT D IS [1, 2, X, 4]:
     VAL INT E IS D[2]:   -- technically the others should be OK, but I think that's excessive analysis!
     INT32 F RETYPES A:
     VAL INT G IS BYTESIN (E):
+    VAL BOOL AFT IS A AFTER B:
 
     SKIP
 :
