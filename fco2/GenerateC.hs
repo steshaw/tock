@@ -198,7 +198,7 @@ genLiteralRepr (A.ArrayLiteral m es)
           tell ["}"]
 
 hexToOct :: String -> String
-hexToOct h = printf "%03o" (fst $ head $ readHex h)
+hexToOct h = printf "%03o" ((fst $ head $ readHex h) :: Int)
 
 convStringLiteral :: String -> String
 convStringLiteral [] = []
