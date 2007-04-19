@@ -1,0 +1,25 @@
+PROC P ()
+  CHAN OF INT c, d:
+  [10]CHAN OF INT cs, ds:
+  BOOL b, bb:
+  [10]BOOL bs:
+  ALT
+    INT x:
+    c ? x
+      SKIP
+    INT y:
+    b & d ? y
+      SKIP
+    ALT i = 0 FOR SIZE cs
+      INT p:
+      cs[i] ? p
+        SKIP
+    ALT i = 0 FOR SIZE ds
+      INT q:
+      bs[i] & ds[i] ? q
+        SKIP
+    bb & SKIP
+      SKIP
+    TRUE & SKIP
+      STOP
+:

@@ -838,11 +838,11 @@ genProcess p = case p of
   A.While m e p -> genWhile e p
   A.Par m pm ps -> genPar pm ps
   A.ParRep m pm r p -> genParRep pm r p
-  --A.Processor m e p
-  --A.Alt m b s
+  A.Processor m e p -> missing "PROCESSOR not supported"
+  A.Alt m b s -> genAlt b s
   A.ProcCall m n as -> genProcCall n as
-  _ -> missing $ "genProcess " ++ show p
 
+--{{{  assignment
 genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
 genAssign vs el
     = case el of
@@ -867,7 +867,8 @@ genAssign vs el
                                    tell [" = ", n, ";\n"])
                     (zip vs ns)
                tell ["}\n"]
-
+--}}}
+--{{{  input
 genInput :: A.Variable -> A.InputMode -> CGen ()
 genInput c im
     =  do ps <- get
@@ -932,7 +933,8 @@ genTimerWait e
     =  do tell ["ProcTimeAfter ("]
           genExpression e
           tell [");\n"]
-
+--}}}
+--{{{  output
 genOutput :: A.Variable -> [A.OutputItem] -> CGen ()
 genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
@@ -949,10 +951,12 @@ genOutputCase c tag ois
           genName proto
           tell [");\n"]
           genOutput c ois
-
+--}}}
+--{{{  stop
 genStop :: CGen ()
 genStop = tell ["SetErr ();\n"]
-
+--}}}
+--{{{  if
 -- FIXME: This could be special-cased to generate if ... else if ... for bits
 -- that aren't replicated and don't have specs.
 -- FIXME: As with CASE, this could use a flag to detect whether to generate the STOP.
@@ -974,7 +978,8 @@ genIfBody label (A.OnlyC m (A.Choice m' e p))
           tell ["goto ", label, ";\n"]
           tell ["}\n"]
 genIfBody label (A.Several m ss) = sequence_ $ map (genIfBody label) ss
-
+--}}}
+--{{{  case
 genCase :: A.Expression -> A.Structured -> CGen ()
 genCase e s
     =  do tell ["switch ("]
@@ -1006,7 +1011,8 @@ genCaseBody coll (A.OnlyO _ (A.Else _ p))
 genCaseBody coll (A.Several _ ss)
     =  do seens <- mapM (genCaseBody coll) ss
           return $ or seens
-
+--}}}
+--{{{  while
 genWhile :: A.Expression -> A.Process -> CGen ()
 genWhile e p
     =  do tell ["while ("]
@@ -1014,7 +1020,8 @@ genWhile e p
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
-
+--}}}
+--{{{  par
 genPar :: A.ParMode -> [A.Process] -> CGen ()
 genPar pm ps
     =  do pids <- mapM (\_ -> makeNonce "pid") ps
@@ -1059,12 +1066,104 @@ genProcAlloc (A.ProcCall m n as)
           tell [", ", show stackSize, ", ", show $ numCArgs as]
           genActuals as
           tell [")"]
+--}}}
+--{{{  alt
+-- FIXME This will always generate a dynamic array -- we'd need a pass to tell
+-- if all the replicator sizes were constant.
+-- The code it generates is really not very nice; it would be better if CIF
+-- exposed the enable/wait/disable instructions.
+genAlt :: Bool -> A.Structured -> CGen ()
+genAlt isPri s
+    =  do chans <- makeNonce "channels"
+          count <- makeNonce "count"
+          tell ["int ", count, " = 1;\n"]
+          tell ["{\n"]
+          genAltSize count s
+          tell ["}\n"]
+          tell ["Channel *", chans, "[", count, "];\n"]
+          tell [count, " = 0;\n"]
+          tell ["{\n"]
+          genAltEnable chans count s
+          tell ["}\n"]
+          tell [chans, "[", count, "] = NULL;\n"]
+          fired <- makeNonce "fired"
+          label <- makeNonce "end"
+          tell ["int ", fired, " = "]
+          tell [if isPri then "ProcProcPriAltList" else "ProcAltList"]
+          tell [" (", chans, ");\n"]
+          tell [count, " = 0;\n"]
+          tell ["{\n"]
+          genAltDisable fired count label s
+          tell ["}\n"]
+          tell [label, ":\n;\n"]
 
+genAltSize :: String -> A.Structured -> CGen ()
+genAltSize count (A.Rep _ rep s) = genReplicator rep (genAltSize count s)
+genAltSize count (A.Spec _ spec s) = genSpec spec (genAltSize count s)
+genAltSize count (A.OnlyA _ alt)
+    = case alt of
+        A.Alternative _ _ _ _ -> tell [count, "++;\n"]
+        A.AlternativeCond _ _ _ _ _ -> tell [count, "++;\n"]
+        A.AlternativeSkip _ _ _ -> return ()
+genAltSize count (A.Several _ ss) = sequence_ $ map (genAltSize count) ss
+
+genAltEnable :: String -> String -> A.Structured -> CGen ()
+genAltEnable chans count (A.Rep _ rep s) = genReplicator rep (genAltEnable chans count s)
+genAltEnable chans count (A.Spec _ spec s) = genSpec spec (genAltEnable chans count s)
+genAltEnable chans count (A.OnlyA _ alt)
+    = case alt of
+        A.Alternative _ c _ _ ->
+          do tell [chans, "[", count, "++] = "]
+             genVariable c
+             tell [";\n"]
+        A.AlternativeCond _ e c _ _ ->
+          do tell ["if ("]
+             genExpression e
+             tell [") {\n"]
+             tell [chans, "[", count, "++] = "]
+             genVariable c
+             tell [";\n"]
+             tell ["}\n"]
+        A.AlternativeSkip _ _ _ -> return ()
+genAltEnable chans count (A.Several _ ss) = sequence_ $ map (genAltEnable chans count) ss
+
+genAltDisable :: String -> String -> String -> A.Structured -> CGen ()
+genAltDisable fired count label (A.Rep _ rep s) = genReplicator rep (genAltDisable fired count label s)
+genAltDisable fired count label (A.Spec _ spec s) = genSpec spec (genAltDisable fired count label s)
+genAltDisable fired count label (A.OnlyA _ alt)
+    = case alt of
+        A.Alternative _ c im p ->
+          do tell ["if (", fired, " == ", count, "++) {\n"]
+             genInput c im
+             genProcess p
+             tell ["goto ", label, ";\n"]
+             tell ["}\n"]
+        A.AlternativeCond _ e c im p ->
+          do tell ["if (("]
+             genExpression e
+             tell [") && ", fired, " == ", count, "++) {\n"]
+             genInput c im
+             genProcess p
+             tell ["goto ", label, ";\n"]
+             tell ["}\n"]
+        -- FIXME This doesn't do anything useful yet, since CIF doesn't do SKIP guards.
+        A.AlternativeSkip _ e p ->
+          do tell ["if (("]
+             genExpression e
+             tell [") && ", fired, " == -1) {\n"]
+             genProcess p
+             tell ["goto ", label, ";\n"]
+             tell ["}\n"]
+             missing "SKIP guards not supported"
+genAltDisable fired count label (A.Several _ ss) = sequence_ $ map (genAltDisable fired count label) ss
+--}}}
+--{{{  proc call
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
 genProcCall n as
     =  do genName n
           tell [" (me"]
           genActuals as
           tell [");\n"]
+--}}}
 --}}}
 

@@ -1,0 +1,24 @@
+PROC send (VAL BYTE b, VAL INT delay, CHAN OF BYTE c)
+  TIMER tim:
+  INT t:
+  WHILE TRUE
+    SEQ
+      tim ? t
+      tim ? AFTER t PLUS delay
+      c ! b
+:
+PROC plex ([]CHAN OF BYTE cs, CHAN OF BYTE out)
+  WHILE TRUE
+    ALT i = 0 FOR SIZE cs
+      BYTE b:
+      cs[i] ? b
+        out ! b
+:
+PROC main (CHAN OF BYTE in, out, err)
+  [3]CHAN OF BYTE cs:
+  PAR
+    send ('x', 100000, cs[0])
+    send ('y', 200000, cs[1])
+    send ('z', 300000, cs[2])
+    plex (cs, out)
+:
