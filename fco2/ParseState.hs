@@ -14,6 +14,7 @@ data ParseState = ParseState {
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
     psNonceCounter :: Int,
+    psFunctionReturns :: [(String, [A.Type])],
     psPulledItems :: [A.Process -> A.Process],
     psAdditionalArgs :: [(String, [A.Actual])],
     psMainName :: Maybe A.Name
@@ -29,6 +30,7 @@ emptyState = ParseState {
     psNames = [],
     psNameCounter = 0,
     psNonceCounter = 0,
+    psFunctionReturns = [],
     psPulledItems = [],
     psAdditionalArgs = [],
     psMainName = Nothing
@@ -94,4 +96,9 @@ makeNonceIs s m t am v
 makeNonceIsExpr :: MonadState ParseState m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
 makeNonceIsExpr s m t e
     = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+
+-- | Generate and define a variable.
+makeNonceVariable :: MonadState ParseState m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
+makeNonceVariable s m t nt am
+    = defineNonce m s (A.Declaration m t) nt am
 

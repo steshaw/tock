@@ -183,7 +183,8 @@ returnTypesOfFunction :: ParseState -> A.Name -> Maybe [A.Type]
 returnTypesOfFunction ps n
     = case specTypeOfName ps n of
         Just (A.Function m rs fs vp) -> Just rs
-        _ -> Nothing
+        -- If it's not defined as a function, it might have been converted to a proc.
+        _ -> lookup (A.nameName n) (psFunctionReturns ps)
 
 isCaseProtocolType :: ParseState -> A.Type -> Bool
 isCaseProtocolType ps (A.Chan (A.UserProtocol pr))

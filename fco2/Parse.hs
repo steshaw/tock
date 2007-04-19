@@ -621,9 +621,25 @@ character
     <?> "character"
 --}}}
 --{{{ expressions
+functionNameSingle :: OccParser A.Name
+    =  do n <- functionName
+          rts <- (pTypeOf returnTypesOfFunction) n
+          case rts of
+            [_] -> return n
+            _ -> pzero
+    <?> "function with single return value"
+
+functionNameMulti :: OccParser A.Name
+    =  do n <- functionName
+          rts <- (pTypeOf returnTypesOfFunction) n
+          case rts of
+            [_] -> pzero
+            _ -> return n
+    <?> "function with multiple return values"
+
 expressionList :: OccParser A.ExpressionList
 expressionList
-    =   try (do { m <- md; n <- functionName; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as })
+    =   try (do { m <- md; n <- functionNameMulti; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as })
     <|> do { m <- md; es <- sepBy1 expression sComma; return $ A.ExpressionList m es }
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expressionList"
@@ -738,7 +754,7 @@ operandNotTable'
     <|> try (do { m <- md; l <- literal; return $ A.ExprLiteral m l })
     <|> try (do { sLeftR; e <- expression; sRightR; return e })
 -- XXX value process
-    <|> try (do { m <- md; n <- functionName; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as })
+    <|> try (do { m <- md; n <- functionNameSingle; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as })
     <|> try (do { m <- md; sBYTESIN; sLeftR; o <- operand; sRightR; return $ A.BytesInExpr m o })
     <|> try (do { m <- md; sBYTESIN; sLeftR; t <- dataType; sRightR; return $ A.BytesInType m t })
     <|> try (do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f })
