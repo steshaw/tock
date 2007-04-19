@@ -326,6 +326,9 @@ genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
 genExpression (A.SizeExpr m e)
     =  do genExpression e
           tell ["_sizes[0]"]
+genExpression (A.SizeVariable m v)
+    =  do genVariable v
+          tell ["_sizes[0]"]
 genExpression (A.Conversion m cm t e) = genConversion cm t e
 genExpression (A.ExprVariable m v) = genVariable v
 genExpression (A.ExprLiteral m l) = genLiteral l

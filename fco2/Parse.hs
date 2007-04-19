@@ -662,7 +662,8 @@ sizeExpr
     =  do m <- md
           sSIZE
           (try (do { t <- dataType; return $ A.SizeType m t })
-           <|> do { v <- operand; return $ A.SizeExpr m v })
+           <|> do { v <- operand; return $ A.SizeExpr m v }
+           <|> do { v <- channel <|> timer <|> port; return $ A.SizeVariable m v })
     <?> "sizeExpr"
 
 exprOfType :: A.Type -> OccParser A.Expression

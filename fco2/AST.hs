@@ -94,6 +94,7 @@ data Expression =
   | MostNeg Meta Type
   | SizeType Meta Type
   | SizeExpr Meta Expression
+  | SizeVariable Meta Variable
   | Conversion Meta ConversionMode Type Expression
   | ExprVariable Meta Variable
   | ExprLiteral Meta Literal

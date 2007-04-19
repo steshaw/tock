@@ -89,6 +89,7 @@ typeOfExpression ps e
         A.MostNeg m t -> Just t
         A.SizeType m t -> Just A.Int
         A.SizeExpr m t -> Just A.Int
+        A.SizeVariable m t -> Just A.Int
         A.Conversion m cm t e -> Just t
         A.ExprVariable m v -> typeOfVariable ps v
         A.ExprLiteral m l -> typeOfLiteral ps l
@@ -122,6 +123,7 @@ isConstExpression ps e
         A.MostNeg m t -> True
         A.SizeType m t -> True
         A.SizeExpr m e -> isConstExpression ps e
+        A.SizeVariable m v -> isConstVariable ps v
         A.Conversion m cm t e -> isConstExpression ps e
         A.ExprVariable m v -> isConstVariable ps v
         A.ExprLiteral m l -> isConstLiteral ps l
