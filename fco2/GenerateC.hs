@@ -720,7 +720,16 @@ introduceSpec (A.Specification _ n (A.Is _ am t v))
           rhsSizes n
 introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
     =  do let (rhs, rhsSizes) = abbrevExpression am t e
-          genDecl am t n
+          case (am, t, e) of
+            (A.ValAbbrev, A.Array _ ts, A.ExprLiteral _ _) ->
+              -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
+              -- declaration, since you can't say "int *foo = {vs};" in C.
+              do tell ["const "]
+                 genType ts
+                 tell [" "]
+                 genName n
+                 tell ["[]"]
+            _ -> genDecl am t n
           tell [" = "]
           rhs
           tell [";\n"]

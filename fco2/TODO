@@ -15,3 +15,5 @@ handles different types.)
 Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
+Multidimensional array literals won't work.
+
