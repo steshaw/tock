@@ -14,6 +14,7 @@ sources = \
 	Pass.hs \
 	PrettyShow.hs \
 	SimplifyExprs.hs \
+	SimplifyProcs.hs \
 	Types.hs \
 	Unnest.hs
 

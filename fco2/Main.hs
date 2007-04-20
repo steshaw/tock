@@ -10,12 +10,14 @@ import Pass
 import PrettyShow
 import Parse
 import SimplifyExprs
+import SimplifyProcs
 import Unnest
 import GenerateC
 
 passes :: [(String, Pass)]
 passes =
   [ ("Simplify expressions", simplifyExprs)
+  , ("Simplify processes", simplifyProcs)
   , ("Flatten nested declarations", unnest)
   ]
 
