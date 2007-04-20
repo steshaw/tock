@@ -5,9 +5,6 @@ Have a "compiler options" field in ParseState, which can contain things like:
 - optional tracing in passes
 - whether to compile out overflow/bounds checks
 
-Need to spot when a constant expression is being compiled, and generate + as
-unchecked +.
-
 Parallel assignment should be handled by a simplification pass, not by GenerateC.
 (Then things get proper names and we can write a genAssignment function that
 handles different types.)
@@ -19,15 +16,11 @@ calls have been removed, and so on.
 Multidimensional array literals won't work.
 
 We do need to have a constant folding pass -- irritatingly -- because C won't do it.
-
-ALT needs to detect when it's being used over timers, and calculate when the
-next timeout fires.
+Should be a new module, and have an eval function that returns Maybe
+A.Expression (or similar).
 
 Array indexing needs to be checked against the bounds (which'll do away with a
 lot of the "_sizes unused" warnings).
-
-We could use Structured for Par and Seq (and ValOf, etc.). This would make it
-easier to put {} around sets of declarations. (Or:)
 
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
@@ -84,3 +77,5 @@ Types should provide versions of the functions that work in a state monad.
 If we can make them work in the parser monad (by providing an instance of
 MonadState for it?), that'd be even better.
 
+If we have constant folding, we're three-quarters of the way towards having an
+occam *interpreter*.
