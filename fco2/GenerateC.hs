@@ -102,6 +102,26 @@ overArray name (A.Array ds _) func
                  p
                  sequence_ [tell ["}\n"] | i <- indices]
             Nothing -> return ()
+
+-- | Generate code for one of the Structured types.
+genStructured :: A.Structured -> (A.Structured -> CGen ()) -> CGen ()
+genStructured (A.Rep _ rep s) def = genReplicator rep (genStructured s def)
+genStructured (A.Spec _ spec s) def = genSpec spec (genStructured s def)
+genStructured (A.Several _ ss) def = sequence_ [genStructured s def | s <- ss]
+genStructured s def = def s
+
+data InputType = ITTimerRead | ITTimerAfter | ITOther
+
+inputType :: A.Variable -> A.InputMode -> CGen InputType
+inputType c im
+    =  do ps <- get
+          t <- checkJust $ typeOfVariable ps c
+          return $ case t of
+                     A.Timer ->
+                       case im of
+                         A.InputSimple _ _ -> ITTimerRead
+                         A.InputAfter _ _ -> ITTimerAfter
+                     _ -> ITOther
 --}}}
 
 --{{{  names
@@ -417,8 +437,7 @@ genDyadic A.Less e f = genSimpleDyadic "<" e f
 genDyadic A.More e f = genSimpleDyadic ">" e f
 genDyadic A.LessEq e f = genSimpleDyadic "<=" e f
 genDyadic A.MoreEq e f = genSimpleDyadic ">=" e f
-genDyadic A.After e f
-    = genEitherDyadic "occam_after" (genFuncDyadic "occam_unchecked_after") e f
+genDyadic A.After e f = genFuncDyadic "occam_after" e f
 --}}}
 
 --{{{  input/output items
@@ -930,21 +949,19 @@ genInputCase c s
 -- This handles specs in a slightly odd way, because we can't insert specs into
 -- the body of a switch.
 genInputCaseBody :: A.Name -> A.Variable -> CGen () -> A.Structured -> CGen ()
-genInputCaseBody proto c coll (A.Spec _ spec s)
-    = genInputCaseBody proto c (genSpec spec coll) s
-genInputCaseBody proto c coll (A.OnlyV _ (A.Variant _ n iis p))
-    =  do tell ["case "]
-          genName n
-          tell ["_"]
-          genName proto
-          tell [": {\n"]
-          coll
-          sequence_ $ map (genInputItem c) iis
-          genProcess p
-          tell ["break;\n"]
-          tell ["}\n"]
-genInputCaseBody proto c coll (A.Several _ ss)
-    = sequence_ $ map (genInputCaseBody proto c coll) ss
+genInputCaseBody proto c coll s = genStructured s doV
+  where
+    doV (A.OnlyV _ (A.Variant _ n iis p))
+        = do tell ["case "]
+             genName n
+             tell ["_"]
+             genName proto
+             tell [": {\n"]
+             coll
+             sequence_ $ map (genInputItem c) iis
+             genProcess p
+             tell ["break;\n"]
+             tell ["}\n"]
 
 genTimerRead :: A.Variable -> A.Variable -> CGen ()
 genTimerRead c v
@@ -996,16 +1013,15 @@ genIf s
           tell [label, ":\n;\n"]
 
 genIfBody :: String -> A.Structured -> CGen ()
-genIfBody label (A.Rep m rep s) = genReplicator rep (genIfBody label s)
-genIfBody label (A.Spec m spec s) = genSpec spec (genIfBody label s)
-genIfBody label (A.OnlyC m (A.Choice m' e p))
-    =  do tell ["if ("]
-          genExpression e
-          tell [") {\n"]
-          genProcess p
-          tell ["goto ", label, ";\n"]
-          tell ["}\n"]
-genIfBody label (A.Several m ss) = sequence_ $ map (genIfBody label) ss
+genIfBody label s = genStructured s doC
+  where
+    doC (A.OnlyC m (A.Choice m' e p))
+        = do tell ["if ("]
+             genExpression e
+             tell [") {\n"]
+             genProcess p
+             tell ["goto ", label, ";\n"]
+             tell ["}\n"]
 --}}}
 --{{{  case
 genCase :: A.Expression -> A.Structured -> CGen ()
@@ -1096,94 +1112,103 @@ genProcAlloc (A.ProcCall m n as)
           tell [")"]
 --}}}
 --{{{  alt
--- FIXME This will always generate a dynamic array -- we'd need a pass to tell
--- if all the replicator sizes were constant.
--- The code it generates is really not very nice; it would be better if CIF
--- exposed the enable/wait/disable instructions.
 genAlt :: Bool -> A.Structured -> CGen ()
 genAlt isPri s
-    =  do chans <- makeNonce "channels"
-          count <- makeNonce "count"
-          tell ["int ", count, " = 1;\n"]
+    =  do tell ["AltStart ();\n"]
           tell ["{\n"]
-          genAltSize count s
+          genAltEnable s
           tell ["}\n"]
-          tell ["Channel *", chans, "[", count, "];\n"]
-          tell [count, " = 0;\n"]
+          -- Like occ21, this is always a PRI ALT, so we can use it for both.
+          tell ["AltWait ();\n"]
+          id <- makeNonce "alt_id"
+          tell ["int ", id, " = 0;\n"]
           tell ["{\n"]
-          genAltEnable chans count s
+          genAltDisable id s
           tell ["}\n"]
-          tell [chans, "[", count, "] = NULL;\n"]
-          fired <- makeNonce "fired"
-          label <- makeNonce "end"
-          tell ["int ", fired, " = "]
-          tell [if isPri then "ProcProcPriAltList" else "ProcAltList"]
-          tell [" (", chans, ");\n"]
-          tell [count, " = 0;\n"]
+          fired <- makeNonce "alt_fired"
+          tell ["int ", fired, " = AltEnd ();\n"]
+          tell [id, " = 0;\n"]
+          label <- makeNonce "alt_end"
           tell ["{\n"]
-          genAltDisable fired count label s
+          genAltProcesses id fired label s
           tell ["}\n"]
           tell [label, ":\n;\n"]
 
-genAltSize :: String -> A.Structured -> CGen ()
-genAltSize count (A.Rep _ rep s) = genReplicator rep (genAltSize count s)
-genAltSize count (A.Spec _ spec s) = genSpec spec (genAltSize count s)
-genAltSize count (A.OnlyA _ alt)
-    = case alt of
-        A.Alternative _ _ _ _ -> tell [count, "++;\n"]
-        A.AlternativeCond _ _ _ _ _ -> tell [count, "++;\n"]
-        A.AlternativeSkip _ _ _ -> return ()
-genAltSize count (A.Several _ ss) = sequence_ $ map (genAltSize count) ss
+withIf :: A.Expression -> CGen () -> CGen ()
+withIf cond body
+    =  do tell ["if ("]
+          genExpression cond
+          tell [") {\n"]
+          body
+          tell ["}\n"]
 
-genAltEnable :: String -> String -> A.Structured -> CGen ()
-genAltEnable chans count (A.Rep _ rep s) = genReplicator rep (genAltEnable chans count s)
-genAltEnable chans count (A.Spec _ spec s) = genSpec spec (genAltEnable chans count s)
-genAltEnable chans count (A.OnlyA _ alt)
-    = case alt of
-        A.Alternative _ c _ _ ->
-          do tell [chans, "[", count, "++] = "]
-             genVariable c
-             tell [";\n"]
-        A.AlternativeCond _ e c _ _ ->
-          do tell ["if ("]
-             genExpression e
-             tell [") {\n"]
-             tell [chans, "[", count, "++] = "]
-             genVariable c
-             tell [";\n"]
-             tell ["}\n"]
-        A.AlternativeSkip _ _ _ -> return ()
-genAltEnable chans count (A.Several _ ss) = sequence_ $ map (genAltEnable chans count) ss
+genAltEnable :: A.Structured -> CGen ()
+genAltEnable s = genStructured s doA
+  where
+    doA (A.OnlyA _ alt)
+        = case alt of
+            A.Alternative _ c im _ -> doIn c im
+            A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+            A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip ();\n"]
 
-genAltDisable :: String -> String -> String -> A.Structured -> CGen ()
-genAltDisable fired count label (A.Rep _ rep s) = genReplicator rep (genAltDisable fired count label s)
-genAltDisable fired count label (A.Spec _ spec s) = genSpec spec (genAltDisable fired count label s)
-genAltDisable fired count label (A.OnlyA _ alt)
-    = case alt of
-        A.Alternative _ c im p ->
-          do tell ["if (", fired, " == ", count, "++) {\n"]
-             genInput c im
-             genProcess p
+    doIn c im
+        = do t <- inputType c im
+             case t of
+               ITTimerRead -> missing "timer read in ALT"
+               ITTimerAfter ->
+                 do let time = case im of A.InputAfter _ e -> e
+                    tell ["AltEnableTimer ("]
+                    genExpression time
+                    tell [");\n"]
+               ITOther ->
+                 do tell ["AltEnableChannel ("]
+                    genVariable c
+                    tell [");\n"]
+
+genAltDisable :: String -> A.Structured -> CGen ()
+genAltDisable id s = genStructured s doA
+  where
+    doA (A.OnlyA _ alt)
+        = case alt of
+            A.Alternative _ c im _ -> doIn c im
+            A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+            A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (", id, "++);\n"]
+
+    doIn c im
+        = do t <- inputType c im
+             case t of
+               ITTimerRead -> missing "timer read in ALT"
+               ITTimerAfter ->
+                 do let time = case im of A.InputAfter _ e -> e
+                    tell ["AltDisableTimer (", id, "++, "]
+                    genExpression time
+                    tell [");\n"]
+               ITOther ->
+                 do tell ["AltDisableChannel (", id, "++, "]
+                    genVariable c
+                    tell [");\n"]
+
+genAltProcesses :: String -> String -> String -> A.Structured -> CGen ()
+genAltProcesses id fired label s = genStructured s doA
+  where
+    doA (A.OnlyA _ alt)
+        = case alt of
+            A.Alternative _ c im p -> doIn c im p
+            A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
+            A.AlternativeSkip _ e p -> withIf e $ doCheck (genProcess p)
+
+    doIn c im p
+        = do t <- inputType c im
+             case t of
+               ITTimerRead -> missing "timer read in ALT"
+               ITTimerAfter -> doCheck (genProcess p)
+               ITOther -> doCheck (genInput c im >> genProcess p)
+
+    doCheck body
+        = do tell ["if (", id, "++ == ", fired, ") {\n"]
+             body
              tell ["goto ", label, ";\n"]
              tell ["}\n"]
-        A.AlternativeCond _ e c im p ->
-          do tell ["if (("]
-             genExpression e
-             tell [") && ", fired, " == ", count, "++) {\n"]
-             genInput c im
-             genProcess p
-             tell ["goto ", label, ";\n"]
-             tell ["}\n"]
-        -- FIXME This doesn't do anything useful yet, since CIF doesn't do SKIP guards.
-        A.AlternativeSkip _ e p ->
-          do tell ["if (("]
-             genExpression e
-             tell [") && ", fired, " == -1) {\n"]
-             genProcess p
-             tell ["goto ", label, ";\n"]
-             tell ["}\n"]
-             missing "SKIP guards not supported"
-genAltDisable fired count label (A.Several _ ss) = sequence_ $ map (genAltDisable fired count label) ss
 --}}}
 --{{{  proc call
 genProcCall :: A.Name -> [A.Actual] -> CGen ()
