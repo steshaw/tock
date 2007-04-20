@@ -7,7 +7,6 @@ import Control.Monad.State
 import qualified AST as A
 import Metadata
 
--- FIXME This is a rather inappropriate name now...
 -- | State necessary for compilation.
 data ParseState = ParseState {
     psLocalNames :: [(String, A.Name)],

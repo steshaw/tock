@@ -1,38 +1,6 @@
 -- | Generate C code from the mangled AST.
 module GenerateC where
 
--- FIXME: Use Structured for Par and Seq (and ValOf, etc.). This would make it
--- easier to put {} around sets of declarations.
-
--- FIXME: Checks should be done in the parser, not here -- for example, the
--- expressionList production should take an argument with a list of types.
-
--- FIXME: The show instance for types should produce occam-looking types.
-
--- FIXME: Should have a "current type context" in the parser, so that
--- VAL BYTE b IS 4: works correctly.
-
--- FIXME: Tock would be a good name for this (Translator from occam to C from Kent).
-
--- FIXME: Should have a pass that converts functions to procs, and calls to a
--- call outside the enclosing process (which can be found by a generic pass
--- over the tree).
--- And array subscripts also.
-
--- FIXME: There should be a wrapper for SetErr that takes a Meta and an error
--- message. Ops and array references should use it.
-
--- FIXME: We could have genSpec generate {} around specs if it's not
--- immediately inside another spec (which'd require some extra boolean
--- arguments to find out).
-
--- FIXME: If the assembler-analysis approach to working out process sizes
--- works, then we can put the sizes in variables in a separate object file and
--- only generate/compile that after we've done the main one.
-
--- FIXME: Before code generation, have a pass that resolves all the DATA TYPE
--- .. IS directives to their real types.
-
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -68,7 +36,6 @@ genTopLevel p
           let mainName = fromJust $ psMainName ps
           tell ["void fco_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName mainName
-          -- FIXME This should depend on what interface it's actually got.
           tell [" (me, in, out, err);\n"]
           tell ["}\n"]
 --}}}
@@ -511,8 +478,6 @@ genOutputItem c (A.OutExpression m e)
                  tell [", "]
                  genBytesInType t
                  tell [");\n"]
-            -- FIXME It would be cleaner to do this with a pullup,
-            -- which would reduce it to the previous case.
             _ ->
               do n <- makeNonce "output_item"
                  tell ["const "]
@@ -536,8 +501,6 @@ genReplicator rep body
           body
           tell ["}\n"]
 
--- FIXME This should be special-cased for when base == 0 to generate the sort
--- of loop a C programmer would normally write.
 genReplicatorLoop :: A.Replicator -> CGen ()
 genReplicatorLoop (A.For m n base count)
     =  do counter <- makeNonce "replicator_count"
@@ -1004,9 +967,6 @@ genStop :: CGen ()
 genStop = tell ["SetErr ();\n"]
 --}}}
 --{{{  if
--- FIXME: This could be special-cased to generate if ... else if ... for bits
--- that aren't replicated and don't have specs.
--- FIXME: As with CASE, this could use a flag to detect whether to generate the STOP.
 genIf :: A.Structured -> CGen ()
 genIf s
     =  do label <- makeNonce "if_end"
@@ -1083,10 +1043,6 @@ genPar pm ps
             _ -> missing $ "genPar " ++ show pm
           sequence_ $ [tell ["ProcAllocClean (", pid, ");\n"] | pid <- pids]
 
--- FIXME -- This'll require a C99 dynamic array for a dynamic PAR count,
--- which may turn out to be a bad idea for very large counts (since I assume
--- it'll allocate off the stack). We should probably do a malloc if it's
--- not determinable at compile time.
 genParRep :: A.ParMode -> A.Replicator -> A.Process -> CGen ()
 genParRep pm rep p
     =  do pids <- makeNonce "pids"

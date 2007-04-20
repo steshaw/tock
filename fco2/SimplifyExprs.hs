@@ -91,10 +91,6 @@ pullUp = doGeneric `extM` doProcess `extM` doExpression `extM` doActual `extM` d
                  addPulled $ A.ProcSpec m spec
                  return $ A.ExprVariable m (A.Variable m n)
 
-    -- FIXME: We really want to pull *any* array slice that isn't already
-    -- an abbreviation and turn it into one -- should be straightforward using
-    -- a rule that matches abbrevs.
-
     -- | Pull any actual that's a subscript resulting in an array.
     doActual :: A.Actual -> PassM A.Actual
     doActual a@(A.ActualVariable _ _ _)
