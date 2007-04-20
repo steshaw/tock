@@ -56,18 +56,31 @@ checkJust :: Monad m => Maybe t -> m t
 checkJust (Just v) = return v
 checkJust Nothing = fail "checkJust failed"
 
-overArray :: CGen () -> A.Type -> (CGen () -> Maybe (CGen ())) -> CGen ()
-overArray name (A.Array ds _) func
-    =  do indices <- mapM (\_ -> makeNonce "i") ds
-          let arg = sequence_ [tell ["[", i, "]"] | i <- indices]
+type SubscripterFunction = A.Variable -> A.Variable
+
+overArray :: A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
+overArray var func
+    =  do ps <- get
+          let A.Array ds _ = fromJust $ typeOfVariable ps var
+          let m = []
+          specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
+          let indices = [A.Variable m n | A.Specification _ n _ <- specs]
+
+          let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m $ A.ExprVariable m i | i <- indices])
           case func arg of
             Just p ->
-              do sequence_ [do tell ["for (int ", i, " = 0; ", i, " < "]
-                               name
-                               tell ["_sizes[", show v, "]; ", i, "++) {\n"]
+              do sequence_ [do tell ["for (int "]
+                               genVariable i
+                               tell [" = 0; "]
+                               genVariable i
+                               tell [" < "]
+                               genVariable var
+                               tell ["_sizes[", show v, "]; "]
+                               genVariable i
+                               tell ["++) {\n"]
                             | (v, i) <- zip [0..] indices]
                  p
-                 sequence_ [tell ["}\n"] | i <- indices]
+                 sequence_ [tell ["}\n"] | _ <- indices]
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
@@ -274,13 +287,8 @@ genVariable v
     inner (A.Variable _ n) = genName n
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         =  do let (es, v) = collectSubs sv
-              ps <- get
-              t <- checkJust $ typeOfVariable ps v
-              let numDims = case t of A.Array ds _ -> length ds
               genVariable v
-              tell ["["]
-              sequence_ $ intersperse (tell [" + "]) $ genPlainSub v es [0..(numDims - 1)]
-              tell ["]"]
+              genArraySubscript v es
     inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
         =  do genVariable v
               tell ["->"]
@@ -300,6 +308,15 @@ genVariable v
         (es', v') = collectSubs v
     collectSubs v = ([], v)
 
+genArraySubscript :: A.Variable -> [A.Expression] -> CGen ()
+genArraySubscript v es
+    =  do ps <- get
+          t <- checkJust $ typeOfVariable ps v
+          let numDims = case t of A.Array ds _ -> length ds
+          tell ["["]
+          sequence_ $ intersperse (tell [" + "]) $ genPlainSub v es [0..(numDims - 1)]
+          tell ["]"]
+  where
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
     -- FIXME This is obviously not the best way to factor this, but I figure a
@@ -654,32 +671,34 @@ declareArraySizes ds name
           tell [" };\n"]
 
 -- | Initialise an item being declared.
-declareInit :: A.Type -> CGen () -> CGen () -> Maybe (CGen ())
-declareInit (A.Chan _) name index
-    = Just $ do tell ["ChanInit (&"]
-                name
-                index
+declareInit :: A.Type -> A.Variable -> Maybe (CGen ())
+declareInit (A.Chan _) var
+    = Just $ do tell ["ChanInit ("]
+                genVariable var
                 tell [");\n"]
-declareInit t@(A.Array ds t') name _    -- index ignored because arrays can't nest
+declareInit t@(A.Array ds t') var
     = Just $ do init <- case t' of
                           A.Chan _ ->
-                            do store <- makeNonce "storage"
-                               tell ["Channel ", store]
+                            do let m = []
+                               A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
+                               let storeV = A.Variable m store
+                               tell ["Channel "]
+                               genName store
                                genDimensions ds
                                tell [";\n"]
-                               return (\index -> Just $ do fromJust $ declareInit t' (tell [store]) index
-                                                           name
-                                                           index
-                                                           tell [" = &", store]
-                                                           index
-                                                           tell [";\n"])
-                          _ -> return $ declareInit t' name
-                overArray name t init
-declareInit _ _ _ = Nothing
+                               declareArraySizes ds (genName store)
+                               return (\sub -> Just $ do genVariable (sub var)
+                                                         tell [" = &"]
+                                                         genVariable (sub storeV)
+                                                         tell [";\n"]
+                                                         fromJust $ declareInit t' (sub var))
+                          _ -> return (\sub -> declareInit t' (sub var))
+                overArray var init
+declareInit _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
-declareFree :: A.Type -> CGen () -> CGen () -> Maybe (CGen ())
-declareFree _ _ _ = Nothing
+declareFree :: A.Type -> A.Variable -> Maybe (CGen ())
+declareFree _ _ = Nothing
 
 {-
                   Original        Abbrev
@@ -697,12 +716,12 @@ CHAN OF INT c IS d:       Channel *c = d;
                           const int *ds_sizes = cs_sizes;
 -}
 introduceSpec :: A.Specification -> CGen ()
-introduceSpec (A.Specification _ n (A.Declaration _ t))
+introduceSpec (A.Specification m n (A.Declaration _ t))
     = do genDeclaration t n
          case t of
            A.Array ds _ -> declareArraySizes ds (genName n)
            _ -> return ()
-         case declareInit t (genName n) (return ()) of
+         case declareInit t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
 introduceSpec (A.Specification _ n (A.Is _ am t v))
@@ -770,13 +789,15 @@ introduceSpec (A.Specification _ n (A.Function _ _ _ _)) = missing "introduceSpe
 introduceSpec n = missing $ "introduceSpec " ++ show n
 
 removeSpec :: A.Specification -> CGen ()
-removeSpec (A.Specification _ n (A.Declaration _ t))
+removeSpec (A.Specification m n (A.Declaration _ t))
     = case t of
-        A.Array _ t' -> overArray (genName n) t (declareFree t' (genName n))
+        A.Array _ t' -> overArray var (\sub -> declareFree t' (sub var))
         _ ->
-          do case declareFree t (genName n) (return ()) of
+          do case declareFree t var of
                Just p -> p
                Nothing -> return ()
+  where
+    var = A.Variable m n
 removeSpec _ = return ()
 --}}}
 
@@ -857,11 +878,22 @@ genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
 genAssign [v] el
     = case el of
         A.FunctionCallList m n es -> missing "function call"
-        A.ExpressionList m es ->
-          do genVariable v
-             tell [" = "]
-             genExpression (head es)
-             tell [";\n"]
+        A.ExpressionList m [e] ->
+          do ps <- get
+             let t = fromJust $ typeOfVariable ps v
+             doAssign t v e
+  where
+    doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
+    doAssign t@(A.Array _ subT) toV (A.ExprVariable m fromV)
+        = overArray fromV (\sub -> Just $ doAssign subT (sub toV) (A.ExprVariable m (sub fromV)))
+    doAssign t v e
+        = case scalarType t of
+            Just _ ->
+              do genVariable v
+                 tell [" = "]
+                 genExpression e
+                 tell [";\n"]
+            Nothing -> missing $ "assignment of type " ++ show t
 --}}}
 --{{{  input
 genInput :: A.Variable -> A.InputMode -> CGen ()

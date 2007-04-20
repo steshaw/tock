@@ -1,7 +1,10 @@
 PROC P ()
   INT a, b, c:
   INT d, e, f:
+  [10]INT as, bs:
   SEQ
     a := d
     a, b, c := d, e, f
+    as := bs
+    [as FROM 5] := [bs FROM 2 FOR 5]
 :

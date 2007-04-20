@@ -16,4 +16,6 @@ PROC P ()
     SKIP
     VAL []INT v IS [foo FROM 10 FOR 3]:
     SKIP
+    VAL INT nasty IS [[[foo FROM 1] FOR 3] FROM 1 FOR 2][1]:
+    SKIP
 :

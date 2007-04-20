@@ -68,10 +68,6 @@ The indentation parser is way too simplistic.
 ParseState should be called something more sensible, since most of it has
 nothing to do with parsing.
 
-pullUp should pull *any* array slice that isn't already an abbreviation and
-turn it into one -- should be straightforward using a rule that matches
-abbrevs. This would make nested slicing work.
-
 Types needs cleaning up and Haddocking.
 
 Types should provide versions of the functions that work in a state monad.
@@ -80,3 +76,9 @@ MonadState for it?), that'd be even better.
 
 If we have constant folding, we're three-quarters of the way towards having an
 occam *interpreter*.
+
+Pass to turn subscripted expressions into subscripted variables.
+
+Think about simplifying the subscript types -- just have a single data type
+that takes several expressions.
+

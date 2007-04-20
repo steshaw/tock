@@ -56,4 +56,6 @@ PROC P ()
         chan.abbrev.abbrev[0] ! 42
       chan.abbrev2 IS chan.array:
       S (chan.abbrev2)
+    [4][2]CHAN OF INT chan.array.2d:
+    SKIP
 :
