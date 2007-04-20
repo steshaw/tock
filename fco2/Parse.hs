@@ -1346,9 +1346,9 @@ testParse prod text
     = do let r = runParser prod emptyState "" text
          putStrLn $ "Result: " ++ show r
 
-parseSource :: String -> String -> IO (A.Process, ParseState)
-parseSource prep sourceFileName
-  = case runParser sourceFile emptyState sourceFileName prep of
+parseSource :: String -> String -> ParseState -> IO (A.Process, ParseState)
+parseSource prep sourceFileName state
+  = case runParser sourceFile state sourceFileName prep of
       Left err -> die $ "Parse error: " ++ show err
       Right result -> return result
 --}}}

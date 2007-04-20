@@ -13,10 +13,13 @@ import Types
 import Pass
 
 unnest :: A.Process -> PassM A.Process
-unnest p
-    = removeFreeNames p
-       >>= removeNesting
-       >>= removeNoSpecs
+unnest = runPasses passes
+  where
+    passes =
+      [ ("Convert free names to arguments", removeFreeNames)
+      , ("Pull nested definitions to top level", removeNesting)
+      , ("Clean up removed specifications", removeNoSpecs)
+      ]
 
 type NameMap = Map.Map String A.Name
 

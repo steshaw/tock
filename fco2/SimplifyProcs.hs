@@ -13,9 +13,12 @@ import Types
 import Pass
 
 simplifyProcs :: A.Process -> PassM A.Process
-simplifyProcs p
-    = parsToProcs p
-       >>= removeParAssign
+simplifyProcs = runPasses passes
+  where
+    passes =
+      [ ("Wrap PAR subprocesses in PROCs", parsToProcs)
+      , ("Remove parallel assignment", removeParAssign)
+      ]
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
 parsToProcs :: Data t => t -> PassM t

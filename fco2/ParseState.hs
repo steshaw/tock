@@ -7,11 +7,20 @@ import Control.Monad.State
 import qualified AST as A
 import Metadata
 
+data Flag = ParseOnly | Verbose | Debug
+  deriving (Eq, Show, Data, Typeable)
+
 -- | State necessary for compilation.
 data ParseState = ParseState {
+    -- Set by Main
+    psFlags :: [Flag],
+
+    -- Set by Parse
     psLocalNames :: [(String, A.Name)],
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
+
+    -- Set by passes
     psNonceCounter :: Int,
     psFunctionReturns :: [(String, [A.Type])],
     psPulledItems :: [A.Process -> A.Process],
@@ -25,9 +34,12 @@ instance Show (A.Process -> A.Process) where
 
 emptyState :: ParseState
 emptyState = ParseState {
+    psFlags = [],
+
     psLocalNames = [],
     psNames = [],
     psNameCounter = 0,
+
     psNonceCounter = 0,
     psFunctionReturns = [],
     psPulledItems = [],

@@ -12,7 +12,12 @@ import Types
 import Pass
 
 simplifyExprs :: A.Process -> PassM A.Process
-simplifyExprs p = functionsToProcs p >>= pullUp
+simplifyExprs = runPasses passes
+  where
+    passes =
+      [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
+      , ("Pull up definitions", pullUp)
+      ]
 
 -- | Convert FUNCTION declarations to PROCs.
 functionsToProcs :: Data t => t -> PassM t
