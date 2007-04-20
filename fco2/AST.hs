@@ -192,7 +192,6 @@ data SpecType =
   | Declaration Meta Type
   | Is Meta AbbrevMode Type Variable
   | IsExpr Meta AbbrevMode Type Expression
-  -- FIXME Can these be multidimensional?
   | IsChannelArray Meta Type [Variable]
   | DataType Meta Type
   | DataTypeRecord Meta Bool [(Name, Type)]

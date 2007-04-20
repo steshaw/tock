@@ -19,6 +19,7 @@ data ParseState = ParseState {
     psLocalNames :: [(String, A.Name)],
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
+    psConstants :: [(String, A.Expression)],
 
     -- Set by passes
     psNonceCounter :: Int,
@@ -39,6 +40,7 @@ emptyState = ParseState {
     psLocalNames = [],
     psNames = [],
     psNameCounter = 0,
+    psConstants = [],
 
     psNonceCounter = 0,
     psFunctionReturns = [],
@@ -112,4 +114,11 @@ makeNonceIsExpr s m t e
 makeNonceVariable :: MonadState ParseState m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
 makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t) nt am
+
+-- | Is a name on the list of constants?
+isConstantName :: ParseState -> A.Name -> Bool
+isConstantName ps n
+    = case lookup (A.nameName n) (psConstants ps) of
+        Just _ -> True
+        Nothing -> False
 

@@ -1,0 +1,8 @@
+PROC p ()
+  VAL INT a IS 42:
+  VAL INT b IS 24:
+  VAL INT c IS a + b:
+  VAL BOOL d IS a AFTER b:
+  INT x:
+  x := c
+:

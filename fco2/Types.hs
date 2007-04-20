@@ -4,6 +4,7 @@ module Types where
 -- FIXME: This module is a mess -- sort it and document the functions.
 
 import Control.Monad
+import Data.Generics
 import Data.Maybe
 
 import qualified AST as A
@@ -108,76 +109,6 @@ typeOfLiteral ps (A.SubscriptedLiteral m s l)
     = typeOfLiteral ps l >>= subscriptType ps s
 --}}}
 
---{{{  identifying constants
--- | Can an expression's value be determined at compile time?
-isConstExpression :: ParseState -> A.Expression -> Bool
-isConstExpression ps e
-    = case e of
-        A.Monadic m op e -> isConstExpression ps e
-        A.Dyadic m op e f ->
-          isConstExpression ps e && isConstExpression ps f
-        A.MostPos m t -> True
-        A.MostNeg m t -> True
-        A.SizeType m t -> True
-        A.SizeExpr m e -> isConstExpression ps e
-        A.SizeVariable m v -> isConstVariable ps v
-        A.Conversion m cm t e -> isConstExpression ps e
-        A.ExprVariable m v -> isConstVariable ps v
-        A.ExprLiteral m l -> isConstLiteral ps l
-        A.True m -> True
-        A.False m -> True
-        -- This could be true if we could identify functions with constant
-        -- arguments and evaluate them at compile time, but I don't think we
-        -- really want to go there...
-        A.FunctionCall m n es -> False
-        A.SubscriptedExpr m s e ->
-          isConstSubscript ps s && isConstExpression ps e
-        A.BytesInExpr m e -> isConstExpression ps e
-        A.BytesInType m t -> True
-        A.OffsetOf m t n -> True
-
--- | Can an literal's value be determined at compile time?
--- (Don't laugh -- array literals can't always!)
-isConstLiteral :: ParseState -> A.Literal -> Bool
-isConstLiteral ps (A.Literal _ _ lr) = isConstLiteralRepr ps lr
-isConstLiteral ps (A.SubscriptedLiteral _ s l)
-    = isConstSubscript ps s && isConstLiteral ps l
-
-isConstLiteralRepr :: ParseState -> A.LiteralRepr -> Bool
-isConstLiteralRepr ps (A.ArrayLiteral _ es)
-    = and [isConstExpression ps e | e <- es]
-isConstLiteralRepr _ _ = True
-
--- | Can a variable's value be determined at compile time?
-isConstVariable :: ParseState -> A.Variable -> Bool
-isConstVariable ps (A.Variable _ n) = isConstName ps n
-isConstVariable ps (A.SubscriptedVariable _ s v)
-    = isConstSubscript ps s && isConstVariable ps v
-
--- | Does a name refer to a constant variable?
-isConstName :: ParseState -> A.Name -> Bool
-isConstName ps n = isConstSpecType ps $ fromJust $ specTypeOfName ps n
-
--- | Can a specification's value (that is, the value of a variable defined
--- using that specification) be determined at compile time?
-isConstSpecType :: ParseState -> A.SpecType -> Bool
-isConstSpecType ps (A.Is _ _ _ v) = isConstVariable ps v
-isConstSpecType ps (A.IsExpr _ _ _ e) = isConstExpression ps e
-isConstSpecType ps (A.Retypes _ _ _ v) = isConstVariable ps v
-isConstSpecType ps (A.RetypesExpr _ _ _ e) = isConstExpression ps e
-isConstSpecType _ _ = False
-
--- | Can a subscript's value (that is, the range of subscripts it extracts) be
--- determined at compile time?
-isConstSubscript :: ParseState -> A.Subscript -> Bool
-isConstSubscript ps (A.Subscript _ e) = isConstExpression ps e
-isConstSubscript ps (A.SubscriptField _ _) = True
-isConstSubscript ps (A.SubscriptFromFor _ e f)
-    = isConstExpression ps e && isConstExpression ps f
-isConstSubscript ps (A.SubscriptFrom _ e) = isConstExpression ps e
-isConstSubscript ps (A.SubscriptFor _ e) = isConstExpression ps e
---}}}
-
 returnTypesOfFunction :: ParseState -> A.Name -> Maybe [A.Type]
 returnTypesOfFunction ps n
     = case specTypeOfName ps n of
@@ -220,3 +151,10 @@ stripArrayType t = t
 -- | Generate a constant expression from an integer -- for array sizes and the like.
 makeConstant :: Meta -> Int -> A.Expression
 makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
+
+-- | Find the Meta value in an expression.
+metaOfExpression :: A.Expression -> Meta
+metaOfExpression e = concat $ gmapQ (mkQ [] findMeta) e
+  where
+    findMeta :: Meta -> Meta
+    findMeta m = m

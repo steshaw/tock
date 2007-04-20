@@ -14,10 +14,11 @@ import qualified IO
 import Numeric (readHex)
 
 import qualified AST as A
+import Errors
+import EvalConstants
+import Indentation
 import Metadata
 import ParseState
-import Errors
-import Indentation
 import Types
 
 --{{{ setup stuff for Parsec
@@ -434,10 +435,21 @@ scopeInRep (A.For m n b c)
 scopeOutRep :: A.Replicator -> OccParser ()
 scopeOutRep (A.For m n b c) = scopeOut n
 
+-- This one's more complicated because we need to check if we're introducing a constant.
 scopeInSpec :: A.Specification -> OccParser A.Specification
 scopeInSpec (A.Specification m n st)
-    =  do n' <- scopeIn n st (abbrevModeOfSpec st)
-          return $ A.Specification m n' st
+    =  do ps <- getState
+          let (st', isConst) = case st of
+                                 (A.IsExpr m A.ValAbbrev t e) ->
+                                   case simplifyExpression ps e of
+                                     Left _ -> (st, False)
+                                     Right e' -> (A.IsExpr m A.ValAbbrev t e', True)
+                                 _ -> (st, False)
+          n' <- scopeIn n st' (abbrevModeOfSpec st')
+          if isConst
+            then updateState (\ps -> ps { psConstants = (A.nameName n', case st' of A.IsExpr _ _ _ e' -> e') : psConstants ps })
+            else return ()
+          return $ A.Specification m n' st'
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec (A.Specification _ n _) = scopeOut n
@@ -680,9 +692,9 @@ constExprOfType :: A.Type -> OccParser A.Expression
 constExprOfType wantT
     =  do e <- exprOfType wantT
           ps <- getState
-          if isConstExpression ps e
-            then return e
-            else fail "expected constant expression"
+          case simplifyExpression ps e of
+            Left err -> fail $ "expected constant expression (" ++ err ++ ")"
+            Right e' -> return e'
 
 constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
@@ -867,9 +879,7 @@ abbreviation
     =   do m <- md
            (do { (n, v) <- tryVXV newVariableName sIS variable; sColon; eol; t <- pTypeOfVariable v; return $ A.Specification m n $ A.Is m A.Abbrev t v }
             <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- pTypeOfVariable v; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s v }
-            <|> do { sVAL ;
-                      do { (n, e) <- try (do { n <- newVariableName; sIS; e <- expression; return (n, e) }); sColon; eol; t <- pTypeOfExpression e; return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e }
-                      <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return $ A.Specification m n $ A.IsExpr m A.ValAbbrev s e } }
+            <|> valIsAbbrev
             <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
             <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
             <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
@@ -879,6 +889,15 @@ abbreviation
             <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; return $ A.Specification m n $ A.IsChannelArray m t cs })
             <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; matchType s t; return $ A.Specification m n $ A.IsChannelArray m s cs }))
     <?> "abbreviation"
+
+valIsAbbrev :: OccParser A.Specification
+valIsAbbrev
+    =  do m <- md
+          sVAL
+          (n, t, e) <- do { (n, e) <- tryVXV newVariableName sIS expression; sColon; eol; t <- pTypeOfExpression e; return (n, t, e) }
+                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return (n, t, e) }
+          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
+    <?> "VAL IS abbreviation"
 
 definition :: OccParser A.Specification
 definition

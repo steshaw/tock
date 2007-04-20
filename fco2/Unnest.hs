@@ -99,7 +99,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                                     A.ChannelName -> True
                                     A.VariableName -> True
                                     _ -> False,
-                                  not $ isConstName ps n]
+                                  not $ isConstantName ps n]
              let types = [fromJust $ typeOfName ps n | n <- freeNames]
              let ams = [case fromJust $ abbrevModeOfName ps n of
                           A.Original -> A.Abbrev
@@ -154,9 +154,9 @@ removeNesting p
     doGeneric = gmapM pullSpecs
 
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification spec@(A.Specification m _ st)
+    doSpecification spec@(A.Specification m n st)
         = do ps <- get
-             if canPull ps st then
+             if isConstantName ps n || canPull ps st then
                  do spec' <- doGeneric spec
                     addPulled $ A.ProcSpec m spec'
                     return A.NoSpecification
@@ -168,7 +168,7 @@ removeNesting p
     canPull _ (A.DataTypeRecord _ _ _) = True
     canPull _ (A.Protocol _ _) = True
     canPull _ (A.ProtocolCase _ _) = True
-    canPull ps st = isConstSpecType ps st
+    canPull _ _ = False
 
 -- | Remove specifications that have been turned into NoSpecifications.
 removeNoSpecs :: Data t => t -> PassM t

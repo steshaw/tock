@@ -5,6 +5,7 @@ all: $(targets)
 sources = \
 	AST.hs \
 	Errors.hs \
+	EvalConstants.hs \
 	GenerateC.hs \
 	Indentation.hs \
 	Main.hs \

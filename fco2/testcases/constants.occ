@@ -13,12 +13,13 @@ PROC P ()
     VAL INT g IS BYTESIN (a):
     VAL BOOL aft IS a AFTER b:
     -- ... and these shouldn't.
+    [c]INT array.of.const.size:
     INT A:
     VAL INT B IS A + 1:
     VAL INT C IS X + B:
     VAL []INT D IS [1, 2, X, 4]:
     VAL INT E IS D[2]:   -- technically the others should be OK, but I think that's excessive analysis!
-    INT32 F RETYPES A:
+    VAL INT32 F RETYPES A:
     VAL INT G IS BYTESIN (E):
     VAL BOOL AFT IS A AFTER B:
 

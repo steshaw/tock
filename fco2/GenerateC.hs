@@ -390,23 +390,12 @@ genFuncDyadic s e f
           genExpression f
           tell [")"]
 
-genEitherDyadic :: String -> (A.Expression -> A.Expression -> CGen ()) -> A.Expression -> A.Expression -> CGen ()
-genEitherDyadic s const e f
-    =  do ps <- get
-          -- If both arms of the expression are constant, then use an
-          -- unchecked implementation of the operator.
-          -- FIXME We might want to check that it doesn't overflow at
-          -- compile time.
-          if isConstExpression ps e && isConstExpression ps f
-            then const e f
-            else genFuncDyadic s e f
-
 genDyadic :: A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
-genDyadic A.Add e f = genEitherDyadic "occam_add" (genSimpleDyadic "+") e f
-genDyadic A.Subtr e f = genEitherDyadic "occam_subtr" (genSimpleDyadic "-") e f
-genDyadic A.Mul e f = genEitherDyadic "occam_mul" (genSimpleDyadic "*") e f
-genDyadic A.Div e f = genEitherDyadic "occam_div" (genSimpleDyadic "/") e f
-genDyadic A.Rem e f = genEitherDyadic "occam_rem" (genSimpleDyadic "%") e f
+genDyadic A.Add e f = genFuncDyadic "occam_add" e f
+genDyadic A.Subtr e f = genFuncDyadic "occam_subtr" e f
+genDyadic A.Mul e f = genFuncDyadic "occam_mul" e f
+genDyadic A.Div e f = genFuncDyadic "occam_div" e f
+genDyadic A.Rem e f = genFuncDyadic "occam_rem" e f
 genDyadic A.Plus e f = genSimpleDyadic "+" e f
 genDyadic A.Minus e f = genSimpleDyadic "-" e f
 genDyadic A.Times e f = genSimpleDyadic "*" e f

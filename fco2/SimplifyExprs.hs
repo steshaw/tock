@@ -100,8 +100,7 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
       where
         pull :: A.Type -> A.Expression -> PassM A.Expression
         pull t e
-            = do -- FIXME Should get Meta from somewhere...
-                 let m = []
+            = do let m = metaOfExpression e
                  spec@(A.Specification _ n _) <- makeNonceIsExpr "array_expr" m t e
                  addPulled $ A.ProcSpec m spec
                  return $ A.ExprVariable m (A.Variable m n)

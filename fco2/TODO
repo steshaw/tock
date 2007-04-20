@@ -3,14 +3,12 @@ To-do list for FCO
 
 Add an option for whether to compile out overflow/bounds checks.
 
+Add a -o option to control where the output goes (stdout by default for now).
+
 Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
 Multidimensional array literals won't work.
-
-We do need to have a constant folding pass -- irritatingly -- because C won't do it.
-Should be a new module, and have an eval function that returns Maybe
-A.Expression (or similar).
 
 Array indexing needs to be checked against the bounds (which'll do away with a
 lot of the "_sizes unused" warnings).
