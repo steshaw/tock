@@ -1,0 +1,16 @@
+PROC P ()
+  CHAN OF INT c, d:
+  TIMER tim:
+  INT t, x:
+  SEQ
+    tim ? t
+    ALT
+      c ? x
+        SKIP
+      d ? x
+        SKIP
+      tim ? AFTER t PLUS 100000
+        SKIP
+      tim ? AFTER t PLUS 200000
+        SKIP
+:
