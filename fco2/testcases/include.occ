@@ -1,0 +1,8 @@
+VAL INT q IS 11:
+#INCLUDE "include.inc"
+#USE "include2"
+#USE "include2.occ"
+PROC P ()
+  INT x:
+  x := defined.thing
+:

@@ -6,14 +6,14 @@ import System
 import System.Console.GetOpt
 import System.IO
 
-import Pass
-import PrettyShow
+import GenerateC
 import Parse
 import ParseState
+import Pass
+import PrettyShow
 import SimplifyExprs
 import SimplifyProcs
 import Unnest
-import GenerateC
 
 passes :: [(String, Pass)]
 passes =
@@ -55,14 +55,12 @@ main = do
   progressIO state0 ""
 
   debugIO state0 "{{{ Preprocess"
-  progressIO state0 $ "Preprocess " ++ fn
-  preprocessed <- readSource fn
-  debugIO state0 $ numberedListing preprocessed
-  debugIO state0 "}}}"
+  state0a <- loadSource fn state0
+  debugIO state0a "}}}"
 
-  debugIO state0 "{{{ Parse"
-  progressIO state0 $ "Parse " ++ fn
-  (ast1, state1) <- parseSource preprocessed fn state0
+  debugIO state0a "{{{ Parse"
+  progressIO state0a $ "Parse"
+  (ast1, state1) <- parseProgram fn state0a
   debugASTIO state1 ast1
   debugIO state1 "}}}"
 

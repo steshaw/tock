@@ -33,7 +33,7 @@ genTopLevel p
           genProcess p
 
           ps <- get
-          let mainName = fromJust $ psMainName ps
+          let mainName = snd $ head $ psMainLocals ps
           tell ["void fco_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName mainName
           tell [" (me, in, out, err);\n"]

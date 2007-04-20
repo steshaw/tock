@@ -15,18 +15,22 @@ data ParseState = ParseState {
     -- Set by Main
     psFlags :: [Flag],
 
+    -- Set by preprocessor
+    psSourceFiles :: [(String, String)],
+
     -- Set by Parse
     psLocalNames :: [(String, A.Name)],
+    psMainLocals :: [(String, A.Name)],
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
     psConstants :: [(String, A.Expression)],
+    psLoadedFiles :: [String],
 
     -- Set by passes
     psNonceCounter :: Int,
     psFunctionReturns :: [(String, [A.Type])],
     psPulledItems :: [A.Process -> A.Process],
-    psAdditionalArgs :: [(String, [A.Actual])],
-    psMainName :: Maybe A.Name
+    psAdditionalArgs :: [(String, [A.Actual])]
   }
   deriving (Show, Data, Typeable)
 
@@ -37,16 +41,19 @@ emptyState :: ParseState
 emptyState = ParseState {
     psFlags = [],
 
+    psSourceFiles = [],
+
     psLocalNames = [],
+    psMainLocals = [],
     psNames = [],
     psNameCounter = 0,
     psConstants = [],
+    psLoadedFiles = [],
 
     psNonceCounter = 0,
     psFunctionReturns = [],
     psPulledItems = [],
-    psAdditionalArgs = [],
-    psMainName = Nothing
+    psAdditionalArgs = []
   }
 
 -- | Add the definition of a name.

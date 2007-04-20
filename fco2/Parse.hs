@@ -6,12 +6,15 @@ module Parse where
 -- - remove as many trys as possible; every production should consume input
 --   when it's unambiguous
 
+import Control.Monad.State (StateT, execStateT, liftIO, modify, get)
 import Data.List
-import Text.ParserCombinators.Parsec
-import qualified Text.ParserCombinators.Parsec.Token as P
-import Text.ParserCombinators.Parsec.Language (emptyDef)
+import Data.Maybe
 import qualified IO
 import Numeric (readHex)
+import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Language (emptyDef)
+import qualified Text.ParserCombinators.Parsec.Token as P
+import Text.Regex
 
 import qualified AST as A
 import Errors
@@ -19,6 +22,7 @@ import EvalConstants
 import Indentation
 import Metadata
 import ParseState
+import Pass
 import Types
 
 --{{{ setup stuff for Parsec
@@ -113,6 +117,8 @@ occamStyle
                           "VAL",
                           "VALOF",
                           "WHILE",
+                          "#INCLUDE",
+                          "#USE",
                           indentMarker,
                           outdentMarker,
                           eolMarker,
@@ -218,6 +224,8 @@ sTYPE = reserved "TYPE"
 sVAL = reserved "VAL"
 sVALOF = reserved "VALOF"
 sWHILE = reserved "WHILE"
+sppINCLUDE = reserved "#INCLUDE"
+sppUSE = reserved "#USE"
 --}}}
 --{{{ markers inserted by the preprocessor
 -- XXX could handle VALOF by translating each step to one { and matching multiple ones?
@@ -1009,6 +1017,7 @@ process
     <|> procInstance
     <|> mainProcess
     <|> handleSpecs (allocation <|> specification) process A.ProcSpec
+    <|> preprocessorDirective
     <?> "process"
 
 --{{{ assignment (:=)
@@ -1320,15 +1329,54 @@ actual (A.Formal am t n)
     where
       an = A.nameName n
 --}}}
+--{{{ preprocessor directives
+preprocessorDirective :: OccParser A.Process
+preprocessorDirective
+    =   ppInclude
+    <|> ppUse
+    <?> "preprocessor directive"
+
+ppInclude :: OccParser A.Process
+ppInclude
+    =  do sppINCLUDE
+          char '"'
+          file <- manyTill character sQuote
+          eol
+          includeFile $ concat file
+
+ppUse :: OccParser A.Process
+ppUse
+    =  do sppUSE
+          char '"'
+          mod <- manyTill character sQuote
+          eol
+          let file = mangleModName $ concat mod
+
+          -- Check whether it's been included already.
+          ps <- getState
+          if file `elem` psLoadedFiles ps
+            then process
+            else includeFile file
+
+-- | Invoke the parser recursively to handle an included file.
+includeFile :: String -> OccParser A.Process
+includeFile file
+    =  do ps <- getState
+          (f, ps') <- parseFile file ps
+          setState ps' { psLocalNames = psMainLocals ps' }
+          p <- process
+          return $ f p
+--}}}
 --{{{ main process
 mainProcess :: OccParser A.Process
 mainProcess
     =  do m <- md
           sMainMarker
           eol
-          -- Find the last thing that was defined; it should be a PROC of the right type.
-          -- FIXME We should check that it's using a valid TLP interface.
-          updateState $ (\ps -> ps { psMainName = Just $ snd $ head $ psLocalNames ps })
+          -- Stash the current locals so that we can either restore them
+          -- when we get back to the file we included this one from, or
+          -- pull the TLP name from them at the end.
+          updateState $ (\ps -> ps { psMainLocals = psLocalNames ps })
           return $ A.Main m
 --}}}
 --}}}
@@ -1345,30 +1393,92 @@ sourceFile
 --}}}
 --}}}
 
---{{{ preprocessor
--- XXX Doesn't handle preprocessor instructions.
+--{{{  preprocessor
+-- XXX Doesn't handle conditionals.
 
 preprocess :: String -> String
 preprocess d = parseIndentation $ lines (d ++ "\n" ++ mainMarker)
 
 readSource :: String -> IO String
-readSource fn = do
-  f <- IO.openFile fn IO.ReadMode
-  d <- IO.hGetContents f
-  let prep = preprocess d
-  return prep
+readSource file
+    =  do f <- IO.openFile file IO.ReadMode
+          d <- IO.hGetContents f
+          return $ preprocess d
+
+-- | Find (via a nasty regex search) all the files that this source file includes.
+preFindIncludes :: String -> [String]
+preFindIncludes source
+    = concat [case matchRegex incRE l of
+                Just [_, fn] -> [fn]
+                Nothing -> []
+              | l <- lines source]
+  where
+    incRE = mkRegex "^#(INCLUDE|USE) +\"([^\"]*)\""
+
+-- | If a module name doesn't already have a suffix, add one.
+mangleModName :: String -> String
+mangleModName mod
+    = if ".occ" `isSuffixOf` mod || ".inc" `isSuffixOf` mod
+        then mod
+        else mod ++ ".occ"
+
+-- | Join a relative path to an existing path (i.e. if you're given foo/bar and
+-- baz, return foo/baz).
+joinPath :: String -> String -> String
+joinPath base new
+    = case matchRegex pathRE base of
+        Just [dir] -> dir ++ new
+        Nothing -> new
+  where
+    pathRE = mkRegex "^(.*/)[^/]*$"
+
+type LoaderM a = StateT ParseState IO a
+
+-- | Load all the source files necessary for a program.
+-- We have to do this now, before entering the parser, because the parser
+-- doesn't run in the IO monad. If there were a monad transformer version of
+-- Parsec then we could just open files as we need them.
+loadSource :: String -> ParseState -> IO ParseState
+loadSource file ps = execStateT (load file file) ps
+  where
+    load :: String -> String -> LoaderM ()
+    load file realName
+        =  do ps <- get
+              case lookup file (psSourceFiles ps) of
+                Just _ -> return ()
+                Nothing ->
+                  do progress $ "Loading source file " ++ realName
+                     source <- liftIO $ readSource realName
+                     modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })
+                     let deps = map mangleModName $ preFindIncludes source
+                     sequence_ [load dep (joinPath file dep) | dep <- deps]
 --}}}
 
---{{{ interface for other modules
+--{{{  entry points for the parser itself
+-- | Test a parser production (for use from ghci while debugging the parser).
 testParse :: Show a => OccParser a -> String -> IO ()
 testParse prod text
     = do let r = runParser prod emptyState "" text
          putStrLn $ "Result: " ++ show r
 
-parseSource :: String -> String -> ParseState -> IO (A.Process, ParseState)
-parseSource prep sourceFileName state
-  = case runParser sourceFile state sourceFileName prep of
-      Left err -> die $ "Parse error: " ++ show err
-      Right result -> return result
+-- | Parse a file, returning a function you can apply to make all its
+-- definitions available to a process.
+parseFile :: Monad m => String -> ParseState -> m (A.Process -> A.Process, ParseState)
+parseFile file ps
+    =  do let source = fromJust $ lookup file (psSourceFiles ps)
+          let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }
+          case runParser sourceFile ps' file source of
+            Left err -> die $ "Parse error: " ++ show err
+            Right (p, ps'') -> return (replaceMain p, ps'')
+  where
+    replaceMain :: A.Process -> A.Process -> A.Process
+    replaceMain (A.ProcSpec m s p) np = A.ProcSpec m s (replaceMain p np)
+    replaceMain (A.Main _) np = np
+
+-- | Parse the top level source file in a program.
+parseProgram :: Monad m => String -> ParseState -> m (A.Process, ParseState)
+parseProgram file ps
+    =  do (f, ps') <- parseFile file ps
+          return (f $ A.Main [], ps')
 --}}}
 

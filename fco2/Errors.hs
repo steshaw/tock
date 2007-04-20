@@ -15,7 +15,7 @@ data OccError = OccError {
 
 type OccErrorT m a = ErrorT OccError m a
 
-die :: Monad m => String -> m a
+die :: String -> a
 die s = error $ "\n\nError:\n" ++ s
 
 dieInternal :: Monad m => String -> m a
