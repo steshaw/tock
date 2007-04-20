@@ -2,10 +2,11 @@ To-do list for FCO
 ------------------
 
 Have a "compiler options" field in ParseState, which can contain things like:
+- whether -v is on (which avoids needing to pass "progress" around -- and means
+  we can have a pass composition operator)
 - optional tracing in passes
 - whether to compile out overflow/bounds checks
 
-Parallel assignment should be handled by a simplification pass, not by GenerateC.
 (Then things get proper names and we can write a genAssignment function that
 handles different types.)
  - and then array assignment can be made to work properly.

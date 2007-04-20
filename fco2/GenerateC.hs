@@ -854,29 +854,14 @@ genProcess p = case p of
 
 --{{{  assignment
 genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
-genAssign vs el
+genAssign [v] el
     = case el of
         A.FunctionCallList m n es -> missing "function call"
-        A.ExpressionList m es -> case vs of
-          [v] ->
-            do genVariable v
-               tell [" = "]
-               genExpression (head es)
-               tell [";\n"]
-          vs ->
-            do tell ["{\n"]
-               ns <- mapM (\_ -> makeNonce "assign_tmp") vs
-               mapM (\(v, n, e) -> do st <- get
-                                      t <- checkJust $ typeOfVariable st v
-                                      genType t
-                                      tell [" ", n, " = "]
-                                      genExpression e
-                                      tell [";\n"])
-                    (zip3 vs ns es)
-               mapM (\(v, n) -> do genVariable v
-                                   tell [" = ", n, ";\n"])
-                    (zip vs ns)
-               tell ["}\n"]
+        A.ExpressionList m es ->
+          do genVariable v
+             tell [" = "]
+             genExpression (head es)
+             tell [";\n"]
 --}}}
 --{{{  input
 genInput :: A.Variable -> A.InputMode -> CGen ()
