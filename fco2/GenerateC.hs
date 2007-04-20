@@ -949,19 +949,21 @@ genInputCase c s
 -- This handles specs in a slightly odd way, because we can't insert specs into
 -- the body of a switch.
 genInputCaseBody :: A.Name -> A.Variable -> CGen () -> A.Structured -> CGen ()
-genInputCaseBody proto c coll s = genStructured s doV
-  where
-    doV (A.OnlyV _ (A.Variant _ n iis p))
-        = do tell ["case "]
-             genName n
-             tell ["_"]
-             genName proto
-             tell [": {\n"]
-             coll
-             sequence_ $ map (genInputItem c) iis
-             genProcess p
-             tell ["break;\n"]
-             tell ["}\n"]
+genInputCaseBody proto c coll (A.Spec _ spec s)
+    = genInputCaseBody proto c (genSpec spec coll) s
+genInputCaseBody proto c coll (A.OnlyV _ (A.Variant _ n iis p))
+    = do tell ["case "]
+         genName n
+         tell ["_"]
+         genName proto
+         tell [": {\n"]
+         coll
+         sequence_ $ map (genInputItem c) iis
+         genProcess p
+         tell ["break;\n"]
+         tell ["}\n"]
+genInputCaseBody proto c coll (A.Several _ ss)
+    = sequence_ $ map (genInputCaseBody proto c coll) ss
 
 genTimerRead :: A.Variable -> A.Variable -> CGen ()
 genTimerRead c v

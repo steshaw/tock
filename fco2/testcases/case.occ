@@ -2,8 +2,9 @@ PROC P ()
   INT n:
   SEQ
     CASE n    -- with ELSE
+      INT x:
       1, 2
-        SKIP
+        x := n
       3
         SKIP
       4, 5, 6, 7, 8
