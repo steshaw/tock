@@ -1070,7 +1070,7 @@ genProcAlloc (A.ProcCall m n as)
     =  do tell ["ProcAlloc ("]
           genName n
           -- FIXME stack size fixed here
-          let stackSize = 4096
+          let stackSize = 65536
           tell [", ", show stackSize, ", ", show $ numCArgs as]
           genActuals as
           tell [")"]
