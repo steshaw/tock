@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <float.h>
+#include <stdio.h>
 
 #include <cifccsp.h>
 
@@ -34,29 +35,34 @@
 #warning No PACKED implementation for this compiler
 #endif
 
+static void occam_stop (const char *pos, const char *message) {
+	EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: %s\n", pos, message);
+	SetErr ();
+}
+
 /* FIXME All of these need to check for overflow and report errors appropriately. */
-static int occam_add (int a, int b) {
+static int occam_add (int a, int b, const char *pos) {
 	return a + b;
 }
-static int occam_subtr (int a, int b) {
+static int occam_subtr (int a, int b, const char *pos) {
 	return a - b;
 }
-static int occam_mul (int a, int b) {
+static int occam_mul (int a, int b, const char *pos) {
 	return a * b;
 }
-static int occam_div (int a, int b) {
+static int occam_div (int a, int b, const char *pos) {
 	if (b == 0) {
-		SetErr ();
+		occam_stop (pos, "divide by zero");
 	}
 	return a / b;
 }
-static int occam_rem (int a, int b) {
+static int occam_rem (int a, int b, const char *pos) {
 	if (b == 0) {
-		SetErr ();
+		occam_stop (pos, "modulo by zero");
 	}
 	return a % b;
 }
-#define occam_after (a, b) \
+#define occam_after (a, b, pos) \
 	(((a) - (b)) > 0)
 
 #endif

@@ -104,6 +104,11 @@ inputType c im
                      _ -> ITOther
 --}}}
 
+--{{{  metadata
+genMeta :: Meta -> CGen ()
+genMeta m = tell ["\"", show m, "\""]
+--}}}
+
 --{{{  names
 genName :: A.Name -> CGen ()
 genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
@@ -332,8 +337,8 @@ genArraySubscript v es
 
 --{{{  expressions
 genExpression :: A.Expression -> CGen ()
-genExpression (A.Monadic m op e) = genMonadic op e
-genExpression (A.Dyadic m op e f) = genDyadic op e f
+genExpression (A.Monadic m op e) = genMonadic m op e
+genExpression (A.Dyadic m op e f) = genDyadic m op e f
 genExpression (A.MostPos m t) = genTypeConstant "mostpos" t
 genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
 --genExpression (A.SizeType m t)
@@ -369,10 +374,10 @@ genSimpleMonadic s e
           genExpression e
           tell [")"]
 
-genMonadic :: A.MonadicOp -> A.Expression -> CGen ()
-genMonadic A.MonadicSubtr e = genSimpleMonadic "-" e
-genMonadic A.MonadicBitNot e = genSimpleMonadic "~" e
-genMonadic A.MonadicNot e = genSimpleMonadic "!" e
+genMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen ()
+genMonadic _ A.MonadicSubtr e = genSimpleMonadic "-" e
+genMonadic _ A.MonadicBitNot e = genSimpleMonadic "~" e
+genMonadic _ A.MonadicNot e = genSimpleMonadic "!" e
 
 genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
 genSimpleDyadic s e f
@@ -382,35 +387,37 @@ genSimpleDyadic s e f
           genExpression f
           tell [")"]
 
-genFuncDyadic :: String -> A.Expression -> A.Expression -> CGen ()
-genFuncDyadic s e f
+genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
+genFuncDyadic m s e f
     =  do tell [s, " ("]
           genExpression e
           tell [", "]
           genExpression f
+          tell [", "]
+          genMeta m
           tell [")"]
 
-genDyadic :: A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
-genDyadic A.Add e f = genFuncDyadic "occam_add" e f
-genDyadic A.Subtr e f = genFuncDyadic "occam_subtr" e f
-genDyadic A.Mul e f = genFuncDyadic "occam_mul" e f
-genDyadic A.Div e f = genFuncDyadic "occam_div" e f
-genDyadic A.Rem e f = genFuncDyadic "occam_rem" e f
-genDyadic A.Plus e f = genSimpleDyadic "+" e f
-genDyadic A.Minus e f = genSimpleDyadic "-" e f
-genDyadic A.Times e f = genSimpleDyadic "*" e f
-genDyadic A.BitAnd e f = genSimpleDyadic "&" e f
-genDyadic A.BitOr e f = genSimpleDyadic "|" e f
-genDyadic A.BitXor e f = genSimpleDyadic "^" e f
-genDyadic A.And e f = genSimpleDyadic "&&" e f
-genDyadic A.Or e f = genSimpleDyadic "||" e f
-genDyadic A.Eq e f = genSimpleDyadic "==" e f
-genDyadic A.NotEq e f = genSimpleDyadic "!=" e f
-genDyadic A.Less e f = genSimpleDyadic "<" e f
-genDyadic A.More e f = genSimpleDyadic ">" e f
-genDyadic A.LessEq e f = genSimpleDyadic "<=" e f
-genDyadic A.MoreEq e f = genSimpleDyadic ">=" e f
-genDyadic A.After e f = genFuncDyadic "occam_after" e f
+genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
+genDyadic m A.Add e f = genFuncDyadic m "occam_add" e f
+genDyadic m A.Subtr e f = genFuncDyadic m "occam_subtr" e f
+genDyadic m A.Mul e f = genFuncDyadic m "occam_mul" e f
+genDyadic m A.Div e f = genFuncDyadic m "occam_div" e f
+genDyadic m A.Rem e f = genFuncDyadic m "occam_rem" e f
+genDyadic _ A.Plus e f = genSimpleDyadic "+" e f
+genDyadic _ A.Minus e f = genSimpleDyadic "-" e f
+genDyadic _ A.Times e f = genSimpleDyadic "*" e f
+genDyadic _ A.BitAnd e f = genSimpleDyadic "&" e f
+genDyadic _ A.BitOr e f = genSimpleDyadic "|" e f
+genDyadic _ A.BitXor e f = genSimpleDyadic "^" e f
+genDyadic _ A.And e f = genSimpleDyadic "&&" e f
+genDyadic _ A.Or e f = genSimpleDyadic "||" e f
+genDyadic _ A.Eq e f = genSimpleDyadic "==" e f
+genDyadic _ A.NotEq e f = genSimpleDyadic "!=" e f
+genDyadic _ A.Less e f = genSimpleDyadic "<" e f
+genDyadic _ A.More e f = genSimpleDyadic ">" e f
+genDyadic _ A.LessEq e f = genSimpleDyadic "<=" e f
+genDyadic _ A.MoreEq e f = genSimpleDyadic ">=" e f
+genDyadic m A.After e f = genFuncDyadic m "occam_after" e f
 --}}}
 
 --{{{  input/output items
@@ -849,12 +856,12 @@ genProcess p = case p of
   A.Output m c ois -> genOutput c ois
   A.OutputCase m c t ois -> genOutputCase c t ois
   A.Skip m -> tell ["/* skip */\n"]
-  A.Stop m -> genStop
+  A.Stop m -> genStop m "STOP process"
   A.Main m -> tell ["/* main */\n"]
   A.Seq m ps -> sequence_ $ map genProcess ps
   A.SeqRep m r p -> genReplicator r (genProcess p)
-  A.If m s -> genIf s
-  A.Case m e s -> genCase e s
+  A.If m s -> genIf m s
+  A.Case m e s -> genCase m e s
   A.While m e p -> genWhile e p
   A.Par m pm ps -> genPar pm ps
   A.ParRep m pm r p -> genParRep pm r p
@@ -895,11 +902,11 @@ genInput c im
               A.InputAfter m e -> genTimerWait e
             _ -> case im of
               A.InputSimple m is -> sequence_ $ map (genInputItem c) is
-              A.InputCase m s -> genInputCase c s
+              A.InputCase m s -> genInputCase m c s
               _ -> missing $ "genInput " ++ show im
 
-genInputCase :: A.Variable -> A.Structured -> CGen ()
-genInputCase c s
+genInputCase :: Meta -> A.Variable -> A.Structured -> CGen ()
+genInputCase m c s
     =  do ps <- get
           t <- checkJust $ typeOfVariable ps c
           let proto = case t of A.Chan (A.UserProtocol n) -> n
@@ -912,7 +919,7 @@ genInputCase c s
           tell ["switch (", tag, ") {\n"]
           genInputCaseBody proto c (return ()) s
           tell ["default:\n"]
-          genStop
+          genStop m "unhandled variant in CASE input"
           tell ["}\n"]
 
 -- This handles specs in a slightly odd way, because we can't insert specs into
@@ -969,15 +976,18 @@ genOutputCase c tag ois
           genOutput c ois
 --}}}
 --{{{  stop
-genStop :: CGen ()
-genStop = tell ["SetErr ();\n"]
+genStop :: Meta -> String -> CGen ()
+genStop m s
+    =  do tell ["occam_stop ("]
+          genMeta m
+          tell [", \"", s, "\");\n"]
 --}}}
 --{{{  if
-genIf :: A.Structured -> CGen ()
-genIf s
+genIf :: Meta -> A.Structured -> CGen ()
+genIf m s
     =  do label <- makeNonce "if_end"
           genIfBody label s
-          genStop
+          genStop m "no choice matched in IF process"
           tell [label, ":\n;\n"]
 
 genIfBody :: String -> A.Structured -> CGen ()
@@ -992,13 +1002,15 @@ genIfBody label s = genStructured s doC
              tell ["}\n"]
 --}}}
 --{{{  case
-genCase :: A.Expression -> A.Structured -> CGen ()
-genCase e s
+genCase :: Meta -> A.Expression -> A.Structured -> CGen ()
+genCase m e s
     =  do tell ["switch ("]
           genExpression e
           tell [") {\n"]
           seenDefault <- genCaseBody (return ()) s
-          when (not seenDefault) $ tell ["default:\n"] >> genStop
+          when (not seenDefault) $
+            do tell ["default:\n"]
+               genStop m "no option matched in CASE process"
           tell ["}\n"]
 
 -- FIXME -- can this be made common with genInputCaseBody above?

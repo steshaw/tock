@@ -22,6 +22,7 @@ Types needs cleaning up and Haddocking.
 Types should provide versions of the functions that work in a state monad.
 If we can make them work in the parser monad (by providing an instance of
 MonadState for it?), that'd be even better.
+  See: http://hackage.haskell.org/trac/ghc/ticket/1274
 
 Errors is nearly useless, because none of our monads really fail in sensible
 ways.
@@ -66,9 +67,6 @@ lot of the "_sizes unused" warnings).
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
 
-There should be a wrapper for SetErr that takes a Meta and an error message.
-Ops and array references should use it.
-
 Replicator loops should be special-cased for when base == 0 to generate the
 sort of loop a C programmer would normally write.
 
@@ -88,6 +86,9 @@ genParRep uses a C99 dynamic array for a dynamic PAR count, which may turn out
 to be a bad idea for very large counts (since I assume it'll allocate off the
 stack). We should probably do a malloc if it's not determinable at compile
 time.
+
+The operator functions need to have the type name attached -- they'll only work
+for INT at the moment.
 
 ## Long-term
 
