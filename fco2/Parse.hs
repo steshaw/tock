@@ -1,11 +1,6 @@
 -- | Parse occam code into an AST.
 module Parse where
 
--- FIXME: Need to:
--- - insert type checks
--- - remove as many trys as possible; every production should consume input
---   when it's unambiguous
-
 import Control.Monad.State (StateT, execStateT, liftIO, modify, get)
 import Data.List
 import Data.Maybe
