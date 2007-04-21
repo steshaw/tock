@@ -12,8 +12,6 @@ that takes several expressions.
 
 The show instance for types should produce occam-looking types.
 
-Redo Meta as a structure rather than a list.
-
 ParseState should be called something more sensible, since most of it has
 nothing to do with parsing.
 

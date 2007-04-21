@@ -38,7 +38,7 @@ doString :: String -> Doc
 doString s = text $ show s
 
 doMeta :: Meta -> Doc
-doMeta m = text $ formatSourcePos m
+doMeta m = text $ show m
 
 doAny :: Data a => a -> Doc
 doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta

@@ -154,7 +154,7 @@ makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
 
 -- | Find the Meta value in an expression.
 metaOfExpression :: A.Expression -> Meta
-metaOfExpression e = concat $ gmapQ (mkQ [] findMeta) e
+metaOfExpression e = head $ gmapQ (mkQ emptyMeta findMeta) e
   where
     findMeta :: Meta -> Meta
     findMeta m = m

@@ -234,15 +234,14 @@ eol = do { whiteSpace; reserved eolMarker } <?> "end of line"
 --}}}
 
 --{{{ helper functions
-getSourcePos :: OccParser OccSourcePos
-getSourcePos
-  =  do pos <- getPosition
-        return $ OccSourcePos (sourceName pos) (sourceLine pos) (sourceColumn pos)
-
 md :: OccParser Meta
 md
-  =  do pos <- getSourcePos
-        return [MdSourcePos pos]
+  =  do pos <- getPosition
+        return Meta {
+                 metaFile = Just $ sourceName pos,
+                 metaLine = sourceLine pos,
+                 metaColumn = sourceColumn pos
+               }
 
 tryVX :: OccParser a -> OccParser b -> OccParser a
 tryVX p q = try (do { v <- p; q; return v })
@@ -1474,6 +1473,6 @@ parseFile file ps
 parseProgram :: Monad m => String -> ParseState -> m (A.Process, ParseState)
 parseProgram file ps
     =  do (f, ps') <- parseFile file ps
-          return (f $ A.Main [], ps')
+          return (f $ A.Main emptyMeta, ps')
 --}}}
 

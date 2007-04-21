@@ -62,7 +62,7 @@ overArray :: A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 overArray var func
     =  do ps <- get
           let A.Array ds _ = fromJust $ typeOfVariable ps var
-          let m = []
+          let m = emptyMeta
           specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
@@ -668,7 +668,7 @@ declareInit (A.Chan _) var
 declareInit t@(A.Array ds t') var
     = Just $ do init <- case t' of
                           A.Chan _ ->
-                            do let m = []
+                            do let m = emptyMeta
                                A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
                                let storeV = A.Variable m store
                                tell ["Channel "]
