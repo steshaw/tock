@@ -328,10 +328,18 @@ genArraySubscript v es
     -- smart C compiler should be able to work it out...
     genPlainSub :: A.Variable -> [A.Expression] -> [Int] -> [CGen ()]
     genPlainSub _ [] _ = []
-    genPlainSub v (e:es) (_:subs)
+    genPlainSub v (e:es) (sub:subs)
         = gen : genPlainSub v es subs
       where
-        gen = sequence_ $ intersperse (tell [" * "]) $ genExpression e : genChunks
+        gen = sequence_ $ intersperse (tell [" * "]) $ genSub : genChunks
+        genSub
+            = do tell ["occam_check_index ("]
+                 genExpression e
+                 tell [", "]
+                 genVariable v
+                 tell ["_sizes[", show sub, "], "]
+                 genMeta (metaOfExpression e)
+                 tell [")"]
         genChunks = [genVariable v >> tell ["_sizes[", show i, "]"] | i <- subs]
 --}}}
 
@@ -544,7 +552,15 @@ genSlice :: A.Variable -> A.Variable -> A.Expression -> A.Expression -> [A.Dimen
 genSlice v (A.Variable _ on) start count ds
     = (tell ["&"] >> genVariable v,
        genArraySize False
-                    (do genExpression count
+                    (do tell ["occam_check_slice ("]
+                        genExpression start
+                        tell [", "]
+                        genExpression count
+                        tell [", "]
+                        genName on
+                        tell ["_sizes[0], "]
+                        genMeta (metaOfExpression count)
+                        tell [")"]
                         sequence_ [do tell [", "]
                                       genName on
                                       tell ["_sizes[", show i, "]"]

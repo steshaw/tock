@@ -1,0 +1,5 @@
+PROC P (CHAN OF BYTE in, out, err)
+  [10]INT as:
+  []INT bs IS [as FROM 5 FOR 6]:
+  SKIP
+:

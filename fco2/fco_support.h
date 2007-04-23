@@ -35,9 +35,24 @@
 #warning No PACKED implementation for this compiler
 #endif
 
-static void occam_stop (const char *pos, const char *message) {
-	EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: %s\n", pos, message);
-	SetErr ();
+#define occam_stop(pos, format, args...) \
+	do { \
+		EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
+		SetErr (); \
+	} while (0)
+
+static int occam_check_slice (int start, int count, int limit, const char *pos) {
+	int end = start + count;
+	if (end < 0 || end > limit) {
+		occam_stop (pos, "invalid array slice from %d to %d (end should be 0 <= i <= %d)", start, end, limit);
+	}
+	return count;
+}
+static int occam_check_index (int i, int limit, const char *pos) {
+	if (i < 0 || i >= limit) {
+		occam_stop (pos, "invalid array index %d (should be 0 <= i < %d)", i, limit);
+	}
+	return i;
 }
 
 /* FIXME All of these need to check for overflow and report errors appropriately. */

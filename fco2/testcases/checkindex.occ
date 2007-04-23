@@ -1,0 +1,4 @@
+PROC P (CHAN OF BYTE in, out, err)
+  [10]INT as:
+  as[15] := 0
+:
