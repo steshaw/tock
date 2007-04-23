@@ -176,14 +176,27 @@ genDecl am t n
 --}}}
 
 --{{{  conversions
-genConversion :: A.ConversionMode -> A.Type -> A.Expression -> CGen ()
-genConversion A.DefaultConversion t e
+genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
+genConversion m A.DefaultConversion t e
     =  do tell ["(("]
           genType t
           tell [") "]
-          genExpression e
+          ps <- get
+          let origT = fromJust $ typeOfExpression ps e
+          if isSafeConversion origT t
+            then genExpression e
+            else do genTypeSymbol "range_check" origT
+                    tell [" ("]
+                    genTypeSymbol "mostneg" t
+                    tell [", "]
+                    genTypeSymbol "mostpos" t
+                    tell [", "]
+                    genExpression e
+                    tell [", "]
+                    genMeta m
+                    tell [")"]
           tell [")"]
-genConversion cm t e = missing $ "genConversion " ++ show cm
+genConversion m cm t e = missing $ "genConversion " ++ show cm
 --}}}
 
 --{{{  literals
@@ -347,8 +360,8 @@ genArraySubscript v es
 genExpression :: A.Expression -> CGen ()
 genExpression (A.Monadic m op e) = genMonadic m op e
 genExpression (A.Dyadic m op e f) = genDyadic m op e f
-genExpression (A.MostPos m t) = genTypeConstant "mostpos" t
-genExpression (A.MostNeg m t) = genTypeConstant "mostneg" t
+genExpression (A.MostPos m t) = genTypeSymbol "mostpos" t
+genExpression (A.MostNeg m t) = genTypeSymbol "mostneg" t
 --genExpression (A.SizeType m t)
 genExpression (A.SizeExpr m e)
     =  do genExpression e
@@ -356,7 +369,7 @@ genExpression (A.SizeExpr m e)
 genExpression (A.SizeVariable m v)
     =  do genVariable v
           tell ["_sizes[0]"]
-genExpression (A.Conversion m cm t e) = genConversion cm t e
+genExpression (A.Conversion m cm t e) = genConversion m cm t e
 genExpression (A.ExprVariable m v) = genVariable v
 genExpression (A.ExprLiteral m l) = genLiteral l
 genExpression (A.True m) = tell ["true"]
@@ -368,11 +381,11 @@ genExpression (A.BytesInType m t) = genBytesInType t
 --genExpression (A.OffsetOf m t n)
 genExpression t = missing $ "genExpression " ++ show t
 
-genTypeConstant :: String -> A.Type -> CGen ()
-genTypeConstant s t
+genTypeSymbol :: String -> A.Type -> CGen ()
+genTypeSymbol s t
     = case scalarType t of
         Just ct -> tell ["occam_", s, "_", ct]
-        Nothing -> missing $ "genTypeConstant " ++ show t
+        Nothing -> missing $ "genTypeSymbol " ++ show t
 --}}}
 
 --{{{  operators
@@ -397,7 +410,10 @@ genSimpleDyadic s e f
 
 genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
 genFuncDyadic m s e f
-    =  do tell [s, " ("]
+    =  do ps <- get
+          let t = fromJust $ typeOfExpression ps e
+          genTypeSymbol s t
+          tell [" ("]
           genExpression e
           tell [", "]
           genExpression f
@@ -406,11 +422,11 @@ genFuncDyadic m s e f
           tell [")"]
 
 genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
-genDyadic m A.Add e f = genFuncDyadic m "occam_add" e f
-genDyadic m A.Subtr e f = genFuncDyadic m "occam_subtr" e f
-genDyadic m A.Mul e f = genFuncDyadic m "occam_mul" e f
-genDyadic m A.Div e f = genFuncDyadic m "occam_div" e f
-genDyadic m A.Rem e f = genFuncDyadic m "occam_rem" e f
+genDyadic m A.Add e f = genFuncDyadic m "add" e f
+genDyadic m A.Subtr e f = genFuncDyadic m "subtr" e f
+genDyadic m A.Mul e f = genFuncDyadic m "mul" e f
+genDyadic m A.Div e f = genFuncDyadic m "div" e f
+genDyadic m A.Rem e f = genFuncDyadic m "rem" e f
 genDyadic _ A.Plus e f = genSimpleDyadic "+" e f
 genDyadic _ A.Minus e f = genSimpleDyadic "-" e f
 genDyadic _ A.Times e f = genSimpleDyadic "*" e f
@@ -425,7 +441,7 @@ genDyadic _ A.Less e f = genSimpleDyadic "<" e f
 genDyadic _ A.More e f = genSimpleDyadic ">" e f
 genDyadic _ A.LessEq e f = genSimpleDyadic "<=" e f
 genDyadic _ A.MoreEq e f = genSimpleDyadic ">=" e f
-genDyadic m A.After e f = genFuncDyadic m "occam_after" e f
+genDyadic m A.After e f = genFuncDyadic m "after" e f
 --}}}
 
 --{{{  input/output items

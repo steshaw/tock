@@ -1,0 +1,16 @@
+PROC P (CHAN OF BYTE in, out, err)
+  BYTE c:
+  INT i:
+  INT64 ll:
+  SEQ
+    c, i, ll := 25, 2500, 25000000000
+    c := BYTE c
+    c := BYTE i
+    c := BYTE ll
+    i := INT c
+    i := INT i
+    i := INT ll
+    ll := INT64 c
+    ll := INT64 i
+    ll := INT64 ll
+:

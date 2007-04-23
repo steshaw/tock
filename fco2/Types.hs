@@ -158,3 +158,28 @@ metaOfExpression e = head $ gmapQ (mkQ emptyMeta findMeta) e
   where
     findMeta :: Meta -> Meta
     findMeta m = m
+
+-- | Will a conversion between two types always succeed?
+isSafeConversion :: A.Type -> A.Type -> Bool
+isSafeConversion fromT toT = (fromP /= -1) && (toP /= -1) && (fromP <= toP)
+  where
+    fromP = precNum fromT
+    toP = precNum toT
+
+    precNum :: A.Type -> Int
+    precNum t = precNum' t 0 convPrec
+
+    precNum' :: A.Type -> Int -> [[A.Type]] -> Int
+    precNum' _ n [] = (-1)
+    precNum' t n (tl:tls)
+        = if t `elem` tl then n
+                         else precNum' t (n + 1) tls
+
+    convPrec :: [[A.Type]]
+    convPrec
+        = [ [A.Bool]
+          , [A.Byte]
+          , [A.Int16]
+          , [A.Int, A.Int32]
+          , [A.Int64]
+          ]

@@ -61,9 +61,6 @@ calls have been removed, and so on.
 
 Multidimensional array literals won't work.
 
-Array indexing needs to be checked against the bounds (which'll do away with a
-lot of the "_sizes unused" warnings).
-
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
 
@@ -89,6 +86,8 @@ time.
 
 The operator functions need to have the type name attached -- they'll only work
 for INT at the moment.
+
+Real-to-integer conversions don't work correctly.
 
 ## Long-term
 
