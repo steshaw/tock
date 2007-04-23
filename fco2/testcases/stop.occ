@@ -1,0 +1,3 @@
+PROC main (CHAN OF BYTE in, out, err)
+  STOP
+:
