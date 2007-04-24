@@ -1,6 +1,7 @@
 -- | Common definitions for passes over the AST.
 module Pass where
 
+import Control.Monad.Error
 import Control.Monad.State
 import System.IO
 

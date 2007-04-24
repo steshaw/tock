@@ -13,6 +13,7 @@ import qualified AST as A
 import Metadata
 import ParseState
 import Errors
+import TLP
 import Types
 
 --{{{  monad definition
@@ -27,16 +28,21 @@ generateC st ast
             Left e -> die e
             Right (_, ss) -> return $ concat ss
 
+genTLPChannel :: TLPChannel -> CGen ()
+genTLPChannel TLPIn = tell ["in"]
+genTLPChannel TLPOut = tell ["out"]
+genTLPChannel TLPError = tell ["err"]
+
 genTopLevel :: A.Process -> CGen ()
 genTopLevel p
     =  do tell ["#include <fco_support.h>\n"]
           genProcess p
-
-          ps <- get
-          let mainName = snd $ head $ psMainLocals ps
+          (name, chans) <- tlpInterface
           tell ["void fco_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
-          genName mainName
-          tell [" (me, in, out, err);\n"]
+          genName name
+          tell [" (me"]
+          sequence_ [tell [", "] >> genTLPChannel c | c <- chans]
+          tell [");\n"]
           tell ["}\n"]
 --}}}
 
@@ -52,9 +58,9 @@ withPS f
     =  do st <- get
           return $ f st
 
-checkJust :: Monad m => Maybe t -> m t
+checkJust :: MonadError String m => Maybe t -> m t
 checkJust (Just v) = return v
-checkJust Nothing = fail "checkJust failed"
+checkJust Nothing = throwError "checkJust failed"
 
 type SubscripterFunction = A.Variable -> A.Variable
 

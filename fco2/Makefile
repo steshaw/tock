@@ -16,6 +16,7 @@ sources = \
 	PrettyShow.hs \
 	SimplifyExprs.hs \
 	SimplifyProcs.hs \
+	TLP.hs \
 	Types.hs \
 	Unnest.hs
 
