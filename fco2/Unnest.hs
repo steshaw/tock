@@ -98,7 +98,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                                       A.ChannelName -> True
                                       A.VariableName -> True
                                       _ -> False]
-             freeNames <- filterM isConstantName freeNames''
+             freeNames <- filterM (liftM not . isConstantName) freeNames''
              types <- mapM typeOfName freeNames
              origAMs <- mapM abbrevModeOfName freeNames
              let ams = map makeAbbrevAM origAMs
