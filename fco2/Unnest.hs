@@ -89,37 +89,34 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doSpecification spec = case spec of
         A.Specification m n st@(A.Proc _ fs p) ->
           do
-             ps <- get
              -- Figure out the free names. We only want to do this for channels
              -- and variables, and we don't want to do it for constants because
              -- they'll get pulled to the top level anyway.
-             let allFreeNames = Map.elems $ freeNamesIn st
-             let freeNames = [n | n <- allFreeNames,
-                                  case A.nameType n of
-                                    A.ChannelName -> True
-                                    A.VariableName -> True
-                                    _ -> False,
-                                  not $ isConstantName ps n]
-             let types = [fromJust $ typeOfName ps n | n <- freeNames]
-             let ams = [case fromJust $ abbrevModeOfName ps n of
-                          A.Original -> A.Abbrev
-                          t -> t
-                        | n <- freeNames]
+             let freeNames' = Map.elems $ freeNamesIn st
+             let freeNames'' = [n | n <- freeNames',
+                                    case A.nameType n of
+                                      A.ChannelName -> True
+                                      A.VariableName -> True
+                                      _ -> False]
+             freeNames <- filterM isConstantName freeNames''
+             types <- mapM typeOfName freeNames
+             origAMs <- mapM abbrevModeOfName freeNames
+             let ams = map makeAbbrevAM origAMs
              -- Generate and define new names to replace them with
              newNamesS <- sequence [makeNonce (A.nameName n) | n <- freeNames]
              let newNames = [on { A.nameName = nn } | (on, nn) <- zip freeNames newNamesS]
-             sequence_ [let ond = fromJust $ psLookupName ps on
-                          in modify $ psDefineName nn (ond { A.ndName = A.nameName nn,
-                                                             A.ndAbbrevMode = am })
-                        | (on, nn, am) <- zip3 freeNames newNames ams]
+             onds <- mapM lookupName freeNames
+             sequence_ [defineName nn (ond { A.ndName = A.nameName nn,
+                                             A.ndAbbrevMode = am })
+                        | (ond, nn, am) <- zip3 onds newNames ams]
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
              p' <- removeFreeNames $ replaceNames (zip freeNames newNames) p
              let st' = A.Proc m (fs ++ newFs) p'
              let spec' = A.Specification m n st'
              -- Update the definition of the proc
-             let nameDef = fromJust $ psLookupName ps n
-             modify $ psDefineName n (nameDef { A.ndType = st' })
+             nameDef <- lookupName n
+             defineName n (nameDef { A.ndType = st' })
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
              let newAs = [case am of
@@ -155,20 +152,20 @@ removeNesting p
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec@(A.Specification m n st)
-        = do ps <- get
-             if isConstantName ps n || canPull ps st then
+        = do isConst <- isConstantName n
+             if isConst || canPull st then
                  do spec' <- doGeneric spec
                     addPulled $ A.ProcSpec m spec'
                     return A.NoSpecification
                else doGeneric spec
 
-    canPull :: ParseState -> A.SpecType -> Bool
-    canPull _ (A.Proc _ _ _) = True
-    canPull _ (A.DataType _ _) = True
-    canPull _ (A.DataTypeRecord _ _ _) = True
-    canPull _ (A.Protocol _ _) = True
-    canPull _ (A.ProtocolCase _ _) = True
-    canPull _ _ = False
+    canPull :: A.SpecType -> Bool
+    canPull (A.Proc _ _ _) = True
+    canPull (A.DataType _ _) = True
+    canPull (A.DataTypeRecord _ _ _) = True
+    canPull (A.Protocol _ _) = True
+    canPull (A.ProtocolCase _ _) = True
+    canPull _ = False
 
 -- | Remove specifications that have been turned into NoSpecifications.
 removeNoSpecs :: Data t => t -> PassM t

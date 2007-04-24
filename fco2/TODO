@@ -19,14 +19,6 @@ nothing to do with parsing.
 
 Types needs cleaning up and Haddocking.
 
-Types should provide versions of the functions that work in a state monad.
-If we can make them work in the parser monad (by providing an instance of
-MonadState for it?), that'd be even better.
-  See: http://hackage.haskell.org/trac/ghc/ticket/1274
-
-Errors is nearly useless, because none of our monads really fail in sensible
-ways.
-
 ## Driver
 
 Add an option for whether to compile out overflow/bounds checks.

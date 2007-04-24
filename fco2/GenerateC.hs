@@ -17,7 +17,10 @@ import TLP
 import Types
 
 --{{{  monad definition
-type CGen a = WriterT [String] (ErrorT String (StateT ParseState IO)) a
+type CGen = WriterT [String] (ErrorT String (StateT ParseState IO))
+
+instance Die CGen where
+  die = throwError
 --}}}
 
 --{{{  top-level
@@ -25,7 +28,7 @@ generateC :: ParseState -> A.Process -> IO String
 generateC st ast
     =  do v <- evalStateT (runErrorT (runWriterT (genTopLevel ast))) st
           case v of
-            Left e -> die e
+            Left e -> dieIO e
             Right (_, ss) -> return $ concat ss
 
 genTLPChannel :: TLPChannel -> CGen ()
@@ -53,11 +56,6 @@ missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 genComma :: CGen ()
 genComma = tell [", "]
 
-withPS :: (ParseState -> a) -> CGen a
-withPS f
-    =  do st <- get
-          return $ f st
-
 checkJust :: MonadError String m => Maybe t -> m t
 checkJust (Just v) = return v
 checkJust Nothing = throwError "checkJust failed"
@@ -66,8 +64,7 @@ type SubscripterFunction = A.Variable -> A.Variable
 
 overArray :: A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 overArray var func
-    =  do ps <- get
-          let A.Array ds _ = fromJust $ typeOfVariable ps var
+    =  do A.Array ds _ <- typeOfVariable var
           let m = emptyMeta
           specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
@@ -100,8 +97,7 @@ data InputType = ITTimerRead | ITTimerAfter | ITOther
 
 inputType :: A.Variable -> A.InputMode -> CGen InputType
 inputType c im
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps c
+    =  do t <- typeOfVariable c
           return $ case t of
                      A.Timer ->
                        case im of
@@ -187,8 +183,7 @@ genConversion m A.DefaultConversion t e
     =  do tell ["(("]
           genType t
           tell [") "]
-          ps <- get
-          let origT = fromJust $ typeOfExpression ps e
+          origT <- typeOfExpression e
           if isSafeConversion origT t
             then genExpression e
             else do genTypeSymbol "range_check" origT
@@ -287,9 +282,8 @@ the above table this isn't too horrible...
 -}
 genVariable :: A.Variable -> CGen ()
 genVariable v
-    =  do ps <- get
-          am <- checkJust $ abbrevModeOfVariable ps v
-          t <- checkJust $ typeOfVariable ps v
+    =  do am <- abbrevModeOfVariable v
+          t <- typeOfVariable v
           let isSub = case v of
                         A.Variable _ _ -> False
                         A.SubscriptedVariable _ _ _ -> True
@@ -334,8 +328,7 @@ genVariable v
 
 genArraySubscript :: A.Variable -> [A.Expression] -> CGen ()
 genArraySubscript v es
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps v
+    =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
           sequence_ $ intersperse (tell [" + "]) $ genPlainSub v es [0..(numDims - 1)]
@@ -416,8 +409,7 @@ genSimpleDyadic s e f
 
 genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
 genFuncDyadic m s e f
-    =  do ps <- get
-          let t = fromJust $ typeOfExpression ps e
+    =  do t <- typeOfExpression e
           genTypeSymbol s t
           tell [" ("]
           genExpression e
@@ -454,21 +446,19 @@ genDyadic m A.After e f = genFuncDyadic m "after" e f
 genInputItem :: A.Variable -> A.InputItem -> CGen ()
 genInputItem c (A.InCounted m cv av)
     =  do genInputItem c (A.InVariable m cv)
-          ps <- get
-          t <- checkJust $ typeOfVariable ps av
+          t <- typeOfVariable av
           tell ["ChanIn ("]
           genVariable c
           tell [", "]
           fst $ abbrevVariable A.Abbrev t av
           tell [", "]
-          let subT = fromJust $ subscriptType ps (A.Subscript m $ makeConstant m 0) t
+          subT <- subscriptType (A.Subscript m $ makeConstant m 0) t
           genVariable cv
           tell [" * "]
           genBytesInType subT
           tell [");\n"]
 genInputItem c (A.InVariable m v)
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps v
+    =  do t <- typeOfVariable v
           let rhs = fst $ abbrevVariable A.Abbrev t v
           case t of
             A.Int ->
@@ -489,8 +479,7 @@ genInputItem c (A.InVariable m v)
 genOutputItem :: A.Variable -> A.OutputItem -> CGen ()
 genOutputItem c (A.OutCounted m ce ae)
     =  do genOutputItem c (A.OutExpression m ce)
-          ps <- get
-          t <- checkJust $ typeOfExpression ps ae
+          t <- typeOfExpression ae
           case ae of
             A.ExprVariable m v ->
               do tell ["ChanOut ("]
@@ -498,14 +487,13 @@ genOutputItem c (A.OutCounted m ce ae)
                  tell [", "]
                  fst $ abbrevVariable A.Abbrev t v
                  tell [", "]
-                 let subT = fromJust $ subscriptType ps (A.Subscript m $ makeConstant m 0) t
+                 subT <- subscriptType (A.Subscript m $ makeConstant m 0) t
                  genExpression ce
                  tell [" * "]
                  genBytesInType subT
                  tell [");\n"]
 genOutputItem c (A.OutExpression m e)
-    =  do ps <- get
-          t <- checkJust $ typeOfExpression ps e
+    =  do t <- typeOfExpression e
           case (t, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt ("]
@@ -935,8 +923,7 @@ genAssign [v] el
     = case el of
         A.FunctionCallList m n es -> missing "function call"
         A.ExpressionList m [e] ->
-          do ps <- get
-             let t = fromJust $ typeOfVariable ps v
+          do t <- typeOfVariable v
              doAssign t v e
   where
     doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
@@ -954,8 +941,7 @@ genAssign [v] el
 --{{{  input
 genInput :: A.Variable -> A.InputMode -> CGen ()
 genInput c im
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps c
+    =  do t <- typeOfVariable c
           case t of
             A.Timer -> case im of 
               A.InputSimple m [A.InVariable m' v] -> genTimerRead c v
@@ -967,8 +953,7 @@ genInput c im
 
 genInputCase :: Meta -> A.Variable -> A.Structured -> CGen ()
 genInputCase m c s
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps c
+    =  do t <- typeOfVariable c
           let proto = case t of A.Chan (A.UserProtocol n) -> n
           tag <- makeNonce "case_tag"
           genName proto
@@ -1023,8 +1008,7 @@ genOutput c ois = sequence_ $ map (genOutputItem c) ois
 
 genOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 genOutputCase c tag ois
-    =  do ps <- get
-          t <- checkJust $ typeOfVariable ps c
+    =  do t <- typeOfVariable c
           let proto = case t of A.Chan (A.UserProtocol n) -> n
           tell ["ChanOutInt ("]
           genVariable c

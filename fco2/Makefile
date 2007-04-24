@@ -22,7 +22,7 @@ sources = \
 	Utils.hs
 
 $(targets): $(sources)
-	ghc -fglasgow-exts -o fco --make Main
+	ghc -fglasgow-exts -fallow-undecidable-instances -o fco --make Main
 
 CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
 

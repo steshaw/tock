@@ -1,7 +1,9 @@
 -- | Parse occam code into an AST.
 module Parse where
 
-import Control.Monad.State (StateT, execStateT, liftIO, modify, get)
+import Control.Monad (liftM)
+import Control.Monad.Error (runErrorT)
+import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get, put)
 import Data.List
 import Data.Maybe
 import qualified IO
@@ -23,6 +25,16 @@ import Utils
 
 --{{{ setup stuff for Parsec
 type OccParser = GenParser Char ParseState
+
+-- | Make MonadState functions work in the parser monad.
+-- This came from http://hackage.haskell.org/trac/ghc/ticket/1274 -- which means
+-- it'll probably be in a future GHC release anyway.
+instance MonadState st (GenParser tok st) where
+  get = getState
+  put = setState
+
+instance Die (GenParser tok st) where
+  die = fail
 
 occamStyle
     = emptyDef
@@ -271,7 +283,7 @@ maybeSubscripted prodName inner subscripter typer
 postSubscripts :: A.Type -> OccParser [A.Subscript]
 postSubscripts t
     = (do sub <- postSubscript t
-          t' <- pSubscriptType sub t
+          t' <- subscriptType sub t
           rest <- postSubscripts t'
           return $ sub : rest)
       <|> return []
@@ -368,27 +380,6 @@ matchType et rt
         _ -> if rt == et then return () else bad
   where
     bad = fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
-
-checkMaybe :: String -> Maybe a -> OccParser a
-checkMaybe msg op
-    = case op of
-        Just t -> return t
-        Nothing -> fail msg
-
-pTypeOf :: (ParseState -> a -> Maybe b) -> a -> OccParser b
-pTypeOf f item
-    =  do st <- getState
-          checkMaybe "cannot compute type" $ f st item
-
-pTypeOfVariable = pTypeOf typeOfVariable
-pTypeOfLiteral = pTypeOf typeOfLiteral
-pTypeOfExpression = pTypeOf typeOfExpression
-pSpecTypeOfName = pTypeOf specTypeOfName
-
-pSubscriptType :: A.Subscript -> A.Type -> OccParser A.Type
-pSubscriptType sub t
-    =  do st <- getState
-          checkMaybe "cannot subscript type" $ subscriptType st sub t
 --}}}
 
 --{{{ name scoping
@@ -415,10 +406,11 @@ scopeIn n@(A.Name m nt s) t am
             A.ndType = t,
             A.ndAbbrevMode = am
           }
-          setState $ psDefineName n' nd $ st {
-            psNameCounter = (psNameCounter st) + 1,
-            psLocalNames = (s, n') : (psLocalNames st)
-            }
+          defineName n' nd
+          modify $ (\st -> st {
+                             psNameCounter = (psNameCounter st) + 1,
+                             psLocalNames = (s, n') : (psLocalNames st)
+                           })
           return n'
 
 scopeOut :: A.Name -> OccParser ()
@@ -602,7 +594,7 @@ byte
 -- i.e. array literal
 table :: OccParser A.Literal
 table
-    = maybeSubscripted "table" table' A.SubscriptedLiteral pTypeOfLiteral
+    = maybeSubscripted "table" table' A.SubscriptedLiteral typeOfLiteral
 
 table' :: OccParser A.Literal
 table'
@@ -611,11 +603,10 @@ table'
     <|> try (do { m <- md; (s, dim) <- stringLiteral; return $ A.Literal m (A.Array [dim] A.Byte) s })
     <|> do m <- md
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
-           ps <- getState
-           ets <- mapM (\e -> checkMaybe "can't type expression" $ typeOfExpression ps e) es
+           ets <- mapM typeOfExpression es
            t <- listType m ets
            return $ A.Literal m t (A.ArrayLiteral m es)
-    <|> maybeSliced table A.SubscriptedLiteral pTypeOfLiteral
+    <|> maybeSliced table A.SubscriptedLiteral typeOfLiteral
     <?> "table'"
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
@@ -638,7 +629,7 @@ character
 --{{{ expressions
 functionNameSingle :: OccParser A.Name
     =  do n <- functionName
-          rts <- (pTypeOf returnTypesOfFunction) n
+          rts <- returnTypesOfFunction n
           case rts of
             [_] -> return n
             _ -> pzero
@@ -646,7 +637,7 @@ functionNameSingle :: OccParser A.Name
 
 functionNameMulti :: OccParser A.Name
     =  do n <- functionName
-          rts <- (pTypeOf returnTypesOfFunction) n
+          rts <- returnTypesOfFunction n
           case rts of
             [_] -> pzero
             _ -> return n
@@ -684,7 +675,7 @@ sizeExpr
 exprOfType :: A.Type -> OccParser A.Expression
 exprOfType wantT
     =  do e <- expression
-          t <- pTypeOfExpression e
+          t <- typeOfExpression e
           matchType wantT t
           return e
 
@@ -752,7 +743,7 @@ conversionMode
 --{{{ operands
 operand :: OccParser A.Expression
 operand
-    = maybeSubscripted "operand" operand' A.SubscriptedExpr pTypeOfExpression
+    = maybeSubscripted "operand" operand' A.SubscriptedExpr typeOfExpression
 
 operand' :: OccParser A.Expression
 operand'
@@ -762,7 +753,7 @@ operand'
 
 operandNotTable :: OccParser A.Expression
 operandNotTable
-    = maybeSubscripted "operandNotTable" operandNotTable' A.SubscriptedExpr pTypeOfExpression
+    = maybeSubscripted "operandNotTable" operandNotTable' A.SubscriptedExpr typeOfExpression
 
 operandNotTable' :: OccParser A.Expression
 operandNotTable'
@@ -779,45 +770,45 @@ operandNotTable'
 --{{{ variables, channels, timers, ports
 variable :: OccParser A.Variable
 variable
-    = maybeSubscripted "variable" variable' A.SubscriptedVariable pTypeOfVariable
+    = maybeSubscripted "variable" variable' A.SubscriptedVariable typeOfVariable
 
 variable' :: OccParser A.Variable
 variable'
     =   try (do { m <- md; n <- variableName; return $ A.Variable m n })
-    <|> try (maybeSliced variable A.SubscriptedVariable pTypeOfVariable)
+    <|> try (maybeSliced variable A.SubscriptedVariable typeOfVariable)
     <?> "variable'"
 
 channel :: OccParser A.Variable
 channel
-    =   maybeSubscripted "channel" channel' A.SubscriptedVariable pTypeOfVariable
+    =   maybeSubscripted "channel" channel' A.SubscriptedVariable typeOfVariable
     <?> "channel"
 
 channel' :: OccParser A.Variable
 channel'
     =   try (do { m <- md; n <- channelName; return $ A.Variable m n })
-    <|> try (maybeSliced channel A.SubscriptedVariable pTypeOfVariable)
+    <|> try (maybeSliced channel A.SubscriptedVariable typeOfVariable)
     <?> "channel'"
 
 timer :: OccParser A.Variable
 timer
-    =   maybeSubscripted "timer" timer' A.SubscriptedVariable pTypeOfVariable
+    =   maybeSubscripted "timer" timer' A.SubscriptedVariable typeOfVariable
     <?> "timer"
 
 timer' :: OccParser A.Variable
 timer'
     =   try (do { m <- md; n <- timerName; return $ A.Variable m n })
-    <|> try (maybeSliced timer A.SubscriptedVariable pTypeOfVariable)
+    <|> try (maybeSliced timer A.SubscriptedVariable typeOfVariable)
     <?> "timer'"
 
 port :: OccParser A.Variable
 port
-    =   maybeSubscripted "port" port' A.SubscriptedVariable pTypeOfVariable
+    =   maybeSubscripted "port" port' A.SubscriptedVariable typeOfVariable
     <?> "port"
 
 port' :: OccParser A.Variable
 port'
     =   try (do { m <- md; n <- portName; return $ A.Variable m n })
-    <|> try (maybeSliced port A.SubscriptedVariable pTypeOfVariable)
+    <|> try (maybeSliced port A.SubscriptedVariable typeOfVariable)
     <?> "port'"
 --}}}
 --{{{ protocols
@@ -880,25 +871,25 @@ declaration
 abbreviation :: OccParser A.Specification
 abbreviation
     =   do m <- md
-           (do { (n, v) <- tryVXV newVariableName sIS variable; sColon; eol; t <- pTypeOfVariable v; return $ A.Specification m n $ A.Is m A.Abbrev t v }
-            <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- pTypeOfVariable v; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s v }
+           (do { (n, v) <- tryVXV newVariableName sIS variable; sColon; eol; t <- typeOfVariable v; return $ A.Specification m n $ A.Is m A.Abbrev t v }
+            <|> do { (s, n, v) <- try (do { s <- specifier; n <- newVariableName; sIS; v <- variable; return (s, n, v) }); sColon; eol; t <- typeOfVariable v; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s v }
             <|> valIsAbbrev
-            <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
-            <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
-            <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
-            <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
-            <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- pTypeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
-            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; return $ A.Specification m n $ A.IsChannelArray m t cs })
-            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM pTypeOfVariable cs; t <- listType m ts; matchType s t; return $ A.Specification m n $ A.IsChannelArray m s cs }))
+            <|> try (do { n <- newChannelName; sIS; c <- channel; sColon; eol; t <- typeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { n <- newTimerName; sIS; c <- timer; sColon; eol; t <- typeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { n <- newPortName; sIS; c <- port; sColon; eol; t <- typeOfVariable c; return $ A.Specification m n $ A.Is m A.Abbrev t c })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; c <- channel; sColon; eol; t <- typeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { s <- specifier; n <- newTimerName; sIS; c <- timer; sColon; eol; t <- typeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { s <- specifier; n <- newPortName; sIS; c <- port; sColon; eol; t <- typeOfVariable c; matchType s t; return $ A.Specification m n $ A.Is m A.Abbrev s c })
+            <|> try (do { n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM typeOfVariable cs; t <- listType m ts; return $ A.Specification m n $ A.IsChannelArray m t cs })
+            <|> try (do { s <- specifier; n <- newChannelName; sIS; sLeft; cs <- sepBy1 channel sComma; sRight; sColon; eol; ts <- mapM typeOfVariable cs; t <- listType m ts; matchType s t; return $ A.Specification m n $ A.IsChannelArray m s cs }))
     <?> "abbreviation"
 
 valIsAbbrev :: OccParser A.Specification
 valIsAbbrev
     =  do m <- md
           sVAL
-          (n, t, e) <- do { (n, e) <- tryVXV newVariableName sIS expression; sColon; eol; t <- pTypeOfExpression e; return (n, t, e) }
-                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- pTypeOfExpression e; matchType s t; return (n, t, e) }
+          (n, t, e) <- do { (n, e) <- tryVXV newVariableName sIS expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
+                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- typeOfExpression e; matchType s t; return (n, t, e) }
           return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
     <?> "VAL IS abbreviation"
 
@@ -1097,10 +1088,7 @@ channelOutput
             c <- tryVX channel sBang
             -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
             -- whether b is a variable or a tag, without knowing the type of a.
-            st <- getState
-            isCase <- case typeOfVariable st c of
-                        Just t -> return $ isCaseProtocolType st t
-                        Nothing -> fail $ "cannot figure out the type of " ++ show c
+            isCase <- typeOfVariable c >>= isCaseProtocolType
             if isCase
               then
                 (try (do { t <- tagName; sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os })
@@ -1303,7 +1291,7 @@ procInstance :: OccParser A.Process
 procInstance
     =  do m <- md
           n <- tryVX procName sLeftR
-          st <- pSpecTypeOfName n
+          st <- specTypeOfName n
           let fs = case st of A.Proc _ fs _ -> fs
           as <- actuals fs
           sRightR
@@ -1317,10 +1305,10 @@ actuals fs = intersperseP (map actual fs) sComma
 actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
-            A.ValAbbrev -> do { e <- expression; et <- pTypeOfExpression e; matchType t et; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
+            A.ValAbbrev -> do { e <- expression; et <- typeOfExpression e; matchType t et; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
             _ -> if isChannelType t
-                   then do { c <- channel; ct <- pTypeOfVariable c; matchType t ct; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
-                   else do { v <- variable; vt <- pTypeOfVariable v; matchType t vt; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
+                   then do { c <- channel; ct <- typeOfVariable c; matchType t ct; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
+                   else do { v <- variable; vt <- typeOfVariable v; matchType t vt; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
 --}}}
@@ -1417,16 +1405,14 @@ mangleModName mod
         then mod
         else mod ++ ".occ"
 
-type LoaderM a = StateT ParseState IO a
-
 -- | Load all the source files necessary for a program.
 -- We have to do this now, before entering the parser, because the parser
 -- doesn't run in the IO monad. If there were a monad transformer version of
 -- Parsec then we could just open files as we need them.
 loadSource :: String -> ParseState -> IO ParseState
-loadSource file ps = execStateT (load file file) ps
+loadSource file ps = execStateT (runErrorT (load file file)) ps
   where
-    load :: String -> String -> LoaderM ()
+    load :: String -> String -> PassM ()
     load file realName
         =  do ps <- get
               case lookup file (psSourceFiles ps) of
@@ -1453,7 +1439,7 @@ parseFile file ps
     =  do let source = fromJust $ lookup file (psSourceFiles ps)
           let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }
           case runParser sourceFile ps' file source of
-            Left err -> die $ "Parse error: " ++ show err
+            Left err -> dieIO $ "Parse error: " ++ show err
             Right (p, ps'') -> return (replaceMain p, ps'')
   where
     replaceMain :: A.Process -> A.Process -> A.Process

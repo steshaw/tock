@@ -5,6 +5,7 @@ import Data.Generics
 import Control.Monad.State
 
 import qualified AST as A
+import Errors
 import Metadata
 
 data Flag = ParseOnly | Verbose | Debug
@@ -56,16 +57,28 @@ emptyState = ParseState {
     psAdditionalArgs = []
   }
 
+-- | Class of monads which keep a ParseState.
+-- (This is just shorthand for the equivalent MonadState constraint.)
+class MonadState ParseState m => PSM m
+instance MonadState ParseState m => PSM m
+
 -- | Add the definition of a name.
-psDefineName :: A.Name -> A.NameDef -> ParseState -> ParseState
-psDefineName n nd ps = ps { psNames = (A.nameName n, nd) : psNames ps }
+defineName :: PSM m => A.Name -> A.NameDef -> m ()
+defineName n nd = modify $ (\ps -> ps { psNames = (A.nameName n, nd) : psNames ps })
 
 -- | Find the definition of a name.
 psLookupName :: ParseState -> A.Name -> Maybe A.NameDef
 psLookupName ps n = lookup (A.nameName n) (psNames ps)
 
+lookupName :: (PSM m, Die m) => A.Name -> m A.NameDef
+lookupName n
+    =  do ps <- get
+          case lookup (A.nameName n) (psNames ps) of
+            Just nd -> return nd
+            Nothing -> die $ "cannot find name " ++ A.nameName n
+
 -- | Generate a throwaway unique name.
-makeNonce :: MonadState ParseState m => String -> m String
+makeNonce :: PSM m => String -> m String
 makeNonce s
     =  do ps <- get
           let i = psNonceCounter ps
@@ -73,13 +86,13 @@ makeNonce s
           return $ s ++ "_n" ++ show i
 
 -- | Add a pulled item to the collection.
-addPulled :: MonadState ParseState m => (A.Process -> A.Process) -> m ()
+addPulled :: PSM m => (A.Process -> A.Process) -> m ()
 addPulled item
     =  do ps <- get
           put $ ps { psPulledItems = item : psPulledItems ps }
 
 -- | Apply pulled items to a Process.
-applyPulled :: MonadState ParseState m => A.Process -> m A.Process
+applyPulled :: PSM m => A.Process -> m A.Process
 applyPulled ast
     =  do ps <- get
           let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
@@ -87,7 +100,7 @@ applyPulled ast
           return ast'
 
 -- | Generate and define a nonce specification.
-defineNonce :: MonadState ParseState m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
+defineNonce :: PSM m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
 defineNonce m s st nt am
     =  do ns <- makeNonce s
           let n = A.Name m A.ProcName ns
@@ -99,33 +112,34 @@ defineNonce m s st nt am
                      A.ndType = st,
                      A.ndAbbrevMode = am
                    }
-          modify $ psDefineName n nd
+          defineName n nd
           return $ A.Specification m n st
 
 -- | Generate and define a no-arg wrapper PROC around a process.
-makeNonceProc :: MonadState ParseState m => Meta -> A.Process -> m A.Specification
+makeNonceProc :: PSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
     = defineNonce m "wrapper_proc" (A.Proc m [] p) A.ProcName A.Abbrev
 
 -- | Generate and define a variable abbreviation.
-makeNonceIs :: MonadState ParseState m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
+makeNonceIs :: PSM m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
 makeNonceIs s m t am v
     = defineNonce m s (A.Is m am t v) A.VariableName am
 
 -- | Generate and define an expression abbreviation.
-makeNonceIsExpr :: MonadState ParseState m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
+makeNonceIsExpr :: PSM m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
 makeNonceIsExpr s m t e
     = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
 
 -- | Generate and define a variable.
-makeNonceVariable :: MonadState ParseState m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
+makeNonceVariable :: PSM m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
 makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t) nt am
 
 -- | Is a name on the list of constants?
-isConstantName :: ParseState -> A.Name -> Bool
-isConstantName ps n
-    = case lookup (A.nameName n) (psConstants ps) of
-        Just _ -> True
-        Nothing -> False
+isConstantName :: PSM m => A.Name -> m Bool
+isConstantName n
+    =  do ps <- get
+          case lookup (A.nameName n) (psConstants ps) of
+            Just _ -> return True
+            Nothing -> return False
 

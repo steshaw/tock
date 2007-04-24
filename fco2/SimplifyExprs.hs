@@ -46,7 +46,7 @@ functionsToProcs = doGeneric `extM` doSpecification
                         A.ndType = st,
                         A.ndAbbrevMode = A.Original
                       }
-             modify $ psDefineName n nd
+             defineName n nd
              doGeneric spec
     doSpecification s = doGeneric s
 
@@ -89,8 +89,7 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
         =  do e' <- doExpressionFunc e
-              ps <- get
-              let t = fromJust $ typeOfExpression ps e'
+              t <- typeOfExpression e'
               case t of
                 A.Array _ _ ->
                   case e' of
@@ -109,13 +108,11 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
     doVariable :: A.Variable -> PassM A.Variable
     doVariable v@(A.SubscriptedVariable m _ _)
         =  do v' <- doGeneric v
-              ps <- get
-              let t = fromJust $ typeOfVariable ps v'
+              t <- typeOfVariable v'
               case t of
                 A.Array _ _ ->
-                  do let am = case fromJust $ abbrevModeOfVariable ps v' of
-                                A.Original -> A.Abbrev
-                                t -> t
+                  do origAM <- abbrevModeOfVariable v'
+                     let am = makeAbbrevAM origAM
                      spec@(A.Specification _ n _) <- makeNonceIs "array_slice" m t am v'
                      addPulled $ A.ProcSpec m spec
                      return $ A.Variable m n
@@ -126,9 +123,9 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
     convertFuncCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Variable]
     convertFuncCall m n es
         = do es' <- pullUp es
-             ps <- get
-             let ets = [fromJust $ typeOfExpression ps e | e <- es']
+             ets <- sequence [typeOfExpression e | e <- es']
 
+             ps <- get
              let rts = fromJust $ lookup (A.nameName n) (psFunctionReturns ps)
              specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
              sequence_ [addPulled $ A.ProcSpec m spec | spec <- specs]

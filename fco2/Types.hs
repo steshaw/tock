@@ -4,62 +4,62 @@ module Types where
 -- FIXME: This module is a mess -- sort it and document the functions.
 
 import Control.Monad
+import Control.Monad.State
 import Data.Generics
 import Data.Maybe
 
 import qualified AST as A
+import Errors
 import ParseState
 import Metadata
 
-perhaps :: Maybe a -> (a -> b) -> Maybe b
-perhaps m f = m >>= (Just . f)
+specTypeOfName :: (PSM m, Die m) => A.Name -> m A.SpecType
+specTypeOfName n
+    = liftM A.ndType (lookupName n)
 
-specTypeOfName :: ParseState -> A.Name -> Maybe A.SpecType
-specTypeOfName ps n
-    = (psLookupName ps n) `perhaps` A.ndType
+abbrevModeOfName :: (PSM m, Die m) => A.Name -> m A.AbbrevMode
+abbrevModeOfName n
+    = liftM A.ndAbbrevMode (lookupName n)
 
-abbrevModeOfName :: ParseState -> A.Name -> Maybe A.AbbrevMode
-abbrevModeOfName ps n
-    = (psLookupName ps n) `perhaps` A.ndAbbrevMode
-
-typeOfName :: ParseState -> A.Name -> Maybe A.Type
-typeOfName ps n
-    = case specTypeOfName ps n of
-        Just (A.Declaration m t) -> Just t
-        Just (A.Is m am t v) -> typeOfVariable ps v
-        Just (A.IsExpr m am t e) -> typeOfExpression ps e
-        Just (A.IsChannelArray m t (c:_)) -> typeOfVariable ps c `perhaps` A.Array [A.UnknownDimension]
-        Just (A.Retypes m am t v) -> Just t
-        Just (A.RetypesExpr m am t e) -> Just t
-        _ -> Nothing
+typeOfName :: (PSM m, Die m) => A.Name -> m A.Type
+typeOfName n
+    =  do st <- specTypeOfName n
+          case st of
+            A.Declaration _ t -> return t
+            A.Is _ _ _ v -> typeOfVariable v
+            A.IsExpr _ _ _ e -> typeOfExpression e
+            A.IsChannelArray _ _ (c:_) -> liftM (A.Array [A.UnknownDimension]) $ typeOfVariable c
+            A.Retypes _ _ t _ -> return t
+            A.RetypesExpr _ _ t _ -> return t
+            _ -> die $ "cannot type name " ++ show st
 
 --{{{  identifying types
-typeOfRecordField :: ParseState -> A.Type -> A.Name -> Maybe A.Type
-typeOfRecordField ps (A.UserDataType rec) field
-    =  do st <- specTypeOfName ps rec
+typeOfRecordField :: (PSM m, Die m) => A.Type -> A.Name -> m A.Type
+typeOfRecordField (A.UserDataType rec) field
+    =  do st <- specTypeOfName rec
           case st of
-            A.DataTypeRecord _ _ fs -> lookup field fs
-            _ -> Nothing
-typeOfRecordField _ _ _ = Nothing
+            A.DataTypeRecord _ _ fs -> checkJust "unknown record field" $ lookup field fs
+            _ -> die "not record type"
+typeOfRecordField _ _ = die "not record type"
 
-subscriptType :: ParseState -> A.Subscript -> A.Type -> Maybe A.Type
-subscriptType _ (A.SubscriptFromFor _ _ _) t = Just t
-subscriptType _ (A.SubscriptFrom _ _) t = Just t
-subscriptType _ (A.SubscriptFor _ _) t = Just t
-subscriptType ps (A.SubscriptField _ tag) t = typeOfRecordField ps t tag
-subscriptType _ (A.Subscript _ _) (A.Array [_] t) = Just t
-subscriptType _ (A.Subscript _ _) (A.Array (_:ds) t) = Just $ A.Array ds t
-subscriptType _ _ _ = Nothing
+subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
+subscriptType (A.SubscriptFromFor _ _ _) t = return t
+subscriptType (A.SubscriptFrom _ _) t = return t
+subscriptType (A.SubscriptFor _ _) t = return t
+subscriptType (A.SubscriptField _ tag) t = typeOfRecordField t tag
+subscriptType (A.Subscript _ _) (A.Array [_] t) = return t
+subscriptType (A.Subscript _ _) (A.Array (_:ds) t) = return $ A.Array ds t
+subscriptType _ _ = die "unsubscriptable type"
 
-typeOfVariable :: ParseState -> A.Variable -> Maybe A.Type
-typeOfVariable ps (A.Variable m n) = typeOfName ps n
-typeOfVariable ps (A.SubscriptedVariable m s v)
-    = typeOfVariable ps v >>= subscriptType ps s
+typeOfVariable :: (PSM m, Die m) => A.Variable -> m A.Type
+typeOfVariable (A.Variable m n) = typeOfName n
+typeOfVariable (A.SubscriptedVariable m s v)
+    = typeOfVariable v >>= subscriptType s
 
-abbrevModeOfVariable :: ParseState -> A.Variable -> Maybe A.AbbrevMode
-abbrevModeOfVariable ps (A.Variable _ n) = abbrevModeOfName ps n
-abbrevModeOfVariable ps (A.SubscriptedVariable _ sub v)
-    =  do am <- abbrevModeOfVariable ps v
+abbrevModeOfVariable :: (PSM m, Die m) => A.Variable -> m A.AbbrevMode
+abbrevModeOfVariable (A.Variable _ n) = abbrevModeOfName n
+abbrevModeOfVariable (A.SubscriptedVariable _ sub v)
+    =  do am <- abbrevModeOfVariable v
           return $ case (am, sub) of
                      (A.ValAbbrev, A.Subscript _ _) -> A.ValAbbrev
                      (_, A.Subscript _ _) -> A.Original
@@ -77,51 +77,53 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
-typeOfExpression :: ParseState -> A.Expression -> Maybe A.Type
-typeOfExpression ps e
+typeOfExpression :: (PSM m, Die m) => A.Expression -> m A.Type
+typeOfExpression e
     = case e of
-        A.Monadic m op e -> typeOfExpression ps e
+        A.Monadic m op e -> typeOfExpression e
         A.Dyadic m op e f ->
-          if dyadicIsBoolean op then Just A.Bool else typeOfExpression ps e
-        A.MostPos m t -> Just t
-        A.MostNeg m t -> Just t
-        A.SizeType m t -> Just A.Int
-        A.SizeExpr m t -> Just A.Int
-        A.SizeVariable m t -> Just A.Int
-        A.Conversion m cm t e -> Just t
-        A.ExprVariable m v -> typeOfVariable ps v
-        A.ExprLiteral m l -> typeOfLiteral ps l
-        A.True m -> Just A.Bool
-        A.False m -> Just A.Bool
-        A.FunctionCall m n es ->
-          case returnTypesOfFunction ps n of
-            Just [t] -> Just t
-            _ -> Nothing
+          if dyadicIsBoolean op then return A.Bool else typeOfExpression e
+        A.MostPos m t -> return t
+        A.MostNeg m t -> return t
+        A.SizeType m t -> return A.Int
+        A.SizeExpr m t -> return A.Int
+        A.SizeVariable m t -> return A.Int
+        A.Conversion m cm t e -> return t
+        A.ExprVariable m v -> typeOfVariable v
+        A.ExprLiteral m l -> typeOfLiteral l
+        A.True m -> return A.Bool
+        A.False m -> return A.Bool
+        A.FunctionCall m n es -> liftM head $ returnTypesOfFunction n
         A.SubscriptedExpr m s e ->
-          typeOfExpression ps e >>= subscriptType ps s
-        A.BytesInExpr m e -> Just A.Int
-        A.BytesInType m t -> Just A.Int
-        A.OffsetOf m t n -> Just A.Int
+          typeOfExpression e >>= subscriptType s
+        A.BytesInExpr m e -> return A.Int
+        A.BytesInType m t -> return A.Int
+        A.OffsetOf m t n -> return A.Int
 
-typeOfLiteral :: ParseState -> A.Literal -> Maybe A.Type
-typeOfLiteral ps (A.Literal m t lr) = Just t
-typeOfLiteral ps (A.SubscriptedLiteral m s l)
-    = typeOfLiteral ps l >>= subscriptType ps s
+typeOfLiteral :: (PSM m, Die m) => A.Literal -> m A.Type
+typeOfLiteral (A.Literal m t lr) = return t
+typeOfLiteral (A.SubscriptedLiteral m s l)
+    = typeOfLiteral l >>= subscriptType s
 --}}}
 
-returnTypesOfFunction :: ParseState -> A.Name -> Maybe [A.Type]
-returnTypesOfFunction ps n
-    = case specTypeOfName ps n of
-        Just (A.Function m rs fs vp) -> Just rs
-        -- If it's not defined as a function, it might have been converted to a proc.
-        _ -> lookup (A.nameName n) (psFunctionReturns ps)
+returnTypesOfFunction :: (PSM m, Die m) => A.Name -> m [A.Type]
+returnTypesOfFunction n
+    =  do st <- specTypeOfName n
+          case st of
+            A.Function m rs fs vp -> return rs
+            -- If it's not defined as a function, it might have been converted to a proc.
+            _ ->
+              do ps <- get
+                 checkJust "not defined as a function" $
+                   lookup (A.nameName n) (psFunctionReturns ps)
 
-isCaseProtocolType :: ParseState -> A.Type -> Bool
-isCaseProtocolType ps (A.Chan (A.UserProtocol pr))
-    = case specTypeOfName ps pr of
-        Just (A.ProtocolCase _ _) -> True
-        _ -> False
-isCaseProtocolType ps _ = False
+isCaseProtocolType :: (PSM m, Die m) => A.Type -> m Bool
+isCaseProtocolType (A.Chan (A.UserProtocol pr))
+    =  do st <- specTypeOfName pr
+          case st of
+            A.ProtocolCase _ _ -> return True
+            _ -> return False
+isCaseProtocolType _ = return False
 
 abbrevModeOfSpec :: A.SpecType -> A.AbbrevMode
 abbrevModeOfSpec s
@@ -147,6 +149,12 @@ isChannelType _ = False
 stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t
+
+-- | Given the abbreviation mode of something, return what the abbreviation
+-- mode of something that abbreviated it would be.
+makeAbbrevAM :: A.AbbrevMode -> A.AbbrevMode
+makeAbbrevAM A.Original = A.Abbrev
+makeAbbrevAM am = am
 
 -- | Generate a constant expression from an integer -- for array sizes and the like.
 makeConstant :: Meta -> Int -> A.Expression

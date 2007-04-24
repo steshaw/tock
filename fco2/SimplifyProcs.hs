@@ -50,8 +50,7 @@ removeParAssign = doGeneric `extM` doProcess
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
-        =  do ps <- get
-              let ts = [fromJust $ typeOfVariable ps v | v <- vs]
+        =  do ts <- mapM typeOfVariable vs
               specs <- sequence [makeNonceVariable "assign_temp" m t A.VariableName A.Original | t <- ts]
               let temps = [A.Variable m n | A.Specification _ n _ <- specs]
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
