@@ -1,0 +1,3 @@
+PROC foo (INT x)
+  SKIP
+:

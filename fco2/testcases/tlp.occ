@@ -1,0 +1,8 @@
+PROC tlp (CHAN OF BYTE err, out, keyboard)
+  WHILE TRUE
+    BYTE b:
+    SEQ
+      keyboard ? b
+      err ! b
+      out ! (b + 1)
+:
