@@ -544,17 +544,39 @@ genReplicator rep body
           body
           tell ["}\n"]
 
+isZero :: A.Expression -> Bool
+isZero (A.ExprLiteral _ (A.Literal _ A.Int (A.IntLiteral _ "0"))) = True
+isZero _ = False
+
 genReplicatorLoop :: A.Replicator -> CGen ()
-genReplicatorLoop (A.For m n base count)
+genReplicatorLoop (A.For m index base count)
+    = if isZero base
+        then genSimpleReplicatorLoop index count
+        else genGeneralReplicatorLoop index base count
+
+genSimpleReplicatorLoop :: A.Name -> A.Expression -> CGen ()
+genSimpleReplicatorLoop index count
+    =  do tell ["int "]
+          genName index
+          tell [" = 0; "]
+          genName index
+          tell [" < "]
+          genExpression count
+          tell ["; "]
+          genName index
+          tell ["++"]
+
+genGeneralReplicatorLoop :: A.Name -> A.Expression -> A.Expression -> CGen ()
+genGeneralReplicatorLoop index base count
     =  do counter <- makeNonce "replicator_count"
           tell ["int ", counter, " = "]
           genExpression count
           tell [", "]
-          genName n
+          genName index
           tell [" = "]
           genExpression base
           tell ["; ", counter, " > 0; ", counter, "--, "]
-          genName n
+          genName index
           tell ["++"]
 
 genReplicatorSize :: A.Replicator -> CGen ()

@@ -46,6 +46,9 @@ works correctly.
 
 ## Passes
 
+Expression simplification -- this should use generics, so that we can have a
+default behaviour that simplifies expressions inside another one.
+
 Output item expressions should be pulled up to variables.
 
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
@@ -63,9 +66,6 @@ Multidimensional array literals won't work.
 
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
-
-Replicator loops should be special-cased for when base == 0 to generate the
-sort of loop a C programmer would normally write.
 
 genTopLevel should look at what interface the PROC is actually expecting, like
 occ21 does.
