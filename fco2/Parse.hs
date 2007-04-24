@@ -19,6 +19,7 @@ import Metadata
 import ParseState
 import Pass
 import Types
+import Utils
 
 --{{{ setup stuff for Parsec
 type OccParser = GenParser Char ParseState
@@ -1415,16 +1416,6 @@ mangleModName mod
     = if ".occ" `isSuffixOf` mod || ".inc" `isSuffixOf` mod
         then mod
         else mod ++ ".occ"
-
--- | Join a relative path to an existing path (i.e. if you're given foo/bar and
--- baz, return foo/baz).
-joinPath :: String -> String -> String
-joinPath base new
-    = case matchRegex pathRE base of
-        Just [dir] -> dir ++ new
-        Nothing -> new
-  where
-    pathRE = mkRegex "^(.*/)[^/]*$"
 
 type LoaderM a = StateT ParseState IO a
 

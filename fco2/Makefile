@@ -18,7 +18,8 @@ sources = \
 	SimplifyProcs.hs \
 	TLP.hs \
 	Types.hs \
-	Unnest.hs
+	Unnest.hs \
+	Utils.hs
 
 $(targets): $(sources)
 	ghc -fglasgow-exts -o fco --make Main

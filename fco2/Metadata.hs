@@ -3,6 +3,8 @@ module Metadata where
 
 import Data.Generics
 
+import Utils
+
 data Meta = Meta {
     metaFile :: Maybe String,
     metaLine :: Int,
@@ -20,5 +22,5 @@ emptyMeta = Meta {
 instance Show Meta where
   show m =
       case metaFile m of
-        Just s -> s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
+        Just s -> basenamePath s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
         Nothing -> "no source position"
