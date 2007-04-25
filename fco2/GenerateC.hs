@@ -208,7 +208,7 @@ genLiteral l = missing $ "genLiteral " ++ show l
 genLiteralRepr :: A.LiteralRepr -> CGen ()
 genLiteralRepr (A.RealLiteral m s) = tell [s]
 genLiteralRepr (A.IntLiteral m s) = tell [s]
-genLiteralRepr (A.HexLiteral m s) = case s of ('#':rest) -> tell ["0x", rest]
+genLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
 genLiteralRepr (A.ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
 genLiteralRepr (A.StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
 genLiteralRepr (A.ArrayLiteral m es)

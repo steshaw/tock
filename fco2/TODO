@@ -31,8 +31,6 @@ The indentation parser is way too simplistic.
 
 Type checks need adding to the parser.
 
-Everything should be converted to commit as soon as possible.
-
 We should have a "current type context" in the parser, so that VAL BYTE b IS 4:
 works correctly.
 
