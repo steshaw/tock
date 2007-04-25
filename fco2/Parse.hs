@@ -602,26 +602,26 @@ dataType
     <|> do { sREAL64; return A.Real64 }
     <|> arrayType dataType
     <|> do { n <- try dataTypeName; return $ A.UserDataType n }
-    <?> "dataType"
+    <?> "data type"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
     <|> arrayType channelType
-    <?> "channelType"
+    <?> "channel type"
 
 timerType :: OccParser A.Type
 timerType
     =   do { sTIMER; return $ A.Timer }
     <|> arrayType timerType
-    <?> "timerType"
+    <?> "timer type"
 
 portType :: OccParser A.Type
 portType
     =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
     <|> arrayType portType
-    <?> "portType"
+    <?> "port type"
 --}}}
 --{{{ literals
 isValidLiteralType :: A.Type -> A.Type -> Bool
@@ -658,7 +658,7 @@ real
            l <- tryVX digits (char '.')
            r <- lexeme digits
            return $ A.RealLiteral m (l ++ "." ++ r)
-    <?> "real"
+    <?> "real literal"
 
 occamExponent :: OccParser String
 occamExponent
@@ -672,12 +672,12 @@ integer
     =  do m <- md
           do { d <- lexeme digits; return $ A.IntLiteral m d }
             <|> do { sHash; d <- many1 hexDigit; return $ A.HexLiteral m d }
-    <?> "integer"
+    <?> "integer literal"
 
 digits :: OccParser String
 digits
     =   many1 digit
-    <?> "digits"
+    <?> "decimal digits"
 
 byte :: OccParser A.LiteralRepr
 byte
@@ -686,7 +686,7 @@ byte
           s <- character
           sApos
           return $ A.ByteLiteral m s
-    <?> "byte"
+    <?> "byte literal"
 
 -- i.e. array literal
 table :: OccParser A.Literal
@@ -716,7 +716,7 @@ stringLiteral
           char '"'
           cs <- manyTill character sQuote
           return (A.StringLiteral m $ concat cs, A.Dimension $ makeConstant m $ length cs)
-    <?> "stringLiteral"
+    <?> "string literal"
 
 character :: OccParser String
 character
@@ -768,7 +768,7 @@ expressionList types
            es <- intersperseP (map expressionOfType types) sComma
            return $ A.ExpressionList m es
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
-    <?> "expressionList"
+    <?> "expression list"
 
 expression :: OccParser A.Expression
 expression
@@ -893,7 +893,7 @@ conversionMode
     <|> do { sTRUNC; o <- noTypeContext operand; return (A.Trunc, o) }
     -- This uses operandNotTable to resolve the "x[y]" ambiguity.
     <|> do { o <- noTypeContext operandNotTable; return (A.DefaultConversion, o) }
-    <?> "conversionMode"
+    <?> "conversion mode and operand"
 --}}}
 --{{{ operands
 operand :: OccParser A.Expression
@@ -908,7 +908,7 @@ operand'
 
 operandNotTable :: OccParser A.Expression
 operandNotTable
-    = maybeSubscripted "operandNotTable" operandNotTable' A.SubscriptedExpr typeOfExpression
+    = maybeSubscripted "operand other than table" operandNotTable' A.SubscriptedExpr typeOfExpression
 
 operandNotTable' :: OccParser A.Expression
 operandNotTable'
@@ -923,7 +923,7 @@ operandNotTable'
            do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }
              <|> do { t <- dataType; sRightR; return $ A.BytesInType m t }
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
-    <?> "operandNotTable'"
+    <?> "operand other than table'"
 --}}}
 --{{{ variables, channels, timers, ports
 variable :: OccParser A.Variable
@@ -995,18 +995,18 @@ simpleProtocol
     =   do { l <- tryVX dataType sColons; sLeft; sRight; r <- dataType; return $ A.Counted l r }
     <|> dataType
     <|> do { sANY; return $ A.Any }
-    <?> "simpleProtocol"
+    <?> "simple protocol"
 
 sequentialProtocol :: OccParser [A.Type]
 sequentialProtocol
     =   do { l <- try $ sepBy1 simpleProtocol sSemi; return l }
-    <?> "sequentialProtocol"
+    <?> "sequential protocol"
 
 taggedProtocol :: OccParser (A.Name, [A.Type])
 taggedProtocol
     =   do { t <- tryVX newTagName eol; return (t, []) }
     <|> do { t <- newTagName; sSemi; sp <- sequentialProtocol; eol; return (t, sp) }
-    <?> "taggedProtocol"
+    <?> "tagged protocol"
 --}}}
 --{{{ replicators
 replicator :: OccParser A.Replicator
@@ -1160,7 +1160,7 @@ dataSpecifier
     =   dataType
     <|> do s <- tryXXV sLeft sRight dataSpecifier
            return $ makeArrayType A.UnknownDimension s
-    <?> "dataSpecifier"
+    <?> "data specifier"
 
 specifier :: OccParser A.Type
 specifier
@@ -1180,7 +1180,7 @@ formalList
           fs <- sepBy formalArgSet sComma
           sRightR
           return $ concat fs
-    <?> "formalList"
+    <?> "formal list"
 
 formalArgSet :: OccParser [A.Formal]
 formalArgSet
@@ -1190,7 +1190,6 @@ formalArgSet
     <|> do t <- specifier
            ns <- sepBy1NE newChannelName sComma
            return [A.Formal A.Abbrev t n | n <- ns]
-    <?> "formalArgSet"
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
     =   do sVAL
@@ -1198,7 +1197,7 @@ formalVariableType :: OccParser (A.AbbrevMode, A.Type)
            return (A.ValAbbrev, s)
     <|> do s <- dataSpecifier
            return (A.Abbrev, s)
-    <?> "formalVariableType"
+    <?> "formal variable type"
 
 valueProcess :: [A.Type] -> OccParser A.ValueProcess
 valueProcess rs
@@ -1225,13 +1224,12 @@ structuredType
            fs <- many1 structuredTypeField
            outdent
            return $ A.DataTypeRecord m isPacked (concat fs)
-    <?> "structuredType"
+    <?> "structured type"
 
 recordKeyword :: OccParser Bool
 recordKeyword
     =   do { sPACKED; sRECORD; return True }
     <|> do { sRECORD; return False }
-    <?> "recordKeyword"
 
 structuredTypeField :: OccParser [(A.Name, A.Type)]
 structuredTypeField
@@ -1240,7 +1238,7 @@ structuredTypeField
            sColon
            eol
            return [(f, t) | f <- fs]
-    <?> "structuredTypeField"
+    <?> "structured type field"
 --}}}
 --}}}
 --{{{ processes
@@ -1309,14 +1307,14 @@ channelInput :: OccParser (A.Variable, A.InputMode)
                   tl <- taggedList nts
                   eol
                   return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m))))
-    <?> "channelInput"
+    <?> "channel input"
 
 timerInput :: OccParser (A.Variable, A.InputMode)
     =   do m <- md
            c <- tryVX timer sQuest
            do { v <- variableOfType A.Int; eol; return (c, A.InputSimple m [A.InVariable m v]) }
              <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) }
-    <?> "timerInput"
+    <?> "timer input"
 
 taggedList :: [(A.Name, [A.Type])] -> OccParser (A.Process -> A.Variant)
 taggedList nts
@@ -1325,7 +1323,7 @@ taggedList nts
           ts <- checkJust "unknown tag in protocol" $ lookup tag nts
           is <- sequence [sSemi >> inputItem t | t <- ts]
           return $ A.Variant m tag is
-    <?> "taggedList"
+    <?> "tagged list"
 
 inputItem :: A.Type -> OccParser A.InputItem
 inputItem t
@@ -1340,7 +1338,7 @@ inputItem t
           do m <- md
              v <- variableOfType t
              return $ A.InVariable m v
-    <?> "inputItem"
+    <?> "input item"
 --}}}
 --{{{ variant input (? CASE)
 caseInputItems :: A.Variable -> OccParser [(A.Name, [A.Type])]
@@ -1359,7 +1357,7 @@ caseInput
            vs <- many1 (variant nts)
            outdent
            return $ A.Input m c (A.InputCase m (A.Several m vs))
-    <?> "caseInput"
+    <?> "case input"
 
 variant :: [(A.Name, [A.Type])] -> OccParser A.Structured
 variant nts
@@ -1403,7 +1401,7 @@ channelOutput
                   os <- sequence [sSemi >> outputItem t | t <- ts]
                   eol
                   return $ A.OutputCase m c tag os
-    <?> "channelOutput"
+    <?> "channel output"
 
 outputItem :: A.Type -> OccParser A.OutputItem
 outputItem t
@@ -1418,7 +1416,7 @@ outputItem t
           do m <- md
              e <- expressionOfType t
              return $ A.OutExpression m e
-    <?> "outputItem"
+    <?> "output item"
 --}}}
 --{{{ SEQ
 seqProcess :: OccParser A.Process
@@ -1427,7 +1425,7 @@ seqProcess
            sSEQ
            do { eol; indent; ps <- many1 process; outdent; return $ A.Seq m ps }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.SeqRep m r' p }
-    <?> "seqProcess"
+    <?> "SEQ process"
 --}}}
 --{{{ IF
 ifProcess :: OccParser A.Process
@@ -1435,7 +1433,7 @@ ifProcess
     =   do m <- md
            c <- conditional
            return $ A.If m c
-    <?> "ifProcess"
+    <?> "IF process"
 
 conditional :: OccParser A.Structured
 conditional
@@ -1461,7 +1459,7 @@ guardedChoice
            p <- process
            outdent
            return $ A.OnlyC m (A.Choice m b p)
-    <?> "guardedChoice"
+    <?> "guarded choice"
 --}}}
 --{{{ CASE
 caseProcess :: OccParser A.Process
@@ -1476,7 +1474,7 @@ caseProcess
            os <- many1 (caseOption t)
            outdent
            return $ A.Case m sel (A.Several m os)
-    <?> "caseProcess"
+    <?> "CASE process"
 
 caseOption :: A.Type -> OccParser A.Structured
 caseOption t
@@ -1508,7 +1506,7 @@ whileProcess
            p <- process
            outdent
            return $ A.While m b p
-    <?> "whileProcess"
+    <?> "WHILE process"
 --}}}
 --{{{ PAR
 parallel :: OccParser A.Process
@@ -1518,13 +1516,12 @@ parallel
            do { eol; indent; ps <- many1 process; outdent; return $ A.Par m isPri ps }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.ParRep m isPri r' p }
     <|> placedpar
-    <?> "parallel"
+    <?> "PAR process"
 
 parKeyword :: OccParser A.ParMode
 parKeyword
     =   do { sPAR; return A.PlainPar }
     <|> do { tryXX sPRI sPAR; return A.PriPar }
-    <?> "parKeyword"
 
 -- XXX PROCESSOR as a process isn't really legal, surely?
 placedpar :: OccParser A.Process
@@ -1541,7 +1538,7 @@ placedpar
            p <- process
            outdent
            return $ A.Processor m e p
-    <?> "placedpar"
+    <?> "PLACED PAR process"
 --}}}
 --{{{ ALT
 altProcess :: OccParser A.Process
@@ -1549,7 +1546,7 @@ altProcess
     =   do m <- md
            (isPri, a) <- alternation
            return $ A.Alt m isPri a
-    <?> "altProcess"
+    <?> "ALT process"
 
 alternation :: OccParser (Bool, A.Structured)
 alternation
@@ -1563,7 +1560,6 @@ altKeyword :: OccParser Bool
 altKeyword
     =   do { sALT; return False }
     <|> do { tryXX sPRI sALT; return True }
-    <?> "altKeyword"
 
 -- The reason the CASE guards end up here is because they have to be handled
 -- specially: you can't tell until parsing the guts of the CASE what the processes
@@ -1603,7 +1599,7 @@ guardedAlternative
            p <- process
            outdent
            return $ A.OnlyA m (makeAlt p)
-    <?> "guardedAlternative"
+    <?> "guarded alternative"
 
 guard :: OccParser (A.Process -> A.Alternative)
 guard
@@ -1627,7 +1623,7 @@ procInstance
           sRightR
           eol
           return $ A.ProcCall m n as
-    <?> "procInstance"
+    <?> "PROC instance"
 
 actuals :: [A.Formal] -> OccParser [A.Actual]
 actuals fs = intersperseP (map actual fs) sComma
