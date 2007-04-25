@@ -87,17 +87,18 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
-        A.Specification m n st@(A.Proc _ fs p) ->
-          do
-             -- Figure out the free names. We only want to do this for channels
-             -- and variables, and we don't want to do it for constants because
-             -- they'll get pulled to the top level anyway.
-             let freeNames' = Map.elems $ freeNamesIn st
+        A.Specification m n st@(A.Proc _ _ _) ->
+          do st'@(A.Proc _ fs p) <- removeFreeNames st
+             -- Figure out the free names.
+             let freeNames' = Map.elems $ freeNamesIn st'
              let freeNames'' = [n | n <- freeNames',
                                     case A.nameType n of
                                       A.ChannelName -> True
+                                      A.PortName -> True
+                                      A.TimerName -> True
                                       A.VariableName -> True
                                       _ -> False]
+             -- Don't bother with constants -- they get pulled up anyway.
              freeNames <- filterM (liftM not . isConstantName) freeNames''
              types <- mapM typeOfName freeNames
              origAMs <- mapM abbrevModeOfName freeNames
@@ -111,12 +112,11 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                         | (ond, nn, am) <- zip3 onds newNames ams]
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             p' <- removeFreeNames $ replaceNames (zip freeNames newNames) p
-             let st' = A.Proc m (fs ++ newFs) p'
-             let spec' = A.Specification m n st'
+             let st'' = A.Proc m (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
+             let spec' = A.Specification m n st''
              -- Update the definition of the proc
              nameDef <- lookupName n
-             defineName n (nameDef { A.ndType = st' })
+             defineName n (nameDef { A.ndType = st'' })
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
              let newAs = [case am of
