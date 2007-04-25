@@ -1,13 +1,13 @@
 -- Various stuff taken from the course library that's used by these testcases.
 -- This has all been translated back to occam2 for now.
 
-VAL BYTE NULL IS 0 (BYTE):          --* ASCII NUL
-VAL BYTE BELL IS 7 (BYTE):          --* ASCII BEL - terminal bell
-VAL BYTE BACK IS 8 (BYTE):          --* ASCII BS - backspace key
-VAL BYTE ESCAPE IS 27 (BYTE):       --* ASCII ESC - escape key
-VAL BYTE DELETE IS 127 (BYTE):      --* ASCII DEL - delete key
-VAL BYTE FLUSH IS 255 (BYTE):       --* Flush output buffer
-VAL BYTE END.OF.FILE IS 255 (BYTE): --* End of file
+VAL BYTE NULL IS 0:          --* ASCII NUL
+VAL BYTE BELL IS 7:          --* ASCII BEL - terminal bell
+VAL BYTE BACK IS 8:          --* ASCII BS - backspace key
+VAL BYTE ESCAPE IS 27:       --* ASCII ESC - escape key
+VAL BYTE DELETE IS 127:      --* ASCII DEL - delete key
+VAL BYTE FLUSH IS 255:       --* Flush output buffer
+VAL BYTE END.OF.FILE IS 255: --* End of file
 
 --{{{  PROC out.repeat (VAL BYTE ch, VAL INT n, CHAN OF BYTE out)
 --* Write a character repeatedly to a channel.

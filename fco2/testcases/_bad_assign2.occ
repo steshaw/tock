@@ -1,0 +1,6 @@
+INT, INT FUNCTION F () IS 4, 2:
+PROC P ()
+  BOOL b:
+  REAL32 r:
+  r, b := F ()
+:

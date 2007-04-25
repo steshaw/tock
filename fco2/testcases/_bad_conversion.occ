@@ -1,0 +1,5 @@
+PROC P ()
+  INT x:
+  REAL32 y:
+  x := INT y
+:

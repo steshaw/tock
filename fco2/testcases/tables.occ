@@ -1,6 +1,7 @@
 PROC main ()
   VAL INT n IS 3:
   VAL []BYTE s IS "hello world":
+  VAL []INT ns IS [1, 2, 3, 4, 5]:
   SKIP
 :
 

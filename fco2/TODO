@@ -29,10 +29,9 @@ Add a -o option to control where the output goes (stdout by default for now).
 
 The indentation parser is way too simplistic.
 
-Type checks need adding to the parser.
+Shift counts aren't implemented.
 
-We should have a "current type context" in the parser, so that VAL BYTE b IS 4:
-works correctly.
+Record literals aren't implemented.
 
 ## Passes
 

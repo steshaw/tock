@@ -1,7 +1,7 @@
 PROC main ()
   INT a, b:
   VAL INT c IS 42:
-  VAL BYTE bb IS 27 (BYTE):
+  VAL BYTE bb IS 27:
   VAL INT d IS a + b:
   VAL INT dd IS c + d:
   INT e IS a:

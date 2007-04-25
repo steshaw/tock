@@ -1,0 +1,4 @@
+PROC P ()
+  VAL INT foo IS 3.14159:
+  SKIP
+:

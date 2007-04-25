@@ -117,13 +117,18 @@ returnTypesOfFunction n
                  checkJust "not defined as a function" $
                    lookup (A.nameName n) (psFunctionReturns ps)
 
-isCaseProtocolType :: (PSM m, Die m) => A.Type -> m Bool
-isCaseProtocolType (A.Chan (A.UserProtocol pr))
-    =  do st <- specTypeOfName pr
-          case st of
-            A.ProtocolCase _ _ -> return True
-            _ -> return False
-isCaseProtocolType _ = return False
+-- | Get the items in a channel's protocol (for typechecking).
+-- Returns Left if it's a simple protocol, Right if it's tagged.
+protocolItems :: (PSM m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
+protocolItems v
+    =  do A.Chan t <- typeOfVariable v
+          case t of
+            A.UserProtocol proto ->
+              do st <- specTypeOfName proto
+                 case st of
+                   A.Protocol _ ts -> return $ Left ts
+                   A.ProtocolCase _ nts -> return $ Right nts
+            _ -> return $ Left [t]
 
 abbrevModeOfSpec :: A.SpecType -> A.AbbrevMode
 abbrevModeOfSpec s
@@ -191,3 +196,24 @@ isSafeConversion fromT toT = (fromP /= -1) && (toP /= -1) && (fromP <= toP)
           , [A.Int, A.Int32]
           , [A.Int64]
           ]
+
+--{{{ classes of types
+-- | Scalar integer types.
+isIntegerType :: A.Type -> Bool
+isIntegerType t
+    = case t of
+        A.Byte -> True
+        A.Int -> True
+        A.Int16 -> True
+        A.Int32 -> True
+        A.Int64 -> True
+        _ -> False
+
+-- Real types.
+isRealType :: A.Type -> Bool
+isRealType t
+    = case t of
+        A.Real32 -> True
+        A.Real64 -> True
+        _ -> False
+--}}}

@@ -24,6 +24,7 @@ data ParseState = ParseState {
     psMainLocals :: [(String, A.Name)],
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
+    psTypeContext :: [Maybe A.Type],
     psConstants :: [(String, A.Expression)],
     psLoadedFiles :: [String],
 
@@ -48,6 +49,7 @@ emptyState = ParseState {
     psMainLocals = [],
     psNames = [],
     psNameCounter = 0,
+    psTypeContext = [],
     psConstants = [],
     psLoadedFiles = [],
 
@@ -67,9 +69,6 @@ defineName :: PSM m => A.Name -> A.NameDef -> m ()
 defineName n nd = modify $ (\ps -> ps { psNames = (A.nameName n, nd) : psNames ps })
 
 -- | Find the definition of a name.
-psLookupName :: ParseState -> A.Name -> Maybe A.NameDef
-psLookupName ps n = lookup (A.nameName n) (psNames ps)
-
 lookupName :: (PSM m, Die m) => A.Name -> m A.NameDef
 lookupName n
     =  do ps <- get
@@ -98,6 +97,24 @@ applyPulled ast
           let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
           put $ ps { psPulledItems = [] }
           return ast'
+
+-- | Enter a type context.
+pushTypeContext :: PSM m => Maybe A.Type -> m ()
+pushTypeContext t
+    = modify (\ps -> ps { psTypeContext = t : psTypeContext ps })
+
+-- | Leave a type context.
+popTypeContext :: PSM m => m ()
+popTypeContext
+    = modify (\ps -> ps { psTypeContext = tail $ psTypeContext ps })
+
+-- | Get the current type context (or the given default value if there isn't one).
+getTypeContext :: PSM m => A.Type -> m A.Type
+getTypeContext def
+    =  do ps <- get
+          case psTypeContext ps of
+            (Just c):_ -> return c
+            _ -> return def
 
 -- | Generate and define a nonce specification.
 defineNonce :: PSM m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification

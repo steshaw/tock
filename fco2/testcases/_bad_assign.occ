@@ -1,0 +1,5 @@
+PROC P ()
+  INT x:
+  BYTE b:
+  x := b
+:

@@ -1,7 +1,7 @@
 -- | Parse occam code into an AST.
 module Parse where
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, when)
 import Control.Monad.Error (runErrorT)
 import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get, put)
 import Data.List
@@ -408,6 +408,7 @@ intersperseP (f:fs) sep
           as <- intersperseP fs sep
           return $ a : as
 
+-- | Check that all items in a list have the same type.
 listType :: Meta -> [A.Type] -> OccParser A.Type
 listType m l = listType' m (length l) l
   where
@@ -417,6 +418,7 @@ listType m l = listType' m (length l) l
         = if t1 == t2 then listType' m len rest
                       else fail "multiple types in list"
 
+-- | Check that a type we've inferred matches the type we expected.
 matchType :: A.Type -> A.Type -> OccParser ()
 matchType et rt
     = case (et, rt) of
@@ -425,6 +427,34 @@ matchType et rt
         _ -> if rt == et then return () else bad
   where
     bad = fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
+
+-- | Check that two lists of types match (for example, for parallel assignment).
+matchTypes :: [A.Type] -> [A.Type] -> OccParser ()
+matchTypes ets rts
+    = sequence_ [matchType et rt | (et, rt) <- zip ets rts]
+
+-- | Parse a production inside a particular type context.
+inTypeContext :: Maybe A.Type -> OccParser a -> OccParser a
+inTypeContext ctx body
+    =  do pushTypeContext ctx
+          v <- body
+          popTypeContext
+          return v
+
+-- | Parse a production with no particular type context (i.e. where we're
+-- inside some bit of an expression that means we can't tell what the type is).
+noTypeContext :: OccParser a -> OccParser a
+noTypeContext = inTypeContext Nothing
+
+-- | Push a type context that's a simple subscript of the existing one.
+pushSubscriptTypeContext :: (PSM m, Die m) => m ()
+pushSubscriptTypeContext
+    =  do ps <- get
+          case psTypeContext ps of
+            (Just t):_ ->
+              do subT <- subscriptType (A.Subscript emptyMeta $ makeConstant emptyMeta 0) t
+                 pushTypeContext $ Just subT
+            _ -> pushTypeContext Nothing
 --}}}
 
 --{{{ name scoping
@@ -594,12 +624,22 @@ portType
     <?> "portType"
 --}}}
 --{{{ literals
+isValidLiteralType :: A.Type -> A.Type -> Bool
+isValidLiteralType defT t
+    = case defT of
+        A.Real32 -> isRealType t
+        A.Int -> isIntegerType t
+        A.Byte -> isIntegerType t
+
 literal :: OccParser A.Literal
 literal
     =  do m <- md
           (defT, lr) <- untypedLiteral
-          do { try sLeftR; t <- dataType; sRightR; return $ A.Literal m t lr }
-            <|> (return $ A.Literal m defT lr)
+          t <- do { try sLeftR; t <- dataType; sRightR; return t }
+               <|> (getTypeContext defT)
+          when (not $ isValidLiteralType defT t) $
+            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
+          return $ A.Literal m t lr
     <?> "literal"
 
 untypedLiteral :: OccParser (A.Type, A.LiteralRepr)
@@ -655,13 +695,15 @@ table
 
 table' :: OccParser A.Literal
 table'
-    -- FIXME Check dimensions match
     =   do m <- md
            (s, dim) <- stringLiteral
-           do { sLeftR; t <- dataType; sRightR; return $ A.Literal m t s }
-             <|> (return $ A.Literal m (A.Array [dim] A.Byte) s)
+           let defT = A.Array [dim] A.Byte
+           do { sLeftR; t <- dataType; sRightR; matchType defT t; return $ A.Literal m t s }
+             <|> (return $ A.Literal m defT s)
     <|> do m <- md
+           pushSubscriptTypeContext
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
+           popTypeContext
            ets <- mapM typeOfExpression es
            t <- listType m ets
            return $ A.Literal m t (A.ArrayLiteral m es)
@@ -706,22 +748,49 @@ functionNameMulti :: OccParser A.Name
             _ -> return n
     <?> "function with multiple return values"
 
-expressionList :: OccParser A.ExpressionList
-expressionList
-    =   do { m <- md; n <- try functionNameMulti; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCallList m n as }
-    <|> do { m <- md; es <- sepBy1 expression sComma; return $ A.ExpressionList m es }
+functionActuals :: A.Name -> OccParser [A.Expression]
+functionActuals func
+    =  do A.Function _ ats _ _ <- specTypeOfName func
+          sLeftR
+          es <- intersperseP (map expressionOfType ats) sComma
+          sRightR
+          return es
+
+expressionList :: [A.Type] -> OccParser A.ExpressionList
+expressionList types
+    =   do m <- md
+           n <- try functionNameMulti
+           as <- functionActuals n
+           rts <- returnTypesOfFunction n
+           matchTypes types rts
+           return $ A.FunctionCallList m n as
+    <|> do m <- md
+           es <- intersperseP (map expressionOfType types) sComma
+           return $ A.ExpressionList m es
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expressionList"
 
 expression :: OccParser A.Expression
 expression
-    =   do { m <- md; o <- monadicOperator; v <- operand; return $ A.Monadic m o v }
+    =   do m <- md
+           o <- monadicOperator
+           v <- operand
+           return $ A.Monadic m o v
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> sizeExpr
     <|> do { m <- md; sTRUE; return $ A.True m }
     <|> do { m <- md; sFALSE; return $ A.False m }
-    <|> do { m <- md; (l, o) <- tryVV operand dyadicOperator; r <- operand; return $ A.Dyadic m o l r }
+    <|> do m <- md
+           (l, o) <- tryVV operand dyadicOperator
+           t <- typeOfExpression l
+           r <- operandOfType t
+           return $ A.Dyadic m o l r
+    <|> do m <- md
+           (l, o) <- tryVV (noTypeContext operand) comparisonOperator
+           t <- typeOfExpression l
+           r <- operandOfType t
+           return $ A.Dyadic m o l r
     <|> conversion
     <|> operand
     <?> "expression"
@@ -731,23 +800,26 @@ sizeExpr
     =  do m <- md
           sSIZE
           do { t <- dataType; return $ A.SizeType m t }
-            <|> do { v <- operand; return $ A.SizeExpr m v }
-            <|> do { v <- channel <|> timer <|> port; return $ A.SizeVariable m v }
-    <?> "sizeExpr"
+            <|> do v <- noTypeContext operand
+                   return $ A.SizeExpr m v
+            <|> do v <- noTypeContext (channel <|> timer <|> port)
+                   return $ A.SizeVariable m v
+    <?> "SIZE expression"
 
-exprOfType :: A.Type -> OccParser A.Expression
-exprOfType wantT
-    =  do e <- expression
+--{{{ type-constrained expressions
+expressionOfType :: A.Type -> OccParser A.Expression
+expressionOfType wantT
+    =  do e <- inTypeContext (Just wantT) expression
           t <- typeOfExpression e
           matchType wantT t
           return e
 
-intExpr = exprOfType A.Int <?> "integer expression"
-booleanExpr = exprOfType A.Bool <?> "boolean expression"
+intExpr = expressionOfType A.Int <?> "integer expression"
+booleanExpr = expressionOfType A.Bool <?> "boolean expression"
 
 constExprOfType :: A.Type -> OccParser A.Expression
 constExprOfType wantT
-    =  do e <- exprOfType wantT
+    =  do e <- expressionOfType wantT
           ps <- getState
           case simplifyExpression ps e of
             Left err -> fail $ "expected constant expression (" ++ err ++ ")"
@@ -755,12 +827,20 @@ constExprOfType wantT
 
 constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
+operandOfType :: A.Type -> OccParser A.Expression
+operandOfType wantT
+    =  do o <- inTypeContext (Just wantT) operand
+          t <- typeOfExpression o
+          matchType wantT t
+          return o
+--}}}
+
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
     =   do { reservedOp "-" <|> sMINUS; return A.MonadicSubtr }
     <|> do { reservedOp "~" <|> sBITNOT; return A.MonadicBitNot }
     <|> do { sNOT; return A.MonadicNot }
-    <?> "monadicOperator"
+    <?> "monadic operator"
 
 dyadicOperator :: OccParser A.DyadicOp
 dyadicOperator
@@ -778,29 +858,41 @@ dyadicOperator
     <|> do { reservedOp "><"; return A.BitXor }
     <|> do { sAND; return A.And }
     <|> do { sOR; return A.Or }
-    <|> do { reservedOp "="; return A.Eq }
+    <?> "dyadic operator"
+
+-- These always return a BOOL, so we have to deal with them specially for type
+-- context.
+comparisonOperator :: OccParser A.DyadicOp
+comparisonOperator
+    =   do { reservedOp "="; return A.Eq }
     <|> do { reservedOp "<>"; return A.NotEq }
     <|> do { reservedOp "<"; return A.Less }
     <|> do { reservedOp ">"; return A.More }
     <|> do { reservedOp "<="; return A.LessEq }
     <|> do { reservedOp ">="; return A.MoreEq }
     <|> do { sAFTER; return A.After }
-    <?> "dyadicOperator"
+    <?> "comparison operator"
 
 conversion :: OccParser A.Expression
 conversion
     =  do m <- md
           t <- dataType
           (c, o) <- conversionMode
+          ot <- typeOfExpression o
+          let isImprecise = isRealType t || isRealType ot
+          when (isImprecise && c == A.DefaultConversion) $
+            fail "imprecise conversion must specify ROUND or TRUNC"
+          when (not isImprecise && c /= A.DefaultConversion) $
+            fail "precise conversion cannot specify ROUND or TRUNC"
           return $ A.Conversion m c t o
     <?> "conversion"
 
 conversionMode :: OccParser (A.ConversionMode, A.Expression)
 conversionMode
-    =   do { sROUND; o <- operand; return (A.Round, o) }
-    <|> do { sTRUNC; o <- operand; return (A.Trunc, o) }
+    =   do { sROUND; o <- noTypeContext operand; return (A.Round, o) }
+    <|> do { sTRUNC; o <- noTypeContext operand; return (A.Trunc, o) }
     -- This uses operandNotTable to resolve the "x[y]" ambiguity.
-    <|> do { o <- operandNotTable; return (A.DefaultConversion, o) }
+    <|> do { o <- noTypeContext operandNotTable; return (A.DefaultConversion, o) }
     <?> "conversionMode"
 --}}}
 --{{{ operands
@@ -824,11 +916,11 @@ operandNotTable'
     <|> do { m <- md; l <- literal; return $ A.ExprLiteral m l }
     <|> do { sLeftR; e <- expression; sRightR; return e }
 -- XXX value process
-    <|> do { m <- md; n <- try functionNameSingle; sLeftR; as <- sepBy expression sComma; sRightR; return $ A.FunctionCall m n as }
+    <|> do { m <- md; n <- try functionNameSingle; as <- functionActuals n; return $ A.FunctionCall m n as }
     <|> do m <- md
            sBYTESIN
            sLeftR
-           do { o <- operand; sRightR; return $ A.BytesInExpr m o }
+           do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }
              <|> do { t <- dataType; sRightR; return $ A.BytesInType m t }
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
     <?> "operandNotTable'"
@@ -844,6 +936,13 @@ variable'
     <|> maybeSliced variable A.SubscriptedVariable typeOfVariable
     <?> "variable'"
 
+variableOfType :: A.Type -> OccParser A.Variable
+variableOfType wantT
+    =  do v <- variable
+          t <- typeOfVariable v
+          matchType wantT t
+          return v
+
 channel :: OccParser A.Variable
 channel
     =   maybeSubscripted "channel" channel' A.SubscriptedVariable typeOfVariable
@@ -854,6 +953,13 @@ channel'
     =   do { m <- md; n <- try channelName; return $ A.Variable m n }
     <|> maybeSliced channel A.SubscriptedVariable typeOfVariable
     <?> "channel'"
+
+channelOfType :: A.Type -> OccParser A.Variable
+channelOfType wantT
+    =  do c <- channel
+          t <- typeOfVariable c
+          matchType wantT t
+          return c
 
 timer :: OccParser A.Variable
 timer
@@ -956,7 +1062,7 @@ valIsAbbrev
     =  do m <- md
           sVAL
           (n, t, e) <- do { (n, e) <- tryVXV newVariableName sIS expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
-                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expression; sColon; eol; t <- typeOfExpression e; matchType s t; return (n, t, e) }
+                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
           return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
     <?> "VAL IS abbreviation"
 
@@ -990,13 +1096,11 @@ chanArrayAbbrev
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
            (s, n) <- tryVVXX specifier newChannelName sIS sLeft
-           cs <- sepBy1 channel sComma
+           ct <- subscriptType (A.Subscript m $ makeConstant m 0) s
+           cs <- sepBy1 (channelOfType ct) sComma
            sRight
            sColon
            eol
-           ts <- mapM typeOfVariable cs
-           t <- listType m ts
-           matchType s t
            return $ A.Specification m n $ A.IsChannelArray m s cs
     <?> "channel array abbreviation"
 
@@ -1030,8 +1134,8 @@ definition
            rs <- tryVX (sepBy1 dataType sComma) sFUNCTION
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.ValOf m (A.Skip m) el) }
-             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' vp }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.ValOf m (A.Skip m) el) }
+             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' vp }
     <|> retypesAbbrev
     <?> "definition"
 
@@ -1096,19 +1200,19 @@ formalVariableType :: OccParser (A.AbbrevMode, A.Type)
            return (A.Abbrev, s)
     <?> "formalVariableType"
 
-valueProcess :: OccParser A.ValueProcess
-valueProcess
+valueProcess :: [A.Type] -> OccParser A.ValueProcess
+valueProcess rs
     =   do m <- md
            sVALOF
            eol
            indent
            p <- process
            sRESULT
-           el <- expressionList
+           el <- expressionList rs
            eol
            outdent
            return $ A.ValOf m p el
-    <|> handleSpecs specification valueProcess A.ValOfSpec
+    <|> handleSpecs specification (valueProcess rs) A.ValOfSpec
     <?> "value process"
 --}}}
 --{{{ RECORDs
@@ -1165,7 +1269,8 @@ assignment :: OccParser A.Process
 assignment
     =   do m <- md
            vs <- tryVX (sepBy1 variable sComma) sAssign
-           es <- expressionList
+           ts <- mapM typeOfVariable vs
+           es <- expressionList ts
            eol
            return $ A.Assign m vs es
     <?> "assignment"
@@ -1184,7 +1289,8 @@ input
     <|> timerInput
     <|> do m <- md
            p <- tryVX port sQuest
-           v <- variable
+           A.Port t <- typeOfVariable p
+           v <- variableOfType t
            eol
            return (p, A.InputSimple m [A.InVariable m v])
     <?> "input"
@@ -1192,58 +1298,79 @@ input
 channelInput :: OccParser (A.Variable, A.InputMode)
     =   do m <- md
            c <- tryVX channel sQuest
-           do { sCASE; tl <- taggedList; eol; return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m)))) }
-             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) }
-             <|> do { is <- sepBy1 inputItem sSemi; eol; return (c, A.InputSimple m is) }
+           pis <- protocolItems c
+           case pis of
+             Left ts ->
+               do is <- intersperseP (map inputItem ts) sSemi
+                  eol
+                  return (c, A.InputSimple m is)
+             Right nts ->
+               do sCASE
+                  tl <- taggedList nts
+                  eol
+                  return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m))))
     <?> "channelInput"
 
 timerInput :: OccParser (A.Variable, A.InputMode)
     =   do m <- md
            c <- tryVX timer sQuest
-           do { v <- variable; eol; return (c, A.InputSimple m [A.InVariable m v]) }
+           do { v <- variableOfType A.Int; eol; return (c, A.InputSimple m [A.InVariable m v]) }
              <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) }
     <?> "timerInput"
 
-taggedList :: OccParser (A.Process -> A.Variant)
-taggedList
+taggedList :: [(A.Name, [A.Type])] -> OccParser (A.Process -> A.Variant)
+taggedList nts
     =  do m <- md
-          t <- tagName
-          do { try sSemi; is <- sepBy1 inputItem sSemi; return $ A.Variant m t is }
-            <|> (return $ A.Variant m t [])
+          tag <- tagName
+          ts <- checkJust "unknown tag in protocol" $ lookup tag nts
+          is <- sequence [sSemi >> inputItem t | t <- ts]
+          return $ A.Variant m tag is
     <?> "taggedList"
 
-inputItem :: OccParser A.InputItem
-inputItem
-    =   do m <- md
-           v <- tryVX variable sColons
-           w <- variable
-           return $ A.InCounted m v w
-    <|> do m <- md
-           v <- variable
-           return $ A.InVariable m v
+inputItem :: A.Type -> OccParser A.InputItem
+inputItem t
+    = case t of
+        (A.Counted ct it) ->
+          do m <- md
+             v <- variableOfType ct
+             sColons
+             w <- variableOfType (makeArrayType A.UnknownDimension it)
+             return $ A.InCounted m v w
+        _ ->
+          do m <- md
+             v <- variableOfType t
+             return $ A.InVariable m v
     <?> "inputItem"
 --}}}
 --{{{ variant input (? CASE)
+caseInputItems :: A.Variable -> OccParser [(A.Name, [A.Type])]
+caseInputItems c
+    =   do pis <- protocolItems c
+           case pis of
+             Left _ -> fail "CASE input on channel of non-variant protocol"
+             Right nts -> return nts
+
 caseInput :: OccParser A.Process
 caseInput
     =   do m <- md
            c <- tryVX channel (do {sQuest; sCASE; eol})
+           nts <- caseInputItems c
            indent
-           vs <- many1 variant
+           vs <- many1 (variant nts)
            outdent
            return $ A.Input m c (A.InputCase m (A.Several m vs))
     <?> "caseInput"
 
-variant :: OccParser A.Structured
-variant
+variant :: [(A.Name, [A.Type])] -> OccParser A.Structured
+variant nts
     =   do m <- md
-           tl <- taggedList
+           tl <- taggedList nts
            eol
            indent
            p <- process
            outdent
            return $ A.OnlyV m (tl p)
-    <|> handleSpecs specification variant A.Spec
+    <|> handleSpecs specification (variant nts) A.Spec
     <?> "variant"
 --}}}
 --{{{ output (!)
@@ -1252,7 +1379,8 @@ output
     =   channelOutput
     <|> do m <- md
            p <- tryVX port sBang
-           e <- expression
+           A.Port t <- typeOfVariable p
+           e <- expressionOfType t
            eol
            return $ A.Output m p [A.OutExpression m e]
     <?> "output"
@@ -1263,19 +1391,33 @@ channelOutput
            c <- tryVX channel sBang
            -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
            -- whether b is a variable or a tag, without knowing the type of a.
-           isCase <- typeOfVariable c >>= isCaseProtocolType
-           if isCase
-             then
-               do { t <- tryVX tagName sSemi; os <- sepBy1 outputItem sSemi; eol; return $ A.OutputCase m c t os }
-                 <|> do { t <- tagName; eol; return $ A.OutputCase m c t [] }
-             else
-               do { os <- sepBy1 outputItem sSemi; eol; return $ A.Output m c os }
+           pis <- protocolItems c
+           case pis of
+             Left ts ->
+               do os <- intersperseP (map outputItem ts) sSemi
+                  eol
+                  return $ A.Output m c os
+             Right nts ->
+               do tag <- tagName
+                  ts <- checkJust "unknown tag in protocol" $ lookup tag nts
+                  os <- sequence [sSemi >> outputItem t | t <- ts]
+                  eol
+                  return $ A.OutputCase m c tag os
     <?> "channelOutput"
 
-outputItem :: OccParser A.OutputItem
-outputItem
-    =   do { m <- md; a <- tryVX intExpr sColons; b <- expression; return $ A.OutCounted m a b }
-    <|> do { m <- md; e <- expression; return $ A.OutExpression m e }
+outputItem :: A.Type -> OccParser A.OutputItem
+outputItem t
+    = case t of
+        (A.Counted ct it) ->
+          do m <- md
+             a <- expressionOfType ct
+             sColons
+             b <- expressionOfType (makeArrayType A.UnknownDimension it)
+             return $ A.OutCounted m a b
+        _ ->
+          do m <- md
+             e <- expressionOfType t
+             return $ A.OutExpression m e
     <?> "outputItem"
 --}}}
 --{{{ SEQ
@@ -1326,24 +1468,20 @@ caseProcess :: OccParser A.Process
 caseProcess
     =   do m <- md
            sCASE
-           s <- caseSelector
+           sel <- expression
+           t <- typeOfExpression sel
+           when (not $ isIntegerType t) $ fail "case selector has non-CASEable type"
            eol
            indent
-           os <- many1 caseOption
+           os <- many1 (caseOption t)
            outdent
-           return $ A.Case m s (A.Several m os)
+           return $ A.Case m sel (A.Several m os)
     <?> "caseProcess"
 
-caseSelector :: OccParser A.Expression
-caseSelector
--- FIXME Should constrain to things that can be CASEd over.
-    =   expression
-    <?> "caseSelector"
-
-caseOption :: OccParser A.Structured
-caseOption
+caseOption :: A.Type -> OccParser A.Structured
+caseOption t
     =   do m <- md
-           ces <- sepBy caseExpression sComma
+           ces <- sepBy (expressionOfType t) sComma
            eol
            indent
            p <- process
@@ -1356,14 +1494,8 @@ caseOption
            p <- process
            outdent
            return $ A.OnlyO m (A.Else m p)
-    <|> handleSpecs specification caseOption A.Spec
+    <|> handleSpecs specification (caseOption t) A.Spec
     <?> "option"
-
-caseExpression :: OccParser A.Expression
-caseExpression
-    -- FIXME: Check the type is something constant that CASE can deal with
-    =   expression
-    <?> "caseExpression"
 --}}}
 --{{{ WHILE
 whileProcess :: OccParser A.Process
@@ -1445,16 +1577,18 @@ alternative
     -- guards are below.
     <|> do m <- md
            (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest sCASE
+           nts <- caseInputItems c
            eol
            indent
-           vs <- many1 variant
+           vs <- many1 (variant nts)
            outdent
            return $ A.OnlyA m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
            c <- tryVXX channel sQuest sCASE
+           nts <- caseInputItems c
            eol
            indent
-           vs <- many1 variant
+           vs <- many1 (variant nts)
            outdent
            return $ A.OnlyA m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
@@ -1501,10 +1635,10 @@ actuals fs = intersperseP (map actual fs) sComma
 actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
-            A.ValAbbrev -> do { e <- expression; et <- typeOfExpression e; matchType t et; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
+            A.ValAbbrev -> do { e <- expressionOfType t; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
             _ -> if isChannelType t
-                   then do { c <- channel; ct <- typeOfVariable c; matchType t ct; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
-                   else do { v <- variable; vt <- typeOfVariable v; matchType t vt; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
+                   then do { c <- channelOfType t; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
+                   else do { v <- variableOfType t; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
 --}}}

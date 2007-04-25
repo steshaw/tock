@@ -1,0 +1,5 @@
+PROC P ()
+  INT x:
+  INT32 y:
+  x := INT ROUND y
+:
