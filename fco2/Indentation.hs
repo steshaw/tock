@@ -5,7 +5,6 @@ import Data.List
 
 -- FIXME this doesn't handle multi-line strings
 -- FIXME or VALOF processes
--- FIXME or tabs
 -- FIXME or continuation lines...
 
 indentMarker = "__indent"
@@ -13,6 +12,8 @@ outdentMarker = "__outdent"
 eolMarker = "__eol"
 
 countIndent :: String -> Int
+-- Tabs are 8 spaces.
+countIndent ('\t':cs) = 4 + (countIndent cs)
 countIndent (' ':' ':cs) = 1 + (countIndent cs)
 countIndent (' ':cs) = error "Bad indentation"
 countIndent _ = 0
