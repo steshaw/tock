@@ -22,14 +22,26 @@ passes =
   , ("Flatten nested declarations", unnest)
   ]
 
-options :: [OptDescr Flag]
+type OptFunc = ParseState -> IO ParseState
+
+options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["parse-only"] (NoArg ParseOnly) "only parse input file"
-  , Option ['v'] ["verbose"] (NoArg Verbose) "show progress information"
-  , Option [] ["debug"] (NoArg Debug) "show detailed information for debugging"
+  [ Option [] ["parse-only"] (NoArg optParseOnly) "only parse input file"
+  , Option ['v'] ["verbose"] (NoArg $ optVerboseLevel 1) "show progress information"
+  , Option [] ["debug"] (NoArg $ optVerboseLevel 2) "show detailed information for debugging"
+  , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
 
-getOpts :: [String] -> IO ([Flag], [String])
+optParseOnly :: OptFunc
+optParseOnly ps = return $ ps { psParseOnly = True }
+
+optVerboseLevel :: Int -> OptFunc
+optVerboseLevel n ps = return $ ps { psVerboseLevel = max (psVerboseLevel ps) n }
+
+optOutput :: String -> OptFunc
+optOutput s ps = return $ ps { psOutputFile = s }
+
+getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
   case getOpt RequireOrder options argv of
     (o,n,[]  ) -> return (o,n)
@@ -48,11 +60,7 @@ main = do
               [fn] -> fn
               _ -> error "Must specify a single input file"
 
-  let state0 = emptyState { psFlags = opts }
-
-  progressIO state0 $ "Options: " ++ show opts
-  progressIO state0 $ "Compiling " ++ fn
-  progressIO state0 ""
+  state0 <- foldl (>>=) (return emptyState) opts
 
   debugIO state0 "{{{ Preprocess"
   state0a <- loadSource fn state0
@@ -64,7 +72,7 @@ main = do
   debugASTIO state1 ast1
   debugIO state1 "}}}"
 
-  if ParseOnly `elem` opts then
+  if psParseOnly state1 then
       putStrLn $ show ast1
     else do
       progressIO state1 "Passes:"
@@ -73,7 +81,13 @@ main = do
       debugIO state2 "{{{ Generate C"
       progressIO state2 "Generate C"
       c <- generateC state2 ast2
-      putStr c
+      case psOutputFile state2 of
+        "-" -> putStr c
+        file ->
+          do progressIO state2 $ "Writing output file " ++ file
+             f <- openFile file WriteMode
+             hPutStr f c
+             hClose f
       debugIO state2 "}}}"
       progressIO state2 "Done"
 

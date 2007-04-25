@@ -27,7 +27,7 @@ $(targets): $(sources)
 CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
 
 %.fco.c: %.occ fco
-	./fco -v $< >$@ || ( rm -f $@; exit 1 )
+	./fco -v -o $@ $<
 	indent -kr -pcs $@
 
 %.fco: %.fco.o fco_support.h kroc-wrapper-c.o kroc-wrapper.occ

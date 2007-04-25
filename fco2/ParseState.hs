@@ -8,13 +8,12 @@ import qualified AST as A
 import Errors
 import Metadata
 
-data Flag = ParseOnly | Verbose | Debug
-  deriving (Eq, Show, Data, Typeable)
-
 -- | State necessary for compilation.
 data ParseState = ParseState {
-    -- Set by Main
-    psFlags :: [Flag],
+    -- Set by Main (from command-line options)
+    psVerboseLevel :: Int,
+    psParseOnly :: Bool,
+    psOutputFile :: String,
 
     -- Set by preprocessor
     psSourceFiles :: [(String, String)],
@@ -41,7 +40,9 @@ instance Show (A.Process -> A.Process) where
 
 emptyState :: ParseState
 emptyState = ParseState {
-    psFlags = [],
+    psVerboseLevel = 0,
+    psParseOnly = False,
+    psOutputFile = "-",
 
     psSourceFiles = [],
 

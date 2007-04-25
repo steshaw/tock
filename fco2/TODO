@@ -23,8 +23,6 @@ Types needs cleaning up and Haddocking.
 
 Add an option for whether to compile out overflow/bounds checks.
 
-Add a -o option to control where the output goes (stdout by default for now).
-
 ## Parser
 
 The indentation parser is way too simplistic.
@@ -37,6 +35,8 @@ Record literals aren't implemented.
 
 Expression simplification -- this should use generics, so that we can have a
 default behaviour that simplifies expressions inside another one.
+(More generally, simplifyExpressions should really be split into a simplifier
+and a constant-finder -- or should return two values.)
 
 Output item expressions should be pulled up to variables.
 
@@ -72,9 +72,6 @@ genParRep uses a C99 dynamic array for a dynamic PAR count, which may turn out
 to be a bad idea for very large counts (since I assume it'll allocate off the
 stack). We should probably do a malloc if it's not determinable at compile
 time.
-
-The operator functions need to have the type name attached -- they'll only work
-for INT at the moment.
 
 Real-to-integer conversions don't work correctly.
 

@@ -38,25 +38,29 @@ runPasses ((s, p):ps) ast
           debug $ "}}}"
           runPasses ps ast'
 
+verboseMessage :: Int -> String -> PassM ()
+verboseMessage n s
+    =  do ps <- get
+          liftIO $ verboseMessageIO n ps s
+
+verboseMessageIO :: Int -> ParseState -> String -> IO ()
+verboseMessageIO n ps s = when (psVerboseLevel ps >= n) $ hPutStrLn stderr s
+
 -- | Print a progress message if appropriate.
 progress :: String -> PassM ()
-progress s
-    =  do ps <- get
-          liftIO $ progressIO ps s
+progress = verboseMessage 1
 
 -- | Print a progress message if appropriate (in the IO monad).
 progressIO :: ParseState -> String -> IO ()
-progressIO ps s = when (Verbose `elem` psFlags ps) $ hPutStrLn stderr s
+progressIO = verboseMessageIO 1
 
 -- | Print a debugging message if appropriate.
 debug :: String -> PassM ()
-debug s
-    =  do ps <- get
-          liftIO $ debugIO ps s
+debug = verboseMessage 2
 
 -- | Print a debugging message if appropriate (in the IO monad).
 debugIO :: ParseState -> String -> IO ()
-debugIO ps s = when (Debug `elem` psFlags ps) $ hPutStrLn stderr s
+debugIO = verboseMessageIO 2
 
 -- | Dump the AST and parse state if appropriate.
 debugAST :: A.Process -> PassM ()
