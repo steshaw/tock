@@ -344,8 +344,7 @@ postSubscript t
               do e <- tryXV sLeft intExpr
                  sRight
                  return $ A.Subscript m e
-            _ ->
-              fail $ "subscript of non-array/record type " ++ show t
+            _ -> pzero
 
 maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
 maybeSliced inner subscripter typer
@@ -750,7 +749,8 @@ functionNameMulti :: OccParser A.Name
 
 functionActuals :: A.Name -> OccParser [A.Expression]
 functionActuals func
-    =  do A.Function _ ats _ _ <- specTypeOfName func
+    =  do A.Function _ _ fs _ <- specTypeOfName func
+          let ats = [t | A.Formal _ t _ <- fs]
           sLeftR
           es <- intersperseP (map expressionOfType ats) sComma
           sRightR
