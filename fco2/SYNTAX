@@ -12,9 +12,10 @@ x ! y is ambiguous.
 
 << and >> are missing from dyadic.operator.
 
--- Things that Parse.hs currently implements as per the spec
+"b = TRUE" isn't a valid expression (occ21 allows it, and it's used in cglib)
+-- moved TRUE/FALSE into operand.
 
-"b = TRUE" isn't a valid expression (occ21 allows it, and it's used in cglib).
+-- Things that Parse.hs currently implements as per the spec
 
 PROCESSOR is permitted as a process, anywhere.
 

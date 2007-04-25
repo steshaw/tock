@@ -785,8 +785,6 @@ expression
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> sizeExpr
-    <|> do { m <- md; sTRUE; return $ A.True m }
-    <|> do { m <- md; sFALSE; return $ A.False m }
     <|> do m <- md
            (l, o) <- tryVV operand dyadicOperator
            t <- typeOfExpression l
@@ -940,6 +938,8 @@ operandNotTable'
            do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }
              <|> do { t <- dataType; sRightR; return $ A.BytesInType m t }
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
+    <|> do { m <- md; sTRUE; return $ A.True m }
+    <|> do { m <- md; sFALSE; return $ A.False m }
     <?> "operand other than table'"
 --}}}
 --{{{ variables, channels, timers, ports
