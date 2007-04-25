@@ -27,7 +27,7 @@ import Utils
 type OccParser = GenParser Char ParseState
 
 -- | Make MonadState functions work in the parser monad.
--- This came from http://hackage.haskell.org/trac/ghc/ticket/1274 -- which means
+-- This came from <http://hackage.haskell.org/trac/ghc/ticket/1274> -- which means
 -- it'll probably be in a future GHC release anyway.
 instance MonadState st (GenParser tok st) where
   get = getState
@@ -732,6 +732,7 @@ character
 --}}}
 --{{{ expressions
 functionNameSingle :: OccParser A.Name
+functionNameSingle
     =  do n <- functionName
           rts <- returnTypesOfFunction n
           case rts of
@@ -740,6 +741,7 @@ functionNameSingle :: OccParser A.Name
     <?> "function with single return value"
 
 functionNameMulti :: OccParser A.Name
+functionNameMulti
     =  do n <- functionName
           rts <- returnTypesOfFunction n
           case rts of
@@ -1192,6 +1194,7 @@ formalArgSet
            return [A.Formal A.Abbrev t n | n <- ns]
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
+formalVariableType
     =   do sVAL
            s <- dataSpecifier
            return (A.ValAbbrev, s)
@@ -1294,6 +1297,7 @@ input
     <?> "input"
 
 channelInput :: OccParser (A.Variable, A.InputMode)
+channelInput
     =   do m <- md
            c <- tryVX channel sQuest
            pis <- protocolItems c
@@ -1310,6 +1314,7 @@ channelInput :: OccParser (A.Variable, A.InputMode)
     <?> "channel input"
 
 timerInput :: OccParser (A.Variable, A.InputMode)
+timerInput
     =   do m <- md
            c <- tryVX timer sQuest
            do { v <- variableOfType A.Int; eol; return (c, A.InputSimple m [A.InVariable m v]) }

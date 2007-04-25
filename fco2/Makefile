@@ -47,6 +47,10 @@ test: $(targets) $(tests)
 		fi ; \
 	done
 
+haddock:
+	@mkdir -p doc
+	haddock -o doc --html $(sources)
+
 clean:
 	rm -f $(targets) *.o *.hi
 
