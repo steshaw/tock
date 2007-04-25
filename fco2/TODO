@@ -27,8 +27,6 @@ Add an option for whether to compile out overflow/bounds checks.
 
 The indentation parser is way too simplistic.
 
-Shift counts aren't implemented.
-
 Record literals aren't implemented.
 
 ## Passes

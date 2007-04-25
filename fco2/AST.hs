@@ -122,6 +122,7 @@ data DyadicOp =
   Add | Subtr | Mul | Div | Rem
   | Plus | Minus | Times
   | BitAnd | BitOr | BitXor
+  | LeftShift | RightShift
   | And | Or
   | Eq | NotEq | Less | More | LessEq | MoreEq
   | After

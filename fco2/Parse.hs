@@ -53,6 +53,8 @@ occamStyle
                           "/\\",
                           "\\/",
                           "><",
+                          "<<",
+                          ">>",
                           "=",
                           "<>",
                           "<",
@@ -789,6 +791,10 @@ expression
            r <- operandOfType t
            return $ A.Dyadic m o l r
     <|> do m <- md
+           (l, o) <- tryVV operand shiftOperator
+           r <- operandOfType A.Int
+           return $ A.Dyadic m o l r
+    <|> do m <- md
            (l, o) <- tryVV (noTypeContext operand) comparisonOperator
            t <- typeOfExpression l
            r <- operandOfType t
@@ -861,6 +867,13 @@ dyadicOperator
     <|> do { sAND; return A.And }
     <|> do { sOR; return A.Or }
     <?> "dyadic operator"
+
+-- These always need an INT on their right-hand side.
+shiftOperator :: OccParser A.DyadicOp
+shiftOperator
+    =   do { reservedOp "<<"; return A.LeftShift }
+    <|> do { reservedOp ">>"; return A.RightShift }
+    <?> "shift operator"
 
 -- These always return a BOOL, so we have to deal with them specially for type
 -- context.
