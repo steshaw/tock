@@ -26,11 +26,11 @@ $(targets): $(sources)
 
 CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
 
-%.c: %.occ fco
+%.fco.c: %.occ fco
 	./fco -v -o $@ $<
 	indent -kr -pcs $@
 
-%: %.o fco_support.h kroc-wrapper-c.o kroc-wrapper.occ
+%: %.fco.o fco_support.h kroc-wrapper-c.o kroc-wrapper.occ
 	kroc -o $@ kroc-wrapper.occ $< kroc-wrapper-c.o -lcif
 
 tests = $(wildcard testcases/*.occ)
