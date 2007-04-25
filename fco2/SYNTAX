@@ -1,0 +1,20 @@
+Bugs in the ordered syntax in the occam2.1 manual
+-------------------------------------------------
+
+-- Things I've worked around in Parse.hs
+
+x[y] is ambiguous -- fixed by splitting operand into a version that permits
+tables and a version that doesn't.
+
+x ! y is ambiguous.
+
+"SIZE cs" where cs is an array of channels isn't allowed.
+
+<< and >> are missing from dyadic.operator.
+
+-- Things that Parse.hs currently implements as per the spec
+
+"b = TRUE" isn't a valid expression (occ21 allows it, and it's used in cglib).
+
+PROCESSOR is permitted as a process, anywhere.
+
