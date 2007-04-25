@@ -1735,8 +1735,8 @@ mangleModName mod
 -- We have to do this now, before entering the parser, because the parser
 -- doesn't run in the IO monad. If there were a monad transformer version of
 -- Parsec then we could just open files as we need them.
-loadSource :: String -> ParseState -> IO ParseState
-loadSource file ps = execStateT (runErrorT (load file file)) ps
+loadSource :: String -> PassM ()
+loadSource file = load file file
   where
     load :: String -> String -> PassM ()
     load file realName
@@ -1773,9 +1773,11 @@ parseFile file ps
     replaceMain (A.Main _) np = np
 
 -- | Parse the top level source file in a program.
-parseProgram :: Monad m => String -> ParseState -> m (A.Process, ParseState)
-parseProgram file ps
-    =  do (f, ps') <- parseFile file ps
-          return (f $ A.Main emptyMeta, ps')
+parseProgram :: String -> PassM A.Process
+parseProgram file
+    =  do ps <- get
+          (f, ps') <- parseFile file ps
+          put ps'
+          return (f $ A.Main emptyMeta)
 --}}}
 

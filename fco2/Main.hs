@@ -1,11 +1,15 @@
 -- | Driver for the compiler.
 module Main where
 
+import Control.Monad
+import Control.Monad.Error
+import Control.Monad.State
 import List
 import System
 import System.Console.GetOpt
 import System.IO
 
+import Errors
 import GenerateC
 import Parse
 import ParseState
@@ -60,34 +64,52 @@ main = do
               [fn] -> fn
               _ -> error "Must specify a single input file"
 
-  state0 <- foldl (>>=) (return emptyState) opts
+  initState <- foldl (>>=) (return emptyState) opts
 
-  debugIO state0 "{{{ Preprocess"
-  state0a <- loadSource fn state0
-  debugIO state0a "}}}"
+  -- Run the compiler.
+  v <- evalStateT (runErrorT (compile fn)) initState
+  case v of
+    Left e -> dieIO e
+    Right r -> return ()
 
-  debugIO state0a "{{{ Parse"
-  progressIO state0a $ "Parse"
-  (ast1, state1) <- parseProgram fn state0a
-  debugASTIO state1 ast1
-  debugIO state1 "}}}"
+-- | Compile a file.
+-- This is written in the PassM monad -- as are most of the things it calls --
+-- because then it's very easy to pass the state around.
+compile :: String -> PassM ()
+compile fn
+  =  do optsPS <- get
 
-  if psParseOnly state1 then
-      putStrLn $ show ast1
-    else do
-      progressIO state1 "Passes:"
-      (ast2, state2) <- runPass (runPasses passes) ast1 state1
+        debug "{{{ Preprocess"
+        loadSource fn
+        debug "}}}"
 
-      debugIO state2 "{{{ Generate C"
-      progressIO state2 "Generate C"
-      c <- generateC state2 ast2
-      case psOutputFile state2 of
-        "-" -> putStr c
-        file ->
-          do progressIO state2 $ "Writing output file " ++ file
-             f <- openFile file WriteMode
-             hPutStr f c
-             hClose f
-      debugIO state2 "}}}"
-      progressIO state2 "Done"
+        debug "{{{ Parse"
+        progress "Parse"
+        ast1 <- parseProgram fn
+        debugAST ast1
+        debug "}}}"
+
+        output <-
+          if psParseOnly optsPS
+            then return $ show ast1
+            else
+              do progress "Passes:"
+                 ast2 <- (runPasses passes) ast1
+
+                 debug "{{{ Generate C"
+                 progress "Generate C"
+                 c <- generateC ast2
+                 debug "}}}"
+
+                 return c
+
+        case psOutputFile optsPS of
+          "-" -> liftIO $ putStr output
+          file ->
+            do progress $ "Writing output file " ++ file
+               f <- liftIO $ openFile file WriteMode
+               liftIO $ hPutStr f output
+               liftIO $ hClose f
+
+        progress "Done"
 

@@ -12,24 +12,23 @@ import Text.Printf
 import qualified AST as A
 import Metadata
 import ParseState
+import Pass
 import Errors
 import TLP
 import Types
 
 --{{{  monad definition
-type CGen = WriterT [String] (ErrorT String (StateT ParseState IO))
+type CGen = WriterT [String] PassM
 
 instance Die CGen where
   die = throwError
 --}}}
 
 --{{{  top-level
-generateC :: ParseState -> A.Process -> IO String
-generateC st ast
-    =  do v <- evalStateT (runErrorT (runWriterT (genTopLevel ast))) st
-          case v of
-            Left e -> dieIO e
-            Right (_, ss) -> return $ concat ss
+generateC :: A.Process -> PassM String
+generateC ast
+    =  do (a, w) <- runWriterT (genTopLevel ast)
+          return $ concat w
 
 genTLPChannel :: TLPChannel -> CGen ()
 genTLPChannel TLPIn = tell ["in"]
