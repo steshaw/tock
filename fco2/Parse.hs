@@ -85,6 +85,7 @@ occamStyle
                           "FROM",
                           "FUNCTION",
                           "IF",
+                          "INLINE",
                           "INT",
                           "INT16",
                           "INT32",
@@ -192,6 +193,7 @@ sFOR = reserved "FOR"
 sFROM = reserved "FROM"
 sFUNCTION = reserved "FUNCTION"
 sIF = reserved "IF"
+sINLINE = reserved "INLINE"
 sINT = reserved "INT"
 sINT16 = reserved "INT16"
 sINT32 = reserved "INT32"
@@ -1133,7 +1135,8 @@ definition
            do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification m n $ A.Protocol m p }
              <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps }
     <|> do m <- md
-           sPROC
+           -- FIXME INLINE is ignored.
+           sPROC <|> (tryXX sINLINE sPROC)
            n <- newProcName
            fs <- formalList
            eol

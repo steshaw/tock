@@ -1,0 +1,11 @@
+Language features supported by Tock
+-----------------------------------
+
+Everything in occam2.1, minus:
+- inline VALOF
+- ...
+
+KRoC's TLP interface.
+
+INLINE PROC, although it's ignored (because it should be up to the C compiler
+what gets inlined).
