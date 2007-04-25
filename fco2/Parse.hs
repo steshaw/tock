@@ -1727,7 +1727,7 @@ preFindIncludes source
                 Nothing -> []
               | l <- lines source]
   where
-    incRE = mkRegex "^#(INCLUDE|USE) +\"([^\"]*)\""
+    incRE = mkRegex "^ *#(INCLUDE|USE) +\"([^\"]*)\""
 
 -- | If a module name doesn't already have a suffix, add one.
 mangleModName :: String -> String
@@ -1753,7 +1753,7 @@ loadSource file = load file file
                      source <- liftIO $ readSource realName
                      modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })
                      let deps = map mangleModName $ preFindIncludes source
-                     sequence_ [load dep (joinPath file dep) | dep <- deps]
+                     sequence_ [load dep (joinPath realName dep) | dep <- deps]
 --}}}
 
 --{{{  entry points for the parser itself
@@ -1767,7 +1767,9 @@ testParse prod text
 -- definitions available to a process.
 parseFile :: Monad m => String -> ParseState -> m (A.Process -> A.Process, ParseState)
 parseFile file ps
-    =  do let source = fromJust $ lookup file (psSourceFiles ps)
+    =  do let source = case lookup file (psSourceFiles ps) of
+                         Just s -> s
+                         Nothing -> dieIO $ "Failed to preload file: " ++ show file
           let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }
           case runParser sourceFile ps' file source of
             Left err -> dieIO $ "Parse error: " ++ show err
