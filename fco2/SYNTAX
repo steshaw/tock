@@ -12,8 +12,12 @@ x ! y is ambiguous.
 
 << and >> are missing from dyadic.operator.
 
-"b = TRUE" isn't a valid expression (occ21 allows it, and it's used in cglib)
--- moved TRUE/FALSE into operand.
+"b = TRUE" isn't a valid expression (occ21 allows it, and it's used in cglib).
+Moved TRUE/FALSE into operand.
+
+AND and OR don't need brackets (i.e. "x AND y AND z" is legal). While it
+doesn't say so in the manual, I don't see why the same shouldn't apply to PLUS
+and TIMES.
 
 -- Things that Parse.hs currently implements as per the spec
 

@@ -799,9 +799,26 @@ expression
            t <- typeOfExpression l
            r <- operandOfType t
            return $ A.Dyadic m o l r
+    <|> do m <- md
+           (l, o) <- tryVV operand dyadicOperator
+           t <- typeOfExpression l
+           r <- operandOfType t
+           return $ A.Dyadic m o l r
+    <|> associativeOpExpression
     <|> conversion
     <|> operand
     <?> "expression"
+
+associativeOpExpression :: OccParser A.Expression
+associativeOpExpression
+    =  do m <- md
+          (l, o) <- tryVV operand associativeOperator
+          tl <- typeOfExpression l
+          r <- associativeOpExpression <|> operand
+          tr <- typeOfExpression r
+          matchType tl tr
+          return $ A.Dyadic m o l r
+    <?> "associative operator expression"
 
 sizeExpr :: OccParser A.Expression
 sizeExpr
@@ -858,14 +875,10 @@ dyadicOperator
     <|> do { reservedOp "/"; return A.Div }
     <|> do { reservedOp "\\"; return A.Rem }
     <|> do { sREM; return A.Rem }
-    <|> do { sPLUS; return A.Plus }
     <|> do { sMINUS; return A.Minus }
-    <|> do { sTIMES; return A.Times }
     <|> do { reservedOp "/\\" <|> sBITAND; return A.BitAnd }
     <|> do { reservedOp "\\/" <|> sBITOR; return A.BitOr }
     <|> do { reservedOp "><"; return A.BitXor }
-    <|> do { sAND; return A.And }
-    <|> do { sOR; return A.Or }
     <?> "dyadic operator"
 
 -- These always need an INT on their right-hand side.
@@ -887,6 +900,14 @@ comparisonOperator
     <|> do { reservedOp ">="; return A.MoreEq }
     <|> do { sAFTER; return A.After }
     <?> "comparison operator"
+
+associativeOperator :: OccParser A.DyadicOp
+associativeOperator
+    =   do { sAND; return A.And }
+    <|> do { sOR; return A.Or }
+    <|> do { sPLUS; return A.Plus }
+    <|> do { sTIMES; return A.Times }
+    <?> "associative operator"
 
 conversion :: OccParser A.Expression
 conversion
