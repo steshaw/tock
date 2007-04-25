@@ -100,11 +100,6 @@ static int occam_check_index (int i, int limit, const char *pos) {
 		} \
 		return a % b; \
 	}
-#define MAKE_AFTER(type) \
-	static bool occam_after_##type (type, type) occam_unused; \
-	static bool occam_after_##type (type a, type b) { \
-		return (a - b) > 0; \
-	}
 
 //{{{ char
 MAKE_RANGE_CHECK(char, "%d")
@@ -113,7 +108,6 @@ MAKE_SUBTR(char)
 MAKE_MUL(char)
 MAKE_DIV(char)
 MAKE_REM(char)
-MAKE_AFTER(char)
 //}}}
 //{{{ int16_t
 MAKE_RANGE_CHECK(int16_t, "%d")
@@ -122,7 +116,6 @@ MAKE_SUBTR(int16_t)
 MAKE_MUL(int16_t)
 MAKE_DIV(int16_t)
 MAKE_REM(int16_t)
-MAKE_AFTER(int16_t)
 //}}}
 //{{{ int
 MAKE_RANGE_CHECK(int, "%d")
@@ -131,7 +124,6 @@ MAKE_SUBTR(int)
 MAKE_MUL(int)
 MAKE_DIV(int)
 MAKE_REM(int)
-MAKE_AFTER(int)
 //}}}
 //{{{ int32_t
 MAKE_RANGE_CHECK(int32_t, "%d")
@@ -140,7 +132,6 @@ MAKE_SUBTR(int32_t)
 MAKE_MUL(int32_t)
 MAKE_DIV(int32_t)
 MAKE_REM(int32_t)
-MAKE_AFTER(int32_t)
 //}}}
 //{{{ int64_t
 MAKE_RANGE_CHECK(int64_t, "%lld")
@@ -149,7 +140,6 @@ MAKE_SUBTR(int64_t)
 MAKE_MUL(int64_t)
 MAKE_DIV(int64_t)
 MAKE_REM(int64_t)
-MAKE_AFTER(int64_t)
 //}}}
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
@@ -158,7 +148,6 @@ MAKE_ADD(float)
 MAKE_SUBTR(float)
 MAKE_MUL(float)
 MAKE_DIV(float)
-MAKE_AFTER(float)
 //}}}
 //{{{ double
 MAKE_RANGE_CHECK(double, "%d")
@@ -166,7 +155,6 @@ MAKE_ADD(double)
 MAKE_SUBTR(double)
 MAKE_MUL(double)
 MAKE_DIV(double)
-MAKE_AFTER(double)
 //}}}
 
 #undef MAKE_RANGE_CHECK
@@ -175,6 +163,5 @@ MAKE_AFTER(double)
 #undef MAKE_MUL
 #undef MAKE_DIV
 #undef MAKE_REM
-#undef MAKE_AFTER
 
 #endif

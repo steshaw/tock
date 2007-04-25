@@ -16,6 +16,7 @@ simplifyExprs = runPasses passes
   where
     passes =
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
+      , ("Convert AFTER to MINUS", removeAfter)
       , ("Pull up definitions", pullUp)
       ]
 
@@ -53,6 +54,23 @@ functionsToProcs = doGeneric `extM` doSpecification
     vpToProc :: A.ValueProcess -> [A.Variable] -> A.Process
     vpToProc (A.ValOfSpec m s vp) vs = A.ProcSpec m s (vpToProc vp vs)
     vpToProc (A.ValOf m p el) vs = A.Seq m [p, A.Assign m vs el]
+
+-- | Convert AFTER expressions to the equivalent using MINUS (which is how the
+-- occam 3 manual defines AFTER).
+removeAfter :: Data t => t -> PassM t
+removeAfter = doGeneric `extM` doExpression
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = gmapM removeAfter
+
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression (A.Dyadic m A.After a b)
+        =  do a' <- removeAfter a
+              b' <- removeAfter b
+              t <- typeOfExpression a'
+              let zero = A.ExprLiteral m $ A.Literal m t $ A.IntLiteral m "0"
+              return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
+    doExpression e = doGeneric e
 
 -- | Find things that need to be moved up to their enclosing process, and do
 -- so.

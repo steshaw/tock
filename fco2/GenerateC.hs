@@ -440,7 +440,6 @@ genDyadic _ A.Less e f = genSimpleDyadic "<" e f
 genDyadic _ A.More e f = genSimpleDyadic ">" e f
 genDyadic _ A.LessEq e f = genSimpleDyadic "<=" e f
 genDyadic _ A.MoreEq e f = genSimpleDyadic ">=" e f
-genDyadic m A.After e f = genFuncDyadic m "after" e f
 --}}}
 
 --{{{  input/output items
