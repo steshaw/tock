@@ -18,7 +18,9 @@ import Types
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
 simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
--- Literals are "simple" already.
+-- Non-array literals are "simple" already.
+simplifyExpression _ e@(A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ _)))
+    = Left "array literal"
 simplifyExpression _ e@(A.ExprLiteral _ _) = Right e
 simplifyExpression _ e@(A.True _) = Right e
 simplifyExpression _ e@(A.False _) = Right e
