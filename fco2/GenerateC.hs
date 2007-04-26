@@ -812,10 +812,12 @@ introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
           tell [";\n"]
           rhsSizes n
 introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
-    =  do genDecl A.Abbrev t n
-          tell [" = {"]
+    =  do tell ["Channel *"]
+          genName n
+          tell ["[] = {"]
           sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
+          declareArraySizes [A.Dimension $ length cs] (genName n)
 --introduceSpec (A.Specification m n (A.DataType m t))
 introduceSpec (A.Specification _ n (A.DataTypeRecord _ b fs))
     =  do tell ["typedef struct {\n"]
