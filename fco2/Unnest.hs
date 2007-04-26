@@ -124,7 +124,6 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                             A.Abbrev -> A.ActualVariable am t (A.Variable m n)
                             _ -> A.ActualExpression t (A.ExprVariable m (A.Variable m n))
                           | (am, n, t) <- zip3 ams freeNames types]
-             progress $ show n ++ " has new args " ++ show newAs
              case newAs of
                [] -> return ()
                _ -> modify $ (\ps -> ps { psAdditionalArgs = (A.nameName n, newAs) : psAdditionalArgs ps })
@@ -135,7 +134,6 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess p@(A.ProcCall m n as)
         =  do st <- get
-              progress $ "adding args to call of " ++ show n
               case lookup (A.nameName n) (psAdditionalArgs st) of
                 Just add -> doGeneric $ A.ProcCall m n (as ++ add)
                 Nothing -> doGeneric p
