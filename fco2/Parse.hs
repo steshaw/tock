@@ -1098,9 +1098,8 @@ abbreviation
 valIsAbbrev :: OccParser A.Specification
 valIsAbbrev
     =  do m <- md
-          sVAL
-          (n, t, e) <- do { (n, e) <- tryVXV newVariableName sIS expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
-                       <|> do { s <- specifier; n <- newVariableName; sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
+          (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
+                       <|> do { (s, n) <- tryXVVX sVAL specifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
           return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
     <?> "VAL IS abbreviation"
 
