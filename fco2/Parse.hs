@@ -416,10 +416,10 @@ listType :: Meta -> [A.Type] -> OccParser A.Type
 listType m l = listType' m (length l) l
   where
     listType' m len [] = fail "expected non-empty list"
-    listType' m len [t] = return $ makeArrayType (A.Dimension $ makeConstant m len) t
+    listType' m len [t] = return $ makeArrayType (A.Dimension len) t
     listType' m len (t1 : rest@(t2 : _))
         = if t1 == t2 then listType' m len rest
-                      else fail "multiple types in list"
+                      else fail $ "multiple types in list: " ++ show t1 ++ " and " ++ show t2
 
 -- | Check that a type we've inferred matches the type we expected.
 matchType :: A.Type -> A.Type -> OccParser ()
@@ -580,7 +580,8 @@ newTagName = anyName A.TagName
 arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
     =  do (s, t) <- tryXVXV sLeft constIntExpr sRight element
-          return $ makeArrayType (A.Dimension s) t
+          sVal <- evalIntExpression s
+          return $ makeArrayType (A.Dimension sVal) t
 
 dataType :: OccParser A.Type
 dataType
@@ -707,7 +708,7 @@ stringLiteral
     =  do m <- md
           char '"'
           cs <- manyTill character sQuote
-          return (A.StringLiteral m $ concat cs, A.Dimension $ makeConstant m $ length cs)
+          return (A.StringLiteral m $ concat cs, A.Dimension $ length cs)
     <?> "string literal"
 
 character :: OccParser String

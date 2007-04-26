@@ -148,8 +148,8 @@ genBytesInType :: A.Type -> CGen ()
 genBytesInType (A.Array ds t) = genBytesInDims ds >> genBytesInType t
   where
     genBytesInDims [] = return ()
-    genBytesInDims ((A.Dimension e):ds)
-        = genBytesInDims ds >> genExpression e >> tell [" * "]
+    genBytesInDims ((A.Dimension n):ds)
+        = genBytesInDims ds >> tell [show n, " * "]
     genBytesInDims _ = missing "genBytesInType with empty dimension"
 --bytesInType (A.UserDataType n)
 genBytesInType t
@@ -664,7 +664,7 @@ abbrevExpression am t@(A.Array _ _) e
 
     genTypeSize :: A.Type -> (A.Name -> CGen ())
     genTypeSize (A.Array ds _)
-        = genArraySize False $ sequence_ $ intersperse genComma [genExpression e | A.Dimension e <- ds]
+        = genArraySize False $ sequence_ $ intersperse genComma [tell [show n] | A.Dimension n <- ds]
 abbrevExpression am _ e
     = (genExpression e, noSize)
 --}}}
@@ -686,7 +686,7 @@ genDimensions :: [A.Dimension] -> CGen ()
 genDimensions ds
     =  do tell ["["]
           sequence $ intersperse (tell [" * "])
-                                 [case d of A.Dimension e -> genExpression e | d <- ds]
+                                 [case d of A.Dimension n -> tell [show n] | d <- ds]
           tell ["]"]
 
 genDeclaration :: A.Type -> A.Name -> CGen ()
@@ -711,7 +711,7 @@ declareArraySizes ds name
     =  do tell ["const int "]
           name
           tell ["_sizes[] = { "]
-          sequence_ $ intersperse genComma [genExpression e | (A.Dimension e) <- ds]
+          sequence_ $ intersperse genComma [tell [show n] | A.Dimension n <- ds]
           tell [" };\n"]
 
 -- | Initialise an item being declared.

@@ -1,5 +1,5 @@
 -- | Evaluate constant expressions.
-module EvalConstants (constantFold, isConstantName) where
+module EvalConstants (constantFold, isConstantName, evalIntExpression) where
 
 import Control.Monad.Error
 import Control.Monad.Identity
@@ -55,13 +55,27 @@ isConstantName n
                      Just _ -> True
                      Nothing -> False
 
+-- | Evaluate a constant integer expression.
+evalIntExpression :: (PSM m, Die m) => A.Expression -> m Int
+evalIntExpression e
+    =  do ps <- get
+          case runEvaluator ps e of
+            Left err -> die $ "cannot evaluate expression: " ++ err
+            Right (OccInt val) -> return $ int32ToInt val
+            Right _ -> die "expression is not of INT type"
+
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
 simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
 simplifyExpression ps e
-    = case runIdentity (evalStateT (runErrorT (evalExpression e)) ps) of
+    = case runEvaluator ps e of
         Left err -> Left err
         Right val -> Right $ snd $ renderValue (metaOfExpression e) val
+
+-- | Run the expression evaluator.
+runEvaluator :: ParseState -> A.Expression -> Either String OccValue
+runEvaluator ps e
+    = runIdentity (evalStateT (runErrorT (evalExpression e)) ps)
 
 --{{{  expression evaluator
 type EvalM = ErrorT String (StateT ParseState Identity)
@@ -161,6 +175,6 @@ renderLiteral m (OccInt i) = (A.Int, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
     = (t, A.ArrayLiteral m es)
   where
-    t = makeArrayType (A.Dimension $ makeConstant m (length vs)) (head ts)
+    t = makeArrayType (A.Dimension $ length vs) (head ts)
     (ts, es) = unzip $ map (renderValue m) vs
 --}}}

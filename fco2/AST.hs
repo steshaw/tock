@@ -50,7 +50,7 @@ data Type =
   deriving (Show, Eq, Typeable, Data)
 
 data Dimension =
-  Dimension Expression
+  Dimension Int
   | UnknownDimension
   deriving (Show, Eq, Typeable, Data)
 
