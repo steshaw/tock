@@ -1386,6 +1386,10 @@ inputItem t
              sColons
              w <- variableOfType (makeArrayType A.UnknownDimension it)
              return $ A.InCounted m v w
+        A.Any ->
+          do m <- md
+             v <- variable
+             return $ A.InVariable m v
         _ ->
           do m <- md
              v <- variableOfType t
@@ -1462,6 +1466,11 @@ outputItem t
              sColons
              b <- expressionOfType (makeArrayType A.UnknownDimension it)
              return $ A.OutCounted m a b
+        A.Any ->
+          do m <- md
+             e <- expression
+             t <- typeOfExpression e
+             return $ A.OutExpression m e
         _ ->
           do m <- md
              e <- expressionOfType t

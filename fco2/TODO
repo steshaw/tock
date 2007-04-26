@@ -47,6 +47,9 @@ calls have been removed, and so on.
 
 ## C backend
 
+Array outputs of dynamically-sized slices won't work (genBytesInType needs to
+know the size of the array it's dealing with).
+
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
 
