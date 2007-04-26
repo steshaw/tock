@@ -699,7 +699,13 @@ table'
            popTypeContext
            ets <- mapM typeOfExpression es
            t <- listType m ets
-           return $ A.Literal m t (A.ArrayLiteral m es)
+           -- If any of the subelements are nested array literals, collapse them.
+           let aes = [case e of
+                        A.ExprLiteral _ (A.Literal _ _ al@(A.ArrayLiteral _ subAEs)) ->
+                          A.ArrayElemArray subAEs
+                        _ -> A.ArrayElemExpr e
+                      | e <- es]
+           return $ A.Literal m t (A.ArrayLiteral m aes)
     <|> maybeSliced table A.SubscriptedLiteral typeOfLiteral
     <?> "table'"
 

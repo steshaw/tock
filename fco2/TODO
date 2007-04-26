@@ -9,6 +9,8 @@ Tock would be a good name for this (Translator from occam to C from Kent).
 
 Think about simplifying the subscript types -- just have a single data type
 that takes several expressions.
+(Multi-subscript expressions like a[x][y] currently get pulled up into an array
+slice, which is inefficient.)
 
 The show instance for types should produce occam-looking types.
 
@@ -31,8 +33,6 @@ Record literals aren't implemented.
 
 Expression simplification -- this should use generics, so that we can have a
 default behaviour that simplifies expressions inside another one.
-(More generally, simplifyExpressions should really be split into a simplifier
-and a constant-finder -- or should return two values.)
 
 Output item expressions should be pulled up to variables.
 
@@ -46,8 +46,6 @@ Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
 ## C backend
-
-Multidimensional array literals won't work.
 
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).

@@ -29,13 +29,17 @@ constantFold e
 
 -- | Is an expression a constant literal?
 isConstant :: A.Expression -> Bool
--- Array literals are only constant if all their components are.
-isConstant (A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ es)))
-    = and $ map isConstant es
+isConstant (A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ aes)))
+    = and $ map isConstantArray aes
 isConstant (A.ExprLiteral _ _) = True
 isConstant (A.True _) = True
 isConstant (A.False _) = True
 isConstant _ = False
+
+-- | Is an array literal element constant?
+isConstantArray :: A.ArrayElem -> Bool
+isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
+isConstantArray (A.ArrayElemExpr e) = isConstant e
 
 -- | Is a name defined as a constant expression? If so, return its definition.
 getConstantName :: (PSM m, Die m) => A.Name -> m (Maybe A.Expression)
@@ -99,9 +103,13 @@ fromRead _ _ = throwError "cannot parse literal"
 evalLiteral :: A.Literal -> EvalM OccValue
 evalLiteral (A.Literal _ A.Int (A.IntLiteral _ s)) = fromRead OccInt $ readDec s
 evalLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt $ readHex s
-evalLiteral (A.Literal _ _ (A.ArrayLiteral _ es))
-    = liftM OccArray (mapM evalExpression es)
+evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
+    = liftM OccArray (mapM evalLiteralArray aes)
 evalLiteral _ = throwError "bad literal"
+
+evalLiteralArray :: A.ArrayElem -> EvalM OccValue
+evalLiteralArray (A.ArrayElemArray aes) = liftM OccArray (mapM evalLiteralArray aes)
+evalLiteralArray (A.ArrayElemExpr e) = evalExpression e
 
 evalExpression :: A.Expression -> EvalM OccValue
 evalExpression (A.Monadic _ op e)
@@ -173,8 +181,19 @@ renderValue m v = (t, A.ExprLiteral m (A.Literal m t lr))
 renderLiteral :: Meta -> OccValue -> (A.Type, A.LiteralRepr)
 renderLiteral m (OccInt i) = (A.Int, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
-    = (t, A.ArrayLiteral m es)
+    = (t, A.ArrayLiteral m aes)
   where
     t = makeArrayType (A.Dimension $ length vs) (head ts)
-    (ts, es) = unzip $ map (renderValue m) vs
+    (ts, aes) = unzip $ map (renderLiteralArray m) vs
+
+renderLiteralArray :: Meta -> OccValue -> (A.Type, A.ArrayElem)
+renderLiteralArray m (OccArray vs)
+    = (t, A.ArrayElemArray aes)
+  where
+    t = makeArrayType (A.Dimension $ length vs) (head ts)
+    (ts, aes) = unzip $ map (renderLiteralArray m) vs
+renderLiteralArray m v
+    = (t, A.ArrayElemExpr e)
+  where
+    (t, e) = renderValue m v
 --}}}

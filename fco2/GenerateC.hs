@@ -210,10 +210,22 @@ genLiteralRepr (A.IntLiteral m s) = tell [s]
 genLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
 genLiteralRepr (A.ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
 genLiteralRepr (A.StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
-genLiteralRepr (A.ArrayLiteral m es)
+genLiteralRepr (A.ArrayLiteral m aes)
     =  do tell ["{"]
-          sequence_ $ intersperse genComma (map genExpression es)
+          genArrayLiteralElems aes
           tell ["}"]
+
+genArrayLiteralElems :: [A.ArrayElem] -> CGen ()
+genArrayLiteralElems aes
+    = sequence_ $ intersperse genComma $ map genElem aes
+  where
+    genElem :: A.ArrayElem -> CGen ()
+    genElem (A.ArrayElemArray aes) = genArrayLiteralElems aes
+    genElem (A.ArrayElemExpr e)
+        =  do t <- typeOfExpression e
+              case t of
+                A.Array _ _ -> missing $ "array literal containing non-literal array: " ++ show e
+                _ -> genExpression e
 
 hexToOct :: String -> String
 hexToOct h = printf "%03o" ((fst $ head $ readHex h) :: Int)
