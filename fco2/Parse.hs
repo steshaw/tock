@@ -379,6 +379,18 @@ maybeSliced inner subscripter typer
     fromOrFor = (sFROM >> return "FROM") <|> (sFOR >> return "FOR")
 --}}}
 
+-- | Parse an optional indented list, where if it's not there we should issue a
+-- warning. (This is for things that are legal in the occam spec, but are
+-- almost certainly programmer errors.)
+maybeIndentedList :: Meta -> String -> OccParser t -> OccParser [t]
+maybeIndentedList m msg inner
+    =   do try indent
+           vs <- many1 inner
+           outdent
+           return vs
+    <|> do addWarning m msg
+           return []
+
 handleSpecs :: OccParser [A.Specification] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
 handleSpecs specs inner specMarker
     =   do m <- md
@@ -1152,7 +1164,7 @@ definition
            sPROTOCOL
            n <- newProtocolName
            do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification m n $ A.Protocol m p }
-             <|> do { eol; indent; sCASE; eol; indent; ps <- many1 taggedProtocol; outdent; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps }
+             <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps }
     <|> do m <- md
            -- FIXME INLINE is ignored.
            sPROC <|> (tryXX sINLINE sPROC)
@@ -1393,9 +1405,7 @@ caseInput
     =   do m <- md
            c <- tryVX channel (do {sQuest; sCASE; eol})
            nts <- caseInputItems c
-           indent
-           vs <- many1 (variant nts)
-           outdent
+           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
            return $ A.Input m c (A.InputCase m (A.Several m vs))
     <?> "case input"
 
@@ -1463,7 +1473,7 @@ seqProcess :: OccParser A.Process
 seqProcess
     =   do m <- md
            sSEQ
-           do { eol; indent; ps <- many1 process; outdent; return $ A.Seq m ps }
+           do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m ps }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.SeqRep m r' p }
     <?> "SEQ process"
 --}}}
@@ -1479,7 +1489,7 @@ conditional :: OccParser A.Structured
 conditional
     =   do m <- md
            sIF
-           do { eol; indent; cs <- many1 ifChoice; outdent; return $ A.Several m cs }
+           do { eol; cs <- maybeIndentedList m "empty IF" ifChoice; return $ A.Several m cs }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; c <- ifChoice; scopeOutRep r'; outdent; return $ A.Rep m r' c }
     <?> "conditional"
 
@@ -1510,9 +1520,7 @@ caseProcess
            t <- typeOfExpression sel
            when (not $ isIntegerType t) $ fail "case selector has non-CASEable type"
            eol
-           indent
-           os <- many1 (caseOption t)
-           outdent
+           os <- maybeIndentedList m "empty CASE" (caseOption t)
            return $ A.Case m sel (A.Several m os)
     <?> "CASE process"
 
@@ -1553,7 +1561,7 @@ parallel :: OccParser A.Process
 parallel
     =   do m <- md
            isPri <- parKeyword
-           do { eol; indent; ps <- many1 process; outdent; return $ A.Par m isPri ps }
+           do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri ps }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.ParRep m isPri r' p }
     <|> placedpar
     <?> "PAR process"
@@ -1568,7 +1576,7 @@ placedpar :: OccParser A.Process
 placedpar
     =   do m <- md
            tryXX sPLACED sPAR
-           do { eol; indent; ps <- many1 placedpar; outdent; return $ A.Par m A.PlacedPar ps  }
+           do { eol; ps <- maybeIndentedList m "empty PLACED PAR" placedpar; return $ A.Par m A.PlacedPar ps  }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- placedpar; scopeOutRep r'; outdent; return $ A.ParRep m A.PlacedPar r' p }
     <|> do m <- md
            sPROCESSOR
@@ -1592,7 +1600,7 @@ alternation :: OccParser (Bool, A.Structured)
 alternation
     =   do m <- md
            isPri <- altKeyword
-           do { eol; indent; as <- many1 alternative; outdent; return (isPri, A.Several m as) }
+           do { eol; as <- maybeIndentedList m "empty ALT" alternative; return (isPri, A.Several m as) }
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; a <- alternative; scopeOutRep r'; outdent; return (isPri, A.Rep m r' a) }
     <?> "alternation"
 
@@ -1615,17 +1623,13 @@ alternative
            (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest sCASE
            nts <- caseInputItems c
            eol
-           indent
-           vs <- many1 (variant nts)
-           outdent
+           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
            return $ A.OnlyA m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
            c <- tryVXX channel sQuest sCASE
            nts <- caseInputItems c
            eol
-           indent
-           vs <- many1 (variant nts)
-           outdent
+           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
            return $ A.OnlyA m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
     <|> handleSpecs specification alternative A.Spec

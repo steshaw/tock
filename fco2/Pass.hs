@@ -46,7 +46,7 @@ warn = verboseMessage 0
 showWarnings :: (PSM m, MonadIO m) => m ()
 showWarnings
     =  do ps <- get
-          sequence_ $ map warn (psWarnings ps)
+          sequence_ $ map warn (reverse $ psWarnings ps)
           put $ ps { psWarnings = [] }
 
 -- | Print a progress message.

@@ -835,6 +835,9 @@ introduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum {\n"]
           sequence_ $ intersperse genComma [genName tag >> tell ["_"] >> genName n
                                             | (tag, _) <- ts]
+          -- You aren't allowed to have an empty enum.
+          when (ts == []) $
+            tell ["empty_protocol_"] >> genName n
           tell ["\n"]
           tell ["} "]
           genName n

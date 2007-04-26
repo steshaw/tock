@@ -1,0 +1,19 @@
+PROTOCOL FOO
+  CASE
+:
+PROC P ()
+  CHAN OF FOO c:
+  INT n:
+  SEQ
+    SEQ
+    PAR
+    IF
+    c ? CASE
+    n := 0
+    CASE n
+    PLACED PAR
+    ALT
+    ALT
+      TRUE & c ? CASE
+      c ? CASE
+:
