@@ -305,6 +305,9 @@ tryXVXV a b c d = try (do { a; bv <- b; c; dv <- d; return (bv, dv) })
 tryXVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (b, c)
 tryXVVX a b c d = try (do { a; bv <- b; cv <- c; d; return (bv, cv) })
 
+tryVXXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, d)
+tryVXXV a b c d = try (do { av <- a; b; c; dv <- d; return (av, dv) })
+
 tryVXVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, c)
 tryVXVX a b c d = try (do { av <- a; b; cv <- c; d; return (av, cv) })
 
@@ -1134,8 +1137,7 @@ isAbbrev newName oldVar
 chanArrayAbbrev :: OccParser A.Specification
 chanArrayAbbrev
     =   do m <- md
-           n <- tryVXX newChannelName sIS sLeft
-           cs <- sepBy1 channel sComma
+           (n, cs) <- tryVXXV newChannelName sIS sLeft (sepBy1 channel sComma)
            sRight
            sColon
            eol
@@ -1143,8 +1145,16 @@ chanArrayAbbrev
            t <- listType m ts
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
-           (s, n) <- tryVVXX specifier newChannelName sIS sLeft
-           ct <- subscriptType (A.Subscript m $ makeConstant m 0) s
+           -- This one's a bit hairy because we have to do the type check to tell
+           -- if it's going to collide with an abbreviation of a slice.
+           (ct, s, n) <- try (do s <- specifier
+                                 n <- newChannelName
+                                 sIS
+                                 sLeft
+                                 ct <- subscriptType (A.Subscript m $ makeConstant m 0) s
+                                 case ct of
+                                   A.Chan _ -> return (ct, s, n)
+                                   _ -> pzero)
            cs <- sepBy1 (channelOfType ct) sComma
            sRight
            sColon
