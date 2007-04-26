@@ -217,3 +217,27 @@ isRealType t
         A.Real64 -> True
         _ -> False
 --}}}
+
+--{{{ simplifying and comparing types
+-- | Simplify a type as far as possible: resolve data type aliases to their
+-- real types, and remove non-constant array dimensions.
+simplifyType :: (PSM m, Die m) => A.Type -> m A.Type
+simplifyType origT@(A.UserDataType n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.DataType _ t -> simplifyType t
+            A.DataTypeRecord _ _ _ -> return origT
+simplifyType (A.Array ds t)
+    =  do t' <- simplifyType t
+          return $ A.Array ds t'
+simplifyType (A.Chan t)
+    = liftM A.Chan $ simplifyType t
+simplifyType (A.Counted ct it)
+    =  do ct' <- simplifyType ct
+          it' <- simplifyType it
+          return $ A.Counted ct' it'
+simplifyType (A.Port t)
+    = liftM A.Port $ simplifyType t
+simplifyType t = return t
+--}}}
+
