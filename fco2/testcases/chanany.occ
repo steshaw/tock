@@ -1,0 +1,15 @@
+PROC P ()
+  CHAN OF ANY eww:
+  PAR
+    SEQ
+      eww ! 14
+      eww ! "hello"
+      eww ! TRUE
+    SEQ
+      INT i:
+      eww ? i
+      [5]BYTE buf:
+      eww ? buf
+      BOOL b:
+      eww ? b
+:
