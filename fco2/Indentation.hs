@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.Error
 import Control.Monad.State
 import Data.List
+import Text.Regex
 
 import Errors
 import ParseState
@@ -13,10 +14,6 @@ import Pass
 -- FIXME When this joins continuation lines, it should stash the details of
 -- what it joined into ParseState so that error reporting later on can
 -- reconstruct the original position.
-
--- FIXME this doesn't handle multi-line strings
--- FIXME or VALOF processes
--- FIXME or continuation lines...
 
 indentMarker = "__indent"
 outdentMarker = "__outdent"
@@ -69,21 +66,52 @@ removeIndentation filename orig
                                   case psIndentLinesOut ps of (l:ls) -> ((l ++ s):ls) })
 
     -- | Given a line, read the rest of it, then return the complete thing.
-    finishLine :: String -> String -> Bool -> PassM String
-    finishLine left soFar inStr
+    finishLine :: String -> String -> Bool -> String -> PassM String
+    finishLine left soFar inStr afterStr
         = case (left, inStr) of
             ([], False) -> plainEOL
             ('-':'-':cs, False) -> plainEOL
             ([], True) -> die "end of line in string without continuation"
             (['*'], True) -> stringEOL
-            ('"':cs, iS) -> finishLine cs ('"':soFar) (not iS)
-            ('*':'"':cs, True) -> finishLine cs ('"':'*':soFar) True
-            (c:cs, iS) -> finishLine cs (c:soFar) iS
+            ('"':cs, iS) -> finishLine cs (afterStr ++ ('"':soFar)) (not iS) ""
+            ('*':'"':cs, True) -> finishLine cs ('"':'*':soFar) True afterStr
+            (c:cs, iS) -> finishLine cs (c:soFar) iS afterStr
       where
-        -- FIXME check if this should have a continuation
-        plainEOL = return $ reverse soFar
-        -- FIXME implement
-        stringEOL = die "string continues"
+        -- | Finish a regular line.
+        plainEOL :: PassM String
+        plainEOL
+            =  do let s = reverse soFar
+                  if hasContinuation s
+                    then do l <- getLine >>= checkJust "no continuation line"
+                            finishLine l ('\n':soFar) False ""
+                    else return s
+
+        -- | Finish a line where we're in the middle of a string.
+        stringEOL :: PassM String
+        stringEOL
+            =  do l <- getLine >>= checkJust "no string continuation line"
+                  l' <- contStringStart l
+                  -- When we hit the end of the string, add a \n after it to
+                  -- make the line numbers match up again.
+                  finishLine l' soFar True ('\n':afterStr)
+
+    -- | Does a line have a continuation line following it?
+    hasContinuation :: String -> Bool
+    hasContinuation s
+        = case matchRegex contRE s of
+            Just _ -> True
+            Nothing -> False
+      where
+        -- FIXME This should probably be based on the list of operators and
+        -- reserved words that the parser already has; for now this is the
+        -- regexp that occamdoc uses.
+        contRE = mkRegexWithOpts "(-|~|\\+|-|\\*|/|\\\\|/\\\\|\\\\/|><|=|<>|<|>|>=|<=|,|;|:=|<<|>>|([[:space:]](MINUS|BITNOT|NOT|SIZE|REM|PLUS|MINUS|TIMES|BITAND|BITOR|AND|OR|AFTER|FROM|FOR|IS|RETYPES|RESHAPES)))[[:space:]]*$" False True
+
+    -- | Strip the spaces-then-star beginning off a string continuation line.
+    contStringStart :: String -> PassM String
+    contStringStart (' ':cs) = contStringStart cs
+    contStringStart ('*':cs) = return cs
+    contStringStart _ = die "string continuation line doesn't start with *"
 
     -- | Get the next *complete* line from the input, resolving continuations.
     readLine :: PassM (Maybe String)
@@ -91,7 +119,7 @@ removeIndentation filename orig
         =  do line <- getLine
               case line of
                 Just s ->
-                  do r <- finishLine s "" False
+                  do r <- finishLine s "" False ""
                      return $ Just r
                 Nothing -> return Nothing
 
@@ -117,13 +145,13 @@ removeIndentation filename orig
                 Nothing -> return ()
                 Just line ->
                   do (newLevel, stripped) <- countIndent line 0
-                     addLine level newLevel stripped
+                     addLine level newLevel line stripped
 
     -- | Once a line's been retrieved, add it to the output along with the
     -- appropriate markers, then go and process the next one.
-    addLine :: Int -> Int -> String -> PassM ()
-    addLine level newLevel line
-      | line == "" =
+    addLine :: Int -> Int -> String -> String -> PassM ()
+    addLine level newLevel line stripped
+      | stripped == "" =
         do putLine ""
            nextLine level
       | newLevel > level =

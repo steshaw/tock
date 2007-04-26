@@ -1722,7 +1722,6 @@ mainProcess :: OccParser A.Process
 mainProcess
     =  do m <- md
           sMainMarker
-          eol
           -- Stash the current locals so that we can either restore them
           -- when we get back to the file we included this one from, or
           -- pull the TLP name from them at the end.
@@ -1783,7 +1782,8 @@ loadSource file = load file file
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
                      rawSource <- liftIO $ readSource realName
-                     source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker)
+                     source' <- removeIndentation realName rawSource
+                     let source = source' ++ "\n" ++ mainMarker ++ "\n"
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
                      modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })

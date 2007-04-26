@@ -25,8 +25,6 @@ Add an option for whether to compile out overflow/bounds checks.
 
 ## Parser
 
-The indentation parser is way too simplistic.
-
 Record literals aren't implemented.
 
 ## Passes
@@ -53,9 +51,6 @@ Multidimensional array literals won't work.
 
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).
-
-genTopLevel should look at what interface the PROC is actually expecting, like
-occ21 does.
 
 If the assembler-analysis approach to working out process sizes works, then we
 can put the sizes in variables in a separate object file and only
