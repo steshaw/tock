@@ -26,7 +26,6 @@ data ParseState = ParseState {
     psNames :: [(String, A.NameDef)],
     psNameCounter :: Int,
     psTypeContext :: [Maybe A.Type],
-    psConstants :: [(String, A.Expression)],
     psLoadedFiles :: [String],
 
     -- Set by passes
@@ -55,7 +54,6 @@ emptyState = ParseState {
     psNames = [],
     psNameCounter = 0,
     psTypeContext = [],
-    psConstants = [],
     psLoadedFiles = [],
 
     psNonceCounter = 0,
@@ -156,12 +154,4 @@ makeNonceIsExpr s m t e
 makeNonceVariable :: PSM m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
 makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t) nt am
-
--- | Is a name on the list of constants?
-isConstantName :: PSM m => A.Name -> m Bool
-isConstantName n
-    =  do ps <- get
-          case lookup (A.nameName n) (psConstants ps) of
-            Just _ -> return True
-            Nothing -> return False
 

@@ -508,21 +508,10 @@ scopeInRep (A.For m n b c)
 scopeOutRep :: A.Replicator -> OccParser ()
 scopeOutRep (A.For m n b c) = scopeOut n
 
--- This one's more complicated because we need to check if we're introducing a constant.
 scopeInSpec :: A.Specification -> OccParser A.Specification
 scopeInSpec (A.Specification m n st)
-    =  do ps <- getState
-          (st', isConst) <- case st of
-                              (A.IsExpr m A.ValAbbrev t e) ->
-                                do (e', isConst, msg) <- constantFold e
-                                   if isConst
-                                     then return (A.IsExpr m A.ValAbbrev t e', True)
-                                     else return (st, False)
-                              _ -> return (st, False)
-          n' <- scopeIn n st' (abbrevModeOfSpec st')
-          when isConst $
-            updateState (\ps -> ps { psConstants = (A.nameName n', case st' of A.IsExpr _ _ _ e' -> e') : psConstants ps })
-          return $ A.Specification m n' st'
+    =  do n' <- scopeIn n st (abbrevModeOfSpec st)
+          return $ A.Specification m n' st
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec (A.Specification _ n _) = scopeOut n
@@ -1100,7 +1089,10 @@ valIsAbbrev
     =  do m <- md
           (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
                        <|> do { (s, n) <- tryXVVX sVAL specifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
-          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
+          -- Do constant folding early, so that we can use names defined this
+          -- way as constants elsewhere.
+          (e', _, _) <- constantFold e
+          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e'
     <?> "VAL IS abbreviation"
 
 isAbbrev :: OccParser A.Name -> OccParser A.Variable -> OccParser A.Specification
