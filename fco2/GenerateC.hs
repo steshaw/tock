@@ -206,7 +206,7 @@ genLiteral l = missing $ "genLiteral " ++ show l
 
 genLiteralRepr :: A.LiteralRepr -> CGen ()
 genLiteralRepr (A.RealLiteral m s) = tell [s]
-genLiteralRepr (A.IntLiteral m s) = tell [s]
+genLiteralRepr (A.IntLiteral m s) = genDecimal s
 genLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
 genLiteralRepr (A.ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
 genLiteralRepr (A.StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
@@ -214,6 +214,14 @@ genLiteralRepr (A.ArrayLiteral m aes)
     =  do tell ["{"]
           genArrayLiteralElems aes
           tell ["}"]
+
+-- | Generate a decimal literal -- removing leading zeroes to avoid producing
+-- an octal literal!
+genDecimal :: String -> CGen ()
+genDecimal "0" = tell ["0"]
+genDecimal ('0':s) = genDecimal s
+genDecimal ('-':s) = tell ["-"] >> genDecimal s
+genDecimal s = tell [s]
 
 genArrayLiteralElems :: [A.ArrayElem] -> CGen ()
 genArrayLiteralElems aes
