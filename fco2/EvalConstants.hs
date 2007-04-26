@@ -65,7 +65,7 @@ evalIntExpression e
     =  do ps <- get
           case runEvaluator ps e of
             Left err -> die $ "cannot evaluate expression: " ++ err
-            Right (OccInt val) -> return $ int32ToInt val
+            Right (OccInt val) -> return $ fromIntegral val
             Right _ -> die "expression is not of INT type"
 
 -- | Attempt to simplify an expression as far as possible by precomputing
@@ -121,6 +121,20 @@ evalExpression (A.Dyadic _ op e1 e2)
           evalDyadic op v1 v2
 evalExpression (A.MostPos _ A.Int) = return $ OccInt maxBound
 evalExpression (A.MostNeg _ A.Int) = return $ OccInt minBound
+evalExpression (A.SizeExpr _ e)
+    =  do t <- typeOfExpression e
+          case t of
+            A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
+            _ ->
+              do v <- evalExpression e
+                 case v of
+                   OccArray vs -> return $ OccInt (fromIntegral $ length vs)
+                   _ -> throwError $ "size of non-constant expression " ++ show e ++ " used"
+evalExpression (A.SizeVariable m v)
+    =  do t <- typeOfVariable v
+          case t of
+            A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
+            _ -> throwError $ "size of non-fixed-size variable " ++ show v ++ " used"
 evalExpression (A.ExprLiteral _ l) = evalLiteral l
 evalExpression (A.ExprVariable _ (A.Variable _ n))
     =  do me <- getConstantName n
@@ -139,9 +153,6 @@ evalMonadic A.MonadicBitNot (OccInt i) = return $ OccInt (complement i)
 evalMonadic A.MonadicNot (OccBool b) = return $ OccBool (not b)
 evalMonadic _ _ = throwError "bad monadic op"
 
-int32ToInt :: Int32 -> Int
-int32ToInt n = fromInteger (toInteger n)
-
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
 -- FIXME These should check for overflow.
 evalDyadic A.Add (OccInt a) (OccInt b) = return $ OccInt (a + b)
@@ -156,8 +167,8 @@ evalDyadic A.Times (OccInt a) (OccInt b) = return $ OccInt (a * b)
 evalDyadic A.BitAnd (OccInt a) (OccInt b) = return $ OccInt (a .&. b)
 evalDyadic A.BitOr (OccInt a) (OccInt b) = return $ OccInt (a .|. b)
 evalDyadic A.BitXor (OccInt a) (OccInt b) = return $ OccInt (a `xor` b)
-evalDyadic A.LeftShift (OccInt a) (OccInt b) = return $ OccInt (shiftL a (int32ToInt b))
-evalDyadic A.RightShift (OccInt a) (OccInt b) = return $ OccInt (shiftR a (int32ToInt b))
+evalDyadic A.LeftShift (OccInt a) (OccInt b) = return $ OccInt (shiftL a (fromIntegral b))
+evalDyadic A.RightShift (OccInt a) (OccInt b) = return $ OccInt (shiftR a (fromIntegral b))
 evalDyadic A.And (OccBool a) (OccBool b) = return $ OccBool (a && b)
 evalDyadic A.Or (OccBool a) (OccBool b) = return $ OccBool (a || b)
 evalDyadic A.Eq a b = return $ OccBool (a == b)
