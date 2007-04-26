@@ -1,5 +1,5 @@
 -- | Evaluate constant expressions.
-module EvalConstants where
+module EvalConstants (constantFold) where
 
 import Control.Monad.Error
 import Control.Monad.Identity
@@ -13,17 +13,32 @@ import Numeric
 import qualified AST as A
 import Metadata
 import ParseState
+import Pass
 import Types
+
+-- | Simplify an expression by constant folding, and also return whether it's a
+-- constant after that.
+constantFold :: PSM m => A.Expression -> m (A.Expression, Bool, String)
+constantFold e
+    =  do ps <- get
+          let (e', msg) = case simplifyExpression ps e of
+                            Left err -> (e, err)
+                            Right val -> (val, "already folded")
+          return (e', isConstant e', msg)
+
+-- | Is an expression a constant literal?
+isConstant :: A.Expression -> Bool
+-- Array literals are only constant if all their components are.
+isConstant (A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ es)))
+    = and $ map isConstant es
+isConstant (A.ExprLiteral _ _) = True
+isConstant (A.True _) = True
+isConstant (A.False _) = True
+isConstant _ = False
 
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
 simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
--- Non-array literals are "simple" already.
-simplifyExpression _ e@(A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ _)))
-    = Left "array literal"
-simplifyExpression _ e@(A.ExprLiteral _ _) = Right e
-simplifyExpression _ e@(A.True _) = Right e
-simplifyExpression _ e@(A.False _) = Right e
 simplifyExpression ps e
     = case runIdentity (evalStateT (runErrorT (evalExpression e)) ps) of
         Left err -> Left err

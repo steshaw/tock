@@ -512,16 +512,16 @@ scopeOutRep (A.For m n b c) = scopeOut n
 scopeInSpec :: A.Specification -> OccParser A.Specification
 scopeInSpec (A.Specification m n st)
     =  do ps <- getState
-          let (st', isConst) = case st of
-                                 (A.IsExpr m A.ValAbbrev t e) ->
-                                   case simplifyExpression ps e of
-                                     Left _ -> (st, False)
-                                     Right e' -> (A.IsExpr m A.ValAbbrev t e', True)
-                                 _ -> (st, False)
+          (st', isConst) <- case st of
+                              (A.IsExpr m A.ValAbbrev t e) ->
+                                do (e', isConst, msg) <- constantFold e
+                                   if isConst
+                                     then return (A.IsExpr m A.ValAbbrev t e', True)
+                                     else return (st, False)
+                              _ -> return (st, False)
           n' <- scopeIn n st' (abbrevModeOfSpec st')
-          if isConst
-            then updateState (\ps -> ps { psConstants = (A.nameName n', case st' of A.IsExpr _ _ _ e' -> e') : psConstants ps })
-            else return ()
+          when isConst $
+            updateState (\ps -> ps { psConstants = (A.nameName n', case st' of A.IsExpr _ _ _ e' -> e') : psConstants ps })
           return $ A.Specification m n' st'
 
 scopeOutSpec :: A.Specification -> OccParser ()
@@ -845,10 +845,10 @@ booleanExpr = expressionOfType A.Bool <?> "boolean expression"
 constExprOfType :: A.Type -> OccParser A.Expression
 constExprOfType wantT
     =  do e <- expressionOfType wantT
-          ps <- getState
-          case simplifyExpression ps e of
-            Left err -> fail $ "expected constant expression (" ++ err ++ ")"
-            Right e' -> return e'
+          (e', isConst, msg) <- constantFold e
+          when (not isConst) $
+            fail $ "expression is not constant (" ++ msg ++ ")"
+          return e'
 
 constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
