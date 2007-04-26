@@ -54,3 +54,6 @@ haddock:
 clean:
 	rm -f $(targets) *.o *.hi
 
+# Don't delete intermediate files.
+.SECONDARY:
+
