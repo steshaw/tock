@@ -38,6 +38,17 @@ verboseMessage n s
           when (psVerboseLevel ps >= n) $
             liftIO $ hPutStrLn stderr s
 
+-- | Print a warning message.
+warn :: (PSM m, MonadIO m) => String -> m ()
+warn = verboseMessage 0
+
+-- | Print out any warnings stored.
+showWarnings :: (PSM m, MonadIO m) => m ()
+showWarnings
+    =  do ps <- get
+          sequence_ $ map warn (psWarnings ps)
+          put $ ps { psWarnings = [] }
+
 -- | Print a progress message.
 progress :: (PSM m, MonadIO m) => String -> m ()
 progress = verboseMessage 1

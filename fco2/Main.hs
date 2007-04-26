@@ -86,6 +86,8 @@ compile fn
         debugAST ast1
         debug "}}}"
 
+        showWarnings
+
         output <-
           if psParseOnly optsPS
             then return $ show ast1
@@ -99,6 +101,8 @@ compile fn
                  debug "}}}"
 
                  return c
+
+        showWarnings
 
         case psOutputFile optsPS of
           "-" -> liftIO $ putStr output

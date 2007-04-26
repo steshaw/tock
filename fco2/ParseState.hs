@@ -27,6 +27,7 @@ data ParseState = ParseState {
     psNameCounter :: Int,
     psTypeContext :: [Maybe A.Type],
     psLoadedFiles :: [String],
+    psWarnings :: [String],
 
     -- Set by passes
     psNonceCounter :: Int,
@@ -55,6 +56,7 @@ emptyState = ParseState {
     psNameCounter = 0,
     psTypeContext = [],
     psLoadedFiles = [],
+    psWarnings = [],
 
     psNonceCounter = 0,
     psFunctionReturns = [],
@@ -79,6 +81,11 @@ lookupName n
             Just nd -> return nd
             Nothing -> die $ "cannot find name " ++ A.nameName n
 
+-- | Add a warning.
+addWarning :: PSM m => Meta -> String -> m ()
+addWarning m s = modify (\ps -> ps { psWarnings = msg : psWarnings ps })
+  where msg = "Warning: " ++ show m ++ ": " ++ s
+
 -- | Generate a throwaway unique name.
 makeNonce :: PSM m => String -> m String
 makeNonce s
@@ -89,9 +96,7 @@ makeNonce s
 
 -- | Add a pulled item to the collection.
 addPulled :: PSM m => (A.Process -> A.Process) -> m ()
-addPulled item
-    =  do ps <- get
-          put $ ps { psPulledItems = item : psPulledItems ps }
+addPulled item = modify (\ps -> ps { psPulledItems = item : psPulledItems ps })
 
 -- | Apply pulled items to a Process.
 applyPulled :: PSM m => A.Process -> m A.Process
