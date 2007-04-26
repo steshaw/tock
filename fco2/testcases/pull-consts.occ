@@ -1,0 +1,14 @@
+VAL INT table.x IS 36:
+VAL INT table.y IS 14:
+VAL []INT forks.x IS [2, 3, 8, 9, 5]:
+VAL []INT forks.y IS [3, 1, 1, 3, 4]:
+VAL []INT phils.x IS [-2, -2, 4, 12, 9]:
+VAL []INT phils.y IS [4, -1, -3, 1, 5]:
+
+PROC main ()
+  INT x:
+  SEQ
+    x := table.x
+    x := forks.x[0] + forks.y[0]
+    x := phils.x[0] + phils.y[0]
+:

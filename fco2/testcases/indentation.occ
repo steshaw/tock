@@ -1,0 +1,31 @@
+-- Comment here
+PROC P ()   -- more commentry
+  INT x:
+  INT y:
+  VAL []BYTE s IS "hello, world!":
+  VAL []BYTE not.comment IS "string -- with dashes -- here!":
+  VAL []BYTE one.cont IS "one string cont line *
+                         *continued here.":
+  VAL []BYTE two.cont IS "two string cont lines *
+          *continued here...    *
+   *and also here!":
+  SEQ
+    x := 42      --comment!
+    y := x + 22
+    y := x +
+      22
+    y :=
+x
+    x,
+  y               :=
+          y,
+    x
+    IF
+      (x =
+      2) AND
+      (y =
+      42)
+        STOP
+      TRUE
+        SKIP
+:

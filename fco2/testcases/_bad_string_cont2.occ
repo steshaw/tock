@@ -1,0 +1,2 @@
+PROC P ()
+  VAL []BYTE s IS "hello *
