@@ -1783,7 +1783,7 @@ loadSource file = load file file
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
                      rawSource <- liftIO $ readSource realName
-                     source <- removeIndentation (rawSource ++ "\n" ++ mainMarker)
+                     source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker)
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
                      modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })

@@ -2,6 +2,7 @@
 module Indentation (removeIndentation, indentMarker, outdentMarker, eolMarker) where
 
 import Control.Monad
+import Control.Monad.Error
 import Control.Monad.State
 import Data.List
 
@@ -24,19 +25,28 @@ eolMarker = "__eol"
 -- FIXME: There's probably a nicer way of doing this.
 -- (Well, trivially, use a WriterT...)
 
-removeIndentation :: String -> PassM String
-removeIndentation orig
-    =  do modify $ (\ps -> ps { psIndentLinesIn = lines orig,
+-- | Preprocess occam source code to remove comments and turn indentation into
+-- explicit markers.
+removeIndentation :: String -> String -> PassM String
+removeIndentation filename orig
+    =  do modify $ (\ps -> ps { psIndentLinesIn = origLines,
                                 psIndentLinesOut = [] })
-          -- FIXME Catch errors and figure out the source position based on the
-          -- input lines.
-          nextLine 0
+          catchError (nextLine 0) reportError
           ps <- get
           let out = concat $ intersperse "\n" $ reverse $ psIndentLinesOut ps
           modify $ (\ps -> ps { psIndentLinesIn = [],
                                 psIndentLinesOut = [] })
           return out
   where
+    origLines = lines orig
+
+    -- | When something goes wrong, figure out how far through the file we'd got.
+    reportError :: String -> PassM ()
+    reportError error
+        =  do ps <- get
+              let lineNumber = length origLines - length (psIndentLinesIn ps)
+              die $ filename ++ ":" ++ show lineNumber ++ ": " ++ error
+
     -- | Get the next raw line from the input.
     getLine :: PassM (Maybe String)
     getLine
@@ -90,7 +100,8 @@ removeIndentation orig
     -- Tabs are 8 spaces.
     countIndent ('\t':cs) soFar = countIndent cs (soFar + 4)
     countIndent (' ':' ':cs) soFar = countIndent cs (soFar + 1)
-    countIndent (' ':cs) soFar
+    countIndent [' '] soFar = return (soFar, [])
+    countIndent (' ':_) soFar
         = die "bad indentation (odd number of spaces)"
     countIndent cs soFar = return (soFar, cs)
 
