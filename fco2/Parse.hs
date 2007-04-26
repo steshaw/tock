@@ -1747,14 +1747,10 @@ sourceFile
 --{{{  preprocessor
 -- XXX Doesn't handle conditionals.
 
-preprocess :: String -> String
-preprocess d = parseIndentation $ lines (d ++ "\n" ++ mainMarker)
-
 readSource :: String -> IO String
 readSource file
     =  do f <- IO.openFile file IO.ReadMode
-          d <- IO.hGetContents f
-          return $ preprocess d
+          IO.hGetContents f
 
 -- | Find (via a nasty regex search) all the files that this source file includes.
 preFindIncludes :: String -> [String]
@@ -1787,7 +1783,10 @@ loadSource file = load file file
                 Just _ -> return ()
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
-                     source <- liftIO $ readSource realName
+                     rawSource <- liftIO $ readSource realName
+                     source <- removeIndentation (rawSource ++ "\n" ++ mainMarker)
+                     debug $ "Preprocessed source:"
+                     debug $ numberLines source
                      modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })
                      let deps = map mangleModName $ preFindIncludes source
                      sequence_ [load dep (joinPath realName dep) | dep <- deps]

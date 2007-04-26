@@ -52,9 +52,6 @@ getOpts argv =
     (_,_,errs) -> error (concat errs ++ usageInfo header options)
   where header = "Usage: fco [OPTION...] SOURCEFILE"
 
-numberedListing :: String -> String
-numberedListing s = concat $ intersperse "\n" $ [(show n) ++ ": " ++ s | (n, s) <- zip [1..] (lines s)]
-
 main :: IO ()
 main = do
   argv <- getArgs

@@ -3,6 +3,7 @@ module Pass where
 
 import Control.Monad.Error
 import Control.Monad.State
+import Data.List
 import System.IO
 
 import qualified AST as A
@@ -55,4 +56,10 @@ debugAST p
           ps <- get
           debug $ pshow ps
           debug $ "}}}"
+
+-- | Number lines in a piece of text.
+numberLines :: String -> String
+numberLines s
+    = concat $ intersperse "\n" $ [show n ++ ": " ++ s
+                                   | (n, s) <- zip [1..] (lines s)]
 

@@ -17,6 +17,8 @@ data ParseState = ParseState {
 
     -- Set by preprocessor
     psSourceFiles :: [(String, String)],
+    psIndentLinesIn :: [String],
+    psIndentLinesOut :: [String],
 
     -- Set by Parse
     psLocalNames :: [(String, A.Name)],
@@ -45,6 +47,8 @@ emptyState = ParseState {
     psOutputFile = "-",
 
     psSourceFiles = [],
+    psIndentLinesIn = [],
+    psIndentLinesOut = [],
 
     psLocalNames = [],
     psMainLocals = [],
