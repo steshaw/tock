@@ -1194,7 +1194,7 @@ definition
            rs <- tryVX (sepBy1 dataType sComma) sFUNCTION
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.ValOf m (A.Skip m) el) }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.OnlyEL m el) }
              <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' vp }
     <|> retypesAbbrev
     <?> "definition"
@@ -1277,7 +1277,7 @@ formalVariableType
            return (A.Abbrev, s)
     <?> "formal variable type"
 
-valueProcess :: [A.Type] -> OccParser A.ValueProcess
+valueProcess :: [A.Type] -> OccParser A.Structured
 valueProcess rs
     =   do m <- md
            sVALOF
@@ -1288,8 +1288,8 @@ valueProcess rs
            el <- expressionList rs
            eol
            outdent
-           return $ A.ValOf m p el
-    <|> handleSpecs specification (valueProcess rs) A.ValOfSpec
+           return $ A.ProcThen m p (A.OnlyEL m el)
+    <|> handleSpecs specification (valueProcess rs) A.Spec
     <?> "value process"
 --}}}
 --{{{ RECORDs
@@ -1336,7 +1336,8 @@ process
     <|> altProcess
     <|> procInstance
     <|> mainProcess
-    <|> handleSpecs (allocation <|> specification) process A.ProcSpec
+    <|> handleSpecs (allocation <|> specification) process
+                    (\m s p -> A.Seq m (A.Spec m s (A.OnlyP m p)))
     <|> preprocessorDirective
     <?> "process"
 
@@ -1510,8 +1511,8 @@ seqProcess :: OccParser A.Process
 seqProcess
     =   do m <- md
            sSEQ
-           do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m ps }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.SeqRep m r' p }
+           do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m (A.Several m (map (A.OnlyP m) ps)) }
+             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Seq m (A.Rep m r' (A.OnlyP m p)) }
     <?> "SEQ process"
 --}}}
 --{{{ IF
@@ -1598,24 +1599,21 @@ parallel :: OccParser A.Process
 parallel
     =   do m <- md
            isPri <- parKeyword
-           do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri ps }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.ParRep m isPri r' p }
-    <|> placedpar
+           do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri (A.Several m (map (A.OnlyP m) ps)) }
+             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Par m isPri (A.Rep m r' (A.OnlyP m p)) }
+    <|> processor
     <?> "PAR process"
 
 parKeyword :: OccParser A.ParMode
 parKeyword
     =   do { sPAR; return A.PlainPar }
     <|> do { tryXX sPRI sPAR; return A.PriPar }
+    <|> do { tryXX sPLACED sPAR; return A.PlacedPar }
 
 -- XXX PROCESSOR as a process isn't really legal, surely?
-placedpar :: OccParser A.Process
-placedpar
+processor :: OccParser A.Process
+processor
     =   do m <- md
-           tryXX sPLACED sPAR
-           do { eol; ps <- maybeIndentedList m "empty PLACED PAR" placedpar; return $ A.Par m A.PlacedPar ps  }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- placedpar; scopeOutRep r'; outdent; return $ A.ParRep m A.PlacedPar r' p }
-    <|> do m <- md
            sPROCESSOR
            e <- intExpr
            eol
@@ -1851,7 +1849,8 @@ parseFile file ps
             Right (p, ps'') -> return (replaceMain p, ps'')
   where
     replaceMain :: A.Process -> A.Process -> A.Process
-    replaceMain (A.ProcSpec m s p) np = A.ProcSpec m s (replaceMain p np)
+    replaceMain (A.Seq m (A.Spec m' s (A.OnlyP m'' p))) np
+        = A.Seq m (A.Spec m' s (A.OnlyP m'' (replaceMain p np)))
     replaceMain (A.Main _) np = np
 
 -- | Parse the top level source file in a program.

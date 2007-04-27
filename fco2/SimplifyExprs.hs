@@ -35,7 +35,7 @@ functionsToProcs = doGeneric `extM` doSpecification
              -- Note the return types so we can fix calls later.
              modify $ (\ps -> ps { psFunctionReturns = (A.nameName n, rts) : psFunctionReturns ps })
              -- Turn the value process into an assignment process.
-             let p = vpToProc vp [A.Variable mf n | n <- names]
+             let p = A.Seq mf $ vpToSeq vp [A.Variable mf n | n <- names]
              let st = A.Proc mf (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
              -- Build a new specification and redefine the function.
              let spec = A.Specification m n st
@@ -51,9 +51,10 @@ functionsToProcs = doGeneric `extM` doSpecification
              doGeneric spec
     doSpecification s = doGeneric s
 
-    vpToProc :: A.ValueProcess -> [A.Variable] -> A.Process
-    vpToProc (A.ValOfSpec m s vp) vs = A.ProcSpec m s (vpToProc vp vs)
-    vpToProc (A.ValOf m p el) vs = A.Seq m [p, A.Assign m vs el]
+    vpToSeq :: A.Structured -> [A.Variable] -> A.Structured
+    vpToSeq (A.Spec m spec s) vs = A.Spec m spec (vpToSeq s vs)
+    vpToSeq (A.ProcThen m p s) vs = A.ProcThen m p (vpToSeq s vs)
+    vpToSeq (A.OnlyEL m el) vs = A.OnlyP m $ A.Assign m vs el
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
@@ -72,26 +73,28 @@ removeAfter = doGeneric `extM` doExpression
               return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
     doExpression e = doGeneric e
 
--- | Find things that need to be moved up to their enclosing process, and do
+-- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
+-- FIXME We probably need to force there to be Structureds in some places -- or
+-- construct them if we get to a Process without finding one.
 pullUp :: Data t => t -> PassM t
-pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
+pullUp = doGeneric `extM` doStructured `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullUp
 
     -- | When we encounter a process, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
-    doProcess :: A.Process -> PassM A.Process
-    doProcess p
+    doStructured :: A.Structured -> PassM A.Structured
+    doStructured s
         =  do -- Save the pulled items
-              origPS <- get
+              origPulled <- liftM psPulledItems get
               modify (\ps -> ps { psPulledItems = [] })
-              -- Recurse over the process, then apply the pulled items to it
-              p' <- doGeneric p >>= applyPulled
+              -- Recurse over the body, then apply the pulled items to it
+              s' <- doGeneric s >>= applyPulled
               -- ... and restore the original pulled items
-              modify (\ps -> ps { psPulledItems = psPulledItems origPS })
-              return p'
+              modify (\ps -> ps { psPulledItems = origPulled })
+              return s'
 
     -- | *Don't* pull anything that's already an abbreviation.
     doSpecification :: A.Specification -> PassM A.Specification
@@ -119,7 +122,7 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
         pull t e
             = do let m = metaOfExpression e
                  spec@(A.Specification _ n _) <- makeNonceIsExpr "array_expr" m t e
-                 addPulled $ A.ProcSpec m spec
+                 addPulled $ A.Spec m spec
                  return $ A.ExprVariable m (A.Variable m n)
 
     -- | Pull any variable subscript that results in an array.
@@ -132,7 +135,7 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
                   do origAM <- abbrevModeOfVariable v'
                      let am = makeAbbrevAM origAM
                      spec@(A.Specification _ n _) <- makeNonceIs "array_slice" m t am v'
-                     addPulled $ A.ProcSpec m spec
+                     addPulled $ A.Spec m spec
                      return $ A.Variable m n
                 _ -> return v'
     doVariable v = doGeneric v
@@ -146,12 +149,12 @@ pullUp = doGeneric `extM` doProcess `extM` doSpecification `extM` doExpression `
              ps <- get
              let rts = fromJust $ lookup (A.nameName n) (psFunctionReturns ps)
              specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
-             sequence_ [addPulled $ A.ProcSpec m spec | spec <- specs]
+             sequence_ [addPulled $ A.Spec m spec | spec <- specs]
 
              let names = [n | A.Specification _ n _ <- specs]
              let vars = [A.Variable m n | n <- names]
              let call = A.ProcCall m n ([A.ActualExpression t e | (t, e) <- zip ets es'] ++ [A.ActualVariable A.Abbrev t v | (t, v) <- zip rts vars])
-             addPulled (\p -> A.Seq m [call, p])
+             addPulled $ A.ProcThen m call
 
              return vars
 

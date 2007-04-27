@@ -1,0 +1,16 @@
+-- From cgtest00.
+
+PROC S19 ()
+  INT X:
+  SEQ
+    X := 42
+    [4]INT V:
+    [3]CHAN OF INT c:
+    PAR
+      PAR i = 0 FOR 3
+        c[i] ! (i + 5)
+      X := X
+      PAR i = 0 FOR 3
+        c[i] ? V[i]
+:
+

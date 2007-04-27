@@ -28,20 +28,33 @@ parsToProcs = doGeneric `extM` doProcess
     doGeneric = gmapM parsToProcs
 
     doProcess :: A.Process -> PassM A.Process
-    doProcess (A.Par m pm ps)
-        =  do ps' <- mapM parsToProcs ps
-              procs <- mapM (makeNonceProc m) ps'
-              let calls = [A.ProcSpec m s (A.ProcCall m n []) | s@(A.Specification m n _) <- procs]
-              return $ A.Par m pm calls
-    doProcess (A.ParRep m pm rep p)
-        =  do p' <- parsToProcs p
-              rep' <- parsToProcs rep
-              s@(A.Specification _ n _) <- makeNonceProc m p'
-              let call = A.ProcSpec m s (A.ProcCall m n [])
-              return $ A.ParRep m pm rep' call
+    doProcess (A.Par m pm s)
+        =  do s' <- doStructured s
+              return $ A.Par m pm s'
     doProcess p = doGeneric p
 
--- | Turn parallel assignment into multiple single assignments.
+    -- FIXME This should be generic and in Pass.
+    doStructured :: A.Structured -> PassM A.Structured
+    doStructured (A.Rep m r s)
+        =  do r' <- parsToProcs r
+              s' <- doStructured s
+              return $ A.Rep m r' s'
+    doStructured (A.Spec m spec s)
+        =  do spec' <- parsToProcs spec
+              s' <- doStructured s
+              return $ A.Spec m spec' s'
+    doStructured (A.ProcThen m p s)
+        =  do p' <- parsToProcs p
+              s' <- doStructured s
+              return $ A.ProcThen m p' s'
+    doStructured (A.OnlyP m p)
+        =  do p' <- parsToProcs p
+              s@(A.Specification _ n _) <- makeNonceProc m p'
+              return $ A.Spec m s (A.OnlyP m (A.ProcCall m n []))
+    doStructured (A.Several m ss)
+        = liftM (A.Several m) $ mapM doStructured ss
+
+-- | Turn parallel assignment into multiple single assignments through temporaries.
 removeParAssign :: Data t => t -> PassM t
 removeParAssign = doGeneric `extM` doProcess
   where
@@ -55,6 +68,6 @@ removeParAssign = doGeneric `extM` doProcess
               let temps = [A.Variable m n | A.Specification _ n _ <- specs]
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
               let second = [A.Assign m [v] (A.ExpressionList m [A.ExprVariable m v']) | (v, v') <- zip vs temps]
-              return $ foldl (\p s -> A.ProcSpec m s p) (A.Seq m $ first ++ second) specs
+              return $ A.Seq m $ foldl (\s spec -> A.Spec m spec s) (A.Several m (map (A.OnlyP m) (first ++ second))) specs
     doProcess p = doGeneric p
 

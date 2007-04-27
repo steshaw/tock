@@ -172,10 +172,13 @@ data Variant = Variant Meta Name [InputItem] Process
 data Structured =
   Rep Meta Replicator Structured
   | Spec Meta Specification Structured
-  | OnlyV Meta Variant
-  | OnlyC Meta Choice
-  | OnlyO Meta Option
-  | OnlyA Meta Alternative
+  | ProcThen Meta Process Structured
+  | OnlyV Meta Variant                  -- ^ Variant (CASE) input process
+  | OnlyC Meta Choice                   -- ^ IF process
+  | OnlyO Meta Option                   -- ^ CASE process
+  | OnlyA Meta Alternative              -- ^ ALT process
+  | OnlyP Meta Process                  -- ^ SEQ, PAR
+  | OnlyEL Meta ExpressionList          -- ^ VALOF
   | Several Meta [Structured]
   deriving (Show, Eq, Typeable, Data)
 
@@ -193,7 +196,6 @@ data AbbrevMode =
 
 data Specification =
   Specification Meta Name SpecType
-  | NoSpecification   -- ^ A specification that's been removed by a pass.
   deriving (Show, Eq, Typeable, Data)
 
 data SpecType =
@@ -207,7 +209,7 @@ data SpecType =
   | Protocol Meta [Type]
   | ProtocolCase Meta [(Name, [Type])]
   | Proc Meta [Formal] Process
-  | Function Meta [Type] [Formal] ValueProcess
+  | Function Meta [Type] [Formal] Structured
   | Retypes Meta AbbrevMode Type Variable
   | RetypesExpr Meta AbbrevMode Type Expression
   deriving (Show, Eq, Typeable, Data)
@@ -221,31 +223,23 @@ data Actual =
   | ActualExpression Type Expression
   deriving (Show, Eq, Typeable, Data)
 
-data ValueProcess =
-  ValOfSpec Meta Specification ValueProcess
-  | ValOf Meta Process ExpressionList
-  deriving (Show, Eq, Typeable, Data)
-
 data ParMode =
   PlainPar | PriPar | PlacedPar
   deriving (Show, Eq, Typeable, Data)
 
 data Process =
-  ProcSpec Meta Specification Process
-  | Assign Meta [Variable] ExpressionList
+  Assign Meta [Variable] ExpressionList
   | Input Meta Variable InputMode
   | Output Meta Variable [OutputItem]
   | OutputCase Meta Variable Name [OutputItem]
   | Skip Meta
   | Stop Meta
   | Main Meta
-  | Seq Meta [Process]
-  | SeqRep Meta Replicator Process
+  | Seq Meta Structured
   | If Meta Structured
   | Case Meta Expression Structured
   | While Meta Expression Process
-  | Par Meta ParMode [Process]
-  | ParRep Meta ParMode Replicator Process
+  | Par Meta ParMode Structured
   | Processor Meta Expression Process
   | Alt Meta Bool Structured
   | ProcCall Meta Name [Actual]

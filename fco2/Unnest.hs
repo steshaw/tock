@@ -19,14 +19,13 @@ unnest = runPasses passes
     passes =
       [ ("Convert free names to arguments", removeFreeNames)
       , ("Pull nested definitions to top level", removeNesting)
-      , ("Clean up removed specifications", removeNoSpecs)
       ]
 
 type NameMap = Map.Map String A.Name
 
 -- | Get the set of free names within a block of code.
 freeNamesIn :: Data t => t -> NameMap
-freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ` doValueProcess `extQ` doSpecType
+freeNamesIn = doGeneric `extQ` doName `extQ` doStructured `extQ` doSpecType
   where
     doGeneric :: Data t => t -> NameMap
     doGeneric n = Map.unions $ gmapQ freeNamesIn n
@@ -34,20 +33,10 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doProcess `extQ` doStructured `extQ
     doName :: A.Name -> NameMap
     doName n = Map.singleton (A.nameName n) n
 
-    doProcess :: A.Process -> NameMap
-    doProcess (A.ProcSpec _ spec p) = doSpec spec p
-    doProcess (A.SeqRep _ rep p) = doRep rep p
-    doProcess (A.ParRep _ _ rep p) = doRep rep p
-    doProcess p = doGeneric p
-
     doStructured :: A.Structured -> NameMap
     doStructured (A.Rep _ rep s) = doRep rep s
     doStructured (A.Spec _ spec s) = doSpec spec s
     doStructured s = doGeneric s
-
-    doValueProcess :: A.ValueProcess -> NameMap
-    doValueProcess (A.ValOfSpec _ spec vp) = doSpec spec vp
-    doValueProcess vp = doGeneric vp
 
     doSpec :: Data t => A.Specification -> t -> NameMap
     doSpec (A.Specification _ n st) child
@@ -156,22 +145,24 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 removeNesting :: A.Process -> PassM A.Process
 removeNesting p
     =  do p' <- pullSpecs p
-          applyPulled p'
+          s <- applyPulled $ A.OnlyP emptyMeta p'
+          return $ A.Seq emptyMeta s
   where
     pullSpecs :: Data t => t -> PassM t
-    pullSpecs = doGeneric `extM` doSpecification
+    pullSpecs = doGeneric `extM` doStructured
 
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullSpecs
 
-    doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification spec@(A.Specification m n st)
+    doStructured :: A.Structured -> PassM A.Structured
+    doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)
         = do isConst <- isConstantName n
              if isConst || canPull st then
                  do spec' <- doGeneric spec
-                    addPulled $ A.ProcSpec m spec'
-                    return A.NoSpecification
-               else doGeneric spec
+                    addPulled $ A.Spec m spec'
+                    return subS
+               else doGeneric s
+    doStructured s = doGeneric s
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _) = True
@@ -181,21 +172,3 @@ removeNesting p
     canPull (A.ProtocolCase _ _) = True
     canPull _ = False
 
--- | Remove specifications that have been turned into NoSpecifications.
-removeNoSpecs :: Data t => t -> PassM t
-removeNoSpecs = doGeneric `extM` doProcess `extM` doStructured `extM` doValueProcess
-  where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric n = gmapM removeNoSpecs n
-
-    doProcess :: A.Process -> PassM A.Process
-    doProcess (A.ProcSpec _ A.NoSpecification p) = removeNoSpecs p
-    doProcess p = doGeneric p
-
-    doStructured :: A.Structured -> PassM A.Structured
-    doStructured (A.Spec _ A.NoSpecification s) = removeNoSpecs s
-    doStructured s = doGeneric s
-
-    doValueProcess :: A.ValueProcess -> PassM A.ValueProcess
-    doValueProcess (A.ValOfSpec _ A.NoSpecification vp) = removeNoSpecs vp
-    doValueProcess vp = doGeneric vp

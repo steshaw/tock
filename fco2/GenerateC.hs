@@ -89,6 +89,7 @@ overArray var func
 genStructured :: A.Structured -> (A.Structured -> CGen ()) -> CGen ()
 genStructured (A.Rep _ rep s) def = genReplicator rep (genStructured s def)
 genStructured (A.Spec _ spec s) def = genSpec spec (genStructured s def)
+genStructured (A.ProcThen _ p s) def = genProcess p >> genStructured s def
 genStructured (A.Several _ ss) def = sequence_ [genStructured s def | s <- ss]
 genStructured s def = def s
 
@@ -591,12 +592,6 @@ genReplicatorSize :: A.Replicator -> CGen ()
 genReplicatorSize (A.For m n base count) = genExpression count
 --}}}
 
---{{{  choice/alternatives/options/variants
---}}}
-
---{{{  structured
---}}}
-
 --{{{  abbreviations
 -- FIXME: This code is horrible, and I can't easily convince myself that it's correct.
 
@@ -964,13 +959,9 @@ genFormal (A.Formal am t n)
         _ -> genDecl am t n
 --}}}
 
---{{{  par modes
---}}}
-
 --{{{  processes
 genProcess :: A.Process -> CGen ()
 genProcess p = case p of
-  A.ProcSpec m s p -> genSpec s (genProcess p)
   A.Assign m vs es -> genAssign vs es
   A.Input m c im -> genInput c im
   A.Output m c ois -> genOutput c ois
@@ -978,14 +969,13 @@ genProcess p = case p of
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> genStop m "STOP process"
   A.Main m -> tell ["/* main */\n"]
-  A.Seq m ps -> sequence_ $ map genProcess ps
-  A.SeqRep m r p -> genReplicator r (genProcess p)
+  A.Seq _ s -> genSeqBody s
   A.If m s -> genIf m s
   A.Case m e s -> genCase m e s
   A.While m e p -> genWhile e p
-  A.Par m pm ps -> genPar pm ps
-  A.ParRep m pm r p -> genParRep pm r p
-  A.Processor m e p -> missing "PROCESSOR not supported"
+  A.Par m pm s -> genParBody pm s
+  -- PROCESSOR does nothing special.
+  A.Processor m e p -> genProcess p
   A.Alt m b s -> genAlt b s
   A.ProcCall m n as -> genProcCall n as
 
@@ -1098,6 +1088,12 @@ genStop m s
           genMeta m
           tell [", \"", s, "\");\n"]
 --}}}
+--{{{  seq
+genSeqBody :: A.Structured -> CGen ()
+genSeqBody s = genStructured s doP
+  where
+    doP (A.OnlyP _ p) = genProcess p
+--}}}
 --{{{  if
 genIf :: Meta -> A.Structured -> CGen ()
 genIf m s
@@ -1162,13 +1158,28 @@ genWhile e p
           tell ["}\n"]
 --}}}
 --{{{  par
-genPar :: A.ParMode -> [A.Process] -> CGen ()
-genPar pm ps
-    =  do pids <- mapM (\_ -> makeNonce "pid") ps
-          sequence_ $ [do tell ["Process *", pid, " = "]
-                          genProcAlloc p
-                          tell [";\n"]
-                       | (pid, p) <- (zip pids ps)]
+-- FIXME: This is a bit odd because it'll only generate the two forms of the
+-- AST resulting from regular and replicated PARs. It'd probably be better to
+-- make it deal with a general Structured PAR.
+
+genParBody :: A.ParMode -> A.Structured -> CGen ()
+genParBody pm (A.Spec _ spec s) = genSpec spec (genParBody pm s)
+genParBody pm (A.ProcThen _ p s) = genProcess p >> genParBody pm s
+genParBody pm (A.Several _ ss) = genPar pm ss
+genParBody pm (A.Rep _ rep s) = genParRep pm rep s
+
+genParProc :: (A.Process -> CGen()) -> A.Structured -> CGen ()
+genParProc gen (A.Spec _ spec s) = genSpec spec (genParProc gen s)
+genParProc gen (A.ProcThen _ p s) = genProcess p >> genParProc gen s
+genParProc gen (A.OnlyP _ p) = gen p
+
+genPar :: A.ParMode -> [A.Structured] -> CGen ()
+genPar pm ss
+    =  do pids <- sequence [makeNonce "pid" | _ <- ss]
+          sequence_ $ [genParProc (\p -> do tell ["Process *", pid, " = "]
+                                            genProcAlloc p
+                                            tell [";\n"]) s
+                       | (pid, s) <- (zip pids ss)]
           case pm of
             A.PlainPar ->
               do tell ["ProcPar ("]
@@ -1177,17 +1188,17 @@ genPar pm ps
             _ -> missing $ "genPar " ++ show pm
           sequence_ $ [tell ["ProcAllocClean (", pid, ");\n"] | pid <- pids]
 
-genParRep :: A.ParMode -> A.Replicator -> A.Process -> CGen ()
-genParRep pm rep p
+genParRep :: A.ParMode -> A.Replicator -> A.Structured -> CGen ()
+genParRep pm rep s
     =  do pids <- makeNonce "pids"
           index <- makeNonce "i"
           tell ["Process *", pids, "["]
           genReplicatorSize rep
           tell [" + 1];\n"]
           tell ["int ", index, " = 0;\n"]
-          genReplicator rep $ do tell [pids, "[", index, "++] = "]
-                                 genProcAlloc p
-                                 tell [";\n"]
+          genReplicator rep $ genParProc (\p -> do tell [pids, "[", index, "++] = "]
+                                                   genProcAlloc p
+                                                   tell [";\n"]) s
           tell [pids, "[", index, "] = NULL;\n"]
           tell ["ProcParList (", pids, ");\n"]
           tell [index, " = 0;\n"]
@@ -1202,6 +1213,7 @@ genProcAlloc (A.ProcCall m n as)
           tell [", ", show stackSize, ", ", show $ numCArgs as]
           genActuals as
           tell [")"]
+genProcAlloc p = missing $ "genProcAlloc " ++ show p
 --}}}
 --{{{  alt
 genAlt :: Bool -> A.Structured -> CGen ()

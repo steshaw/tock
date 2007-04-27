@@ -38,15 +38,6 @@ Output item expressions should be pulled up to variables.
 
 RETYPES of expressions should be converted to RETYPES of variables.
 
-Pulling up won't work correctly for things like:
-  IF i = 0 FOR 5
-    some.func (i)
-      ...
-This will require some thought (and probably some AST changes to insert an
-artifical place to pull up to -- perhaps just a more flexible Specification
-type).
-How about having a slot for "process, then" in Structured?
-
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
 directives to their real types.
 

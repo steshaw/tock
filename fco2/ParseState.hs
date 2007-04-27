@@ -32,13 +32,13 @@ data ParseState = ParseState {
     -- Set by passes
     psNonceCounter :: Int,
     psFunctionReturns :: [(String, [A.Type])],
-    psPulledItems :: [A.Process -> A.Process],
+    psPulledItems :: [A.Structured -> A.Structured],
     psAdditionalArgs :: [(String, [A.Actual])]
   }
   deriving (Show, Data, Typeable)
 
-instance Show (A.Process -> A.Process) where
-  show p = "(function on A.Process)"
+instance Show (A.Structured -> A.Structured) where
+  show p = "(function on Structured)"
 
 emptyState :: ParseState
 emptyState = ParseState {
@@ -95,11 +95,11 @@ makeNonce s
           return $ s ++ "_n" ++ show i
 
 -- | Add a pulled item to the collection.
-addPulled :: PSM m => (A.Process -> A.Process) -> m ()
+addPulled :: PSM m => (A.Structured -> A.Structured) -> m ()
 addPulled item = modify (\ps -> ps { psPulledItems = item : psPulledItems ps })
 
--- | Apply pulled items to a Process.
-applyPulled :: PSM m => A.Process -> m A.Process
+-- | Apply pulled items to a Structured.
+applyPulled :: PSM m => A.Structured -> m A.Structured
 applyPulled ast
     =  do ps <- get
           let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
