@@ -57,16 +57,20 @@ progress = verboseMessage 1
 debug :: (PSM m, MonadIO m) => String -> m ()
 debug = verboseMessage 2
 
+-- | Print a really verbose debugging message.
+veryDebug :: (PSM m, MonadIO m) => String -> m ()
+veryDebug = verboseMessage 3
+
 -- | Dump the AST and parse state.
 debugAST :: (PSM m, MonadIO m) => A.Process -> m ()
 debugAST p
-    =  do debug $ "{{{ AST"
-          debug $ pshow p
-          debug $ "}}}"
-          debug $ "{{{ State"
+    =  do veryDebug $ "{{{ AST"
+          veryDebug $ pshow p
+          veryDebug $ "}}}"
+          veryDebug $ "{{{ State"
           ps <- get
-          debug $ pshow ps
-          debug $ "}}}"
+          veryDebug $ pshow ps
+          veryDebug $ "}}}"
 
 -- | Number lines in a piece of text.
 numberLines :: String -> String

@@ -31,16 +31,15 @@ type OptFunc = ParseState -> IO ParseState
 options :: [OptDescr OptFunc]
 options =
   [ Option [] ["parse-only"] (NoArg optParseOnly) "only parse input file"
-  , Option ['v'] ["verbose"] (NoArg $ optVerboseLevel 1) "show progress information"
-  , Option [] ["debug"] (NoArg $ optVerboseLevel 2) "show detailed information for debugging"
+  , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
 
 optParseOnly :: OptFunc
 optParseOnly ps = return $ ps { psParseOnly = True }
 
-optVerboseLevel :: Int -> OptFunc
-optVerboseLevel n ps = return $ ps { psVerboseLevel = max (psVerboseLevel ps) n }
+optVerbose :: OptFunc
+optVerbose ps = return $ ps { psVerboseLevel = psVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { psOutputFile = s }
