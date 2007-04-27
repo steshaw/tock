@@ -1,0 +1,18 @@
+-- This is from cgtest04.
+
+PROC IU50 ()
+  VAL m IS 10 :
+  VAL n IS 15 :
+  [n] [m] INT a, b :
+  SEQ
+    IF
+      IF x = 0 FOR n
+        IF y = 0 FOR m
+          a [x] [y] <> b [x] [y]
+            SKIP
+:
+
+PROC P ()
+  IU50 ()
+:
+
