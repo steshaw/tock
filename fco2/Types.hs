@@ -36,8 +36,8 @@ typeOfName n
 
 --{{{  identifying types
 -- | Apply a slice to a type.
-sliceType :: (PSM m, Die m) => A.Expression -> A.Expression -> A.Type -> m A.Type
-sliceType base count (A.Array (d:ds) t)
+sliceType :: (PSM m, Die m) => Meta -> A.Expression -> A.Expression -> A.Type -> m A.Type
+sliceType m base count (A.Array (d:ds) t)
     = case (isConstant base, isConstant count) of
         (True, True) ->
           do b <- evalIntExpression base
@@ -45,7 +45,7 @@ sliceType base count (A.Array (d:ds) t)
              case d of
                A.Dimension size ->
                  if (size - b) < c
-                   then die "invalid slice"
+                   then dieP m $ "invalid slice " ++ show b ++ " -> " ++ show c ++ " of " ++ show size
                    else return $ A.Array (A.Dimension c : ds) t
                A.UnknownDimension ->
                  return $ A.Array (A.Dimension c : ds) t
@@ -54,50 +54,50 @@ sliceType base count (A.Array (d:ds) t)
           do c <- evalIntExpression count
              return $ A.Array (A.Dimension c : ds) t
         (False, False) -> return $ A.Array (A.UnknownDimension : ds) t
-sliceType _ _ _ = die "slice of non-array type"
+sliceType m _ _ _ = dieP m "slice of non-array type"
 
 -- | Get the type of a record field.
-typeOfRecordField :: (PSM m, Die m) => A.Type -> A.Name -> m A.Type
-typeOfRecordField (A.UserDataType rec) field
+typeOfRecordField :: (PSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
+typeOfRecordField m (A.UserDataType rec) field
     =  do st <- specTypeOfName rec
           case st of
             A.DataTypeRecord _ _ fs -> checkJust "unknown record field" $ lookup field fs
-            _ -> die "not record type"
-typeOfRecordField _ _ = die "not record type"
+            _ -> dieP m "not record type"
+typeOfRecordField m _ _ = dieP m "not record type"
 
 -- | Apply a plain subscript to a type.
-plainSubscriptType :: (PSM m, Die m) => A.Expression -> A.Type -> m A.Type
-plainSubscriptType sub (A.Array (d:ds) t)
+plainSubscriptType :: (PSM m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
+plainSubscriptType m sub (A.Array (d:ds) t)
     = case (isConstant sub, d) of
         (True, A.Dimension size) ->
           do i <- evalIntExpression sub
              if (i < 0) || (i >= size)
-               then die "invalid subscript"
+               then dieP m $ "invalid subscript " ++ show i ++ " of " ++ show size
                else return ok
         _ -> return ok
   where
     ok = case ds of
            [] -> t
            _ -> A.Array ds t
-plainSubscriptType _ _ = die "subscript of non-array type"
+plainSubscriptType m _ _ = dieP m "subscript of non-array type"
 
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
 subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
-subscriptType (A.SubscriptFromFor _ base count) t
-    = sliceType base count t
-subscriptType (A.SubscriptFrom _ base) (A.Array (d:ds) t)
+subscriptType (A.SubscriptFromFor m base count) t
+    = sliceType m base count t
+subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
     = case (isConstant base, d) of
         (True, A.Dimension size) ->
           do b <- evalIntExpression base
              if (size - b) < 0
-               then die "invalid slice"
+               then dieP m $ "invalid slice " ++ show b ++ " -> end of " ++ show size
                else return $ A.Array (A.Dimension (size - b) : ds) t
         _ -> return $ A.Array (A.UnknownDimension : ds) t
-subscriptType (A.SubscriptFor _ count) t
-    = sliceType (makeConstant emptyMeta 0) count t
-subscriptType (A.SubscriptField _ tag) t = typeOfRecordField t tag
-subscriptType (A.Subscript _ sub) t = plainSubscriptType sub t
+subscriptType (A.SubscriptFor m count) t
+    = sliceType m (makeConstant emptyMeta 0) count t
+subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
+subscriptType (A.Subscript m sub) t = plainSubscriptType m sub t
 subscriptType _ _ = die "unsubscriptable type"
 
 typeOfVariable :: (PSM m, Die m) => A.Variable -> m A.Type
