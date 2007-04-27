@@ -32,7 +32,7 @@ data ParseState = ParseState {
     -- Set by passes
     psNonceCounter :: Int,
     psFunctionReturns :: [(String, [A.Type])],
-    psPulledItems :: [A.Structured -> A.Structured],
+    psPulledItems :: [[A.Structured -> A.Structured]],
     psAdditionalArgs :: [(String, [A.Actual])]
   }
   deriving (Show, Data, Typeable)
@@ -69,6 +69,7 @@ emptyState = ParseState {
 class MonadState ParseState m => PSM m
 instance MonadState ParseState m => PSM m
 
+--{{{  name definitions
 -- | Add the definition of a name.
 defineName :: PSM m => A.Name -> A.NameDef -> m ()
 defineName n nd = modify $ (\ps -> ps { psNames = (A.nameName n, nd) : psNames ps })
@@ -80,32 +81,48 @@ lookupName n
           case lookup (A.nameName n) (psNames ps) of
             Just nd -> return nd
             Nothing -> die $ "cannot find name " ++ A.nameName n
+--}}}
 
+--{{{  warnings
 -- | Add a warning.
 addWarning :: PSM m => Meta -> String -> m ()
 addWarning m s = modify (\ps -> ps { psWarnings = msg : psWarnings ps })
   where msg = "Warning: " ++ show m ++ ": " ++ s
+--}}}
 
--- | Generate a throwaway unique name.
-makeNonce :: PSM m => String -> m String
-makeNonce s
-    =  do ps <- get
-          let i = psNonceCounter ps
-          put ps { psNonceCounter = i + 1 }
-          return $ s ++ "_n" ++ show i
+--{{{  pulled items
+-- | Enter a pulled-items context.
+pushPullContext :: PSM m => m ()
+pushPullContext = modify (\ps -> ps { psPulledItems = [] : psPulledItems ps })
+
+-- | Leave a pulled-items context.
+popPullContext :: PSM m => m ()
+popPullContext = modify (\ps -> ps { psPulledItems = tail $ psPulledItems ps })
 
 -- | Add a pulled item to the collection.
 addPulled :: PSM m => (A.Structured -> A.Structured) -> m ()
-addPulled item = modify (\ps -> ps { psPulledItems = item : psPulledItems ps })
+addPulled item
+    = modify (\ps -> case psPulledItems ps of
+                       (l:ls) -> ps { psPulledItems = (item:l):ls })
+
+-- | Do we currently have any pulled items?
+havePulled :: PSM m => m Bool
+havePulled
+    =  do ps <- get
+          case psPulledItems ps of
+            ([]:_) -> return False
+            _ -> return True
 
 -- | Apply pulled items to a Structured.
 applyPulled :: PSM m => A.Structured -> m A.Structured
 applyPulled ast
     =  do ps <- get
-          let ast' = foldl (\p f -> f p) ast (psPulledItems ps)
-          put $ ps { psPulledItems = [] }
-          return ast'
+          case psPulledItems ps of
+            (l:ls) -> do put $ ps { psPulledItems = [] : ls }
+                         return $ foldl (\p f -> f p) ast l
+--}}}
 
+--{{{  type contexts
 -- | Enter a type context.
 pushTypeContext :: PSM m => Maybe A.Type -> m ()
 pushTypeContext t
@@ -123,6 +140,16 @@ getTypeContext def
           case psTypeContext ps of
             (Just c):_ -> return c
             _ -> return def
+--}}}
+
+--{{{ nonces
+-- | Generate a throwaway unique name.
+makeNonce :: PSM m => String -> m String
+makeNonce s
+    =  do ps <- get
+          let i = psNonceCounter ps
+          put ps { psNonceCounter = i + 1 }
+          return $ s ++ "_n" ++ show i
 
 -- | Generate and define a nonce specification.
 defineNonce :: PSM m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
@@ -159,4 +186,4 @@ makeNonceIsExpr s m t e
 makeNonceVariable :: PSM m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
 makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t) nt am
-
+--}}}

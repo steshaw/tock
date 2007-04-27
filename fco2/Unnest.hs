@@ -144,8 +144,10 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 -- | Pull nested declarations to the top level.
 removeNesting :: A.Process -> PassM A.Process
 removeNesting p
-    =  do p' <- pullSpecs p
+    =  do pushPullContext
+          p' <- pullSpecs p
           s <- applyPulled $ A.OnlyP emptyMeta p'
+          popPullContext
           return $ A.Seq emptyMeta s
   where
     pullSpecs :: Data t => t -> PassM t
@@ -158,9 +160,10 @@ removeNesting p
     doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)
         = do isConst <- isConstantName n
              if isConst || canPull st then
-                 do spec' <- doGeneric spec
+                 do debug $ "removeNesting: pulling up " ++ show n
+                    spec' <- doGeneric spec
                     addPulled $ A.Spec m spec'
-                    return subS
+                    doStructured subS
                else doGeneric s
     doStructured s = doGeneric s
 

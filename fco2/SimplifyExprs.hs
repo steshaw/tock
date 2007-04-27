@@ -75,26 +75,35 @@ removeAfter = doGeneric `extM` doExpression
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
--- FIXME We probably need to force there to be Structureds in some places -- or
--- construct them if we get to a Process without finding one.
 pullUp :: Data t => t -> PassM t
-pullUp = doGeneric `extM` doStructured `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
+pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapM pullUp
 
-    -- | When we encounter a process, create a new pulled items state,
+    -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
     doStructured :: A.Structured -> PassM A.Structured
     doStructured s
-        =  do -- Save the pulled items
-              origPulled <- liftM psPulledItems get
-              modify (\ps -> ps { psPulledItems = [] })
+        =  do pushPullContext
               -- Recurse over the body, then apply the pulled items to it
               s' <- doGeneric s >>= applyPulled
               -- ... and restore the original pulled items
-              modify (\ps -> ps { psPulledItems = origPulled })
+              popPullContext
               return s'
+
+    -- | As with doStructured: when we find a process, create a new pulled items
+    -- context, and if we find any items apply them to it.
+    doProcess :: A.Process -> PassM A.Process
+    doProcess p
+        =  do pushPullContext
+              p' <- doGeneric p
+              pulled <- havePulled
+              p'' <- if pulled
+                       then liftM (A.Seq emptyMeta) $ applyPulled (A.OnlyP emptyMeta p')
+                       else return p'
+              popPullContext
+              return p''
 
     -- | *Don't* pull anything that's already an abbreviation.
     doSpecification :: A.Specification -> PassM A.Specification
