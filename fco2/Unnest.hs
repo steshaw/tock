@@ -90,8 +90,15 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doSpecification spec = case spec of
         A.Specification m n st@(A.Proc _ _ _) ->
           do st'@(A.Proc _ fs p) <- removeFreeNames st
+
+             -- If this is the top-level process, we shouldn't add new args --
+             -- we know it's not going to be moved by removeNesting, so anything
+             -- that it had in scope originally will still be in scope.
+             ps <- get
+             let isTLP = (snd $ head $ psMainLocals ps) == n
+
              -- Figure out the free names.
-             let freeNames' = Map.elems $ freeNamesIn st'
+             let freeNames' = if isTLP then [] else Map.elems $ freeNamesIn st'
              let freeNames'' = [n | n <- freeNames',
                                     case A.nameType n of
                                       A.ChannelName -> True
@@ -99,11 +106,13 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                                       A.TimerName -> True
                                       A.VariableName -> True
                                       _ -> False]
+
              -- Don't bother with constants -- they get pulled up anyway.
              freeNames <- filterM (liftM not . isConstantName) freeNames''
              types <- mapM typeOfName freeNames
              origAMs <- mapM abbrevModeOfName freeNames
              let ams = map makeAbbrevAM origAMs
+
              -- Generate and define new names to replace them with
              newNamesS <- sequence [makeNonce (A.nameName n) | n <- freeNames]
              let newNames = [on { A.nameName = nn } | (on, nn) <- zip freeNames newNamesS]
@@ -111,22 +120,26 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              sequence_ [defineName nn (ond { A.ndName = A.nameName nn,
                                              A.ndAbbrevMode = am })
                         | (ond, nn, am) <- zip3 onds newNames ams]
+
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
              let st'' = A.Proc m (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
              let spec' = A.Specification m n st''
+
              -- Update the definition of the proc
              nameDef <- lookupName n
              defineName n (nameDef { A.ndType = st'' })
+
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
              let newAs = [case am of
                             A.Abbrev -> A.ActualVariable am t (A.Variable m n)
                             _ -> A.ActualExpression t (A.ExprVariable m (A.Variable m n))
                           | (am, n, t) <- zip3 ams freeNames types]
-             case newAs of
-               [] -> return ()
-               _ -> modify $ (\ps -> ps { psAdditionalArgs = (A.nameName n, newAs) : psAdditionalArgs ps })
+             debug $ "removeFreeNames: " ++ show n ++ " has new args " ++ show newAs
+             when (newAs /= []) $
+               modify $ (\ps -> ps { psAdditionalArgs = (A.nameName n, newAs) : psAdditionalArgs ps })
+
              return spec'
         _ -> doGeneric spec
 
