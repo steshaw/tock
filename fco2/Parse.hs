@@ -16,6 +16,7 @@ import Text.Regex
 import qualified AST as A
 import Errors
 import EvalConstants
+import EvalLiterals
 import Indentation
 import Metadata
 import ParseState

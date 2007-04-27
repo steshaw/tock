@@ -45,6 +45,7 @@ Pulling up won't work correctly for things like:
 This will require some thought (and probably some AST changes to insert an
 artifical place to pull up to -- perhaps just a more flexible Specification
 type).
+How about having a slot for "process, then" in Structured?
 
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
 directives to their real types.

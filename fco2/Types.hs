@@ -10,6 +10,7 @@ import Data.Maybe
 
 import qualified AST as A
 import Errors
+import EvalLiterals
 import ParseState
 import Metadata
 
@@ -34,6 +35,28 @@ typeOfName n
             _ -> die $ "cannot type name " ++ show st
 
 --{{{  identifying types
+-- | Apply a slice to a type.
+sliceType :: (PSM m, Die m) => A.Expression -> A.Expression -> A.Type -> m A.Type
+sliceType base count (A.Array (d:ds) t)
+    = case (isConstant base, isConstant count) of
+        (True, True) ->
+          do b <- evalIntExpression base
+             c <- evalIntExpression count
+             case d of
+               A.Dimension size ->
+                 if (size - b) < c
+                   then die "invalid slice"
+                   else return $ A.Array (A.Dimension c : ds) t
+               A.UnknownDimension ->
+                 return $ A.Array (A.Dimension c : ds) t
+        (True, False) -> return $ A.Array (A.UnknownDimension : ds) t
+        (False, True) ->
+          do c <- evalIntExpression count
+             return $ A.Array (A.Dimension c : ds) t
+        (False, False) -> return $ A.Array (A.UnknownDimension : ds) t
+sliceType _ _ _ = die "slice of non-array type"
+
+-- | Get the type of a record field.
 typeOfRecordField :: (PSM m, Die m) => A.Type -> A.Name -> m A.Type
 typeOfRecordField (A.UserDataType rec) field
     =  do st <- specTypeOfName rec
@@ -42,16 +65,39 @@ typeOfRecordField (A.UserDataType rec) field
             _ -> die "not record type"
 typeOfRecordField _ _ = die "not record type"
 
+-- | Apply a plain subscript to a type.
+plainSubscriptType :: (PSM m, Die m) => A.Expression -> A.Type -> m A.Type
+plainSubscriptType sub (A.Array (d:ds) t)
+    = case (isConstant sub, d) of
+        (True, A.Dimension size) ->
+          do i <- evalIntExpression sub
+             if (i < 0) || (i >= size)
+               then die "invalid subscript"
+               else return ok
+        _ -> return ok
+  where
+    ok = case ds of
+           [] -> t
+           _ -> A.Array ds t
+plainSubscriptType _ _ = die "subscript of non-array type"
+
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
--- FIXME This needs to replace the first dimension in array types.
 subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
-subscriptType (A.SubscriptFromFor _ _ _) t = return t
-subscriptType (A.SubscriptFrom _ _) t = return t
-subscriptType (A.SubscriptFor _ _) t = return t
+subscriptType (A.SubscriptFromFor _ base count) t
+    = sliceType base count t
+subscriptType (A.SubscriptFrom _ base) (A.Array (d:ds) t)
+    = case (isConstant base, d) of
+        (True, A.Dimension size) ->
+          do b <- evalIntExpression base
+             if (size - b) < 0
+               then die "invalid slice"
+               else return $ A.Array (A.Dimension (size - b) : ds) t
+        _ -> return $ A.Array (A.UnknownDimension : ds) t
+subscriptType (A.SubscriptFor _ count) t
+    = sliceType (makeConstant emptyMeta 0) count t
 subscriptType (A.SubscriptField _ tag) t = typeOfRecordField t tag
-subscriptType (A.Subscript _ _) (A.Array [_] t) = return t
-subscriptType (A.Subscript _ _) (A.Array (_:ds) t) = return $ A.Array ds t
+subscriptType (A.Subscript _ sub) t = plainSubscriptType sub t
 subscriptType _ _ = die "unsubscriptable type"
 
 typeOfVariable :: (PSM m, Die m) => A.Variable -> m A.Type

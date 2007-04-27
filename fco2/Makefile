@@ -6,6 +6,7 @@ sources = \
 	AST.hs \
 	Errors.hs \
 	EvalConstants.hs \
+	EvalLiterals.hs \
 	GenerateC.hs \
 	Indentation.hs \
 	Main.hs \

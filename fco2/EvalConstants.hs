@@ -1,5 +1,5 @@
 -- | Evaluate constant expressions.
-module EvalConstants (constantFold, isConstantName, evalIntExpression) where
+module EvalConstants (constantFold, isConstantName) where
 
 import Control.Monad.Error
 import Control.Monad.Identity
@@ -12,6 +12,7 @@ import Numeric
 
 import qualified AST as A
 import Errors
+import EvalLiterals
 import Metadata
 import ParseState
 import Pass
@@ -26,20 +27,6 @@ constantFold e
                             Left err -> (e, err)
                             Right val -> (val, "already folded")
           return (e', isConstant e', msg)
-
--- | Is an expression a constant literal?
-isConstant :: A.Expression -> Bool
-isConstant (A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ aes)))
-    = and $ map isConstantArray aes
-isConstant (A.ExprLiteral _ _) = True
-isConstant (A.True _) = True
-isConstant (A.False _) = True
-isConstant _ = False
-
--- | Is an array literal element constant?
-isConstantArray :: A.ArrayElem -> Bool
-isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
-isConstantArray (A.ArrayElemExpr e) = isConstant e
 
 -- | Is a name defined as a constant expression? If so, return its definition.
 getConstantName :: (PSM m, Die m) => A.Name -> m (Maybe A.Expression)
@@ -59,53 +46,19 @@ isConstantName n
                      Just _ -> True
                      Nothing -> False
 
--- | Evaluate a constant integer expression.
-evalIntExpression :: (PSM m, Die m) => A.Expression -> m Int
-evalIntExpression e
-    =  do ps <- get
-          case runEvaluator ps e of
-            Left err -> die $ "cannot evaluate expression: " ++ err
-            Right (OccInt val) -> return $ fromIntegral val
-            Right _ -> die "expression is not of INT type"
-
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
 simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
 simplifyExpression ps e
-    = case runEvaluator ps e of
+    = case runEvaluator ps (evalExpression e) of
         Left err -> Left err
         Right val -> Right $ snd $ renderValue (metaOfExpression e) val
 
--- | Run the expression evaluator.
-runEvaluator :: ParseState -> A.Expression -> Either String OccValue
-runEvaluator ps e
-    = runIdentity (evalStateT (runErrorT (evalExpression e)) ps)
-
 --{{{  expression evaluator
-type EvalM = ErrorT String (StateT ParseState Identity)
-
-instance Die EvalM where
-  die = throwError
-
--- | Occam values of various types.
-data OccValue =
-  OccBool Bool
-  | OccInt Int32
-  | OccArray [OccValue]
-  deriving (Show, Eq, Typeable, Data)
-
--- | Turn the result of one of the read* functions into an OccValue,
--- or throw an error if it didn't parse.
-fromRead :: (t -> OccValue) -> [(t, String)] -> EvalM OccValue
-fromRead cons [(v, "")] = return $ cons v
-fromRead _ _ = throwError "cannot parse literal"
-
 evalLiteral :: A.Literal -> EvalM OccValue
-evalLiteral (A.Literal _ A.Int (A.IntLiteral _ s)) = fromRead OccInt $ readDec s
-evalLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt $ readHex s
 evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
     = liftM OccArray (mapM evalLiteralArray aes)
-evalLiteral _ = throwError "bad literal"
+evalLiteral l = evalSimpleLiteral l
 
 evalLiteralArray :: A.ArrayElem -> EvalM OccValue
 evalLiteralArray (A.ArrayElemArray aes) = liftM OccArray (mapM evalLiteralArray aes)
