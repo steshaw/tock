@@ -1205,14 +1205,31 @@ retypesAbbrev
            v <- variable
            sColon
            eol
+           origT <- typeOfVariable v
+           checkRetypes origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
            (s, n) <- tryXVVX sVAL specifier newVariableName (sRETYPES <|> sRESHAPES)
            e <- expression
            sColon
            eol
+           origT <- typeOfExpression e
+           checkRetypes origT s
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
+
+-- | Check that a RETYPES/RESHAPES is safe.
+checkRetypes :: A.Type -> A.Type -> OccParser ()
+checkRetypes fromT toT
+    =  do bf <- bytesInType fromT
+          bt <- bytesInType toT
+          let ok = case (bf, bt) of
+                     (BIJust a, BIJust b) -> a == b
+                     (BIJust a, BIOneFree b _) -> (b <= a) && (a `mod` b == 0)
+                     (BIOneFree a _, BIOneFree b _) -> (b <= a) && (a `mod` b == 0)
+                     _ -> False
+          when (not ok) $
+            fail $ "cannot prove that RETYPES/RESHAPES is safe"
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier

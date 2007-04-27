@@ -42,6 +42,9 @@ typeOfRecordField (A.UserDataType rec) field
             _ -> die "not record type"
 typeOfRecordField _ _ = die "not record type"
 
+-- | Apply a subscript to a type, and return what the type is after it's been
+-- subscripted.
+-- FIXME This needs to replace the first dimension in array types.
 subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
 subscriptType (A.SubscriptFromFor _ _ _) t = return t
 subscriptType (A.SubscriptFrom _ _) t = return t
@@ -239,5 +242,52 @@ simplifyType (A.Counted ct it)
 simplifyType (A.Port t)
     = liftM A.Port $ simplifyType t
 simplifyType t = return t
+--}}}
+
+--{{{ sizes of types
+-- | The size in bytes of a data type.
+data BytesInResult =
+  BIJust Int            -- ^ Just that many bytes.
+  | BIOneFree Int Int   -- ^ An array type; A bytes, times unknown dimension B.
+  | BIUnknown           -- ^ No idea.
+
+-- | Return the size in bytes of a data type.
+bytesInType :: (PSM m, Die m) => A.Type -> m BytesInResult
+bytesInType A.Byte = return $ BIJust 1
+-- FIXME This is tied to the backend we're using (as is the constant folder).
+bytesInType A.Int = return $ BIJust 4
+bytesInType A.Int16 = return $ BIJust 2
+bytesInType A.Int32 = return $ BIJust 4
+bytesInType A.Int64 = return $ BIJust 8
+bytesInType A.Real32 = return $ BIJust 4
+bytesInType A.Real64 = return $ BIJust 8
+bytesInType a@(A.Array _ _) = bytesInArray 0 a
+  where
+    bytesInArray :: (PSM m, Die m) => Int -> A.Type -> m BytesInResult
+    bytesInArray num (A.Array [] t) = bytesInType t
+    bytesInArray num (A.Array (d:ds) t)
+        =  do ts <- bytesInArray (num + 1) (A.Array ds t)
+              case (d, ts) of
+                (A.Dimension n, BIJust m) -> return $ BIJust (n * m)
+                (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (n * m) x
+                (A.UnknownDimension, BIJust m) -> return $ BIOneFree m num
+                (_, _) -> return $ BIUnknown
+bytesInType (A.UserDataType n)
+    =  do st <- specTypeOfName n
+          case st of
+            -- We can only do this for *packed* records -- for normal records,
+            -- the compiler might insert padding.
+            (A.DataTypeRecord _ True nts) -> bytesInList nts
+            _ -> return $ BIUnknown
+  where
+    bytesInList :: (PSM m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
+    bytesInList [] = return $ BIJust 0
+    bytesInList ((_, t):rest)
+        =  do bi <- bytesInType t
+              br <- bytesInList rest
+              case (bi, br) of
+                (BIJust a, BIJust b) -> return $ BIJust (a + b)
+                (_, _) -> return BIUnknown
+bytesInType _ = return $ BIUnknown
 --}}}
 

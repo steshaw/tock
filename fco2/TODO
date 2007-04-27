@@ -36,6 +36,16 @@ default behaviour that simplifies expressions inside another one.
 
 Output item expressions should be pulled up to variables.
 
+RETYPES of expressions should be converted to RETYPES of variables.
+
+Pulling up won't work correctly for things like:
+  IF i = 0 FOR 5
+    some.func (i)
+      ...
+This will require some thought (and probably some AST changes to insert an
+artifical place to pull up to -- perhaps just a more flexible Specification
+type).
+
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
 directives to their real types.
 
@@ -46,9 +56,6 @@ Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
 
 ## C backend
-
-Array outputs of dynamically-sized slices won't work (genBytesInType needs to
-know the size of the array it's dealing with).
 
 We could have genSpec generate {} around specs if it's not immediately inside
 another spec (which'd require some extra boolean arguments to find out).

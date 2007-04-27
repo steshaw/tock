@@ -1,0 +1,5 @@
+PROC P ()
+  INT x:
+  REAL64 z RETYPES x:
+  SKIP
+:

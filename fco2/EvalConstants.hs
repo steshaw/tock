@@ -143,6 +143,17 @@ evalExpression (A.ExprVariable _ (A.Variable _ n))
             Nothing -> throwError $ "non-constant variable " ++ show n ++ " used"
 evalExpression (A.True _) = return $ OccBool True
 evalExpression (A.False _) = return $ OccBool False
+evalExpression (A.BytesInExpr _ e)
+    =  do t <- typeOfExpression e
+          b <- bytesInType t
+          case b of
+            BIJust n -> return $ OccInt (fromIntegral $ n)
+            _ -> throwError $ "BYTESIN non-constant-size expression " ++ show e ++ " used"
+evalExpression (A.BytesInType _ t)
+    =  do b <- bytesInType t
+          case b of
+            BIJust n -> return $ OccInt (fromIntegral $ n)
+            _ -> throwError $ "BYTESIN non-constant-size type " ++ show t ++ " used"
 evalExpression _ = throwError "bad expression"
 
 evalMonadic :: A.MonadicOp -> OccValue -> EvalM OccValue

@@ -1,0 +1,21 @@
+DATA TYPE FOO
+  PACKED RECORD
+    INT16 l:
+    INT16 r:
+:
+PROC P ()
+  INT a, b:
+  SEQ
+    a := 42
+    INT32 aa RETYPES a:
+    b := INT aa
+    [4]BYTE aa RETYPES a:
+    b := INT aa[0]
+    []INT16 aa RETYPES a:
+    SEQ
+      b := INT aa[0]
+      []BYTE aaa RETYPES aa:
+      b := INT aaa[0]
+    FOO f RETYPES a:
+    b := INT f[l]
+:

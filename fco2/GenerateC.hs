@@ -669,6 +669,45 @@ abbrevVariable am (A.UserDataType _) v
 abbrevVariable am t v
     = (genVariableAM v am, noSize)
 
+-- | Generate the size part of a RETYPES/RESHAPES abbrevation of a variable.
+genRetypeSizes :: A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+genRetypeSizes am destT destN srcT srcV
+    = case (destT, srcT) of
+        -- An array -- figure out the new dimensions.
+        (A.Array destDS destSubT, _) ->
+          do destBI <- bytesInType destT
+             srcBI <- bytesInType srcT
+             case (srcBI, destBI) of
+               -- Straightforward cases where we know the original size.
+               (_, BIJust _) -> declareArraySizes destDS (genName destN)
+               (BIJust srcBytes, BIOneFree destBytes _) ->
+                 declareArraySizes [case d of
+                                      A.UnknownDimension ->
+                                        A.Dimension (srcBytes `div` destBytes)
+                                      _ -> d
+                                    | d <- destDS]
+                                   (genName destN)
+               -- The awkward case: the original size is dynamic, so we
+               -- need to compute the missing dimension at runtime.
+               (BIOneFree srcBytes srcNum, BIOneFree destBytes _) ->
+                 do tell ["const int "]
+                    genName destN
+                    tell ["_sizes[] = { "]
+                    let dims = [case d of
+                                  A.UnknownDimension ->
+                                    do tell ["("]
+                                       genVariable srcV
+                                       tell ["_sizes[", show srcNum, "]"]
+                                       tell [" * ", show srcBytes]
+                                       tell [") / ", show destBytes]
+                                  A.Dimension n -> tell [show n]
+                                | d <- destDS]
+                    sequence_ $ intersperse genComma dims
+                    tell ["};\n"]
+               _ -> missing "dynamic size"
+        -- Not an array we're generating -- no need for sizes.
+        (_, _) -> return ()
+
 -- | Generate the right-hand side of an abbreviation of an expression.
 abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
 abbrevExpression am t@(A.Array _ _) e
@@ -852,8 +891,16 @@ introduceSpec (A.Specification _ n (A.Proc _ fs p))
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
-introduceSpec (A.Specification _ n (A.Function _ _ _ _)) = missing "introduceSpec function"
---introduceSpec (A.Specification _ n (A.Retypes _ am t v))
+introduceSpec (A.Specification _ n (A.Retypes _ am t v))
+    =  do origT <- typeOfVariable v
+          let (rhs, rhsSizes) = abbrevVariable am origT v
+          genDecl am t n
+          tell [" = ("]
+          genDeclType am t
+          tell [") "]
+          rhs
+          tell [";\n"]
+          genRetypeSizes am t n origT v
 --introduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 introduceSpec n = missing $ "introduceSpec " ++ show n
 
