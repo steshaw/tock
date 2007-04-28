@@ -34,19 +34,10 @@ CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
 %: %.fco.o fco_support.h kroc-wrapper-c.o kroc-wrapper.occ
 	kroc -o $@ kroc-wrapper.occ $< kroc-wrapper-c.o -lcif
 
-tests = $(wildcard testcases/*.occ)
+cgtests = $(wildcard cgtests/cgtest??.occ)
+cgtests_targets = $(patsubst %.occ,%,$(cgtests))
 
-test: $(targets) $(tests)
-	@set -e; for x in $(tests); do \
-		echo -n "$$x: " ; \
-		if ! ./fco --parse-tree $$x >$$x.log 2>&1 ; then \
-			echo "parse failed" ; \
-		elif ! ./fco -v $$x >$$x.log 2>&1 ; then \
-			echo "full failed" ; \
-		else \
-			echo "ok" ; \
-		fi ; \
-	done
+all-cgtests: $(cgtests_targets)
 
 haddock:
 	@mkdir -p doc
