@@ -21,6 +21,8 @@ nothing to do with parsing.
 
 Types needs cleaning up and Haddocking.
 
+Many of the "lookup" lists should actually be Maps.
+
 ## Driver
 
 Add an option for whether to compile out overflow/bounds checks.
@@ -30,6 +32,9 @@ Add an option for whether to compile out overflow/bounds checks.
 Record literals aren't implemented.
 
 ## Passes
+
+Come up with an approach to combining simple passes to avoid multiple tree
+walks (for example, giving passes a "next thing to try" parameter).
 
 Expression simplification -- this should use generics, so that we can have a
 default behaviour that simplifies expressions inside another one.

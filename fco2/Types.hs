@@ -221,6 +221,13 @@ metaOfExpression e = head $ gmapQ (mkQ emptyMeta findMeta) e
     findMeta :: Meta -> Meta
     findMeta m = m
 
+-- | Is a conversion between two types precise (i.e. do you need to specify
+-- ROUND or TRUNC when doing it)?
+isPreciseConversion :: A.Type -> A.Type -> Bool
+isPreciseConversion A.Real32 A.Real64 = True
+isPreciseConversion fromT toT
+    = fromT == toT || not (isRealType fromT || isRealType toT)
+
 -- | Will a conversion between two types always succeed?
 isSafeConversion :: A.Type -> A.Type -> Bool
 isSafeConversion fromT toT = (fromP /= -1) && (toP /= -1) && (fromP <= toP)

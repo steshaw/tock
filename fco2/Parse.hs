@@ -926,11 +926,13 @@ conversion
           t <- dataType
           (c, o) <- conversionMode
           ot <- typeOfExpression o
-          let isImprecise = isRealType t || isRealType ot
-          when (isImprecise && c == A.DefaultConversion) $
-            fail "imprecise conversion must specify ROUND or TRUNC"
-          when (not isImprecise && c /= A.DefaultConversion) $
-            fail "precise conversion cannot specify ROUND or TRUNC"
+          case (isPreciseConversion ot t, c) of
+            (False, A.DefaultConversion) ->
+              fail "imprecise conversion must specify ROUND or TRUNC"
+            (False, _) -> return ()
+            (True, A.DefaultConversion) -> return ()
+            (True, _) ->
+              fail "precise conversion cannot specify ROUND or TRUNC"
           return $ A.Conversion m c t o
     <?> "conversion"
 
