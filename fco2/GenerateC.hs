@@ -978,6 +978,7 @@ genProcess p = case p of
   A.Processor m e p -> genProcess p
   A.Alt m b s -> genAlt b s
   A.ProcCall m n as -> genProcCall n as
+  A.IntrinsicProcCall m s as -> genIntrinsicProc m s as
 
 --{{{  assignment
 genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
@@ -1321,6 +1322,19 @@ genProcCall n as
           tell [" (me"]
           genActuals as
           tell [");\n"]
+--}}}
+--{{{  intrinsic procs
+genIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
+genIntrinsicProc m "ASSERT" [A.ActualExpression A.Bool e] = genAssert m e
+genIntrinsicProc _ s _ = missing $ "intrinsic PROC " ++ s
+
+genAssert :: Meta -> A.Expression -> CGen ()
+genAssert m e
+    =  do tell ["if (!"]
+          genExpression e
+          tell [") {\n"]
+          genStop m "assertion failed"
+          tell ["}\n"]
 --}}}
 --}}}
 

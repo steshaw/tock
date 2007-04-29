@@ -1,0 +1,9 @@
+PROC P ()
+  SEQ
+    ASSERT (TRUE)
+    -- check we can override an intrinsic
+    PROC ASSERT (VAL BOOL b)
+      SKIP
+    :
+    ASSERT (FALSE)
+:

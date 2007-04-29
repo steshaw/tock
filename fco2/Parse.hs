@@ -1336,6 +1336,7 @@ process
     <|> parallel
     <|> altProcess
     <|> procInstance
+    <|> intrinsicProc
     <|> mainProcess
     <|> handleSpecs (allocation <|> specification) process
                     (\m s p -> A.Seq m (A.Spec m s (A.OnlyP m p)))
@@ -1717,6 +1718,31 @@ actual (A.Formal am t n)
                    else do { v <- variableOfType t; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
     where
       an = A.nameName n
+--}}}
+--{{{ intrinsic PROC call
+intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
+intrinsicProcs =
+    [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
+    ]
+
+intrinsicProcName :: OccParser (String, [A.Formal])
+intrinsicProcName
+    =  do n <- anyName A.ProcName
+          let s = A.nameName n
+          case lookup s intrinsicProcs of
+            Just atns -> return (s, [A.Formal am t (A.Name emptyMeta A.VariableName n)
+                                     | (am, t, n) <- atns])
+            Nothing -> pzero
+
+intrinsicProc :: OccParser A.Process
+intrinsicProc
+    =  do m <- md
+          (n, fs) <- tryVX intrinsicProcName sLeftR
+          as <- actuals fs
+          sRightR
+          eol
+          return $ A.IntrinsicProcCall m n as
+    <?> "intrinsic PROC instance"
 --}}}
 --{{{ preprocessor directives
 preprocessorDirective :: OccParser A.Process

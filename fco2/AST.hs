@@ -243,5 +243,6 @@ data Process =
   | Processor Meta Expression Process
   | Alt Meta Bool Structured
   | ProcCall Meta Name [Actual]
+  | IntrinsicProcCall Meta String [Actual]
   deriving (Show, Eq, Typeable, Data)
 

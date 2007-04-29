@@ -1,0 +1,5 @@
+INT FUNCTION id(VAL INT i) IS i :
+PROC P ()
+  INT x:
+  x := id (4)
+:
