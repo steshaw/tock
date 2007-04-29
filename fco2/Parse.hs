@@ -680,7 +680,7 @@ integer :: OccParser A.LiteralRepr
 integer
     =  do m <- md
           do { d <- lexeme digits; return $ A.IntLiteral m d }
-            <|> do { sHash; d <- many1 hexDigit; return $ A.HexLiteral m d }
+            <|> do { d <- lexeme (sHash >> many1 hexDigit); return $ A.HexLiteral m d }
     <?> "integer literal"
 
 digits :: OccParser String
