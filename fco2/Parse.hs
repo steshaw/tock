@@ -740,7 +740,6 @@ character
                a <- hexDigit
                b <- hexDigit
                return $ ['*', '#', a, b])
-             -- FIXME: Handle *\n, which is just a line continuation?
              <|> do { c <- anyChar; return ['*', c] }
     <|> do c <- anyChar
            return [c]
