@@ -18,6 +18,7 @@ import Errors
 import EvalConstants
 import EvalLiterals
 import Indentation
+import Intrinsics
 import Metadata
 import ParseState
 import Pass
@@ -746,41 +747,9 @@ character
     <?> "character"
 --}}}
 --{{{ expressions
-functionNameSingle :: OccParser A.Name
-functionNameSingle
-    =  do n <- functionName
-          rts <- returnTypesOfFunction n
-          case rts of
-            [_] -> return n
-            _ -> pzero
-    <?> "function with single return value"
-
-functionNameMulti :: OccParser A.Name
-functionNameMulti
-    =  do n <- functionName
-          rts <- returnTypesOfFunction n
-          case rts of
-            [_] -> pzero
-            _ -> return n
-    <?> "function with multiple return values"
-
-functionActuals :: A.Name -> OccParser [A.Expression]
-functionActuals func
-    =  do A.Function _ _ fs _ <- specTypeOfName func
-          let ats = [t | A.Formal _ t _ <- fs]
-          sLeftR
-          es <- intersperseP (map expressionOfType ats) sComma
-          sRightR
-          return es
-
 expressionList :: [A.Type] -> OccParser A.ExpressionList
 expressionList types
-    =   do m <- md
-           n <- try functionNameMulti
-           as <- functionActuals n
-           rts <- returnTypesOfFunction n
-           matchTypes types rts
-           return $ A.FunctionCallList m n as
+    =   functionMulti types
     <|> do m <- md
            es <- intersperseP (map expressionOfType types) sComma
            return $ A.ExpressionList m es
@@ -869,6 +838,73 @@ operandOfType wantT
           t <- typeOfExpression o
           matchType wantT t
           return o
+--}}}
+--{{{ functions
+functionNameValued :: Bool -> OccParser A.Name
+functionNameValued isMulti
+    =  do n <- functionName
+          rts <- returnTypesOfFunction n
+          case (rts, isMulti) of
+            ([_], False) -> return n
+            ((_:_:_), True) -> return n
+            _ -> pzero
+    <?> "function name"
+
+functionActuals :: [A.Formal] -> OccParser [A.Expression]
+functionActuals fs
+    =  do let actuals = [expressionOfType t <?> "actual for " ++ show n
+                         | A.Formal _ t n <- fs]
+          es <- intersperseP actuals sComma
+          return es
+
+functionSingle :: OccParser A.Expression
+functionSingle
+    =  do m <- md
+          n <- tryVX (functionNameValued False) sLeftR
+          A.Function _ _ fs _ <- specTypeOfName n
+          as <- functionActuals fs
+          sRightR
+          return $ A.FunctionCall m n as
+    <?> "single-valued function call"
+
+functionMulti :: [A.Type] -> OccParser A.ExpressionList
+functionMulti types
+    =  do m <- md
+          n <- tryVX (functionNameValued True) sLeftR
+          A.Function _ _ fs _ <- specTypeOfName n
+          as <- functionActuals fs
+          sRightR
+          rts <- returnTypesOfFunction n
+          matchTypes types rts
+          return $ A.FunctionCallList m n as
+    <?> "multi-valued function call"
+--}}}
+--{{{ intrinsic functions
+intrinsicFunctionName :: Bool -> OccParser (String, [A.Type], [A.Formal])
+intrinsicFunctionName isMulti
+    =  do n <- anyName A.FunctionName
+          let s = A.nameName n
+          case (lookup s intrinsicFunctions, isMulti) of
+            (Nothing, _) -> pzero
+            (Just ([_], _), True) -> pzero
+            (Just ((_:_:_), _), False) -> pzero
+            (Just (rts, tns), _) ->
+              return (s, rts, [A.Formal A.ValAbbrev t (A.Name emptyMeta A.VariableName n)
+                               | (t, n) <- tns])
+    <?> "intrinsic function name"
+
+intrinsicFunctionSingle :: OccParser A.Expression
+intrinsicFunctionSingle
+    =  do m <- md
+          (s, _, fs) <- tryVX (intrinsicFunctionName False) sLeftR
+          as <- functionActuals fs
+          sRightR
+          return $ A.IntrinsicFunctionCall m s as
+    <?> "single-valued intrinsic function call"
+
+-- No support for multi-valued intrinsic functions, because I don't think there
+-- are likely to be any, and supporting them in the C backend is slightly
+-- tricky.
 --}}}
 
 monadicOperator :: OccParser A.MonadicOp
@@ -965,7 +1001,8 @@ operandNotTable'
     <|> do { m <- md; l <- literal; return $ A.ExprLiteral m l }
     <|> do { sLeftR; e <- expression; sRightR; return e }
 -- XXX value process
-    <|> do { m <- md; n <- try functionNameSingle; as <- functionActuals n; return $ A.FunctionCall m n as }
+    <|> functionSingle
+    <|> intrinsicFunctionSingle
     <|> do m <- md
            sBYTESIN
            sLeftR
@@ -1720,11 +1757,6 @@ actual (A.Formal am t n)
       an = A.nameName n
 --}}}
 --{{{ intrinsic PROC call
-intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
-intrinsicProcs =
-    [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
-    ]
-
 intrinsicProcName :: OccParser (String, [A.Formal])
 intrinsicProcName
     =  do n <- anyName A.ProcName
@@ -1737,11 +1769,11 @@ intrinsicProcName
 intrinsicProc :: OccParser A.Process
 intrinsicProc
     =  do m <- md
-          (n, fs) <- tryVX intrinsicProcName sLeftR
+          (s, fs) <- tryVX intrinsicProcName sLeftR
           as <- actuals fs
           sRightR
           eol
-          return $ A.IntrinsicProcCall m n as
+          return $ A.IntrinsicProcCall m s as
     <?> "intrinsic PROC instance"
 --}}}
 --{{{ preprocessor directives

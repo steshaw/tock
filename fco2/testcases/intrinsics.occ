@@ -1,4 +1,6 @@
 PROC P ()
+  REAL32 r:
+  REAL64 d:
   SEQ
     ASSERT (TRUE)
     -- check we can override an intrinsic
@@ -6,4 +8,8 @@ PROC P ()
       SKIP
     :
     ASSERT (FALSE)
+
+    r := SQRT (3.141)
+    r := 41.5 + SQRT (SQRT (SQRT (4.0)))
+    d := DSQRT (3.141 (REAL64))
 :

@@ -12,4 +12,6 @@ what gets inlined).
 
 Intrinsics:
 - ASSERT
+- SQRT
+- DSQRT
 

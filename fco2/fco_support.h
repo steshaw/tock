@@ -1,4 +1,5 @@
 // C99 support definitions for FCO.
+// vim:set foldmethod=marker:
 
 #ifndef FCO_SUPPORT_H
 #define FCO_SUPPORT_H
@@ -9,9 +10,11 @@
 #include <limits.h>
 #include <float.h>
 #include <stdio.h>
+#include <math.h>
 
 #include <cifccsp.h>
 
+//{{{ mostneg/mostpos
 #define occam_mostneg_bool false
 #define occam_mostpos_bool true
 #define occam_mostneg_char CHAR_MIN
@@ -28,7 +31,9 @@
 #define occam_mostpos_float FLT_MAX
 #define occam_mostneg_double -DBL_MAX
 #define occam_mostpos_double DBL_MAX
+//}}}
 
+//{{{ compiler-specific attributes
 #ifdef __GNUC__
 #define occam_struct_packed __attribute__ ((packed))
 #define occam_unused __attribute__ ((unused))
@@ -37,7 +42,9 @@
 #define occam_struct_packed
 #define occam_unused
 #endif
+//}}}
 
+//{{{ runtime check functions
 #define occam_stop(pos, format, args...) \
 	do { \
 		EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
@@ -59,7 +66,9 @@ static int occam_check_index (int i, int limit, const char *pos) {
 	}
 	return i;
 }
+//}}}
 
+//{{{ type-specific runtime checks
 #define MAKE_RANGE_CHECK(type, format) \
 	static type occam_range_check_##type (type, type, type, const char *) occam_unused; \
 	static type occam_range_check_##type (type lower, type upper, type n, const char *pos) { \
@@ -163,5 +172,20 @@ MAKE_DIV(double)
 #undef MAKE_MUL
 #undef MAKE_DIV
 #undef MAKE_REM
+//}}}
+
+//{{{ intrinsics
+// FIXME These should do range checks.
+
+static float occam_SQRT (float, const char *) occam_unused;
+static float occam_SQRT (float v, const char *pos) {
+	return sqrtf (v);
+}
+
+static double occam_DSQRT (double, const char *) occam_unused;
+static double occam_DSQRT (double v, const char *pos) {
+	return sqrt (v);
+}
+//}}}
 
 #endif

@@ -9,6 +9,7 @@ sources = \
 	EvalLiterals.hs \
 	GenerateC.hs \
 	Indentation.hs \
+	Intrinsics.hs \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \

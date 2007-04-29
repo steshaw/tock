@@ -11,6 +11,7 @@ import Data.Maybe
 import qualified AST as A
 import Errors
 import EvalLiterals
+import Intrinsics
 import ParseState
 import Metadata
 
@@ -143,6 +144,7 @@ typeOfExpression e
         A.True m -> return A.Bool
         A.False m -> return A.Bool
         A.FunctionCall m n es -> liftM head $ returnTypesOfFunction n
+        A.IntrinsicFunctionCall _ s _ -> liftM head $ returnTypesOfIntrinsic s
         A.SubscriptedExpr m s e ->
           typeOfExpression e >>= subscriptType s
         A.BytesInExpr m e -> return A.Int
@@ -165,6 +167,12 @@ returnTypesOfFunction n
               do ps <- get
                  checkJust "not defined as a function" $
                    lookup (A.nameName n) (psFunctionReturns ps)
+
+returnTypesOfIntrinsic :: (PSM m, Die m) => String -> m [A.Type]
+returnTypesOfIntrinsic s
+    = case lookup s intrinsicFunctions of
+        Just (rts, _) -> return rts
+        Nothing -> die $ "unknown intrinsic function " ++ s
 
 -- | Get the items in a channel's protocol (for typechecking).
 -- Returns Left if it's a simple protocol, Right if it's tagged.

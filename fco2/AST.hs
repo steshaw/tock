@@ -109,6 +109,7 @@ data Expression =
   | True Meta
   | False Meta
   | FunctionCall Meta Name [Expression]
+  | IntrinsicFunctionCall Meta String [Expression]
   | SubscriptedExpr Meta Subscript Expression
   | BytesInExpr Meta Expression
   | BytesInType Meta Type

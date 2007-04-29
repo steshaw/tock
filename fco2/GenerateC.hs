@@ -394,6 +394,7 @@ genExpression (A.ExprLiteral m l) = genLiteral l
 genExpression (A.True m) = tell ["true"]
 genExpression (A.False m) = tell ["false"]
 --genExpression (A.FunctionCall m n es)
+genExpression (A.IntrinsicFunctionCall m s es) = genIntrinsicFunction m s es
 --genExpression (A.SubscriptedExpr m s e)
 --genExpression (A.BytesInExpr m e)
 genExpression (A.BytesInType m t) = genBytesInType t
@@ -405,6 +406,13 @@ genTypeSymbol s t
     = case scalarType t of
         Just ct -> tell ["occam_", s, "_", ct]
         Nothing -> missing $ "genTypeSymbol " ++ show t
+
+genIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen ()
+genIntrinsicFunction m s es
+    =  do tell ["occam_", s, " ("]
+          sequence [genExpression e >> genComma | e <- es]
+          genMeta m
+          tell [")"]
 --}}}
 
 --{{{  operators
