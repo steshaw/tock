@@ -247,7 +247,8 @@ isPreciseConversion fromT toT
 
 -- | Will a conversion between two types always succeed?
 isSafeConversion :: A.Type -> A.Type -> Bool
-isSafeConversion fromT toT = (fromP /= -1) && (toP /= -1) && (fromP <= toP)
+isSafeConversion A.Real32 A.Real64 = True
+isSafeConversion fromT toT = (fromT == toT) || ((fromP /= -1) && (toP /= -1) && (fromP <= toP))
   where
     fromP = precNum fromT
     toP = precNum toT

@@ -1,0 +1,20 @@
+PROC P ()
+  INT i:
+  REAL32 f:
+  REAL64 d:
+  SEQ
+    i := 42
+    f := REAL32 ROUND i
+    f := REAL32 TRUNC i
+    i := INT ROUND f
+    i := INT TRUNC f
+    d := REAL64 ROUND i
+    d := REAL64 TRUNC i
+    i := INT ROUND d
+    i := INT TRUNC d
+    d := REAL64 f
+    f := REAL32 ROUND d
+    f := REAL32 TRUNC d
+    f := REAL32 f
+    d := REAL64 d
+:

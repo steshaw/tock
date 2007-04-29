@@ -1,0 +1,12 @@
+PROC P ()
+  VAL INT x IS 42:
+  INT y:
+  SEQ
+    VAL INT32 r RETYPES x + 19:
+    y := INT r
+    VAL [2]INT16 r RETYPES 45 * x:
+    SEQ
+      y := INT r[0]
+      VAL [4]BYTE rr RETYPES [r FOR 2]:
+      y := INT rr[3]
+:

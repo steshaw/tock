@@ -29,6 +29,9 @@ Add an option for whether to compile out overflow/bounds checks.
 
 Record literals aren't implemented.
 
+Inline PROCs should be marked with a flag in the AST (i.e. they should be
+ignored at the C generation stage, rather than in the parser).
+
 ## Passes
 
 Come up with an approach to combining simple passes to avoid multiple tree
@@ -47,8 +50,14 @@ directives to their real types.
 Pass to turn subscripted expressions into subscripted variables. (Need to write
 a test for this -- use a function that returns an array?)
 
+Pass to turn complicated conversions into simpler ones (currently done in
+GenerateC).
+
 Have a final pass that checks all the mangling has been done -- i.e. function
 calls have been removed, and so on.
+
+In the PAR wrapping pass, wrapper procs should not be generated for things that
+are already PROC calls.
 
 ## C backend
 

@@ -174,6 +174,63 @@ MAKE_DIV(double)
 #undef MAKE_REM
 //}}}
 
+//{{{ conversions to and from reals
+// FIXME: Again, all these should check.
+
+//{{{ float
+float occam_convert_int64_t_float_round (int64_t, const char *) occam_unused;
+float occam_convert_int64_t_float_round (int64_t v, const char *pos) {
+	return (float) v;
+}
+
+float occam_convert_int64_t_float_trunc (int64_t, const char *) occam_unused;
+float occam_convert_int64_t_float_trunc (int64_t v, const char *pos) {
+	return (float) v;
+}
+
+int64_t occam_convert_float_int64_t_round (float, const char *) occam_unused;
+int64_t occam_convert_float_int64_t_round (float v, const char *pos) {
+	return (int64_t) v;
+}
+
+int64_t occam_convert_float_int64_t_trunc (float, const char *) occam_unused;
+int64_t occam_convert_float_int64_t_trunc (float v, const char *pos) {
+	return (int64_t) v;
+}
+
+float occam_convert_double_float_round (double, const char *) occam_unused;
+float occam_convert_double_float_round (double v, const char *pos) {
+	return (float) v;
+}
+
+float occam_convert_double_float_trunc (double, const char *) occam_unused;
+float occam_convert_double_float_trunc (double v, const char *pos) {
+	return (float) v;
+}
+//}}}
+//{{{ double
+double occam_convert_int64_t_double_round (int64_t, const char *) occam_unused;
+double occam_convert_int64_t_double_round (int64_t v, const char *pos) {
+	return (double) v;
+}
+
+double occam_convert_int64_t_double_trunc (int64_t, const char *) occam_unused;
+double occam_convert_int64_t_double_trunc (int64_t v, const char *pos) {
+	return (double) v;
+}
+
+int64_t occam_convert_double_int64_t_round (double, const char *) occam_unused;
+int64_t occam_convert_double_int64_t_round (double v, const char *pos) {
+	return (int64_t) v;
+}
+
+int64_t occam_convert_double_int64_t_trunc (double, const char *) occam_unused;
+int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
+	return (int64_t) v;
+}
+//}}}
+//}}}
+
 //{{{ intrinsics
 // FIXME These should do range checks.
 

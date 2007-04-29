@@ -180,26 +180,72 @@ genDecl am t n
 --}}}
 
 --{{{  conversions
-genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
-genConversion m A.DefaultConversion t e
+genCheckedConversion :: Meta -> A.Type -> A.Type -> CGen () -> CGen ()
+genCheckedConversion m fromT toT exp
     =  do tell ["(("]
-          genType t
+          genType toT
           tell [") "]
-          origT <- typeOfExpression e
-          if isSafeConversion origT t
-            then genExpression e
-            else do genTypeSymbol "range_check" origT
+          if isSafeConversion fromT toT
+            then exp
+            else do genTypeSymbol "range_check" fromT
                     tell [" ("]
-                    genTypeSymbol "mostneg" t
+                    genTypeSymbol "mostneg" toT
                     tell [", "]
-                    genTypeSymbol "mostpos" t
+                    genTypeSymbol "mostpos" toT
                     tell [", "]
-                    genExpression e
+                    exp
                     tell [", "]
                     genMeta m
                     tell [")"]
           tell [")"]
-genConversion m cm t e = missing $ "genConversion " ++ show cm
+
+genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
+genConversion m A.DefaultConversion toT e
+    =  do fromT <- typeOfExpression e
+          genCheckedConversion m fromT toT (genExpression e)
+genConversion m cm toT e
+    =  do fromT <- typeOfExpression e
+          case (isSafeConversion fromT toT, isRealType fromT, isRealType toT) of
+            (True, _, _) ->
+              -- A safe conversion -- no need for a check.
+              genCheckedConversion m fromT toT (genExpression e)
+            (_, True, True) ->
+              -- Real to real.
+              do genConversionSymbol fromT toT cm
+                 tell [" ("]
+                 genExpression e
+                 tell [", "]
+                 genMeta m
+                 tell [")"]
+            (_, True, False) ->
+              -- Real to integer -- do real -> int64_t -> int.
+              do let exp = do genConversionSymbol fromT A.Int64 cm
+                              tell [" ("]
+                              genExpression e
+                              tell [", "]
+                              genMeta m
+                              tell [")"]
+                 genCheckedConversion m A.Int64 toT exp
+            (_, False, True) ->
+              -- Integer to real -- do int -> int64_t -> real.
+              do genConversionSymbol A.Int64 toT cm
+                 tell [" ("]
+                 genCheckedConversion m fromT A.Int64 (genExpression e)
+                 tell [", "]
+                 genMeta m
+                 tell [")"]
+            _ -> missing $ "genConversion " ++ show cm
+
+genConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen ()
+genConversionSymbol fromT toT cm
+    =  do tell ["occam_convert_"]
+          genType fromT
+          tell ["_"]
+          genType toT
+          tell ["_"]
+          case cm of
+            A.Round -> tell ["round"]
+            A.Trunc -> tell ["trunc"]
 --}}}
 
 --{{{  literals
