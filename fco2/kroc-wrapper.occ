@@ -1,14 +1,14 @@
--- KRoC wrapper to run FCO-generated CIF program
+-- KRoC wrapper to run Tock-generated CIF program
 
 #INCLUDE "cifccsp.inc"
 
-#PRAGMA EXTERNAL "PROC C.fco.main.init (INT raddr, CHAN BYTE in?, out!, err!) = 0"
-#PRAGMA EXTERNAL "PROC C.fco.main.free (VAL INT raddr) = 0"
+#PRAGMA EXTERNAL "PROC C.tock.main.init (INT raddr, CHAN BYTE in?, out!, err!) = 0"
+#PRAGMA EXTERNAL "PROC C.tock.main.free (VAL INT raddr) = 0"
 
 PROC kroc.main (CHAN BYTE in?, out!, err!)
   INT addr:
   SEQ
-    C.fco.main.init (addr, in?, out!, err!)
+    C.tock.main.init (addr, in?, out!, err!)
     cifccsp.startprocess (addr)
-    C.fco.main.free (addr)
+    C.tock.main.free (addr)
 :

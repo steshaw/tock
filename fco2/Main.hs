@@ -49,7 +49,7 @@ getOpts argv =
   case getOpt RequireOrder options argv of
     (o,n,[]  ) -> return (o,n)
     (_,_,errs) -> error (concat errs ++ usageInfo header options)
-  where header = "Usage: fco [OPTION...] SOURCEFILE"
+  where header = "Usage: tock [OPTION...] SOURCEFILE"
 
 main :: IO ()
 main = do

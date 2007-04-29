@@ -1,4 +1,4 @@
--- | Utility functions that aren't inherently related to FCO -- i.e. things
+-- | Utility functions that aren't inherently related to Tock -- i.e. things
 -- that could be put into the standard library.
 module Utils where
 

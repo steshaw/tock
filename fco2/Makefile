@@ -1,4 +1,4 @@
-targets = fco
+targets = tock
 
 all: $(targets)
 
@@ -24,15 +24,15 @@ sources = \
 	Utils.hs
 
 $(targets): $(sources)
-	ghc -fglasgow-exts -fallow-undecidable-instances -o fco --make Main
+	ghc -fglasgow-exts -fallow-undecidable-instances -o tock --make Main
 
 CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
 
-%.fco.c: %.occ fco
-	./fco -v -o $@ $<
+%.tock.c: %.occ tock
+	./tock -v -o $@ $<
 	indent -kr -pcs $@
 
-%: %.fco.o fco_support.h kroc-wrapper-c.o kroc-wrapper.occ
+%: %.tock.o tock_support.h kroc-wrapper-c.o kroc-wrapper.occ
 	kroc -o $@ kroc-wrapper.occ $< kroc-wrapper-c.o -lcif
 
 cgtests = $(wildcard cgtests/cgtest??.occ)

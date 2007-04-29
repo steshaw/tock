@@ -1,8 +1,8 @@
-// C99 support definitions for FCO.
+// C99 support definitions for Tock.
 // vim:set foldmethod=marker:
 
-#ifndef FCO_SUPPORT_H
-#define FCO_SUPPORT_H
+#ifndef TOCK_SUPPORT_H
+#define TOCK_SUPPORT_H
 
 #include <stddef.h>
 #include <stdbool.h>

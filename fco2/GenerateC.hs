@@ -37,10 +37,10 @@ genTLPChannel TLPError = tell ["err"]
 
 genTopLevel :: A.Process -> CGen ()
 genTopLevel p
-    =  do tell ["#include <fco_support.h>\n"]
+    =  do tell ["#include <tock_support.h>\n"]
           genProcess p
           (name, chans) <- tlpInterface
-          tell ["void fco_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
+          tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
           tell [" (me"]
           sequence_ [tell [", "] >> genTLPChannel c | c <- chans]

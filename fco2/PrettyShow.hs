@@ -1,6 +1,6 @@
 -- | A generic show implementation that pretty-prints expressions.
 -- This ought to use a class (like show does), so that it can be extended
--- properly without me needing to have FCO-specific cases in here -- see the
+-- properly without me needing to have Tock-specific cases in here -- see the
 -- appropriate SYB paper.
 module PrettyShow (pshow) where
 
