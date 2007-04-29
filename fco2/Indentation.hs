@@ -66,16 +66,21 @@ removeIndentation filename orig
                                   case psIndentLinesOut ps of (l:ls) -> ((l ++ s):ls) })
 
     -- | Given a line, read the rest of it, then return the complete thing.
-    finishLine :: String -> String -> Bool -> String -> PassM String
-    finishLine left soFar inStr afterStr
-        = case (left, inStr) of
-            ([], False) -> plainEOL
-            ('-':'-':cs, False) -> plainEOL
-            ([], True) -> die "end of line in string without continuation"
-            (['*'], True) -> stringEOL
-            ('"':cs, iS) -> finishLine cs (afterStr ++ ('"':soFar)) (not iS) ""
-            ('*':'"':cs, True) -> finishLine cs ('"':'*':soFar) True afterStr
-            (c:cs, iS) -> finishLine cs (c:soFar) iS afterStr
+    finishLine :: String -> String -> Bool -> Bool -> String -> PassM String
+    finishLine left soFar inStr isChar afterStr
+        = case (left, inStr, isChar) of
+            ([], False, _) -> plainEOL
+            ('-':'-':cs, False, _) -> plainEOL
+            ([], True, _) -> die "end of line in string without continuation"
+            (['*'], True, _) -> stringEOL
+            ('\'':cs, False, _) -> finishLine cs (afterStr ++ ('\'':soFar)) True True ""
+            ('\'':cs, True, True) -> finishLine cs (afterStr ++ ('\'':soFar)) False False ""
+            ('"':cs, False, _) -> finishLine cs (afterStr ++ ('"':soFar)) True False ""
+            ('"':cs, True, False) -> finishLine cs (afterStr ++ ('"':soFar)) False False ""
+            ('*':'*':cs, True, _) -> finishLine cs ('*':'*':soFar) True isChar afterStr
+            ('*':'"':cs, True, _) -> finishLine cs ('"':'*':soFar) True isChar afterStr
+            ('*':'\'':cs, True, _) -> finishLine cs ('\'':'*':soFar) True isChar afterStr
+            (c:cs, _, _) -> finishLine cs (c:soFar) inStr isChar afterStr
       where
         -- | Finish a regular line.
         plainEOL :: PassM String
@@ -83,7 +88,7 @@ removeIndentation filename orig
             =  do let s = reverse soFar
                   if hasContinuation s
                     then do l <- getLine >>= checkJust "no continuation line"
-                            finishLine l ('\n':soFar) False ""
+                            finishLine l ('\n':soFar) False False ""
                     else return s
 
         -- | Finish a line where we're in the middle of a string.
@@ -93,7 +98,7 @@ removeIndentation filename orig
                   l' <- contStringStart l
                   -- When we hit the end of the string, add a \n after it to
                   -- make the line numbers match up again.
-                  finishLine l' soFar True ('\n':afterStr)
+                  finishLine l' soFar True isChar ('\n':afterStr)
 
     -- | Does a line have a continuation line following it?
     hasContinuation :: String -> Bool
@@ -119,7 +124,7 @@ removeIndentation filename orig
         =  do line <- getLine
               case line of
                 Just s ->
-                  do r <- finishLine s "" False ""
+                  do r <- finishLine s "" False False ""
                      return $ Just r
                 Nothing -> return Nothing
 

@@ -1,4 +1,11 @@
 PROC P ()
-  VAL []BYTE s IS "*c*n*t*s*X*#00*#A0\now":
+  VAL []BYTE s IS "***c*n*t*s*X*#00*#A0\now":
+  VAL []BYTE ss IS "'":
+  VAL []BYTE ssx IS "*'":
+  VAL []BYTE sss IS "foo**":
+  VAL BYTE c IS 'x':
+  VAL BYTE cc IS '"':
+  VAL BYTE ccx IS '*"':
+  VAL BYTE ccc IS '*'':
   SKIP
 :
