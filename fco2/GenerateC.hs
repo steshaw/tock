@@ -498,7 +498,7 @@ genInputItem c (A.InCounted m cv av)
           tell [", "]
           fst $ abbrevVariable A.Abbrev t av
           tell [", "]
-          subT <- subscriptType (A.Subscript m $ makeConstant m 0) t
+          subT <- trivialSubscriptType t
           genVariable cv
           tell [" * "]
           genBytesInType subT
@@ -533,7 +533,7 @@ genOutputItem c (A.OutCounted m ce ae)
                  tell [", "]
                  fst $ abbrevVariable A.Abbrev t v
                  tell [", "]
-                 subT <- subscriptType (A.Subscript m $ makeConstant m 0) t
+                 subT <- trivialSubscriptType t
                  genExpression ce
                  tell [" * "]
                  genBytesInType subT

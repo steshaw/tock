@@ -472,7 +472,7 @@ pushSubscriptTypeContext
     =  do ps <- get
           case psTypeContext ps of
             (Just t):_ ->
-              do subT <- subscriptType (A.Subscript emptyMeta $ makeConstant emptyMeta 0) t
+              do subT <- trivialSubscriptType t
                  pushTypeContext $ Just subT
             _ -> pushTypeContext Nothing
 --}}}
@@ -1200,7 +1200,7 @@ chanArrayAbbrev
                                  n <- newChannelName
                                  sIS
                                  sLeft
-                                 ct <- subscriptType (A.Subscript m $ makeConstant m 0) s
+                                 ct <- trivialSubscriptType s
                                  case ct of
                                    A.Chan _ -> return (ct, s, n)
                                    _ -> pzero)
