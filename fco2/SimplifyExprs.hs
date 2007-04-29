@@ -105,7 +105,8 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
               popPullContext
               return p''
 
-    -- | *Don't* pull anything that's already an abbreviation.
+    -- | *Don't* pull anything that's already an abbreviation -- but do convert
+    -- RetypesExpr into Retypes (of a variable).
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Is m' am t v))
         =  do v' <- doGeneric v    -- note doGeneric rather than pullUp
@@ -113,6 +114,12 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
     doSpecification (A.Specification m n (A.IsExpr m' am t e))
         =  do e' <- doGeneric e    -- note doGeneric rather than pullUp
               return $ A.Specification m n (A.IsExpr m' am t e')
+    doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
+        =  do e' <- doExpression e
+              fromT <- typeOfExpression e'
+              spec@(A.Specification _ n' _) <- makeNonceIsExpr "retypes_expr" m' fromT e'
+              addPulled $ A.Spec m' spec
+              return $ A.Specification m n (A.Retypes m' am toT (A.Variable m' n'))
     doSpecification s = doGeneric s
 
     -- | Pull array expressions that aren't already non-subscripted variables.

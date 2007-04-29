@@ -896,7 +896,7 @@ introduceSpec (A.Specification _ n (A.Proc _ fs p))
           tell ["}\n"]
 introduceSpec (A.Specification _ n (A.Retypes _ am t v))
     =  do origT <- typeOfVariable v
-          let (rhs, rhsSizes) = abbrevVariable am origT v
+          let (rhs, rhsSizes) = abbrevVariable A.Abbrev origT v
           genDecl am t n
           tell [" = ("]
           genDeclType am t
