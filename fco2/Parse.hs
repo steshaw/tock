@@ -693,9 +693,9 @@ byte :: OccParser A.LiteralRepr
 byte
     =  do m <- md
           char '\''
-          s <- character
+          c <- literalCharacter
           sApos
-          return $ A.ByteLiteral m s
+          return c
     <?> "byte literal"
 
 -- i.e. array literal
@@ -716,35 +716,45 @@ table'
            popTypeContext
            ets <- mapM typeOfExpression es
            t <- listType m ets
-           -- If any of the subelements are nested array literals, collapse them.
-           let aes = [case e of
-                        A.ExprLiteral _ (A.Literal _ _ al@(A.ArrayLiteral _ subAEs)) ->
-                          A.ArrayElemArray subAEs
-                        _ -> A.ArrayElemExpr e
-                      | e <- es]
+           aes <- mapM collapseArrayElem es
            return $ A.Literal m t (A.ArrayLiteral m aes)
     <|> maybeSliced table A.SubscriptedLiteral typeOfLiteral
     <?> "table'"
+
+-- | Collapse nested array literals.
+collapseArrayElem :: A.Expression -> OccParser A.ArrayElem
+collapseArrayElem e
+    = case e of
+        A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ subAEs)) ->
+          return $ A.ArrayElemArray subAEs
+        _ -> return $ A.ArrayElemExpr e
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
 stringLiteral
     =  do m <- md
           char '"'
-          cs <- manyTill character sQuote
-          return (A.StringLiteral m $ concat cs, A.Dimension $ length cs)
+          cs <- manyTill literalCharacter sQuote
+          let aes = [A.ArrayElemExpr $ A.ExprLiteral m (A.Literal m A.Byte c) | c <- cs]
+          return (A.ArrayLiteral m aes, A.Dimension $ length cs)
     <?> "string literal"
 
 character :: OccParser String
 character
     =   do char '*'
-           (do char '#'
-               a <- hexDigit
-               b <- hexDigit
-               return $ ['*', '#', a, b])
-             <|> do { c <- anyChar; return ['*', c] }
+           do char '#'
+              a <- hexDigit
+              b <- hexDigit
+              return $ ['*', '#', a, b]
+            <|> do { c <- anyChar; return ['*', c] }
     <|> do c <- anyChar
            return [c]
     <?> "character"
+
+literalCharacter :: OccParser A.LiteralRepr
+literalCharacter
+    =   do m <- md
+           c <- character
+           return $ A.ByteLiteral m c
 --}}}
 --{{{ expressions
 expressionList :: [A.Type] -> OccParser A.ExpressionList

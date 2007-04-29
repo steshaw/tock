@@ -5,6 +5,7 @@ import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
 import Data.Bits
+import Data.Char
 import Data.Generics
 import Data.Int
 import Data.Maybe
@@ -22,6 +23,7 @@ instance Die EvalM where
 -- | Occam values of various types.
 data OccValue =
   OccBool Bool
+  | OccByte Char
   | OccInt Int32
   | OccArray [OccValue]
   deriving (Show, Eq, Typeable, Data)
@@ -49,6 +51,14 @@ evalIntExpression e
             Right (OccInt val) -> return $ fromIntegral val
             Right _ -> die "expression is not of INT type"
 
+-- | Evaluate a byte literal.
+evalByte :: (PSM m, Die m) => String -> m Char
+evalByte s
+    =  do ps <- get
+          case runEvaluator ps (evalByteLiteral s) of
+            Left err -> die $ "cannot evaluate byte literal: " ++ err
+            Right (OccByte ch) -> return ch
+
 -- | Run an evaluator operation.
 runEvaluator :: ParseState -> EvalM OccValue -> Either String OccValue
 runEvaluator ps func
@@ -67,7 +77,25 @@ fromRead _ _ = throwError "cannot parse literal"
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Literal -> EvalM OccValue
+evalSimpleLiteral (A.Literal _ A.Byte (A.ByteLiteral _ s)) = evalByteLiteral s
 evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s)) = fromRead OccInt $ readDec s
 evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt $ readHex s
 evalSimpleLiteral _ = throwError "bad literal"
 
+-- | Evaluate a byte literal.
+evalByteLiteral :: String -> EvalM OccValue
+evalByteLiteral ('*':'#':hex)
+    = do OccInt n <- fromRead OccInt $ readHex hex
+         return $ OccByte (chr $ fromIntegral n)
+evalByteLiteral ['*', ch]
+    = return $ OccByte (star ch)
+  where
+    star :: Char -> Char
+    star 'c' = '\r'
+    star 'n' = '\n'
+    star 't' = '\t'
+    star 's' = ' '
+    star c = c
+evalByteLiteral [ch]
+    = return $ OccByte ch
+evalByteLiteral _ = throwError "bad BYTE literal"

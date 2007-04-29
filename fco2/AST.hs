@@ -73,7 +73,6 @@ data LiteralRepr =
   | IntLiteral Meta String
   | HexLiteral Meta String
   | ByteLiteral Meta String
-  | StringLiteral Meta String
   | ArrayLiteral Meta [ArrayElem]
   deriving (Show, Eq, Typeable, Data)
 

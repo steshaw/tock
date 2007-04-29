@@ -5,10 +5,12 @@ import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
 import Data.Bits
+import Data.Char
 import Data.Generics
 import Data.Int
 import Data.Maybe
 import Numeric
+import Text.Printf
 
 import qualified AST as A
 import Errors
@@ -145,7 +147,9 @@ evalDyadic A.LessEq a b = evalDyadic A.More b a
 evalDyadic A.MoreEq a b = evalDyadic A.Less b a
 evalDyadic A.After (OccInt a) (OccInt b) = return $ OccBool ((a - b) > 0)
 evalDyadic _ _ _ = throwError "bad dyadic op"
+--}}}
 
+--{{{  rendering values
 -- | Convert a value back into a literal.
 renderValue :: Meta -> OccValue -> (A.Type, A.Expression)
 renderValue m (OccBool True) = (A.Bool, A.True m)
@@ -154,12 +158,25 @@ renderValue m v = (t, A.ExprLiteral m (A.Literal m t lr))
   where (t, lr) = renderLiteral m v
 
 renderLiteral :: Meta -> OccValue -> (A.Type, A.LiteralRepr)
+renderLiteral m (OccByte c) = (A.Byte, A.ByteLiteral m $ renderChar c)
 renderLiteral m (OccInt i) = (A.Int, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
     = (t, A.ArrayLiteral m aes)
   where
     t = makeArrayType (A.Dimension $ length vs) (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
+
+renderChar :: Char -> String
+renderChar '\'' = "*'"
+renderChar '\"' = "*\""
+renderChar '*' = "**"
+renderChar '\r' = "*c"
+renderChar '\n' = "*n"
+renderChar '\t' = "*t"
+renderChar c
+  | (o < 32 || o > 127) = printf "*#%02x" o
+  | otherwise           = [c]
+  where o = ord c
 
 renderLiteralArray :: Meta -> OccValue -> (A.Type, A.ArrayElem)
 renderLiteralArray m (OccArray vs)

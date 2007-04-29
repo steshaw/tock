@@ -1,6 +1,7 @@
 -- | Generate C code from the mangled AST.
 module GenerateC where
 
+import Data.Char
 import Data.List
 import Data.Maybe
 import Control.Monad.Writer
@@ -10,6 +11,7 @@ import Numeric
 import Text.Printf
 
 import qualified AST as A
+import EvalLiterals
 import Metadata
 import ParseState
 import Pass
@@ -202,15 +204,30 @@ genConversion m cm t e = missing $ "genConversion " ++ show cm
 
 --{{{  literals
 genLiteral :: A.Literal -> CGen ()
-genLiteral (A.Literal m t lr) = genLiteralRepr lr
+genLiteral (A.Literal _ _ lr)
+    = if isStringLiteral lr
+        then do tell ["\""]
+                let A.ArrayLiteral _ aes = lr
+                sequence_ [genByteLiteral s
+                           | A.ArrayElemExpr (A.ExprLiteral _ (A.Literal _ _ (A.ByteLiteral _ s))) <- aes]
+                tell ["\""]
+        else genLiteralRepr lr
 genLiteral l = missing $ "genLiteral " ++ show l
+
+-- | Does a LiteralRepr represent something that can be a plain string literal?
+isStringLiteral :: A.LiteralRepr -> Bool
+isStringLiteral (A.ArrayLiteral _ aes)
+    = and [case ae of
+             A.ArrayElemExpr (A.ExprLiteral _ (A.Literal _ _ (A.ByteLiteral _ _))) -> True
+             _ -> False
+           | ae <- aes]
+isStringLiteral _ = False
 
 genLiteralRepr :: A.LiteralRepr -> CGen ()
 genLiteralRepr (A.RealLiteral m s) = tell [s]
 genLiteralRepr (A.IntLiteral m s) = genDecimal s
 genLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
-genLiteralRepr (A.ByteLiteral m s) = tell ["'", convStringLiteral s, "'"]
-genLiteralRepr (A.StringLiteral m s) = tell ["\"", convStringLiteral s, "\""]
+genLiteralRepr (A.ByteLiteral m s) = tell ["'"] >> genByteLiteral s >> tell ["'"]
 genLiteralRepr (A.ArrayLiteral m aes)
     =  do tell ["{"]
           genArrayLiteralElems aes
@@ -236,23 +253,23 @@ genArrayLiteralElems aes
                 A.Array _ _ -> missing $ "array literal containing non-literal array: " ++ show e
                 _ -> genExpression e
 
-hexToOct :: String -> String
-hexToOct h = printf "%03o" ((fst $ head $ readHex h) :: Int)
+genByteLiteral :: String -> CGen ()
+genByteLiteral s
+    =  do c <- evalByte s
+          tell [convByte c]
 
-convStringLiteral :: String -> String
-convStringLiteral [] = []
-convStringLiteral ('\\':s) = "\\\\" ++ convStringLiteral s
-convStringLiteral ('*':'#':'0':'0':s) = "\\0" ++ convStringLiteral s
-convStringLiteral ('*':'#':a:b:s) = "\\" ++ hexToOct [a, b] ++ convStringLiteral s
-convStringLiteral ('*':c:s) = convStringStar c ++ convStringLiteral s
-convStringLiteral (c:s) = c : convStringLiteral s
-
-convStringStar :: Char -> String
-convStringStar 'c' = "\\r"
-convStringStar 'n' = "\\n"
-convStringStar 't' = "\\t"
-convStringStar 's' = " "
-convStringStar c = [c]
+convByte :: Char -> String
+convByte '\'' = "\\'"
+convByte '"' = "\\\""
+convByte '\\' = "\\\\"
+convByte '\r' = "\\r"
+convByte '\n' = "\\n"
+convByte '\t' = "\\t"
+convByte c
+  | o == 0              = "\\0"
+  | (o < 32 || o > 127) = printf "\\%03o" o
+  | otherwise           = [c]
+  where o = ord c
 --}}}
 
 --{{{  variables

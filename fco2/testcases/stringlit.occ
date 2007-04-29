@@ -7,5 +7,6 @@ PROC P ()
   VAL BYTE cc IS '"':
   VAL BYTE ccx IS '*"':
   VAL BYTE ccc IS '*'':
+  VAL [5][5]BYTE square IS ["sator", "arepo", "tenas", "opera", "rotas"]:
   SKIP
 :
