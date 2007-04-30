@@ -1229,7 +1229,8 @@ definition
            eol
            return $ A.Specification m n $ A.Proc m fs' p
     <|> do m <- md
-           rs <- tryVX (sepBy1 dataType sComma) sFUNCTION
+           -- FIXME INLINE is ignored.
+           rs <- tryVX (sepBy1 dataType sComma) (sFUNCTION <|> tryXX sINLINE sFUNCTION)
            n <- newFunctionName
            fs <- formalList
            do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.OnlyEL m el) }
