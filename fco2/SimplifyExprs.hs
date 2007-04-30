@@ -108,11 +108,13 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
     -- | *Don't* pull anything that's already an abbreviation -- but do convert
     -- RetypesExpr into Retypes (of a variable).
     doSpecification :: A.Specification -> PassM A.Specification
+    -- Iss might be SubscriptedVars -- which is fine; the backend can deal with that.
     doSpecification (A.Specification m n (A.Is m' am t v))
         =  do v' <- doGeneric v    -- note doGeneric rather than pullUp
               return $ A.Specification m n (A.Is m' am t v')
+    -- IsExprs might be SubscriptedExprs, and if so we have to convert them.
     doSpecification (A.Specification m n (A.IsExpr m' am t e))
-        =  do e' <- doGeneric e    -- note doGeneric rather than pullUp
+        =  do e' <- doExpression' e  -- note doExpression' rather than pullUp
               return $ A.Specification m n (A.IsExpr m' am t e')
     doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
         =  do e' <- doExpression e
