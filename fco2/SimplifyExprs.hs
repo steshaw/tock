@@ -45,7 +45,8 @@ functionsToProcs = doGeneric `extM` doSpecification
                         A.ndOrigName = A.nameName n,
                         A.ndNameType = A.ProcName,
                         A.ndType = st,
-                        A.ndAbbrevMode = A.Original
+                        A.ndAbbrevMode = A.Original,
+                        A.ndPlacement = A.Unplaced
                       }
              defineName n nd
              doGeneric spec

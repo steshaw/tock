@@ -17,3 +17,5 @@ Intrinsics:
 
 Simple versions of #USE and #INCLUDE that only work in a process context (i.e.
 you can't #INCLUDE the body of a nested block).
+
+PLACE IN WORKSPACE and PLACE IN VECSPACE, both currently ignored.

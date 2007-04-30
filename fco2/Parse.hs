@@ -87,6 +87,7 @@ occamStyle
                           "FROM",
                           "FUNCTION",
                           "IF",
+                          "IN",
                           "INLINE",
                           "INT",
                           "INT16",
@@ -130,6 +131,8 @@ occamStyle
                           "VAL",
                           "VALOF",
                           "WHILE",
+                          "WORKSPACE",
+                          "VECSPACE",
                           "#INCLUDE",
                           "#USE",
                           indentMarker,
@@ -196,6 +199,7 @@ sFROM = reserved "FROM"
 sFUNCTION = reserved "FUNCTION"
 sIF = reserved "IF"
 sINLINE = reserved "INLINE"
+sIN = reserved "IN"
 sINT = reserved "INT"
 sINT16 = reserved "INT16"
 sINT32 = reserved "INT32"
@@ -238,6 +242,8 @@ sTYPE = reserved "TYPE"
 sVAL = reserved "VAL"
 sVALOF = reserved "VALOF"
 sWHILE = reserved "WHILE"
+sWORKSPACE = reserved "WORKSPACE"
+sVECSPACE = reserved "VECSPACE"
 sppINCLUDE = reserved "#INCLUDE"
 sppUSE = reserved "#USE"
 --}}}
@@ -499,7 +505,8 @@ scopeIn n@(A.Name m nt s) t am
             A.ndOrigName = s,
             A.ndNameType = A.nameType n',
             A.ndType = t,
-            A.ndAbbrevMode = am
+            A.ndAbbrevMode = am,
+            A.ndPlacement = A.Unplaced
           }
           defineName n' nd
           modify $ (\st -> st {
@@ -1125,8 +1132,27 @@ replicator
 --{{{ specifications, declarations, allocations
 allocation :: OccParser [A.Specification]
 allocation
-    =   do { m <- md; sPLACE; n <- variableName; sAT; e <- intExpr; sColon; eol; return [A.Specification m n (A.Place m e)] }
+    =   do m <- md
+           sPLACE
+           n <- try variableName <|> try channelName <|> portName
+           p <- placement
+           sColon
+           eol
+           nd <- lookupName n
+           defineName n $ nd { A.ndPlacement = p }
+           return []
     <?> "allocation"
+
+placement :: OccParser A.Placement
+placement
+    =   do sAT
+           e <- intExpr
+           return $ A.PlaceAt e
+    <|> do tryXX sIN sWORKSPACE
+           return $ A.PlaceInWorkspace
+    <|> do tryXX sIN sVECSPACE
+           return $ A.PlaceInVecspace
+    <?> "placement"
 
 specification :: OccParser [A.Specification]
 specification

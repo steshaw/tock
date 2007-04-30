@@ -162,7 +162,8 @@ defineNonce m s st nt am
                      A.ndOrigName = ns,
                      A.ndNameType = nt,
                      A.ndType = st,
-                     A.ndAbbrevMode = am
+                     A.ndAbbrevMode = am,
+                     A.ndPlacement = A.Unplaced
                    }
           defineName n nd
           return $ A.Specification m n st

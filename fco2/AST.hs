@@ -30,7 +30,8 @@ data NameDef = NameDef {
     ndOrigName :: String,
     ndNameType :: NameType,
     ndType :: SpecType,
-    ndAbbrevMode :: AbbrevMode
+    ndAbbrevMode :: AbbrevMode,
+    ndPlacement :: Placement
   }
   deriving (Show, Eq, Typeable, Data)
 
@@ -52,6 +53,13 @@ data Type =
 data Dimension =
   Dimension Int
   | UnknownDimension
+  deriving (Show, Eq, Typeable, Data)
+
+data Placement =
+  Unplaced
+  | PlaceInWorkspace
+  | PlaceInVecspace
+  | PlaceAt Expression
   deriving (Show, Eq, Typeable, Data)
 
 data ConversionMode =

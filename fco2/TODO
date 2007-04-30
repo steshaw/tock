@@ -78,6 +78,8 @@ Real-to-integer conversions don't work correctly.
 
 Slice checks should not be generated if the slice is known to be safe.
 
+PLACE should work.
+
 ## Long-term
 
 If we have constant folding, we're three-quarters of the way towards having an
