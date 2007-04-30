@@ -136,7 +136,7 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
       where
         pull :: A.Type -> A.Expression -> PassM A.Expression
         pull t e
-            = do let m = metaOfExpression e
+            = do let m = findMeta e
                  spec@(A.Specification _ n _) <- makeNonceIsExpr "array_expr" m t e
                  addPulled $ A.Spec m spec
                  return $ A.ExprVariable m (A.Variable m n)

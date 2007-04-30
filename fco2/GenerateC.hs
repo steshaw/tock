@@ -11,6 +11,7 @@ import Numeric
 import Text.Printf
 
 import qualified AST as A
+import EvalConstants
 import EvalLiterals
 import Metadata
 import ParseState
@@ -433,7 +434,7 @@ genArraySubscript v es
                  tell [", "]
                  genVariable v
                  tell ["_sizes[", show sub, "], "]
-                 genMeta (metaOfExpression e)
+                 genMeta (findMeta e)
                  tell [")"]
         genChunks = [genVariable v >> tell ["_sizes[", show i, "]"] | i <- subs]
 --}}}
@@ -660,7 +661,7 @@ genGeneralReplicatorLoop index base count
           tell ["++"]
 
 genReplicatorSize :: A.Replicator -> CGen ()
-genReplicatorSize (A.For m n base count) = genExpression count
+genReplicatorSize rep = genExpression (sizeOfReplicator rep)
 --}}}
 
 --{{{  abbreviations
@@ -677,7 +678,7 @@ genSlice v (A.Variable _ on) start count ds
                         tell [", "]
                         genName on
                         tell ["_sizes[0], "]
-                        genMeta (metaOfExpression count)
+                        genMeta (findMeta count)
                         tell [")"]
                         sequence_ [do tell [", "]
                                       genName on
@@ -1044,7 +1045,7 @@ genProcess p = case p of
   A.If m s -> genIf m s
   A.Case m e s -> genCase m e s
   A.While m e p -> genWhile e p
-  A.Par m pm s -> genParBody pm s
+  A.Par m pm s -> genPar pm s
   -- PROCESSOR does nothing special.
   A.Processor m e p -> genProcess p
   A.Alt m b s -> genAlt b s
@@ -1230,51 +1231,27 @@ genWhile e p
           tell ["}\n"]
 --}}}
 --{{{  par
--- FIXME: This is a bit odd because it'll only generate the two forms of the
--- AST resulting from regular and replicated PARs. It'd probably be better to
--- make it deal with a general Structured PAR.
-
-genParBody :: A.ParMode -> A.Structured -> CGen ()
-genParBody pm (A.Spec _ spec s) = genSpec spec (genParBody pm s)
-genParBody pm (A.ProcThen _ p s) = genProcess p >> genParBody pm s
-genParBody pm (A.Several _ ss) = genPar pm ss
-genParBody pm (A.Rep _ rep s) = genParRep pm rep s
-
-genParProc :: (A.Process -> CGen()) -> A.Structured -> CGen ()
-genParProc gen (A.Spec _ spec s) = genSpec spec (genParProc gen s)
-genParProc gen (A.ProcThen _ p s) = genProcess p >> genParProc gen s
-genParProc gen (A.OnlyP _ p) = gen p
-
-genPar :: A.ParMode -> [A.Structured] -> CGen ()
-genPar pm ss
-    =  do pids <- sequence [makeNonce "pid" | _ <- ss]
-          sequence_ $ [genParProc (\p -> do tell ["Process *", pid, " = "]
-                                            genProcAlloc p
-                                            tell [";\n"]) s
-                       | (pid, s) <- (zip pids ss)]
-          case pm of
-            A.PlainPar ->
-              do tell ["ProcPar ("]
-                 sequence_ $ [tell [pid, ", "] | pid <- pids]
-                 tell ["NULL);\n"]
-            _ -> missing $ "genPar " ++ show pm
-          sequence_ $ [tell ["ProcAllocClean (", pid, ");\n"] | pid <- pids]
-
-genParRep :: A.ParMode -> A.Replicator -> A.Structured -> CGen ()
-genParRep pm rep s
-    =  do pids <- makeNonce "pids"
+genPar :: A.ParMode -> A.Structured -> CGen ()
+genPar pm s
+    =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
+          pids <- makeNonce "pids"
           index <- makeNonce "i"
           tell ["Process *", pids, "["]
-          genReplicatorSize rep
-          tell [" + 1];\n"]
+          genExpression size
+          tell ["];\n"]
           tell ["int ", index, " = 0;\n"]
-          genReplicator rep $ genParProc (\p -> do tell [pids, "[", index, "++] = "]
-                                                   genProcAlloc p
-                                                   tell [";\n"]) s
+          genStructured s (createP pids index)
           tell [pids, "[", index, "] = NULL;\n"]
           tell ["ProcParList (", pids, ");\n"]
           tell [index, " = 0;\n"]
-          genReplicator rep $ tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
+          genStructured s (freeP pids index)
+  where
+    createP pids index (A.OnlyP _ p)
+        = do tell [pids, "[", index, "++] = "]
+             genProcAlloc p
+             tell [";\n"]
+    freeP pids index (A.OnlyP _ _)
+        = do tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
 
 genProcAlloc :: A.Process -> CGen ()
 genProcAlloc (A.ProcCall m n as)

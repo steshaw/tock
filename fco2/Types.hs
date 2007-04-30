@@ -231,9 +231,9 @@ makeAbbrevAM am = am
 makeConstant :: Meta -> Int -> A.Expression
 makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
 
--- | Find the Meta value in an expression.
-metaOfExpression :: A.Expression -> Meta
-metaOfExpression e = head $ gmapQ (mkQ emptyMeta findMeta) e
+-- | Find the first Meta value in some part of the AST.
+findMeta :: (Data t, Typeable t) => t -> Meta
+findMeta e = head $ gmapQ (mkQ emptyMeta findMeta) e
   where
     findMeta :: Meta -> Meta
     findMeta m = m
@@ -361,4 +361,25 @@ bytesInType (A.UserDataType n)
                 (_, _) -> return BIUnknown
 bytesInType _ = return $ BIUnknown
 --}}}
+
+-- | Get the number of items a replicator produces.
+sizeOfReplicator :: A.Replicator -> A.Expression
+sizeOfReplicator (A.For _ _ _ count) = count
+
+-- | Get the number of items in a Structured as an expression.
+sizeOfStructured :: A.Structured -> A.Expression
+sizeOfStructured (A.Rep m rep s)
+    = A.Dyadic m A.Times (sizeOfReplicator rep) (sizeOfStructured s)
+sizeOfStructured (A.Spec _ _ s) = sizeOfStructured s
+sizeOfStructured (A.ProcThen _ _ s) = sizeOfStructured s
+sizeOfStructured (A.Several m ss)
+    = case ss of
+        [] -> makeConstant m 0
+        _ -> foldl1 (A.Dyadic m A.Plus) (map sizeOfStructured ss)
+sizeOfStructured s = makeConstant (findMeta s) 1
+
+-- | Add one to an expression.
+addOne :: A.Expression -> A.Expression
+addOne e = A.Dyadic m A.Plus (makeConstant m 1) e
+  where m = findMeta e
 

@@ -54,7 +54,7 @@ simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
 simplifyExpression ps e
     = case runEvaluator ps (evalExpression e) of
         Left err -> Left err
-        Right val -> Right $ snd $ renderValue (metaOfExpression e) val
+        Right val -> Right $ snd $ renderValue (findMeta e) val
 
 --{{{  expression evaluator
 evalLiteral :: A.Literal -> EvalM OccValue
