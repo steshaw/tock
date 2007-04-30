@@ -1235,19 +1235,28 @@ genPar :: A.ParMode -> A.Structured -> CGen ()
 genPar pm s
     =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
           pids <- makeNonce "pids"
+          pris <- makeNonce "priorities"
           index <- makeNonce "i"
+          when (pm == A.PriPar) $
+            do tell ["int ", pris, "["]
+               genExpression size
+               tell ["];\n"]
           tell ["Process *", pids, "["]
           genExpression size
           tell ["];\n"]
           tell ["int ", index, " = 0;\n"]
-          genStructured s (createP pids index)
+          genStructured s (createP pids pris index)
           tell [pids, "[", index, "] = NULL;\n"]
-          tell ["ProcParList (", pids, ");\n"]
+          case pm of
+            A.PriPar -> tell ["ProcPriParList (", pids, ", ", pris, ");\n"]
+            _ -> tell ["ProcParList (", pids, ");\n"]
           tell [index, " = 0;\n"]
           genStructured s (freeP pids index)
   where
-    createP pids index (A.OnlyP _ p)
-        = do tell [pids, "[", index, "++] = "]
+    createP pids pris index (A.OnlyP _ p)
+        = do when (pm == A.PriPar) $
+               tell [pris, "[", index, "] = ", index, ";\n"]
+             tell [pids, "[", index, "++] = "]
              genProcAlloc p
              tell [";\n"]
     freeP pids index (A.OnlyP _ _)
