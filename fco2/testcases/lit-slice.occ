@@ -1,0 +1,16 @@
+-- from cgtest07
+PROC P ()
+  BYTE b:
+  [1]BYTE bs:
+  INT n:
+  SEQ
+    -- With extra brackets...
+    ASSERT ((INT 'e') = (INT ("Hello"[INT ([BYTE 10, BYTE 10, BYTE 1][42 \ 10])])))
+    -- Bits of it
+    b := BYTE 10
+    bs := [BYTE 10]
+    -- But this triggers the operandNotTable problem
+    n := INT [BYTE 10][0]
+    -- As it appeared (in occam2.1-legal form) in the cgtest
+    ASSERT ((INT 'e') = (INT ("Hello"[INT [BYTE 10, BYTE 10, BYTE 1][42 \ 10]])))
+:

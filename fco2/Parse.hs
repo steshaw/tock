@@ -986,8 +986,7 @@ conversionMode :: OccParser (A.ConversionMode, A.Expression)
 conversionMode
     =   do { sROUND; o <- noTypeContext operand; return (A.Round, o) }
     <|> do { sTRUNC; o <- noTypeContext operand; return (A.Trunc, o) }
-    -- This uses operandNotTable to resolve the "x[y]" ambiguity.
-    <|> do { o <- noTypeContext operandNotTable; return (A.DefaultConversion, o) }
+    <|> do { o <- noTypeContext operand; return (A.DefaultConversion, o) }
     <?> "conversion mode and operand"
 --}}}
 --{{{ operands
@@ -997,16 +996,6 @@ operand
 
 operand' :: OccParser A.Expression
 operand'
-    =   table
-    <|> operandNotTable'
-    <?> "operand'"
-
-operandNotTable :: OccParser A.Expression
-operandNotTable
-    = maybeSubscripted "operand other than table" operandNotTable' A.SubscriptedExpr typeOfExpression
-
-operandNotTable' :: OccParser A.Expression
-operandNotTable'
     =   do { m <- md; v <- variable; return $ A.ExprVariable m v }
     <|> literal
     <|> do { sLeftR; e <- expression; sRightR; return e }
@@ -1021,7 +1010,8 @@ operandNotTable'
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
     <|> do { m <- md; sTRUE; return $ A.True m }
     <|> do { m <- md; sFALSE; return $ A.False m }
-    <?> "operand other than table'"
+    <|> table
+    <?> "operand"
 --}}}
 --{{{ variables, channels, timers, ports
 variable :: OccParser A.Variable
