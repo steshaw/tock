@@ -363,8 +363,16 @@ CHAN OF INT c:          Channel c;                  Channel *c;
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
 -}
+-- | Generate C code for a variable.
 genVariable :: A.Variable -> CGen ()
-genVariable v
+genVariable = genVariable' True
+
+-- | Generate C code for a variable without doing any range checks.
+genVariableUnchecked :: A.Variable -> CGen ()
+genVariableUnchecked = genVariable' False
+
+genVariable' :: Bool -> A.Variable -> CGen ()
+genVariable' checkValid v
     =  do am <- abbrevModeOfVariable v
           t <- typeOfVariable v
           let isSub = case v of
@@ -389,7 +397,7 @@ genVariable v
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         =  do let (es, v) = collectSubs sv
               genVariable v
-              genArraySubscript v es
+              genArraySubscript checkValid v es
     inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
         =  do genVariable v
               tell ["->"]
@@ -409,8 +417,8 @@ genVariable v
         (es', v') = collectSubs v
     collectSubs v = ([], v)
 
-genArraySubscript :: A.Variable -> [A.Expression] -> CGen ()
-genArraySubscript v es
+genArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
+genArraySubscript checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
@@ -428,13 +436,15 @@ genArraySubscript v es
       where
         gen = sequence_ $ intersperse (tell [" * "]) $ genSub : genChunks
         genSub
-            = do tell ["occam_check_index ("]
-                 genExpression e
-                 tell [", "]
-                 genVariable v
-                 tell ["_sizes[", show sub, "], "]
-                 genMeta (findMeta e)
-                 tell [")"]
+            = if checkValid
+                then do tell ["occam_check_index ("]
+                        genExpression e
+                        tell [", "]
+                        genVariable v
+                        tell ["_sizes[", show sub, "], "]
+                        genMeta (findMeta e)
+                        tell [")"]
+                else genExpression e
         genChunks = [genVariable v >> tell ["_sizes[", show i, "]"] | i <- subs]
 --}}}
 
@@ -668,7 +678,9 @@ genReplicatorSize rep = genExpression (sizeOfReplicator rep)
 
 genSlice :: A.Variable -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
 genSlice v (A.Variable _ on) start count ds
-    = (tell ["&"] >> genVariable v,
+       -- We need to disable the index check here because we might be taking
+       -- element 0 of a 0-length array -- which is valid.
+    = (tell ["&"] >> genVariableUnchecked v,
        genArraySize False
                     (do tell ["occam_check_slice ("]
                         genExpression start
