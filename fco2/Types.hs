@@ -316,6 +316,7 @@ data BytesInResult =
   BIJust Int            -- ^ Just that many bytes.
   | BIOneFree Int Int   -- ^ An array type; A bytes, times unknown dimension B.
   | BIUnknown           -- ^ No idea.
+  deriving (Show, Eq)
 
 -- | Return the size in bytes of a data type.
 bytesInType :: (PSM m, Die m) => A.Type -> m BytesInResult

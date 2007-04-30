@@ -58,6 +58,8 @@ simplifyExpression ps e
 
 --{{{  expression evaluator
 evalLiteral :: A.Expression -> EvalM OccValue
+evalLiteral (A.Literal _ _ (A.ArrayLiteral _ []))
+    = throwError "empty array"
 evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
     = liftM OccArray (mapM evalLiteralArray aes)
 evalLiteral l = evalSimpleLiteral l
