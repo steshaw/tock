@@ -1275,6 +1275,7 @@ dataSpecifier
     =   dataType
     <|> do s <- tryXXV sLeft sRight dataSpecifier
            return $ makeArrayType A.UnknownDimension s
+    <|> arrayType dataSpecifier
     <?> "data specifier"
 
 specifier :: OccParser A.Type
@@ -1285,6 +1286,7 @@ specifier
     <|> portType
     <|> do s <- tryXXV sLeft sRight specifier
            return $ makeArrayType A.UnknownDimension s
+    <|> arrayType specifier
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs

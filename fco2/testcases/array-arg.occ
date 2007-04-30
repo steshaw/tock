@@ -1,0 +1,8 @@
+-- from cgtest07
+PROC bug.308()
+  PROC bug.308a([10][][5]INT a)
+    a[3] := a[2]
+  :
+  [10][3][5]INT a :
+  bug.308a(a)
+:
