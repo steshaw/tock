@@ -125,7 +125,7 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
     -- | Pull array expressions that aren't already non-subscripted variables.
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
-        =  do e' <- doExpressionFunc e
+        =  do e' <- doExpression' e
               t <- typeOfExpression e'
               case t of
                 A.Array _ _ ->
@@ -174,13 +174,23 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
 
              return vars
 
-    doExpressionFunc :: A.Expression -> PassM A.Expression
-    doExpressionFunc (A.FunctionCall m n es)
+    doExpression' :: A.Expression -> PassM A.Expression
+    -- Convert single-valued function calls.
+    doExpression' (A.FunctionCall m n es)
         = do [v] <- convertFuncCall m n es
              return $ A.ExprVariable m v
-    doExpressionFunc e = doGeneric e
+    -- Convert SubscriptedExprs into SubscriptedVariables.
+    doExpression' (A.SubscriptedExpr m s e)
+        = do e' <- pullUp e
+             s' <- pullUp s
+             t <- typeOfExpression e'
+             spec@(A.Specification _ n _) <- makeNonceIsExpr "subscripted_expr" m t e'
+             addPulled $ A.Spec m spec
+             return $ A.ExprVariable m (A.SubscriptedVariable m s' (A.Variable m n))
+    doExpression' e = doGeneric e
 
     doExpressionList :: A.ExpressionList -> PassM A.ExpressionList
+    -- Convert multi-valued function calls.
     doExpressionList (A.FunctionCallList m n es)
         = do vs <- convertFuncCall m n es
              return $ A.ExpressionList m [A.ExprVariable m v | v <- vs]

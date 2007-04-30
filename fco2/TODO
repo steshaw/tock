@@ -42,13 +42,8 @@ default behaviour that simplifies expressions inside another one.
 
 Output item expressions should be pulled up to variables.
 
-RETYPES of expressions should be converted to RETYPES of variables.
-
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
 directives to their real types.
-
-Pass to turn subscripted expressions into subscripted variables. (Need to write
-a test for this -- use a function that returns an array?)
 
 Pass to turn complicated conversions into simpler ones (currently done in
 GenerateC).
