@@ -1138,9 +1138,9 @@ declOf spec newName
 abbreviation :: OccParser A.Specification
 abbreviation
     =   valIsAbbrev
-    <|> chanArrayAbbrev
     <|> isAbbrev newVariableName variable
     <|> isAbbrev newChannelName channel
+    <|> chanArrayAbbrev
     <|> isAbbrev newTimerName timer
     <|> isAbbrev newPortName port
     <?> "abbreviation"
