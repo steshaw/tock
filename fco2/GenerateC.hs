@@ -122,8 +122,7 @@ genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 --{{{  types
 scalarType :: A.Type -> Maybe String
 scalarType A.Bool = Just "bool"
--- FIXME: This probably isn't right; we might have to explicitly cast string literals...
-scalarType A.Byte = Just "char"
+scalarType A.Byte = Just "uint8_t"
 scalarType A.Int = Just "int"
 scalarType A.Int16 = Just "int16_t"
 scalarType A.Int32 = Just "int32_t"

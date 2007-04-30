@@ -17,8 +17,8 @@
 //{{{ mostneg/mostpos
 #define occam_mostneg_bool false
 #define occam_mostpos_bool true
-#define occam_mostneg_char CHAR_MIN
-#define occam_mostpos_char CHAR_MAX
+#define occam_mostneg_uint8_t 0
+#define occam_mostpos_uint8_t UINT8_MAX
 #define occam_mostneg_int INT_MIN
 #define occam_mostpos_int INT_MAX
 #define occam_mostneg_int16_t INT16_MIN
@@ -112,13 +112,13 @@ static int occam_check_index (int i, int limit, const char *pos) {
 		return a % b; \
 	}
 
-//{{{ char
-MAKE_RANGE_CHECK(char, "%d")
-MAKE_ADD(char)
-MAKE_SUBTR(char)
-MAKE_MUL(char)
-MAKE_DIV(char)
-MAKE_REM(char)
+//{{{ uint8_t
+MAKE_RANGE_CHECK(uint8_t, "%d")
+MAKE_ADD(uint8_t)
+MAKE_SUBTR(uint8_t)
+MAKE_MUL(uint8_t)
+MAKE_DIV(uint8_t)
+MAKE_REM(uint8_t)
 //}}}
 //{{{ int16_t
 MAKE_RANGE_CHECK(int16_t, "%d")
