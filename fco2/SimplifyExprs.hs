@@ -69,7 +69,7 @@ removeAfter = doGeneric `extM` doExpression
         =  do a' <- removeAfter a
               b' <- removeAfter b
               t <- typeOfExpression a'
-              let zero = A.ExprLiteral m $ A.Literal m t $ A.IntLiteral m "0"
+              let zero = A.Literal m t $ A.IntLiteral m "0"
               return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
     doExpression e = doGeneric e
 

@@ -641,7 +641,7 @@ isValidLiteralType defT t
         A.Int -> isIntegerType t
         A.Byte -> isIntegerType t
 
-literal :: OccParser A.Literal
+literal :: OccParser A.Expression
 literal
     =  do m <- md
           (defT, lr) <- untypedLiteral
@@ -699,11 +699,11 @@ byte
     <?> "byte literal"
 
 -- i.e. array literal
-table :: OccParser A.Literal
+table :: OccParser A.Expression
 table
-    = maybeSubscripted "table" table' A.SubscriptedLiteral typeOfLiteral
+    = maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
 
-table' :: OccParser A.Literal
+table' :: OccParser A.Expression
 table'
     =   do m <- md
            (s, dim) <- stringLiteral
@@ -718,14 +718,14 @@ table'
            t <- listType m ets
            aes <- mapM collapseArrayElem es
            return $ A.Literal m t (A.ArrayLiteral m aes)
-    <|> maybeSliced table A.SubscriptedLiteral typeOfLiteral
+    <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
 
 -- | Collapse nested array literals.
 collapseArrayElem :: A.Expression -> OccParser A.ArrayElem
 collapseArrayElem e
     = case e of
-        A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ subAEs)) ->
+        A.Literal _ _ (A.ArrayLiteral _ subAEs) ->
           return $ A.ArrayElemArray subAEs
         _ -> return $ A.ArrayElemExpr e
 
@@ -734,7 +734,7 @@ stringLiteral
     =  do m <- md
           char '"'
           cs <- manyTill literalCharacter sQuote
-          let aes = [A.ArrayElemExpr $ A.ExprLiteral m (A.Literal m A.Byte c) | c <- cs]
+          let aes = [A.ArrayElemExpr $ A.Literal m A.Byte c | c <- cs]
           return (A.ArrayLiteral m aes, A.Dimension $ length cs)
     <?> "string literal"
 
@@ -997,7 +997,7 @@ operand
 
 operand' :: OccParser A.Expression
 operand'
-    =   do { m <- md; l <- table; return $ A.ExprLiteral m l }
+    =   table
     <|> operandNotTable'
     <?> "operand'"
 
@@ -1008,7 +1008,7 @@ operandNotTable
 operandNotTable' :: OccParser A.Expression
 operandNotTable'
     =   do { m <- md; v <- variable; return $ A.ExprVariable m v }
-    <|> do { m <- md; l <- literal; return $ A.ExprLiteral m l }
+    <|> literal
     <|> do { sLeftR; e <- expression; sRightR; return e }
 -- XXX value process
     <|> functionSingle

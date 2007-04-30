@@ -250,22 +250,21 @@ genConversionSymbol fromT toT cm
 --}}}
 
 --{{{  literals
-genLiteral :: A.Literal -> CGen ()
-genLiteral (A.Literal _ _ lr)
+genLiteral :: A.LiteralRepr -> CGen ()
+genLiteral lr
     = if isStringLiteral lr
         then do tell ["\""]
                 let A.ArrayLiteral _ aes = lr
                 sequence_ [genByteLiteral s
-                           | A.ArrayElemExpr (A.ExprLiteral _ (A.Literal _ _ (A.ByteLiteral _ s))) <- aes]
+                           | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ s)) <- aes]
                 tell ["\""]
         else genLiteralRepr lr
-genLiteral l = missing $ "genLiteral " ++ show l
 
 -- | Does a LiteralRepr represent something that can be a plain string literal?
 isStringLiteral :: A.LiteralRepr -> Bool
 isStringLiteral (A.ArrayLiteral _ aes)
     = and [case ae of
-             A.ArrayElemExpr (A.ExprLiteral _ (A.Literal _ _ (A.ByteLiteral _ _))) -> True
+             A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ _)) -> True
              _ -> False
            | ae <- aes]
 isStringLiteral _ = False
@@ -454,7 +453,7 @@ genExpression (A.SizeVariable m v)
           tell ["_sizes[0]"]
 genExpression (A.Conversion m cm t e) = genConversion m cm t e
 genExpression (A.ExprVariable m v) = genVariable v
-genExpression (A.ExprLiteral m l) = genLiteral l
+genExpression (A.Literal _ _ lr) = genLiteral lr
 genExpression (A.True m) = tell ["true"]
 genExpression (A.False m) = tell ["false"]
 --genExpression (A.FunctionCall m n es)
@@ -626,7 +625,7 @@ genReplicator rep body
           tell ["}\n"]
 
 isZero :: A.Expression -> Bool
-isZero (A.ExprLiteral _ (A.Literal _ A.Int (A.IntLiteral _ "0"))) = True
+isZero (A.Literal _ A.Int (A.IntLiteral _ "0")) = True
 isZero _ = False
 
 genReplicatorLoop :: A.Replicator -> CGen ()
@@ -780,10 +779,7 @@ abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -
 abbrevExpression am t@(A.Array _ _) e
     = case e of
         A.ExprVariable _ v -> abbrevVariable am t v
-        A.ExprLiteral _ l ->
-          case l of
-            A.Literal _ litT r -> (genExpression e, genTypeSize litT)
-            A.SubscriptedLiteral _ _ _ -> bad
+        A.Literal _ litT r -> (genExpression e, genTypeSize litT)
         _ -> bad
   where
     bad = (missing "array expression abbreviation", noSize)
@@ -904,7 +900,7 @@ introduceSpec (A.Specification _ n (A.Is _ am t v))
 introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
     =  do let (rhs, rhsSizes) = abbrevExpression am t e
           case (am, t, e) of
-            (A.ValAbbrev, A.Array _ ts, A.ExprLiteral _ _) ->
+            (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
               -- declaration, since you can't say "int *foo = {vs};" in C.
               do tell ["const "]

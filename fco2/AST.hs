@@ -78,15 +78,10 @@ data LiteralRepr =
 
 -- | An item inside an array literal -- which might be an expression, or might
 -- be a nested array. (occam multidimensional arrays are not arrays of arrays,
--- which is why we can't just use nested ExprLiterals.)
+-- which is why we can't just use nested Literals.)
 data ArrayElem =
   ArrayElemArray [ArrayElem]
   | ArrayElemExpr Expression
-  deriving (Show, Eq, Typeable, Data)
-
-data Literal =
-  Literal Meta Type LiteralRepr
-  | SubscriptedLiteral Meta Subscript Literal
   deriving (Show, Eq, Typeable, Data)
 
 data Variable =
@@ -104,7 +99,7 @@ data Expression =
   | SizeVariable Meta Variable
   | Conversion Meta ConversionMode Type Expression
   | ExprVariable Meta Variable
-  | ExprLiteral Meta Literal
+  | Literal Meta Type LiteralRepr
   | True Meta
   | False Meta
   | FunctionCall Meta Name [Expression]

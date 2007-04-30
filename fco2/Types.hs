@@ -149,7 +149,7 @@ typeOfExpression e
         A.SizeVariable m t -> return A.Int
         A.Conversion m cm t e -> return t
         A.ExprVariable m v -> typeOfVariable v
-        A.ExprLiteral m l -> typeOfLiteral l
+        A.Literal _ t _ -> return t
         A.True m -> return A.Bool
         A.False m -> return A.Bool
         A.FunctionCall m n es -> liftM head $ returnTypesOfFunction n
@@ -159,11 +159,6 @@ typeOfExpression e
         A.BytesInExpr m e -> return A.Int
         A.BytesInType m t -> return A.Int
         A.OffsetOf m t n -> return A.Int
-
-typeOfLiteral :: (PSM m, Die m) => A.Literal -> m A.Type
-typeOfLiteral (A.Literal m t lr) = return t
-typeOfLiteral (A.SubscriptedLiteral m s l)
-    = typeOfLiteral l >>= subscriptType s
 --}}}
 
 returnTypesOfFunction :: (PSM m, Die m) => A.Name -> m [A.Type]
@@ -229,7 +224,7 @@ makeAbbrevAM am = am
 
 -- | Generate a constant expression from an integer -- for array sizes and the like.
 makeConstant :: Meta -> Int -> A.Expression
-makeConstant m n = A.ExprLiteral m $ A.Literal m A.Int $ A.IntLiteral m (show n)
+makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
 
 -- | Find the first Meta value in some part of the AST.
 findMeta :: (Data t, Typeable t) => t -> Meta

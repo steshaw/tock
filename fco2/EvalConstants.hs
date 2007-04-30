@@ -57,7 +57,7 @@ simplifyExpression ps e
         Right val -> Right $ snd $ renderValue (findMeta e) val
 
 --{{{  expression evaluator
-evalLiteral :: A.Literal -> EvalM OccValue
+evalLiteral :: A.Expression -> EvalM OccValue
 evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
     = liftM OccArray (mapM evalLiteralArray aes)
 evalLiteral l = evalSimpleLiteral l
@@ -90,7 +90,7 @@ evalExpression (A.SizeVariable m v)
           case t of
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
             _ -> throwError $ "size of non-fixed-size variable " ++ show v ++ " used"
-evalExpression (A.ExprLiteral _ l) = evalLiteral l
+evalExpression e@(A.Literal _ _ _) = evalLiteral e
 evalExpression (A.ExprVariable _ (A.Variable _ n))
     =  do me <- getConstantName n
           case me of
@@ -154,7 +154,7 @@ evalDyadic _ _ _ = throwError "bad dyadic op"
 renderValue :: Meta -> OccValue -> (A.Type, A.Expression)
 renderValue m (OccBool True) = (A.Bool, A.True m)
 renderValue m (OccBool False) = (A.Bool, A.False m)
-renderValue m v = (t, A.ExprLiteral m (A.Literal m t lr))
+renderValue m v = (t, A.Literal m t lr)
   where (t, lr) = renderLiteral m v
 
 renderLiteral :: Meta -> OccValue -> (A.Type, A.LiteralRepr)

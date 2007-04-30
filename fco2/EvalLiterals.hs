@@ -30,9 +30,9 @@ data OccValue =
 
 -- | Is an expression a constant literal?
 isConstant :: A.Expression -> Bool
-isConstant (A.ExprLiteral _ (A.Literal _ _ (A.ArrayLiteral _ aes)))
+isConstant (A.Literal _ _ (A.ArrayLiteral _ aes))
     = and $ map isConstantArray aes
-isConstant (A.ExprLiteral _ _) = True
+isConstant (A.Literal _ _ _) = True
 isConstant (A.True _) = True
 isConstant (A.False _) = True
 isConstant _ = False
@@ -66,7 +66,7 @@ runEvaluator ps func
 
 -- | Evaluate a simple literal expression.
 evalSimpleExpression :: A.Expression -> EvalM OccValue
-evalSimpleExpression (A.ExprLiteral _ l) = evalSimpleLiteral l
+evalSimpleExpression e@(A.Literal _ _ _) = evalSimpleLiteral e
 evalSimpleExpression _ = throwError "not a literal"
 
 -- | Turn the result of one of the read* functions into an OccValue,
@@ -76,11 +76,11 @@ fromRead cons [(v, "")] = return $ cons v
 fromRead _ _ = throwError "cannot parse literal"
 
 -- | Evaluate a simple (non-array) literal.
-evalSimpleLiteral :: A.Literal -> EvalM OccValue
+evalSimpleLiteral :: A.Expression -> EvalM OccValue
 evalSimpleLiteral (A.Literal _ A.Byte (A.ByteLiteral _ s)) = evalByteLiteral s
 evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s)) = fromRead OccInt $ readDec s
 evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt $ readHex s
-evalSimpleLiteral _ = throwError "bad literal"
+evalSimpleLiteral l = throwError $ "bad literal: " ++ show l
 
 -- | Evaluate a byte literal.
 evalByteLiteral :: String -> EvalM OccValue
