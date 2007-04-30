@@ -52,8 +52,8 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doStructured `extQ` doSpecType
           A.For _ n b c -> (n, Map.union (freeNamesIn b) (freeNamesIn c))
 
     doSpecType :: A.SpecType -> NameMap
-    doSpecType (A.Proc _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
-    doSpecType (A.Function _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
+    doSpecType (A.Proc _ _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
+    doSpecType (A.Function _ _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
     doSpecType st = doGeneric st
 
 -- | Replace names.
@@ -77,8 +77,8 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
-        A.Specification m n st@(A.Proc _ _ _) ->
-          do st'@(A.Proc _ fs p) <- removeFreeNames st
+        A.Specification m n st@(A.Proc _ _ _ _) ->
+          do st'@(A.Proc mp sm fs p) <- removeFreeNames st
 
              -- If this is the top-level process, we shouldn't add new args --
              -- we know it's not going to be moved by removeNesting, so anything
@@ -112,7 +112,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             let st'' = A.Proc m (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
+             let st'' = A.Proc mp sm (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
              let spec' = A.Specification m n st''
 
              -- Update the definition of the proc
@@ -168,7 +168,7 @@ removeNesting p
     doStructured s = doGeneric s
 
     canPull :: A.SpecType -> Bool
-    canPull (A.Proc _ _ _) = True
+    canPull (A.Proc _ _ _ _) = True
     canPull (A.DataType _ _) = True
     canPull (A.DataTypeRecord _ _ _) = True
     canPull (A.Protocol _ _) = True

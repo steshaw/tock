@@ -8,8 +8,7 @@ Everything in occam2.1, minus:
 
 KRoC's TLP interface.
 
-INLINE PROC, although it's ignored (because it should be up to the C compiler
-what gets inlined).
+INLINE PROC and INLINE FUNCTION.
 
 Intrinsics:
 - ASSERT

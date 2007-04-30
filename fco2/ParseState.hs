@@ -170,7 +170,7 @@ defineNonce m s st nt am
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: PSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
-    = defineNonce m "wrapper_proc" (A.Proc m [] p) A.ProcName A.Abbrev
+    = defineNonce m "wrapper_proc" (A.Proc m A.PlainSpec [] p) A.ProcName A.Abbrev
 
 -- | Generate and define a variable abbreviation.
 makeNonceIs :: PSM m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification

@@ -24,7 +24,7 @@ tlpInterface
           let mainName = snd $ head $ psMainLocals ps
           st <- specTypeOfName mainName
           formals <- case st of
-                       A.Proc _ fs _ -> return fs
+                       A.Proc _ _ fs _ -> return fs
                        _ -> die "Last definition is not a PROC"
           chans <- mapM tlpChannel formals
           when ((nub chans) /= chans) $ die "Channels used more than once in TLP"

@@ -165,7 +165,7 @@ returnTypesOfFunction :: (PSM m, Die m) => A.Name -> m [A.Type]
 returnTypesOfFunction n
     =  do st <- specTypeOfName n
           case st of
-            A.Function m rs fs vp -> return rs
+            A.Function _ _ rs _ _ -> return rs
             -- If it's not defined as a function, it might have been converted to a proc.
             _ ->
               do ps <- get

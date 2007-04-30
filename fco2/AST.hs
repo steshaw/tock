@@ -203,10 +203,14 @@ data SpecType =
   | DataTypeRecord Meta Bool [(Name, Type)]
   | Protocol Meta [Type]
   | ProtocolCase Meta [(Name, [Type])]
-  | Proc Meta [Formal] Process
-  | Function Meta [Type] [Formal] Structured
+  | Proc Meta SpecMode [Formal] Process
+  | Function Meta SpecMode [Type] [Formal] Structured
   | Retypes Meta AbbrevMode Type Variable
   | RetypesExpr Meta AbbrevMode Type Expression
+  deriving (Show, Eq, Typeable, Data)
+
+data SpecMode =
+  PlainSpec | InlineSpec
   deriving (Show, Eq, Typeable, Data)
 
 data Formal =

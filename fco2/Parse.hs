@@ -879,7 +879,7 @@ functionSingle :: OccParser A.Expression
 functionSingle
     =  do m <- md
           n <- tryVX (functionNameValued False) sLeftR
-          A.Function _ _ fs _ <- specTypeOfName n
+          A.Function _ _ _ fs _ <- specTypeOfName n
           as <- functionActuals fs
           sRightR
           return $ A.FunctionCall m n as
@@ -889,7 +889,7 @@ functionMulti :: [A.Type] -> OccParser A.ExpressionList
 functionMulti types
     =  do m <- md
           n <- tryVX (functionNameValued True) sLeftR
-          A.Function _ _ fs _ <- specTypeOfName n
+          A.Function _ _ _ fs _ <- specTypeOfName n
           as <- functionActuals fs
           sRightR
           rts <- returnTypesOfFunction n
@@ -1216,6 +1216,14 @@ chanArrayAbbrev
            return $ A.Specification m n $ A.IsChannelArray m s cs
     <?> "channel array abbreviation"
 
+specMode :: OccParser () -> OccParser A.SpecMode
+specMode keyword
+    =   do tryXX sINLINE keyword
+           return A.InlineSpec
+    <|> do keyword
+           return A.PlainSpec
+    <?> "specification mode"
+
 definition :: OccParser A.Specification
 definition
     =   do m <- md
@@ -1230,8 +1238,7 @@ definition
            do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification m n $ A.Protocol m p }
              <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps }
     <|> do m <- md
-           -- FIXME INLINE is ignored.
-           sPROC <|> (tryXX sINLINE sPROC)
+           sm <- specMode sPROC
            n <- newProcName
            fs <- formalList
            eol
@@ -1242,14 +1249,13 @@ definition
            outdent
            sColon
            eol
-           return $ A.Specification m n $ A.Proc m fs' p
+           return $ A.Specification m n $ A.Proc m sm fs' p
     <|> do m <- md
-           -- FIXME INLINE is ignored.
-           rs <- tryVX (sepBy1 dataType sComma) (sFUNCTION <|> tryXX sINLINE sFUNCTION)
+           (rs, sm) <- tryVV (sepBy1 dataType sComma) (specMode sFUNCTION)
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' (A.OnlyEL m el) }
-             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m rs fs' vp }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (A.OnlyEL m el) }
+             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' vp }
     <|> retypesAbbrev
     <?> "definition"
 
@@ -1774,7 +1780,7 @@ procInstance
     =  do m <- md
           n <- tryVX procName sLeftR
           st <- specTypeOfName n
-          let fs = case st of A.Proc _ fs _ -> fs
+          let fs = case st of A.Proc _ _ fs _ -> fs
           as <- actuals fs
           sRightR
           eol

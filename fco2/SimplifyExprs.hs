@@ -28,7 +28,7 @@ functionsToProcs = doGeneric `extM` doSpecification
     doGeneric = gmapM functionsToProcs
 
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification (A.Specification m n (A.Function mf rts fs vp))
+    doSpecification (A.Specification m n (A.Function mf sm rts fs vp))
         = do -- Create new names for the return values.
              specs <- sequence [makeNonceVariable "return_formal" mf t A.VariableName A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
@@ -36,7 +36,7 @@ functionsToProcs = doGeneric `extM` doSpecification
              modify $ (\ps -> ps { psFunctionReturns = (A.nameName n, rts) : psFunctionReturns ps })
              -- Turn the value process into an assignment process.
              let p = A.Seq mf $ vpToSeq vp [A.Variable mf n | n <- names]
-             let st = A.Proc mf (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
+             let st = A.Proc mf sm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
              -- Build a new specification and redefine the function.
              let spec = A.Specification m n st
              let nd = A.NameDef {

@@ -957,8 +957,9 @@ introduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
           tell ["} "]
           genName n
           tell [";\n"]
-introduceSpec (A.Specification _ n (A.Proc _ fs p))
-    =  do tell ["void "]
+introduceSpec (A.Specification _ n (A.Proc _ sm fs p))
+    =  do genSpecMode sm
+          tell ["void "]
           genName n
           tell [" (Process *me"]
           genFormals fs
@@ -989,6 +990,10 @@ removeSpec (A.Specification m n (A.Declaration _ t))
   where
     var = A.Variable m n
 removeSpec _ = return ()
+
+genSpecMode :: A.SpecMode -> CGen ()
+genSpecMode A.PlainSpec = return ()
+genSpecMode A.InlineSpec = tell ["inline "]
 --}}}
 
 --{{{  actuals/formals

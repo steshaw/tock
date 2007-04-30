@@ -1,0 +1,18 @@
+INT INLINE FUNCTION negate (VAL INT v) IS -v:
+INT INLINE FUNCTION negate2 (VAL INT v)
+  VALOF
+    SKIP
+    RESULT -v
+:
+INLINE PROC test.negate ()
+  INT x:
+  SEQ
+    x := 42
+    x := negate (x)
+    ASSERT (x = (-42))
+    x := negate2 (x)
+    ASSERT (x = 42)
+:
+PROC P ()
+  test.negate ()
+:
