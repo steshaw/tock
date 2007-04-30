@@ -1,0 +1,10 @@
+PROC read.timer (TIMER tim, INT t)
+  tim ? t
+:
+PROC P ()
+  TIMER tim:
+  INT x:
+  SEQ
+    read.timer (tim, x)
+    read.timer (tim, x)
+:

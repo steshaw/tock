@@ -594,11 +594,19 @@ newFieldName = anyName A.FieldName
 newTagName = anyName A.TagName
 --}}}
 --{{{ types
+-- | A sized array of a production.
 arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
     =  do (s, t) <- tryXVXV sLeft constIntExpr sRight element
           sVal <- evalIntExpression s
           return $ makeArrayType (A.Dimension sVal) t
+
+-- | Either a sized or unsized array of a production.
+specArrayType :: OccParser A.Type -> OccParser A.Type
+specArrayType element
+    =   arrayType element
+    <|> do t <- tryXXV sLeft sRight element
+           return $ makeArrayType A.UnknownDimension t
 
 dataType :: OccParser A.Type
 dataType
@@ -1070,6 +1078,13 @@ port'
     =   do { m <- md; n <- try portName; return $ A.Variable m n }
     <|> maybeSliced port A.SubscriptedVariable typeOfVariable
     <?> "port'"
+
+portOfType :: A.Type -> OccParser A.Variable
+portOfType wantT
+    =  do p <- port
+          t <- typeOfVariable p
+          matchType wantT t
+          return p
 --}}}
 --{{{ protocols
 protocol :: OccParser A.Type
@@ -1274,10 +1289,26 @@ checkRetypes fromT toT
 dataSpecifier :: OccParser A.Type
 dataSpecifier
     =   dataType
-    <|> do s <- tryXXV sLeft sRight dataSpecifier
-           return $ makeArrayType A.UnknownDimension s
-    <|> arrayType dataSpecifier
+    <|> specArrayType dataSpecifier
     <?> "data specifier"
+
+channelSpecifier :: OccParser A.Type
+channelSpecifier
+    =   channelType
+    <|> specArrayType channelSpecifier
+    <?> "channel specifier"
+
+timerSpecifier :: OccParser A.Type
+timerSpecifier
+    =   timerType
+    <|> specArrayType timerSpecifier
+    <?> "timer specifier"
+
+portSpecifier :: OccParser A.Type
+portSpecifier
+    =   portType
+    <|> specArrayType portSpecifier
+    <?> "port specifier"
 
 specifier :: OccParser A.Type
 specifier
@@ -1285,9 +1316,7 @@ specifier
     <|> channelType
     <|> timerType
     <|> portType
-    <|> do s <- tryXXV sLeft sRight specifier
-           return $ makeArrayType A.UnknownDimension s
-    <|> arrayType specifier
+    <|> specArrayType specifier
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs
@@ -1305,8 +1334,14 @@ formalArgSet
     =   do (am, t) <- formalVariableType
            ns <- sepBy1NE newVariableName sComma
            return [A.Formal am t n | n <- ns]
-    <|> do t <- specifier
+    <|> do t <- channelSpecifier
            ns <- sepBy1NE newChannelName sComma
+           return [A.Formal A.Abbrev t n | n <- ns]
+    <|> do t <- timerSpecifier
+           ns <- sepBy1NE newTimerName sComma
+           return [A.Formal A.Abbrev t n | n <- ns]
+    <|> do t <- portSpecifier
+           ns <- sepBy1NE newPortName sComma
            return [A.Formal A.Abbrev t n | n <- ns]
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
@@ -1752,12 +1787,18 @@ actuals fs = intersperseP (map actual fs) sComma
 actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
-            A.ValAbbrev -> do { e <- expressionOfType t; return $ A.ActualExpression t e } <?> "actual expression for " ++ an
-            _ -> if isChannelType t
-                   then do { c <- channelOfType t; return $ A.ActualVariable am t c } <?> "actual channel for " ++ an
-                   else do { v <- variableOfType t; return $ A.ActualVariable am t v } <?> "actual variable for " ++ an
+            A.ValAbbrev ->
+              do e <- expressionOfType t
+                 return $ A.ActualExpression t e
+            _ ->
+              case stripArrayType t of
+                A.Chan _ -> var (channelOfType t)
+                A.Timer -> var timer
+                A.Port _ -> var (portOfType t)
+                _ -> var (variableOfType t)
+    <?> "actual of type " ++ show t ++ " for " ++ show n
     where
-      an = A.nameName n
+      var inner = liftM (A.ActualVariable am t) inner
 --}}}
 --{{{ intrinsic PROC call
 intrinsicProcName :: OccParser (String, [A.Formal])

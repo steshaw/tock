@@ -207,11 +207,8 @@ makeArrayType :: A.Dimension -> A.Type -> A.Type
 makeArrayType d (A.Array ds t) = A.Array (d : ds) t
 makeArrayType d t = A.Array [d] t
 
-isChannelType :: A.Type -> Bool
-isChannelType (A.Array _ t) = isChannelType t
-isChannelType (A.Chan _) = True
-isChannelType _ = False
-
+-- | Return a type with any enclosing arrays removed; useful for identifying
+-- things that should be channel names, timer names, etc. in the parser.
 stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t
