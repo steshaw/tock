@@ -1825,6 +1825,7 @@ preprocessorDirective :: OccParser A.Process
 preprocessorDirective
     =   ppInclude
     <|> ppUse
+    <|> unknownPP
     <?> "preprocessor directive"
 
 ppInclude :: OccParser A.Process
@@ -1834,6 +1835,7 @@ ppInclude
           file <- manyTill character sQuote
           eol
           includeFile $ concat file
+    <?> "#INCLUDE directive"
 
 ppUse :: OccParser A.Process
 ppUse
@@ -1848,6 +1850,7 @@ ppUse
           if file `elem` psLoadedFiles ps
             then process
             else includeFile file
+    <?> "#USE directive"
 
 -- | Invoke the parser recursively to handle an included file.
 includeFile :: String -> OccParser A.Process
@@ -1857,6 +1860,14 @@ includeFile file
           setState ps' { psLocalNames = psMainLocals ps' }
           p <- process
           return $ f p
+
+unknownPP :: OccParser A.Process
+    =  do m <- md
+          char '#'
+          rest <- manyTill anyChar (try eol)
+          addWarning m $ "unknown preprocessor directive ignored: " ++ rest
+          process
+    <?> "unknown preprocessor directive"
 --}}}
 --{{{ main process
 mainProcess :: OccParser A.Process
