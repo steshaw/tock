@@ -99,7 +99,7 @@ subscriptType (A.SubscriptFor m count) t
     = sliceType m (makeConstant emptyMeta 0) count t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
 subscriptType (A.Subscript m sub) t = plainSubscriptType m sub t
-subscriptType _ _ = die "unsubscriptable type"
+subscriptType _ t = die $ "unsubscriptable type: " ++ show t
 
 -- | Just remove the first dimension from an array type -- like doing
 -- subscriptType with constant 0 as a subscript, but without the checking.
@@ -108,7 +108,7 @@ subscriptType _ _ = die "unsubscriptable type"
 trivialSubscriptType :: (Die m) => A.Type -> m A.Type
 trivialSubscriptType (A.Array [d] t) = return t
 trivialSubscriptType (A.Array (d:ds) t) = return $ A.Array ds t
-trivialSubscriptType _ = die "not plain array type"
+trivialSubscriptType t = die $ "not plain array type: " ++ show t
 
 typeOfVariable :: (PSM m, Die m) => A.Variable -> m A.Type
 typeOfVariable (A.Variable m n) = typeOfName n

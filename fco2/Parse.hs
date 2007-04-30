@@ -471,7 +471,7 @@ pushSubscriptTypeContext :: (PSM m, Die m) => m ()
 pushSubscriptTypeContext
     =  do ps <- get
           case psTypeContext ps of
-            (Just t):_ ->
+            (Just t@(A.Array _ _)):_ ->
               do subT <- trivialSubscriptType t
                  pushTypeContext $ Just subT
             _ -> pushTypeContext Nothing
