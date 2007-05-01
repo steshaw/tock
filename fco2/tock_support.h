@@ -103,13 +103,20 @@ static int occam_check_index (int i, int limit, const char *pos) {
 		} \
 		return a / b; \
 	}
+// occam's \ doesn't behave like C's %; it handles negative arguments.
+// (Effectively it ignores signs coming in, and the output sign is the sign of
+// the first argument.)
 #define MAKE_REM(type) \
 	static type occam_rem_##type (type, type, const char *) occam_unused; \
 	static type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, "modulo by zero"); \
 		} \
-		return a % b; \
+		if (a < 0) { \
+			return -((-a) % (b < 0 ? -b : b)); \
+		} else { \
+			return a % (b < 0 ? -b : b); \
+		} \
 	}
 // This is for types that C doesn't implement % for -- i.e. reals.
 // (The cgtests want to do \ with REAL32 and REAL64, although I've never seen it
@@ -130,7 +137,15 @@ MAKE_ADD(uint8_t)
 MAKE_SUBTR(uint8_t)
 MAKE_MUL(uint8_t)
 MAKE_DIV(uint8_t)
-MAKE_REM(uint8_t)
+
+// occam's only unsigned type, so we can use % directly.
+static uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
+static uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) {
+	if (b == 0) {
+		occam_stop (pos, "modulo by zero");
+	}
+	return a % b;
+}
 //}}}
 //{{{ int16_t
 MAKE_RANGE_CHECK(int16_t, "%d")
