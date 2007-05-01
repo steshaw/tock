@@ -4,5 +4,8 @@ VAL INT q IS 11:
 #USE "include2.occ"
 PROC P ()
   INT x:
-  x := defined.thing
+  SEQ
+    x := defined.thing
+    #INCLUDE "includeproc.inc"
+    ASSERT (q = 11)
 :

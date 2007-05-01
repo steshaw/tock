@@ -1888,10 +1888,15 @@ ppUse
 includeFile :: String -> OccParser A.Process
 includeFile file
     =  do ps <- getState
-          (f, ps') <- parseFile file ps
-          setState ps' { psLocalNames = psMainLocals ps' }
-          p <- process
-          return $ f p
+          (r, ps') <- parseFile file includedFile ps
+          case r of
+            Left p ->
+              do setState ps'
+                 return p
+            Right f ->
+              do setState ps' { psLocalNames = psMainLocals ps' }
+                 p <- process
+                 return $ f p
 
 unknownPP :: OccParser A.Process
     =  do m <- md
@@ -1906,6 +1911,7 @@ mainProcess :: OccParser A.Process
 mainProcess
     =  do m <- md
           sMainMarker
+          eol
           -- Stash the current locals so that we can either restore them
           -- when we get back to the file we included this one from, or
           -- pull the TLP name from them at the end.
@@ -1914,6 +1920,7 @@ mainProcess
 --}}}
 --}}}
 --{{{ top-level forms
+-- | A source file consists of a process.
 -- This is only really true once we've tacked a process onto the bottom; a
 -- source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
@@ -1923,6 +1930,26 @@ sourceFile
            p <- process
            s <- getState
            return (p, s)
+
+-- | An included file is either a process, or a bunch of specs that can be
+-- applied to a process (which we return as a function). This is likewise a bit
+-- of a cheat, in that included files should really be *textually* included,
+-- but it's good enough for most reasonable uses.
+includedFile :: OccParser (Either A.Process (A.Process -> A.Process), ParseState)
+includedFile
+    =  do whiteSpace
+          p <- process
+          s <- getState
+          do eof
+             return $ (Right $ replaceMain p, s)
+           <|> do sMainMarker
+                  eol
+                  return $ (Left p, s)
+  where
+    replaceMain :: A.Process -> A.Process -> A.Process
+    replaceMain (A.Seq m (A.Spec m' s (A.OnlyP m'' p))) np
+        = A.Seq m (A.Spec m' s (A.OnlyP m'' (replaceMain p np)))
+    replaceMain (A.Main _) np = np
 --}}}
 --}}}
 
@@ -1966,8 +1993,7 @@ loadSource file = load file file
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
                      rawSource <- liftIO $ readSource realName
-                     source' <- removeIndentation realName rawSource
-                     let source = source' ++ "\n" ++ mainMarker ++ "\n"
+                     source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker ++ "\n")
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
                      modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })
@@ -1982,29 +2008,23 @@ testParse prod text
     = do let r = runParser prod emptyState "" text
          putStrLn $ "Result: " ++ show r
 
--- | Parse a file, returning a function you can apply to make all its
--- definitions available to a process.
-parseFile :: Monad m => String -> ParseState -> m (A.Process -> A.Process, ParseState)
-parseFile file ps
+-- | Parse a file with the given production.
+parseFile :: Monad m => String -> OccParser t -> ParseState -> m t
+parseFile file prod ps
     =  do let source = case lookup file (psSourceFiles ps) of
                          Just s -> s
                          Nothing -> dieIO $ "Failed to preload file: " ++ show file
           let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }
-          case runParser sourceFile ps' file source of
+          case runParser prod ps' file source of
             Left err -> dieIO $ "Parse error: " ++ show err
-            Right (p, ps'') -> return (replaceMain p, ps'')
-  where
-    replaceMain :: A.Process -> A.Process -> A.Process
-    replaceMain (A.Seq m (A.Spec m' s (A.OnlyP m'' p))) np
-        = A.Seq m (A.Spec m' s (A.OnlyP m'' (replaceMain p np)))
-    replaceMain (A.Main _) np = np
+            Right r -> return r
 
 -- | Parse the top level source file in a program.
 parseProgram :: String -> PassM A.Process
 parseProgram file
     =  do ps <- get
-          (f, ps') <- parseFile file ps
+          (p, ps') <- parseFile file sourceFile ps
           put ps'
-          return (f $ A.Main emptyMeta)
+          return p
 --}}}
 

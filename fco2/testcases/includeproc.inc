@@ -1,0 +1,4 @@
+VAL INT q IS 42:
+SEQ
+  ASSERT (q = 42)
+  SKIP
