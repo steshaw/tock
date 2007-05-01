@@ -46,6 +46,10 @@ default behaviour that simplifies expressions inside another one.
 
 Output item expressions should be pulled up to variables.
 
+We should generally try to reduce the number of unnecessary pullups we do:
+- plain subscripts that result in a non-array shouldn't pull up (e.g. x[i][j])
+- expressions that are already a variable should just be turned into the variable
+
 Before code generation, have a pass that resolves all the DATA TYPE .. IS
 directives to their real types.
 

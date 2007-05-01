@@ -966,8 +966,17 @@ introduceSpec (A.Specification _ n (A.Retypes _ am t v))
     =  do origT <- typeOfVariable v
           let (rhs, rhsSizes) = abbrevVariable A.Abbrev origT v
           genDecl am t n
-          tell [" = ("]
+          tell [" = "]
+          -- For non-array types that are VAL abbreviations (e.g. VAL INT64),
+          -- we need to dereference the pointer that abbrevVariable gives us.
+          let deref = case (am, t) of
+                        (_, A.Array _ _) -> False
+                        (A.ValAbbrev, _) -> True
+                        _ -> True
+          when deref $ tell ["*"]
+          tell ["("]
           genDeclType am t
+          when deref $ tell [" *"]
           tell [") "]
           rhs
           tell [";\n"]

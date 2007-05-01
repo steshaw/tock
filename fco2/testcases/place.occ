@@ -1,0 +1,11 @@
+PROC P ()
+  INT x:
+  PLACE x AT #123456:
+  CHAN OF INT c:
+  PLACE c AT #654321:
+  INT w:
+  PLACE w IN WORKSPACE:
+  INT v:
+  PLACE v IN VECSPACE:
+  SKIP
+:

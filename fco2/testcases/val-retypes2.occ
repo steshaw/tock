@@ -1,0 +1,26 @@
+-- from cgtest10
+PROC check.REAL64 (VAL REAL64 a, b, VAL []BYTE s)
+  ASSERT (a = b)
+:
+PROC check.INT64 (VAL INT64 a, b, VAL []BYTE s)
+  ASSERT (a = b)
+:
+PROC P ()
+  VAL xr IS 8.6157349597130242515E+1(REAL64) :
+  VAL yr IS 4.1066306682575781263E+1(REAL64) :
+  VAL xi IS #40558A12040B6DA5(INT64) :
+  VAL yi IS #4044887CBCC495A9(INT64) :
+  VAL REAL64 xir RETYPES xi :
+  VAL REAL64 yir RETYPES yi :
+  REAL64 x, y :
+  SEQ
+    x, y := xr, yr
+    check.REAL64(xr, xir, "B251a")
+    check.REAL64(yr, yir, "B251b")
+    check.REAL64(x,  xir, "B251c")
+    check.REAL64(y,  yir, "B251d")
+    VAL INT64 xx RETYPES x :
+    check.INT64(xx, xi, "B251e")
+    VAL INT64 yy RETYPES y :
+    check.INT64(yy, yi, "B251f")
+:
