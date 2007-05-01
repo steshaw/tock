@@ -42,6 +42,9 @@ cgtests_targets = $(patsubst %.occ,%,$(cgtests))
 
 all-cgtests: $(cgtests_targets)
 
+clean-cgtests:
+	rm -f cgtests/cgtest?? cgtests/*.tock.*
+
 haddock:
 	@mkdir -p doc
 	haddock -o doc --html $(sources)

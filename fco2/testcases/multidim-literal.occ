@@ -2,6 +2,21 @@ PROC P ()
   VAL [2][2]INT is IS
     [[1, 2],
      [3, 4]]:
+  VAL [2]INT row IS [42, 24]:
+  VAL [2][2]INT js IS [row, row]:
+  VAL [2][2]INT jjs IS [is[0], js[0]]:
+  VAL [][]INT jjjs IS [is[0], js[0]]:
+  VAL [][][]INT ks IS [js, js, js]:
   INT x:
-  x := is[1][1]
+  SEQ
+    x := is[1][1]
+    ASSERT (x = 4)
+    ASSERT (row[0] = 42)
+    ASSERT (js[1][1] = 24)
+    ASSERT (jjs[0][1] = 2)
+    ASSERT (jjs[1][1] = 24)
+    SEQ y = 0 FOR 2
+      SEQ x = 0 FOR 2
+        ASSERT (jjs[x][y] = jjjs[x][y])
+    ASSERT (ks[0][0][0] = 42)
 :

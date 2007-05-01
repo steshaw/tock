@@ -6,6 +6,7 @@ import Data.Generics
 import Data.Maybe
 
 import qualified AST as A
+import Errors
 import Metadata
 import ParseState
 import Types
@@ -17,6 +18,7 @@ simplifyExprs = runPasses passes
     passes =
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
       , ("Convert AFTER to MINUS", removeAfter)
+      , ("Expand array literals", expandArrayLiterals)
       , ("Pull up definitions", pullUp)
       ]
 
@@ -73,6 +75,30 @@ removeAfter = doGeneric `extM` doExpression
               let zero = A.Literal m t $ A.IntLiteral m "0"
               return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
     doExpression e = doGeneric e
+
+-- | For array literals that include other arrays, burst them into their elements.
+expandArrayLiterals :: Data t => t -> PassM t
+expandArrayLiterals = doGeneric `extM` doArrayElem
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = gmapM expandArrayLiterals
+
+    doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
+    doArrayElem ae@(A.ArrayElemExpr e)
+        =  do e' <- expandArrayLiterals e
+              t <- typeOfExpression e'
+              case t of
+                A.Array ds _ -> expand ds e
+                _ -> doGeneric ae
+    doArrayElem ae = doGeneric ae
+
+    expand :: [A.Dimension] -> A.Expression -> PassM A.ArrayElem
+    expand [] e = return $ A.ArrayElemExpr e
+    expand (A.UnknownDimension:_) _
+        = die "array literal containing non-literal array of unknown size"
+    expand (A.Dimension n:ds) e
+        = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
+      where m = findMeta e
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.

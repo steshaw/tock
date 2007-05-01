@@ -35,6 +35,9 @@ names in it replaced appropriately.
 
 ## Passes
 
+There should be a mkGeneric which produces a version of doGeneric that prunes
+out things we don't need to recurse into -- like Strings.
+
 Come up with an approach to combining simple passes to avoid multiple tree
 walks (for example, giving passes a "next thing to try" parameter).
 
@@ -79,6 +82,8 @@ Real-to-integer conversions don't work correctly.
 Slice checks should not be generated if the slice is known to be safe.
 
 PLACE should work.
+
+Array comparisons generate silly code (rather than failing).
 
 ## Long-term
 

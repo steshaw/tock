@@ -292,11 +292,7 @@ genArrayLiteralElems aes
   where
     genElem :: A.ArrayElem -> CGen ()
     genElem (A.ArrayElemArray aes) = genArrayLiteralElems aes
-    genElem (A.ArrayElemExpr e)
-        =  do t <- typeOfExpression e
-              case t of
-                A.Array _ _ -> missing $ "array literal containing non-literal array: " ++ show e
-                _ -> genExpression e
+    genElem (A.ArrayElemExpr e) = genExpression e
 
 genByteLiteral :: String -> CGen ()
 genByteLiteral s
