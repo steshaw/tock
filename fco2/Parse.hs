@@ -987,13 +987,14 @@ conversion
           t <- dataType
           (c, o) <- conversionMode
           ot <- typeOfExpression o
-          case (isPreciseConversion ot t, c) of
-            (False, A.DefaultConversion) ->
-              fail "imprecise conversion must specify ROUND or TRUNC"
-            (False, _) -> return ()
-            (True, A.DefaultConversion) -> return ()
-            (True, _) ->
-              fail "precise conversion cannot specify ROUND or TRUNC"
+          c <- case (isPreciseConversion ot t, c) of
+                 (False, A.DefaultConversion) ->
+                   fail "imprecise conversion must specify ROUND or TRUNC"
+                 (False, _) -> return c
+                 (True, A.DefaultConversion) -> return c
+                 (True, _) ->
+                   do addWarning m "precise conversion specifies ROUND or TRUNC; ignored"
+                      return A.DefaultConversion
           return $ A.Conversion m c t o
     <?> "conversion"
 
