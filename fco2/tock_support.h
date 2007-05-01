@@ -70,7 +70,7 @@ static int occam_check_index (int i, int limit, const char *pos) {
 }
 //}}}
 
-//{{{ type-specific runtime checks
+//{{{ type-specific arithmetic ops and runtime checks
 #define MAKE_RANGE_CHECK(type, format) \
 	static type occam_range_check_##type (type, type, type, const char *) occam_unused; \
 	static type occam_range_check_##type (type lower, type upper, type n, const char *pos) { \
@@ -110,6 +110,18 @@ static int occam_check_index (int i, int limit, const char *pos) {
 			occam_stop (pos, "modulo by zero"); \
 		} \
 		return a % b; \
+	}
+// This is for types that C doesn't implement % for -- i.e. reals.
+// (The cgtests want to do \ with REAL32 and REAL64, although I've never seen it
+// in a real program.)
+#define MAKE_DUMB_REM(type) \
+	static type occam_rem_##type (type, type, const char *) occam_unused; \
+	static type occam_rem_##type (type a, type b, const char *pos) { \
+		if (b == 0) { \
+			occam_stop (pos, "modulo by zero"); \
+		} \
+		type i = trunc (a / b); \
+		return a - (i * b); \
 	}
 
 //{{{ uint8_t
@@ -159,6 +171,7 @@ MAKE_ADD(float)
 MAKE_SUBTR(float)
 MAKE_MUL(float)
 MAKE_DIV(float)
+MAKE_DUMB_REM(float)
 //}}}
 //{{{ double
 MAKE_RANGE_CHECK(double, "%d")
@@ -166,6 +179,7 @@ MAKE_ADD(double)
 MAKE_SUBTR(double)
 MAKE_MUL(double)
 MAKE_DIV(double)
+MAKE_DUMB_REM(double)
 //}}}
 
 #undef MAKE_RANGE_CHECK
