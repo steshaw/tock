@@ -9,6 +9,7 @@ import Data.Char
 import Data.Generics
 import Data.Int
 import Data.Maybe
+import Data.Word
 import Numeric
 import Text.Printf
 
@@ -99,8 +100,16 @@ evalExpression (A.Dyadic _ op e1 e2)
     =  do v1 <- evalExpression e1
           v2 <- evalExpression e2
           evalDyadic op v1 v2
+evalExpression (A.MostPos _ A.Byte) = return $ OccByte maxBound
+evalExpression (A.MostNeg _ A.Byte) = return $ OccByte minBound
 evalExpression (A.MostPos _ A.Int) = return $ OccInt maxBound
 evalExpression (A.MostNeg _ A.Int) = return $ OccInt minBound
+evalExpression (A.MostPos _ A.Int16) = return $ OccInt16 maxBound
+evalExpression (A.MostNeg _ A.Int16) = return $ OccInt16 minBound
+evalExpression (A.MostPos _ A.Int32) = return $ OccInt32 maxBound
+evalExpression (A.MostNeg _ A.Int32) = return $ OccInt32 minBound
+evalExpression (A.MostPos _ A.Int64) = return $ OccInt64 maxBound
+evalExpression (A.MostNeg _ A.Int64) = return $ OccInt64 minBound
 evalExpression (A.SizeExpr _ e)
     =  do t <- typeOfExpression e
           case t of
@@ -131,42 +140,66 @@ evalExpression (A.BytesInType _ t)
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
             _ -> throwError $ "BYTESIN non-constant-size type " ++ show t ++ " used"
-evalExpression _ = throwError "bad expression"
+evalExpression e = throwError "bad expression"
+
+evalMonadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t) -> OccValue -> EvalM OccValue
+evalMonadicOp f (OccByte a) = return $ OccByte (f a)
+evalMonadicOp f (OccInt a) = return $ OccInt (f a)
+evalMonadicOp f (OccInt16 a) = return $ OccInt16 (f a)
+evalMonadicOp f (OccInt32 a) = return $ OccInt32 (f a)
+evalMonadicOp f (OccInt64 a) = return $ OccInt64 (f a)
+evalMonadicOp _ _ = throwError "monadic operator not implemented for this type"
 
 evalMonadic :: A.MonadicOp -> OccValue -> EvalM OccValue
 -- This, oddly, is probably the most important rule here: "-4" isn't a literal
 -- in occam, it's an operator applied to a literal.
-evalMonadic A.MonadicSubtr (OccInt i) = return $ OccInt (0 - i)
-evalMonadic A.MonadicBitNot (OccInt i) = return $ OccInt (complement i)
+evalMonadic A.MonadicSubtr a = evalMonadicOp negate a
+evalMonadic A.MonadicBitNot a = evalMonadicOp complement a
 evalMonadic A.MonadicNot (OccBool b) = return $ OccBool (not b)
 evalMonadic _ _ = throwError "bad monadic op"
 
+evalDyadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t -> t) -> OccValue -> OccValue -> EvalM OccValue
+evalDyadicOp f (OccByte a) (OccByte b) = return $ OccByte (f a b)
+evalDyadicOp f (OccInt a) (OccInt b) = return $ OccInt (f a b)
+evalDyadicOp f (OccInt16 a) (OccInt16 b) = return $ OccInt16 (f a b)
+evalDyadicOp f (OccInt32 a) (OccInt32 b) = return $ OccInt32 (f a b)
+evalDyadicOp f (OccInt64 a) (OccInt64 b) = return $ OccInt64 (f a b)
+evalDyadicOp _ _ _ = throwError "dyadic operator not implemented for this type"
+
+evalCompareOp :: (forall t. (Eq t, Ord t) => t -> t -> Bool) -> OccValue -> OccValue -> EvalM OccValue
+evalCompareOp f (OccByte a) (OccByte b) = return $ OccBool (f a b)
+evalCompareOp f (OccInt a) (OccInt b) = return $ OccBool (f a b)
+evalCompareOp f (OccInt16 a) (OccInt16 b) = return $ OccBool (f a b)
+evalCompareOp f (OccInt32 a) (OccInt32 b) = return $ OccBool (f a b)
+evalCompareOp f (OccInt64 a) (OccInt64 b) = return $ OccBool (f a b)
+evalCompareOp _ _ _ = throwError "comparison operator not implemented for this type"
+
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
 -- FIXME These should check for overflow.
-evalDyadic A.Add (OccInt a) (OccInt b) = return $ OccInt (a + b)
-evalDyadic A.Subtr (OccInt a) (OccInt b) = return $ OccInt (a - b)
-evalDyadic A.Mul (OccInt a) (OccInt b) = return $ OccInt (a * b)
-evalDyadic A.Div (OccInt a) (OccInt b) = return $ OccInt (a `div` b)
-evalDyadic A.Rem (OccInt a) (OccInt b) = return $ OccInt (a `mod` b)
+evalDyadic A.Add a b = evalDyadicOp (+) a b
+evalDyadic A.Subtr a b = evalDyadicOp (-) a b
+evalDyadic A.Mul a b = evalDyadicOp (*) a b
+evalDyadic A.Div a b = evalDyadicOp div a b
+evalDyadic A.Rem a b = evalDyadicOp rem a b
 -- ... end FIXME
-evalDyadic A.Plus (OccInt a) (OccInt b) = return $ OccInt (a + b)
-evalDyadic A.Minus (OccInt a) (OccInt b) = return $ OccInt (a - b)
-evalDyadic A.Times (OccInt a) (OccInt b) = return $ OccInt (a * b)
-evalDyadic A.BitAnd (OccInt a) (OccInt b) = return $ OccInt (a .&. b)
-evalDyadic A.BitOr (OccInt a) (OccInt b) = return $ OccInt (a .|. b)
-evalDyadic A.BitXor (OccInt a) (OccInt b) = return $ OccInt (a `xor` b)
-evalDyadic A.LeftShift (OccInt a) (OccInt b) = return $ OccInt (shiftL a (fromIntegral b))
-evalDyadic A.RightShift (OccInt a) (OccInt b) = return $ OccInt (shiftR a (fromIntegral b))
+evalDyadic A.Plus a b = evalDyadicOp (+) a b
+evalDyadic A.Minus a b = evalDyadicOp (-) a b
+evalDyadic A.Times a b = evalDyadicOp (*) a b
+evalDyadic A.BitAnd a b = evalDyadicOp (.&.) a b
+evalDyadic A.BitOr a b = evalDyadicOp (.|.) a b
+evalDyadic A.BitXor a b = evalDyadicOp xor a b
+evalDyadic A.LeftShift a (OccInt b)
+    = evalMonadicOp (\v -> shiftL v (fromIntegral b)) a
+evalDyadic A.RightShift a (OccInt b)
+    = evalMonadicOp (\v -> shiftR v (fromIntegral b)) a
 evalDyadic A.And (OccBool a) (OccBool b) = return $ OccBool (a && b)
 evalDyadic A.Or (OccBool a) (OccBool b) = return $ OccBool (a || b)
-evalDyadic A.Eq a b = return $ OccBool (a == b)
-evalDyadic A.NotEq a b
-    =  do (OccBool b) <- evalDyadic A.Eq a b
-          return $ OccBool (not b)
-evalDyadic A.Less (OccInt a) (OccInt b) = return $ OccBool (a < b)
-evalDyadic A.More (OccInt a) (OccInt b) = return $ OccBool (a > b)
-evalDyadic A.LessEq a b = evalDyadic A.More b a
-evalDyadic A.MoreEq a b = evalDyadic A.Less b a
+evalDyadic A.Eq a b = evalCompareOp (==) a b
+evalDyadic A.NotEq a b = evalCompareOp (/=) a b
+evalDyadic A.Less a b = evalCompareOp (<) a b
+evalDyadic A.More a b = evalCompareOp (>) a b
+evalDyadic A.LessEq a b = evalCompareOp (<=) a b
+evalDyadic A.MoreEq a b = evalCompareOp (>=) a b
 evalDyadic A.After (OccInt a) (OccInt b) = return $ OccBool ((a - b) > 0)
 evalDyadic _ _ _ = throwError "bad dyadic op"
 --}}}
@@ -180,8 +213,11 @@ renderValue m v = (t, A.Literal m t lr)
   where (t, lr) = renderLiteral m v
 
 renderLiteral :: Meta -> OccValue -> (A.Type, A.LiteralRepr)
-renderLiteral m (OccByte c) = (A.Byte, A.ByteLiteral m $ renderChar c)
+renderLiteral m (OccByte c) = (A.Byte, A.ByteLiteral m $ renderChar (chr $ fromIntegral c))
 renderLiteral m (OccInt i) = (A.Int, A.IntLiteral m $ show i)
+renderLiteral m (OccInt16 i) = (A.Int16, A.IntLiteral m $ show i)
+renderLiteral m (OccInt32 i) = (A.Int32, A.IntLiteral m $ show i)
+renderLiteral m (OccInt64 i) = (A.Int64, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
     = (t, A.ArrayLiteral m aes)
   where
