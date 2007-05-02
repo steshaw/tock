@@ -25,10 +25,16 @@ type NameMap = Map.Map String A.Name
 
 -- | Get the set of free names within a block of code.
 freeNamesIn :: Data t => t -> NameMap
-freeNamesIn = doGeneric `extQ` doName `extQ` doStructured `extQ` doSpecType
+freeNamesIn = doGeneric
+                `extQ` (ignore :: String -> NameMap)
+                `extQ` (ignore :: Meta -> NameMap)
+                `extQ` doName `extQ` doStructured `extQ` doSpecType
   where
     doGeneric :: Data t => t -> NameMap
     doGeneric n = Map.unions $ gmapQ freeNamesIn n
+
+    ignore :: t -> NameMap
+    ignore s = Map.empty
 
     doName :: A.Name -> NameMap
     doName n = Map.singleton (A.nameName n) n
@@ -58,7 +64,10 @@ freeNamesIn = doGeneric `extQ` doName `extQ` doStructured `extQ` doSpecType
 
 -- | Replace names.
 replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
-replaceNames map p = everywhere (mkT $ doName) p
+replaceNames map p = everywhere (mkT doName
+                                   `extT` (id :: String -> String)
+                                   `extT` (id :: Meta -> Meta)
+                                ) p
   where
     smap = [(A.nameName f, t) | (f, t) <- map]
 
@@ -73,7 +82,7 @@ removeFreeNames :: Data t => t -> PassM t
 removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM removeFreeNames
+    doGeneric = makeGeneric removeFreeNames
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
@@ -154,7 +163,7 @@ removeNesting p
     pullSpecs = doGeneric `extM` doStructured
 
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM pullSpecs
+    doGeneric = makeGeneric pullSpecs
 
     doStructured :: A.Structured -> PassM A.Structured
     doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)

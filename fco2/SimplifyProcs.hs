@@ -25,7 +25,7 @@ parsToProcs :: Data t => t -> PassM t
 parsToProcs = doGeneric `extM` doProcess
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM parsToProcs
+    doGeneric = makeGeneric parsToProcs
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Par m pm s)
@@ -59,7 +59,7 @@ removeParAssign :: Data t => t -> PassM t
 removeParAssign = doGeneric `extM` doProcess
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM removeParAssign
+    doGeneric = makeGeneric removeParAssign
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))

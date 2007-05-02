@@ -3,11 +3,13 @@ module Pass where
 
 import Control.Monad.Error
 import Control.Monad.State
+import Data.Generics
 import Data.List
 import System.IO
 
 import qualified AST as A
 import Errors
+import Metadata
 import ParseState
 import PrettyShow
 
@@ -77,4 +79,11 @@ numberLines :: String -> String
 numberLines s
     = concat $ intersperse "\n" $ [show n ++ ": " ++ s
                                    | (n, s) <- zip [1..] (lines s)]
+
+-- | Make a generic rule for a pass.
+makeGeneric :: (Data t) => (forall s. Data s => s -> PassM s) -> t -> PassM t
+makeGeneric top
+    = (gmapM top)
+        `extM` (return :: String -> PassM String)
+        `extM` (return :: Meta -> PassM Meta)
 

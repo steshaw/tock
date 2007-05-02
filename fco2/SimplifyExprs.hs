@@ -28,7 +28,7 @@ functionsToProcs :: Data t => t -> PassM t
 functionsToProcs = doGeneric `extM` doSpecification
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM functionsToProcs
+    doGeneric = makeGeneric functionsToProcs
 
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf sm rts fs vp))
@@ -66,7 +66,7 @@ removeAfter :: Data t => t -> PassM t
 removeAfter = doGeneric `extM` doExpression
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM removeAfter
+    doGeneric = makeGeneric removeAfter
 
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Dyadic m A.After a b)
@@ -82,7 +82,7 @@ expandArrayLiterals :: Data t => t -> PassM t
 expandArrayLiterals = doGeneric `extM` doArrayElem
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM expandArrayLiterals
+    doGeneric = makeGeneric expandArrayLiterals
 
     doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
     doArrayElem ae@(A.ArrayElemExpr e)
@@ -107,7 +107,7 @@ pullUp :: Data t => t -> PassM t
 pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapM pullUp
+    doGeneric = makeGeneric pullUp
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
