@@ -1,0 +1,12 @@
+-- occam's \ operator doesn't behave like C's % operator for negative arguments
+-- (i.e. it doesn't blow up).
+
+PROC P ()
+  INT n:
+  SEQ
+    n := 3   -- to defeat constant folding, for now
+    ASSERT ((  4  \   n)  = 1)
+    ASSERT (((-4) \   n)  = (-1))
+    ASSERT (((-4) \ (-n)) = (-1))
+    ASSERT ((  4  \ (-n)) = 1)
+:

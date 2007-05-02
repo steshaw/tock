@@ -1,0 +1,19 @@
+-- Eww -- this feature is completely unsafe (by design).
+PROC send (CHAN OF INT32 out)
+  CHAN OF REAL32 r RETYPES out:
+  r ! 3.14159
+:
+PROC recv (CHAN OF INT32 in)
+  CHAN OF REAL32 r RETYPES in:
+  REAL32 n:
+  SEQ
+    r ? n
+    ASSERT (n > 3.1)
+    ASSERT (n < 3.2)
+:
+PROC P ()
+  CHAN OF INT32 c:
+  PAR
+    send (c)
+    recv (c)
+:

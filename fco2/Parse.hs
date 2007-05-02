@@ -1191,7 +1191,7 @@ valIsAbbrev :: OccParser A.Specification
 valIsAbbrev
     =  do m <- md
           (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
-                       <|> do { (s, n) <- tryXVVX sVAL specifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
+                       <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
           -- Do constant folding early, so that we can use names defined this
           -- way as constants elsewhere.
           (e', _, _) <- constantFold e
@@ -1226,9 +1226,7 @@ chanArrayAbbrev
            t <- listType m ts
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
-           -- This one's a bit hairy because we have to do the type check to tell
-           -- if it's going to collide with an abbreviation of a slice.
-           (ct, s, n) <- try (do s <- specifier
+           (ct, s, n) <- try (do s <- channelSpecifier
                                  n <- newChannelName
                                  sIS
                                  sLeft
@@ -1286,10 +1284,14 @@ definition
     <|> retypesAbbrev
     <?> "definition"
 
+retypesReshapes :: OccParser ()
+retypesReshapes
+    = sRETYPES <|> sRESHAPES
+
 retypesAbbrev :: OccParser A.Specification
 retypesAbbrev
     =   do m <- md
-           (s, n) <- tryVVX specifier newVariableName (sRETYPES <|> sRESHAPES)
+           (s, n) <- tryVVX dataSpecifier newVariableName retypesReshapes
            v <- variable
            sColon
            eol
@@ -1297,7 +1299,15 @@ retypesAbbrev
            checkRetypes origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
-           (s, n) <- tryXVVX sVAL specifier newVariableName (sRETYPES <|> sRESHAPES)
+           (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
+           c <- channel
+           sColon
+           eol
+           origT <- typeOfVariable c
+           checkRetypes origT s
+           return $ A.Specification m n $ A.Retypes m A.Abbrev s c
+    <|> do m <- md
+           (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
            e <- expression
            sColon
            eol
@@ -1308,6 +1318,8 @@ retypesAbbrev
 
 -- | Check that a RETYPES/RESHAPES is safe.
 checkRetypes :: A.Type -> A.Type -> OccParser ()
+-- Retyping channels is always "safe".
+checkRetypes (A.Chan _) (A.Chan _) = return ()
 checkRetypes fromT toT
     =  do bf <- bytesInType fromT
           bt <- bytesInType toT
