@@ -1326,10 +1326,12 @@ checkRetypes fromT toT
           let ok = case (bf, bt) of
                      (BIJust a, BIJust b) -> a == b
                      (BIJust a, BIOneFree b _) -> (b <= a) && (a `mod` b == 0)
-                     (BIOneFree a _, BIOneFree b _) -> (b <= a) && (a `mod` b == 0)
+                     -- In this case we do a runtime check.
+                     (BIOneFree _ _, BIOneFree _ _) -> True
+                     -- Otherwise we can't tell.
                      _ -> False
           when (not ok) $
-            fail $ "cannot prove that RETYPES/RESHAPES is safe"
+            fail $ "RETYPES/RESHAPES sizes do not match"
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier

@@ -749,8 +749,8 @@ abbrevVariable am t v
     = (genVariableAM v am, noSize)
 
 -- | Generate the size part of a RETYPES/RESHAPES abbrevation of a variable.
-genRetypeSizes :: A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
-genRetypeSizes am destT destN srcT srcV
+genRetypeSizes :: Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+genRetypeSizes m am destT destN srcT srcV
     = case (destT, srcT) of
         -- An array -- figure out the new dimensions.
         (A.Array destDS destSubT, _) ->
@@ -774,11 +774,13 @@ genRetypeSizes am destT destN srcT srcV
                     tell ["_sizes[] = { "]
                     let dims = [case d of
                                   A.UnknownDimension ->
-                                    do tell ["("]
+                                    do tell ["occam_check_retype ("]
                                        genVariable srcV
                                        tell ["_sizes[", show srcNum, "]"]
                                        tell [" * ", show srcBytes]
-                                       tell [") / ", show destBytes]
+                                       tell [", ", show destBytes, ", "]
+                                       genMeta m
+                                       tell [")"]
                                   A.Dimension n -> tell [show n]
                                 | d <- destDS]
                     sequence_ $ intersperse genComma dims
@@ -968,7 +970,7 @@ introduceSpec (A.Specification _ n (A.Proc _ sm fs p))
           tell [") {\n"]
           genProcess p
           tell ["}\n"]
-introduceSpec (A.Specification _ n (A.Retypes _ am t v))
+introduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
           let (rhs, rhsSizes) = abbrevVariable A.Abbrev origT v
           genDecl am t n
@@ -987,7 +989,7 @@ introduceSpec (A.Specification _ n (A.Retypes _ am t v))
           tell [") "]
           rhs
           tell [";\n"]
-          genRetypeSizes am t n origT v
+          genRetypeSizes m am t n origT v
 --introduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 introduceSpec n = missing $ "introduceSpec " ++ show n
 

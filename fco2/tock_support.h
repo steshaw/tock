@@ -68,6 +68,13 @@ static int occam_check_index (int i, int limit, const char *pos) {
 	}
 	return i;
 }
+static int occam_check_retype (int, int, const char *) occam_unused;
+static int occam_check_retype (int src, int dest, const char *pos) {
+	if (src % dest != 0) {
+		occam_stop (pos, "invalid size for RETYPES/RESHAPES (%d does not divide into %d)", dest, src);
+	}
+	return src / dest;
+}
 //}}}
 
 //{{{ type-specific arithmetic ops and runtime checks
