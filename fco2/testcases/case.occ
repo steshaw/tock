@@ -1,6 +1,7 @@
 PROC P ()
   INT n:
   SEQ
+    n := 2
     CASE n    -- with ELSE
       INT x:
       1, 2

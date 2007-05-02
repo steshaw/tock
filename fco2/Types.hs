@@ -282,6 +282,11 @@ isRealType t
         A.Real32 -> True
         A.Real64 -> True
         _ -> False
+
+-- Types that are permitted as CASE selectors.
+isCaseableType :: A.Type -> Bool
+isCaseableType A.Bool = True
+isCaseableType t = isIntegerType t
 --}}}
 
 --{{{ simplifying and comparing types

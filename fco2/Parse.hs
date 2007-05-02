@@ -1678,7 +1678,7 @@ caseProcess
            sCASE
            sel <- expression
            t <- typeOfExpression sel
-           when (not $ isIntegerType t) $ fail "case selector has non-CASEable type"
+           when (not $ isCaseableType t) $ fail "case selector has non-CASEable type"
            eol
            os <- maybeIndentedList m "empty CASE" (caseOption t)
            return $ A.Case m sel (A.Several m os)
@@ -1687,8 +1687,7 @@ caseProcess
 caseOption :: A.Type -> OccParser A.Structured
 caseOption t
     =   do m <- md
-           ces <- sepBy (expressionOfType t) sComma
-           eol
+           ces <- tryVX (sepBy (constExprOfType t) sComma) eol
            indent
            p <- process
            outdent
