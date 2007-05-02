@@ -1778,15 +1778,13 @@ alternative
     -- These are special cases to deal with c ? CASE inside ALTs -- the normal
     -- guards are below.
     <|> do m <- md
-           (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest sCASE
+           (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest (sCASE >> eol)
            nts <- caseInputItems c
-           eol
            vs <- maybeIndentedList m "empty ? CASE" (variant nts)
            return $ A.OnlyA m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
-           c <- tryVXX channel sQuest sCASE
+           c <- tryVXX channel sQuest (sCASE >> eol)
            nts <- caseInputItems c
-           eol
            vs <- maybeIndentedList m "empty ? CASE" (variant nts)
            return $ A.OnlyA m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
