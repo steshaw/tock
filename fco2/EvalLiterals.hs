@@ -71,21 +71,24 @@ evalSimpleExpression _ = throwError "not a literal"
 
 -- | Turn the result of one of the read* functions into an OccValue,
 -- or throw an error if it didn't parse.
-fromRead :: (t -> OccValue) -> [(t, String)] -> EvalM OccValue
-fromRead cons [(v, "")] = return $ cons v
-fromRead _ _ = throwError "cannot parse literal"
+fromRead :: (t -> OccValue) -> (String -> [(t, String)]) -> String -> EvalM OccValue
+fromRead cons reader s
+    = case reader s of
+        [(v, "")] -> return $ cons v
+        _ -> throwError $ "cannot parse literal: " ++ s
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
 evalSimpleLiteral (A.Literal _ A.Byte (A.ByteLiteral _ s)) = evalByteLiteral s
-evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s)) = fromRead OccInt $ readDec s
-evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt $ readHex s
+evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s))
+    = fromRead OccInt (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s)) = fromRead OccInt readHex s
 evalSimpleLiteral l = throwError $ "bad literal: " ++ show l
 
 -- | Evaluate a byte literal.
 evalByteLiteral :: String -> EvalM OccValue
 evalByteLiteral ('*':'#':hex)
-    = do OccInt n <- fromRead OccInt $ readHex hex
+    = do OccInt n <- fromRead OccInt readHex hex
          return $ OccByte (chr $ fromIntegral n)
 evalByteLiteral ['*', ch]
     = return $ OccByte (star ch)

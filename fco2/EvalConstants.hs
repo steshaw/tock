@@ -68,6 +68,29 @@ evalLiteralArray :: A.ArrayElem -> EvalM OccValue
 evalLiteralArray (A.ArrayElemArray aes) = liftM OccArray (mapM evalLiteralArray aes)
 evalLiteralArray (A.ArrayElemExpr e) = evalExpression e
 
+evalVariable :: A.Variable -> EvalM OccValue
+evalVariable (A.Variable _ n)
+    =  do me <- getConstantName n
+          case me of
+            Just e -> evalExpression e
+            Nothing -> throwError $ "non-constant variable " ++ show n ++ " used"
+evalVariable (A.SubscriptedVariable _ sub v) = evalVariable v >>= evalSubscript sub
+
+evalIndex :: A.Expression -> EvalM Int
+evalIndex e
+    =  do index <- evalExpression e
+          case index of
+            OccInt n -> return $ fromIntegral n
+            _ -> throwError $ "index has non-INT type"
+
+evalSubscript :: A.Subscript -> OccValue -> EvalM OccValue
+evalSubscript (A.Subscript _ e) (OccArray vs)
+    =  do index <- evalIndex e
+          if index >= 0 && index < length vs
+            then return $ vs !! index
+            else throwError $ "subscript out of range"
+evalSubscript _ _ = throwError $ "invalid subscript"
+
 evalExpression :: A.Expression -> EvalM OccValue
 evalExpression (A.Monadic _ op e)
     =  do v <- evalExpression e
@@ -93,13 +116,10 @@ evalExpression (A.SizeVariable m v)
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
             _ -> throwError $ "size of non-fixed-size variable " ++ show v ++ " used"
 evalExpression e@(A.Literal _ _ _) = evalLiteral e
-evalExpression (A.ExprVariable _ (A.Variable _ n))
-    =  do me <- getConstantName n
-          case me of
-            Just e -> evalExpression e
-            Nothing -> throwError $ "non-constant variable " ++ show n ++ " used"
+evalExpression (A.ExprVariable _ v) = evalVariable v
 evalExpression (A.True _) = return $ OccBool True
 evalExpression (A.False _) = return $ OccBool False
+evalExpression (A.SubscriptedExpr _ sub e) = evalExpression e >>= evalSubscript sub
 evalExpression (A.BytesInExpr _ e)
     =  do t <- typeOfExpression e
           b <- bytesInType t
