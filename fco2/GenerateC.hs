@@ -180,6 +180,11 @@ genBytesIn' (A.UserDataType n) _
           genName n
           tell [")"]
           return Nothing
+-- This is so that we can do RETYPES checks on channels; we don't actually
+-- allow retyping between channels and other things.
+genBytesIn' (A.Chan _) _
+    =  do tell ["sizeof (Channel *)"]
+          return Nothing
 genBytesIn' t _
     = case scalarType t of
         Just s -> tell ["sizeof (", s, ")"] >> return Nothing
