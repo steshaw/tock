@@ -89,6 +89,11 @@ PLACE should work.
 
 Array comparisons generate silly code (rather than failing).
 
+Pullups don't work properly for this at the moment, because index changes after
+the pullup:
+  c ? index; [array FROM index]
+(Tested in cgtest12.)
+
 ## Long-term
 
 If we have constant folding, we're three-quarters of the way towards having an

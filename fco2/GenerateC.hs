@@ -147,18 +147,24 @@ genType t
         Just s -> tell [s]
         Nothing -> missing $ "genType " ++ show t
 
-genBytesInType :: A.Type -> CGen ()
-genBytesInType (A.Array ds t) = genBytesInDims ds >> genBytesInType t
+genBytesIn :: A.Type -> Maybe A.Variable -> CGen ()
+genBytesIn (A.Array ds t) v = genBytesInArray ds 0 >> genBytesIn t v
   where
-    genBytesInDims [] = return ()
-    genBytesInDims ((A.Dimension n):ds)
-        = genBytesInDims ds >> tell [show n, " * "]
-    genBytesInDims _ = missing "genBytesInType with empty dimension"
---bytesInType (A.UserDataType n)
-genBytesInType t
+    genBytesInArray [] _ = return ()
+    genBytesInArray ((A.Dimension n):ds) i
+        = do genBytesInArray ds (i + 1)
+             tell [show n, " * "]
+    genBytesInArray (A.UnknownDimension:ds) i
+        = case v of
+            Just rv ->
+              do genBytesInArray ds (i + 1)
+                 genVariable rv
+                 tell ["_sizes[", show i, "] * "]
+            Nothing -> missing "genBytesIn array type with unknown dimension"
+genBytesIn t _
     = case scalarType t of
         Just s -> tell ["sizeof (", s, ")"]
-        Nothing -> missing $ "genBytesInType " ++ show t
+        Nothing -> missing $ "genBytesIn " ++ show t
 --}}}
 
 --{{{  declarations
@@ -465,7 +471,7 @@ genExpression (A.False m) = tell ["false"]
 genExpression (A.IntrinsicFunctionCall m s es) = genIntrinsicFunction m s es
 --genExpression (A.SubscriptedExpr m s e)
 --genExpression (A.BytesInExpr m e)
-genExpression (A.BytesInType m t) = genBytesInType t
+genExpression (A.BytesInType m t) = genBytesIn t Nothing
 --genExpression (A.OffsetOf m t n)
 genExpression t = missing $ "genExpression " ++ show t
 
@@ -552,7 +558,7 @@ genInputItem c (A.InCounted m cv av)
           subT <- trivialSubscriptType t
           genVariable cv
           tell [" * "]
-          genBytesInType subT
+          genBytesIn subT (Just av)
           tell [");\n"]
 genInputItem c (A.InVariable m v)
     =  do t <- typeOfVariable v
@@ -570,7 +576,7 @@ genInputItem c (A.InVariable m v)
                  tell [", "]
                  rhs
                  tell [", "]
-                 genBytesInType t
+                 genBytesIn t (Just v)
                  tell [");\n"]
 
 genOutputItem :: A.Variable -> A.OutputItem -> CGen ()
@@ -587,7 +593,7 @@ genOutputItem c (A.OutCounted m ce ae)
                  subT <- trivialSubscriptType t
                  genExpression ce
                  tell [" * "]
-                 genBytesInType subT
+                 genBytesIn subT (Just v)
                  tell [");\n"]
 genOutputItem c (A.OutExpression m e)
     =  do t <- typeOfExpression e
@@ -604,7 +610,7 @@ genOutputItem c (A.OutExpression m e)
                  tell [", "]
                  fst $ abbrevVariable A.Abbrev t v
                  tell [", "]
-                 genBytesInType t
+                 genBytesIn t (Just v)
                  tell [");\n"]
             _ ->
               do n <- makeNonce "output_item"
@@ -616,7 +622,7 @@ genOutputItem c (A.OutExpression m e)
                  tell ["ChanOut ("]
                  genVariable c
                  tell [", &", n, ", "]
-                 genBytesInType t
+                 genBytesIn t Nothing
                  tell [");\n"]
 --}}}
 
