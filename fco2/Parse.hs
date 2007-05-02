@@ -352,7 +352,7 @@ postSubscript :: A.Type -> OccParser A.Subscript
 postSubscript t
     =  do m <- md
           case t of
-            A.UserDataType _ ->
+            A.Record _ ->
               do f <- tryXV sLeft fieldName
                  sRight
                  return $ A.SubscriptField m f
@@ -582,6 +582,7 @@ functionName = name A.FunctionName
 portName = name A.PortName
 procName = name A.ProcName
 protocolName = name A.ProtocolName
+recordName = name A.RecordName
 timerName = name A.TimerName
 variableName = name A.VariableName
 
@@ -591,6 +592,7 @@ newFunctionName = newName A.FunctionName
 newPortName = newName A.PortName
 newProcName = newName A.ProcName
 newProtocolName = newName A.ProtocolName
+newRecordName = newName A.RecordName
 newTimerName = newName A.TimerName
 newVariableName = newName A.VariableName
 
@@ -628,6 +630,7 @@ dataType
     <|> do { sREAL64; return A.Real64 }
     <|> arrayType dataType
     <|> do { n <- try dataTypeName; return $ A.UserDataType n }
+    <|> do { n <- try recordName; return $ A.Record n }
     <?> "data type"
 
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
@@ -1255,9 +1258,8 @@ definition
     =   do m <- md
            sDATA
            sTYPE
-           n <- newDataTypeName
-           do { sIS; t <- dataType; sColon; eol; return $ A.Specification m n (A.DataType m t) }
-             <|> do { eol; indent; rec <- structuredType; outdent; sColon; eol; return $ A.Specification m n rec }
+           do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol; return $ A.Specification m n (A.DataType m t) }
+             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return $ A.Specification m n rec }
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
@@ -1425,7 +1427,7 @@ structuredType
            indent
            fs <- many1 structuredTypeField
            outdent
-           return $ A.DataTypeRecord m isPacked (concat fs)
+           return $ A.RecordType m isPacked (concat fs)
     <?> "structured type"
 
 recordKeyword :: OccParser Bool

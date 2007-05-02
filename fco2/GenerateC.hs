@@ -132,7 +132,7 @@ genType :: A.Type -> CGen ()
 genType (A.Array _ t)
     =  do genType t
           tell ["*"]
-genType (A.UserDataType n) = genName n
+genType (A.Record n) = genName n
 -- UserProtocol -- not used
 genType (A.Chan t) = tell ["Channel *"]
 -- Counted -- not used
@@ -175,7 +175,7 @@ genBytesIn' (A.Array ds t) v
                  case free of
                    Nothing -> return $ Just i
                    Just _ -> die "genBytesIn' type with more than one free dimension"
-genBytesIn' (A.UserDataType n) _
+genBytesIn' (A.Record n) _
     =  do tell ["sizeof ("]
           genName n
           tell [")"]
@@ -199,7 +199,7 @@ genDeclType am t
           case t of
             A.Array _ _ -> return ()
             A.Chan _ -> return ()
-            A.UserDataType _ -> tell [" *"]
+            A.Record _ -> tell [" *"]
             _ -> when (am == A.Abbrev) $ tell [" *"]
 
 genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
@@ -408,8 +408,8 @@ genVariable' checkValid v
                          (_, A.Array _ _) -> ""
                          (A.Original, A.Chan _) -> if isSub then "" else "&"
                          (A.Abbrev, A.Chan _) -> ""
-                         (A.Original, A.UserDataType _) -> "&"
-                         (A.Abbrev, A.UserDataType _) -> ""
+                         (A.Original, A.Record _) -> "&"
+                         (A.Abbrev, A.Record _) -> ""
                          (A.Abbrev, _) -> "*"
                          _ -> ""
 
@@ -767,7 +767,7 @@ abbrevVariable am (A.Array _ _) v
     = (genVariable v, genArraySize True (genVariable v >> tell ["_sizes"]))
 abbrevVariable am (A.Chan _) v
     = (genVariable v, noSize)
-abbrevVariable am (A.UserDataType _) v
+abbrevVariable am (A.Record _) v
     = (genVariable v, noSize)
 abbrevVariable am t v
     = (genVariableAM v am, noSize)
@@ -963,7 +963,7 @@ introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
           tell ["};\n"]
           declareArraySizes [A.Dimension $ length cs] (genName n)
 --introduceSpec (A.Specification m n (A.DataType m t))
-introduceSpec (A.Specification _ n (A.DataTypeRecord _ b fs))
+introduceSpec (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct {\n"]
           sequence_ [case t of
                        _ ->

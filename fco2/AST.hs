@@ -8,7 +8,7 @@ import Metadata
 
 data NameType =
   ChannelName | DataTypeName | FunctionName | FieldName | PortName
-  | ProcName | ProtocolName | TagName | TimerName | VariableName
+  | ProcName | ProtocolName | RecordName | TagName | TimerName | VariableName
   deriving (Show, Eq, Typeable, Data)
 
 data Name = Name {
@@ -42,6 +42,7 @@ data Type =
   | Real32 | Real64
   | Array [Dimension] Type
   | UserDataType Name
+  | Record Name
   | UserProtocol Name
   | Chan Type
   | Counted Type Type
@@ -208,7 +209,7 @@ data SpecType =
   | IsExpr Meta AbbrevMode Type Expression
   | IsChannelArray Meta Type [Variable]
   | DataType Meta Type
-  | DataTypeRecord Meta Bool [(Name, Type)]
+  | RecordType Meta Bool [(Name, Type)]
   | Protocol Meta [Type]
   | ProtocolCase Meta [(Name, [Type])]
   | Proc Meta SpecMode [Formal] Process

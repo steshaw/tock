@@ -60,10 +60,10 @@ sliceType m _ _ _ = dieP m "slice of non-array type"
 
 -- | Get the type of a record field.
 typeOfRecordField :: (PSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
-typeOfRecordField m (A.UserDataType rec) field
+typeOfRecordField m (A.Record rec) field
     =  do st <- specTypeOfName rec
           case st of
-            A.DataTypeRecord _ _ fs -> checkJust "unknown record field" $ lookup field fs
+            A.RecordType _ _ fs -> checkJust "unknown record field" $ lookup field fs
             _ -> dieP m "not record type"
 typeOfRecordField m _ _ = dieP m "not record type"
 
@@ -294,11 +294,11 @@ isCaseableType t = isIntegerType t
 -- | Simplify a type as far as possible: resolve data type aliases to their
 -- real types, and remove non-constant array dimensions.
 simplifyType :: (PSM m, Die m) => A.Type -> m A.Type
-simplifyType origT@(A.UserDataType n)
+simplifyType origT@(A.Record n)
     =  do st <- specTypeOfName n
           case st of
             A.DataType _ t -> simplifyType t
-            A.DataTypeRecord _ _ _ -> return origT
+            A.RecordType _ _ _ -> return origT
 simplifyType (A.Array ds t)
     =  do t' <- simplifyType t
           return $ A.Array ds t'
@@ -344,12 +344,12 @@ bytesInType a@(A.Array _ _) = bytesInArray 0 a
                 (A.UnknownDimension, BIJust m) -> return $ BIOneFree m num
                 (A.UnknownDimension, BIOneFree _ _) -> return BIManyFree
                 (_, _) -> return ts
-bytesInType (A.UserDataType n)
+bytesInType (A.Record n)
     =  do st <- specTypeOfName n
           case st of
             -- We can only do this for *packed* records -- for normal records,
             -- the compiler might insert padding.
-            (A.DataTypeRecord _ True nts) -> bytesInList nts
+            (A.RecordType _ True nts) -> bytesInList nts
             _ -> return $ BIUnknown
   where
     bytesInList :: (PSM m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
