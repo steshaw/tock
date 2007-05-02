@@ -58,10 +58,6 @@ missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 genComma :: CGen ()
 genComma = tell [", "]
 
-checkJust :: MonadError String m => Maybe t -> m t
-checkJust (Just v) = return v
-checkJust Nothing = throwError "checkJust failed"
-
 type SubscripterFunction = A.Variable -> A.Variable
 
 overArray :: A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
@@ -147,24 +143,47 @@ genType t
         Just s -> tell [s]
         Nothing -> missing $ "genType " ++ show t
 
+-- | Generate the number of bytes in a type that must have a fixed size.
 genBytesIn :: A.Type -> Maybe A.Variable -> CGen ()
-genBytesIn (A.Array ds t) v = genBytesInArray ds 0 >> genBytesIn t v
+genBytesIn t v
+    =  do free <- genBytesIn' t v
+          case free of
+            Nothing -> return ()
+            Just _ -> die "genBytesIn type with unknown dimension"
+
+-- | Generate the number of bytes in a type that may have one free dimension.
+genBytesIn' :: A.Type -> Maybe A.Variable -> CGen (Maybe Int)
+genBytesIn' (A.Array ds t) v
+    =  do free <- genBytesInArray ds 0
+          genBytesIn' t v
+          return free
   where
-    genBytesInArray [] _ = return ()
+    genBytesInArray [] _ = return Nothing
     genBytesInArray ((A.Dimension n):ds) i
-        = do genBytesInArray ds (i + 1)
+        = do free <- genBytesInArray ds (i + 1)
              tell [show n, " * "]
+             return free
     genBytesInArray (A.UnknownDimension:ds) i
         = case v of
             Just rv ->
-              do genBytesInArray ds (i + 1)
+              do free <- genBytesInArray ds (i + 1)
                  genVariable rv
                  tell ["_sizes[", show i, "] * "]
-            Nothing -> missing "genBytesIn array type with unknown dimension"
-genBytesIn t _
+                 return free
+            Nothing ->
+              do free <- genBytesInArray ds (i + 1)
+                 case free of
+                   Nothing -> return $ Just i
+                   Just _ -> die "genBytesIn' type with more than one free dimension"
+genBytesIn' (A.UserDataType n) _
+    =  do tell ["sizeof ("]
+          genName n
+          tell [")"]
+          return Nothing
+genBytesIn' t _
     = case scalarType t of
-        Just s -> tell ["sizeof (", s, ")"]
-        Nothing -> missing $ "genBytesIn " ++ show t
+        Just s -> tell ["sizeof (", s, ")"] >> return Nothing
+        Nothing -> die $ "genBytesIn' " ++ show t
 --}}}
 
 --{{{  declarations
@@ -751,43 +770,46 @@ abbrevVariable am t v
 -- | Generate the size part of a RETYPES/RESHAPES abbrevation of a variable.
 genRetypeSizes :: Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
 genRetypeSizes m am destT destN srcT srcV
-    = case (destT, srcT) of
-        -- An array -- figure out the new dimensions.
-        (A.Array destDS destSubT, _) ->
-          do destBI <- bytesInType destT
-             srcBI <- bytesInType srcT
-             case (srcBI, destBI) of
-               -- Straightforward cases where we know the original size.
-               (_, BIJust _) -> declareArraySizes destDS (genName destN)
-               (BIJust srcBytes, BIOneFree destBytes _) ->
-                 declareArraySizes [case d of
-                                      A.UnknownDimension ->
-                                        A.Dimension (srcBytes `div` destBytes)
-                                      _ -> d
-                                    | d <- destDS]
-                                   (genName destN)
-               -- The awkward case: the original size is dynamic, so we
-               -- need to compute the missing dimension at runtime.
-               (BIOneFree srcBytes srcNum, BIOneFree destBytes _) ->
-                 do tell ["const int "]
-                    genName destN
-                    tell ["_sizes[] = { "]
-                    let dims = [case d of
-                                  A.UnknownDimension ->
-                                    do tell ["occam_check_retype ("]
-                                       genVariable srcV
-                                       tell ["_sizes[", show srcNum, "]"]
-                                       tell [" * ", show srcBytes]
-                                       tell [", ", show destBytes, ", "]
-                                       genMeta m
-                                       tell [")"]
-                                  A.Dimension n -> tell [show n]
-                                | d <- destDS]
-                    sequence_ $ intersperse genComma dims
-                    tell ["};\n"]
-               _ -> missing "dynamic size"
-        -- Not an array we're generating -- no need for sizes.
-        (_, _) -> return ()
+    =  do size <- makeNonce "retype_size"
+          tell ["int ", size, " = occam_check_retype ("]
+          genBytesIn srcT (Just srcV)
+          tell [", "]
+          free <- genBytesIn' destT Nothing
+          tell [", "]
+          genMeta m
+          tell [");\n"]
+
+          case destT of
+            -- An array -- figure out the missing dimension, if there is one.
+            A.Array destDS _ ->
+              do case free of
+                   -- No free dimensions; check the complete array matches in size.
+                   Nothing ->
+                     do tell ["if (", size, " != 1) {\n"]
+                        genStop m "array size mismatch in RETYPES"
+                        tell ["}\n"]
+                   _ -> return ()
+
+                 tell ["const int "]
+                 genName destN
+                 tell ["_sizes[] = { "]
+                 let dims = [case d of
+                               A.UnknownDimension ->
+                                 -- Unknown dimension -- insert it.
+                                 case free of
+                                   Just _ -> tell [size]
+                                   Nothing ->
+                                     die "genRetypeSizes expecting free dimension"
+                               A.Dimension n -> tell [show n]
+                             | d <- destDS]
+                 sequence_ $ intersperse genComma dims
+                 tell ["};\n"]
+
+            -- Not array; just check the size is 1.
+            _ ->
+              do tell ["if (", size, " != 1) {\n"]
+                 genStop m "size mismatch in RETYPES"
+                 tell ["}\n"]
 
 -- | Generate the right-hand side of an abbreviation of an expression.
 abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
@@ -981,7 +1003,7 @@ introduceSpec (A.Specification _ n (A.Retypes m am t v))
                         (_, A.Array _ _) -> False
                         (_, A.Chan _) -> False
                         (A.ValAbbrev, _) -> True
-                        _ -> True
+                        _ -> False
           when deref $ tell ["*"]
           tell ["("]
           genDeclType am t

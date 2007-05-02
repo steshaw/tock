@@ -1323,15 +1323,15 @@ checkRetypes (A.Chan _) (A.Chan _) = return ()
 checkRetypes fromT toT
     =  do bf <- bytesInType fromT
           bt <- bytesInType toT
-          let ok = case (bf, bt) of
-                     (BIJust a, BIJust b) -> a == b
-                     (BIJust a, BIOneFree b _) -> (b <= a) && (a `mod` b == 0)
-                     -- In this case we do a runtime check.
-                     (BIOneFree _ _, BIOneFree _ _) -> True
-                     -- Otherwise we can't tell.
-                     _ -> False
-          when (not ok) $
-            fail $ "RETYPES/RESHAPES sizes do not match"
+          case (bf, bt) of
+            (BIJust a, BIJust b) ->
+              when (a /= b) $ fail "size mismatch in RETYPES"
+            (BIJust a, BIOneFree b _) ->
+              when (not ((b <= a) && (a `mod` b == 0))) $ fail "size mismatch in RETYPES"
+            (_, BIManyFree) ->
+              fail "multiple free dimensions in RETYPES/RESHAPES type"
+            -- Otherwise we have to do a runtime check.
+            _ -> return ()
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier

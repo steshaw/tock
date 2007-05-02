@@ -317,7 +317,8 @@ simplifyType t = return t
 data BytesInResult =
   BIJust Int            -- ^ Just that many bytes.
   | BIOneFree Int Int   -- ^ An array type; A bytes, times unknown dimension B.
-  | BIUnknown           -- ^ No idea.
+  | BIManyFree          -- ^ An array type with multiple unknown dimensions.
+  | BIUnknown           -- ^ We can't tell the size at compile time.
   deriving (Show, Eq)
 
 -- | Return the size in bytes of a data type.
@@ -340,7 +341,8 @@ bytesInType a@(A.Array _ _) = bytesInArray 0 a
                 (A.Dimension n, BIJust m) -> return $ BIJust (n * m)
                 (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (n * m) x
                 (A.UnknownDimension, BIJust m) -> return $ BIOneFree m num
-                (_, _) -> return $ BIUnknown
+                (A.UnknownDimension, BIOneFree _ _) -> return BIManyFree
+                (_, _) -> return ts
 bytesInType (A.UserDataType n)
     =  do st <- specTypeOfName n
           case st of
