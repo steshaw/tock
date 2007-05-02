@@ -5,6 +5,7 @@ import Control.Monad (liftM, when)
 import Control.Monad.Error (runErrorT)
 import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get, put)
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified IO
 import Numeric (readHex)
@@ -2000,7 +2001,7 @@ loadSource file = load file file
     load :: String -> String -> PassM ()
     load file realName
         =  do ps <- get
-              case lookup file (psSourceFiles ps) of
+              case Map.lookup file (psSourceFiles ps) of
                 Just _ -> return ()
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
@@ -2008,7 +2009,7 @@ loadSource file = load file file
                      source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker ++ "\n")
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
-                     modify $ (\ps -> ps { psSourceFiles = (file, source) : psSourceFiles ps })
+                     modify $ (\ps -> ps { psSourceFiles = Map.insert file source (psSourceFiles ps) })
                      let deps = map mangleModName $ preFindIncludes source
                      sequence_ [load dep (joinPath realName dep) | dep <- deps]
 --}}}
@@ -2023,7 +2024,7 @@ testParse prod text
 -- | Parse a file with the given production.
 parseFile :: Monad m => String -> OccParser t -> ParseState -> m t
 parseFile file prod ps
-    =  do let source = case lookup file (psSourceFiles ps) of
+    =  do let source = case Map.lookup file (psSourceFiles ps) of
                          Just s -> s
                          Nothing -> dieIO $ "Failed to preload file: " ++ show file
           let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }

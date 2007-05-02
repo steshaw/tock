@@ -6,6 +6,7 @@ module Types where
 import Control.Monad
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
@@ -170,7 +171,7 @@ returnTypesOfFunction n
             _ ->
               do ps <- get
                  checkJust "not defined as a function" $
-                   lookup (A.nameName n) (psFunctionReturns ps)
+                   Map.lookup (A.nameName n) (psFunctionReturns ps)
 
 returnTypesOfIntrinsic :: (PSM m, Die m) => String -> m [A.Type]
 returnTypesOfIntrinsic s

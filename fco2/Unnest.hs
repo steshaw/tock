@@ -127,7 +127,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                           | (am, n, t) <- zip3 ams freeNames types]
              debug $ "removeFreeNames: " ++ show n ++ " has new args " ++ show newAs
              when (newAs /= []) $
-               modify $ (\ps -> ps { psAdditionalArgs = (A.nameName n, newAs) : psAdditionalArgs ps })
+               modify $ (\ps -> ps { psAdditionalArgs = Map.insert (A.nameName n) newAs (psAdditionalArgs ps) })
 
              return spec'
         _ -> doGeneric spec
@@ -136,7 +136,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess p@(A.ProcCall m n as)
         =  do st <- get
-              case lookup (A.nameName n) (psAdditionalArgs st) of
+              case Map.lookup (A.nameName n) (psAdditionalArgs st) of
                 Just add -> doGeneric $ A.ProcCall m n (as ++ add)
                 Nothing -> doGeneric p
     doProcess p = doGeneric p

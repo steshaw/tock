@@ -2,6 +2,8 @@
 module ParseState where
 
 import Data.Generics
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Control.Monad.State
 
 import qualified AST as A
@@ -16,14 +18,14 @@ data ParseState = ParseState {
     psOutputFile :: String,
 
     -- Set by preprocessor
-    psSourceFiles :: [(String, String)],
+    psSourceFiles :: Map String String,
     psIndentLinesIn :: [String],
     psIndentLinesOut :: [String],
 
     -- Set by Parse
     psLocalNames :: [(String, A.Name)],
     psMainLocals :: [(String, A.Name)],
-    psNames :: [(String, A.NameDef)],
+    psNames :: Map String A.NameDef,
     psNameCounter :: Int,
     psTypeContext :: [Maybe A.Type],
     psLoadedFiles :: [String],
@@ -31,9 +33,9 @@ data ParseState = ParseState {
 
     -- Set by passes
     psNonceCounter :: Int,
-    psFunctionReturns :: [(String, [A.Type])],
+    psFunctionReturns :: Map String [A.Type],
     psPulledItems :: [[A.Structured -> A.Structured]],
-    psAdditionalArgs :: [(String, [A.Actual])]
+    psAdditionalArgs :: Map String [A.Actual]
   }
   deriving (Show, Data, Typeable)
 
@@ -46,22 +48,22 @@ emptyState = ParseState {
     psParseOnly = False,
     psOutputFile = "-",
 
-    psSourceFiles = [],
+    psSourceFiles = Map.empty,
     psIndentLinesIn = [],
     psIndentLinesOut = [],
 
     psLocalNames = [],
     psMainLocals = [],
-    psNames = [],
+    psNames = Map.empty,
     psNameCounter = 0,
     psTypeContext = [],
     psLoadedFiles = [],
     psWarnings = [],
 
     psNonceCounter = 0,
-    psFunctionReturns = [],
+    psFunctionReturns = Map.empty,
     psPulledItems = [],
-    psAdditionalArgs = []
+    psAdditionalArgs = Map.empty
   }
 
 -- | Class of monads which keep a ParseState.
@@ -72,13 +74,14 @@ instance MonadState ParseState m => PSM m
 --{{{  name definitions
 -- | Add the definition of a name.
 defineName :: PSM m => A.Name -> A.NameDef -> m ()
-defineName n nd = modify $ (\ps -> ps { psNames = (A.nameName n, nd) : psNames ps })
+defineName n nd
+    = modify $ (\ps -> ps { psNames = Map.insert (A.nameName n) nd (psNames ps) })
 
 -- | Find the definition of a name.
 lookupName :: (PSM m, Die m) => A.Name -> m A.NameDef
 lookupName n
     =  do ps <- get
-          case lookup (A.nameName n) (psNames ps) of
+          case Map.lookup (A.nameName n) (psNames ps) of
             Just nd -> return nd
             Nothing -> die $ "cannot find name " ++ A.nameName n
 --}}}

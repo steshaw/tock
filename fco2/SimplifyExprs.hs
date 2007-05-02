@@ -3,6 +3,7 @@ module SimplifyExprs (simplifyExprs) where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
@@ -35,7 +36,7 @@ functionsToProcs = doGeneric `extM` doSpecification
              specs <- sequence [makeNonceVariable "return_formal" mf t A.VariableName A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
              -- Note the return types so we can fix calls later.
-             modify $ (\ps -> ps { psFunctionReturns = (A.nameName n, rts) : psFunctionReturns ps })
+             modify $ (\ps -> ps { psFunctionReturns = Map.insert (A.nameName n) rts (psFunctionReturns ps) })
              -- Turn the value process into an assignment process.
              let p = A.Seq mf $ vpToSeq vp [A.Variable mf n | n <- names]
              let st = A.Proc mf sm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
@@ -192,7 +193,7 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
              ets <- sequence [typeOfExpression e | e <- es']
 
              ps <- get
-             let rts = fromJust $ lookup (A.nameName n) (psFunctionReturns ps)
+             rts <- Map.lookup (A.nameName n) (psFunctionReturns ps)
              specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
              sequence_ [addPulled $ A.Spec m spec | spec <- specs]
 

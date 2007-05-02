@@ -19,8 +19,6 @@ nothing to do with parsing.
 
 Types needs cleaning up and Haddocking.
 
-Many of the "lookup" lists should actually be Maps.
-
 ## Driver
 
 Add an option for whether to compile out overflow/bounds checks.
