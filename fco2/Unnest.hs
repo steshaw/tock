@@ -178,7 +178,6 @@ removeNesting p
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _ _) = True
-    canPull (A.DataType _ _) = True
     canPull (A.RecordType _ _ _) = True
     canPull (A.Protocol _ _) = True
     canPull (A.ProtocolCase _ _) = True
