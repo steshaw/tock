@@ -1,0 +1,10 @@
+-- Check that the constant folder is happy trawling through named types.
+
+DATA TYPE MYINT IS INT64:
+PROC arrays.of.user.types()
+  DATA TYPE arrtype IS [10]MYINT :
+  arrtype a :
+  DATA TYPE intarr  IS [SIZE a]INT :
+  intarr  b :
+  SKIP
+:
