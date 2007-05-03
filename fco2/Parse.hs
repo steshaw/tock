@@ -1431,7 +1431,7 @@ formalList :: OccParser [A.Formal]
 formalList
     =  do m <- md
           sLeftR
-          fs <- formalArgSet
+          fs <- option [] formalArgSet
           sRightR
           return fs
     <?> "formal list"
