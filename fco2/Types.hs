@@ -8,6 +8,7 @@ import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
+import Debug.Trace
 
 import qualified AST as A
 import Errors
@@ -108,11 +109,11 @@ subscriptType _ t = die $ "unsubscriptable type: " ++ show t
 -- a subscript, return what the type being subscripted is.
 unsubscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
 unsubscriptType (A.SubscriptFromFor _ _ _) t
-    = return t
+    = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptFrom _ _) t
-    = return t
+    = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptFor _ _) t
-    = return t
+    = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptField _ _) t
     = die $ "unsubscript of record type (but we can't tell which one)"
 unsubscriptType (A.Subscript _ sub) t
@@ -248,6 +249,11 @@ makeArrayType d t = A.Array [d] t
 stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t
+
+-- | Remove one fixed dimension from a type.
+removeFixedDimension :: A.Type -> A.Type
+removeFixedDimension (A.Array (A.Dimension _:ds) t) = A.Array (A.UnknownDimension:ds) t
+removeFixedDimension t = t
 
 -- | Remove any fixed array dimensions from a type.
 removeFixedDimensions :: A.Type -> A.Type

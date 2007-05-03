@@ -25,6 +25,13 @@ Add an option for whether to compile out overflow/bounds checks.
 
 ## Parser
 
+The way literal typing is done at the moment is a complete mess.
+We should probably have a smarter "can this literal be of this type?" function
+that walks both the wanted type and the parsed literal, and is smart about
+whether elements in an array are pure literals (in which case they can be
+type-coerced happily) or something else (in which case they must have the right
+type).
+
 Record literals aren't implemented.
 
 Inline C code should be supported; say something like "INLINE "C"" and the

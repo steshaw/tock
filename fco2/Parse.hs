@@ -7,6 +7,7 @@ import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get,
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import Debug.Trace
 import qualified IO
 import Numeric (readHex)
 import Text.ParserCombinators.Parsec
