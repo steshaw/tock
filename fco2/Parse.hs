@@ -351,7 +351,8 @@ postSubscripts t
 postSubscript :: A.Type -> OccParser A.Subscript
 postSubscript t
     =  do m <- md
-          case t of
+          t' <- resolveUserType t
+          case t' of
             A.Record _ ->
               do f <- tryXV sLeft fieldName
                  sRight
@@ -367,7 +368,7 @@ maybeSliced inner subscripter typer
     =  do m <- md
 
           (v, ff1) <- tryXVV sLeft inner fromOrFor
-          t <- typer v
+          t <- typer v >>= underlyingType
           case t of
             (A.Array _ _) -> return ()
             _ -> fail $ "slice of non-array type " ++ show t
@@ -1754,7 +1755,8 @@ caseProcess
            sCASE
            sel <- expression
            t <- typeOfExpression sel
-           when (not $ isCaseableType t) $ fail "case selector has non-CASEable type"
+           t' <- underlyingType t
+           when (not $ isCaseableType t') $ fail "case selector has non-CASEable type"
            eol
            os <- maybeIndentedList m "empty CASE" (caseOption t)
            return $ A.Case m sel (A.Several m os)

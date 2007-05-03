@@ -81,11 +81,13 @@ plainSubscriptType m sub (A.Array (d:ds) t)
     ok = case ds of
            [] -> t
            _ -> A.Array ds t
-plainSubscriptType m _ _ = dieP m "subscript of non-array type"
+plainSubscriptType m _ t = dieP m $ "subscript of non-array type " ++ show t
 
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
 subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
+subscriptType sub t@(A.UserDataType _)
+    = resolveUserType t >>= subscriptType sub
 subscriptType (A.SubscriptFromFor m base count) t
     = sliceType m base count t
 subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
@@ -203,15 +205,23 @@ abbrevModeOfSpec s
         _ -> A.Original
 
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
--- type, then return the underlying real type.
+-- type, then return the underlying real type. This will recurse.
 underlyingType :: (PSM m, Die m) => A.Type -> m A.Type
-underlyingType (A.UserDataType n)
-    =  do st <- specTypeOfName n
-          case st of
-            A.DataType _ t -> underlyingType t
-            _ -> die $ "not a type name " ++ show n
+underlyingType t@(A.UserDataType _)
+    = resolveUserType t >>= underlyingType
 underlyingType (A.Array ds t) = liftM (A.Array ds) (underlyingType t)
 underlyingType t = return t
+
+-- | Like underlyingType, but only do the "outer layer": if you give this a
+-- user type that's an array of user types, then you'll get back an array of
+-- user types.
+resolveUserType :: (PSM m, Die m) => A.Type -> m A.Type
+resolveUserType (A.UserDataType n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.DataType _ t -> resolveUserType t
+            _ -> die $ "not a type name " ++ show n
+resolveUserType t = return t
 
 -- | Add an array dimension to a type; if it's already an array it'll just add
 -- a new dimension to the existing array.
