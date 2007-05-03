@@ -1514,7 +1514,7 @@ recordKeyword
 structuredTypeField :: OccParser [(A.Name, A.Type)]
 structuredTypeField
     =   do t <- dataType
-           fs <- many1 newFieldName
+           fs <- sepBy1 newFieldName sComma
            sColon
            eol
            return [(f, t) | f <- fs]
