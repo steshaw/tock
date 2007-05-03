@@ -1049,9 +1049,11 @@ conversion :: OccParser A.Expression
 conversion
     =  do m <- md
           t <- dataType
+          baseT <- underlyingType t
           (c, o) <- conversionMode
           ot <- typeOfExpression o
-          c <- case (isPreciseConversion ot t, c) of
+          baseOT <- underlyingType ot
+          c <- case (isPreciseConversion baseOT baseT, c) of
                  (False, A.DefaultConversion) ->
                    fail "imprecise conversion must specify ROUND or TRUNC"
                  (False, _) -> return c
