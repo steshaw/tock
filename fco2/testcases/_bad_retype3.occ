@@ -1,0 +1,5 @@
+PROC P ()
+  [47]BYTE bs:
+  REAL64 z RETYPES bs:
+  SKIP
+:

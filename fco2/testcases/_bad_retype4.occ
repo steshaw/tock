@@ -1,0 +1,11 @@
+PROC Q ([]BYTE bs)
+  REAL64 z RETYPES bs:
+  z := 3.141 (REAL64)
+:
+PROC P ()
+  SEQ
+    [8]BYTE ok:
+    Q (ok)
+    [47]BYTE bad:
+    Q (bad)
+:
