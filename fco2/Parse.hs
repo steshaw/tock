@@ -1432,17 +1432,32 @@ formalList :: OccParser [A.Formal]
 formalList
     =  do m <- md
           sLeftR
-          fs <- sepBy formalArgSet sComma
+          fs <- formalArgSet
           sRightR
-          return $ concat fs
+          return fs
     <?> "formal list"
 
 formalItem :: OccParser (A.AbbrevMode, A.Type) -> OccParser A.Name -> OccParser [A.Formal]
 formalItem spec name
     =   do (am, t) <- spec
-           ns <- sepBy1NE name sComma
-           return [A.Formal am t n | n <- ns]
+           names am t
+  where
+    names :: A.AbbrevMode -> A.Type -> OccParser [A.Formal]
+    names am t
+        = do n <- name
+             fs <- tail am t
+             return $ (A.Formal am t n) : fs
 
+    tail :: A.AbbrevMode -> A.Type -> OccParser [A.Formal]
+    tail am t
+        =   do sComma
+               -- We must try formalArgSet first here, so that we don't
+               -- accidentally parse a DATA TYPE name thinking it's a formal
+               -- name.
+               formalArgSet <|> names am t
+        <|> return []
+
+-- | Parse a set of formal arguments.
 formalArgSet :: OccParser [A.Formal]
 formalArgSet
     =   formalItem formalVariableType newVariableName
