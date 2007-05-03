@@ -1,0 +1,16 @@
+DATA TYPE MYINT IS INT:
+-- This next line falls in the category of awkward things to parse.
+-- The problem is that:
+--   PROC copy.MYINT (VAL MYINT x, MYINT)
+-- would be a perfectly legal (if silly) thing to say, so we have to make
+-- sure we try this interpretation first:
+PROC copy.MYINT (VAL MYINT x, MYINT y)
+  y := x
+:
+PROC P ()
+  MYINT a, b:
+  SEQ
+    a := 42
+    copy.MYINT (a, b)
+    ASSERT (b = 42)
+:

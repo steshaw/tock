@@ -1437,20 +1437,19 @@ formalList
           return $ concat fs
     <?> "formal list"
 
+formalItem :: OccParser (A.AbbrevMode, A.Type) -> OccParser A.Name -> OccParser [A.Formal]
+formalItem spec name
+    =   do (am, t) <- spec
+           ns <- sepBy1NE name sComma
+           return [A.Formal am t n | n <- ns]
+
 formalArgSet :: OccParser [A.Formal]
 formalArgSet
-    =   do (am, t) <- formalVariableType
-           ns <- sepBy1NE newVariableName sComma
-           return [A.Formal am t n | n <- ns]
-    <|> do t <- channelSpecifier
-           ns <- sepBy1NE newChannelName sComma
-           return [A.Formal A.Abbrev t n | n <- ns]
-    <|> do t <- timerSpecifier
-           ns <- sepBy1NE newTimerName sComma
-           return [A.Formal A.Abbrev t n | n <- ns]
-    <|> do t <- portSpecifier
-           ns <- sepBy1NE newPortName sComma
-           return [A.Formal A.Abbrev t n | n <- ns]
+    =   formalItem formalVariableType newVariableName
+    <|> formalItem (aa channelSpecifier) newChannelName
+    <|> formalItem (aa timerSpecifier) newTimerName
+    <|> formalItem (aa portSpecifier) newPortName
+  where aa = liftM (\t -> (A.Abbrev, t))
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
 formalVariableType
