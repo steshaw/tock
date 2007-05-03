@@ -1546,7 +1546,8 @@ assignment :: OccParser A.Process
 assignment
     =   do m <- md
            vs <- tryVX (sepBy1 variable sComma) sAssign
-           ts <- mapM typeOfVariable vs
+           -- We ignore dimensions here because we do the check at runtime.
+           ts <- sequence [liftM removeFixedDimensions $ typeOfVariable v | v <- vs]
            es <- expressionList ts
            eol
            return $ A.Assign m vs es

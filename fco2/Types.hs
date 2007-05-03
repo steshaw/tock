@@ -249,6 +249,11 @@ stripArrayType :: A.Type -> A.Type
 stripArrayType (A.Array _ t) = stripArrayType t
 stripArrayType t = t
 
+-- | Remove any fixed array dimensions from a type.
+removeFixedDimensions :: A.Type -> A.Type
+removeFixedDimensions (A.Array ds t) = A.Array [A.UnknownDimension | _ <- ds] t
+removeFixedDimensions t = t
+
 -- | Given the abbreviation mode of something, return what the abbreviation
 -- mode of something that abbreviated it would be.
 makeAbbrevAM :: A.AbbrevMode -> A.AbbrevMode

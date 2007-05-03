@@ -1,0 +1,6 @@
+PROC P ()
+  VAL size IS 32:
+  [100]BYTE src:
+  [32]BYTE dest:
+  dest := [src FROM 0 FOR size]
+:

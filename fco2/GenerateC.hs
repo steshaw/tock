@@ -60,10 +60,9 @@ genComma = tell [", "]
 
 type SubscripterFunction = A.Variable -> A.Variable
 
-overArray :: A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
-overArray var func
+overArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
+overArray m var func
     =  do A.Array ds _ <- typeOfVariable var
-          let m = emptyMeta
           specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
@@ -883,16 +882,15 @@ declareArraySizes ds name
           tell [" };\n"]
 
 -- | Initialise an item being declared.
-declareInit :: A.Type -> A.Variable -> Maybe (CGen ())
-declareInit (A.Chan _) var
+declareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+declareInit _ (A.Chan _) var
     = Just $ do tell ["ChanInit ("]
                 genVariable var
                 tell [");\n"]
-declareInit t@(A.Array ds t') var
+declareInit m t@(A.Array ds t') var
     = Just $ do init <- case t' of
                           A.Chan _ ->
-                            do let m = emptyMeta
-                               A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
+                            do A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
                                let storeV = A.Variable m store
                                tell ["Channel "]
                                genName store
@@ -903,14 +901,14 @@ declareInit t@(A.Array ds t') var
                                                          tell [" = &"]
                                                          genVariable (sub storeV)
                                                          tell [";\n"]
-                                                         fromJust $ declareInit t' (sub var))
-                          _ -> return (\sub -> declareInit t' (sub var))
-                overArray var init
-declareInit _ _ = Nothing
+                                                         fromJust $ declareInit m t' (sub var))
+                          _ -> return (\sub -> declareInit m t' (sub var))
+                overArray m var init
+declareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
-declareFree :: A.Type -> A.Variable -> Maybe (CGen ())
-declareFree _ _ = Nothing
+declareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+declareFree _ _ _ = Nothing
 
 {-
                   Original        Abbrev
@@ -933,7 +931,7 @@ introduceSpec (A.Specification m n (A.Declaration _ t))
          case t of
            A.Array ds _ -> declareArraySizes ds (genName n)
            _ -> return ()
-         case declareInit t (A.Variable m n) of
+         case declareInit m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
 introduceSpec (A.Specification _ n (A.Is _ am t v))
@@ -1027,9 +1025,9 @@ introduceSpec n = missing $ "introduceSpec " ++ show n
 removeSpec :: A.Specification -> CGen ()
 removeSpec (A.Specification m n (A.Declaration _ t))
     = case t of
-        A.Array _ t' -> overArray var (\sub -> declareFree t' (sub var))
+        A.Array _ t' -> overArray m var (\sub -> declareFree m t' (sub var))
         _ ->
-          do case declareFree t var of
+          do case declareFree m t var of
                Just p -> p
                Nothing -> return ()
   where
@@ -1091,7 +1089,7 @@ genFormal (A.Formal am t n)
 --{{{  processes
 genProcess :: A.Process -> CGen ()
 genProcess p = case p of
-  A.Assign m vs es -> genAssign vs es
+  A.Assign m vs es -> genAssign m vs es
   A.Input m c im -> genInput c im
   A.Output m c ois -> genOutput c ois
   A.OutputCase m c t ois -> genOutputCase c t ois
@@ -1110,17 +1108,17 @@ genProcess p = case p of
   A.IntrinsicProcCall m s as -> genIntrinsicProc m s as
 
 --{{{  assignment
-genAssign :: [A.Variable] -> A.ExpressionList -> CGen ()
-genAssign [v] el
+genAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
+genAssign m [v] el
     = case el of
-        A.FunctionCallList m n es -> missing "function call"
-        A.ExpressionList m [e] ->
+        A.FunctionCallList _ _ _ -> missing "function call"
+        A.ExpressionList _ [e] ->
           do t <- typeOfVariable v
              doAssign t v e
   where
     doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
     doAssign t@(A.Array _ subT) toV (A.ExprVariable m fromV)
-        = overArray fromV (\sub -> Just $ doAssign subT (sub toV) (A.ExprVariable m (sub fromV)))
+        = overArray m fromV (\sub -> Just $ doAssign subT (sub toV) (A.ExprVariable m (sub fromV)))
     doAssign t v e
         = case scalarType t of
             Just _ ->
