@@ -210,6 +210,7 @@ underlyingType (A.UserDataType n)
           case st of
             A.DataType _ t -> underlyingType t
             _ -> die $ "not a type name " ++ show n
+underlyingType (A.Array ds t) = liftM (A.Array ds) (underlyingType t)
 underlyingType t = return t
 
 -- | Add an array dimension to a type; if it's already an array it'll just add
