@@ -5,7 +5,10 @@
 module PrettyShow (pshow) where
 
 import Data.Generics
+import qualified Data.Map as Map
 import Text.PrettyPrint.HughesPJ
+
+import qualified AST as A
 import Metadata
 
 -- This is ugly -- but it looks like you can't easily define a generic function
@@ -40,8 +43,16 @@ doString s = text $ show s
 doMeta :: Meta -> Doc
 doMeta m = text $ show m
 
+doMap :: (Data a, Data b) => Map.Map a b -> Doc
+doMap map = braces $ sep $ punctuate (text ",") [doAny k <+> text ":" <+> doAny v
+                                                 | (k, v) <- Map.toAscList map]
+
 doAny :: Data a => a -> Doc
 doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta
+          `extQ` (doMap :: Map.Map String String -> Doc)
+          `extQ` (doMap :: Map.Map String A.NameDef -> Doc)
+          `extQ` (doMap :: Map.Map String [A.Type] -> Doc)
+          `extQ` (doMap :: Map.Map String [A.Actual] -> Doc)
 
 -- | Convert an arbitrary data structure to a string in a reasonably pretty way.
 -- This is currently rather slow.
