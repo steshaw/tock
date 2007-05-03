@@ -776,7 +776,7 @@ table'
                    return t
                  <|> getTypeContext defT
            checkValidLiteralType defT t
-           return $ A.Literal m t s
+           return $ A.Literal m (applyDimensions defT t) s
     <|> do m <- md
            pushSubscriptTypeContext
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
@@ -793,8 +793,7 @@ table'
                    return t
                  <|> getTypeContext defT
            checkValidLiteralType defT t
-           let t' = applyDimensions defT t
-           return $ A.Literal m t' array
+           return $ A.Literal m (applyDimensions defT t) array
     <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
 
