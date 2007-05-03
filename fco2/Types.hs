@@ -104,6 +104,20 @@ subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
 subscriptType (A.Subscript m sub) t = plainSubscriptType m sub t
 subscriptType _ t = die $ "unsubscriptable type: " ++ show t
 
+-- | The inverse of 'subscriptType': given a type that we know is the result of
+-- a subscript, return what the type being subscripted is.
+unsubscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
+unsubscriptType (A.SubscriptFromFor _ _ _) t
+    = return t
+unsubscriptType (A.SubscriptFrom _ _) t
+    = return t
+unsubscriptType (A.SubscriptFor _ _) t
+    = return t
+unsubscriptType (A.SubscriptField _ _) t
+    = die $ "unsubscript of record type (but we can't tell which one)"
+unsubscriptType (A.Subscript _ sub) t
+    = return $ makeArrayType A.UnknownDimension t
+
 -- | Just remove the first dimension from an array type -- like doing
 -- subscriptType with constant 0 as a subscript, but without the checking.
 -- This is used for the couple of cases where we know it's safe and don't want

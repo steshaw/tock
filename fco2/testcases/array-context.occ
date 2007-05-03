@@ -1,0 +1,16 @@
+-- Check that the type context is manipulated correctly when dealing with a
+-- subscript of an array literal.
+
+PROC Q ()
+  SEQ
+    PROC P (VAL INT v)
+      ASSERT (v = 3)
+    :
+    P ([1, 2, 3, 4][2])
+
+    DATA TYPE FOO IS INT:
+    PROC P (VAL []FOO foos)
+      SKIP
+    :
+    P ([1, 2, 3, 4])
+:

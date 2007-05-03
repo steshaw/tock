@@ -487,16 +487,6 @@ inTypeContext ctx body
 -- inside some bit of an expression that means we can't tell what the type is).
 noTypeContext :: OccParser a -> OccParser a
 noTypeContext = inTypeContext Nothing
-
--- | Push a type context that's a simple subscript of the existing one.
-pushSubscriptTypeContext :: (PSM m, Die m) => m ()
-pushSubscriptTypeContext
-    =  do ps <- get
-          case psTypeContext ps of
-            (Just t@(A.Array _ _)):_ ->
-              do subT <- trivialSubscriptType t
-                 pushTypeContext $ Just subT
-            _ -> pushTypeContext Nothing
 --}}}
 
 --{{{ name scoping
@@ -687,8 +677,9 @@ isValidLiteralType defT' realT'
 checkValidLiteralType :: A.Type -> A.Type -> OccParser ()
 checkValidLiteralType defT t
     =  do isValid <- isValidLiteralType defT t
+          ps <- get
           when (not isValid) $
-            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
+            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")" ++ " ctx = " ++ show (psTypeContext ps)
 
 -- | Apply dimensions from one type to another as far as possible.
 -- This should only be used when you know the two types are compatible first
@@ -761,42 +752,52 @@ byte
           return c
     <?> "byte literal"
 
--- i.e. array literal
+-- | Parse a table -- an array literal which might be subscripted or sliced.
+-- (The implication of this is that the type of the expression this parses
+-- isn't necessarily an array type -- it might be something like
+-- @[1, 2, 3][1]@.)
 table :: OccParser A.Expression
 table
-    = maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
+    =   do e <- maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
+           defT <- typeOfExpression e
+           t <- getTypeContext defT
+           checkValidLiteralType defT t
+           fixTableType e (applyDimensions defT t)
+  where
+    -- | Apply the actual type that we've figured out to the expression, handling
+    -- subscripts.
+    fixTableType :: A.Expression -> A.Type -> OccParser A.Expression
+    fixTableType (A.Literal m _ lr) t = return $ A.Literal m t lr
+    fixTableType (A.SubscriptedExpr m sub e) t
+        =  do innerDefT <- typeOfExpression e
+              innerT <- unsubscriptType sub t
+              liftM (A.SubscriptedExpr m sub) $ fixTableType e (applyDimensions innerDefT innerT)
 
 table' :: OccParser A.Expression
 table'
     =   do m <- md
-           (s, dim) <- stringLiteral
-           let defT = A.Array [dim] A.Byte
+           (lr, defT) <- tableElems
            t <- do sLeftR
                    t <- dataType
                    sRightR
-                   return t
-                 <|> getTypeContext defT
-           checkValidLiteralType defT t
-           return $ A.Literal m (applyDimensions defT t) s
-    <|> do m <- md
-           pushSubscriptTypeContext
-           es <- tryXVX sLeft (sepBy1 expression sComma) sRight
-           popTypeContext
-
-           ets <- mapM typeOfExpression es
-           defT <- listType m ets
-
-           array <- liftM (A.ArrayLiteral m) $ mapM collapseArrayElem es
-
-           t <- do sLeftR
-                   t <- dataType
-                   sRightR
-                   return t
-                 <|> getTypeContext defT
-           checkValidLiteralType defT t
-           return $ A.Literal m (applyDimensions defT t) array
+                   checkValidLiteralType defT t
+                   return (applyDimensions defT t)
+                 <|> return defT
+           return $ A.Literal m t lr
     <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
+
+tableElems :: OccParser (A.LiteralRepr, A.Type)
+tableElems
+    =   do (lr, dim) <- stringLiteral
+           return (lr, A.Array [dim] A.Byte)
+    <|> do m <- md
+           es <- tryXVX sLeft (noTypeContext $ sepBy1 expression sComma) sRight
+           ets <- mapM typeOfExpression es
+           defT <- listType m ets
+           lr <- liftM (A.ArrayLiteral m) $ mapM collapseArrayElem es
+           return (lr, defT)
+    <?> "table elements"
 
 -- | Collapse nested array literals.
 collapseArrayElem :: A.Expression -> OccParser A.ArrayElem
