@@ -1,0 +1,27 @@
+-- Test tables of user datatypes, and user datatypes that are arrays.
+
+PROC P ()
+  DATA TYPE CHAR IS BYTE:
+  DATA TYPE CHARS IS [5]BYTE:
+  CHAR ch:
+  VAL CHARS s2 IS "hello" (CHARS):
+  VAL CHARS s IS "hello":
+
+  DATA TYPE ONE IS INT:
+  DATA TYPE FOUR IS [4]INT:
+  VAL ONE o IS 42:
+  VAL FOUR g IS [1, 2, 3, 4] (FOUR):
+  VAL FOUR f IS [1, 2, 3, 4]:
+
+  VAL []INT is IS [1, 2, 3, 4]:
+  VAL []ONE os IS [1, 2, 3, 4]:
+  VAL []ONE os2 IS [1 (ONE), 2, 3, 4]:
+  -- I don't see why this shouldn't work, but occ21 doesn't like it.
+  --VAL []CHAR cs IS "hello":
+
+  SEQ
+    ASSERT (o = 42)
+    ASSERT (f[2] = 3)
+    ASSERT (g[2] = 3)
+    ASSERT (os[1] = 2)
+:

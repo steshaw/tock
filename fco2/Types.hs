@@ -202,6 +202,16 @@ abbrevModeOfSpec s
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original
 
+-- | Resolve a datatype into its underlying type -- i.e. if it's a named data
+-- type, then return the underlying real type.
+underlyingType :: (PSM m, Die m) => A.Type -> m A.Type
+underlyingType (A.UserDataType n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.DataType _ t -> underlyingType t
+            _ -> die $ "not a type name " ++ show n
+underlyingType t = return t
+
 -- | Add an array dimension to a type; if it's already an array it'll just add
 -- a new dimension to the existing array.
 makeArrayType :: A.Dimension -> A.Type -> A.Type

@@ -17,11 +17,13 @@ import Pass
 import PrettyShow
 import SimplifyExprs
 import SimplifyProcs
+import SimplifyTypes
 import Unnest
 
 passes :: [(String, Pass)]
 passes =
-  [ ("Simplify expressions", simplifyExprs)
+  [ ("Simplify types", simplifyTypes)
+  , ("Simplify expressions", simplifyExprs)
   , ("Simplify processes", simplifyProcs)
   , ("Flatten nested declarations", unnest)
   ]

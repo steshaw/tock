@@ -1,0 +1,38 @@
+-- Test basic stuff with named datatypes.
+
+DATA TYPE NUM IS INT:
+PROC P ()
+  DATA TYPE CHAR IS BYTE:
+
+  NUM n:
+  CHAR c:
+
+  [10]NUM ns:
+  [10]CHAR cs:
+
+  SEQ
+    n := 42
+    c := 42
+
+    n := 42 (NUM)
+    c := 42 (CHAR)
+
+    n := NUM (42 (INT))
+    c := CHAR (42 (BYTE))
+
+    n := NUM c
+    c := CHAR n
+
+    SEQ i = 0 FOR 10
+      SEQ
+        ns[i] := n
+        cs[i] := c
+        n := ns[i]
+        c := cs[i]
+
+    n := ns[2] + ns[4]
+    c := cs[2] + cs[4]
+
+    ASSERT (n = 84)
+    ASSERT (c = 84)
+:

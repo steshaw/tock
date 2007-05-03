@@ -828,7 +828,11 @@ abbrevExpression am t@(A.Array _ _) e
 
     genTypeSize :: A.Type -> (A.Name -> CGen ())
     genTypeSize (A.Array ds _)
-        = genArraySize False $ sequence_ $ intersperse genComma [tell [show n] | A.Dimension n <- ds]
+        = genArraySize False $ sequence_ $ intersperse genComma dims
+      where dims = [case d of
+                      A.Dimension n -> tell [show n]
+                      _ -> die "unknown dimension in literal array type"
+                    | d <- ds]
 abbrevExpression am _ e
     = (genExpression e, noSize)
 --}}}
@@ -962,7 +966,7 @@ introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
           sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
           declareArraySizes [A.Dimension $ length cs] (genName n)
---introduceSpec (A.Specification m n (A.DataType m t))
+introduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
 introduceSpec (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct {\n"]
           sequence_ [case t of

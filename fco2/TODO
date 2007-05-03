@@ -33,9 +33,6 @@ names in it replaced appropriately.
 
 ## Passes
 
-There should be a mkGeneric which produces a version of doGeneric that prunes
-out things we don't need to recurse into -- like Strings.
-
 Come up with an approach to combining simple passes to avoid multiple tree
 walks (for example, giving passes a "next thing to try" parameter).
 
@@ -47,9 +44,6 @@ Output item expressions should be pulled up to variables.
 We should generally try to reduce the number of unnecessary pullups we do:
 - plain subscripts that result in a non-array shouldn't pull up (e.g. x[i][j])
 - expressions that are already a variable should just be turned into the variable
-
-Before code generation, have a pass that resolves all the DATA TYPE .. IS
-directives to their real types.
 
 Pass to turn complicated conversions into simpler ones (currently done in
 GenerateC).

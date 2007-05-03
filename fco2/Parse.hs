@@ -445,12 +445,26 @@ listType m l = listType' m (length l) l
         = if t1 == t2 then listType' m len rest
                       else fail $ "multiple types in list: " ++ show t1 ++ " and " ++ show t2
 
+-- | Check that the second second of dimensions can be used in a context where
+-- the first is expected.
+areValidDimensions :: [A.Dimension] -> [A.Dimension] -> Bool
+areValidDimensions [] [] = True
+areValidDimensions (A.UnknownDimension:ds1) (A.UnknownDimension:ds2)
+    = areValidDimensions ds1 ds2
+areValidDimensions (A.UnknownDimension:ds1) (A.Dimension _:ds2)
+    = areValidDimensions ds1 ds2
+areValidDimensions (A.Dimension n1:ds1) (A.Dimension n2:ds2)
+    =  if n1 /= n2 then False else areValidDimensions ds1 ds2
+areValidDimensions _ _ = False
+
 -- | Check that a type we've inferred matches the type we expected.
 matchType :: A.Type -> A.Type -> OccParser ()
 matchType et rt
     = case (et, rt) of
         ((A.Array ds t), (A.Array ds' t')) ->
-          if length ds == length ds' then return () else bad
+          if areValidDimensions ds ds'
+            then matchType t t'
+            else bad
         _ -> if rt == et then return () else bad
   where
     bad = fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
@@ -653,12 +667,42 @@ portType
     <?> "port type"
 --}}}
 --{{{ literals
-isValidLiteralType :: A.Type -> A.Type -> Bool
-isValidLiteralType defT t
-    = case defT of
-        A.Real32 -> isRealType t
-        A.Int -> isIntegerType t
-        A.Byte -> isIntegerType t
+--{{{ type utilities for literals
+-- | Can a literal of type defT be used for a value type t?
+isValidLiteralType :: A.Type -> A.Type -> OccParser Bool
+isValidLiteralType defT' realT'
+    =  do realT <- underlyingType realT'
+          defT <- underlyingType defT'
+          case (defT, realT) of
+            (A.Real32, _) -> return $ isRealType realT
+            (A.Int, _) -> return $ isIntegerType realT
+            (A.Byte, _) -> return $ isIntegerType realT
+            (A.Array ds1 t1, A.Array ds2 t2) ->
+              if areValidDimensions ds2 ds1
+                then isValidLiteralType t1 t2
+                else return False
+            (a, b) -> return $ a == b
+
+checkValidLiteralType :: A.Type -> A.Type -> OccParser ()
+checkValidLiteralType defT t
+    =  do isValid <- isValidLiteralType defT t
+          when (not isValid) $
+            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
+
+-- | Apply dimensions from one type to another as far as possible.
+-- This should only be used when you know the two types are compatible first
+-- (i.e. they've passed isValidLiteralType).
+applyDimensions :: A.Type -> A.Type -> A.Type
+applyDimensions (A.Array ods _) (A.Array tds t) = A.Array (dims ods tds) t
+  where
+    dims :: [A.Dimension] -> [A.Dimension] -> [A.Dimension]
+    dims (d@(A.Dimension _):ods) (A.UnknownDimension:tds)
+        = d : dims ods tds
+    dims (_:ods) (d:tds)
+        = d : dims ods tds
+    dims _ ds = ds
+applyDimensions _ t = t
+--}}}
 
 literal :: OccParser A.Expression
 literal
@@ -666,8 +710,7 @@ literal
           (defT, lr) <- untypedLiteral
           t <- do { try sLeftR; t <- dataType; sRightR; return t }
                <|> (getTypeContext defT)
-          when (not $ isValidLiteralType defT t) $
-            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
+          checkValidLiteralType defT t
           return $ A.Literal m t lr
     <?> "literal"
 
@@ -727,16 +770,31 @@ table'
     =   do m <- md
            (s, dim) <- stringLiteral
            let defT = A.Array [dim] A.Byte
-           do { sLeftR; t <- dataType; sRightR; matchType defT t; return $ A.Literal m t s }
-             <|> (return $ A.Literal m defT s)
+           t <- do sLeftR
+                   t <- dataType
+                   sRightR
+                   return t
+                 <|> getTypeContext defT
+           checkValidLiteralType defT t
+           return $ A.Literal m t s
     <|> do m <- md
            pushSubscriptTypeContext
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
            popTypeContext
+
            ets <- mapM typeOfExpression es
-           t <- listType m ets
-           aes <- mapM collapseArrayElem es
-           return $ A.Literal m t (A.ArrayLiteral m aes)
+           defT <- listType m ets
+
+           array <- liftM (A.ArrayLiteral m) $ mapM collapseArrayElem es
+
+           t <- do sLeftR
+                   t <- dataType
+                   sRightR
+                   return t
+                 <|> getTypeContext defT
+           checkValidLiteralType defT t
+           let t' = applyDimensions defT t
+           return $ A.Literal m t' array
     <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
 
