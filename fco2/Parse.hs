@@ -680,7 +680,7 @@ checkValidLiteralType defT t
     =  do isValid <- isValidLiteralType defT t
           ps <- get
           when (not isValid) $
-            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")" ++ " ctx = " ++ show (psTypeContext ps)
+            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
 
 -- | Apply dimensions from one type to another as far as possible.
 -- This should only be used when you know the two types are compatible first
@@ -695,23 +695,44 @@ applyDimensions (A.Array ods _) (A.Array tds t) = A.Array (dims ods tds) t
         = d : dims ods tds
     dims _ ds = ds
 applyDimensions _ t = t
+
+-- | Given a "raw" literal and the type that it should be, either produce a
+-- literal of that type, or fail with an appropriate error if it's not a valid
+-- value of that type.
+makeLiteral :: A.Expression -> A.Type -> OccParser A.Expression
+makeLiteral (A.Literal m t lr) wantT
+    =  do typesOK <- isValidLiteralType t wantT
+          when (not typesOK) $
+            fail $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
+          return $ A.Literal m (applyDimensions t wantT) lr
+makeLiteral (A.SubscriptedExpr m sub e) wantT
+    =  do inWantT <- unsubscriptType sub wantT
+          e' <- makeLiteral e inWantT
+          return $ A.SubscriptedExpr m sub e'
 --}}}
+
+typeDecorator :: A.Type -> OccParser A.Type
+typeDecorator defType
+    =   do sLeftR
+           t <- dataType
+           sRightR
+           return t
+    <|> return defType
+    <?> "literal type decorator"
 
 literal :: OccParser A.Expression
 literal
     =  do m <- md
-          (defT, lr) <- untypedLiteral
-          t <- do { try sLeftR; t <- dataType; sRightR; return t }
-               <|> (getTypeContext defT)
-          checkValidLiteralType defT t
-          return $ A.Literal m t lr
+          (lr, t) <- untypedLiteral
+          wantT <- getTypeContext t >>= typeDecorator
+          makeLiteral (A.Literal m t lr) wantT
     <?> "literal"
 
-untypedLiteral :: OccParser (A.Type, A.LiteralRepr)
+untypedLiteral :: OccParser (A.LiteralRepr, A.Type)
 untypedLiteral
-    =   do { r <- real; return (A.Real32, r) }
-    <|> do { r <- integer; return (A.Int, r) }
-    <|> do { r <- byte; return (A.Byte, r) }
+    =   do { r <- real; return (r, A.Real32) }
+    <|> do { r <- integer; return (r, A.Int) }
+    <|> do { r <- byte; return (r, A.Byte) }
 
 real :: OccParser A.LiteralRepr
 real
@@ -760,31 +781,16 @@ byte
 table :: OccParser A.Expression
 table
     =   do e <- maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
-           defT <- typeOfExpression e
-           t <- getTypeContext defT
-           checkValidLiteralType defT t
-           fixTableType e (applyDimensions defT t)
-  where
-    -- | Apply the actual type that we've figured out to the expression, handling
-    -- subscripts.
-    fixTableType :: A.Expression -> A.Type -> OccParser A.Expression
-    fixTableType (A.Literal m _ lr) t = return $ A.Literal m t lr
-    fixTableType (A.SubscriptedExpr m sub e) t
-        =  do innerDefT <- typeOfExpression e
-              innerT <- unsubscriptType sub t
-              liftM (A.SubscriptedExpr m sub) $ fixTableType e (applyDimensions innerDefT innerT)
+           rawT <- typeOfExpression e
+           wantT <- getTypeContext rawT
+           makeLiteral e wantT
 
 table' :: OccParser A.Expression
 table'
     =   do m <- md
-           (lr, defT) <- tableElems
-           t <- do sLeftR
-                   t <- dataType
-                   sRightR
-                   checkValidLiteralType defT t
-                   return (applyDimensions defT t)
-                 <|> return defT
-           return $ A.Literal m t lr
+           (lr, t) <- tableElems
+           wantT <- typeDecorator t
+           makeLiteral (A.Literal m t lr) wantT
     <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
 
