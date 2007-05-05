@@ -1,0 +1,33 @@
+-- Need to test that list literals inside record literals are not collapsed.
+
+DATA TYPE ONE
+  RECORD
+    INT i:
+:
+DATA TYPE DIFF
+  RECORD
+    INT i:
+    BYTE b:
+    REAL32 r:
+:
+DATA TYPE SAME
+  RECORD
+    INT x:
+    INT y:
+    INT z:
+:
+PROC P ()
+  VAL INT x IS 42:
+  VAL ONE one IS [42]:
+  VAL DIFF diff IS [42, '**', 3.141]:
+  VAL SAME same IS [42, 43, 44]:
+  SEQ
+    ASSERT (one[i] = 42)
+    ASSERT (diff[i] = 42)
+    ASSERT (diff[b] = 42)
+    ASSERT (diff[r] > 3.1)
+    ASSERT (diff[r] < 3.2)
+    ASSERT (same[x] = 42)
+    ASSERT (same[y] = 43)
+    ASSERT (same[z] = 44)
+:

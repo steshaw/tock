@@ -136,13 +136,13 @@ popTypeContext :: PSM m => m ()
 popTypeContext
     = modify (\ps -> ps { psTypeContext = tail $ psTypeContext ps })
 
--- | Get the current type context (or the given default value if there isn't one).
-getTypeContext :: PSM m => A.Type -> m A.Type
-getTypeContext def
+-- | Get the current type context, if there is one.
+getTypeContext :: PSM m => m (Maybe A.Type)
+getTypeContext
     =  do ps <- get
           case psTypeContext ps of
-            (Just c):_ -> return c
-            _ -> return def
+            (Just c):_ -> return $ Just c
+            _ -> return Nothing
 --}}}
 
 --{{{ nonces

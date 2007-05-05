@@ -437,15 +437,19 @@ intersperseP (f:fs) sep
           as <- intersperseP fs sep
           return $ a : as
 
--- | Check that all items in a list have the same type.
-listType :: Meta -> [A.Type] -> OccParser A.Type
-listType m l = listType' m (length l) l
+-- | Find the type of a table literal given the types of its components.
+-- This'll always return an Array; the inner type will either be the type of
+-- the elements if they're all the same (in which case it's either an array
+-- literal, or a record where all the fields are the same type), or Any if
+-- they're not (i.e. if it's a record literal or an empty array).
+tableType :: Meta -> [A.Type] -> OccParser A.Type
+tableType m l = tableType' m (length l) l
   where
-    listType' m len [] = fail "expected non-empty list"
-    listType' m len [t] = return $ makeArrayType (A.Dimension len) t
-    listType' m len (t1 : rest@(t2 : _))
-        = if t1 == t2 then listType' m len rest
-                      else fail $ "multiple types in list: " ++ show t1 ++ " and " ++ show t2
+    tableType' m len [t] = return $ makeArrayType (A.Dimension len) t
+    tableType' m len (t1 : rest@(t2 : _))
+        = if t1 == t2 then tableType' m len rest
+                      else return $ makeArrayType (A.Dimension len) A.Any
+    tableType' m len [] = return $ makeArrayType (A.Dimension 0) A.Any
 
 -- | Check that the second second of dimensions can be used in a context where
 -- the first is expected.
@@ -660,27 +664,25 @@ portType
 --}}}
 --{{{ literals
 --{{{ type utilities for literals
--- | Can a literal of type defT be used for a value type t?
-isValidLiteralType :: A.Type -> A.Type -> OccParser Bool
-isValidLiteralType defT' realT'
-    =  do realT <- underlyingType realT'
-          defT <- underlyingType defT'
-          case (defT, realT) of
-            (A.Real32, _) -> return $ isRealType realT
-            (A.Int, _) -> return $ isIntegerType realT
-            (A.Byte, _) -> return $ isIntegerType realT
+-- | Can a literal of type rawT be used as a value of type wantT?
+isValidLiteralType :: Meta -> A.Type -> A.Type -> OccParser Bool
+isValidLiteralType m rawT wantT
+    =  do case (rawT, wantT) of
+            -- We don't yet know what type we want -- so assume it's OK for now.
+            (_, A.Any) -> return True
+            (A.Real32, _) -> return $ isRealType wantT
+            (A.Int, _) -> return $ isIntegerType wantT
+            (A.Byte, _) -> return $ isIntegerType wantT
+            (A.Array [A.Dimension nf] _, A.Record _) ->
+              -- We can't be sure without looking at the literal itself,
+              -- so we need to do that below.
+              do fs <- recordFields m wantT
+                 return $ nf == length fs
             (A.Array ds1 t1, A.Array ds2 t2) ->
               if areValidDimensions ds2 ds1
-                then isValidLiteralType t1 t2
+                then isValidLiteralType m t1 t2
                 else return False
             (a, b) -> return $ a == b
-
-checkValidLiteralType :: A.Type -> A.Type -> OccParser ()
-checkValidLiteralType defT t
-    =  do isValid <- isValidLiteralType defT t
-          ps <- get
-          when (not isValid) $
-            fail $ "type given/inferred for literal (" ++ show t ++ ") is not valid for this sort of literal (" ++ show defT ++ ")"
 
 -- | Apply dimensions from one type to another as far as possible.
 -- This should only be used when you know the two types are compatible first
@@ -696,36 +698,82 @@ applyDimensions (A.Array ods _) (A.Array tds t) = A.Array (dims ods tds) t
     dims _ ds = ds
 applyDimensions _ t = t
 
--- | Given a "raw" literal and the type that it should be, either produce a
+-- | Convert a raw array element literal into its real form.
+makeArrayElem :: A.Type -> A.ArrayElem -> OccParser A.ArrayElem
+makeArrayElem t@(A.Array _ _) (A.ArrayElemArray aes)
+    =  do elemT <- trivialSubscriptType t
+          liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
+makeArrayElem _ (A.ArrayElemArray _)
+    = fail $ "unexpected nested array literal"
+-- A nested array literal that's still of array type (i.e. it's not a
+-- record inside the array) -- collapse it.
+makeArrayElem t@(A.Array _ _) (A.ArrayElemExpr (A.Literal _ _ (A.ArrayLiteral _ aes)))
+    =  do elemT <- trivialSubscriptType t
+          liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
+makeArrayElem t (A.ArrayElemExpr e)
+    = liftM A.ArrayElemExpr $ makeLiteral e t
+
+-- | Given a raw literal and the type that it should be, either produce a
 -- literal of that type, or fail with an appropriate error if it's not a valid
 -- value of that type.
 makeLiteral :: A.Expression -> A.Type -> OccParser A.Expression
+-- A literal.
 makeLiteral (A.Literal m t lr) wantT
-    =  do typesOK <- isValidLiteralType t wantT
+    =  do underT <- underlyingType wantT
+
+          typesOK <- isValidLiteralType m t underT
           when (not typesOK) $
-            fail $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
-          return $ A.Literal m (applyDimensions t wantT) lr
+            dieP m $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
+
+          case trace ("** makeLiteral " ++ show wantT ++ ", " ++ show t) (underT, lr) of
+            -- An array literal.
+            (A.Array _ _, A.ArrayLiteral ml aes) ->
+              do elemT <- trivialSubscriptType underT
+                 aes' <- mapM (makeArrayElem elemT) aes
+                 return $ A.Literal m (applyDimensions t wantT) (A.ArrayLiteral ml aes')
+            -- A record literal -- which we need to convert from the raw
+            -- representation.
+            (A.Record _, A.ArrayLiteral ml aes)  ->
+              do fs <- recordFields m underT
+                 es <- sequence [makeLiteral e t
+                                 | ((_, t), A.ArrayElemExpr e) <- zip fs aes]
+                 return $ A.Literal m wantT (A.RecordLiteral ml es)
+            -- Some other kind of literal (one of the trivial types).
+            _ -> return $ A.Literal m wantT lr
+-- A subscript; figure out what the type of the thing being subscripted must be
+-- and recurse.
 makeLiteral (A.SubscriptedExpr m sub e) wantT
     =  do inWantT <- unsubscriptType sub wantT
           e' <- makeLiteral e inWantT
           return $ A.SubscriptedExpr m sub e'
+-- Something that's not a literal (which we've found inside a table) -- just
+-- check it's the right type.
+makeLiteral e wantT
+    =  do t <- typeOfExpression e
+          matchType wantT t
+          return e
 --}}}
 
-typeDecorator :: A.Type -> OccParser A.Type
-typeDecorator defType
+typeDecorator :: OccParser (Maybe A.Type)
+typeDecorator
     =   do sLeftR
            t <- dataType
            sRightR
-           return t
-    <|> return defType
+           return $ Just t
+    <|> return Nothing
     <?> "literal type decorator"
 
 literal :: OccParser A.Expression
 literal
     =  do m <- md
           (lr, t) <- untypedLiteral
-          wantT <- getTypeContext t >>= typeDecorator
-          makeLiteral (A.Literal m t lr) wantT
+          dec <- typeDecorator
+          ctx <- getTypeContext
+          let lit = A.Literal m t lr
+          case (dec, ctx) of
+            (Just wantT, _) -> makeLiteral lit wantT
+            (_, Just wantT) -> makeLiteral lit wantT
+            _ -> return lit
     <?> "literal"
 
 untypedLiteral :: OccParser (A.LiteralRepr, A.Type)
@@ -778,19 +826,26 @@ byte
 -- (The implication of this is that the type of the expression this parses
 -- isn't necessarily an array type -- it might be something like
 -- @[1, 2, 3][1]@.)
+-- The expression this returns cannot be used directly; it doesn't have array
+-- literals collapsed, and record literals are array literals of type []ANY.
 table :: OccParser A.Expression
 table
     =   do e <- maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
            rawT <- typeOfExpression e
-           wantT <- getTypeContext rawT
-           makeLiteral e wantT
+           ctx <- getTypeContext
+           case ctx of
+             Just wantT -> makeLiteral e wantT
+             _ -> return e
 
 table' :: OccParser A.Expression
 table'
     =   do m <- md
            (lr, t) <- tableElems
-           wantT <- typeDecorator t
-           makeLiteral (A.Literal m t lr) wantT
+           dec <- typeDecorator
+           let lit = A.Literal m t lr
+           case dec of
+             Just wantT -> makeLiteral lit wantT
+             _ -> return lit
     <|> maybeSliced table A.SubscriptedExpr typeOfExpression
     <?> "table'"
 
@@ -801,18 +856,9 @@ tableElems
     <|> do m <- md
            es <- tryXVX sLeft (noTypeContext $ sepBy1 expression sComma) sRight
            ets <- mapM typeOfExpression es
-           defT <- listType m ets
-           lr <- liftM (A.ArrayLiteral m) $ mapM collapseArrayElem es
-           return (lr, defT)
+           defT <- tableType m ets
+           return (A.ArrayLiteral m (map A.ArrayElemExpr es), defT)
     <?> "table elements"
-
--- | Collapse nested array literals.
-collapseArrayElem :: A.Expression -> OccParser A.ArrayElem
-collapseArrayElem e
-    = case e of
-        A.Literal _ _ (A.ArrayLiteral _ subAEs) ->
-          return $ A.ArrayElemArray subAEs
-        _ -> return $ A.ArrayElemExpr e
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
 stringLiteral
@@ -1295,7 +1341,10 @@ chanArrayAbbrev
            sColon
            eol
            ts <- mapM typeOfVariable cs
-           t <- listType m ts
+           t <- tableType m ts
+           case t of
+             (A.Array _ (A.Chan _)) -> return ()
+             _ -> fail $ "types do not match in channel array abbreviation"
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
            (ct, s, n) <- try (do s <- channelSpecifier

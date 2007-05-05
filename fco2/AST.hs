@@ -83,6 +83,7 @@ data LiteralRepr =
   | HexLiteral Meta String
   | ByteLiteral Meta String
   | ArrayLiteral Meta [ArrayElem]
+  | RecordLiteral Meta [Expression]
   deriving (Show, Eq, Typeable, Data)
 
 -- | An item inside an array literal -- which might be an expression, or might

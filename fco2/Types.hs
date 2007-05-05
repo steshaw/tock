@@ -59,14 +59,20 @@ sliceType m base count (A.Array (d:ds) t)
         (False, False) -> return $ A.Array (A.UnknownDimension : ds) t
 sliceType m _ _ _ = dieP m "slice of non-array type"
 
--- | Get the type of a record field.
-typeOfRecordField :: (PSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
-typeOfRecordField m (A.Record rec) field
+-- | Get the fields of a record type.
+recordFields :: (PSM m, Die m) => Meta -> A.Type -> m [(A.Name, A.Type)]
+recordFields m (A.Record rec)
     =  do st <- specTypeOfName rec
           case st of
-            A.RecordType _ _ fs -> checkJust "unknown record field" $ lookup field fs
+            A.RecordType _ _ fs -> return fs
             _ -> dieP m "not record type"
-typeOfRecordField m _ _ = dieP m "not record type"
+recordFields m _ = dieP m "not record type"
+
+-- | Get the type of a record field.
+typeOfRecordField :: (PSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
+typeOfRecordField m t field
+    =  do fs <- recordFields m t
+          checkJust "unknown record field" $ lookup field fs
 
 -- | Apply a plain subscript to a type.
 plainSubscriptType :: (PSM m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type

@@ -306,6 +306,10 @@ genLiteralRepr (A.ArrayLiteral m aes)
     =  do tell ["{"]
           genArrayLiteralElems aes
           tell ["}"]
+genLiteralRepr (A.RecordLiteral m es)
+    =  do tell ["{"]
+          sequence_ $ intersperse genComma $ map genExpression es
+          tell ["}"]
 
 -- | Generate a decimal literal -- removing leading zeroes to avoid producing
 -- an octal literal!
@@ -951,12 +955,28 @@ introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  genType ts
                  tell [" "]
                  genName n
-                 tell ["[]"]
-            _ -> genDecl am t n
-          tell [" = "]
-          rhs
-          tell [";\n"]
-          rhsSizes n
+                 tell ["[] = "]
+                 rhs
+                 tell [";\n"]
+                 rhsSizes n
+            (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
+              -- Record literals are even trickier, because there's no way of
+              -- directly writing a struct literal in C that you can use -> on.
+              do tmp <- makeNonce "record_literal"
+                 tell ["const "]
+                 genType t
+                 tell [" ", tmp, " = "]
+                 rhs
+                 tell [";\n"]
+                 genDecl am t n
+                 tell [" = &", tmp, ";\n"]
+                 rhsSizes n
+            _ ->
+              do genDecl am t n
+                 tell [" = "]
+                 rhs
+                 tell [";\n"]
+                 rhsSizes n
 introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
     =  do tell ["Channel *"]
           genName n

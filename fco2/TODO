@@ -25,8 +25,6 @@ Add an option for whether to compile out overflow/bounds checks.
 
 ## Parser
 
-Record literals aren't implemented.
-
 ## Passes
 
 Come up with an approach to combining simple passes to avoid multiple tree
@@ -69,8 +67,6 @@ to be a bad idea for very large counts (since I assume it'll allocate off the
 stack). We should probably do a malloc if it's not determinable at compile
 time.
 
-Real-to-integer conversions don't work correctly.
-
 Slice checks should not be generated if the slice is known to be safe.
 
 PLACE should work.
@@ -81,6 +77,12 @@ Pullups don't work properly for this at the moment, because index changes after
 the pullup:
   c ? index; [array FROM index]
 (Tested in cgtest12.)
+
+## tock_support
+
+No overflow checking is done on most operations.
+
+Real-to-integer conversions don't work correctly.
 
 ## Long-term
 
