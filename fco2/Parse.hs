@@ -725,7 +725,7 @@ makeLiteral (A.Literal m t lr) wantT
           when (not typesOK) $
             dieP m $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
 
-          case trace ("** makeLiteral " ++ show wantT ++ ", " ++ show t) (underT, lr) of
+          case (underT, lr) of
             -- An array literal.
             (A.Array _ _, A.ArrayLiteral ml aes) ->
               do elemT <- trivialSubscriptType underT
