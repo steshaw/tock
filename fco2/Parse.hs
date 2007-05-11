@@ -673,7 +673,7 @@ isValidLiteralType m rawT wantT
             (A.Real32, _) -> return $ isRealType wantT
             (A.Int, _) -> return $ isIntegerType wantT
             (A.Byte, _) -> return $ isIntegerType wantT
-            (A.Array [A.Dimension nf] _, A.Record _) ->
+            (A.Array (A.Dimension nf:_) _, A.Record _) ->
               -- We can't be sure without looking at the literal itself,
               -- so we need to do that below.
               do fs <- recordFields m wantT
