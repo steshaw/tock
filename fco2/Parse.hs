@@ -855,9 +855,12 @@ tableElems
            return (lr, A.Array [dim] A.Byte)
     <|> do m <- md
            es <- tryXVX sLeft (noTypeContext $ sepBy1 expression sComma) sRight
-           ets <- mapM typeOfExpression es
+           -- Constant fold early, so that tables have a better chance of
+           -- becoming constants.
+           (es', _, _) <- liftM unzip3 $ sequence [constantFold e | e <- es]
+           ets <- mapM typeOfExpression es'
            defT <- tableType m ets
-           return (A.ArrayLiteral m (map A.ArrayElemExpr es), defT)
+           return (A.ArrayLiteral m (map A.ArrayElemExpr es'), defT)
     <?> "table elements"
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
