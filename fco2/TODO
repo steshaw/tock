@@ -10,8 +10,6 @@ that takes several expressions.
 (Multi-subscript expressions like a[x][y] currently get pulled up into an array
 slice, which is inefficient.)
 
-The show instance for types should produce occam-looking types.
-
 ParseState should be called something more sensible, since most of it has
 nothing to do with parsing.
 

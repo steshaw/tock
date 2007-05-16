@@ -49,7 +49,30 @@ data Type =
   | Any
   | Timer
   | Port Type
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Eq, Typeable, Data)
+
+instance Show Type where
+  show Bool = "BOOL"
+  show Byte = "BYTE"
+  show Int = "INT"
+  show Int16 = "INT16"
+  show Int32 = "INT32"
+  show Int64 = "INT64"
+  show Real32 = "REAL32"
+  show Real64 = "REAL64"
+  show (Array ds t)
+      = concat [case d of
+                  Dimension n -> "[" ++ show n ++ "]"
+                  UnknownDimension -> "[]"
+                | d <- ds] ++ show t
+  show (UserDataType n) = nameName n ++ "{data type}"
+  show (Record n) = nameName n ++ "{record}"
+  show (UserProtocol n) = nameName n ++ "{protocol}"
+  show (Chan t) = "CHAN OF " ++ show t
+  show (Counted ct et) = show ct ++ "::" ++ show et
+  show Any = "ANY"
+  show Timer = "TIMER"
+  show (Port t) = "PORT OF " ++ show t
 
 data Dimension =
   Dimension Int
