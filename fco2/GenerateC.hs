@@ -60,6 +60,9 @@ missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 genComma :: CGen ()
 genComma = tell [", "]
 
+seqComma :: [CGen ()] -> CGen ()
+seqComma ps = sequence_ $ intersperse genComma ps
+
 genLeftB :: CGen ()
 genLeftB = tell ["{ "]
 
@@ -323,7 +326,7 @@ genLiteralRepr (A.ArrayLiteral m aes)
           genRightB
 genLiteralRepr (A.RecordLiteral _ es)
     =  do genLeftB
-          sequence_ $ intersperse genComma $ map genUnfoldedExpression es
+          seqComma $ map genUnfoldedExpression es
           genRightB
 
 -- | Generate an expression inside a record literal.
@@ -363,8 +366,8 @@ genUnfoldedVariable m var
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
-                 sequence_ $ intersperse genComma [genUnfoldedVariable m (A.SubscriptedVariable m (A.SubscriptField m n) var)
-                                                   | (n, t) <- fs]
+                 seqComma [genUnfoldedVariable m (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                           | (n, t) <- fs]
                  genRightB
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
@@ -374,8 +377,8 @@ genUnfoldedVariable m var
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = genUnfoldedVariable m v
     unfoldArray (A.Dimension n:ds) v
-      = sequence_ $ intersperse genComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
-                                            | i <- [0..(n - 1)]]
+      = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
+                    | i <- [0..(n - 1)]]
     unfoldArray _ _ = dieP m "trying to unfold array with unknown dimension"
 
 -- | Generate a decimal literal -- removing leading zeroes to avoid producing
@@ -388,7 +391,7 @@ genDecimal s = tell [s]
 
 genArrayLiteralElems :: [A.ArrayElem] -> CGen ()
 genArrayLiteralElems aes
-    = sequence_ $ intersperse genComma $ map genElem aes
+    = seqComma $ map genElem aes
   where
     genElem :: A.ArrayElem -> CGen ()
     genElem (A.ArrayElemArray aes) = genArrayLiteralElems aes
@@ -891,7 +894,7 @@ genRetypeSizes m am destT destN srcT srcV
                                      die "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
-                 genArraySize False (sequence_ $ intersperse genComma dims) destN
+                 genArraySize False (seqComma dims) destN
 
             -- Not array; just check the size is 1.
             _ ->
@@ -969,7 +972,7 @@ declareArraySizes ds name
 -- dimensions are fixed.
 genArraySizesLiteral :: [A.Dimension] -> CGen ()
 genArraySizesLiteral ds
-    = sequence_ $ intersperse genComma dims
+    = seqComma dims
   where
     dims :: [CGen ()]
     dims = [case d of
@@ -1083,7 +1086,7 @@ introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
     =  do tell ["Channel *"]
           genName n
           tell ["[] = {"]
-          sequence_ $ intersperse genComma (map genVariable cs)
+          seqComma (map genVariable cs)
           tell ["};\n"]
           declareArraySizes [A.Dimension $ length cs] n
 introduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
@@ -1111,8 +1114,7 @@ introduceSpec (A.Specification _ n (A.RecordType _ b fs))
 introduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
 introduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum {\n"]
-          sequence_ $ intersperse genComma [genName tag >> tell ["_"] >> genName n
-                                            | (tag, _) <- ts]
+          seqComma [genName tag >> tell ["_"] >> genName n | (tag, _) <- ts]
           -- You aren't allowed to have an empty enum.
           when (ts == []) $
             tell ["empty_protocol_"] >> genName n
