@@ -1,0 +1,4 @@
+#USE "course"
+PROC hello (CHAN OF BYTE out)
+  out.string ("Hello, world*n", 0, out)
+:
