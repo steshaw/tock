@@ -15,6 +15,10 @@ The show instance for types should produce occam-looking types.
 ParseState should be called something more sensible, since most of it has
 nothing to do with parsing.
 
+Eventually (not yet), channel formals should take a direction; this should
+either be given directly using decorators, or inferred from the code that uses
+them.
+
 ## Support code
 
 Types needs cleaning up and Haddocking.
@@ -77,12 +81,24 @@ Pullups don't work properly for this at the moment, because index changes after
 the pullup:
   c ? index; [array FROM index]
 (Tested in cgtest12.)
+The sensible fix would probably be to make input items Structured, so we can
+insert extra stuff into them.
 
 ## tock_support
 
 No overflow checking is done on most operations.
 
 Real-to-integer conversions don't work correctly.
+
+## Usage checker
+
+Not written yet, obviously...
+
+Use a separation logic idea -- at any point in the program, we have a set of
+resources. When you go parallel, you have to divide up the resources among the
+parallel branches -- e.g. splitting a channel into read and write ends, carving
+up an array, and so on. The safety check is done by making sure the resources
+are actually divided up.
 
 ## Long-term
 

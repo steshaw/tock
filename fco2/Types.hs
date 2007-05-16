@@ -139,16 +139,10 @@ typeOfVariable (A.Variable m n) = typeOfName n
 typeOfVariable (A.SubscriptedVariable m s v)
     = typeOfVariable v >>= subscriptType s
 
+-- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (PSM m, Die m) => A.Variable -> m A.AbbrevMode
 abbrevModeOfVariable (A.Variable _ n) = abbrevModeOfName n
-abbrevModeOfVariable (A.SubscriptedVariable _ sub v)
-    =  do am <- abbrevModeOfVariable v
-          return $ case (am, sub) of
-                     (A.ValAbbrev, A.Subscript _ _) -> A.ValAbbrev
-                     (_, A.Subscript _ _) -> A.Original
-                     (A.ValAbbrev, A.SubscriptField _ _) -> A.ValAbbrev
-                     (_, A.SubscriptField _ _) -> A.Original
-                     _ -> am
+abbrevModeOfVariable (A.SubscriptedVariable _ sub v) = abbrevModeOfVariable v
 
 dyadicIsBoolean :: A.DyadicOp -> Bool
 dyadicIsBoolean A.Eq = True

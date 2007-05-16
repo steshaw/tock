@@ -28,3 +28,9 @@ joinPath base new
         "." -> new
         dir -> dir ++ new
 
+-- | Given a monadic action wrapped in a Maybe, run it if there's one there;
+-- if it's Nothing, then do nothing.
+doMaybe :: Monad m => Maybe (m ()) -> m ()
+doMaybe (Just a) = a
+doMaybe Nothing = return ()
+

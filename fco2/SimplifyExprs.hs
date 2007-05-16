@@ -104,7 +104,14 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
 pullUp :: Data t => t -> PassM t
-pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `extM` doExpression `extM` doVariable `extM` doExpressionList
+pullUp = doGeneric
+          `extM` doStructured
+          `extM` doProcess
+          `extM` doSpecification
+          `extM` doLiteralRepr
+          `extM` doExpression
+          `extM` doVariable
+          `extM` doExpressionList
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric pullUp
@@ -133,8 +140,7 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
               popPullContext
               return p''
 
-    -- | *Don't* pull anything that's already an abbreviation -- but do convert
-    -- RetypesExpr into Retypes (of a variable).
+    -- | Filter what can be pulled in Specifications.
     doSpecification :: A.Specification -> PassM A.Specification
     -- Iss might be SubscriptedVars -- which is fine; the backend can deal with that.
     doSpecification (A.Specification m n (A.Is m' am t v))
@@ -144,6 +150,7 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
     doSpecification (A.Specification m n (A.IsExpr m' am t e))
         =  do e' <- doExpression' e  -- note doExpression' rather than pullUp
               return $ A.Specification m n (A.IsExpr m' am t e')
+    -- Convert RetypesExpr into Retypes of a variable.
     doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
         =  do e' <- doExpression e
               fromT <- typeOfExpression e'
@@ -151,6 +158,16 @@ pullUp = doGeneric `extM` doStructured `extM` doProcess `extM` doSpecification `
               addPulled $ A.Spec m' spec
               return $ A.Specification m n (A.Retypes m' am toT (A.Variable m' n'))
     doSpecification s = doGeneric s
+
+    -- | Filter what can be pulled in LiteralReprs.
+    doLiteralRepr :: A.LiteralRepr -> PassM A.LiteralRepr
+    -- FIXME: We could do away with ArrayElem and have a rule like the below
+    -- for nested array literals.
+    -- Don't pull up array expressions that are fields of record literals.
+    doLiteralRepr (A.RecordLiteral m es)
+        =  do es' <- mapM doExpression' es    -- note doExpression' rather than pullUp
+              return $ A.RecordLiteral m es'
+    doLiteralRepr lr = doGeneric lr
 
     -- | Pull array expressions that aren't already non-subscripted variables.
     doExpression :: A.Expression -> PassM A.Expression

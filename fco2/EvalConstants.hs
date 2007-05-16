@@ -63,6 +63,8 @@ evalLiteral (A.Literal _ _ (A.ArrayLiteral _ []))
     = throwError "empty array"
 evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
     = liftM OccArray (mapM evalLiteralArray aes)
+evalLiteral (A.Literal _ (A.Record n) (A.RecordLiteral _ es))
+    = liftM (OccRecord n) (mapM evalExpression es)
 evalLiteral l = evalSimpleLiteral l
 
 evalLiteralArray :: A.ArrayElem -> EvalM OccValue
@@ -222,6 +224,8 @@ renderLiteral m (OccArray vs)
   where
     t = makeArrayType (A.Dimension $ length vs) (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
+renderLiteral m (OccRecord n vs)
+    = (A.Record n, A.RecordLiteral m (map (snd . renderValue m) vs))
 
 renderChar :: Char -> String
 renderChar '\'' = "*'"

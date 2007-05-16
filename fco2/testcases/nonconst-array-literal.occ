@@ -1,0 +1,16 @@
+-- This tests an oddball case in occam-to-C translation: an array subscript is
+-- not constant in C99 (even if it's a constant subscript of a constant).
+-- We therefore have to avoid doing the "obvious" C translation of the code below
+-- by constant-folding the subscript out of existance -- and making sure it
+-- doesn't get pulled back out to a variable again!
+VAL []INT xs IS [1, 2, 3, 4]:
+VAL []INT ys IS [12, xs[2], 34]:
+VAL [][]INT yss IS [[xs[0], xs[1]]]:
+DATA TYPE ONE.REC
+  RECORD
+    [1]INT a:
+:
+VAL ONE.REC rec IS [[xs[2]]]:
+PROC P ()
+  SKIP
+:

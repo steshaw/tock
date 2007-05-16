@@ -19,6 +19,7 @@ import Pass
 import Errors
 import TLP
 import Types
+import Utils
 
 --{{{  monad definition
 type CGen = WriterT [String] PassM
@@ -55,11 +56,21 @@ genTopLevel p
 missing :: String -> CGen ()
 missing s = tell ["\n#error Unimplemented: ", s, "\n"]
 
+--{{{  simple punctuation
 genComma :: CGen ()
 genComma = tell [", "]
 
+genLeftB :: CGen ()
+genLeftB = tell ["{ "]
+
+genRightB :: CGen ()
+genRightB = tell [" }"]
+--}}}
+
+-- | A function that applies a subscript to a variable.
 type SubscripterFunction = A.Variable -> A.Variable
 
+-- | Map an operation over every item of an occam array.
 overArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 overArray m var func
     =  do A.Array ds _ <- typeOfVariable var
@@ -93,6 +104,7 @@ genStructured s def = def s
 
 data InputType = ITTimerRead | ITTimerAfter | ITOther
 
+-- | Given an input mode, figure out what sort of input it's actually doing.
 inputType :: A.Variable -> A.InputMode -> CGen InputType
 inputType c im
     =  do t <- typeOfVariable c
@@ -105,6 +117,8 @@ inputType c im
 --}}}
 
 --{{{  metadata
+-- | Turn a Meta into a string literal that can be passed to a function
+-- expecting a const char * argument.
 genMeta :: Meta -> CGen ()
 genMeta m = tell ["\"", show m, "\""]
 --}}}
@@ -115,6 +129,7 @@ genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 --}}}
 
 --{{{  types
+-- | If a type maps to a simple C type, return Just that; else return Nothing.
 scalarType :: A.Type -> Maybe String
 scalarType A.Bool = Just "bool"
 scalarType A.Byte = Just "uint8_t"
@@ -303,13 +318,65 @@ genLiteralRepr (A.IntLiteral m s) = genDecimal s
 genLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
 genLiteralRepr (A.ByteLiteral m s) = tell ["'"] >> genByteLiteral s >> tell ["'"]
 genLiteralRepr (A.ArrayLiteral m aes)
-    =  do tell ["{"]
+    =  do genLeftB
           genArrayLiteralElems aes
-          tell ["}"]
-genLiteralRepr (A.RecordLiteral m es)
-    =  do tell ["{"]
-          sequence_ $ intersperse genComma $ map genExpression es
-          tell ["}"]
+          genRightB
+genLiteralRepr (A.RecordLiteral _ es)
+    =  do genLeftB
+          sequence_ $ intersperse genComma $ map genUnfoldedExpression es
+          genRightB
+
+-- | Generate an expression inside a record literal.
+--
+-- This is awkward: the sort of literal that this produces when there's a
+-- variable in here cannot always be compiled at the top level of a C99 program
+-- -- because in C99, an array subscript is not a constant, even if it's a
+-- constant subscript of a constant array.  So we need to be sure that when we
+-- use this at the top level, the thing we're unfolding only contains literals.
+-- Yuck!
+genUnfoldedExpression :: A.Expression -> CGen ()
+genUnfoldedExpression (A.Literal _ t lr)
+    =  do genLiteralRepr lr
+          case t of
+            A.Array ds _ ->
+              do genComma
+                 genLeftB
+                 genArraySizesLiteral ds
+                 genRightB
+            _ -> return ()
+genUnfoldedExpression (A.ExprVariable m var) = genUnfoldedVariable m var
+genUnfoldedExpression e = genExpression e
+
+-- | Generate a variable inside a record literal.
+genUnfoldedVariable :: Meta -> A.Variable -> CGen ()
+genUnfoldedVariable m var
+    =  do t <- typeOfVariable var
+          case t of
+            A.Array ds _ ->
+              do genLeftB
+                 unfoldArray ds var
+                 genRightB
+                 genComma
+                 genLeftB
+                 genArraySizesLiteral ds
+                 genRightB
+            A.Record _ ->
+              do genLeftB
+                 fs <- recordFields m t
+                 sequence_ $ intersperse genComma [genUnfoldedVariable m (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                                                   | (n, t) <- fs]
+                 genRightB
+            -- We can defeat the usage check here because we know it's safe; *we're*
+            -- generating the subscripts.
+            -- FIXME Is that actually true for something like [a[x]]?
+            _ -> genVariable' False var
+  where
+    unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
+    unfoldArray [] v = genUnfoldedVariable m v
+    unfoldArray (A.Dimension n:ds) v
+      = sequence_ $ intersperse genComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
+                                            | i <- [0..(n - 1)]]
+    unfoldArray _ _ = dieP m "trying to unfold array with unknown dimension"
 
 -- | Generate a decimal literal -- removing leading zeroes to avoid producing
 -- an octal literal!
@@ -325,7 +392,7 @@ genArrayLiteralElems aes
   where
     genElem :: A.ArrayElem -> CGen ()
     genElem (A.ArrayElemArray aes) = genArrayLiteralElems aes
-    genElem (A.ArrayElemExpr e) = genExpression e
+    genElem (A.ArrayElemExpr e) = genUnfoldedExpression e
 
 genByteLiteral :: String -> CGen ()
 genByteLiteral s
@@ -399,9 +466,13 @@ genVariable = genVariable' True
 genVariableUnchecked :: A.Variable -> CGen ()
 genVariableUnchecked = genVariable' False
 
+-- FIXME This needs to detect when we've "gone through" a record and revert to
+-- the Original prefixing behaviour. (Can do the same for arrays?)
+-- Best way to do this is probably to make inner return a reference and a prefix,
+-- so that we can pass prefixes upwards...
 genVariable' :: Bool -> A.Variable -> CGen ()
 genVariable' checkValid v
-    =  do am <- abbrevModeOfVariable v
+    =  do am <- accessAbbrevMode v
           t <- typeOfVariable v
           let isSub = case v of
                         A.Variable _ _ -> False
@@ -420,6 +491,19 @@ genVariable' checkValid v
           inner v
           when (prefix /= "") $ tell [")"]
   where
+    -- | Find the effective abbreviation mode for the variable we're looking at.
+    -- This differs from abbrevModeOfVariable in that it will return Original
+    -- for array and record elements (because when we're generating C, we can
+    -- treat c->x as if it's just x).
+    accessAbbrevMode :: A.Variable -> CGen A.AbbrevMode
+    accessAbbrevMode (A.Variable _ n) = abbrevModeOfName n
+    accessAbbrevMode (A.SubscriptedVariable _ sub v)
+        =  do am <- accessAbbrevMode v
+              return $ case (am, sub) of
+                         (_, A.Subscript _ _) -> A.Original
+                         (_, A.SubscriptField _ _) -> A.Original
+                         _ -> am
+
     inner :: A.Variable -> CGen ()
     inner (A.Variable _ n) = genName n
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
@@ -798,9 +882,6 @@ genRetypeSizes m am destT destN srcT srcV
                         tell ["}\n"]
                    _ -> return ()
 
-                 tell ["const int "]
-                 genName destN
-                 tell ["_sizes[] = { "]
                  let dims = [case d of
                                A.UnknownDimension ->
                                  -- Unknown dimension -- insert it.
@@ -810,8 +891,7 @@ genRetypeSizes m am destT destN srcT srcV
                                      die "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
-                 sequence_ $ intersperse genComma dims
-                 tell ["};\n"]
+                 genArraySize False (sequence_ $ intersperse genComma dims) destN
 
             -- Not array; just check the size is 1.
             _ ->
@@ -824,18 +904,10 @@ abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -
 abbrevExpression am t@(A.Array _ _) e
     = case e of
         A.ExprVariable _ v -> abbrevVariable am t v
-        A.Literal _ litT r -> (genExpression e, genTypeSize litT)
+        A.Literal _ (A.Array ds _) r -> (genExpression e, declareArraySizes ds)
         _ -> bad
   where
     bad = (missing "array expression abbreviation", noSize)
-
-    genTypeSize :: A.Type -> (A.Name -> CGen ())
-    genTypeSize (A.Array ds _)
-        = genArraySize False $ sequence_ $ intersperse genComma dims
-      where dims = [case d of
-                      A.Dimension n -> tell [show n]
-                      _ -> die "unknown dimension in literal array type"
-                    | d <- ds]
 abbrevExpression am _ e
     = (genExpression e, noSize)
 --}}}
@@ -853,13 +925,7 @@ declareType :: A.Type -> CGen ()
 declareType (A.Chan _) = tell ["Channel *"]
 declareType t = genType t
 
-genDimensions :: [A.Dimension] -> CGen ()
-genDimensions ds
-    =  do tell ["["]
-          sequence $ intersperse (tell [" * "])
-                                 [case d of A.Dimension n -> tell [show n] | d <- ds]
-          tell ["]"]
-
+-- | Generate a declaration of a new variable.
 genDeclaration :: A.Type -> A.Name -> CGen ()
 genDeclaration (A.Chan _) n
     =  do tell ["Channel "]
@@ -869,21 +935,47 @@ genDeclaration (A.Array ds t) n
     =  do declareType t
           tell [" "]
           genName n
-          genDimensions ds
+          genFlatArraySize ds
           tell [";\n"]
+          declareArraySizes ds n
 genDeclaration t n
     =  do declareType t
           tell [" "]
           genName n
           tell [";\n"]
 
-declareArraySizes :: [A.Dimension] -> CGen () -> CGen ()
+-- | Generate the size of the C array that an occam array of the given
+-- dimensions maps to.
+genFlatArraySize :: [A.Dimension] -> CGen ()
+genFlatArraySize ds
+    =  do tell ["["]
+          sequence $ intersperse (tell [" * "])
+                                 [case d of A.Dimension n -> tell [show n] | d <- ds]
+          tell ["]"]
+
+-- | Generate the size of the _sizes C array for an occam array.
+genArraySizesSize :: [A.Dimension] -> CGen ()
+genArraySizesSize ds
+    =  do tell ["["]
+          tell [show $ length ds]
+          tell ["]"]
+
+-- | Declare an _sizes array for a variable.
+declareArraySizes :: [A.Dimension] -> A.Name -> CGen ()
 declareArraySizes ds name
-    =  do tell ["const int "]
-          name
-          tell ["_sizes[] = { "]
-          sequence_ $ intersperse genComma [tell [show n] | A.Dimension n <- ds]
-          tell [" };\n"]
+    = genArraySize False (genArraySizesLiteral ds) name
+
+-- | Generate a C literal to initialise an _sizes array with, where all the
+-- dimensions are fixed.
+genArraySizesLiteral :: [A.Dimension] -> CGen ()
+genArraySizesLiteral ds
+    = sequence_ $ intersperse genComma dims
+  where
+    dims :: [CGen ()]
+    dims = [case d of
+              A.Dimension n -> tell [show n]
+              _ -> die "unknown dimension in array type"
+            | d <- ds]
 
 -- | Initialise an item being declared.
 declareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
@@ -898,16 +990,29 @@ declareInit m t@(A.Array ds t') var
                                let storeV = A.Variable m store
                                tell ["Channel "]
                                genName store
-                               genDimensions ds
+                               genFlatArraySize ds
                                tell [";\n"]
-                               declareArraySizes ds (genName store)
+                               declareArraySizes ds store
                                return (\sub -> Just $ do genVariable (sub var)
                                                          tell [" = &"]
                                                          genVariable (sub storeV)
                                                          tell [";\n"]
-                                                         fromJust $ declareInit m t' (sub var))
+                                                         doMaybe $ declareInit m t' (sub var))
                           _ -> return (\sub -> declareInit m t' (sub var))
                 overArray m var init
+declareInit m rt@(A.Record _) var
+    = Just $ do fs <- recordFields m rt
+                sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                           | (n, t) <- fs]
+  where
+    initField :: A.Type -> A.Variable -> CGen ()
+    -- An array as a record field; we must initialise the sizes.
+    initField t@(A.Array ds _) v
+        =  do sequence_ [do genVariable v
+                            tell ["_sizes[", show i, "] = ", show n, ";\n"]
+                         | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
+              doMaybe $ declareInit m t v
+    initField t v = doMaybe $ declareInit m t v
 declareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
@@ -932,9 +1037,6 @@ CHAN OF INT c IS d:       Channel *c = d;
 introduceSpec :: A.Specification -> CGen ()
 introduceSpec (A.Specification m n (A.Declaration _ t))
     = do genDeclaration t n
-         case t of
-           A.Array ds _ -> declareArraySizes ds (genName n)
-           _ -> return ()
          case declareInit m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
@@ -983,16 +1085,24 @@ introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
           tell ["[] = {"]
           sequence_ $ intersperse genComma (map genVariable cs)
           tell ["};\n"]
-          declareArraySizes [A.Dimension $ length cs] (genName n)
+          declareArraySizes [A.Dimension $ length cs] n
 introduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
 introduceSpec (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct {\n"]
           sequence_ [case t of
-                       _ ->
-                         do declareType t
+                       -- Arrays need the corresponding _sizes array.
+                       A.Array ds t' ->
+                         do genType t'
                             tell [" "]
                             genName n
+                            genFlatArraySize ds
                             tell [";\n"]
+                            tell ["int "]
+                            genName n
+                            tell ["_sizes"]
+                            genArraySizesSize ds
+                            tell [";\n"]
+                       _ -> genDeclaration t n
                      | (n, t) <- fs]
           tell ["} "]
           when b $ tell ["occam_struct_packed "]
@@ -1139,6 +1249,11 @@ genAssign m [v] el
     doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
     doAssign t@(A.Array _ subT) toV (A.ExprVariable m fromV)
         = overArray m fromV (\sub -> Just $ doAssign subT (sub toV) (A.ExprVariable m (sub fromV)))
+    doAssign rt@(A.Record _) toV (A.ExprVariable m fromV)
+        =  do fs <- recordFields m rt
+              sequence_ [let subV v = A.SubscriptedVariable m (A.SubscriptField m n) v
+                           in doAssign t (subV toV) (A.ExprVariable m $ subV fromV)
+                         | (n, t) <- fs]
     doAssign t v e
         = case scalarType t of
             Just _ ->

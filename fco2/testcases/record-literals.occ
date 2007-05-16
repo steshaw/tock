@@ -1,4 +1,5 @@
 -- Need to test that list literals inside record literals are not collapsed.
+-- Need to test that arrays of records work.
 
 DATA TYPE ONE
   RECORD
@@ -16,11 +17,26 @@ DATA TYPE SAME
     INT y:
     INT z:
 :
+DATA TYPE WITH.ARRAY
+  RECORD
+    INT x:
+    [4]INT xs:
+:
+DATA TYPE WITH.RECORD
+  RECORD
+    INT q:
+    WITH.ARRAY wa:
+    BOOL w:
+:
 PROC P ()
   VAL INT x IS 42:
   VAL ONE one IS [42]:
   VAL DIFF diff IS [42, '**', 3.141]:
   VAL SAME same IS [42, 43, 44]:
+  VAL WITH.ARRAY val.wa IS [99, [44, 33, 22, 11]]:
+  WITH.ARRAY wa:
+  VAL WITH.RECORD val.wr IS [123, val.wa, TRUE]:
+  WITH.RECORD wr:
   SEQ
     ASSERT (one[i] = 42)
     ASSERT (diff[i] = 42)
@@ -30,4 +46,28 @@ PROC P ()
     ASSERT (same[x] = 42)
     ASSERT (same[y] = 43)
     ASSERT (same[z] = 44)
+    PROC check.wa (VAL WITH.ARRAY wa)
+      SEQ
+        ASSERT (wa[x] = 99)
+        ASSERT ((SIZE wa[xs]) = 4)
+        ASSERT (wa[xs][0] = 44)
+        ASSERT (wa[xs][1] = 33)
+        ASSERT (wa[xs][2] = 22)
+        ASSERT (wa[xs][3] = 11)
+    :
+    PROC check.wr (VAL WITH.RECORD wr)
+      SEQ
+        ASSERT (wr[q] = 123)
+        check.wa (wr[wa])
+        ASSERT (wr[w])
+    :
+    SEQ
+      check.wa (val.wa)
+      wa := val.wa
+      check.wa (wa)
+      check.wr (val.wr)
+      wr := val.wr
+      check.wr (wr)
+      wr[wa] := wa
+      check.wr (wr)
 :

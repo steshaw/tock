@@ -29,13 +29,18 @@ data OccValue =
   | OccInt16 Int16
   | OccInt32 Int32
   | OccInt64 Int64
+  -- FIXME This should include the type of the elements, so we can handle
+  -- empty arrays.
   | OccArray [OccValue]
+  | OccRecord A.Name [OccValue]
   deriving (Show, Eq, Typeable, Data)
 
 -- | Is an expression a constant literal?
 isConstant :: A.Expression -> Bool
 isConstant (A.Literal _ _ (A.ArrayLiteral _ aes))
     = and $ map isConstantArray aes
+isConstant (A.Literal _ _ (A.RecordLiteral _ es))
+    = and $ map isConstant es
 isConstant (A.Literal _ _ _) = True
 isConstant (A.True _) = True
 isConstant (A.False _) = True
