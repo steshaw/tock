@@ -8,9 +8,9 @@ import Data.List
 import Data.Maybe
 
 import qualified AST as A
+import CompState
 import Errors
 import Metadata
-import ParseState
 import Types
 
 data TLPChannel = TLPIn | TLPOut | TLPError
@@ -18,10 +18,10 @@ data TLPChannel = TLPIn | TLPOut | TLPError
 
 -- | Get the name of the TLP and the channels it uses.
 -- Fail if the process isn't using a valid interface.
-tlpInterface :: (PSM m, Die m) => m (A.Name, [TLPChannel])
+tlpInterface :: (CSM m, Die m) => m (A.Name, [TLPChannel])
 tlpInterface
     =  do ps <- get
-          let mainName = snd $ head $ psMainLocals ps
+          let mainName = snd $ head $ csMainLocals ps
           st <- specTypeOfName mainName
           formals <- case st of
                        A.Proc _ _ fs _ -> return fs
@@ -30,7 +30,7 @@ tlpInterface
           when ((nub chans) /= chans) $ die "Channels used more than once in TLP"
           return (mainName, chans)
   where
-    tlpChannel :: (PSM m, Die m) => A.Formal -> m TLPChannel
+    tlpChannel :: (CSM m, Die m) => A.Formal -> m TLPChannel
     tlpChannel (A.Formal _ (A.Chan A.Byte) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def

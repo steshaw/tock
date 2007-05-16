@@ -16,19 +16,19 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Text.Regex
 
 import qualified AST as A
+import CompState
 import Errors
 import EvalConstants
 import EvalLiterals
 import Indentation
 import Intrinsics
 import Metadata
-import ParseState
 import Pass
 import Types
 import Utils
 
 --{{{ setup stuff for Parsec
-type OccParser = GenParser Char ParseState
+type OccParser = GenParser Char CompState
 
 -- | Make MonadState functions work in the parser monad.
 -- This came from <http://hackage.haskell.org/trac/ghc/ticket/1274> -- which means
@@ -145,7 +145,7 @@ occamStyle
     , P.caseSensitive  = True
     }
 
-lexer :: P.TokenParser ParseState
+lexer :: P.TokenParser CompState
 lexer  = P.makeTokenParser occamStyle
 
 -- XXX replace whitespace with something that doesn't eat \ns
@@ -498,7 +498,7 @@ noTypeContext = inTypeContext Nothing
 findName :: A.Name -> OccParser A.Name
 findName thisN
     =  do st <- getState
-          origN <- case lookup (A.nameName thisN) (psLocalNames st) of
+          origN <- case lookup (A.nameName thisN) (csLocalNames st) of
                      Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
                      Just n -> return n
           if A.nameType thisN /= A.nameType origN
@@ -508,7 +508,7 @@ findName thisN
 scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
 scopeIn n@(A.Name m nt s) t am
     =  do st <- getState
-          let s' = s ++ "_u" ++ (show $ psNameCounter st)
+          let s' = s ++ "_u" ++ (show $ csNameCounter st)
           let n' = n { A.nameName = s' }
           let nd = A.NameDef {
             A.ndMeta = m,
@@ -521,18 +521,18 @@ scopeIn n@(A.Name m nt s) t am
           }
           defineName n' nd
           modify $ (\st -> st {
-                             psNameCounter = (psNameCounter st) + 1,
-                             psLocalNames = (s, n') : (psLocalNames st)
+                             csNameCounter = (csNameCounter st) + 1,
+                             csLocalNames = (s, n') : (csLocalNames st)
                            })
           return n'
 
 scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m nt s)
     =  do st <- getState
-          let lns' = case psLocalNames st of
+          let lns' = case csLocalNames st of
                        (s, _):ns -> ns
                        otherwise -> dieInternal "scopeOut trying to scope out the wrong name"
-          setState $ st { psLocalNames = lns' }
+          setState $ st { csLocalNames = lns' }
 
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
@@ -2031,7 +2031,7 @@ ppUse
 
           -- Check whether it's been included already.
           ps <- getState
-          if file `elem` psLoadedFiles ps
+          if file `elem` csLoadedFiles ps
             then process
             else includeFile file
     <?> "#USE directive"
@@ -2046,7 +2046,7 @@ includeFile file
               do setState ps'
                  return p
             Right f ->
-              do setState ps' { psLocalNames = psMainLocals ps' }
+              do setState ps' { csLocalNames = csMainLocals ps' }
                  p <- process
                  return $ f p
 
@@ -2067,7 +2067,7 @@ mainProcess
           -- Stash the current locals so that we can either restore them
           -- when we get back to the file we included this one from, or
           -- pull the TLP name from them at the end.
-          updateState $ (\ps -> ps { psMainLocals = psLocalNames ps })
+          updateState $ (\ps -> ps { csMainLocals = csLocalNames ps })
           return $ A.Main m
 --}}}
 --}}}
@@ -2076,7 +2076,7 @@ mainProcess
 -- This is only really true once we've tacked a process onto the bottom; a
 -- source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
-sourceFile :: OccParser (A.Process, ParseState)
+sourceFile :: OccParser (A.Process, CompState)
 sourceFile
     =   do whiteSpace
            p <- process
@@ -2087,7 +2087,7 @@ sourceFile
 -- applied to a process (which we return as a function). This is likewise a bit
 -- of a cheat, in that included files should really be *textually* included,
 -- but it's good enough for most reasonable uses.
-includedFile :: OccParser (Either A.Process (A.Process -> A.Process), ParseState)
+includedFile :: OccParser (Either A.Process (A.Process -> A.Process), CompState)
 includedFile
     =  do whiteSpace
           p <- process
@@ -2140,7 +2140,7 @@ loadSource file = load file file
     load :: String -> String -> PassM ()
     load file realName
         =  do ps <- get
-              case Map.lookup file (psSourceFiles ps) of
+              case Map.lookup file (csSourceFiles ps) of
                 Just _ -> return ()
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
@@ -2148,7 +2148,7 @@ loadSource file = load file file
                      source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker ++ "\n")
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
-                     modify $ (\ps -> ps { psSourceFiles = Map.insert file source (psSourceFiles ps) })
+                     modify $ (\ps -> ps { csSourceFiles = Map.insert file source (csSourceFiles ps) })
                      let deps = map mangleModName $ preFindIncludes source
                      sequence_ [load dep (joinPath realName dep) | dep <- deps]
 --}}}
@@ -2161,12 +2161,12 @@ testParse prod text
          putStrLn $ "Result: " ++ show r
 
 -- | Parse a file with the given production.
-parseFile :: Monad m => String -> OccParser t -> ParseState -> m t
+parseFile :: Monad m => String -> OccParser t -> CompState -> m t
 parseFile file prod ps
-    =  do let source = case Map.lookup file (psSourceFiles ps) of
+    =  do let source = case Map.lookup file (csSourceFiles ps) of
                          Just s -> s
                          Nothing -> dieIO $ "Failed to preload file: " ++ show file
-          let ps' = ps { psLoadedFiles = file : psLoadedFiles ps }
+          let ps' = ps { csLoadedFiles = file : csLoadedFiles ps }
           case runParser prod ps' file source of
             Left err -> dieIO $ "Parse error: " ++ show err
             Right r -> return r

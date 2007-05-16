@@ -7,12 +7,12 @@ import Control.Monad.State
 import Data.List
 import Text.Regex
 
+import CompState
 import Errors
-import ParseState
 import Pass
 
 -- FIXME When this joins continuation lines, it should stash the details of
--- what it joined into ParseState so that error reporting later on can
+-- what it joined into CompState so that error reporting later on can
 -- reconstruct the original position.
 
 indentMarker = "__indent"
@@ -26,13 +26,13 @@ eolMarker = "__eol"
 -- explicit markers.
 removeIndentation :: String -> String -> PassM String
 removeIndentation filename orig
-    =  do modify $ (\ps -> ps { psIndentLinesIn = origLines,
-                                psIndentLinesOut = [] })
+    =  do modify $ (\ps -> ps { csIndentLinesIn = origLines,
+                                csIndentLinesOut = [] })
           catchError (nextLine 0) reportError
           ps <- get
-          let out = concat $ intersperse "\n" $ reverse $ psIndentLinesOut ps
-          modify $ (\ps -> ps { psIndentLinesIn = [],
-                                psIndentLinesOut = [] })
+          let out = concat $ intersperse "\n" $ reverse $ csIndentLinesOut ps
+          modify $ (\ps -> ps { csIndentLinesIn = [],
+                                csIndentLinesOut = [] })
           return out
   where
     origLines = lines orig
@@ -41,29 +41,29 @@ removeIndentation filename orig
     reportError :: String -> PassM ()
     reportError error
         =  do ps <- get
-              let lineNumber = length origLines - length (psIndentLinesIn ps)
+              let lineNumber = length origLines - length (csIndentLinesIn ps)
               die $ filename ++ ":" ++ show lineNumber ++ ": " ++ error
 
     -- | Get the next raw line from the input.
     getLine :: PassM (Maybe String)
     getLine
         =  do ps <- get
-              case psIndentLinesIn ps of
+              case csIndentLinesIn ps of
                 [] -> return Nothing
                 (line:rest) ->
-                  do put $ ps { psIndentLinesIn = rest }
+                  do put $ ps { csIndentLinesIn = rest }
                      return $ Just line
 
     -- | Add a line to the output.
     putLine :: String -> PassM ()
     putLine line
-        = modify $ (\ps -> ps { psIndentLinesOut = line : psIndentLinesOut ps })
+        = modify $ (\ps -> ps { csIndentLinesOut = line : csIndentLinesOut ps })
 
     -- | Append to the *previous* line added.
     addToLine :: String -> PassM ()
     addToLine s
-        = modify $ (\ps -> ps { psIndentLinesOut =
-                                  case psIndentLinesOut ps of (l:ls) -> ((l ++ s):ls) })
+        = modify $ (\ps -> ps { csIndentLinesOut =
+                                  case csIndentLinesOut ps of (l:ls) -> ((l ++ s):ls) })
 
     -- | Given a line, read the rest of it, then return the complete thing.
     finishLine :: String -> String -> Bool -> Bool -> String -> PassM String

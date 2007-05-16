@@ -7,9 +7,9 @@ import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
+import CompState
 import EvalConstants
 import Metadata
-import ParseState
 import Pass
 import Types
 
@@ -93,7 +93,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              -- we know it's not going to be moved by removeNesting, so anything
              -- that it had in scope originally will still be in scope.
              ps <- get
-             let isTLP = (snd $ head $ psMainLocals ps) == n
+             let isTLP = (snd $ head $ csMainLocals ps) == n
 
              -- Figure out the free names.
              let freeNames' = if isTLP then [] else Map.elems $ freeNamesIn st'
@@ -136,7 +136,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                           | (am, n, t) <- zip3 ams freeNames types]
              debug $ "removeFreeNames: " ++ show n ++ " has new args " ++ show newAs
              when (newAs /= []) $
-               modify $ (\ps -> ps { psAdditionalArgs = Map.insert (A.nameName n) newAs (psAdditionalArgs ps) })
+               modify $ (\ps -> ps { csAdditionalArgs = Map.insert (A.nameName n) newAs (csAdditionalArgs ps) })
 
              return spec'
         _ -> doGeneric spec
@@ -145,7 +145,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess p@(A.ProcCall m n as)
         =  do st <- get
-              case Map.lookup (A.nameName n) (psAdditionalArgs st) of
+              case Map.lookup (A.nameName n) (csAdditionalArgs st) of
                 Just add -> doGeneric $ A.ProcCall m n (as ++ add)
                 Nothing -> doGeneric p
     doProcess p = doGeneric p

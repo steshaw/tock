@@ -27,7 +27,7 @@ resolveNamedTypes = doGeneric `extM` doType
     doType t@(A.UserDataType _) = underlyingType t
     doType t = doGeneric t
 
--- | Resolve named types in ParseState.
+-- | Resolve named types in CompState.
 rntState :: A.Process -> PassM A.Process
 rntState p
     =  do st <- get

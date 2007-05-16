@@ -8,13 +8,13 @@ import Data.List
 import System.IO
 
 import qualified AST as A
+import CompState
 import Errors
 import Metadata
-import ParseState
 import PrettyShow
 
 -- | The monad in which AST-mangling passes operate.
-type PassM = ErrorT String (StateT ParseState IO)
+type PassM = ErrorT String (StateT CompState IO)
 
 instance Die PassM where
   die = throwError
@@ -34,37 +34,37 @@ runPasses ((s, p):ps) ast
           runPasses ps ast'
 
 -- | Print a message if above the given verbosity level.
-verboseMessage :: (PSM m, MonadIO m) => Int -> String -> m ()
+verboseMessage :: (CSM m, MonadIO m) => Int -> String -> m ()
 verboseMessage n s
     =  do ps <- get
-          when (psVerboseLevel ps >= n) $
+          when (csVerboseLevel ps >= n) $
             liftIO $ hPutStrLn stderr s
 
 -- | Print a warning message.
-warn :: (PSM m, MonadIO m) => String -> m ()
+warn :: (CSM m, MonadIO m) => String -> m ()
 warn = verboseMessage 0
 
 -- | Print out any warnings stored.
-showWarnings :: (PSM m, MonadIO m) => m ()
+showWarnings :: (CSM m, MonadIO m) => m ()
 showWarnings
     =  do ps <- get
-          sequence_ $ map warn (reverse $ psWarnings ps)
-          put $ ps { psWarnings = [] }
+          sequence_ $ map warn (reverse $ csWarnings ps)
+          put $ ps { csWarnings = [] }
 
 -- | Print a progress message.
-progress :: (PSM m, MonadIO m) => String -> m ()
+progress :: (CSM m, MonadIO m) => String -> m ()
 progress = verboseMessage 1
 
 -- | Print a debugging message.
-debug :: (PSM m, MonadIO m) => String -> m ()
+debug :: (CSM m, MonadIO m) => String -> m ()
 debug = verboseMessage 2
 
 -- | Print a really verbose debugging message.
-veryDebug :: (PSM m, MonadIO m) => String -> m ()
+veryDebug :: (CSM m, MonadIO m) => String -> m ()
 veryDebug = verboseMessage 3
 
 -- | Dump the AST and parse state.
-debugAST :: (PSM m, MonadIO m) => A.Process -> m ()
+debugAST :: (CSM m, MonadIO m) => A.Process -> m ()
 debugAST p
     =  do veryDebug $ "{{{ AST"
           veryDebug $ pshow p

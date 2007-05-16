@@ -13,10 +13,10 @@ import Data.Word
 import Numeric
 
 import qualified AST as A
+import CompState
 import Errors
-import ParseState
 
-type EvalM = ErrorT String (StateT ParseState Identity)
+type EvalM = ErrorT String (StateT CompState Identity)
 
 instance Die EvalM where
   die = throwError
@@ -52,7 +52,7 @@ isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
 isConstantArray (A.ArrayElemExpr e) = isConstant e
 
 -- | Evaluate a constant integer expression.
-evalIntExpression :: (PSM m, Die m) => A.Expression -> m Int
+evalIntExpression :: (CSM m, Die m) => A.Expression -> m Int
 evalIntExpression e
     =  do ps <- get
           case runEvaluator ps (evalSimpleExpression e) of
@@ -61,7 +61,7 @@ evalIntExpression e
             Right _ -> die "expression is not of INT type"
 
 -- | Evaluate a byte literal.
-evalByte :: (PSM m, Die m) => String -> m Char
+evalByte :: (CSM m, Die m) => String -> m Char
 evalByte s
     =  do ps <- get
           case runEvaluator ps (evalByteLiteral s) of
@@ -69,7 +69,7 @@ evalByte s
             Right (OccByte ch) -> return (chr $ fromIntegral ch)
 
 -- | Run an evaluator operation.
-runEvaluator :: ParseState -> EvalM OccValue -> Either String OccValue
+runEvaluator :: CompState -> EvalM OccValue -> Either String OccValue
 runEvaluator ps func
     = runIdentity (evalStateT (runErrorT func) ps)
 

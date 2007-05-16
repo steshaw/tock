@@ -9,10 +9,10 @@ import System
 import System.Console.GetOpt
 import System.IO
 
+import CompState
 import Errors
 import GenerateC
 import Parse
-import ParseState
 import Pass
 import PrettyShow
 import SimplifyExprs
@@ -28,7 +28,7 @@ passes =
   , ("Flatten nested declarations", unnest)
   ]
 
-type OptFunc = ParseState -> IO ParseState
+type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
@@ -38,13 +38,13 @@ options =
   ]
 
 optParseOnly :: OptFunc
-optParseOnly ps = return $ ps { psParseOnly = True }
+optParseOnly ps = return $ ps { csParseOnly = True }
 
 optVerbose :: OptFunc
-optVerbose ps = return $ ps { psVerboseLevel = psVerboseLevel ps + 1 }
+optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
-optOutput s ps = return $ ps { psOutputFile = s }
+optOutput s ps = return $ ps { csOutputFile = s }
 
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
@@ -90,7 +90,7 @@ compile fn
         showWarnings
 
         output <-
-          if psParseOnly optsPS
+          if csParseOnly optsPS
             then return $ show ast1
             else
               do progress "Passes:"
@@ -105,7 +105,7 @@ compile fn
 
         showWarnings
 
-        case psOutputFile optsPS of
+        case csOutputFile optsPS of
           "-" -> liftIO $ putStr output
           file ->
             do progress $ "Writing output file " ++ file

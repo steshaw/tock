@@ -14,16 +14,16 @@ import Numeric
 import Text.Printf
 
 import qualified AST as A
+import CompState
 import Errors
 import EvalLiterals
 import Metadata
-import ParseState
 import Pass
 import Types
 
 -- | Simplify an expression by constant folding, and also return whether it's a
 -- constant after that.
-constantFold :: PSM m => A.Expression -> m (A.Expression, Bool, String)
+constantFold :: CSM m => A.Expression -> m (A.Expression, Bool, String)
 constantFold e
     =  do ps <- get
           let (e', msg) = case simplifyExpression ps e of
@@ -32,7 +32,7 @@ constantFold e
           return (e', isConstant e', msg)
 
 -- | Is a name defined as a constant expression? If so, return its definition.
-getConstantName :: (PSM m, Die m) => A.Name -> m (Maybe A.Expression)
+getConstantName :: (CSM m, Die m) => A.Name -> m (Maybe A.Expression)
 getConstantName n
     =  do st <- specTypeOfName n
           case st of
@@ -42,7 +42,7 @@ getConstantName n
             _ -> return Nothing
 
 -- | Is a name defined as a constant expression?
-isConstantName :: (PSM m, Die m) => A.Name -> m Bool
+isConstantName :: (CSM m, Die m) => A.Name -> m Bool
 isConstantName n
     =  do me <- getConstantName n
           return $ case me of
@@ -51,7 +51,7 @@ isConstantName n
 
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
-simplifyExpression :: ParseState -> A.Expression -> Either String A.Expression
+simplifyExpression :: CompState -> A.Expression -> Either String A.Expression
 simplifyExpression ps e
     = case runEvaluator ps (evalExpression e) of
         Left err -> Left err

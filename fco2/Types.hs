@@ -11,21 +11,21 @@ import Data.Maybe
 import Debug.Trace
 
 import qualified AST as A
+import CompState
 import Errors
 import EvalLiterals
 import Intrinsics
-import ParseState
 import Metadata
 
-specTypeOfName :: (PSM m, Die m) => A.Name -> m A.SpecType
+specTypeOfName :: (CSM m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
     = liftM A.ndType (lookupName n)
 
-abbrevModeOfName :: (PSM m, Die m) => A.Name -> m A.AbbrevMode
+abbrevModeOfName :: (CSM m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
     = liftM A.ndAbbrevMode (lookupName n)
 
-typeOfName :: (PSM m, Die m) => A.Name -> m A.Type
+typeOfName :: (CSM m, Die m) => A.Name -> m A.Type
 typeOfName n
     =  do st <- specTypeOfName n
           case st of
@@ -39,7 +39,7 @@ typeOfName n
 
 --{{{  identifying types
 -- | Apply a slice to a type.
-sliceType :: (PSM m, Die m) => Meta -> A.Expression -> A.Expression -> A.Type -> m A.Type
+sliceType :: (CSM m, Die m) => Meta -> A.Expression -> A.Expression -> A.Type -> m A.Type
 sliceType m base count (A.Array (d:ds) t)
     = case (isConstant base, isConstant count) of
         (True, True) ->
@@ -60,7 +60,7 @@ sliceType m base count (A.Array (d:ds) t)
 sliceType m _ _ _ = dieP m "slice of non-array type"
 
 -- | Get the fields of a record type.
-recordFields :: (PSM m, Die m) => Meta -> A.Type -> m [(A.Name, A.Type)]
+recordFields :: (CSM m, Die m) => Meta -> A.Type -> m [(A.Name, A.Type)]
 recordFields m (A.Record rec)
     =  do st <- specTypeOfName rec
           case st of
@@ -69,13 +69,13 @@ recordFields m (A.Record rec)
 recordFields m _ = dieP m "not record type"
 
 -- | Get the type of a record field.
-typeOfRecordField :: (PSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
+typeOfRecordField :: (CSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
 typeOfRecordField m t field
     =  do fs <- recordFields m t
           checkJust "unknown record field" $ lookup field fs
 
 -- | Apply a plain subscript to a type.
-plainSubscriptType :: (PSM m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
+plainSubscriptType :: (CSM m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
 plainSubscriptType m sub (A.Array (d:ds) t)
     = case (isConstant sub, d) of
         (True, A.Dimension size) ->
@@ -92,7 +92,7 @@ plainSubscriptType m _ t = dieP m $ "subscript of non-array type " ++ show t
 
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
-subscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
+subscriptType :: (CSM m, Die m) => A.Subscript -> A.Type -> m A.Type
 subscriptType sub t@(A.UserDataType _)
     = resolveUserType t >>= subscriptType sub
 subscriptType (A.SubscriptFromFor m base count) t
@@ -113,7 +113,7 @@ subscriptType _ t = die $ "unsubscriptable type: " ++ show t
 
 -- | The inverse of 'subscriptType': given a type that we know is the result of
 -- a subscript, return what the type being subscripted is.
-unsubscriptType :: (PSM m, Die m) => A.Subscript -> A.Type -> m A.Type
+unsubscriptType :: (CSM m, Die m) => A.Subscript -> A.Type -> m A.Type
 unsubscriptType (A.SubscriptFromFor _ _ _) t
     = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptFrom _ _) t
@@ -134,13 +134,13 @@ trivialSubscriptType (A.Array [d] t) = return t
 trivialSubscriptType (A.Array (d:ds) t) = return $ A.Array ds t
 trivialSubscriptType t = die $ "not plain array type: " ++ show t
 
-typeOfVariable :: (PSM m, Die m) => A.Variable -> m A.Type
+typeOfVariable :: (CSM m, Die m) => A.Variable -> m A.Type
 typeOfVariable (A.Variable m n) = typeOfName n
 typeOfVariable (A.SubscriptedVariable m s v)
     = typeOfVariable v >>= subscriptType s
 
 -- | Get the abbreviation mode of a variable.
-abbrevModeOfVariable :: (PSM m, Die m) => A.Variable -> m A.AbbrevMode
+abbrevModeOfVariable :: (CSM m, Die m) => A.Variable -> m A.AbbrevMode
 abbrevModeOfVariable (A.Variable _ n) = abbrevModeOfName n
 abbrevModeOfVariable (A.SubscriptedVariable _ sub v) = abbrevModeOfVariable v
 
@@ -154,7 +154,7 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
-typeOfExpression :: (PSM m, Die m) => A.Expression -> m A.Type
+typeOfExpression :: (CSM m, Die m) => A.Expression -> m A.Type
 typeOfExpression e
     = case e of
         A.Monadic m op e -> typeOfExpression e
@@ -179,7 +179,7 @@ typeOfExpression e
         A.OffsetOf m t n -> return A.Int
 --}}}
 
-returnTypesOfFunction :: (PSM m, Die m) => A.Name -> m [A.Type]
+returnTypesOfFunction :: (CSM m, Die m) => A.Name -> m [A.Type]
 returnTypesOfFunction n
     =  do st <- specTypeOfName n
           case st of
@@ -188,9 +188,9 @@ returnTypesOfFunction n
             _ ->
               do ps <- get
                  checkJust "not defined as a function" $
-                   Map.lookup (A.nameName n) (psFunctionReturns ps)
+                   Map.lookup (A.nameName n) (csFunctionReturns ps)
 
-returnTypesOfIntrinsic :: (PSM m, Die m) => String -> m [A.Type]
+returnTypesOfIntrinsic :: (CSM m, Die m) => String -> m [A.Type]
 returnTypesOfIntrinsic s
     = case lookup s intrinsicFunctions of
         Just (rts, _) -> return rts
@@ -198,7 +198,7 @@ returnTypesOfIntrinsic s
 
 -- | Get the items in a channel's protocol (for typechecking).
 -- Returns Left if it's a simple protocol, Right if it's tagged.
-protocolItems :: (PSM m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
+protocolItems :: (CSM m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
 protocolItems v
     =  do A.Chan t <- typeOfVariable v
           case t of
@@ -221,7 +221,7 @@ abbrevModeOfSpec s
 
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
-underlyingType :: (PSM m, Die m) => A.Type -> m A.Type
+underlyingType :: (CSM m, Die m) => A.Type -> m A.Type
 underlyingType t@(A.UserDataType _)
     = resolveUserType t >>= underlyingType
 underlyingType (A.Array ds t) = liftM (A.Array ds) (underlyingType t)
@@ -230,7 +230,7 @@ underlyingType t = return t
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
 -- user types.
-resolveUserType :: (PSM m, Die m) => A.Type -> m A.Type
+resolveUserType :: (CSM m, Die m) => A.Type -> m A.Type
 resolveUserType (A.UserDataType n)
     =  do st <- specTypeOfName n
           case st of
@@ -339,7 +339,7 @@ isCaseableType t = isIntegerType t
 --{{{ simplifying and comparing types
 -- | Simplify a type as far as possible: resolve data type aliases to their
 -- real types, and remove non-constant array dimensions.
-simplifyType :: (PSM m, Die m) => A.Type -> m A.Type
+simplifyType :: (CSM m, Die m) => A.Type -> m A.Type
 simplifyType origT@(A.Record n)
     =  do st <- specTypeOfName n
           case st of
@@ -369,7 +369,7 @@ data BytesInResult =
   deriving (Show, Eq)
 
 -- | Return the size in bytes of a data type.
-bytesInType :: (PSM m, Die m) => A.Type -> m BytesInResult
+bytesInType :: (CSM m, Die m) => A.Type -> m BytesInResult
 bytesInType A.Byte = return $ BIJust 1
 -- FIXME This is tied to the backend we're using (as is the constant folder).
 bytesInType A.Int = return $ BIJust 4
@@ -380,7 +380,7 @@ bytesInType A.Real32 = return $ BIJust 4
 bytesInType A.Real64 = return $ BIJust 8
 bytesInType a@(A.Array _ _) = bytesInArray 0 a
   where
-    bytesInArray :: (PSM m, Die m) => Int -> A.Type -> m BytesInResult
+    bytesInArray :: (CSM m, Die m) => Int -> A.Type -> m BytesInResult
     bytesInArray num (A.Array [] t) = bytesInType t
     bytesInArray num (A.Array (d:ds) t)
         =  do ts <- bytesInArray (num + 1) (A.Array ds t)
@@ -398,7 +398,7 @@ bytesInType (A.Record n)
             (A.RecordType _ True nts) -> bytesInList nts
             _ -> return $ BIUnknown
   where
-    bytesInList :: (PSM m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
+    bytesInList :: (CSM m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
     bytesInList [] = return $ BIJust 0
     bytesInList ((_, t):rest)
         =  do bi <- bytesInType t

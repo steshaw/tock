@@ -11,10 +11,10 @@ import Numeric
 import Text.Printf
 
 import qualified AST as A
+import CompState
 import EvalConstants
 import EvalLiterals
 import Metadata
-import ParseState
 import Pass
 import Errors
 import TLP

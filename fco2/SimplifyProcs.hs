@@ -7,8 +7,8 @@ import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
+import CompState
 import Metadata
-import ParseState
 import Types
 import Pass
 

@@ -7,9 +7,9 @@ import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
+import CompState
 import Errors
 import Metadata
-import ParseState
 import Types
 import Pass
 
@@ -36,7 +36,7 @@ functionsToProcs = doGeneric `extM` doSpecification
              specs <- sequence [makeNonceVariable "return_formal" mf t A.VariableName A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
              -- Note the return types so we can fix calls later.
-             modify $ (\ps -> ps { psFunctionReturns = Map.insert (A.nameName n) rts (psFunctionReturns ps) })
+             modify $ (\ps -> ps { csFunctionReturns = Map.insert (A.nameName n) rts (csFunctionReturns ps) })
              -- Turn the value process into an assignment process.
              let p = A.Seq mf $ vpToSeq vp [A.Variable mf n | n <- names]
              let st = A.Proc mf sm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
@@ -210,7 +210,7 @@ pullUp = doGeneric
              ets <- sequence [typeOfExpression e | e <- es']
 
              ps <- get
-             rts <- Map.lookup (A.nameName n) (psFunctionReturns ps)
+             rts <- Map.lookup (A.nameName n) (csFunctionReturns ps)
              specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
              sequence_ [addPulled $ A.Spec m spec | spec <- specs]
 

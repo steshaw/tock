@@ -4,6 +4,7 @@ all: $(targets)
 
 sources = \
 	AST.hs \
+	CompState.hs \
 	Errors.hs \
 	EvalConstants.hs \
 	EvalLiterals.hs \
@@ -13,7 +14,6 @@ sources = \
 	Main.hs \
 	Metadata.hs \
 	Parse.hs \
-	ParseState.hs \
 	Pass.hs \
 	PrettyShow.hs \
 	SimplifyExprs.hs \

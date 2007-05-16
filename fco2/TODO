@@ -10,9 +10,6 @@ that takes several expressions.
 (Multi-subscript expressions like a[x][y] currently get pulled up into an array
 slice, which is inefficient.)
 
-ParseState should be called something more sensible, since most of it has
-nothing to do with parsing.
-
 Eventually (not yet), channel formals should take a direction; this should
 either be given directly using decorators, or inferred from the code that uses
 them.
