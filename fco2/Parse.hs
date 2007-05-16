@@ -667,12 +667,13 @@ portType
 -- | Can a literal of type rawT be used as a value of type wantT?
 isValidLiteralType :: Meta -> A.Type -> A.Type -> OccParser Bool
 isValidLiteralType m rawT wantT
-    =  do case (rawT, wantT) of
+    =  do underT <- resolveUserType wantT
+          case (rawT, underT) of
             -- We don't yet know what type we want -- so assume it's OK for now.
             (_, A.Any) -> return True
-            (A.Real32, _) -> return $ isRealType wantT
-            (A.Int, _) -> return $ isIntegerType wantT
-            (A.Byte, _) -> return $ isIntegerType wantT
+            (A.Real32, _) -> return $ isRealType underT
+            (A.Int, _) -> return $ isIntegerType underT
+            (A.Byte, _) -> return $ isIntegerType underT
             (A.Array (A.Dimension nf:_) _, A.Record _) ->
               -- We can't be sure without looking at the literal itself,
               -- so we need to do that below.
@@ -682,7 +683,7 @@ isValidLiteralType m rawT wantT
               if areValidDimensions ds2 ds1
                 then isValidLiteralType m t1 t2
                 else return False
-            (a, b) -> return $ a == b
+            _ -> return $ rawT == wantT
 
 -- | Apply dimensions from one type to another as far as possible.
 -- This should only be used when you know the two types are compatible first
@@ -718,10 +719,10 @@ makeArrayElem t (A.ArrayElemExpr e)
 -- value of that type.
 makeLiteral :: A.Expression -> A.Type -> OccParser A.Expression
 -- A literal.
-makeLiteral (A.Literal m t lr) wantT
-    =  do underT <- underlyingType wantT
+makeLiteral x@(A.Literal m t lr) wantT
+    =  do underT <- resolveUserType wantT
 
-          typesOK <- isValidLiteralType m t underT
+          typesOK <- isValidLiteralType m t wantT
           when (not typesOK) $
             dieP m $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
 
