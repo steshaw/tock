@@ -79,6 +79,11 @@ the pullup:
 The sensible fix would probably be to make input items Structured, so we can
 insert extra stuff into them.
 
+The range checks are probably a bit expensive in stack terms at the moment -- I
+need to check what EXTERNAL_CALLN actually does. If it's really bad we could
+find a less expensive approach, such as being able to call SetErr with more
+parameters.
+
 ## tock_support
 
 No overflow checking is done on most operations.
