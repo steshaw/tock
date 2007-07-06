@@ -29,7 +29,11 @@ sources = \
 $(targets): $(sources)
 	ghc -fglasgow-exts -fallow-undecidable-instances $(profile_opts) -o tock --make Main
 
-CFLAGS = -g -std=gnu99 -Wall `kroc --cflags` `kroc --ccincpath`
+CFLAGS = \
+	-O2 \
+	-g -Wall \
+	-std=gnu99 -fgnu89-inline \
+	`kroc --cflags` `kroc --ccincpath`
 
 %.tock.c: %.occ tock
 	./tock -v -o $@ $<

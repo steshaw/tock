@@ -51,8 +51,8 @@
 		SetErr (); \
 	} while (0)
 
-static int occam_check_slice (int, int, int, const char *) occam_unused;
-static int occam_check_slice (int start, int count, int limit, const char *pos) {
+static inline int occam_check_slice (int, int, int, const char *) occam_unused;
+static inline int occam_check_slice (int start, int count, int limit, const char *pos) {
 	int end = start + count;
 	if (count != 0 && (start < 0 || start >= limit
 	                   || end < 0 || end > limit
@@ -61,15 +61,15 @@ static int occam_check_slice (int start, int count, int limit, const char *pos) 
 	}
 	return count;
 }
-static int occam_check_index (int, int, const char *) occam_unused;
-static int occam_check_index (int i, int limit, const char *pos) {
+static inline int occam_check_index (int, int, const char *) occam_unused;
+static inline int occam_check_index (int i, int limit, const char *pos) {
 	if (i < 0 || i >= limit) {
 		occam_stop (pos, "invalid array index %d (should be 0 <= i < %d)", i, limit);
 	}
 	return i;
 }
-static int occam_check_retype (int, int, const char *) occam_unused;
-static int occam_check_retype (int src, int dest, const char *pos) {
+static inline int occam_check_retype (int, int, const char *) occam_unused;
+static inline int occam_check_retype (int src, int dest, const char *pos) {
 	if (src % dest != 0) {
 		occam_stop (pos, "invalid size for RETYPES/RESHAPES (%d does not divide into %d)", dest, src);
 	}
@@ -79,8 +79,8 @@ static int occam_check_retype (int src, int dest, const char *pos) {
 
 //{{{ type-specific arithmetic ops and runtime checks
 #define MAKE_RANGE_CHECK(type, format) \
-	static type occam_range_check_##type (type, type, type, const char *) occam_unused; \
-	static type occam_range_check_##type (type lower, type upper, type n, const char *pos) { \
+	static inline type occam_range_check_##type (type, type, type, const char *) occam_unused; \
+	static inline type occam_range_check_##type (type lower, type upper, type n, const char *pos) { \
 		if (n < lower || n > upper) { \
 			occam_stop (pos, "invalid value in conversion " format " (should be " format " <= i <= " format ")", n, lower, upper); \
 		} \
@@ -88,23 +88,23 @@ static int occam_check_retype (int src, int dest, const char *pos) {
 	}
 // FIXME All of these need to check for overflow and report errors appropriately.
 #define MAKE_ADD(type) \
-	static type occam_add_##type (type, type, const char *) occam_unused; \
-	static type occam_add_##type (type a, type b, const char *pos) { \
+	static inline type occam_add_##type (type, type, const char *) occam_unused; \
+	static inline type occam_add_##type (type a, type b, const char *pos) { \
 		return a + b; \
 	}
 #define MAKE_SUBTR(type) \
-	static type occam_subtr_##type (type, type, const char *) occam_unused; \
-	static type occam_subtr_##type (type a, type b, const char *pos) { \
+	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
+	static inline type occam_subtr_##type (type a, type b, const char *pos) { \
 		return a - b; \
 	}
 #define MAKE_MUL(type) \
-	static type occam_mul_##type (type, type, const char *) occam_unused; \
-	static type occam_mul_##type (type a, type b, const char *pos) { \
+	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
+	static inline type occam_mul_##type (type a, type b, const char *pos) { \
 		return a * b; \
 	}
 #define MAKE_DIV(type) \
-	static type occam_div_##type (type, type, const char *) occam_unused; \
-	static type occam_div_##type (type a, type b, const char *pos) { \
+	static inline type occam_div_##type (type, type, const char *) occam_unused; \
+	static inline type occam_div_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, "divide by zero"); \
 		} \
@@ -114,8 +114,8 @@ static int occam_check_retype (int src, int dest, const char *pos) {
 // (Effectively it ignores signs coming in, and the output sign is the sign of
 // the first argument.)
 #define MAKE_REM(type) \
-	static type occam_rem_##type (type, type, const char *) occam_unused; \
-	static type occam_rem_##type (type a, type b, const char *pos) { \
+	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
+	static inline type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, "modulo by zero"); \
 		} \
@@ -129,8 +129,8 @@ static int occam_check_retype (int src, int dest, const char *pos) {
 // (The cgtests want to do \ with REAL32 and REAL64, although I've never seen it
 // in a real program.)
 #define MAKE_DUMB_REM(type) \
-	static type occam_rem_##type (type, type, const char *) occam_unused; \
-	static type occam_rem_##type (type a, type b, const char *pos) { \
+	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
+	static inline type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, "modulo by zero"); \
 		} \
@@ -146,8 +146,8 @@ MAKE_MUL(uint8_t)
 MAKE_DIV(uint8_t)
 
 // occam's only unsigned type, so we can use % directly.
-static uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
-static uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) {
+static inline uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
+static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) {
 	if (b == 0) {
 		occam_stop (pos, "modulo by zero");
 	}
@@ -272,13 +272,13 @@ int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 //{{{ intrinsics
 // FIXME These should do range checks.
 
-static float occam_SQRT (float, const char *) occam_unused;
-static float occam_SQRT (float v, const char *pos) {
+static inline float occam_SQRT (float, const char *) occam_unused;
+static inline float occam_SQRT (float v, const char *pos) {
 	return sqrtf (v);
 }
 
-static double occam_DSQRT (double, const char *) occam_unused;
-static double occam_DSQRT (double v, const char *pos) {
+static inline double occam_DSQRT (double, const char *) occam_unused;
+static inline double occam_DSQRT (double v, const char *pos) {
 	return sqrt (v);
 }
 //}}}
