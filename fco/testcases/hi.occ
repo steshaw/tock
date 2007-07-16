@@ -1,6 +1,0 @@
-PROC test.simple (CHAN OF BYTE in, out, err)
-  SEQ
-    out ! 'h'
-    out ! 'i'
-    out ! '*n'
-:
