@@ -45,6 +45,9 @@ CFLAGS = \
 cgtests = $(wildcard cgtests/cgtest??.occ)
 cgtests_targets = $(patsubst %.occ,%,$(cgtests))
 
+get-cgtests:
+	svn co https://subversion.frmb.org/svn/cgtests/trunk cgtests
+
 all-cgtests: $(cgtests_targets)
 
 clean-cgtests:
