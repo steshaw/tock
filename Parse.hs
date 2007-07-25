@@ -1440,7 +1440,7 @@ retypesAbbrev
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
 
--- | Check that a RETYPES/RESHAPES is safe.
+-- | Check that a RETYPES\/RESHAPES is safe.
 checkRetypes :: A.Type -> A.Type -> OccParser ()
 -- Retyping channels is always "safe".
 checkRetypes (A.Chan _) (A.Chan _) = return ()
@@ -2051,6 +2051,7 @@ includeFile file
                  return $ f p
 
 unknownPP :: OccParser A.Process
+unknownPP
     =  do m <- md
           char '#'
           rest <- manyTill anyChar (try eol)

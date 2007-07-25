@@ -862,7 +862,7 @@ abbrevVariable am (A.Record _) v
 abbrevVariable am t v
     = (genVariableAM v am, noSize)
 
--- | Generate the size part of a RETYPES/RESHAPES abbrevation of a variable.
+-- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 genRetypeSizes :: Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
 genRetypeSizes m am destT destN srcT srcV
     =  do size <- makeNonce "retype_size"
