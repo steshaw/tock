@@ -7,15 +7,62 @@ PROTOCOL COMPLEX
 :
 PROTOCOL ARRAY IS [10]BYTE:
 PROTOCOL COUNTED IS INT::[]BYTE:
+--Large and complex 10 has over ten choices, some of which have over ten sequential items
+--This is to test C++CSP, which behaves differently with 9 or less choices than it does with ten or more
+--Similarly LARGE.AND.COMPLEX.20 has over 20 choices, some of which have over 20 items!
+PROTOCOL LARGE.AND.COMPLEX.10
+  CASE
+    choice.one; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.two
+    choice.three
+    choice.four
+    choice.five
+    choice.six; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.seven
+    choice.eight
+    choice.nine
+    choice.ten
+    choice.eleven; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+:
+PROTOCOL LARGE.AND.COMPLEX.20
+  CASE
+    choice.one; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.two
+    choice.three
+    choice.four
+    choice.five
+    choice.six; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.seven
+    choice.eight
+    choice.nine
+    choice.ten
+    choice.eleven; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.twelve
+    choice.thirteen
+    choice.fourteen
+    choice.fifteen
+    choice.sixteen; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE
+    choice.seventeen
+    choice.eighteen
+    choice.nineteen
+    choice.twenty
+    choice.twentyone; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; INT ; INT ; INT ; INT ; BOOL ; BYTE        
+:
+    
+
 PROC P ()
   CHAN OF SIMPLE simple:
   CHAN OF COMPLEX complex:
   CHAN OF ARRAY array:
   CHAN OF COUNTED counted:
+  CHAN OF LARGE.AND.COMPLEX.10 lac10:
+  CHAN OF LARGE.AND.COMPLEX.20 lac20:
   INT i:
   BOOL b:
   BYTE y:
   [10]BYTE is:
+  [20]INT ints:
+  [4]BOOL bools:
   PAR
     SEQ
       simple ! 42; TRUE; 42
@@ -25,6 +72,9 @@ PROC P ()
       complex ! one.arg; 24
       array ! "abcdefghij"
       counted ! 5::"abcde"
+      lac10 ! choice.eight
+      lac10 ! choice.one ; 0 ; 1 ; 2 ; 3 ; TRUE ; 5 ; 6 ; 7 ; 8 ; TRUE ; 255
+      lac20 ! choice.twentyone ; 0 ; 1 ; 2 ; 3 ; TRUE ; 5 ; 6 ; 7 ; 8 ; TRUE ;  10 ; 11 ; 12 ; 13 ; TRUE ; 15 ; 16 ; 17 ; 18 ; TRUE ; 255
     SEQ
       simple ? i; b; y
       complex ? CASE three.args; i; b; y
@@ -42,4 +92,8 @@ PROC P ()
           STOP
       array ? is
       counted ? i::is
+      lac10 ? CASE choice.eight
+      lac10 ? CASE choice.one ; ints[0] ; ints[1] ; ints[2] ; ints[3] ; bools[0] ; ints[5] ; ints[6] ; ints[7] ; ints[8] ; bools[1] ; y
+      lac20 ? CASE choice.twentyone ; ints[0] ; ints[1] ; ints[2] ; ints[3] ; bools[0] ; ints[5] ; ints[6] ; ints[7] ; ints[8] ; bools[1] ;
+        ints[10] ; ints[11] ; ints[12] ; ints[13] ; bools[2] ; ints[15] ; ints[16] ; ints[17] ; ints[18] ; bools[3] ; y
 :
