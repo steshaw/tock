@@ -9,6 +9,7 @@ sources = \
 	EvalConstants.hs \
 	EvalLiterals.hs \
 	GenerateC.hs \
+	GenerateCPPCSP.hs \
 	Indentation.hs \
 	Intrinsics.hs \
 	Main.hs \

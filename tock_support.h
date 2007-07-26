@@ -12,7 +12,14 @@
 #include <stdio.h>
 #include <math.h>
 
+//For C++CSP:
+#ifndef NO_CIFCCSP
 #include <cifccsp.h>
+#else
+#define EXTERNAL_CALLN(F,I,args...)     (F)((I),##args)
+#define EXTERNAL_CALL(F)                (F)()
+#define SetErr()                        
+#endif
 
 //{{{ mostneg/mostpos
 #define occam_mostneg_bool false
@@ -45,11 +52,15 @@
 //}}}
 
 //{{{ runtime check functions
+
+//C++CSP may have defined this function already:
+#ifndef occam_stop
 #define occam_stop(pos, format, args...) \
 	do { \
 		EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
 		SetErr (); \
 	} while (0)
+#endif //occam_stop
 
 static inline int occam_check_slice (int, int, int, const char *) occam_unused;
 static inline int occam_check_slice (int start, int count, int limit, const char *pos) {
