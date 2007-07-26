@@ -12,6 +12,7 @@ import System.IO
 import CompState
 import Errors
 import GenerateC
+import GenerateCPPCSP
 import Parse
 import Pass
 import PrettyShow
@@ -34,6 +35,7 @@ options :: [OptDescr OptFunc]
 options =
   [ Option [] ["parse-only"] (NoArg optParseOnly) "only parse input file"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
+  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "backend (options: CIF, CPPCSP)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
 
@@ -45,6 +47,9 @@ optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
+
+optBackend :: String -> OptFunc
+optBackend s ps = return $ ps { csBackend = s }
 
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
@@ -96,9 +101,20 @@ compile fn
               do progress "Passes:"
                  ast2 <- (runPasses passes) ast1
 
-                 debug "{{{ Generate C"
-                 progress "Generate C"
-                 c <- generateC ast2
+                 debug "{{{ Generate Code"
+                 c <-
+                   case csBackend optsPS of 
+                     "CPPCSP" -> 
+                       do progress "Generate C++CSP"
+                          c' <- generateCPPCSP ast2
+                          return c'
+                     "CIF" ->
+                       do progress "Generate C/CIF"
+                          c' <- generateC ast2
+                          return c'
+                     _ -> 
+                       do error ("Unknown backend: " ++ (csBackend optsPS))
+
                  debug "}}}"
 
                  return c

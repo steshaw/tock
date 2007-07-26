@@ -16,6 +16,7 @@ data CompState = CompState {
     csVerboseLevel :: Int,
     csParseOnly :: Bool,
     csOutputFile :: String,
+    csBackend :: String,
 
     -- Set by preprocessor
     csSourceFiles :: Map String String,
@@ -47,6 +48,7 @@ emptyState = CompState {
     csVerboseLevel = 0,
     csParseOnly = False,
     csOutputFile = "-",
+    csBackend = "CIF",
 
     csSourceFiles = Map.empty,
     csIndentLinesIn = [],
