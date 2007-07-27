@@ -58,6 +58,10 @@ haddock:
 	@mkdir -p doc
 	haddock -o doc --html $(sources)
 
+raintest: $(sources) RainParse.hs RainParseTest.hs Makefile
+	ghc -fglasgow-exts -fallow-undecidable-instances -fwarn-unused-binds $(profile_opts) -o raintest -main-is RainParseTest --make RainParseTest
+
+
 clean:
 	rm -f $(targets) *.o *.hi
 

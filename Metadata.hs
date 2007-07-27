@@ -10,7 +10,7 @@ data Meta = Meta {
     metaLine :: Int,
     metaColumn :: Int
   }
-  deriving (Eq, Typeable, Data)
+  deriving (Typeable, Data)
 
 emptyMeta :: Meta
 emptyMeta = Meta {
@@ -24,3 +24,10 @@ instance Show Meta where
       case metaFile m of
         Just s -> basenamePath s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
         Nothing -> "no source position"
+
+--emptyMeta is equal to any meta tag:
+instance Eq Meta where
+  (==) a b = 
+    if ((metaFile a == Nothing) && (metaLine a == 0) && (metaColumn a == 0)) then True else
+    if ((metaFile b == Nothing) && (metaLine b == 0) && (metaColumn b == 0)) then True else
+    ((metaFile a == metaFile b) && (metaLine a == metaLine b) && (metaColumn a == metaColumn b))
