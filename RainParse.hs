@@ -202,8 +202,13 @@ block = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map 
 optionalSeq :: RainParser ()
 optionalSeq = option () sSeq
 
---assignOp :: RainParser (Maybe DyadicOp)
---TODO consume an optional operator, then an equals sign (so we can handle = += /= etc)  This should not handle !=, nor crazy things like ===, <== (nor <=)
+assignOp :: RainParser (Meta, Maybe A.DyadicOp)
+--consume an optional operator, then an equals sign (so we can handle = += /= etc)  This should not handle !=, nor crazy things like ===, <== (nor <=)
+assignOp
+  = do {m <- md; reservedOp "+=" ; return (m,Just A.Plus)}
+    <|> do {m <- md; reservedOp "-=" ; return (m,Just A.Minus)}
+    <|> do {m <- md; reservedOp "=" ; return (m,Nothing)}	
+    --TODO the rest
 
 lvalue :: RainParser A.Variable
 --For now, only handle plain variables:
@@ -218,8 +223,11 @@ statement
            }
     <|> do { m <- md ; optionalSeq ; b <- block ; return $ A.Seq m b}
     <|> do { m <- md ; sPar ; b <- block ; return $ A.Par m A.PlainPar b}
-    --TODO
---    <|> do { m <- md ; lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; return {-TODO-} }
+    <|> do { m <- md ; lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
+             case op of 
+               (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable m lv) exp)]))
+               (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList m [exp]))
+           }    
     <|> do { m <- md ; sSemiColon ; return $ A.Skip m}
     <?> "statement"
-
+--TODO the "each" statements

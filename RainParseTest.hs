@@ -1,4 +1,4 @@
-module RainParseTest () where
+module RainParseTest (tests) where
 
 import qualified RainParse as RP
 import qualified AST as A
@@ -6,6 +6,7 @@ import Text.ParserCombinators.Parsec (runParser,eof)
 import Test.HUnit
 import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
+import TestUtil
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
 
@@ -15,7 +16,6 @@ pass x = ExpPass x
 fail :: Show a => (String, RP.RainParser a) -> ParseTest a
 fail x = ExpFail x
 
---TODO must make sure that the whole input is consumed?  (is this needed?)
 
 --Runs a parse test, given a tuple of: (source text, parser function, assert)
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion
@@ -24,6 +24,9 @@ testParsePass (text,prod,test)
         Left error -> assertString (show error)
         Right result -> ((return result) >>= test)
     where parser = do { p <- prod ; eof ; return p}
+    --Adding the eof parser above ensures that all the input is consumed from a test.  Otherwise
+    --tests such as "seq {}}" would succeed, because the final character simply wouldn't be parsed -
+    --which would ruin the point of the test
 
 testParseFail :: Show a => (String, RP.RainParser a) -> Assertion
 testParseFail (text,prod)
@@ -31,18 +34,6 @@ testParseFail (text,prod)
         Left error -> return ()
         Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}
-
-m :: Meta
-m = emptyMeta
-
---Helper function for creating an A.Name object:
-simpleName :: String -> A.Name
-simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
-
---Helper function for creating a simple variable name as an expression:
-exprVariable :: String -> A.Expression
-exprVariable e = A.ExprVariable emptyMeta $ A.Variable emptyMeta $ simpleName e
-
 testExp0 = pass ("b",RP.expression,      
   assertEqual "Variable Expression Test" (exprVariable "b") )
 
@@ -56,8 +47,44 @@ makeIf list = A.If m $ A.Several m (map makeChoice list)
     makeChoice :: (A.Expression,A.Process) -> A.Structured
     makeChoice (exp,proc) = A.OnlyC m $ A.Choice m exp proc
 
-makeSimpleAssign :: String -> String -> A.Process
-makeSimpleAssign dest src = A.Assign m [A.Variable m $ simpleName dest] (A.ExpressionList m [exprVariable src])
+dyExp :: A.DyadicOp -> A.Variable -> A.Variable -> A.Expression
+dyExp op v0 v1 = A.Dyadic m op (A.ExprVariable m v0) (A.ExprVariable m v1)
+
+makeAssign :: A.Variable -> A.Expression -> A.Process
+makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
+
+ 
+makeLiteralString :: String -> A.Expression
+makeLiteralString str = A.Literal m (A.Array [A.Dimension 1] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
+  where
+    makeLiteralChar :: Char -> A.ArrayElem
+    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m (show (fromEnum c)))
+
+data EachType = Seq | Par
+
+makeEach :: EachType -> String -> A.Type -> A.Expression -> A.Process -> A.Process
+makeEach ty loopVar listType listVar body   
+ =  case listSpec of
+      Nothing -> A.Seq m builtRep
+      Just lspec -> A.Seq m $ A.Spec m lspec builtRep     
+    where 
+-- Possibly put list into temporary:
+      (actualListVar,listSpec) = calcListVar listVar listType
+    -- Produce the loop using a replicator:
+      rep = A.For m (simpleName (loopVar ++ ".index")) (A.Literal m A.Int (A.IntLiteral m "0")) (A.SizeExpr m (A.ExprVariable m actualListVar))
+    -- Add a specification for abbreviating the array item:
+      spec = A.Specification m (simpleName loopVar) 
+        (A.Is m A.Abbrev A.Byte (A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m (variable (loopVar ++ ".index")))) actualListVar) )
+    --TODO workout where the SEQ/PAR distinction goes    
+      builtRep = A.Rep m rep (A.Spec m spec (A.OnlyP m body))     
+      calcListVar :: A.Expression -> A.Type -> (A.Variable,Maybe A.Specification)
+      calcListVar (A.ExprVariable _ v) _ = (v,Nothing)
+      --HACK!  need proper nonce
+      calcListVar v ty = (variable var,Just $ A.Specification m (simpleName var) (A.IsExpr m A.ValAbbrev ty v))
+        where var = "listvar"
+
+
+
 
 testIf :: [ParseTest A.Process]
 testIf =
@@ -83,6 +110,9 @@ testAssign =
   pass ("a = b;",RP.statement,
     assertEqual "Assign Test 0" $ makeSimpleAssign "a" "b")
   ,fail ("a != b;",RP.statement)
+  ,pass ("a += b;",RP.statement,
+    assertEqual "Assign Test 1" $ makeAssign (variable "a") (dyExp A.Plus (variable ("a")) (variable ("b")) ) )
+  ,fail ("a + = b;",RP.statement)
  ]
 
 testWhile :: [ParseTest A.Process]
@@ -155,8 +185,8 @@ testPar =
  ]
         
 --Returns the list of tests:
-testList :: [Test]
-testList = 
+tests :: Test
+tests = TestList
  [
   parseTest testExp0,parseTest testExp1,
   parseTests testWhile,
@@ -165,6 +195,15 @@ testList =
   parseTests testIf,
   parseTests testAssign
  ]
+--TODO test:
+-- input (incl. ext input)
+-- output
+-- alting
+--TODO later on:
+-- types (lists, tuples, maps)
+-- functions
+-- typedefs
+
 
   where
     parseTest :: Show a => ParseTest a -> Test
@@ -173,8 +212,3 @@ testList =
     parseTests :: Show a => [ParseTest a] -> Test
     parseTests tests = TestList (map parseTest tests)
 
-    
---Main function; runs the tests
-main :: IO ()
-main = do runTestTT $ TestList testList
-          return ()
