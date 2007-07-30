@@ -92,12 +92,17 @@ parUsageCheck proc
   where
     doUsageCheck :: A.Process -> Bool
     doUsageCheck (A.Par _ _ s) 
-      --TODO deal with Rep and Spec inside Par
-      = case s of 
+      --TODO deal with Rep inside Par:
+      = case skipSpecs s of 
           A.Several _ structList -> 
             --Need to check that for each written item, it is not read/written elsewhere:
             or $ permuteHelper usageCheckList (map getVars structList)
     doUsageCheck _ = False
+    
+    --Recursively skips down past the Specs:
+    skipSpecs :: A.Structured -> A.Structured
+    skipSpecs (A.Spec _ _ s) = skipSpecs s
+    skipSpecs other = other
     
     --Should be no intersection between our written items, and any written or read items anywhere else:
     usageCheckList :: WrittenRead -> [WrittenRead] -> Bool
