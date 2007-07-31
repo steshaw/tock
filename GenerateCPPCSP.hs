@@ -45,7 +45,7 @@ Code that has been imported verbatim from GenerateC (reason 2) has been tagged a
 
 
 {-
-For the array handling I am currently using the Blitz++ library: http://www.oonumerics.org/blitz/
+For the array handling I am currently using a combination of std::vector and an array view class (tockArrayView) I built myself
 
 I considered the following options:
 1. in-built C arrays
@@ -59,13 +59,13 @@ Option 1 is what Adam used in GenerateC, but it involves carrying around the arr
 Options 2 and 3 are fairly similar (boost::array is possible because arrays are of constant size in occam) but neither supports multiple dimensions
 nor array slicing, so that would have been awkward.
 Option 4 does support multiple dimensions and array slicing - but the latter would involve keeping tabs of the dimensions of the *original* array
-(that was sliced *from*), even through multiple slices, which would have been a nightmare.
-Option 5 makes slicing nice and simple, and multiple dimensions are easy too.  Hence, although it adds another dependency (boost would not have counted, 
-as it is already a dependency of C++CSP) it is definitely the easiest solution for code generation.  The dependency could be removed through option 6
-(even to the point of taking some GPL Blitz++ code) but that seems a step too far just to remove a dependency.
+(that was sliced *from*), even through multiple slices and indexes, which would have been a nightmare.
+Option 5 makes slicing nice and simple, and multiple dimensions are easy too.  However, things like retyping are still a big problem, so in the end 
+it became untenable.
 
-ADDENDUM: I have wrapped blitz::Array into tockArray in order to make the assignment work correctly (resizing before copy) and also provide
-some useful constructors
+Therefore the only remaining option was 6.  I use std::vector (although this may become boost::array) to actually store each array, and then
+use tockArrayView to work with the array.  tockArrayView represents a view of an array, and never allocates or deallocates any memory.  Thus they
+can be passed around freely, which makes them easy to work with.
 
 -}
 
