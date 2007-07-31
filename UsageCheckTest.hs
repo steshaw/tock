@@ -35,9 +35,11 @@ vC = variable "c"
 vD = variable "d"
 v0 = A.Literal m A.Int $ A.IntLiteral m "0"
 vA_0 = A.SubscriptedVariable m (A.Subscript m v0) vA
+vA_1 = A.SubscriptedVariable m (A.Subscript m (intLiteral 1)) vA
 vA_B = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m vB)) vA
 vC_D = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m vD)) vC
 vA_BpC = A.SubscriptedVariable m (A.Subscript m (A.Dyadic m A.Plus (A.ExprVariable m vB) (A.ExprVariable m vC))) vA
+vA_i = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m (variable "i"))) vA
    
 --These are all shorthand for some useful "building block" processes
 --The syntax is roughly: <variable list>_eq_<variable list>
@@ -53,7 +55,9 @@ a'b_eq_c = A.Assign m [vA_B] $ A.ExpressionList m [A.ExprVariable m vC]
 a'b_eq_c'd = A.Assign m [vA_B] $ A.ExpressionList m [A.ExprVariable m vC_D]
 a'b_eq_0 = A.Assign m [vA_B] $ A.ExpressionList m [v0]
 a'0_eq_0 = A.Assign m [vA_0] $ A.ExpressionList m [v0]
+a'1_eq_0 = A.Assign m [vA_1] $ A.ExpressionList m [v0]
 a'0_eq_c = A.Assign m [vA_0] $ A.ExpressionList m [A.ExprVariable m vC]
+a'i_eq_0 = A.Assign m [vA_i] $ A.ExpressionList m [v0]
    
 a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m vC) (A.ExprVariable m vD)]
 a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.ExprVariable m vB)]
@@ -98,6 +102,8 @@ testGetVar = TestList (map doTest tests)
      --Test expressions in subscripts:     
      ,(300,[vA_BpC],[vB,vC,vD],a'b_plus_c_eq_d)
      
+
+     
     ]
    doTest :: (Int,[A.Variable],[A.Variable],A.Process) -> Test
    doTest (index,written,read,proc) = TestCase $ assertEqualWR ("testGetVar-" ++ (show index)) (written,read) (UC.getVars proc)   
@@ -115,6 +121,21 @@ testParUsageCheck = TestList (map doTest tests)
      ,(5,makePar [makePar [a_eq_0,a_eq_b],makePar [c_eq_b,c_eq_d]],Just [makePar [a_eq_0,a_eq_b],makePar [c_eq_b,c_eq_d]])
      ,(6,makePar [makeSeq [a_eq_0,c_eq_d],c_eq_b],Just [makePar [makeSeq [a_eq_0,c_eq_d],c_eq_b]])
      ,(7,makePar [makeSeq [a_eq_0,a_eq_b],c_eq_b],Nothing)
+
+     --Different (some constant) indexes:
+     
+     ,(100,makePar[a'0_eq_0,a'1_eq_0],Nothing)
+     --This test will only work if b is not a constant -- maybe have a pass to substitute constants throughout the code:
+     ,(101,makePar[a'0_eq_0,a'b_eq_0],Just [makePar[a'0_eq_0,a'b_eq_0]])
+
+     --Replicated PARs:
+     
+     ,(300,makeRepPar a_eq_0,Just [makeRepPar a_eq_0])
+     ,(301,makeRepPar $ makeSeq [a_eq_0],Just [makeRepPar $ makeSeq [a_eq_0]])
+     ,(302,makeRepPar $ makePar [a_eq_0],Just [makeRepPar $ makePar [a_eq_0]])
+     ,(303,makeRepPar  a'i_eq_0,Nothing)
+     ,(303,makeRepPar $ makeSeq [a'i_eq_0],Nothing)
+     ,(303,makeRepPar $ makePar [a'i_eq_0],Nothing)
 
    ]
   doTest :: (Int,A.Process,Maybe [A.Process]) -> Test

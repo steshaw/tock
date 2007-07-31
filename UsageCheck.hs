@@ -92,11 +92,16 @@ parUsageCheck proc
   where
     doUsageCheck :: A.Process -> Bool
     doUsageCheck (A.Par _ _ s) 
-      --TODO deal with Rep inside Par:
+      --Looking at the AST Parse for occam, we can either have:
+      --A.Par _ _ (A.Several _ [A.OnlyP _ _])
+      --A.Par _ _ (A.Rep _ _ (A.OnlyP _ _))
+      --Therefore skipSpecs shouldn't be necessary, but I may as well keep it in for now:
       = case skipSpecs s of 
           A.Several _ structList -> 
             --Need to check that for each written item, it is not read/written elsewhere:
             or $ permuteHelper usageCheckList (map getVars structList)
+          A.Rep _ rep (A.OnlyP _ proc) ->
+            False --TODO!
     doUsageCheck _ = False
     
     --Recursively skips down past the Specs:
