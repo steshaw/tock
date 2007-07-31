@@ -200,7 +200,7 @@ genInputSizeAssign :: A.InputItem -> CGen()
 genInputSizeAssign (A.InVariable _ arr)
     = return ()	
 genInputSizeAssign (A.InCounted _ count arr)
-    = genVariable count >> tell [" = "] >> genVariable arr >> tell [" .extent(blitz::firstDim);"]
+    = genVariable count >> tell [" = "] >> genVariable arr >> tell [" .extent(0);"]
 
 --Generates the long boost::tie expression that will be used to get all the data out of a tuple that we have read
 genInputTupleAssign :: Bool -> String -> [A.InputItem] -> CGen()
@@ -338,22 +338,26 @@ genInputItem c (A.InCounted m cv av)
           genVariable cv 
           tell [" = "]
           genVariable av
-          tell [" .extent(blitz::firstDim); "]
+          tell [" .extent(0); "]
 genInputItem c (A.InVariable m v)
     =  do    genVariable c
              tell ["->reader() >> "]
              genVariable v
              tell [";\n"]
 
+--If we are sending an array, we use the versionToSend function to coerce away any annoying const tags on the array data:
 genJustOutputItem :: A.OutputItem -> CGen()
 genJustOutputItem (A.OutCounted m ce ae)
-    =  do genJustOutputItem (A.OutExpression m ae)
-          tell[" (blitz::Range(0,"] 
+    =  do genExpression ae
+          tell[" .sliceFor("] 
           genExpression ce 
-          tell[" - 1)) .copy() "]
-          --TODO fill the rest of the dimensions with blitz::Range::all()
+          tell[") .versionToSend() "]
 genJustOutputItem (A.OutExpression m e)
-    =  genExpression e
+    =  do t <- typeOfExpression e
+          genExpression e
+          case t of
+            (A.Array _ _) -> tell [" .versionToSend() "]
+            _ -> return ()
 
 genOutputItem :: A.Variable -> A.OutputItem -> CGen ()
 genOutputItem chan item 
@@ -534,22 +538,47 @@ genProcCall n as
          tell [");"]
 
 
---Changed from CIF's untyped channels to C++CSP's typed (templated) channels:
+--Changed from CIF's untyped channels to C++CSP's typed (templated) channels, and changed the declaration type of an array to be a vector:
 declareType :: A.Type -> CGen ()
+declareType (A.Array ds t)
+    = do tell [" std::vector< "]
+         genType t
+         tell ["/**/>/**/"]
+declareType (A.Counted countType valueType)
+    = do tell [" std::vector< "]    
+         case valueType of
+           --Don't nest when it's a counted array of arrays:
+           (A.Array _ t) -> genType t
+           _ -> genType valueType
+         tell ["/**/>/**/"]
+    
 declareType (A.Chan t) 
     = do tell [" csp::One2OneChannel < "] 
          genType t 
-         tell [" > "]
+         tell ["/**/>/**/ "]
 declareType t = genType t
 
 --Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays:
+--An array is actually stored as a std::vector, but an array-view object is automatically created with the array
+--The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
+--I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
+--but I will worry about that later
 genDeclaration :: A.Type -> A.Name -> CGen ()
 genDeclaration arrType@(A.Array ds t) n
     =  do declareType arrType
           tell [" "]
           genName n
-          genArraySize ds
-          tell [";\n"]
+          tell ["_actual ("]
+          genFlatArraySize ds
+          tell ["); "]
+          genType arrType
+          tell [" "]
+          genName n;
+          tell ["("]
+          genName n
+          tell ["_actual,tockDims("]
+          genDims ds
+          tell ["));\n"]
 genDeclaration t n
     =  do declareType t
           tell [" "]
@@ -564,7 +593,7 @@ declareInit m t@(A.Array ds t') var
                                return (\sub -> Just $ do genVariable (sub var)
                                                          tell [" = new "]
                                                          declareType t'
-                                                         tell ["();\n"]
+                                                         tell [";\n"]
                                                          doMaybe $ declareInit m t' (sub var))
 
                           _ -> return (\sub -> declareInit m t' (sub var))
@@ -646,15 +675,6 @@ abbrevExpression am t@(A.Array _ _) e
     bad = missing "array expression abbreviation"
 abbrevExpression am _ e = genExpression e
 
---Uses the Blitz library for giving array dimensions -- hence the round brackets, which actually are part of a constructor call
-genArraySize :: [A.Dimension] -> CGen ()
-genArraySize ds
-    =  do tell ["( blitz::shape("]
-          sequence $ intersperse (tell [" , "])
-                                 [case d of A.Dimension n -> tell [show n] | d <- ds]
-          tell [") )"]
-
-
 --Used to create boost::variant and boost::tuple types.  Both these classes can have a maximum of nine items
 --so if there are more than nine items, we must have variants containing variants, or tuples containing tuples
 createChainedType :: String -> CGen() -> [CGen()] -> CGen ()
@@ -686,8 +706,18 @@ tupleExpression useBrackets tupleType items
          (firstNine,rest) = splitAt 9 items
 
 --Takes a list of dimensions and outputs a comma-seperated list of the numerical values
+--Unknown dimensions have value 0 (which is treated specially by the tockArrayView class)
 genDims:: [A.Dimension] -> CGen()
 genDims dims = infixComma $ map genDim dims
+  where
+    genDim :: A.Dimension -> CGen()
+    genDim (A.Dimension n) = tell [show n]
+    genDim (A.UnknownDimension) = tell ["0"]
+
+--Generates an expression that yields the number of total elements in a declared multi-dimensional array
+--Using it on arrays with unknown dimensions will cause an error (they should only be abbreviations, not declared as actual variables)
+genFlatArraySize:: [A.Dimension] -> CGen()
+genFlatArraySize dims = sequence_ $ intersperse (tell ["*"]) $ map genDim dims
   where
     genDim :: A.Dimension -> CGen()
     genDim (A.Dimension n) = tell [show n]
@@ -749,15 +779,15 @@ introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [" ",tmp, " [] = "]
                  rhs
                  tell [" ; "]
-                 tell ["const tockArray< "]
+                 tell ["const tockArrayView< const "]
                  genType ts
-                 tell [" , ",show (length dims)," > "]
+                 tell [" , ",show (length dims)," /**/>/**/ "]
                  genName n
                  tell ["(("]
                  genType ts 
-                 tell [" *)",tmp,",blitz::shape("]
+                 tell [" *)",tmp,",tockDims("]
                  genDims dims
-                 tell ["),blitz::duplicateData);\n"]
+                 tell ["));\n"]
             (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
               -- Record literals are even trickier, because there's no way of
               -- directly writing a struct literal in C that you can use -> on.
@@ -774,19 +804,15 @@ introduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [" = "]
                  rhs
                  tell [";\n"]
---TODO check this clause is ok
+
+--We must create the channel array then fill it:
 introduceSpec (A.Specification _ n (A.IsChannelArray _ t cs))
-    =  do --tell ["tockArray< csp::One2OneChannel< "]
-          genType t
-          --tell [" > * , 1 > "]
-          tell [" "]
-          genName n
-          tell ["(blitz::shape(",show (length cs),"));"]
+    =  do genDeclaration t n
           sequence_ $ map genChanArrayElemInit (zip [0 .. ((length cs) - 1)] cs)
           where
             genChanArrayElemInit (index,var)
               = do genName n
-                   tell ["(",show index,") = "]
+                   tell ["[",show index,"].access() = "] --Use the .access() function to cast a 0-dimension array into a T& for access
                    genVariable var
                    tell [";"]
 --This clause is unchanged from GenerateC:
@@ -817,28 +843,40 @@ introduceSpec (A.Specification _ n (A.ProtocolCase _ caseList))
             typedef_genCaseType n (tag, typeList) 
               =  createChainedType "boost::tuple" (genTupleProtocolTagName n tag) ((genProtocolTagName n tag) : (map genType typeList))
           
---TODO check this clause
+--Clause changed to handle array retyping
 introduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
           let rhs = abbrevVariable A.Abbrev origT v
           genDecl am t n
           tell [" = "]
-          -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
-          -- we need to dereference the pointer that abbrevVariable gives us.
-          let deref = case (am, t) of
-                        (_, A.Array _ _) -> False
-                        (_, A.Chan _) -> False
-                        (A.ValAbbrev, _) -> True
-                        _ -> False
-          when deref $ tell ["*"]
-          tell ["("]
-          genDeclType am t
-          when deref $ tell [" *"]
-          tell [") "]
-          rhs
-          tell [";\n"]
---TODO work out what this does
---          genRetypeSizes m am t n origT v
+          case t of 
+            (A.Array dims _) ->
+              --Arrays need to be handled differently because we need to feed the sizes in, not just perform a straight cast
+              do genDeclType am t
+                 tell ["("]
+                 rhs
+                 tell [",tockDims("]
+                 genDims dims
+                 tell ["));"]            
+            _ ->      
+              -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
+              -- we need to dereference the pointer that abbrevVariable gives us.
+              do let deref = case (am, t) of
+                               (_, A.Array _ _) -> False
+                               (_, A.Chan _) -> False
+                               (A.ValAbbrev, _) -> True
+                               _ -> False
+                 when deref $ tell ["*"]
+                 tell ["("]
+                 genDeclType am t
+                 when deref $ tell [" *"]
+                 tell [") ("]
+                 rhs                 
+                 case origT of 
+                     --We must be retyping from an array, but not to an array (so to a primitive type or something):
+                   (A.Array _ _) -> tell [".data()"]
+                   _ -> return ()
+                 tell [");\n"]
 
 --This clause is unchanged from GenerateC:
 introduceSpec n = missing $ "introduceSpec " ++ show n
@@ -851,10 +889,10 @@ genExpression (A.MostPos m t) = genTypeSymbol "mostpos" t
 genExpression (A.MostNeg m t) = genTypeSymbol "mostneg" t
 genExpression (A.SizeExpr m e)
     =  do genExpression e
-          tell [" .extent(blitz::firstDim) "]
+          tell [" .extent(0) "]
 genExpression (A.SizeVariable m v)
     =  do genVariable v
-          tell [" .extent(blitz::firstDim)"]
+          tell [" .extent(0)"]
 genExpression (A.Conversion m cm t e) = genConversion m cm t e
 genExpression (A.ExprVariable m v) = genVariable v
 genExpression (A.Literal _ _ lr) = genLiteral lr
@@ -875,8 +913,9 @@ genExpression t = missing $ "genExpression " ++ show t
 -- | If a type maps to a simple C type, return Just that; else return Nothing.
 
 --Changed from GenerateC to change the A.Timer type to use C++CSP time
+--Also changed the bool type, because vector<bool> in C++ is odd, so we hide it from the compiler:
 scalarType :: A.Type -> Maybe String
-scalarType A.Bool = Just "bool"
+scalarType A.Bool = Just "tockBool"
 scalarType A.Byte = Just "uint8_t"
 scalarType A.Int = Just "int"
 scalarType A.Int16 = Just "int16_t"
@@ -888,19 +927,20 @@ scalarType A.Timer = Just "csp::Time"
 scalarType _ = Nothing
 
 --Generates an array type, giving the Blitz++ array the correct dimensions
-genArrayType :: A.Type -> Int -> CGen ()
-genArrayType (A.Array dims t) rank
-    =  genArrayType t (rank + (max 1 (length dims)))
-genArrayType t rank
-    =  do tell [" tockArray< "]
+genArrayType :: Bool -> A.Type -> Int -> CGen ()
+genArrayType const (A.Array dims t) rank
+    =  genArrayType const t (rank + (max 1 (length dims)))
+genArrayType const t rank
+    =  do tell [" tockArrayView< "]
+          when (const) (tell [" const "])
           genType t
-          tell [" , ",show rank, " > "]
+          tell [" , ",show rank, " > /**/"]
     
 --Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
 genType :: A.Type -> CGen ()
 genType arr@(A.Array _ _)
-    =  genArrayType arr 0    
+    =  genArrayType False arr 0    
 genType (A.Record n) = genName n
 genType (A.UserProtocol n) = genProtocolName n
 genType (A.Chan t) 
@@ -908,7 +948,7 @@ genType (A.Chan t)
          genType t 
          tell [" > * "]
 genType (A.Counted countType valueType)
-    = genType (A.Array [] valueType)
+    = genType (A.Array [A.UnknownDimension] valueType)
 genType (A.Any)
     = tell [" tockAny "]
 -- Any -- not used
@@ -963,13 +1003,11 @@ genSlice _ v ty start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
     = do  genVariableUnchecked v
-          tell ["(blitz::Range("]        
+          tell [".sliceFromFor("]        
           genExpression start
           tell [" , "]
-          genExpression start
-          tell [" + "]
           genExpression count
-          tell [" ))"]          
+          tell [")"]          
          
 
 --Removed the sizing and the & from GenerateC:
@@ -982,9 +1020,7 @@ genArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
 genArraySubscript checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
-          tell ["("]
-          sequence_ $ intersperse (tell [" , "]) $ genPlainSub v es [0..(numDims - 1)]
-          tell [")"]
+          sequence_ $ genPlainSub v es [0..(numDims - 1)]
   where
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -992,14 +1028,14 @@ genArraySubscript checkValid v es
     -- smart C compiler should be able to work it out...
     
     --Subtly changed this function so that empty dimensions have blitz::Range::all() in the C++ version:
+    --TODO doc
     
     genPlainSub :: A.Variable -> [A.Expression] -> [Int] -> [CGen ()]
     genPlainSub _ _ [] = []
-    genPlainSub v [] (sub:subs) = (tell [" blitz::Range::all() "]) : (genPlainSub v [] subs)
+    genPlainSub v [] (sub:subs) = (tell [" "]) : (genPlainSub v [] subs)
     genPlainSub v (e:es) (sub:subs)
-        = gen : genPlainSub v es subs
+        = (tell ["["] >> genSub >> tell ["]"]) : genPlainSub v es subs
       where
-        gen = genSub 
         genSub
             = if checkValid
                 then do tell ["occam_check_index ("]
@@ -1104,6 +1140,21 @@ genIfBody ifExc s = genStructured s doC
              genProcess p             
              tell ["throw ",ifExc, "(); }\n"]
 --}}}
+
+
+--Changed to make array VAL abbreviations have constant data:
+genDeclType :: A.AbbrevMode -> A.Type -> CGen ()
+genDeclType am t
+    =  do case t of
+            A.Array _ _ -> genArrayType (am == A.ValAbbrev) t 0
+            _ ->
+              do when (am == A.ValAbbrev) $ tell ["const "]
+                 genType t
+                 case t of
+                   A.Chan _ -> return ()
+                   A.Record _ -> tell [" *"]
+                   _ -> when (am == A.Abbrev) $ tell [" *"]
+
 
 
 {-
@@ -1380,15 +1431,6 @@ genCheckedConversion m fromT toT exp
 
 --{{{  declarations
 --All taken verbatim from GenerateC
-genDeclType :: A.AbbrevMode -> A.Type -> CGen ()
-genDeclType am t
-    =  do when (am == A.ValAbbrev) $ tell ["const "]
-          genType t
-          case t of
-            A.Array _ _ -> return ()
-            A.Chan _ -> return ()
-            A.Record _ -> tell [" *"]
-            _ -> when (am == A.Abbrev) $ tell [" *"]
 
 genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
 genDecl am t n
@@ -1486,6 +1528,10 @@ genVariable' checkValid v
         =  do let (es, v) = collectSubs sv
               genVariable v
               genArraySubscript checkValid v es
+              t <- typeOfVariable v
+              --To index an actual element of an array we must use the .access() function
+              --Only needed when we have applied enough subscripts to get out an element:
+              case t of A.Array dims _ -> when ((length dims) == (length es)) (tell [" .access() "])
     inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
         =  do genVariable v
               tell ["->"]

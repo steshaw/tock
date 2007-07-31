@@ -29,17 +29,11 @@ public:
 #include <iostream>
 #include <boost/tuple/tuple.hpp>
 #include <boost/variant.hpp>
-#include <boost/mpl/at.hpp>
-#include <blitz/array.h>
-#include <blitz/tinyvec-et.h>
 #include <boost/any.hpp>
-
-inline blitz::Array<unsigned char, 1> string_to_array(char* c)
-{
-	const size_t n = strlen(c) + 1;
-	return blitz::Array<unsigned char, 1>((unsigned char*)c,blitz::shape(n),blitz::neverDeleteData);
-}
-
+#include <vector>
+#include <boost/type_traits/remove_const.hpp>
+#include <boost/preprocessor/repetition/repeat.hpp>
+#include <boost/preprocessor/repetition/repeat_from_to.hpp>
 
 class StreamWriter : public csp::CSProcess
 {
@@ -105,93 +99,244 @@ public:
 };
 
 
-template < typename T, unsigned dims >
-class tockArray : public blitz::Array<T,dims>
+class tockBool
 {
+private: 
+	bool b;
+public: 
+	inline tockBool() {}
+	inline tockBool(bool _b) : b(_b) {}
+	inline operator bool () const {return b;}
+	inline void operator = (const bool& _b) {b = _b;}
+};
+
+inline std::pair< boost::array<unsigned,1> , unsigned > tockDims(const unsigned d0)
+{
+	boost::array<unsigned,1> r;
+	r[0] = d0;
+	return std::pair< boost::array<unsigned,1> , unsigned >(r,1);
+}
+
+/*
+Generates functions like this:
+inline std::pair< boost::array<unsigned,2> , unsigned > tockDims(const unsigned d0,const unsigned d1,const unsigned d2)
+{
+	boost::array<unsigned,2> r;
+	r[0] = d0;
+	r[1] = d1;
+	r[2] = d2;
+	return std::pair< boost::array<unsigned,2> , unsigned >(r,d1 * d2);
+}
+*/
+
+#define TOCKDIMS_ARGS(___z,NUM,___data) ,const unsigned d##NUM
+#define TOCKDIMS_ASSIGN(___z,NUM,___data) r[ NUM ] = d##NUM ;
+#define TOCKDIMS_MULT(___z,NUM,___data) * d##NUM
+
+#define TOCKDIMS(___z,NUM,___data) inline std::pair< boost::array<unsigned, NUM >,unsigned> tockDims(\
+	const unsigned d0 BOOST_PP_REPEAT_FROM_TO(1,NUM,TOCKDIMS_ARGS,0) ) { \
+	boost::array<unsigned, NUM > r; BOOST_PP_REPEAT(NUM,TOCKDIMS_ASSIGN,0) \
+	return std::pair< boost::array<unsigned, NUM > , unsigned >(r,1 BOOST_PP_REPEAT_FROM_TO(1,NUM,TOCKDIMS_MULT,0) ); }
+
+//Up to 12 dimensions:
+BOOST_PP_REPEAT_FROM_TO(2,12,TOCKDIMS,0)
+
+
+template < typename T, unsigned DIMS >
+class tockArrayView
+{
+	T* realArray;
+	boost::array<unsigned,DIMS> dims;
+	//dims[1] * dims[2] * dims[3] ...
+	//If DIMS is 0 or 1, totalSubDim will be 1
+	unsigned totalSubDim;
+	
+	template <typename U>
+	inline void operator=(const U&) {}
+	
+	inline tockArrayView(T* _realArray,const boost::array<unsigned,DIMS+1>& _biggerDims,unsigned _totalSubDim)
+		:	realArray(_realArray),totalSubDim(_totalSubDim)
+	{
+		memcpy(dims.c_array(),_biggerDims.data() + 1,sizeof(unsigned) * DIMS);
+	}
+	friend class tockArrayView<T,DIMS + 1>;
+
+	inline void correctDimsRetype(const unsigned totalSourceBytes)
+	{
+		if (totalSubDim == 0)
+		{
+			//Can only happen if one of the dimensions is zero, i.e. unknown
+			//We must find this dimension and calculate it:
+		
+			unsigned zeroDim;
+			unsigned totalDim = 1;
+			for (unsigned i = 0;i < DIMS;i++)
+			{
+				if (dims[i] == 0)
+					zeroDim = i;
+				else
+					totalDim *= dims[i];				
+			}
+			//Set the size of the unknown dimension:
+			dims[zeroDim] = (totalSourceBytes / totalDim) / sizeof(T);
+			
+			totalSubDim = (totalDim * dims[zeroDim]) / dims[0];
+		}
+	
+	}
+
+	
 public:
-	inline tockArray(const tockArray<T,dims>& _array)
-		:	blitz::Array<T,dims>(*(blitz::Array<T,dims>*)&_array) {}
-
-	inline tockArray(const tockAny& _any)
-		:	blitz::Array<T,dims>(*(blitz::Array<T,dims>*)& (tockArray)_any) {}		
-
-	template <typename U>
-	inline tockArray(const tockArray<U,dims>& _diffTypeArray)
-		:	blitz::Array<T,dims>( (T*) (_diffTypeArray.dataFirst()), (_diffTypeArray.shape() * (int)sizeof(U)) / (int)sizeof(T),blitz::neverDeleteData) {}
-
-	template <unsigned D>
-	inline tockArray(const tockArray<T,D>& _diffDimArray)
-		:   blitz::Array<T,dims>( (T*) (_diffDimArray.dataFirst()),blitz::shape(_diffDimArray.size()),blitz::neverDeleteData) {}
-
-	template <typename U>
-	inline tockArray(U* u)
-		:	blitz::Array<T,dims>( (T*) u, sizeof(U) / sizeof(T),blitz::neverDeleteData) {}
-
-	inline tockArray(T t) : blitz::Array<T,dims>(1) {(*this)(0) = t;}
-
-
-	template <typename U>
-	inline tockArray(U u) : blitz::Array<T,dims>(u) {}
-
-	template <typename U,typename V>
-	inline tockArray(U u,V v) : blitz::Array<T,dims>(u,v) {}
-	
-	template <typename U,typename V,typename W>
-	inline tockArray(U u,V v,W w) : blitz::Array<T,dims>(u,v,w) {}
-
-	template <typename U,typename V,typename W,typename X>
-	inline tockArray(U u,V v,W w,X x) : blitz::Array<T,dims>(u,v,w,x) {}
-
-	template <typename U,typename V,typename W,typename X,typename Y>
-	inline tockArray(U u,V v,W w,X x,Y y) : blitz::Array<T,dims>(u,v,w,x,y) {}	
-
-	template <typename U,typename V,typename W,typename X,typename Y,typename Z>
-	inline tockArray(U u,V v,W w,X x,Y y,Z z) : blitz::Array<T,dims>(u,v,w,x,y,z) {}
-	
-	template <typename U,typename V,typename W,typename X,typename Y,typename Z,typename Z0>
-	inline tockArray(U u,V v,W w,X x,Y y,Z z,Z0 z0) : blitz::Array<T,dims>(u,v,w,x,y,z,z0) {}	
-
-	template <typename U,typename V,typename W,typename X,typename Y,typename Z,typename Z0,typename Z1>
-	inline tockArray(U u,V v,W w,X x,Y y,Z z,Z0 z0,Z1 z1) : blitz::Array<T,dims>(u,v,w,x,y,z,z0,z1) {}
-	
-	template <typename U,typename V,typename W,typename X,typename Y,typename Z,typename Z0,typename Z1,typename Z2>
-	inline tockArray(U u,V v,W w,X x,Y y,Z z,Z0 z0,Z1 z1,Z2 z2) : blitz::Array<T,dims>(u,v,w,x,y,z,z0,z1,z2) {}	
-
-	template <typename U,typename V,typename W,typename X,typename Y,typename Z,typename Z0,typename Z1,typename Z2,typename Z3>
-	inline tockArray(U u,V v,W w,X x,Y y,Z z,Z0 z0,Z1 z1,Z2 z2,Z3 z3) : blitz::Array<T,dims>(u,v,w,x,y,z,z0,z1,z2,z3) {}		
-
-	
-	inline tockArray() {}
-	
-	inline tockArray& operator=(const tockArray<T,dims>& rhs)
+	inline tockArrayView()
+		:	realArray(NULL)
 	{
-		resize(rhs.shape());
-		*((blitz::Array<T,dims>*)this) = *((blitz::Array<T,dims>*)&rhs);
+		dims.assign(0);
+		totalSubDim = 0;
+	}	
+
+	inline tockArrayView(const tockArrayView& v)
+		:	realArray(v.realArray),
+			dims(v.dims),
+			totalSubDim(v.totalSubDim)
+	{
+	}
+	
+
+	inline tockArrayView(T* _realArray,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)	
+		:	realArray(_realArray),dims(_dims.first),totalSubDim(_dims.second)
+	{
+	}
+	
+	inline tockArrayView(std::vector<typename boost::remove_const<T>::type>& _vec,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)	
+		:	realArray(_vec.empty() ? NULL : &(_vec.at(0))),dims(_dims.first),totalSubDim(_dims.second)
+	{
+	}	
+	
+	//Retyping:
+	
+	template <typename U>
+	inline tockArrayView(U* _realArray,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)	
+		:	realArray(reinterpret_cast<T*>(_realArray)),dims(_dims.first),totalSubDim(_dims.second)
+	{
+		//Assume it's a single U item:
+		correctDimsRetype(sizeof(U));
+	}
+	
+	
+	//Retyping, same number of dims:
+	template <typename U,unsigned FROMDIMS>
+	inline tockArrayView(const tockArrayView<U,FROMDIMS>& tav,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)
+		:	realArray(reinterpret_cast<T*>(tav.data())),dims(_dims.first),totalSubDim(_dims.second)
+	{
+		correctDimsRetype(tav.size() * sizeof(U));
+	}
+	
+	inline tockArrayView<T,DIMS - 1> operator[] (const unsigned index) const
+	{
+		return tockArrayView<T,DIMS - 1>(realArray + (totalSubDim * index),dims,totalSubDim / dims[0]);
+	}
+	
+	inline tockArrayView<T,DIMS> sliceFor(const unsigned amount) const
+	{
+		return sliceFromFor(0,amount);
+	}
+
+	inline tockArrayView<T,DIMS> sliceFrom(const unsigned index) const
+	{
+		return sliceFromFor(index,dims[0] - index);
+	}	
+	
+	inline tockArrayView<T,DIMS> sliceFromFor(const unsigned index,const unsigned amount) const
+	{
+		boost::array<unsigned,DIMS> sliceDims = dims;
+		sliceDims[0] = amount;
+	
+		return tockArrayView<T,DIMS>(realArray + (totalSubDim * index),std::make_pair(sliceDims,totalSubDim));
+	}
+	
+	inline T* data() const 
+	{
+		return realArray;
+	}	
+	
+	inline const boost::array<unsigned,DIMS>& getDims() const
+	{
+		return dims;
+	}
+	
+	inline unsigned getTotalSubDim() const
+	{
+		return totalSubDim;
+	}
+	
+	inline unsigned size() const
+	{
+		return dims[0] * totalSubDim;
+	}
+	
+	inline unsigned extent(const unsigned dim) const	
+	{
+		return dims[dim];
+	}
+	
+	inline operator tockArrayView<const T,DIMS>() const
+	{
+		return tockArrayView<const T,DIMS>((const T*)realArray,std::make_pair(dims,totalSubDim));
+	}
+	
+	inline void updateFromVector(std::vector<typename boost::remove_const<T>::type>& v)
+	{
+		realArray = v.empty() ? NULL : &(v.at(0));
+	}
+		
+	inline tockArrayView<typename boost::remove_const<T>::type,DIMS> versionToSend()
+	{
+		return tockArrayView<typename boost::remove_const<T>::type,DIMS>(const_cast<typename boost::remove_const<T>::type*>(realArray),std::make_pair(dims,totalSubDim));
+	}
+	
+	inline const tockArrayView<typename boost::remove_const<T>::type,DIMS> versionToSend() const
+	{
+		return tockArrayView<typename boost::remove_const<T>::type,DIMS>(const_cast<typename boost::remove_const<T>::type*>(realArray),std::make_pair(dims,totalSubDim));
+	}	
+	
+	inline tockArrayView& operator=(const tockArrayView& tav)
+	{
+		//TODO investigate speeding up when T is primitive (maybe there's a boost class for that?)
+		
+		unsigned n = tav.size();
+		for (unsigned i = 0;i < n;i++)
+		{
+			realArray[i] = tav.realArray[i];
+		}
+		
+		dims = tav.dims;
+		totalSubDim = tav.totalSubDim;
 		return *this;
 	}
 	
-	inline tockArray& operator=(const tockAny& any)
+	inline tockArrayView& operator=(const tockAny&)
 	{
-		return (*this = (tockArray<T,dims>)any);
+		//TODO later on
 	}
-	
-	inline tockArray& operator=(const T& t)
-	{
-		this->resize(blitz::shape(1));
-		(*this)(0) = t;
-		return *this;
-	}
-	
-	template <typename U>
-	operator U* ()
-	{
-		return (U*)(void*)(this->dataFirst());
-	}
+};
 
-	template <typename U>
-	operator const U* const ()
-	{
-		return (const U*)(const void*)(this->dataFirst());
-	}
+template <typename T>
+class tockArrayView<T,0>
+{
+	T* realArray;		
 	
+	inline tockArrayView(T* _realArray,boost::array<unsigned,1>,unsigned)
+        :   realArray(_realArray)
+    {
+    }
+    
+    friend class tockArrayView<T,1>;
+    
+public:
+
+	//Should only be used on arrays with zero dimensions:
+	inline T& access() const
+	{
+		return *realArray;
+	}
 };
