@@ -114,7 +114,7 @@ inline std::pair< boost::array<unsigned,1> , unsigned > tockDims(const unsigned 
 {
 	boost::array<unsigned,1> r;
 	r[0] = d0;
-	return std::pair< boost::array<unsigned,1> , unsigned >(r,1);
+	return std::pair< boost::array<unsigned,1> , unsigned >(r,d0 == 0 ? 0 : 1);
 }
 
 /*
