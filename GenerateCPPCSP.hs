@@ -745,7 +745,7 @@ introduceSpec (A.Specification _ n (A.Proc _ sm fs p))
           name
           tell ["("]
           genFormals prefixUnderscore fs
-          tell [") : csp::CSProcess(65536)"]
+          tell [") : csp::CSProcess(262144)"]
           genConstructorList fs
           tell ["{} protected: virtual void run() { try {"]
           name
