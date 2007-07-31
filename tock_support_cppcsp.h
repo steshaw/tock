@@ -233,7 +233,7 @@ public:
 	
 	inline tockArrayView<T,DIMS - 1> operator[] (const unsigned index) const
 	{
-		return tockArrayView<T,DIMS - 1>(realArray + (totalSubDim * index),dims,totalSubDim / dims[0]);
+		return tockArrayView<T,DIMS - 1>(realArray + (totalSubDim * index),dims,DIMS <= 1 ? 1 : (totalSubDim / dims[1]));
 	}
 	
 	inline tockArrayView<T,DIMS> sliceFor(const unsigned amount) const
