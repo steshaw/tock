@@ -987,10 +987,9 @@ cppgenType ops t
         Nothing -> call genMissing ops $ "genType " ++ show t
 
 
---Helper function for prefixing an underscore (looks like fairly ugly Haskell - maybe there is an easier way?)
--- FIXME: Yes, there is
+--Helper function for prefixing an underscore 
 prefixUnderscore :: A.Name -> A.Name
-prefixUnderscore n = A.Name {A.nameMeta = A.nameMeta n, A.nameType = A.nameType n, A.nameName = "_" ++ A.nameName n}
+prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 
 
 -- | Generate the right-hand side of an abbreviation of a variable.
