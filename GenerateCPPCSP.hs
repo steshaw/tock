@@ -336,7 +336,7 @@ genCPPCSPTime ops e
           tell ["unsigned ",curTimeLow," = (unsigned)remainder(1000000.0 * ",curTime,",4294967296.0);"]
           tell ["unsigned ",curTimeHigh," = (unsigned)((1000000.0 * ",curTime,") / 4294967296.0);"]
           --if time is less than curTime, it must have wrapped around so add one:
-          tell ["csp::Time ",retTime," = csp::Seconds((((double)(",curTimeHigh," + (",time," < ",curTimeLow, " ? 1 : 0)) * 4294967296.0) + (double)",time,") / 1000000.0);"]
+          tell ["csp::Time ",retTime," = csp::Seconds((((double)(",curTimeHigh," + TimeDiffHelper(",curTimeLow,",",time,")) * 4294967296.0) + (double)",time,") / 1000000.0);"]
           return retTime
 
 cppgenTimerWait :: GenOps -> A.Expression -> CGen ()

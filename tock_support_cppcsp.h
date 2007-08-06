@@ -35,6 +35,35 @@ public:
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/preprocessor/repetition/repeat_from_to.hpp>
 
+inline unsigned TimeDiffHelper(unsigned now,unsigned waitFor)
+{
+	//If waitFor is in the 2^31 before now, it is in the past:
+	if (now - waitFor < 2147483648)
+	{
+		//if we have wrapped round between waitFor and now, we actually want to return a minus-one:
+		if ((waitFor >= 2147483648) && (now < 2147483648))
+		{
+			return (unsigned)(int)(-1);
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	else
+	{
+		//It is in the future.  If we will wrap round before getting there, return one:
+		if ((now >= 2147483648) && (waitFor < 2147483648))
+		{
+			return 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+}
+
 class StreamWriter : public csp::CSProcess
 {
 private:
