@@ -55,6 +55,7 @@ cppgenOps = cgenOps {
     genType = cppgenType,
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
+    genVariable' = cppgenVariable',
     getScalarType = cppgetScalarType,
     introduceSpec = cppintroduceSpec,
     removeSpec = cppremoveSpec
@@ -1164,4 +1165,69 @@ cppgenDeclType ops am t
                    A.Record _ -> tell [" *"]
                    _ -> when (am == A.Abbrev) $ tell [" *"]
 
+
+
+--This function was changed deep inside -- the addition of .access() in the "inner" sub-function
+cppgenVariable' :: GenOps -> Bool -> A.Variable -> CGen ()
+cppgenVariable' ops checkValid v
+     =  do am <- accessAbbrevMode v
+           t <- typeOfVariable v
+           let isSub = case v of
+                         A.Variable _ _ -> False
+                         A.SubscriptedVariable _ _ _ -> True
+
+           let prefix = case (am, t) of
+                          (_, A.Array _ _) -> ""
+                          (A.Original, A.Chan _) -> if isSub then "" else "&"
+                          (A.Abbrev, A.Chan _) -> ""
+                          (A.Original, A.Record _) -> "&"
+                          (A.Abbrev, A.Record _) -> ""
+                          (A.Abbrev, _) -> "*"
+                          _ -> ""
+
+           when (prefix /= "") $ tell ["(", prefix]
+           inner v
+           when (prefix /= "") $ tell [")"]
+   where
+     -- | Find the effective abbreviation mode for the variable we're looking at.
+     -- This differs from abbrevModeOfVariable in that it will return Original
+     -- for array and record elements (because when we're generating C, we can
+     -- treat c->x as if it's just x).
+     accessAbbrevMode :: A.Variable -> CGen A.AbbrevMode
+     accessAbbrevMode (A.Variable _ n) = abbrevModeOfName n
+     accessAbbrevMode (A.SubscriptedVariable _ sub v)
+         =  do am <- accessAbbrevMode v
+               return $ case (am, sub) of
+                          (_, A.Subscript _ _) -> A.Original
+                          (_, A.SubscriptField _ _) -> A.Original
+                          _ -> am
+
+     inner :: A.Variable -> CGen ()
+     inner (A.Variable _ n) = genName n
+     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
+         =  do let (es, v) = collectSubs sv
+               call genVariable ops v
+               call genArraySubscript ops checkValid v es
+               t <- typeOfVariable v
+               --To index an actual element of an array we must use the .access() function
+               --Only needed when we have applied enough subscripts to get out an element:
+               case t of A.Array dims _ -> when ((length dims) == (length es)) (tell [" .access() "])
+     inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
+         =  do call genVariable ops v
+               tell ["->"]
+               genName n
+     inner (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v)
+         = inner (A.SubscriptedVariable m (A.Subscript m' start) v)
+     inner (A.SubscriptedVariable m (A.SubscriptFrom m' start) v)
+         = inner (A.SubscriptedVariable m (A.Subscript m' start) v)
+     inner (A.SubscriptedVariable m (A.SubscriptFor m' _) v)
+         = inner (A.SubscriptedVariable m (A.Subscript m' (makeConstant m' 0)) v)
+
+     -- | Collect all the plain subscripts on a variable, so we can combine them.
+     collectSubs :: A.Variable -> ([A.Expression], A.Variable)
+     collectSubs (A.SubscriptedVariable _ (A.Subscript _ e) v)
+         = (es' ++ [e], v')
+       where
+         (es', v') = collectSubs v
+     collectSubs v = ([], v)
 
