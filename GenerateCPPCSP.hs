@@ -33,6 +33,7 @@ cppgenOps = cgenOps {
     declareType = cppdeclareType,
     genActual = cppgenActual,
     genActuals = cppgenActuals,
+    genAlt = cppgenAlt,
     genArraySubscript = cppgenArraySubscript,
     genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
