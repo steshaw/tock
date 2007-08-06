@@ -128,6 +128,10 @@ public:
 };
 
 
+//Let's assume bool is an unsigned byte:
+#define occam_mostneg_tockBool 0
+#define occam_mostpos_tockBool 255
+
 class tockBool
 {
 private: 
