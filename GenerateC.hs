@@ -1308,7 +1308,7 @@ cintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
           tell ["}\n"]
 cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
-          let (rhs, rhsSizes) = abbrevVariable ops A.Abbrev origT v
+          let (rhs, _) = abbrevVariable ops A.Abbrev origT v
           call genDecl ops am t n
           tell [" = "]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
