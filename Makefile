@@ -28,7 +28,7 @@ sources = \
 # profile_opts = -prof -auto-all
 
 $(targets): $(sources)
-	ghc -fglasgow-exts -fallow-undecidable-instances $(profile_opts) -o tock --make Main
+	ghc -fglasgow-exts -fallow-undecidable-instances -fwarn-unused-binds $(profile_opts) -o tock --make Main
 
 CFLAGS = \
 	-O2 \

@@ -1,5 +1,5 @@
 -- | Generate C code from the mangled AST.
-module GenerateCPPCSP where
+module GenerateCPPCSP (generateCPPCSP) where
 
 import Data.Char
 import Data.List
