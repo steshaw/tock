@@ -1,34 +1,21 @@
-targets = tock
+targets = tock raintest
 
 all: $(targets)
 
-sources = \
-	AST.hs \
-	CompState.hs \
-	Errors.hs \
-	EvalConstants.hs \
-	EvalLiterals.hs \
-	GenerateC.hs \
-	GenerateCPPCSP.hs \
-	Indentation.hs \
-	Intrinsics.hs \
-	Main.hs \
-	Metadata.hs \
-	Parse.hs \
-	Pass.hs \
-	PrettyShow.hs \
-	SimplifyExprs.hs \
-	SimplifyProcs.hs \
-	SimplifyTypes.hs \
-	TLP.hs \
-	Types.hs \
-	Unnest.hs \
-	Utils.hs
+sources = $(wildcard *.hs)
 
 # profile_opts = -prof -auto-all
+ghc_opts = \
+	-fglasgow-exts \
+	-fallow-undecidable-instances \
+	-fwarn-unused-binds \
+	$(profile_opts)
 
-$(targets): $(sources)
-	ghc -fglasgow-exts -fallow-undecidable-instances -fwarn-unused-binds $(profile_opts) -o tock --make Main
+tock: $(sources)
+	ghc $(ghc_opts) -o tock --make Main
+
+raintest: $(sources)
+	ghc $(ghc_opts) -o raintest -main-is RainParseTest --make RainParseTest
 
 CFLAGS = \
 	-O2 \
@@ -58,13 +45,8 @@ haddock:
 	@mkdir -p doc
 	haddock -o doc --html $(sources)
 
-raintest: $(sources) RainParse.hs RainParseTest.hs Makefile
-	ghc -fglasgow-exts -fallow-undecidable-instances -fwarn-unused-binds $(profile_opts) -o raintest -main-is RainParseTest --make RainParseTest
-
-
 clean:
 	rm -f $(targets) *.o *.hi
 
 # Don't delete intermediate files.
 .SECONDARY:
-
