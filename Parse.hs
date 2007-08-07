@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Debug.Trace
 import qualified IO
-import Numeric (readHex)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language (emptyDef)
 import qualified Text.ParserCombinators.Parsec.Token as P
