@@ -47,6 +47,7 @@ vA_i = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m (variable "i")))
 --where a variable may be <letter> or <letter'subscript>
 a_eq_0 = A.Assign m [vA] $ A.ExpressionList m [l0]
 a_eq_b = makeSimpleAssign "a" "b"
+b_eq_c = makeSimpleAssign "b" "c"
 c_eq_b = makeSimpleAssign "c" "b"
 c_eq_d = makeSimpleAssign "c" "d"
 ab_eq_cd = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vC,A.ExprVariable m vD]
@@ -122,12 +123,20 @@ testParUsageCheck = TestList (map doTest tests)
      ,(5,makePar [makePar [a_eq_0,a_eq_b],makePar [c_eq_b,c_eq_d]],Just [makePar [a_eq_0,a_eq_b],makePar [c_eq_b,c_eq_d]])
      ,(6,makePar [makeSeq [a_eq_0,c_eq_d],c_eq_b],Just [makePar [makeSeq [a_eq_0,c_eq_d],c_eq_b]])
      ,(7,makePar [makeSeq [a_eq_0,a_eq_b],c_eq_b],Nothing)
+     ,(8,makePar [a'b_eq_0,b_eq_c],Just [makePar [a'b_eq_0,b_eq_c]])
 
-     --Different (some constant) indexes:
+     --Different (some constant,some not) indexes:
+     --The parUsageCheck assumes that constant folding has been run on the code, so any remaining variable/symbol
+     --must be non-constant:
      
      ,(100,makePar[a'0_eq_0,a'1_eq_0],Nothing)
-     --This test will only work if b is not a constant -- maybe have a pass to substitute constants throughout the code:
      ,(101,makePar[a'0_eq_0,a'b_eq_0],Just [makePar[a'0_eq_0,a'b_eq_0]])
+     ,(102,makePar[a'b_eq_0,a'b_eq_0],Just [makePar[a'b_eq_0,a'b_eq_0]])
+     ,(103,makePar[a'b_eq_0,a'b_plus_c_eq_d],Just [makePar[a'b_eq_0,a'b_plus_c_eq_d]])
+     ,(104,makePar[a'0_eq_0,a'b_plus_c_eq_d],Just [makePar[a'0_eq_0,a'b_plus_c_eq_d]])
+     
+     ,(110,makePar[makeSeq[a'0_eq_0,a'b_eq_0],c_eq_b],Nothing)
+     ,(111,makePar[makeSeq[a'0_eq_0,a'b_eq_0],a'1_eq_0],Just [makePar[makeSeq[a'0_eq_0,a'b_eq_0],a'1_eq_0]])
 
      --Replicated PARs:
      
