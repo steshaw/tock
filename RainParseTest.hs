@@ -7,6 +7,7 @@ import Test.HUnit
 import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
 import TestUtil
+import CompState
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
 
@@ -20,7 +21,7 @@ fail x = ExpFail x
 --Runs a parse test, given a tuple of: (source text, parser function, assert)
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion
 testParsePass (text,prod,test)
-    = case (runParser parser RP.emptyState "" text) of
+    = case (runParser parser emptyState "" text) of
         Left error -> assertString (show error)
         Right result -> ((return result) >>= test)
     where parser = do { p <- prod ; eof ; return p}
@@ -30,7 +31,7 @@ testParsePass (text,prod,test)
 
 testParseFail :: Show a => (String, RP.RainParser a) -> Assertion
 testParseFail (text,prod)
-    = case (runParser parser RP.emptyState "" text) of
+    = case (runParser parser emptyState "" text) of
         Left error -> return ()
         Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}

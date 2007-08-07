@@ -1,7 +1,6 @@
 module RainParse where
 
 import qualified Text.ParserCombinators.Parsec.Token as P
-import Parse (tryXV)
 
 
 
@@ -32,26 +31,12 @@ import Metadata
 import Pass
 import Types
 import Utils
+import qualified Parse
 
 
 
---Dummy:
-type RainState = Int
-
-type RainParser = GenParser Char RainState
-
-
-emptyState:: RainState
-emptyState = 0
-
-{-
-instance MonadState st (GenParser tok st) where
-  get = getState
-  put = setState
-    
-instance Die (GenParser tok st) where
-  die = fail
--}      
+type RainState = CompState
+type RainParser = Parse.OccParser
 
 rainStyle 
   = emptyDef
