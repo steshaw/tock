@@ -4,6 +4,7 @@ import qualified AST as A
 import Data.Generics
 import Metadata
 import Data.List
+import Data.Maybe
 
 --An obvious thing to do would be to hold these lists (of written/read variables respectively) instead as sets
 --However, this would involve defining an ordering over A.Variable.  This would be do-able for plain A.Variables,
@@ -57,13 +58,13 @@ getVars
     processVarW :: A.Variable -> WrittenRead
     processVarW v@(A.Variable _ _) = ([v],[])
     processVarW v@(A.SubscriptedVariable _ s _) = concatWR ([v],[]) (everything concatWR (([],[]) `mkQ` getVarExp) s) 
-
-    --Only need to deal with the two cases where we can see an A.Variable directly;
-    --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
-    getVarExp :: A.Expression -> WrittenRead
-    getVarExp (A.SizeVariable _ v) = ([],[v])
-    getVarExp (A.ExprVariable _ v) = ([],[v])
-    getVarExp _ = ([],[])
+    
+--Only need to deal with the two cases where we can see an A.Variable directly;
+--the generic recursion will take care of nested expressions, and even the expressions used as subscripts
+getVarExp :: A.Expression -> WrittenRead
+getVarExp (A.SizeVariable _ v) = ([],[v])
+getVarExp (A.ExprVariable _ v) = ([],[v])
+getVarExp _ = ([],[])
 
 
 -- I am not sure how you could build this out of the standard functions, so I built it myself
@@ -109,10 +110,36 @@ parUsageCheck proc
     skipSpecs (A.Spec _ _ s) = skipSpecs s
     skipSpecs other = other
     
-    --Should be no intersection between our written items, and any written or read items anywhere else:
+    --We need to check: 
+    --a) Should be no intersection between our written items, and any written or read items anywhere else
+    --b) You may only use a variable subscript if the array is not used anywhere else in the PAR
+    --We don't actually need to check for constant subscripts being the same - we assume constant folding has already
+    --taken place, which means that a[0] and a[0] will be picked up by the first check (a).  This also assumes
+    --that all array index literals will have been converted into INT literals rather than any other type.   
+    --The occam 2 manual says the types must be type INT, so this seems like an okay assumption.
     usageCheckList :: WrittenRead -> [WrittenRead] -> Bool
     usageCheckList (written,read) others 
-      = (length (intersect written (allOtherWritten ++ allOtherRead))) /= 0
+      = ((length (intersect written (allOtherWritten ++ allOtherRead))) /= 0)
+        || ((length (intersect (varSubscriptedArrays written) (subscriptedArrays (allOtherWritten ++ allOtherRead)))) /= 0)
         where 
           allOtherWritten = concatMap fst others
           allOtherRead = concatMap snd others
+          
+          --Takes in the subscripted compound variables, and returns the *array* variables (not the subscripted compounds)
+          varSubscriptedArrays :: [A.Variable] -> [A.Variable]
+          varSubscriptedArrays = mapMaybe varSubscriptedArrays'
+          
+          varSubscriptedArrays' :: A.Variable -> Maybe A.Variable 
+          varSubscriptedArrays' (A.SubscriptedVariable _ s v) 
+            = case ((length . snd . removeDupWR) (everything concatWR (([],[]) `mkQ` getVarExp) s)) of 
+                0 -> Nothing
+                _ -> Just v
+          varSubscriptedArrays' _ = Nothing
+
+          --Takes in the subscripted compound variables, and returns the *array* variables (not the subscripted compounds)
+          subscriptedArrays :: [A.Variable] -> [A.Variable]
+          subscriptedArrays = mapMaybe subscriptedArrays'
+          
+          subscriptedArrays' :: A.Variable -> Maybe A.Variable
+          subscriptedArrays' (A.SubscriptedVariable _ _ v) = Just v
+          subscriptedArrays' _ = Nothing
