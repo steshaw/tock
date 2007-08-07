@@ -33,9 +33,10 @@ vA = variable "a"
 vB = variable "b"
 vC = variable "c"
 vD = variable "d"
-v0 = A.Literal m A.Int $ A.IntLiteral m "0"
-vA_0 = A.SubscriptedVariable m (A.Subscript m v0) vA
-vA_1 = A.SubscriptedVariable m (A.Subscript m (intLiteral 1)) vA
+l0 = intLiteral 0
+l1 = intLiteral 1
+vA_0 = A.SubscriptedVariable m (A.Subscript m l0) vA
+vA_1 = A.SubscriptedVariable m (A.Subscript m l1) vA
 vA_B = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m vB)) vA
 vC_D = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m vD)) vC
 vA_BpC = A.SubscriptedVariable m (A.Subscript m (A.Dyadic m A.Plus (A.ExprVariable m vB) (A.ExprVariable m vC))) vA
@@ -44,20 +45,20 @@ vA_i = A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m (variable "i")))
 --These are all shorthand for some useful "building block" processes
 --The syntax is roughly: <variable list>_eq_<variable list>
 --where a variable may be <letter> or <letter'subscript>
-a_eq_0 = A.Assign m [vA] $ A.ExpressionList m [v0]
+a_eq_0 = A.Assign m [vA] $ A.ExpressionList m [l0]
 a_eq_b = makeSimpleAssign "a" "b"
 c_eq_b = makeSimpleAssign "c" "b"
 c_eq_d = makeSimpleAssign "c" "d"
 ab_eq_cd = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vC,A.ExprVariable m vD]
 ab_eq_ba = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vA,A.ExprVariable m vB]
-ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,v0]
+ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,l0]
 a'b_eq_c = A.Assign m [vA_B] $ A.ExpressionList m [A.ExprVariable m vC]
 a'b_eq_c'd = A.Assign m [vA_B] $ A.ExpressionList m [A.ExprVariable m vC_D]
-a'b_eq_0 = A.Assign m [vA_B] $ A.ExpressionList m [v0]
-a'0_eq_0 = A.Assign m [vA_0] $ A.ExpressionList m [v0]
-a'1_eq_0 = A.Assign m [vA_1] $ A.ExpressionList m [v0]
+a'b_eq_0 = A.Assign m [vA_B] $ A.ExpressionList m [l0]
+a'0_eq_0 = A.Assign m [vA_0] $ A.ExpressionList m [l0]
+a'1_eq_0 = A.Assign m [vA_1] $ A.ExpressionList m [l0]
 a'0_eq_c = A.Assign m [vA_0] $ A.ExpressionList m [A.ExprVariable m vC]
-a'i_eq_0 = A.Assign m [vA_i] $ A.ExpressionList m [v0]
+a'i_eq_0 = A.Assign m [vA_i] $ A.ExpressionList m [l0]
    
 a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m vC) (A.ExprVariable m vD)]
 a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.ExprVariable m vB)]
