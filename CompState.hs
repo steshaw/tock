@@ -14,13 +14,17 @@ import Metadata
 data CompMode = ModeParse | ModeCompile | ModePostC
   deriving (Show, Data, Typeable)
 
+-- | Backends that Tock can use.
+data CompBackend = BackendC | BackendCPPCSP
+  deriving (Show, Data, Typeable)
+
 -- | State necessary for compilation.
 data CompState = CompState {
     -- Set by Main (from command-line options)
     csMode :: CompMode,
+    csBackend :: CompBackend,
     csVerboseLevel :: Int,
     csOutputFile :: String,
-    csBackend :: String,
 
     -- Set by preprocessor
     csSourceFiles :: Map String String,
@@ -53,9 +57,9 @@ instance Show (A.Structured -> A.Structured) where
 emptyState :: CompState
 emptyState = CompState {
     csMode = ModeCompile,
+    csBackend = BackendC,
     csVerboseLevel = 0,
     csOutputFile = "-",
-    csBackend = "CIF",
 
     csSourceFiles = Map.empty,
     csIndentLinesIn = [],

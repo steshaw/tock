@@ -35,8 +35,8 @@ type OptFunc = CompState -> IO CompState
 options :: [OptDescr OptFunc]
 options =
   [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c)"
+  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
-  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "backend (options: CIF, CPPCSP)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
 
@@ -49,14 +49,19 @@ optMode s ps
             _ -> dieIO $ "Unknown mode: " ++ s
           return $ ps { csMode = mode }
 
+optBackend :: String -> OptFunc
+optBackend s ps
+    =  do backend <- case s of
+            "c" -> return BackendC
+            "cppcsp" -> return BackendCPPCSP
+            _ -> dieIO $ "Unknown backend: " ++ s
+          return $ ps { csBackend = backend }
+
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
-
-optBackend :: String -> OptFunc
-optBackend s ps = return $ ps { csBackend = s }
 
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
@@ -126,23 +131,15 @@ compile fn
               do progress "Passes:"
                  ast2 <- (runPasses passes) ast1
 
-                 debug "{{{ Generate Code"
-                 c <-
-                   case csBackend optsPS of 
-                     "CPPCSP" -> 
-                       do progress "Generate C++CSP"
-                          c' <- generateCPPCSP ast2
-                          return c'
-                     "CIF" ->
-                       do progress "Generate C/CIF"
-                          c' <- generateC ast2
-                          return c'
-                     _ -> 
-                       do error ("Unknown backend: " ++ (csBackend optsPS))
-
+                 debug "{{{ Generate code"
+                 let generator
+                       = case csBackend optsPS of
+                           BackendC -> generateC
+                           BackendCPPCSP -> generateCPPCSP
+                 code <- generator ast2
                  debug "}}}"
 
-                 return c
+                 return code
 
         showWarnings
 
