@@ -10,11 +10,15 @@ import qualified AST as A
 import Errors
 import Metadata
 
+-- | Modes that Tock can run in.
+data CompMode = ModeParse | ModeCompile | ModePostC
+  deriving (Show, Data, Typeable)
+
 -- | State necessary for compilation.
 data CompState = CompState {
     -- Set by Main (from command-line options)
+    csMode :: CompMode,
     csVerboseLevel :: Int,
-    csParseOnly :: Bool,
     csOutputFile :: String,
     csBackend :: String,
 
@@ -36,7 +40,10 @@ data CompState = CompState {
     csNonceCounter :: Int,
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[A.Structured -> A.Structured]],
-    csAdditionalArgs :: Map String [A.Actual]
+    csAdditionalArgs :: Map String [A.Actual],
+
+    -- Set by code generators
+    csGeneratedDefs :: [String]
   }
   deriving (Show, Data, Typeable)
 
@@ -45,8 +52,8 @@ instance Show (A.Structured -> A.Structured) where
 
 emptyState :: CompState
 emptyState = CompState {
+    csMode = ModeCompile,
     csVerboseLevel = 0,
-    csParseOnly = False,
     csOutputFile = "-",
     csBackend = "CIF",
 
@@ -65,7 +72,9 @@ emptyState = CompState {
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
     csPulledItems = [],
-    csAdditionalArgs = Map.empty
+    csAdditionalArgs = Map.empty,
+
+    csGeneratedDefs = []
   }
 
 -- | Class of monads which keep a CompState.
@@ -89,10 +98,13 @@ lookupName n
 --}}}
 
 --{{{  warnings
+-- | Add a warning with no source position.
+addPlainWarning :: CSM m => String -> m ()
+addPlainWarning msg = modify (\ps -> ps { csWarnings = msg : csWarnings ps })
+
 -- | Add a warning.
 addWarning :: CSM m => Meta -> String -> m ()
-addWarning m s = modify (\ps -> ps { csWarnings = msg : csWarnings ps })
-  where msg = "Warning: " ++ show m ++ ": " ++ s
+addWarning m s = addPlainWarning $ "Warning: " ++ show m ++ ": " ++ s
 --}}}
 
 --{{{  pulled items
@@ -125,6 +137,19 @@ applyPulled ast
           case csPulledItems ps of
             (l:ls) -> do put $ ps { csPulledItems = [] : ls }
                          return $ foldl (\p f -> f p) ast l
+--}}}
+
+--{{{  generated definitions
+-- | Add a generated definition to the collection.
+addGeneratedDef :: CSM m => String -> m ()
+addGeneratedDef s = modify (\ps -> ps { csGeneratedDefs = s : csGeneratedDefs ps })
+
+-- | Get and clear the collection of generated definitions.
+getGeneratedDefs :: CSM m => m [String]
+getGeneratedDefs
+    =  do ps <- get
+          put $ ps { csGeneratedDefs = [] }
+          return $ csGeneratedDefs ps
 --}}}
 
 --{{{  type contexts

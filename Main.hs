@@ -9,6 +9,7 @@ import System
 import System.Console.GetOpt
 import System.IO
 
+import AnalyseAsm
 import CompState
 import Errors
 import GenerateC
@@ -33,14 +34,20 @@ type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["parse-only"] (NoArg optParseOnly) "only parse input file"
+  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option [] ["backend"] (ReqArg optBackend "BACKEND") "backend (options: CIF, CPPCSP)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
 
-optParseOnly :: OptFunc
-optParseOnly ps = return $ ps { csParseOnly = True }
+optMode :: String -> OptFunc
+optMode s ps
+    =  do mode <- case s of
+            "parse" -> return ModeParse
+            "compile" -> return ModeCompile
+            "post-c" -> return ModePostC
+            _ -> dieIO $ "Unknown mode: " ++ s
+          return $ ps { csMode = mode }
 
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
@@ -69,11 +76,29 @@ main = do
 
   initState <- foldl (>>=) (return emptyState) opts
 
+  let operation
+        = case csMode initState of
+            ModeParse -> compile fn
+            ModeCompile -> compile fn
+            ModePostC -> postCAnalyse fn
+
   -- Run the compiler.
-  v <- evalStateT (runErrorT (compile fn)) initState
+  v <- evalStateT (runErrorT operation) initState
   case v of
     Left e -> dieIO e
     Right r -> return ()
+
+-- | Write the output to the file the user wanted.
+writeOutput :: String -> PassM ()
+writeOutput output
+  =  do optsPS <- get
+        case csOutputFile optsPS of
+          "-" -> liftIO $ putStr output
+          file ->
+            do progress $ "Writing output file " ++ file
+               f <- liftIO $ openFile file WriteMode
+               liftIO $ hPutStr f output
+               liftIO $ hClose f
 
 -- | Compile a file.
 -- This is written in the PassM monad -- as are most of the things it calls --
@@ -95,9 +120,9 @@ compile fn
         showWarnings
 
         output <-
-          if csParseOnly optsPS
-            then return $ show ast1
-            else
+          case csMode optsPS of
+            ModeParse -> return $ show ast1
+            ModeCompile ->
               do progress "Passes:"
                  ast2 <- (runPasses passes) ast1
 
@@ -121,13 +146,19 @@ compile fn
 
         showWarnings
 
-        case csOutputFile optsPS of
-          "-" -> liftIO $ putStr output
-          file ->
-            do progress $ "Writing output file " ++ file
-               f <- liftIO $ openFile file WriteMode
-               liftIO $ hPutStr f output
-               liftIO $ hClose f
+        writeOutput output
 
         progress "Done"
+
+-- | Analyse an assembly file.
+postCAnalyse :: String -> PassM ()
+postCAnalyse fn
+    =  do asm <- liftIO $ readSource fn
+
+          progress "Analysing assembly"
+          output <- analyseAsm asm
+
+          showWarnings
+
+          writeOutput output
 

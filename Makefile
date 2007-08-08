@@ -27,8 +27,12 @@ CFLAGS = \
 	./tock -v -o $@ $<
 	indent -kr -pcs $@
 
-%: %.tock.o tock_support.h kroc-wrapper-c.o kroc-wrapper.occ
-	kroc -o $@ kroc-wrapper.occ $< kroc-wrapper-c.o -lcif
+%.tock.post.c: %.tock.c tock
+	$(CC) $(CFLAGS) -S -o $(patsubst %.c,%.s,$<) $<
+	./tock -vv --mode=post-c -o $@ $(patsubst %.c,%.s,$<)
+
+%: %.tock.o %.tock.post.o tock_support.h kroc-wrapper-c.o kroc-wrapper.occ
+	kroc -o $@ kroc-wrapper.occ $< $(patsubst %.o,%.post.o,$<) kroc-wrapper-c.o -lcif
 
 cgtests = $(wildcard cgtests/cgtest??.occ)
 cgtests_targets = $(patsubst %.occ,%,$(cgtests))

@@ -201,7 +201,9 @@ cgenOps = GenOps {
 generate :: GenOps -> A.Process -> PassM String
 generate ops ast
     =  do (a, w) <- runWriterT (call genTopLevel ops ast)
-          return $ concat w
+          gds <- getGeneratedDefs
+          let out = ["#include <tock_support.h>\n"] ++ gds ++ w
+          return $ concat out
 
 generateC :: A.Process -> PassM String
 generateC = generate cgenOps
@@ -213,8 +215,7 @@ cgenTLPChannel _ TLPError = tell ["err"]
 
 cgenTopLevel :: GenOps -> A.Process -> CGen ()
 cgenTopLevel ops p
-    =  do tell ["#include <tock_support.h>\n"]
-          call genProcess ops p
+    =  do call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
@@ -299,8 +300,11 @@ genMeta m = tell ["\"", show m, "\""]
 --}}}
 
 --{{{  names
+nameString :: A.Name -> String
+nameString n = [if c == '.' then '_' else c | c <- A.nameName n]
+
 genName :: A.Name -> CGen ()
-genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
+genName n = tell [nameString n]
 --}}}
 
 --{{{  types
@@ -1633,9 +1637,9 @@ cgenPar ops pm s
     genProcAlloc (A.ProcCall m n as)
         =  do tell ["ProcAlloc ("]
               genName n
-              -- FIXME stack size fixed here
-              let stackSize = 65536
-              tell [", ", show stackSize, ", ", show $ numCArgs as]
+              let stackSize = nameString n ++ "_stack_size"
+              addGeneratedDef $ "extern int " ++ stackSize ++ ";\n"
+              tell [", ", stackSize, ", ", show $ numCArgs as]
               call genActuals ops as
               tell [")"]
     genProcAlloc p = call genMissing ops $ "genProcAlloc " ++ show p
