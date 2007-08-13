@@ -115,6 +115,8 @@ sLeftC = try $ symbol "{"
 sRightC = try $ symbol "}"
 sEquality = try $ symbol "=="
 sSemiColon = try $ symbol ";"
+sColon = try $ symbol ":"
+sQuote = try $ symbol "\""
 --}}}
 
 --{{{ Keywords
@@ -164,6 +166,36 @@ variableId :: RainParser A.Variable
 variableId = do {m <- md ; v <- name ; return $ A.Variable m v}
              <?> "variable name"
 
+stringLiteral :: RainParser (A.LiteralRepr, A.Dimension)
+stringLiteral
+    =  do m <- md
+          char '"'
+          cs <- manyTill literalCharacter sQuote
+          let aes = [A.ArrayElemExpr $ A.Literal m A.Byte c | c <- cs]
+          return (A.ArrayLiteral m aes, A.Dimension $ length cs)
+    <?> "string literal"
+
+literalCharacter :: RainParser A.LiteralRepr
+literalCharacter
+    =   do m <- md
+           c <- anyChar
+           return $ A.ByteLiteral m [c]
+           
+digits :: RainParser String
+digits
+    =   many1 digit
+    <?> "decimal digits"
+
+integer :: RainParser A.LiteralRepr
+integer
+    =  do m <- md
+          d <- lexeme digits
+          return $ A.IntLiteral m d
+
+literal :: RainParser A.Expression
+literal = do {m <- md ; (lr, dim) <- stringLiteral ; return $ A.Literal m (A.Array [dim] A.Byte) lr }
+          <|> do {m <- md ; i <- integer ; return $ A.Literal m A.Int i}
+          <?> "literal"
 
 expression :: RainParser A.Expression
 expression
@@ -176,7 +208,8 @@ expression
 subExpression :: RainParser A.Expression
 subExpression
   = do {m <- md ; id <- variableId ; return $ A.ExprVariable m id}
-       <?> "[sub-]expression"
+    <|> literal
+    <?> "[sub-]expression"
 
 block :: RainParser A.Structured
 block = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
