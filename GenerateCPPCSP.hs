@@ -142,25 +142,24 @@ cppgenStop _ m s
 
 cppgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()
 cppgenInput ops c im
-    =  do t <- typeOfVariable c
-          case t of
-            A.Timer -> case im of
-              A.InputSimple m [A.InVariable m' v] -> call genTimerRead ops c v
-              A.InputAfter m e -> call genTimerWait ops e
-            _ -> case im of
-              A.InputSimple m is -> case t of 
-                A.Chan (A.UserProtocol innerType) ->
-                  --We read from the channel into a temporary var, then deal with the var afterwards
-                  do inputVar <- makeNonce "proto_var"
-                     genProtocolName innerType 
-                     tell [" ",inputVar, " ; "]
-                     call genVariable ops c
-                     tell [" ->reader() >> ",inputVar," ; "]
-                     cases <- casesOfProtocol innerType
-                     genInputTupleAssign ops ((length cases) /= 0) inputVar is
-                _ -> sequence_ $ map (call genInputItem ops c) is
-              A.InputCase m s -> call genInputCase ops m c s
-              _ -> call genMissing ops $ "genInput " ++ show im
+    =  do case im of
+            A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead ops c v
+            A.InputTimerAfter m e -> call genTimerWait ops e
+            A.InputSimple m is -> 
+              do t <- typeOfVariable c
+                 case t of 
+                   A.Chan (A.UserProtocol innerType) ->
+                     --We read from the channel into a temporary var, then deal with the var afterwards
+                     do inputVar <- makeNonce "proto_var"
+                        genProtocolName innerType 
+                        tell [" ",inputVar, " ; "]
+                        call genVariable ops c
+                        tell [" ->reader() >> ",inputVar," ; "]
+                        cases <- casesOfProtocol innerType
+                        genInputTupleAssign ops ((length cases) /= 0) inputVar is
+                   _ -> sequence_ $ map (call genInputItem ops c) is
+            A.InputCase m s -> call genInputCase ops m c s
+            _ -> call genMissing ops $ "genInput " ++ show im
 
 cppgenInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen ()
 cppgenInputCase ops m c s 
@@ -521,14 +520,12 @@ cppgenAlt ops _ s
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
 
         doIn c im
-            = do t <- inputType c im
-                 case t of
-                   ITTimerRead -> call genMissing ops "timer read in ALT"
-                   ITTimerAfter ->
-                     do let time = case im of A.InputAfter _ e -> e
-                        timeVal <- genCPPCSPTime ops time
+            = do case im of
+                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerAfter _ time ->
+                     do timeVal <- genCPPCSPTime ops time
                         tell [guardList, " . push_back( new csp::TimeoutGuard (",timeVal,"));\n"]
-                   ITOther ->
+                   _ ->
                      do tell [guardList, " . push_back( "]
                         call genVariable ops c
                         tell [" -> reader() . inputGuard());\n"]
@@ -545,11 +542,10 @@ cppgenAlt ops _ s
                 A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
 
         doIn c im p
-            = do t <- inputType c im
-                 case t of
-                   ITTimerRead -> call genMissing ops "timer read in ALT"
-                   ITTimerAfter -> doCheck (call genProcess ops p)
-                   ITOther -> doCheck (call genInput ops c im >> call genProcess ops p)
+            = do case im of
+                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerAfter _ _ -> doCheck (call genProcess ops p)
+                   _ -> doCheck (call genInput ops c im >> call genProcess ops p)
 
         doCheck body
             = do tell ["if (", id, "++ == ", fired, ") {\n"]

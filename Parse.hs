@@ -1655,8 +1655,8 @@ timerInput :: OccParser (A.Variable, A.InputMode)
 timerInput
     =   do m <- md
            c <- tryVX timer sQuest
-           do { v <- variableOfType A.Int; eol; return (c, A.InputSimple m [A.InVariable m v]) }
-             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputAfter m e) }
+           do { v <- variableOfType A.Int; eol; return (c, A.InputTimerRead m (A.InVariable m v)) }
+             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputTimerAfter m e) }
     <?> "timer input"
 
 taggedList :: [(A.Name, [A.Type])] -> OccParser (A.Process -> A.Variant)

@@ -261,7 +261,8 @@ data Structured =
 data InputMode =
   InputSimple Meta [InputItem]
   | InputCase Meta Structured
-  | InputAfter Meta Expression
+  | InputTimerRead Meta InputItem
+  | InputTimerAfter Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | Abbreviation mode.

@@ -278,18 +278,6 @@ cgenStructured ops (A.ProcThen _ p s) def = call genProcess ops p >> call genStr
 cgenStructured ops (A.Several _ ss) def = sequence_ [call genStructured ops s def | s <- ss]
 cgenStructured _ s def = def s
 
-data InputType = ITTimerRead | ITTimerAfter | ITOther
-
--- | Given an input mode, figure out what sort of input it's actually doing.
-inputType :: A.Variable -> A.InputMode -> CGen InputType
-inputType c im
-    =  do t <- typeOfVariable c
-          return $ case t of
-                     A.Timer ->
-                       case im of
-                         A.InputSimple _ _ -> ITTimerRead
-                         A.InputAfter _ _ -> ITTimerAfter
-                     _ -> ITOther
 --}}}
 
 --{{{  metadata
@@ -1447,15 +1435,12 @@ cgenAssign ops m [v] el
 --{{{  input
 cgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()
 cgenInput ops c im
-    =  do t <- typeOfVariable c
-          case t of
-            A.Timer -> case im of
-              A.InputSimple m [A.InVariable m' v] -> call genTimerRead ops c v
-              A.InputAfter m e -> call genTimerWait ops e
-            _ -> case im of
-              A.InputSimple m is -> sequence_ $ map (call genInputItem ops c) is
-              A.InputCase m s -> call genInputCase ops m c s
-              _ -> call genMissing ops $ "genInput " ++ show im
+    =  do case im of
+            A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead ops c v
+            A.InputTimerAfter m e -> call genTimerWait ops e
+            A.InputSimple m is -> sequence_ $ map (call genInputItem ops c) is
+            A.InputCase m s -> call genInputCase ops m c s
+            _ -> call genMissing ops $ "genInput " ++ show im
 
 cgenInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen ()
 cgenInputCase ops m c s
@@ -1677,15 +1662,13 @@ cgenAlt ops isPri s
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltEnableSkip ();\n"]
 
         doIn c im
-            = do t <- inputType c im
-                 case t of
-                   ITTimerRead -> call genMissing ops "timer read in ALT"
-                   ITTimerAfter ->
-                     do let time = case im of A.InputAfter _ e -> e
-                        tell ["AltEnableTimer ("]
+            = do case im of
+                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerAfter _ time ->
+                     do tell ["AltEnableTimer ("]
                         call genExpression ops time
                         tell [");\n"]
-                   ITOther ->
+                   _ ->
                      do tell ["AltEnableChannel ("]
                         call genVariable ops c
                         tell [");\n"]
@@ -1700,15 +1683,13 @@ cgenAlt ops isPri s
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltDisableSkip (", id, "++);\n"]
 
         doIn c im
-            = do t <- inputType c im
-                 case t of
-                   ITTimerRead -> call genMissing ops "timer read in ALT"
-                   ITTimerAfter ->
-                     do let time = case im of A.InputAfter _ e -> e
-                        tell ["AltDisableTimer (", id, "++, "]
+            = do case im of
+                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerAfter _ time ->
+                     do tell ["AltDisableTimer (", id, "++, "]
                         call genExpression ops time
                         tell [");\n"]
-                   ITOther ->
+                   _ ->
                      do tell ["AltDisableChannel (", id, "++, "]
                         call genVariable ops c
                         tell [");\n"]
@@ -1723,11 +1704,10 @@ cgenAlt ops isPri s
                 A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
 
         doIn c im p
-            = do t <- inputType c im
-                 case t of
-                   ITTimerRead -> call genMissing ops "timer read in ALT"
-                   ITTimerAfter -> doCheck (call genProcess ops p)
-                   ITOther -> doCheck (call genInput ops c im >> call genProcess ops p)
+            = do case im of
+                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerAfter _ _ -> doCheck (call genProcess ops p)
+                   _ -> doCheck (call genInput ops c im >> call genProcess ops p)
 
         doCheck body
             = do tell ["if (", id, "++ == ", fired, ") {\n"]
