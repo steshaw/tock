@@ -259,10 +259,7 @@ data OutputItem =
   | OutExpression Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
--- | A replicator.
--- The 'Name' names the replicator index, the first expression is the base and
--- the second expression is the count.
--- (In the future this will have additional constructors for stepped replicators.)
+-- | The Name names the replicator index, the first expression is the base and the second expression is the FOR
 data Replicator = For Meta Name Expression Expression
   deriving (Show, Eq, Typeable, Data)
 

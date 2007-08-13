@@ -56,10 +56,10 @@ makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
 
  
 makeLiteralString :: String -> A.Expression
-makeLiteralString str = A.Literal m (A.Array [A.Dimension 1] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
+makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
   where
     makeLiteralChar :: Char -> A.ArrayElem
-    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m (show (fromEnum c)))
+    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
 
 data EachType = Seq | Par
 
@@ -185,6 +185,19 @@ testPar =
     assertEqual "Par Skip Test" $ A.Par m A.PlainPar $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m (A.Skip m))] )      
  ]
         
+testEach :: [ParseTest A.Process]
+testEach =
+ [
+  pass ("seqeach (c : \"1\") c = 7;", RP.statement,
+    assertEqual "Each Test 0" $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "1")) $    
+      A.OnlyP m $ (makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7"))) )
+  ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
+    assertEqual "Each Test 1" $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "345")) $ 
+      A.OnlyP m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
+ ]
+
+        
+        
 --Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -193,6 +206,7 @@ tests = TestList
   parseTests testWhile,
   parseTests testSeq,
   parseTests testPar,
+  parseTests testEach,
   parseTests testIf,
   parseTests testAssign
  ]

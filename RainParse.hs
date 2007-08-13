@@ -241,6 +241,10 @@ statement
            }
     <|> do { m <- md ; optionalSeq ; b <- block ; return $ A.Seq m b}
     <|> do { m <- md ; sPar ; b <- block ; return $ A.Par m A.PlainPar b}
+    <|> do { m <- md ; sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
+    <|> do { m <- md ; sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }             
     <|> do { m <- md ; lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable m lv) exp)]))
