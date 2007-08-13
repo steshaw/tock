@@ -144,12 +144,12 @@ md
                  metaColumn = sourceColumn pos
                }
 
-name :: A.NameType -> RainParser A.Name
-name nt
+name :: RainParser A.Name
+name 
     =   do m <- md
            s <- identifier
-           return $ A.Name m nt s
-    <?> show nt
+           return $ A.Name m (A.VariableName) s --A.VariableName is a placeholder until a later pass
+    <?> "name"
 
 --}}}
 
@@ -161,7 +161,7 @@ dataType
     <?> "data type"
 
 variableId :: RainParser A.Variable
-variableId = do {m <- md ; v <- (name A.VariableName) ; return $ A.Variable m v}
+variableId = do {m <- md ; v <- name ; return $ A.Variable m v}
              <?> "variable name"
 
 
