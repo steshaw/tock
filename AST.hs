@@ -259,8 +259,15 @@ data OutputItem =
   | OutExpression Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
--- | The Name names the replicator index, the first expression is the base and the second expression is the FOR
-data Replicator = For Meta Name Expression Expression
+-- | A replicator.
+data Replicator = 
+  -- | The 'Name' names the replicator index, the first expression is the base and
+  -- the second expression is the count.
+  -- (In the future this will have additional constructors for stepped replicators.)
+  For Meta Name Expression Expression
+  -- | Rain addition.
+  -- The 'Name' names the loop variable and the expression is the list to iterate over
+  | ForEach Meta Name Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | A choice in an @IF@ process.
