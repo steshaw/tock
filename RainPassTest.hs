@@ -30,16 +30,16 @@ testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) st
              )
     exp = tag2 A.Seq DontCare
              (tag3 A.Spec DontCare
-               (tag3 A.Specification DontCare listVar
-                 (tag4 A.IsExpr DontCare A.ValAbbrev (A.Array [A.Dimension 1] A.Byte) listVar)
+               (tag3 A.Specification DontCare listVarName
+                 (tag4 A.IsExpr DontCare A.ValAbbrev (A.Array [A.Dimension 1] A.Byte) (makeLiteralString "1"))
                )
                (tag3 A.Rep DontCare
-                 (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeExpr DontCare (tag2 A.ExprVariable DontCare listVar)))
+                 (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
                  (tag3 A.Spec DontCare 
                    (tag3 A.Specification DontCare (simpleName "c") 
                      (tag4 A.Is DontCare A.Abbrev A.Byte
                        (tag3 A.SubscriptedVariable DontCare 
-                         (tag2 A.Subscript DontCare (tag2 A.ExprVariable DontCare indexVar))
+                         (tag2 A.Subscript DontCare (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
                          listVar
                        )
                      )
@@ -49,7 +49,8 @@ testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) st
                )
              )
     indexVar = Named "indexVar" DontCare
-    listVar = Named "listVar" DontCare
+    listVarName = Named "listVarName" DontCare
+    listVar = tag2 A.Variable DontCare listVarName
           
 
 
