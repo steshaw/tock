@@ -6,9 +6,12 @@ import qualified Data.Map as Map
 import qualified AST as A
 import TestUtil
 import TreeUtil
+import RainPasses
+import CompState
+import Control.Monad.Error (runErrorT)
 
 testEachPass0 :: Test
-testEachPass0 = TestCase $ assertPatternMatch "testEachPass0" exp orig
+testEachPass0 = TestCase $ assertPatternMatch "testEachPass0" exp (evalStateT (runErrorT (transformEach orig)) emptyState)
   where
     orig = A.Seq m 
              (A.Rep m 
