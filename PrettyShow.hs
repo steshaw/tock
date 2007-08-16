@@ -2,7 +2,7 @@
 -- This ought to use a class (like show does), so that it can be extended
 -- properly without me needing to have Tock-specific cases in here -- see the
 -- appropriate SYB paper.
-module PrettyShow (pshow) where
+module PrettyShow (pshow, isTupleCtr) where
 
 import Data.Generics
 import qualified Data.Map as Map

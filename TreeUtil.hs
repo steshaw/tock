@@ -4,7 +4,8 @@ import Test.HUnit hiding (State)
 import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Generics
-
+import qualified PrettyShow as PS
+import Text.PrettyPrint.HughesPJ
 
 data Pattern = 
     -- | We don't care what the value is -- will match against any item
@@ -36,7 +37,21 @@ ty_Pattern = mkDataType "TreeUtil.Pattern"
 constr_DontCare = mkConstr ty_Pattern "DontCare" [] Prefix
 constr_Named = mkConstr ty_Pattern "Named" [] Prefix
 constr_Match = mkConstr ty_Pattern "Match" [] Prefix
-  
+
+--Print the data nicely for TreeUtil.Pattern, to make it look like a pattern match:
+pshowPattern :: Pattern -> String
+pshowPattern = render . pshowPattern'
+  where
+    pshowPattern' :: Pattern -> Doc
+    pshowPattern' (DontCare) = text "_"
+    pshowPattern' (Named s p) = (text (s ++ "@")) <> (pshowPattern' p)
+    pshowPattern' (Match c ps) =
+      --All a bit hacky, admittedly:
+      if PS.isTupleCtr (showConstr c) then parens $ sep $ punctuate (text ",") items
+      --TODO add some decent list unfolding (to display Match (:) [x,Match (:) [y,Match [] []]] as [x,y]
+      else parens $ (text (showConstr c)) $+$ (sep items)
+        where items = map pshowPattern' ps
+
 type MatchErrors = [String]
 
 -- | A function for asserting equality over generic types.  Like assertEqual, but it can take items of different types to compare
@@ -45,7 +60,7 @@ type MatchErrors = [String]
 assertGenEqualPlain :: (Data a, Data b) => String -> a -> b -> MatchErrors
 assertGenEqualPlain s x y = do case (checkEqual x y) of
                                  True -> []
-                                 False -> [s ++ "; Items not equal, expected: " ++ (gshow x) ++ " but got: " ++ (gshow y)]
+                                 False -> [s ++ " Items not equal, expected:\n" ++ (PS.pshow x) ++ "\n***but got:\n " ++ (PS.pshow y)]
   where
     checkEqual x y = case (cast y) of
       -- | Same type, use the library-provided geq function to compare them
@@ -68,7 +83,9 @@ checkItem :: Data z => String -> z -> State Items MatchErrors
 checkItem key val 
   = do items <- get
        case Map.lookup key items of
-         Just (ADI val') -> return (assertGenEqualPlain "Item of interest does not match prior value" val' val)
+         Just (ADI val') -> return $
+             --show key will put quote marks around it, and escape any special characters (which seems appropriate here):
+             assertGenEqualPlain ("Item of interest does not match prior value for key " ++ (show key) ++ ": ") val' val
          Nothing -> do {put (Map.insert key (ADI val) items) ; return [] }
 
 -- | A function that takes an expected Pattern value, an actual Data value, and returns the appropriate checks
@@ -80,16 +97,18 @@ checkMatch DontCare _ = return []
 -- | Items of interest are delegated to the checkItem function that uses the Items state
 checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s b]
 -- | Constructors are matched using the applyAll function (but we must also check the constructors are equal)
-checkMatch (Match con items) b 
-  = do conEq <- checkEq con (toConstr b)
+checkMatch m@(Match con items) b 
+  = do conEq <- checkConsEq con (toConstr b) m b
        case conEq of
          [] -> sequenceS $ (applyAll items b)
          _ -> return conEq --no point comparing fields if the constructors don't match
   where 
-    checkEq :: Constr -> Constr -> State Items MatchErrors 
-    checkEq a b = if (a == b) 
+    --The whole things are given as third/fourth parameters just so we can produce a more helpful error message:
+    checkConsEq :: Data z => Constr -> Constr -> Pattern -> z -> State Items MatchErrors 
+    checkConsEq a b a' b' = if (a == b) 
                   then return []
-                  else return ["Constructors not equal, expected: " ++ (show a) ++ " actual: " ++ (show b)]
+                  else return ["Constructors not equal, expected constructor: " ++ (show a) ++ " actual cons: " ++ (show b)
+                               ++ " while trying to match expected:\n" ++ (pshowPattern a') ++ "\n*** against actual:\n " ++ (PS.pshow b')]
  
     -- | applyAll checks that the non-constructor items of an algebraic data type are matched:
     applyAll :: Data z => [Pattern] -> z -> [State Items MatchErrors]
@@ -98,7 +117,7 @@ checkMatch (Match con items) b
     applyAll' d (index,f) 
       = if (index >= numIndexes) 
         then return ["Invalid index in applyAll: " ++ (show index) ++ ", numIndexes is: " ++ (show numIndexes) 
-               ++ " trying to check, expected: " ++ (show f) ++ " actual: " ++ (gshow d)]
+               ++ " trying to check, expected: " ++ (pshowPattern f) ++ " actual: " ++ (PS.pshow d)]
         else (gmapQi index (checkMatch f) d) 
       --Possibly a better way?
       where
@@ -118,7 +137,7 @@ sequenceS x = (liftM concat) (sequence x)
 assertPatternMatch :: (Data y, Data z) => String -> y -> z -> Assertion
 assertPatternMatch msg exp act = 
 -- Uncomment this line for debugging help:
---         putStrLn ("Testing: " ++ (gshow a) ++ " vs " ++ (gshow b)) >> 
+--         putStrLn ("Testing: " ++ (PS.pshow a) ++ " vs " ++ (PS.pshow b)) >> 
          sequence_ $ map (assertFailure . ((++) msg)) (evalState (checkMatch (mkPattern exp) act) (Map.empty))
 
 -- | A function for getting the matched items from the patterns on the LHS
