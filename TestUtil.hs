@@ -37,6 +37,17 @@ makePar procList = A.Par m A.PlainPar $ A.Several m (map (\x -> A.OnlyP m x) pro
 makeRepPar :: A.Process -> A.Process
 makeRepPar proc = A.Par m A.PlainPar $ A.Rep m (A.For m (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.OnlyP m proc)
 
+makeAssign :: A.Variable -> A.Expression -> A.Process
+makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
+
+ 
+makeLiteralString :: String -> A.Expression
+makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
+  where
+    makeLiteralChar :: Char -> A.ArrayElem
+    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
+
+
 assertEqualCustom :: (Show a) => String -> (a -> a -> Bool) -> a -> a -> Assertion
 assertEqualCustom  preface cmp expected actual =
   unless (cmp actual expected) (assertFailure msg)

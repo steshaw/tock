@@ -51,42 +51,6 @@ makeIf list = A.If m $ A.Several m (map makeChoice list)
 dyExp :: A.DyadicOp -> A.Variable -> A.Variable -> A.Expression
 dyExp op v0 v1 = A.Dyadic m op (A.ExprVariable m v0) (A.ExprVariable m v1)
 
-makeAssign :: A.Variable -> A.Expression -> A.Process
-makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
-
- 
-makeLiteralString :: String -> A.Expression
-makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
-  where
-    makeLiteralChar :: Char -> A.ArrayElem
-    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
-
-data EachType = Seq | Par
-
-makeEach :: EachType -> String -> A.Type -> A.Expression -> A.Process -> A.Process
-makeEach ty loopVar listType listVar body   
- =  case listSpec of
-      Nothing -> A.Seq m builtRep
-      Just lspec -> A.Seq m $ A.Spec m lspec builtRep     
-    where 
--- Possibly put list into temporary:
-      (actualListVar,listSpec) = calcListVar listVar listType
-    -- Produce the loop using a replicator:
-      rep = A.For m (simpleName (loopVar ++ ".index")) (A.Literal m A.Int (A.IntLiteral m "0")) (A.SizeExpr m (A.ExprVariable m actualListVar))
-    -- Add a specification for abbreviating the array item:
-      spec = A.Specification m (simpleName loopVar) 
-        (A.Is m A.Abbrev A.Byte (A.SubscriptedVariable m (A.Subscript m (A.ExprVariable m (variable (loopVar ++ ".index")))) actualListVar) )
-    --TODO workout where the SEQ/PAR distinction goes    
-      builtRep = A.Rep m rep (A.Spec m spec (A.OnlyP m body))     
-      calcListVar :: A.Expression -> A.Type -> (A.Variable,Maybe A.Specification)
-      calcListVar (A.ExprVariable _ v) _ = (v,Nothing)
-      --HACK!  need proper nonce
-      calcListVar v ty = (variable var,Just $ A.Specification m (simpleName var) (A.IsExpr m A.ValAbbrev ty v))
-        where var = "listvar"
-
-
-
-
 testIf :: [ParseTest A.Process]
 testIf =
  [
