@@ -10,8 +10,11 @@ import RainPasses
 import CompState
 import Control.Monad.Error (runErrorT)
 
-testEachPass0 :: Test
-testEachPass0 = TestCase $ assertPatternMatch "testEachPass0" exp (evalStateT (runErrorT (transformEach orig)) emptyState)
+testEachPass0 :: Assertion
+testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) emptyState) 
+                   case origResult of
+                     Left err -> assertFailure ("testEachPass0; pass failed with: " ++ err)
+                     Right origTrans -> assertPatternMatch "testEachPass0" exp origTrans
   where
     orig = A.Seq m 
              (A.Rep m 
@@ -47,7 +50,7 @@ testEachPass0 = TestCase $ assertPatternMatch "testEachPass0" exp (evalStateT (r
 tests :: Test
 tests = TestList
  [
-   testEachPass0
+   TestCase $ testEachPass0
  ]
 
 
