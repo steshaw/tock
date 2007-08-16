@@ -1,6 +1,6 @@
 module RainPassTest (tests) where
 
-import Test.HUnit
+import Test.HUnit hiding (State)
 import Control.Monad.State as CSM
 import qualified Data.Map as Map
 import qualified AST as A
@@ -9,13 +9,20 @@ import TreeUtil
 import RainPasses
 import CompState
 import Control.Monad.Error (runErrorT)
+import Control.Monad.Identity
+import Types
 
 testEachPass0 :: Assertion
-testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) emptyState) 
+testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) startState) 
                    case origResult of
                      Left err -> assertFailure ("testEachPass0; pass failed with: " ++ err)
                      Right origTrans -> assertPatternMatch "testEachPass0" exp origTrans
   where
+    startState :: CompState
+    startState = execState startState' emptyState
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") A.NameDef {A.ndType = A.Declaration m A.Byte}
+    
     orig = A.Seq m 
              (A.Rep m 
                (A.ForEach m (simpleName "c") (makeLiteralString "1")) 
