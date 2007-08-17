@@ -63,9 +63,9 @@ assertGenEqualPlain s x y = do case (checkEqual x y) of
                                  False -> [s ++ " Items not equal, expected:\n" ++ (PS.pshow x) ++ "\n***but got:\n " ++ (PS.pshow y)]
   where
     checkEqual x y = case (cast y) of
-      -- | Same type, use the library-provided geq function to compare them
+      -- Same type, use the library-provided geq function to compare them
       Just y' -> geq x y'
-      -- | Different types, so not equal
+      -- Different types, so not equal
       Nothing -> False
 
 -- | A data item used when matching items of interest.  Note that it is similar to Pattern but not the same;
