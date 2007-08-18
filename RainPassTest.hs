@@ -220,6 +220,11 @@ testRecordInfNames2 = testPassWithStateCheck "testRecordInfNames2" exp (recordIn
                      assertVarDef "testRecordInfNames2" state "d" 
                       (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)                          
 
+-- | checks that doing a foreach over a non-array type is barred:
+testRecordInfNames3 :: Test
+testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTypes orig) (return ())
+  where
+    orig = A.Rep m (A.ForEach m (simpleName "c") (intLiteral 0)) skipP
 
 --Returns the list of tests:
 tests :: Test
@@ -234,6 +239,7 @@ tests = TestList
    ,testRecordInfNames0
    ,testRecordInfNames1
    ,testRecordInfNames2
+   ,testRecordInfNames3
  ]
 
 

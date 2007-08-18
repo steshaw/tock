@@ -6,10 +6,7 @@ import Pass
 import Data.Generics
 import Types
 import CompState
-
---TODO add passes for:
---  Typing the variables
-
+import Errors
 
 rainPasses :: A.Process -> PassM A.Process
 rainPasses = runPasses passes
@@ -46,7 +43,22 @@ recordDeclNameTypes = everywhereM (mkM recordDeclNameTypes')
     recordDeclNameTypes' s = return s
 
 recordInfNameTypes :: Data t => t -> PassM t
-recordInfNameTypes = return
+recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
+  where
+    recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
+    recordInfNameTypes' input@(A.ForEach m n e)
+      = do arrType <- typeOfExpression e
+           innerT <- case arrType of 
+             A.Array (_:innerDims) t ->
+               return $ case innerDims of 
+                 [] -> t
+                 _ -> A.Array innerDims t               
+             _ -> dieP m "Cannot do a foreach loop over a non-array type (or array with zero dimensions)"
+           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
+                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
+                                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+           return input
+    recordInfNameTypes' r = return r
 
 
 transformEach :: Data t => t -> PassM t
