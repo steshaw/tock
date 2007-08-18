@@ -169,12 +169,48 @@ assertVarDef prefix state varName varDef
       Just actVarDef -> assertPatternMatch (prefix ++ " variable definition not as expected for " ++ varName) varDef actVarDef
 
 
-testRecordNames0 :: Test
-testRecordNames0 = testPassWithStateCheck "testRecordNames0" exp (recordNameTypes orig) (return ()) check
+testRecordDeclNames0 :: Test
+testRecordDeclNames0 = testPassWithStateCheck "testRecordDeclNames0" exp (recordDeclNameTypes orig) (return ()) check
   where
     orig = (A.Specification m (simpleName "c") $ A.Declaration m A.Byte)
     exp = orig
-    check state = assertVarDef "testRecordNames0" state "c" (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+    check state = assertVarDef "testRecordDeclNames0" state "c" 
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+
+-- | checks that c's type is recorded in: ***each (c : "hello") {}
+testRecordInfNames0 :: Test
+testRecordInfNames0 = testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
+  where
+    orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "hello")) skipP)
+    exp = orig
+    check state = assertVarDef "testRecordInfNames0" state "c" 
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+      
+-- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
+testRecordInfNames1 :: Test
+testRecordInfNames1 = testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
+    orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
+    exp = orig
+    check state = assertVarDef "testRecordInfNames1" state "c" 
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)      
+
+-- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
+testRecordInfNames2 :: Test
+testRecordInfNames2 = testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte))
+    orig =  A.Rep m (A.ForEach m (simpleName "c") (exprVariable "multi")) $
+      A.OnlyP m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
+    exp = orig
+    check state = do assertVarDef "testRecordInfNames2" state "c" 
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte)) A.Original A.Unplaced)
+                     assertVarDef "testRecordInfNames2" state "d" 
+                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)                          
+
 
 --Returns the list of tests:
 tests :: Test
@@ -185,7 +221,10 @@ tests = TestList
    ,testUnique0
    ,testUnique1
    ,testUnique2
-   ,testRecordNames0
+   ,testRecordDeclNames0
+   ,testRecordInfNames0
+   ,testRecordInfNames1
+   ,testRecordInfNames2
  ]
 
 

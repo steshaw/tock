@@ -16,7 +16,8 @@ rainPasses = runPasses passes
   where
     passes = 
      [ ("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
-       ,("Record name types in dictionary",recordNameTypes)
+       ,("Record declared name types in dictionary",recordDeclNameTypes)
+       ,("Record inferred name types in dictionary",recordInfNameTypes)
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
 
@@ -33,16 +34,19 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
     replaceNameName :: String -> String -> A.Name -> A.Name
     replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
-recordNameTypes :: Data t => t -> PassM t
-recordNameTypes = everywhereM (mkM recordNameTypes')
+recordDeclNameTypes :: Data t => t -> PassM t
+recordDeclNameTypes = everywhereM (mkM recordDeclNameTypes')
   where
-    recordNameTypes' :: A.Specification -> PassM A.Specification
-    recordNameTypes' input@(A.Specification m n decl@(A.Declaration _ declType)) 
+    recordDeclNameTypes' :: A.Specification -> PassM A.Specification
+    recordDeclNameTypes' input@(A.Specification m n decl@(A.Declaration _ declType)) 
       = defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
                                 A.ndNameType = A.VariableName, A.ndType = decl, 
                                 A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
         >> return input	
-    recordNameTypes' s = return s
+    recordDeclNameTypes' s = return s
+
+recordInfNameTypes :: Data t => t -> PassM t
+recordInfNameTypes = return
 
 
 transformEach :: Data t => t -> PassM t
