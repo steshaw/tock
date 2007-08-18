@@ -23,8 +23,11 @@ rainPasses = runPasses passes
 uniquifyVars :: Data t => t -> PassM t
 uniquifyVars = everywhereM (mkM uniquifyVars')
   where
-    uniquifyVars' :: A.Structured -> PassM A.Structured
-    uniquifyVars' = return
+    uniquifyVars' :: A.Specification -> PassM A.Specification
+    uniquifyVars' (A.Specification m n decl@(A.Declaration _ _)) 
+      = do n' <- makeNonce $ A.nameName n
+           return (A.Specification m n {A.nameName = n'} decl)
+    uniquifyVars' s = return s
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
