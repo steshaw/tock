@@ -176,11 +176,11 @@ assertPatternMatch msg exp act =
 
 -- | A function for getting the matched items from the patterns on the LHS
 --   Either returns the matched items, or a list of errors from the matching
-getMatchedItems :: (Data y, Data z) => y -> z -> Either Items MatchErrors
+getMatchedItems :: (Data y, Data z) => y -> z -> Either MatchErrors Items
 getMatchedItems a b 
   = case errors of
-      [] -> Left items
-      _ -> Right errors
+      [] -> Right items
+      _ -> Left errors
     where (errors,items) = runState (checkMatch (mkPattern a) b) (Map.empty)
 
 
