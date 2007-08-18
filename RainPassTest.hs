@@ -11,16 +11,19 @@ import CompState
 import Control.Monad.Error (runErrorT)
 import Control.Monad.Identity
 import Types
+import Pass
+import Data.Generics
+
+testPass :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> Test
+testPass testName expected actualPass startStateTrans = TestCase $
+  do result <- (evalStateT (runErrorT actualPass) (execState startStateTrans emptyState))
+     case result of
+       Left err -> assertFailure (testName ++ "; pass actually failed: " ++ err)
+       Right resultItem -> assertPatternMatch testName expected resultItem
 
 testEachPass0 :: Test
-testEachPass0 = TestCase $
-                do origResult <- (evalStateT (runErrorT (transformEach orig)) startState)
-                   case origResult of
-                     Left err -> assertFailure ("testEachPass0; pass failed with: " ++ err)
-                     Right origTrans -> assertPatternMatch "testEachPass0" exp origTrans
+testEachPass0 = testPass "testEachPass0" exp (transformEach orig) startState'
   where
-    startState :: CompState
-    startState = execState startState' emptyState
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") A.NameDef {A.ndType = A.Declaration m A.Byte}
     
@@ -55,14 +58,8 @@ testEachPass0 = TestCase $
 
 
 testEachPass1 :: Test
-testEachPass1 = TestCase $
-                do origResult <- (evalStateT (runErrorT (transformEach orig)) startState)
-                   case origResult of
-                     Left err -> assertFailure ("testEachPass1; pass failed with: " ++ err)
-                     Right origTrans -> assertPatternMatch "testEachPass1" exp origTrans
+testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
   where
-    startState :: CompState
-    startState = execState startState' emptyState
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") A.NameDef {A.ndType = A.Declaration m A.Byte}
                      defineName (simpleName "d") A.NameDef {A.ndType = A.Declaration m (A.Array [A.Dimension 10] A.Byte)}
