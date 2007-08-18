@@ -48,8 +48,11 @@ makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) 
     makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
 
 
-assertEqualCustom :: (Show a) => String -> (a -> a -> Bool) -> a -> a -> Assertion
-assertEqualCustom  preface cmp expected actual =
+assertCompareCustom :: (Show a) => String -> (a -> a -> Bool) -> a -> a -> Assertion
+assertCompareCustom  preface cmp expected actual =
   unless (cmp actual expected) (assertFailure msg)
  where msg = (if null preface then "" else preface ++ "\n") ++
-             "expected: " ++ show expected ++ "\n but got: " ++ show actual
+             "expected: " ++ show expected ++ "\n*** got: " ++ show actual
+
+assertNotEqual :: (Show a,Eq a) => String -> a -> a -> Assertion
+assertNotEqual msg = assertCompareCustom msg (/=)

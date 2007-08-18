@@ -14,7 +14,7 @@ import Data.Ord
 --(it is an O(N^2) comparison), but thankfully it's only used during testing:
 assertEqualWR :: String -> UC.WrittenRead -> UC.WrittenRead -> Assertion
 assertEqualWR text exp act 
-  = assertEqualCustom text inefficientEqual exp act
+  = assertCompareCustom text inefficientEqual exp act
   where
     --We can assume there are no duplicates, because getVars will remove duplicates, and
     --our expected values in tests should not have duplicate entries
