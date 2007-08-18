@@ -156,7 +156,19 @@ testUnique2 = testPassWithCheck "testUnique2" exp (uniquifyAndResolveVars orig) 
       (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
     check items = assertItemNotEqual "testUnique2: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
 
+assertVarDef :: Data a => String -> CompState -> String -> a -> Assertion
+assertVarDef prefix state varName varDef 
+  = case (Map.lookup varName (csNames state)) of
+      Nothing -> assertFailure $ prefix ++ " variable was not recorded: " ++ varName
+      Just actVarDef -> assertPatternMatch (prefix ++ " variable definition not as expected for " ++ varName) varDef actVarDef
 
+
+testRecordNames0 :: Test
+testRecordNames0 = testPassWithStateCheck "testRecordNames0" exp (recordNameTypes orig) (return ()) check
+  where
+    orig = (A.Specification m (simpleName "c") $ A.Declaration m A.Byte)
+    exp = orig
+    check state = assertVarDef "testRecordNames0" state "c" (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
 
 --Returns the list of tests:
 tests :: Test
@@ -167,6 +179,7 @@ tests = TestList
    ,testUnique0
    ,testUnique1
    ,testUnique2
+   ,testRecordNames0
  ]
 
 

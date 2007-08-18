@@ -16,6 +16,7 @@ rainPasses = runPasses passes
   where
     passes = 
      [ ("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
+       ,("Record name types in dictionary",recordNameTypes)
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
 
@@ -32,6 +33,8 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
     replaceNameName :: String -> String -> A.Name -> A.Name
     replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
+recordNameTypes :: Data t => t -> PassM t
+recordNameTypes = return
 
 
 transformEach :: Data t => t -> PassM t
