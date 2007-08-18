@@ -104,7 +104,7 @@ checkMatch m@(Match con items) b
   = case ((not $ isAlgType (dataTypeOf b)) || (elem con (dataTypeConstrs $ dataTypeOf b))) of
     False -> return ["Inconsistent pattern (your program has been written wrongly), constructor not possible here: " 
         ++ show con ++ " possible constructors are: " ++ show (dataTypeConstrs $ dataTypeOf b)
-        ++ " in:\n" ++ pshowPattern m ++ "\n*** vs:\n" ++ PS.pshow b]
+        ++ " in pattern:\n" ++ pshowPattern m ++ "\n*** trying to match against actual value:\n" ++ PS.pshow b]
     True ->  
       case (checkConsEq con (toConstr b) m b) of
          Nothing -> sequenceS $ (applyAll items b)
@@ -172,7 +172,7 @@ assertPatternMatch :: (Data y, Data z) => String -> y -> z -> Assertion
 assertPatternMatch msg exp act = 
 -- Uncomment this line for debugging help:
 --         putStrLn ("Testing: " ++ (PS.pshow a) ++ " vs " ++ (PS.pshow b)) >> 
-         sequence_ $ map (assertFailure . ((++) msg)) (evalState (checkMatch (mkPattern exp) act) (Map.empty))
+         sequence_ $ map (assertFailure . ((++) (msg ++ " "))) (evalState (checkMatch (mkPattern exp) act) (Map.empty))
 
 -- | A function for getting the matched items from the patterns on the LHS
 --   Either returns the matched items, or a list of errors from the matching
