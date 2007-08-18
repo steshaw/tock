@@ -98,17 +98,16 @@ checkMatch DontCare _ = return []
 checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s b]
 -- | Constructors are matched using the applyAll function (but we must also check the constructors are equal)
 checkMatch m@(Match con items) b 
-  = do conEq <- checkConsEq con (toConstr b) m b
-       case conEq of
-         [] -> sequenceS $ (applyAll items b)
-         _ -> return conEq --no point comparing fields if the constructors don't match
+  = do case (checkConsEq con (toConstr b) m b) of
+         Nothing -> sequenceS $ (applyAll items b)
+         Just err -> return [err] --no point comparing fields if the constructors don't match
   where 
     --The whole things are given as third/fourth parameters just so we can produce a more helpful error message:
-    checkConsEq :: Data z => Constr -> Constr -> Pattern -> z -> State Items MatchErrors 
+    checkConsEq :: Data z => Constr -> Constr -> Pattern -> z -> Maybe String
     checkConsEq a b a' b' = if (a == b) 
-                  then return []
-                  else return ["Constructors not equal, expected constructor: " ++ (show a) ++ " actual cons: " ++ (show b)
-                               ++ " while trying to match expected:\n" ++ (pshowPattern a') ++ "\n*** against actual:\n " ++ (PS.pshow b')]
+                  then Nothing
+                  else Just $ "Constructors not equal, expected constructor: " ++ (show a) ++ " actual cons: " ++ (show b)
+                               ++ " while trying to match expected:\n" ++ (pshowPattern a') ++ "\n*** against actual:\n " ++ (PS.pshow b')
  
     -- | applyAll checks that the non-constructor items of an algebraic data type are matched:
     applyAll :: Data z => [Pattern] -> z -> [State Items MatchErrors]
