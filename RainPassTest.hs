@@ -25,28 +25,39 @@ assertItemNotEqual msg _ Nothing = assertFailure $ msg ++ " item not matched!"
 --Putting x into ADI wrapper and using the Eq instance for AnyDataItem is easier than taking y out and checking the data types match:
 assertItemNotEqual msg exp (Just act) = assertNotEqual msg (ADI exp) act
 
-testPassGetItems :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> IO (Either Assertion Items)
+testPassGetItems :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> IO (CompState, Either Assertion Items)
 testPassGetItems testName expected actualPass startStateTrans = 
        --passResult :: Either String b
     do passResult <- runPass actualPass    
        case passResult of
-         Left err -> return $ Left $ assertFailure (testName ++ "; pass actually failed: " ++ err)
-         Right resultItem -> return $ transformEither (sequence_ . map (assertFailure . ((++) testName))) (id) $ getMatchedItems expected resultItem
+         (st,Left err) -> return (st, Left $ assertFailure (testName ++ "; pass actually failed: " ++ err) )
+         (st,Right resultItem) -> return (st, transformEither (sequence_ . map (assertFailure . ((++) testName))) (id) $ getMatchedItems expected resultItem )
        where
-         runPass :: PassM b -> IO (Either String b)
-         runPass actualPass = (evalStateT (runErrorT actualPass) (execState startStateTrans emptyState))
+         startState :: CompState
+         startState = execState startStateTrans emptyState
+         runPass :: PassM b -> IO (CompState, Either String b)
+         runPass actualPass = (liftM (\(x,y) -> (y,x))) (runStateT (runErrorT actualPass) startState)
 
 testPass :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> Test
 --If Items are returned by testPassGetItems we return () [i.e. give an empty assertion], otherwise give back the assertion:
-testPass w x y z = TestCase $ join $ liftM (either (id) (\x -> return ())) $ (testPassGetItems w x y z)
+testPass w x y z = TestCase $ join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
 
 testPassWithCheck :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> (Items -> Assertion) -> Test
 testPassWithCheck testName expected actualPass startStateTrans checkFunc = TestCase $
-  (testPassGetItems testName expected actualPass startStateTrans) 
+  ((liftM snd) (testPassGetItems testName expected actualPass startStateTrans))
   >>= (\res ->
     case res of 
       Left assert -> assert
       Right items -> checkFunc items
+  )
+
+testPassWithStateCheck :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> (CompState -> Assertion) -> Test
+testPassWithStateCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  (testPassGetItems testName expected actualPass startStateTrans)
+  >>= (\x ->
+    case x of 
+      (_,Left assert) -> assert
+      (st,Right _) -> checkFunc st
   )
 
 testEachPass0 :: Test
