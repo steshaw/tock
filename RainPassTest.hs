@@ -60,11 +60,19 @@ testPassWithStateCheck testName expected actualPass startStateTrans checkFunc = 
       (st,Right _) -> checkFunc st
   )
 
+simpleDef :: String -> A.SpecType -> A.NameDef
+simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
+                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+
+skipP :: A.Structured
+skipP = A.OnlyP m (A.Skip m)
+
+
 testEachPass0 :: Test
 testEachPass0 = testPass "testEachPass0" exp (transformEach orig) startState'
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") A.NameDef {A.ndType = A.Declaration m A.Byte}
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
     
     orig = A.Seq m 
              (A.Rep m 
@@ -100,8 +108,8 @@ testEachPass1 :: Test
 testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") A.NameDef {A.ndType = A.Declaration m A.Byte}
-                     defineName (simpleName "d") A.NameDef {A.ndType = A.Declaration m (A.Array [A.Dimension 10] A.Byte)}
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
+                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
 
     orig = A.Par m A.PlainPar
              (A.Rep m
@@ -131,7 +139,6 @@ testUnique0 = testPassWithCheck "testUnique0" exp (uniquifyAndResolveVars orig) 
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) skipP
-    skipP = A.OnlyP m (A.Skip m)
     check items = assertItemNotEqual "testUnique0: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
@@ -142,7 +149,6 @@ testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyAndResolveVars orig) 
                         A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int) skipP]
     exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m $ A.Byte) skipP,
                             tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int) skipP]
-    skipP = A.OnlyP m (A.Skip m)
     check items = do assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc0" items)
                      assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc1" items)
                      assertItemNotSame "testUnique1: Variables were not made unique" items "newc0" "newc1"
