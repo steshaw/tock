@@ -56,23 +56,19 @@ pshowPattern = render . pshowPattern'
 
 type MatchErrors = [String]
 
--- | A function for asserting equality over generic types.  Like assertEqual, but it can take items of different types to compare
---   The "Plain" suffix arises from the fact that the types should not contain (at the top-level or nested)
---   any "Pattern" items.
-assertGenEqualPlain :: (Data a, Data b) => String -> a -> b -> MatchErrors
-assertGenEqualPlain s x y = do case (checkEqual x y) of
-                                 True -> []
-                                 False -> [s ++ " Items not equal, expected:\n" ++ (PS.pshow x) ++ "\n***but got:\n " ++ (PS.pshow y)]
-  where
-    checkEqual x y = case (cast y) of
-      -- Same type, use the library-provided geq function to compare them
-      Just y' -> geq x y'
-      -- Different types, so not equal
-      Nothing -> False
-
 -- | A data item used when matching items of interest.  Note that it is similar to Pattern but not the same;
 --   AnyDataItem can only contain Data, and has no other special values.
 data AnyDataItem = forall a. Data a => ADI a
+
+instance Show AnyDataItem where
+  show (ADI a) = gshow a
+
+instance Eq AnyDataItem where
+  (==) (ADI x) (ADI y) = case (cast y) of
+                           -- Same type, use the library-provided geq function to compare them:
+                           Just y' -> geq x y'
+                           -- Different types, so not equal
+                           Nothing -> False
 
 -- | A type representing the state involved in recording items of interest.  It is simply a map
 --   from arbitrary string keys to AnyDataItem, which is just a wrapper for any item of class Data
@@ -81,14 +77,15 @@ type Items = Map.Map String AnyDataItem
 -- | A function that takes a string key (of an item of interest), and a value.
 --   If the key has NOT been seen before, checkItem merely records its value in the set of items of interest
 --   If the key has been seen before, checkItem checks that the new (passed) value matches the old value.
-checkItem :: Data z => String -> z -> State Items MatchErrors
+checkItem :: String -> AnyDataItem -> State Items MatchErrors
 checkItem key val 
   = do items <- get
        case Map.lookup key items of
-         Just (ADI val') -> return $
-             --show key will put quote marks around it, and escape any special characters (which seems appropriate here):
-             assertGenEqualPlain ("Item of interest does not match prior value for key " ++ (show key) ++ ": ") val' val
-         Nothing -> do {put (Map.insert key (ADI val) items) ; return [] }
+         Just foundVal -> return $
+             if foundVal == val then []
+             --show key will put quote marks around it, and escape any special characters (which seems useful here):
+             else ["Item of interest does not match prior value for key " ++ (show key) ++ ", prior: " ++ (show foundVal) ++ " current: " ++ (show val)]
+         Nothing -> do {put (Map.insert key val items) ; return [] }
 
 -- | A function that takes an expected Pattern value, an actual Data value, and returns the appropriate checks
 --   for pseudo-equality.  This pseudo-equality is equality, enhanced by the possibility of Pattern's 
@@ -97,7 +94,7 @@ checkMatch :: Data z => Pattern -> z -> State Items MatchErrors
 -- | DontCare matches anything, so return an empty assertion:
 checkMatch DontCare _ = return []
 -- | Items of interest are delegated to the checkItem function that uses the Items state
-checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s b]
+checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s (ADI b)]
 -- | Constructors are matched using the applyAll function (but we must also check the constructors are equal)
 checkMatch m@(Match con items) b 
     -- Check the patterns are consistent; see note #1 below this checkMatch function
