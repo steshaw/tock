@@ -6,6 +6,8 @@ import Control.Monad.State
 import Data.Generics
 import qualified PrettyShow as PS
 import Text.PrettyPrint.HughesPJ
+import Data.Maybe
+import Data.List
 
 data Pattern = 
     -- | We don't care what the value is -- will match against any item
@@ -98,7 +100,13 @@ checkMatch DontCare _ = return []
 checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s b]
 -- | Constructors are matched using the applyAll function (but we must also check the constructors are equal)
 checkMatch m@(Match con items) b 
-  = do case (checkConsEq con (toConstr b) m b) of
+    -- Check the patterns are consistent; see note #1 below this checkMatch function
+  = case ((not $ isAlgType (dataTypeOf b)) || (elem con (dataTypeConstrs $ dataTypeOf b))) of
+    False -> return ["Inconsistent pattern (your program has been written wrongly), constructor not possible here: " 
+        ++ show con ++ " possible constructors are: " ++ show (dataTypeConstrs $ dataTypeOf b)
+        ++ " in:\n" ++ pshowPattern m ++ "\n*** vs:\n" ++ PS.pshow b]
+    True ->  
+      case (checkConsEq con (toConstr b) m b) of
          Nothing -> sequenceS $ (applyAll items b)
          Just err -> return [err] --no point comparing fields if the constructors don't match
   where 
@@ -121,6 +129,33 @@ checkMatch m@(Match con items) b
       --Possibly a better way?
       where
         numIndexes = length (gmapQ (const 0) d)
+
+
+{-
+Note #1 (referenced above):
+
+There was a problem with using the tag functions for building patterns:
+
+Given a data structure:
+
+data Vegetable = Carrot | Potato | Broccoli
+data Meat = Beef | Pork
+
+data Meal = MeatTwoVeg Meat (Vegetable,Vegetable)
+
+there was nothing to stop you doing any of this:
+
+tag2 MeatTwoVeg Carrot (Potato, Broccoli)
+tag2 MeatTwoVeg Carrot (Beef, Potato)
+tag2 MeatTwoVeg Beef [Carrot, Pork]
+
+And so on and so forth.  Of course, an inconsistent pattern for Meal such as those above can never match Meal; it is an error in the program.
+
+I could have prevented this by wrapping the tag functions in an error monad, or by doing checks inside the tag functions that could die using error,
+but a better solution seemed to be to gather the error checking into assertPatternMatch/getMatchedItems, since they already have the option
+to return errors.  So you can build an inconsistent pattern, but when you come to use it you will get an error highlighting your mistake of
+creating an inconsistent pattern (rather than simply a did-not-match error)
+-}
 
 
 -- | A helper function for concating awkward lists in monads
