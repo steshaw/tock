@@ -34,7 +34,15 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
     replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
 recordNameTypes :: Data t => t -> PassM t
-recordNameTypes = return
+recordNameTypes = everywhereM (mkM recordNameTypes')
+  where
+    recordNameTypes' :: A.Specification -> PassM A.Specification
+    recordNameTypes' input@(A.Specification m n decl@(A.Declaration _ declType)) 
+      = defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
+                                A.ndNameType = A.VariableName, A.ndType = decl, 
+                                A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+        >> return input	
+    recordNameTypes' s = return s
 
 
 transformEach :: Data t => t -> PassM t
