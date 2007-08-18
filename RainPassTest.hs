@@ -12,8 +12,9 @@ import Control.Monad.Error (runErrorT)
 import Control.Monad.Identity
 import Types
 
-testEachPass0 :: Assertion
-testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) startState) 
+testEachPass0 :: Test
+testEachPass0 = TestCase $
+                do origResult <- (evalStateT (runErrorT (transformEach orig)) startState)
                    case origResult of
                      Left err -> assertFailure ("testEachPass0; pass failed with: " ++ err)
                      Right origTrans -> assertPatternMatch "testEachPass0" exp origTrans
@@ -53,8 +54,9 @@ testEachPass0 = do origResult <- (evalStateT (runErrorT (transformEach orig)) st
     listVar = tag2 A.Variable DontCare listVarName
 
 
-testEachPass1 :: Assertion
-testEachPass1 = do origResult <- (evalStateT (runErrorT (transformEach orig)) startState)
+testEachPass1 :: Test
+testEachPass1 = TestCase $
+                do origResult <- (evalStateT (runErrorT (transformEach orig)) startState)
                    case origResult of
                      Left err -> assertFailure ("testEachPass1; pass failed with: " ++ err)
                      Right origTrans -> assertPatternMatch "testEachPass1" exp origTrans
@@ -93,8 +95,8 @@ testEachPass1 = do origResult <- (evalStateT (runErrorT (transformEach orig)) st
 tests :: Test
 tests = TestList
  [
-   TestCase $ testEachPass0
-   ,TestCase $ testEachPass1
+   testEachPass0
+   ,testEachPass1
  ]
 
 
