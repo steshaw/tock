@@ -114,6 +114,35 @@ testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
              )
     indexVar = Named "indexVar" DontCare
 
+-- | Test variable is made unique in a declaration:
+testUnique0 :: Test
+testUnique0 = testPassWithCheck "testUnique0" exp (uniquifyVars orig) (return ()) check
+  where
+    orig = A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte    
+    exp = tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte
+    check items = assertItemNotEqual "testUnique0: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
+
+-- | Tests that two declarations of a variable with the same name are indeed made unique:
+testUnique1 :: Test
+testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyVars orig) (return ()) check
+  where
+    orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
+                        A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int) skipP]
+    exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m $ A.Byte) skipP,
+                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int) skipP]
+    skipP = A.OnlyP m (A.Skip m)
+    check items = do assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc0" items)
+                     assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc1" items)
+                     assertItemNotSame "testUnique1: Variables were not made unique" items "newc0" "newc1"
+
+-- | Tests that the unique pass does not change variables that are not in declarations
+testUnique2 :: Test
+testUnique2 = testPassWithCheck "testUnique2" exp (uniquifyVars orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
+    check items = assertItemNotEqual "testUnique2: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
+
 
 
 --Returns the list of tests:
@@ -122,6 +151,9 @@ tests = TestList
  [
    testEachPass0
    ,testEachPass1
+   ,testUnique0
+   ,testUnique1
+   ,testUnique2
  ]
 
 

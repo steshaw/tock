@@ -16,8 +16,15 @@ rainPasses :: A.Process -> PassM A.Process
 rainPasses = runPasses passes
   where
     passes = 
-     [ ("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
+     [ ("Uniquify variable declarations",uniquifyVars)
+       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
+
+uniquifyVars :: Data t => t -> PassM t
+uniquifyVars = everywhereM (mkM uniquifyVars')
+  where
+    uniquifyVars' :: A.Structured -> PassM A.Structured
+    uniquifyVars' = return
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
