@@ -116,15 +116,16 @@ testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
 
 -- | Test variable is made unique in a declaration:
 testUnique0 :: Test
-testUnique0 = testPassWithCheck "testUnique0" exp (uniquifyVars orig) (return ()) check
+testUnique0 = testPassWithCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte    
-    exp = tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) skipP
+    skipP = A.OnlyP m (A.Skip m)
     check items = assertItemNotEqual "testUnique0: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
 testUnique1 :: Test
-testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyVars orig) (return ()) check
+testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
                         A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int) skipP]
@@ -135,12 +136,13 @@ testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyVars orig) (return ()
                      assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc1" items)
                      assertItemNotSame "testUnique1: Variables were not made unique" items "newc0" "newc1"
 
--- | Tests that the unique pass does not change variables that are not in declarations
+-- | Tests that the unique pass does resolve the variables that are in scope
 testUnique2 :: Test
-testUnique2 = testPassWithCheck "testUnique2" exp (uniquifyVars orig) (return ()) check
+testUnique2 = testPassWithCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) 
+      (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
     check items = assertItemNotEqual "testUnique2: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
 
 

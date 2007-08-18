@@ -9,25 +9,30 @@ import CompState
 
 --TODO add passes for:
 --  Typing the variables
---  Resolving (and uniquifying) names
 
 
 rainPasses :: A.Process -> PassM A.Process
 rainPasses = runPasses passes
   where
     passes = 
-     [ ("Uniquify variable declarations",uniquifyVars)
+     [ ("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
 
-uniquifyVars :: Data t => t -> PassM t
-uniquifyVars = everywhereM (mkM uniquifyVars')
+uniquifyAndResolveVars :: Data t => t -> PassM t
+uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
   where
-    uniquifyVars' :: A.Specification -> PassM A.Specification
-    uniquifyVars' (A.Specification m n decl@(A.Declaration _ _)) 
+    uniquifyAndResolveVars' :: A.Structured -> PassM A.Structured
+    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration _ _)) scope) 
       = do n' <- makeNonce $ A.nameName n
-           return (A.Specification m n {A.nameName = n'} decl)
-    uniquifyVars' s = return s
+           let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
+           return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
+    uniquifyAndResolveVars' s = return s
+
+    replaceNameName :: String -> String -> A.Name -> A.Name
+    replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
+
+
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
