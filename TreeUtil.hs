@@ -105,6 +105,20 @@ checkItem key val
              else ["Item of interest does not match prior value for key " ++ (show key) ++ ", prior: " ++ (show foundVal) ++ " current: " ++ (show val)]
          Nothing -> do {put (Map.insert key val items) ; return [] }
 
+-- | The implementation of Eq for Constr is not complete -- it only checks whether the constructors have the same index.  Given:
+--
+--data XYZ = X | Y | Z
+-- deriving (Data)
+--data ABC = A | B
+-- deriving (Data) 
+--
+-- (toConstr B) == (toConstr Y)
+--
+-- So we do our best, comparing the names too
+conElem :: Constr -> [Constr] -> Bool
+conElem _ [] = False
+conElem c (x:xs) = ((c == x) && (show c == show x)) || conElem c xs
+
 -- | A function that takes an expected Pattern value, an actual Data value, and returns the appropriate checks
 --   for pseudo-equality.  This pseudo-equality is equality, enhanced by the possibility of Pattern's 
 --   DontCare and Named (item-of-interest) values which match differently.
@@ -116,7 +130,7 @@ checkMatch (Named s p) b = sequenceS [checkMatch p b, checkItem s (ADI b)]
 -- | Constructors are matched using the applyAll function (but we must also check the constructors are equal)
 checkMatch m@(Match con items) b 
     -- Check the patterns are consistent; see note #1 below this checkMatch function
-  = case ((not $ isAlgType (dataTypeOf b)) || (elem con (dataTypeConstrs $ dataTypeOf b))) of
+  = case ((not $ isAlgType (dataTypeOf b)) || (conElem con (dataTypeConstrs $ dataTypeOf b))) of
     False -> return ["Inconsistent pattern (your program has been written wrongly), constructor not possible here: " 
         ++ show con ++ " possible constructors are: " ++ show (dataTypeConstrs $ dataTypeOf b)
         ++ " in pattern:\n" ++ pshowPattern m ++ "\n*** trying to match against actual value:\n" ++ PS.pshow b]
