@@ -1,8 +1,11 @@
-targets = tock tocktest
+targets = tock tocktest lextest
 
 all: $(targets)
 
-sources = $(wildcard *.hs)
+sources = $(wildcard *.hs) $(patsubst %.x,%.hs,$(wildcard *.x))
+
+%.hs: %.x
+	alex $<
 
 # profile_opts = -prof -auto-all
 ghc_opts = \
@@ -16,6 +19,9 @@ tock: $(sources)
 
 tocktest: $(sources)
 	ghc $(ghc_opts) -o tocktest -main-is TestMain --make TestMain
+
+lextest: $(sources)
+	ghc $(ghc_opts) -o lextest -main-is LexOccam --make LexOccam
 
 CFLAGS = \
 	-O2 \
