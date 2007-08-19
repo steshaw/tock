@@ -168,7 +168,7 @@ compile fn
 -- | Analyse an assembly file.
 postCAnalyse :: String -> PassM ()
 postCAnalyse fn
-    =  do asm <- liftIO $ readSource fn
+    =  do asm <- liftIO $ readFile fn
 
           progress "Analysing assembly"
           output <- analyseAsm asm

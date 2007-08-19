@@ -2126,11 +2126,6 @@ includedFile
 --{{{  preprocessor
 -- XXX Doesn't handle conditionals.
 
-readSource :: String -> IO String
-readSource file
-    =  do f <- IO.openFile file IO.ReadMode
-          IO.hGetContents f
-
 -- | Find (via a nasty regex search) all the files that this source file includes.
 preFindIncludes :: String -> [String]
 preFindIncludes source
@@ -2162,7 +2157,7 @@ loadSource file = load file file
                 Just _ -> return ()
                 Nothing ->
                   do progress $ "Loading source file " ++ realName
-                     rawSource <- liftIO $ readSource realName
+                     rawSource <- liftIO $ readFile realName
                      source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker ++ "\n")
                      debug $ "Preprocessed source:"
                      debug $ numberLines source
