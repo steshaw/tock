@@ -206,7 +206,14 @@ testTopLevelDecl =
   , fail ("process foo (int x) {}", RP.topLevelDecl)
     
  ]
-        
+
+testDataType :: [ParseTest A.Type]
+testDataType =
+ [
+  pass ("bool",RP.dataType,assertEqual "testDataType 0" A.Bool)
+  ,pass ("int",RP.dataType,assertEqual "testDataType 1" A.Int64)
+  ,fail ("boolean",RP.dataType)
+ ]
         
 --Returns the list of tests:
 tests :: Test
@@ -219,6 +226,7 @@ tests = TestList
   parseTests testEach,
   parseTests testIf,
   parseTests testAssign,
+  parseTests testDataType,
   parseTests testTopLevelDecl
  ]
 --TODO test:
