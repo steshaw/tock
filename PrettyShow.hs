@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- This ought to use a class (like show does), so that it can be extended
 -- properly without me needing to have Tock-specific cases in here -- see the
 -- appropriate SYB paper.
-module PrettyShow (pshow, isTupleCtr) where
+module PrettyShow (pshow) where
 
 import Data.Generics
 import qualified Data.Map as Map
@@ -28,6 +28,7 @@ import Text.PrettyPrint.HughesPJ
 
 import qualified AST as A
 import Metadata
+import Pattern
 
 -- This is ugly -- but it looks like you can't easily define a generic function
 -- even for a single tuple type, since it has to parameterise over multiple Data
@@ -64,9 +65,20 @@ doMeta m = text $ show m
 doMap :: (Data a, Data b) => Map.Map a b -> Doc
 doMap map = braces $ sep $ punctuate (text ",") [doAny k <+> text ":" <+> doAny v
                                                  | (k, v) <- Map.toAscList map]
+                                                 
+--Print the data nicely for Pattern.Pattern, to make it look like a pattern match:
+doPattern :: Pattern -> Doc
+doPattern (DontCare) = text "_"
+doPattern (Named s p) = (text (s ++ "@")) <> (doPattern p)
+doPattern (Match c ps) =
+  --All a bit hacky, admittedly:
+ if isTupleCtr (showConstr c) then parens $ sep $ punctuate (text ",") items
+ --TODO add some decent list unfolding (to display Match (:) [x,Match (:) [y,Match [] []]] as [x,y]
+ else parens $ (text (showConstr c)) $+$ (sep items)
+   where items = map doPattern ps
 
 doAny :: Data a => a -> Doc
-doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta
+doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta `extQ` doPattern
           `extQ` (doMap :: Map.Map String String -> Doc)
           `extQ` (doMap :: Map.Map String A.NameDef -> Doc)
           `extQ` (doMap :: Map.Map String [A.Type] -> Doc)

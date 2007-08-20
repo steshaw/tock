@@ -25,6 +25,7 @@ import Test.HUnit
 import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
 import TestUtil
+import Pattern
 import TreeUtil
 import CompState
 

@@ -23,6 +23,7 @@ import Control.Monad.State as CSM
 import qualified Data.Map as Map
 import qualified AST as A
 import TestUtil
+import Pattern
 import TreeUtil
 import RainPasses
 import CompState

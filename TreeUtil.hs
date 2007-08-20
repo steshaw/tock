@@ -16,61 +16,16 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (Pattern(..), MatchErrors, AnyDataItem(..), Items, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7) where
+module TreeUtil (MatchErrors, AnyDataItem(..), Items, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Generics
 import qualified PrettyShow as PS
-import Text.PrettyPrint.HughesPJ
 import Data.Maybe
 import Data.List
-
-data Pattern = 
-    -- | We don't care what the value is -- will match against any item
-    DontCare     
-    -- | A named "item of interest".  Given the specified key, all data items with the same key should be identical (otherwise match errors will be given)
-    | Named String Pattern
-    -- | A constructed item.  This is special because the sub-items may not be of the right type for the constructor,
-    --   because they may be special items (such as DontCare)
-    | Match Constr [Pattern]
-  deriving (Typeable,Show,Eq)
-
---No proper gunfold, as I still can't figure out to implement it (Constr is problematic)
-instance Data Pattern where
-  toConstr (DontCare) = constr_DontCare
-  toConstr (Named {}) = constr_Named
-  toConstr (Match {}) = constr_Match
-
-  gunfold _ _ _ = error "gunfold Pattern"
-  
-  dataTypeOf _ = ty_Pattern
-  
-ty_Pattern = mkDataType "TreeUtil.Pattern" 
-   [
-    constr_DontCare
-    ,constr_Named
-    ,constr_Match
-   ]
- 
-constr_DontCare = mkConstr ty_Pattern "DontCare" [] Prefix
-constr_Named = mkConstr ty_Pattern "Named" [] Prefix
-constr_Match = mkConstr ty_Pattern "Match" [] Prefix
-
---Print the data nicely for TreeUtil.Pattern, to make it look like a pattern match:
-pshowPattern :: Pattern -> String
-pshowPattern = render . pshowPattern'
-  where
-    pshowPattern' :: Pattern -> Doc
-    pshowPattern' (DontCare) = text "_"
-    pshowPattern' (Named s p) = (text (s ++ "@")) <> (pshowPattern' p)
-    pshowPattern' (Match c ps) =
-      --All a bit hacky, admittedly:
-      if PS.isTupleCtr (showConstr c) then parens $ sep $ punctuate (text ",") items
-      --TODO add some decent list unfolding (to display Match (:) [x,Match (:) [y,Match [] []]] as [x,y]
-      else parens $ (text (showConstr c)) $+$ (sep items)
-        where items = map pshowPattern' ps
+import Pattern
 
 type MatchErrors = [String]
 
@@ -132,8 +87,8 @@ checkMatch m@(Match con items) b
     -- Check the patterns are consistent; see note #1 below this checkMatch function
   = case ((not $ isAlgType (dataTypeOf b)) || (conElem con (dataTypeConstrs $ dataTypeOf b))) of
     False -> return ["Inconsistent pattern (your program has been written wrongly), constructor not possible here: " 
-        ++ show con ++ " possible constructors are: " ++ show (dataTypeConstrs $ dataTypeOf b)
-        ++ " in pattern:\n" ++ pshowPattern m ++ "\n*** trying to match against actual value:\n" ++ PS.pshow b]
+        ++ (show con) ++ " possible constructors are: " ++ (show (dataTypeConstrs $ dataTypeOf b))
+        ++ " in pattern:\n" ++ (PS.pshow m) ++ "\n*** trying to match against actual value:\n" ++ (PS.pshow b)]
     True ->  
       case (checkConsEq con (toConstr b) m b) of
          Nothing -> sequenceS $ (applyAll items b)
@@ -144,7 +99,7 @@ checkMatch m@(Match con items) b
     checkConsEq a b a' b' = if (a == b) 
                   then Nothing
                   else Just $ "Constructors not equal, expected constructor: " ++ (show a) ++ " actual cons: " ++ (show b)
-                               ++ " while trying to match expected:\n" ++ (pshowPattern a') ++ "\n*** against actual:\n " ++ (PS.pshow b')
+                               ++ " while trying to match expected:\n" ++ (PS.pshow a') ++ "\n*** against actual:\n " ++ (PS.pshow b')
  
     -- | applyAll checks that the non-constructor items of an algebraic data type are matched:
     applyAll :: Data z => [Pattern] -> z -> [State Items MatchErrors]
@@ -153,7 +108,7 @@ checkMatch m@(Match con items) b
     applyAll' d (index,f) 
       = if (index >= numIndexes) 
         then return ["Invalid index in applyAll: " ++ (show index) ++ ", numIndexes is: " ++ (show numIndexes) 
-               ++ " trying to check, expected: " ++ (pshowPattern f) ++ " actual: " ++ (PS.pshow d)]
+               ++ " trying to check, expected: " ++ (PS.pshow f) ++ " actual: " ++ (PS.pshow d)]
         else (gmapQi index (checkMatch f) d) 
       --Possibly a better way?
       where
@@ -199,9 +154,17 @@ sequenceS x = (liftM concat) (sequence x)
 --   may contain special Pattern values (such as DontCare, Named, etc)
 assertPatternMatch :: (Data y, Data z) => String -> y -> z -> Assertion
 assertPatternMatch msg exp act = 
--- Uncomment this line for debugging help:
---         putStrLn ("Testing: " ++ (PS.pshow a) ++ " vs " ++ (PS.pshow b)) >> 
-         sequence_ $ map (assertFailure . ((++) (msg ++ " "))) (evalState (checkMatch (mkPattern exp) act) (Map.empty))
+  --Sometimes it can be hard to understand the MatchErrors as they stand.  When you are told "1 expected, found 0" it's often hard
+  --to know exactly which part of your huge match that refers to, especially if you can't see a 1 in your match.  So to add a little
+  --bit of help, I append a pretty-printed version of the pattern and data to each error.
+  sequence_ $ map (
+    assertFailure 
+    . (append $ " while testing pattern:\n" ++ (PS.pshow exp) ++ "\n*** against actual:\n" ++ (PS.pshow act)) 
+    . ((++) $ msg ++ " ")
+  ) errors
+  where 
+    errors = evalState (checkMatch (mkPattern exp) act) (Map.empty)
+    append x y = y ++ x
 
 -- | A function for getting the matched items from the patterns on the LHS
 --   Either returns the matched items, or a list of errors from the matching
