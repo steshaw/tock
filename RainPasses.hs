@@ -26,10 +26,8 @@ import Types
 import CompState
 import Errors
 
-rainPasses :: A.Process -> PassM A.Process
-rainPasses = runPasses passes
-  where
-    passes = 
+rainPasses :: [(String,Pass)]
+rainPasses = 
      [ ("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
        ,("Record declared name types in dictionary",recordDeclNameTypes)
        ,("Record inferred name types in dictionary",recordInfNameTypes)

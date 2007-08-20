@@ -269,4 +269,30 @@ statement
            }    
     <|> do { m <- md ; sSemiColon ; return $ A.Skip m}
     <?> "statement"
---TODO the "each" statements
+
+rainSourceFile :: RainParser (A.Process, CompState)
+rainSourceFile
+    =   do whiteSpace
+           --TODO change from stattement to declaration (once the latter is written):
+           p <- statement
+           s <- getState
+           return (p, s)
+
+-- | Parse a file with the given production.
+-- This is copied from Parse.hs (because OccParser is about to be changed to not be the same as RainParser):
+parseFile :: Monad m => String -> RainParser t -> CompState -> m t
+parseFile file prod ps
+    =  do let source = case Map.lookup file (csSourceFiles ps) of
+                         Just s -> s
+                         Nothing -> dieIO $ "Failed to preload file: " ++ show file
+          let ps' = ps { csLoadedFiles = file : csLoadedFiles ps }
+          case runParser prod ps' file source of
+            Left err -> dieIO $ "Parse error: " ++ show err
+            Right r -> return r
+
+parseRainProgram :: String -> PassM A.Process
+parseRainProgram file
+    =  do ps <- get
+          (p, ps') <- parseFile file rainSourceFile ps
+          put ps'
+          return p

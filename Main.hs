@@ -35,6 +35,8 @@ import GenerateCPPCSP
 import Parse
 import Pass
 import PrettyShow
+import RainParse
+import RainPasses
 import SimplifyExprs
 import SimplifyProcs
 import SimplifyTypes
@@ -54,6 +56,7 @@ options :: [OptDescr OptFunc]
 options =
   [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c)"
   , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp)"
+  , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam21, rain)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   ]
@@ -74,6 +77,14 @@ optBackend s ps
             "cppcsp" -> return BackendCPPCSP
             _ -> dieIO $ "Unknown backend: " ++ s
           return $ ps { csBackend = backend }
+
+optFrontend :: String -> OptFunc
+optFrontend s ps 
+    =  do frontend <- case s of
+            "occam21" -> return FrontendOccam21
+            "rain" -> return FrontendRain
+            _ -> dieIO $ "Unknown frontend: " ++ s
+          return $ ps { csFrontend = frontend }
 
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
@@ -136,7 +147,9 @@ compile fn
 
         debug "{{{ Parse"
         progress "Parse"
-        ast1 <- parseProgram fn
+        ast1 <- case csFrontend optsPS of
+          FrontendOccam21 -> parseProgram fn
+          FrontendRain -> parseRainProgram fn
         debugAST ast1
         debug "}}}"
 
@@ -147,7 +160,10 @@ compile fn
             ModeParse -> return $ show ast1
             ModeCompile ->
               do progress "Passes:"
-                 ast2 <- (runPasses passes) ast1
+                 ast2 <- case csFrontend optsPS of                   
+                   FrontendOccam21 -> (runPasses passes) ast1
+                   --Run the rain passes, then all the normal occam passes too:
+                   FrontendRain -> ((runPasses rainPasses) ast1) >>= (runPasses passes)
 
                  debug "{{{ Generate code"
                  let generator
