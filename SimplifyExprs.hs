@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Simplify expressions in the AST.
-module SimplifyExprs (simplifyExprs) where
+module SimplifyExprs where
 
 import Control.Monad.State
 import Data.Generics
