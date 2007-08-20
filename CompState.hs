@@ -37,7 +37,7 @@ data CompBackend = BackendC | BackendCPPCSP
   deriving (Show, Data, Typeable)
   
 -- | Frontends that Tock can use.
-data CompFrontend = FrontendOccam21 | FrontendRain
+data CompFrontend = FrontendOccam | FrontendRain
   deriving (Show, Data, Typeable)  
 
 -- | State necessary for compilation.
@@ -81,7 +81,7 @@ emptyState :: CompState
 emptyState = CompState {
     csMode = ModeCompile,
     csBackend = BackendC,
-    csFrontend = FrontendOccam21,
+    csFrontend = FrontendOccam,
     csVerboseLevel = 0,
     csOutputFile = "-",
 
