@@ -292,10 +292,9 @@ topLevelDecl = do {m <- md; sProcess ; procName <- name ; params <- tupleDef ; b
 rainSourceFile :: RainParser (A.Process, CompState)
 rainSourceFile
     =   do whiteSpace
-           --TODO change from stattement to declaration (once the latter is written):
-           p <- statement
+           p <- topLevelDecl
            s <- getState
-           return (p, s)
+           return (A.Seq emptyMeta p, s)
 
 -- | Parse a file with the given production.
 -- This is copied from Parse.hs (because OccParser is about to be changed to not be the same as RainParser):
