@@ -25,6 +25,7 @@ import Test.HUnit
 import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
 import TestUtil
+import TreeUtil
 import CompState
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
@@ -178,6 +179,30 @@ testEach =
       A.OnlyP m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
  ]
 
+testTopLevelDecl :: [ParseTest A.Structured]
+testTopLevelDecl =
+ [
+  pass ("process noargs() {}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 0" $ tag3 A.Spec DontCare 
+      (tag3 A.Specification DontCare "noargs" $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag2 A.OnlyP DontCare (tag1 A.Skip DontCare)) )
+      (tag1 A.Main DontCare) 
+  )
+  , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 1" $ tag3 A.Spec DontCare 
+      (tag3 A.Specification DontCare "onearg" $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleName "x")] 
+        (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssign (variable "x") (intLiteral 0)]) )
+      (tag1 A.Main DontCare) 
+  )  
+  , fail ("process", RP.topLevelDecl)
+  , fail ("process () {}", RP.topLevelDecl)
+  , fail ("process foo", RP.topLevelDecl)
+  , fail ("process foo ()", RP.topLevelDecl)
+  , fail ("process foo () {", RP.topLevelDecl)
+  , fail ("process foo ( {} )", RP.topLevelDecl)
+  , fail ("process foo (int: x)", RP.topLevelDecl)
+  , fail ("process foo (int x) {}", RP.topLevelDecl)
+    
+ ]
         
         
 --Returns the list of tests:
@@ -190,7 +215,8 @@ tests = TestList
   parseTests testPar,
   parseTests testEach,
   parseTests testIf,
-  parseTests testAssign
+  parseTests testAssign,
+  parseTests testTopLevelDecl
  ]
 --TODO test:
 -- input (incl. ext input)

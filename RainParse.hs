@@ -270,6 +270,9 @@ statement
     <|> do { m <- md ; sSemiColon ; return $ A.Skip m}
     <?> "statement"
 
+topLevelDecl :: RainParser A.Structured
+topLevelDecl = return $ A.Several emptyMeta [] --Dummy value, for now
+
 rainSourceFile :: RainParser (A.Process, CompState)
 rainSourceFile
     =   do whiteSpace
