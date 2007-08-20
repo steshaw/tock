@@ -49,12 +49,11 @@ import Metadata
 import Pass
 import Types
 import Utils
-import qualified Parse
 
 
 
 type RainState = CompState
-type RainParser = Parse.OccParser
+type RainParser = GenParser Char CompState
 
 rainStyle 
   = emptyDef
