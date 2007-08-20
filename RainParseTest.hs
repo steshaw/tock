@@ -184,16 +184,18 @@ testTopLevelDecl :: [ParseTest A.Structured]
 testTopLevelDecl =
  [
   pass ("process noargs() {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 0" $ tag3 A.Spec DontCare 
-      (tag3 A.Specification DontCare "noargs" $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag2 A.OnlyP DontCare (tag1 A.Skip DontCare)) )
-      (tag1 A.Main DontCare) 
+    assertPatternMatch "testTopLevelDecl 0" $ tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
+        (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
+      )
+      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
   )
   , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 1" $ tag3 A.Spec DontCare 
-      (tag3 A.Specification DontCare "onearg" $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleName "x")] 
-        (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssign (variable "x") (intLiteral 0)]) )
-      (tag1 A.Main DontCare) 
-  )  
+    assertPatternMatch "testTopLevelDecl 1" $ tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int64 (simpleNamePattern "x")]
+        (tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssignPattern (variablePattern "x") (intLiteralPattern 0)]) )
+      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+  )
   , fail ("process", RP.topLevelDecl)
   , fail ("process () {}", RP.topLevelDecl)
   , fail ("process foo", RP.topLevelDecl)
