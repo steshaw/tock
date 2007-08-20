@@ -232,7 +232,7 @@ innerBlock :: RainParser A.Structured
 innerBlock = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
   where
     wrapProc :: A.Process -> RainParser A.Structured
-    wrapProc x = return (A.OnlyP emptyMeta x)
+    wrapProc x = return (A.OnlyP (findMeta x) x)
 
 block :: RainParser A.Process
 block = do { m <- md ; optionalSeq ; b <- innerBlock ; return $ A.Seq m b}
