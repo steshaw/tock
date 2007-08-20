@@ -23,6 +23,7 @@ import Metadata (Meta,emptyMeta)
 import Monad
 import Test.HUnit hiding (State)
 import Data.Generics
+import Pattern
 import TreeUtil
 import Control.Monad.State
 import Control.Monad.Error
@@ -38,8 +39,14 @@ m = emptyMeta
 simpleName :: String -> A.Name
 simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
 
+simpleNamePattern :: String -> Pattern
+simpleNamePattern s = tag3 A.Name DontCare DontCare s
+
 variable :: String -> A.Variable
 variable e = A.Variable m $ simpleName e
+
+variablePattern :: String -> Pattern
+variablePattern e = tag2 A.Variable DontCare (simpleNamePattern e)
 
 --Helper function for creating a simple variable name as an expression:
 exprVariable :: String -> A.Expression
@@ -47,6 +54,9 @@ exprVariable e = A.ExprVariable m $ variable e
 
 intLiteral :: Int -> A.Expression
 intLiteral n = A.Literal m A.Int $ A.IntLiteral m (show n)
+
+intLiteralPattern :: Int -> Pattern
+intLiteralPattern n = tag3 A.Literal DontCare A.Int (tag2 A.IntLiteral DontCare (show n))
 
 makeNamesWR :: ([String],[String]) -> ([A.Variable],[A.Variable])
 makeNamesWR (x,y) = (map variable x,map variable y)
@@ -66,6 +76,8 @@ makeRepPar proc = A.Par m A.PlainPar $ A.Rep m (A.For m (simpleName "i") (intLit
 makeAssign :: A.Variable -> A.Expression -> A.Process
 makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
 
+makeAssignPattern :: Pattern -> Pattern -> Pattern
+makeAssignPattern v e = tag3 A.Assign DontCare [v] $ tag2 A.ExpressionList DontCare [e]
  
 makeLiteralString :: String -> A.Expression
 makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
