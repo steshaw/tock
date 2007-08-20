@@ -133,6 +133,7 @@ sRightC = try $ symbol "}"
 sEquality = try $ symbol "=="
 sSemiColon = try $ symbol ";"
 sColon = try $ symbol ":"
+sComma = try $ symbol ","
 sQuote = try $ symbol "\""
 --}}}
 
@@ -273,8 +274,20 @@ statement
     <|> do { m <- md ; sSemiColon ; return $ A.Skip m}
     <?> "statement"
 
+formaliseTuple :: [(A.Name,A.Type)] -> [A.Formal]
+formaliseTuple = map (\(n,t) -> A.Formal A.ValAbbrev t n)
+
+tupleDef :: RainParser [(A.Name,A.Type)]
+tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
+  where
+    tupleDefMember :: RainParser (A.Name,A.Type)
+    tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
+
 topLevelDecl :: RainParser A.Structured
-topLevelDecl = return $ A.Several emptyMeta [] --Dummy value, for now
+topLevelDecl = do {m <- md; sProcess ; procName <- name ; params <- tupleDef ; bm <- md ; body <- block ;
+  return $ A.Spec m
+    (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
+  (A.OnlyP m $ A.Main m)}
 
 rainSourceFile :: RainParser (A.Process, CompState)
 rainSourceFile
