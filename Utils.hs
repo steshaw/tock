@@ -20,6 +20,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- that could be put into the standard library.
 module Utils where
 
+import Control.Monad
+import System.IO
+import System.IO.Error
 import Text.Regex
 
 -- | Split the directory and file components of a path.
@@ -58,3 +61,8 @@ transformEither :: (a -> c) -> (b -> d) -> Either a b -> Either c d
 transformEither funcLeft funcRight x = case x of
   Left l -> Left (funcLeft l)
   Right r -> Right (funcRight r)
+
+-- | Try an IO operation, returning `Nothing` if it fails.
+maybeIO :: IO a -> IO (Maybe a)
+maybeIO op = catch (op >>= (return . Just)) (\e -> return Nothing)
+

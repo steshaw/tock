@@ -22,6 +22,7 @@ module CompState where
 import Data.Generics
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.State
 
 import qualified AST as A
@@ -49,7 +50,11 @@ data CompState = CompState {
     csVerboseLevel :: Int,
     csOutputFile :: String,
 
-    -- Set by preprocessor
+    -- Set by (new) preprocessor
+    csCurrentFile :: String,
+    csUsedFiles :: Set.Set String,
+
+    -- Set by (old) preprocessor
     csSourceFiles :: Map String String,
     csIndentLinesIn :: [String],
     csIndentLinesOut :: [String],
@@ -84,6 +89,9 @@ emptyState = CompState {
     csFrontend = FrontendOccam,
     csVerboseLevel = 0,
     csOutputFile = "-",
+
+    csCurrentFile = "none",
+    csUsedFiles = Set.empty,
 
     csSourceFiles = Map.empty,
     csIndentLinesIn = [],

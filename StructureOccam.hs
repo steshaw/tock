@@ -19,17 +19,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Analyse syntactic structure of occam code.
 module StructureOccam where
 
-import Control.Monad.Error
-import Control.Monad.State
 import Data.Generics
-import System
 
-import CompState
 import Errors
 import LexOccam
 import Metadata
 import Pass
-import PrettyShow
 
 -- | Given the output of the lexer for a single file, add `Indent`, `Outdent`
 -- and `EndOfLine` markers.
@@ -39,12 +34,12 @@ structureOccam ts = analyse 1 firstLine ts
   where
     -- Find the first line that's actually got something on it.
     firstLine
-        = case ts of (Token _ m _:_) -> metaLine m
+        = case ts of ((m, _):_) -> metaLine m
 
     analyse :: Int -> Int -> [Token] -> PassM [Token]
     -- Add extra EndOfLine at the end of the file.
-    analyse _ _ [] = return [EndOfLine]
-    analyse prevCol prevLine (t@(Token _ m _):ts)
+    analyse _ _ [] = return [(emptyMeta, EndOfLine)]
+    analyse prevCol prevLine (t@(m, tokType):ts)
         = if line /= prevLine
              then do rest <- analyse col line ts
                      newLine $ t : rest
@@ -56,29 +51,19 @@ structureOccam ts = analyse 1 firstLine ts
 
         -- A new line -- look to see what's going on with the indentation.
         newLine rest
-          | col == prevCol + 2   = return $ EndOfLine : Indent : rest
+          | col == prevCol + 2   = withEOL $ (m, Indent) : rest
           -- FIXME: If col > prevCol, then look to see if there's a VALOF
           -- coming up before the next column change...
           | col < prevCol
               = if (prevCol - col) `mod` 2 == 0
-                  then return $ EndOfLine : (replicate steps Outdent ++ rest)
-                  else dieP m "Invalid indentation"
-          | col == prevCol       = return $ EndOfLine : rest
-          | otherwise            = dieP m "Invalid indentation"
+                  then withEOL $ replicate steps (m, Outdent) ++ rest
+                  else bad
+          | col == prevCol       = withEOL rest
+          | otherwise            = bad
             where
               steps = (prevCol - col) `div` 2
-
--- | Main function for testing.
-main :: IO ()
-main
-    =  do (arg:_) <- getArgs
-          s <- readFile arg
-          e <- evalStateT (runErrorT (test arg s)) emptyState
-          return ()
-  where
-    test :: String -> String -> PassM ()
-    test arg s
-        = do tokens <- runLexer arg s
-             tokens' <- structureOccam tokens
-             liftIO $ putStrLn $ pshow tokens'
+              bad = dieP m "Invalid indentation"
+              -- This is actually the position at which the new line starts
+              -- rather than the end of the previous line.
+              withEOL ts = return $ (m, EndOfLine) : ts
 
