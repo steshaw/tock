@@ -65,17 +65,57 @@ doMeta m = text $ show m
 doMap :: (Data a, Data b) => Map.Map a b -> Doc
 doMap map = braces $ sep $ punctuate (text ",") [doAny k <+> text ":" <+> doAny v
                                                  | (k, v) <- Map.toAscList map]
+
+foldPatternList :: Pattern -> [Pattern]
+foldPatternList (Match con patList)
+  = if (showConstr con == "(:)")
+    then
+      --patList must contain two items.  The first is the list item (to be returned), the second is a nested list -- possibly the empty list
+      (head patList) : (foldPatternList $ last patList)
+    else []
+foldPatternList _ = []
+
+showStringPattern :: [Pattern] -> String
+showStringPattern = concatMap showCharPattern
+  where
+    showCharPattern :: Pattern -> String
+    showCharPattern (Match c _) = show c
+    showCharPattern _ = ""
+
+--Checks whether every item in a pattern list is (effectively) a Char
+wholeString :: [Pattern] -> Bool
+wholeString ((Match con []):ps)
+  = case (constrRep con) of
+      StringConstr _ -> True && (wholeString ps)
+      _ -> False
+wholeString (_:_) = False
+wholeString [] = True
+
                                                  
 --Print the data nicely for Pattern.Pattern, to make it look like a pattern match:
 doPattern :: Pattern -> Doc
 doPattern (DontCare) = text "_"
 doPattern (Named s p) = (text (s ++ "@")) <> (doPattern p)
-doPattern (Match c ps) =
+doPattern p@(Match c ps) =
   --All a bit hacky, admittedly:
- if isTupleCtr (showConstr c) then parens $ sep $ punctuate (text ",") items
- --TODO add some decent list unfolding (to display Match (:) [x,Match (:) [y,Match [] []]] as [x,y]
- else parens $ (text (showConstr c)) $+$ (sep items)
-   where items = map doPattern ps
+ if isTupleCtr (showConstr c)
+ --It's a tuple:
+ then parens $ sep $ punctuate (text ",") items
+ else
+     if (showConstr c == "(:)")
+     --It's a list:
+     then
+       if (wholeString folded)
+           --It's a string:
+       then doString (showStringPattern folded)
+           --It's some other kind of list:
+       else doList folded
+     --It's neither a list nor a tuple:
+     else parens $ (text (showConstr c)) $+$ (sep items)
+   where
+     items = map doPattern ps
+     folded = foldPatternList p
+
 
 doAny :: Data a => a -> Doc
 doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta `extQ` doPattern
