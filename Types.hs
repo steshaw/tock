@@ -290,10 +290,10 @@ makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
 
 -- | Find the first Meta value in some part of the AST.
 findMeta :: (Data t, Typeable t) => t -> Meta
-findMeta e = head $ gmapQ (mkQ emptyMeta findMeta) e
+findMeta e = head $ gmapQ (mkQ emptyMeta findMeta') e
   where
-    findMeta :: Meta -> Meta
-    findMeta m = m
+    findMeta' :: Meta -> Meta
+    findMeta' m = m
 
 -- | Is a conversion between two types precise (i.e. do you need to specify
 -- ROUND or TRUNC when doing it)?
