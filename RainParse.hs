@@ -228,11 +228,15 @@ subExpression
     <|> literal
     <?> "[sub-]expression"
 
-block :: RainParser A.Structured
-block = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
+innerBlock :: RainParser A.Structured
+innerBlock = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
   where
     wrapProc :: A.Process -> RainParser A.Structured
     wrapProc x = return (A.OnlyP emptyMeta x)
+
+block :: RainParser A.Process
+block = do { m <- md ; optionalSeq ; b <- innerBlock ; return $ A.Seq m b}
+        <|> do { m <- md ; sPar ; b <- innerBlock ; return $ A.Par m A.PlainPar b}
 
 optionalSeq :: RainParser ()
 optionalSeq = option () sSeq
@@ -256,8 +260,7 @@ statement
              option (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) (A.Skip m))])
                     (do {sElse ; elSt <- statement ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
            }
-    <|> do { m <- md ; optionalSeq ; b <- block ; return $ A.Seq m b}
-    <|> do { m <- md ; sPar ; b <- block ; return $ A.Par m A.PlainPar b}
+    <|> block
     <|> do { m <- md ; sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
              return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
     <|> do { m <- md ; sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
