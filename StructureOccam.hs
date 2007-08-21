@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Analyse syntactic structure of occam code.
-module StructureOccam where
+module StructureOccam (structureOccam) where
 
 import Data.Generics
 
@@ -26,29 +26,43 @@ import LexOccam
 import Metadata
 import Pass
 
+-- | Reserved words that, if found at the end of a line, indicate the next
+-- line is a continuation.
+continuationWords :: [String]
+continuationWords
+  = [ "-", "~", "+", "-", "*", "/", "\\", "/\\", "\\/", "><", "=", "<>",
+      "<", ">", ">=", "<=", ",", ";", ":=", "<<", ">>",
+      "AFTER", "AND", "BITAND", "BITNOT", "BITOR", "FOR", "FROM",
+      "IS", "MINUS", "MINUS", "NOT", "OR", "PLUS", "REM", "RESHAPES",
+      "RETYPES", "SIZE", "TIMES" ]
+
 -- | Given the output of the lexer for a single file, add `Indent`, `Outdent`
 -- and `EndOfLine` markers.
 structureOccam :: [Token] -> PassM [Token]
 structureOccam [] = return []
-structureOccam ts = analyse 1 firstLine ts
+structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
   where
     -- Find the first line that's actually got something on it.
     firstLine
         = case ts of ((m, _):_) -> metaLine m
 
-    analyse :: Int -> Int -> [Token] -> PassM [Token]
+    analyse :: Int -> Int -> [Token] -> Token -> PassM [Token]
     -- Add extra EndOfLine at the end of the file.
-    analyse prevCol _ [] = return $ (emptyMeta, EndOfLine) : out
+    analyse prevCol _ [] _ = return $ (emptyMeta, EndOfLine) : out
       where out = replicate (prevCol `div` 2) (emptyMeta, Outdent)
-    analyse prevCol prevLine (t@(m, tokType):ts)
-        = if line /= prevLine
-             then do rest <- analyse col line ts
+    analyse prevCol prevLine (t@(m, tokType):ts) prevTok
+        = if (line /= prevLine) && (not isContinuation)
+             then do rest <- analyse col line ts t
                      newLine $ t : rest
-             else do rest <- analyse prevCol line ts
+             else do rest <- analyse prevCol line ts t
                      return $ t : rest
       where
         col = metaColumn m
         line = metaLine m
+
+        isContinuation = case prevTok of
+                           (_, TokReserved s) -> s `elem` continuationWords
+                           _ -> False
 
         -- A new line -- look to see what's going on with the indentation.
         newLine rest
