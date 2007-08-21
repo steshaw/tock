@@ -62,6 +62,7 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
 
         isContinuation = case prevTok of
                            (_, TokReserved s) -> s `elem` continuationWords
+                           (_, TokStringCont _) -> True
                            _ -> False
 
         -- A new line -- look to see what's going on with the indentation.

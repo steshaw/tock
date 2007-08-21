@@ -68,11 +68,15 @@ $vertSpace = [\r\n]
 
 @identifier = [a-z A-Z] [a-z A-Z 0-9 \.]*
 
-$escapeChar = [cnrts \" \' \* \n]
-@escape = \* ( $escapeChar | \# $hexDigit $hexDigit )
+@hexEscape = \# $hexDigit $hexDigit
+@escape = \* ( @hexEscape | [^\#\n] )
 
-@stringLiteral = \" ( @escape | [^\"\*] )* \"
 @charLiteral = \' ( @escape | [^\'\*] ) \'
+@stringBody = ( @escape | [^\"\*] )*
+@fullString = \" @stringBody \"
+@startString = \" @stringBody \* \n
+@contString = \* @stringBody \* \n
+@endString = \* @stringBody \"
 
 -- Note that occam number literals don't include their signs -- if you say
 -- "-3", then that's the operator "-" applied to the literal "3".
@@ -84,10 +88,10 @@ $escapeChar = [cnrts \" \' \* \n]
 
 occam :-
 
--- This would all be very simple if it weren't for preprocessor instructions!
 -- In state 0, we're consuming the horizontal space at the start of a line.
 -- In state one, we're reading the first thing on a line.
 -- In state two, we're reading the rest of the line.
+-- In state three, we're in the middle of a multi-line string.
 
 <0>           $horizSpace*   { mkState one }
 
@@ -98,8 +102,13 @@ occam :-
 <one, two>    @reserved      { mkToken TokReserved two }
 <one, two>    @identifier    { mkToken TokIdentifier two }
 
-<one, two>    @stringLiteral { mkToken TokStringLiteral two }
 <one, two>    @charLiteral   { mkToken TokCharLiteral two }
+<one, two>    @fullString    { mkToken TokStringLiteral two }
+<one, two>    @startString   { mkToken TokStringCont three }
+
+<three>       $horizSpace+   { mkState three }
+<three>       @contString    { mkToken TokStringCont three }
+<three>       @endString     { mkToken TokStringLiteral two }
 
 <one, two>    @intLiteral    { mkToken TokIntLiteral two }
 <one, two>    @hexLiteral    { mkToken TokHexLiteral two }
@@ -117,7 +126,8 @@ type Token = (Meta, TokenType)
 data TokenType =
   TokReserved String                   -- ^ A reserved word or symbol
   | TokIdentifier String
-  | TokStringLiteral String
+  | TokStringCont String               -- ^ A continued string literal.
+  | TokStringLiteral String            -- ^ (The end of) a string literal.
   | TokCharLiteral String
   | TokIntLiteral String
   | TokHexLiteral String
