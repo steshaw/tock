@@ -176,7 +176,7 @@ dataType :: RainParser A.Type
 dataType 
   = do {sBool ; return A.Bool}
     <|> do {sInt ; return A.Int64}
-    <|> do {sChannel ; inner <- dataType ; return $ A.Chan inner}
+    <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <?> "data type"
 
 variableId :: RainParser A.Variable

@@ -166,7 +166,7 @@ cppgenInput ops c im
             A.InputSimple m is -> 
               do t <- typeOfVariable c
                  case t of 
-                   A.Chan (A.UserProtocol innerType) ->
+                   A.Chan _ _ (A.UserProtocol innerType) ->
                      --We read from the channel into a temporary var, then deal with the var afterwards
                      do inputVar <- makeNonce "proto_var"
                         genProtocolName innerType 
@@ -184,7 +184,7 @@ cppgenInputCase ops m c s
     = do  t <- typeOfVariable c
           --We have to do complex things with the which() function of the variant (which may be a chained variant)
           --to actually get the real index of the item we have received.
-          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tag <- makeNonce "case_tag"          
           which <- makeNonce "which_val"
           genProtocolName proto
@@ -402,7 +402,7 @@ cppgenOutput ops c ois
     = do t <- typeOfVariable c
          case t of 
            --If it's a protocol, we have to build the appropriate tuple to send down the channel:
-           A.Chan (A.UserProtocol innerType) -> 
+           A.Chan _ _ (A.UserProtocol innerType) -> 
              do call genVariable ops c
                 tell [" ->writer() << "]
                 genProtocolName innerType
@@ -477,7 +477,7 @@ genSubTypes proto tag middle
 cppgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase ops c tag ois 
     =  do t <- typeOfVariable c
-          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           call genVariable ops c
           tell [" ->writer() << "]
           genSubTypes proto tag (middle proto)
@@ -606,7 +606,7 @@ cppdeclareType ops (A.Counted countType valueType)
            _ -> call genType ops valueType
          tell ["/**/>/**/"]
     
-cppdeclareType ops (A.Chan t) 
+cppdeclareType ops (A.Chan _ _ t) 
     = do tell [" csp::One2OneChannel < "] 
          call genType ops t 
          tell ["/**/>/**/ "]
@@ -643,7 +643,7 @@ cppgenDeclaration ops t n
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareInit ops m t@(A.Array ds t') var
     = Just $ do init <- case t' of
-                          A.Chan _ ->                    
+                          A.Chan {} ->                    
                                return (\sub -> Just $ do call genVariable ops (sub var)
                                                          tell [" = new "]
                                                          call declareType ops t'
@@ -659,7 +659,7 @@ cppdeclareInit _ _ _ _ = Nothing
 cppdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareFree ops m t@(A.Array ds t') var
     = Just $ do free <- case t' of
-                          A.Chan _ ->                    
+                          A.Chan {} ->                    
                                return (\sub -> Just $ do tell ["delete "]
                                                          call genVariable ops (sub var)
                                                          tell [";\n"]
@@ -930,7 +930,7 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
               -- we need to dereference the pointer that cppabbrevVariable gives us.
               do let deref = case (am, t) of
                                (_, A.Array _ _) -> False
-                               (_, A.Chan _) -> False
+                               (_, A.Chan {}) -> False
                                (A.ValAbbrev, _) -> True
                                _ -> False
                  when deref $ tell ["*"]
@@ -987,7 +987,7 @@ cppgenType ops arr@(A.Array _ _)
     =  cppgenArrayType ops False arr 0    
 cppgenType _ (A.Record n) = genName n
 cppgenType _ (A.UserProtocol n) = genProtocolName n
-cppgenType ops (A.Chan t) 
+cppgenType ops (A.Chan _ _ t) 
     = do tell ["csp::One2OneChannel < "]
          call genType ops t
          tell [" > * "]
@@ -1022,7 +1022,7 @@ cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.Subscri
     = cppgenSlice ops v v' ty (makeConstant m 0) count ds
 cppabbrevVariable ops am (A.Array _ _) v
     = call genVariable ops v
-cppabbrevVariable ops am (A.Chan _) v
+cppabbrevVariable ops am (A.Chan {}) v
     = call genVariable ops v
 cppabbrevVariable ops am (A.Record _) v
     = call genVariable ops v
@@ -1176,7 +1176,7 @@ cppgenDeclType ops am t
               do when (am == A.ValAbbrev) $ tell ["const "]
                  call genType ops t
                  case t of
-                   A.Chan _ -> return ()
+                   A.Chan {} -> return ()
                    A.Record _ -> tell [" *"]
                    _ -> when (am == A.Abbrev) $ tell [" *"]
 
@@ -1193,8 +1193,8 @@ cppgenVariable' ops checkValid v
 
            let prefix = case (am, t) of
                           (_, A.Array _ _) -> ""
-                          (A.Original, A.Chan _) -> if isSub then "" else "&"
-                          (A.Abbrev, A.Chan _) -> ""
+                          (A.Original, A.Chan {}) -> if isSub then "" else "&"
+                          (A.Abbrev, A.Chan {}) -> ""
                           (A.Original, A.Record _) -> "&"
                           (A.Abbrev, A.Record _) -> ""
                           (A.Abbrev, _) -> "*"

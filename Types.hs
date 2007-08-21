@@ -218,7 +218,7 @@ returnTypesOfIntrinsic s
 -- Returns Left if it's a simple protocol, Right if it's tagged.
 protocolItems :: (CSM m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
 protocolItems v
-    =  do A.Chan t <- typeOfVariable v
+    =  do A.Chan _ _ t <- typeOfVariable v
           case t of
             A.UserProtocol proto ->
               do st <- specTypeOfName proto
@@ -366,8 +366,8 @@ simplifyType origT@(A.Record n)
 simplifyType (A.Array ds t)
     =  do t' <- simplifyType t
           return $ A.Array ds t'
-simplifyType (A.Chan t)
-    = liftM A.Chan $ simplifyType t
+simplifyType (A.Chan d a t)
+    = liftM (A.Chan d a) $ simplifyType t
 simplifyType (A.Counted ct it)
     =  do ct' <- simplifyType ct
           it' <- simplifyType it

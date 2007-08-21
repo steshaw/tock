@@ -333,7 +333,7 @@ cgenType ops (A.Array _ t)
           tell ["*"]
 cgenType _ (A.Record n) = genName n
 -- UserProtocol -- not used
-cgenType _ (A.Chan t) = tell ["Channel *"]
+cgenType _ (A.Chan _ _ t) = tell ["Channel *"]
 -- Counted -- not used
 -- Any -- not used
 --cgenType ops (A.Port t) =
@@ -381,7 +381,7 @@ cgenBytesIn' _ (A.Record n) _
           return Nothing
 -- This is so that we can do RETYPES checks on channels; we don't actually
 -- allow retyping between channels and other things.
-cgenBytesIn' _ (A.Chan _) _
+cgenBytesIn' _ (A.Chan {}) _
     =  do tell ["sizeof (Channel *)"]
           return Nothing
 cgenBytesIn' ops t _
@@ -397,7 +397,7 @@ cgenDeclType ops am t
           call genType ops t
           case t of
             A.Array _ _ -> return ()
-            A.Chan _ -> return ()
+            A.Chan {} -> return ()
             A.Record _ -> tell [" *"]
             _ -> when (am == A.Abbrev) $ tell [" *"]
 
@@ -665,8 +665,8 @@ cgenVariable' ops checkValid v
 
           let prefix = case (am, t) of
                          (_, A.Array _ _) -> ""
-                         (A.Original, A.Chan _) -> if isSub then "" else "&"
-                         (A.Abbrev, A.Chan _) -> ""
+                         (A.Original, A.Chan {}) -> if isSub then "" else "&"
+                         (A.Abbrev, A.Chan {}) -> ""
                          (A.Original, A.Record _) -> "&"
                          (A.Abbrev, A.Record _) -> ""
                          (A.Abbrev, _) -> "*"
@@ -1040,7 +1040,7 @@ abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor 
     = call genSlice ops v v' (makeConstant m 0) count ds
 abbrevVariable ops am (A.Array _ _) v
     = (call genVariable ops v, call genArraySize ops True (call genVariable ops v >> tell ["_sizes"]))
-abbrevVariable ops am (A.Chan _) v
+abbrevVariable ops am (A.Chan {}) v
     = (call genVariable ops v, noSize)
 abbrevVariable ops am (A.Record _) v
     = (call genVariable ops v, noSize)
@@ -1110,12 +1110,12 @@ cgenSpec ops spec body
 -- | Generate the C type corresponding to a variable being declared.
 -- It must be possible to use this in arrays.
 cdeclareType :: GenOps -> A.Type -> CGen ()
-cdeclareType _ (A.Chan _) = tell ["Channel *"]
+cdeclareType _ (A.Chan {}) = tell ["Channel *"]
 cdeclareType ops t = call genType ops t
 
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
-cgenDeclaration ops (A.Chan _) n
+cgenDeclaration ops (A.Chan {}) n
     =  do tell ["Channel "]
           genName n
           tell [";\n"]
@@ -1167,13 +1167,13 @@ cgenArraySizesLiteral ops ds
 
 -- | Initialise an item being declared.
 cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareInit ops _ (A.Chan _) var
+cdeclareInit ops _ (A.Chan {}) var
     = Just $ do tell ["ChanInit ("]
                 call genVariable ops var
                 tell [");\n"]
 cdeclareInit ops m t@(A.Array ds t') var
     = Just $ do init <- case t' of
-                          A.Chan _ ->
+                          A.Chan {} ->
                             do A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
                                let storeV = A.Variable m store
                                tell ["Channel "]
@@ -1325,7 +1325,7 @@ cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
           -- we need to dereference the pointer that abbrevVariable gives us.
           let deref = case (am, t) of
                         (_, A.Array _ _) -> False
-                        (_, A.Chan _) -> False
+                        (_, A.Chan {}) -> False
                         (A.ValAbbrev, _) -> True
                         _ -> False
           when deref $ tell ["*"]
@@ -1463,7 +1463,7 @@ cgenInput ops c im
 cgenInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen ()
 cgenInputCase ops m c s
     =  do t <- typeOfVariable c
-          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tag <- makeNonce "case_tag"
           genName proto
           tell [" ", tag, ";\n"]
@@ -1518,7 +1518,7 @@ cgenOutput ops c ois = sequence_ $ map (call genOutputItem ops c) ois
 cgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase ops c tag ois
     =  do t <- typeOfVariable c
-          let proto = case t of A.Chan (A.UserProtocol n) -> n
+          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt ("]
           call genVariable ops c
           tell [", "]

@@ -559,7 +559,7 @@ dataType
 -- FIXME should probably make CHAN INT work, since that'd be trivial...
 channelType :: OccParser A.Type
 channelType
-    =   do { sCHAN; sOF; p <- protocol; return $ A.Chan p }
+    =   do { sCHAN; sOF; p <- protocol; return $ A.Chan A.DirUnknown A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
     <|> arrayType channelType
     <?> "channel type"
 
@@ -1265,7 +1265,7 @@ chanArrayAbbrev
            ts <- mapM typeOfVariable cs
            t <- tableType m ts
            case t of
-             (A.Array _ (A.Chan _)) -> return ()
+             (A.Array _ (A.Chan {})) -> return ()
              _ -> fail $ "types do not match in channel array abbreviation"
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
@@ -1275,7 +1275,7 @@ chanArrayAbbrev
                                  sLeft
                                  ct <- trivialSubscriptType s
                                  case ct of
-                                   A.Chan _ -> return (ct, s, n)
+                                   A.Chan {} -> return (ct, s, n)
                                    _ -> pzero)
            cs <- sepBy1 (channelOfType ct) sComma
            sRight
@@ -1361,7 +1361,7 @@ retypesAbbrev
 -- | Check that a RETYPES\/RESHAPES is safe.
 checkRetypes :: A.Type -> A.Type -> OccParser ()
 -- Retyping channels is always "safe".
-checkRetypes (A.Chan _) (A.Chan _) = return ()
+checkRetypes (A.Chan {}) (A.Chan {}) = return ()
 checkRetypes fromT toT
     =  do bf <- bytesInType fromT
           bt <- bytesInType toT
@@ -1893,7 +1893,7 @@ actual (A.Formal am t n)
                  return $ A.ActualExpression t e
             _ ->
               case stripArrayType t of
-                A.Chan _ -> var (channelOfType t)
+                A.Chan {} -> var (channelOfType t)
                 A.Timer -> var timer
                 A.Port _ -> var (portOfType t)
                 _ -> var (variableOfType t)

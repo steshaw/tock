@@ -74,6 +74,16 @@ data NameDef = NameDef {
   }
   deriving (Show, Eq, Typeable, Data)
 
+-- | The direction of a channel -- input (reading-end), output (writing-end) or unknown (either)
+data Direction = DirInput | DirOutput | DirUnknown
+  deriving (Show, Eq, Typeable, Data)
+
+data ChanAttributes = ChanAttributes {
+    caWritingShared :: Bool,
+    caReadingShared :: Bool
+  }
+  deriving (Show, Eq, Typeable, Data)
+
 -- | A data or protocol type.
 -- The two concepts aren't unified in occam, but they are here, because it
 -- makes sense to be able to ask what type a particular name is defined to
@@ -92,7 +102,8 @@ data Type =
   | Record Name
   -- | A user-defined protocol.
   | UserProtocol Name
-  | Chan Type
+  -- | A channel of the specified type.
+  | Chan Direction ChanAttributes Type
   -- | A counted input or output.
   | Counted Type Type
   | Any
@@ -117,7 +128,7 @@ instance Show Type where
   show (UserDataType n) = nameName n ++ "{data type}"
   show (Record n) = nameName n ++ "{record}"
   show (UserProtocol n) = nameName n ++ "{protocol}"
-  show (Chan t) = "CHAN OF " ++ show t
+  show (Chan _ _ t) = "CHAN OF " ++ show t
   show (Counted ct et) = show ct ++ "::" ++ show et
   show Any = "ANY"
   show Timer = "TIMER"

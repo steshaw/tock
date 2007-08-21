@@ -49,7 +49,7 @@ tlpInterface
           return (mainName, chans)
   where
     tlpChannel :: (CSM m, Die m) => A.Formal -> m TLPChannel
-    tlpChannel (A.Formal _ (A.Chan A.Byte) n)
+    tlpChannel (A.Formal _ (A.Chan _ _ A.Byte) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def
               case lookup origN tlpChanNames of
