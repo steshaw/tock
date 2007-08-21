@@ -88,7 +88,12 @@ type DirectiveFunc = Meta -> [String] -> PassM ([Token] -> [Token])
 handleDirective :: Meta -> String -> PassM ([Token] -> [Token])
 handleDirective m s = lookup s directives
   where
-    lookup s [] = dieP m "Unknown preprocessor directive"
+    -- FIXME: This should really be an error rather than a warning, but
+    -- currently we support so few preprocessor directives that this is more
+    -- useful.
+    lookup s []
+        =  do addWarning m "Unknown preprocessor directive ignored"
+              return id
     lookup s ((re, func):ds)
         = case matchRegex re s of
             Just fields -> func m fields
