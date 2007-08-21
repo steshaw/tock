@@ -192,7 +192,7 @@ testTopLevelDecl =
   )
   , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
     assertPatternMatch "testTopLevelDecl 1" $ tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int64 (simpleNamePattern "x")]
+      (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleNamePattern "x")]
         (tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssignPattern (variablePattern "x") (intLiteralPattern 0)]) )
       (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
   )
@@ -214,14 +214,14 @@ testDataType :: [ParseTest A.Type]
 testDataType =
  [
   pass ("bool",RP.dataType,assertEqual "testDataType 0" A.Bool)
-  ,pass ("int",RP.dataType,assertEqual "testDataType 1" A.Int64)
+  ,pass ("int",RP.dataType,assertEqual "testDataType 1" A.Int)
   ,fail ("boolean",RP.dataType)
   
-  ,pass ("?int",RP.dataType,assertEqual "testDataType 2" $ A.Chan A.DirInput nonShared A.Int64)
+  ,pass ("?int",RP.dataType,assertEqual "testDataType 2" $ A.Chan A.DirInput nonShared A.Int)
   ,pass ("! bool",RP.dataType,assertEqual "testDataType 3" $ A.Chan A.DirOutput nonShared A.Bool)
   --These types should succeed in the *parser* -- they would be thrown out further down the line:
-  ,pass ("??int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int64)
-  ,pass ("? ? int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int64)
+  ,pass ("??int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int)
+  ,pass ("? ? int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int)
   ,pass ("!!bool",RP.dataType,assertEqual "testDataType 5" $ A.Chan A.DirOutput nonShared $ A.Chan A.DirOutput nonShared A.Bool)  
   ,pass ("?!bool",RP.dataType,assertEqual "testDataType 6" $ A.Chan A.DirInput nonShared $ A.Chan A.DirOutput nonShared A.Bool)  
   

@@ -28,11 +28,19 @@ import Errors
 
 rainPasses :: [(String,Pass)]
 rainPasses = 
-     [ ("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
+     [ ("Resolve Int -> Int64",transformInt)
+       ,("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
        ,("Record declared name types in dictionary",recordDeclNameTypes)
        ,("Record inferred name types in dictionary",recordInfNameTypes)
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
+
+transformInt :: Data t => t -> PassM t
+transformInt = everywhereM (mkM transformInt')
+  where
+    transformInt' :: A.Type -> PassM A.Type
+    transformInt' A.Int = return A.Int64
+    transformInt' t = return t
 
 uniquifyAndResolveVars :: Data t => t -> PassM t
 uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
