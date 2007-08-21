@@ -31,6 +31,9 @@ import Pass
 $decimalDigit = [0-9]
 $hexDigit = [0-9 a-f A-F]
 
+$horizSpace = [\ \t]
+$vertSpace = [\r\n]
+
 @preprocessor = "#" [^\n]*
 
 @reserved = "[" | "]" | "(" | ")"
@@ -73,7 +76,7 @@ $escapeChar = [cnrts \" \' \* \n]
 
 -- Note that occam number literals don't include their signs -- if you say
 -- "-3", then that's the operator "-" applied to the literal "3".
-@decimalLiteral = $decimalDigit+
+@intLiteral = $decimalDigit+
 @hexLiteral = "#" $hexDigit+
 @exponent = ("+" | "-") $decimalDigit+
 @realLiteral = ( $decimalDigit+ "." $decimalDigit+ "E" @exponent )
@@ -81,21 +84,28 @@ $escapeChar = [cnrts \" \' \* \n]
 
 occam :-
 
-@preprocessor      { mkToken TokPreprocessor }
+-- This would all be very simple if it weren't for preprocessor instructions!
+-- In state 0, we're consuming the horizontal space at the start of a line.
+-- In state one, we're reading the first thing on a line.
+-- In state two, we're reading the rest of the line.
 
--- Ignore whitespace and comments.
-$white+            ;
-"--" [^\n]*        ;
+<0>           $horizSpace*   { mkState one }
 
-@reserved          { mkToken TokReserved }
-@identifier        { mkToken TokIdentifier }
+<one>         @preprocessor  { mkToken TokPreprocessor 0 }
+<one, two>    "--" [^\n]*    { mkState 0 }
+<one, two>    $vertSpace+    { mkState 0 }
 
-@stringLiteral     { mkToken TokStringLiteral }
-@charLiteral       { mkToken TokCharLiteral }
+<one, two>    @reserved      { mkToken TokReserved two }
+<one, two>    @identifier    { mkToken TokIdentifier two }
 
-@decimalLiteral    { mkToken TokDecimalLiteral }
-@hexLiteral        { mkToken TokHexLiteral }
-@realLiteral       { mkToken TokRealLiteral }
+<one, two>    @stringLiteral { mkToken TokStringLiteral two }
+<one, two>    @charLiteral   { mkToken TokCharLiteral two }
+
+<one, two>    @intLiteral    { mkToken TokIntLiteral two }
+<one, two>    @hexLiteral    { mkToken TokHexLiteral two }
+<one, two>    @realLiteral   { mkToken TokRealLiteral two }
+
+<two>         $horizSpace+   { mkState two }
 
 {
 -- | An occam source token and its position.
@@ -109,7 +119,7 @@ data TokenType =
   | TokIdentifier String
   | TokStringLiteral String
   | TokCharLiteral String
-  | TokDecimalLiteral String
+  | TokIntLiteral String
   | TokHexLiteral String
   | TokRealLiteral String
   | TokPreprocessor String
@@ -119,23 +129,29 @@ data TokenType =
   deriving (Show, Eq, Typeable, Data)
 
 -- | Build a lexer rule for a token.
-mkToken :: (String -> TokenType) -> AlexPosn -> String -> Token
-mkToken cons _ s = (emptyMeta, cons s)
+mkToken :: (String -> TokenType) -> Int -> AlexPosn -> String -> (Maybe Token, Int)
+mkToken cons code _ s = (Just (emptyMeta, cons s), code)
+
+-- | Just switch state.
+mkState :: Int -> AlexPosn -> String -> (Maybe Token, Int)
+mkState code _ s = (Nothing, code)
 
 -- | Run the lexer, returning a list of tokens.
 -- (This is based on the `alexScanTokens` function that Alex provides.)
 runLexer :: String -> String -> PassM [Token]
-runLexer filename str = go (alexStartPos, '\n', str)
+runLexer filename str = go (alexStartPos, '\n', str) 0
   where
-    go inp@(pos@(AlexPn _ line col), _, str) =
-         case alexScan inp 0 of
+    go inp@(pos@(AlexPn _ line col), _, str) code =
+         case alexScan inp code of
            AlexEOF -> return []
            AlexError _ -> dieP meta "Unrecognised token"
-           AlexSkip inp' len -> go inp'
+           AlexSkip inp' len -> go inp' code
            AlexToken inp' len act ->
-             do ts <- go inp'
-                let t = act pos (take len str)
-                return $ (meta, snd t) : ts
+             do let (t, code) = act pos (take len str)
+                ts <- go inp' code
+                return $ case t of
+                           Just tok -> (meta, snd tok) : ts
+                           Nothing -> ts
 
       where
         meta = emptyMeta {
