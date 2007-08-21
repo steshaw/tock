@@ -207,12 +207,32 @@ testTopLevelDecl =
     
  ]
 
+nonShared :: A.ChanAttributes
+nonShared = A.ChanAttributes { A.caWritingShared = False, A.caReadingShared = False}
+
 testDataType :: [ParseTest A.Type]
 testDataType =
  [
   pass ("bool",RP.dataType,assertEqual "testDataType 0" A.Bool)
   ,pass ("int",RP.dataType,assertEqual "testDataType 1" A.Int64)
   ,fail ("boolean",RP.dataType)
+  
+  ,pass ("?int",RP.dataType,assertEqual "testDataType 2" $ A.Chan A.DirInput nonShared A.Int64)
+  ,pass ("! bool",RP.dataType,assertEqual "testDataType 3" $ A.Chan A.DirOutput nonShared A.Bool)
+  --These types should succeed in the *parser* -- they would be thrown out further down the line:
+  ,pass ("??int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int64)
+  ,pass ("? ? int",RP.dataType,assertEqual "testDataType 4" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int64)
+  ,pass ("!!bool",RP.dataType,assertEqual "testDataType 5" $ A.Chan A.DirOutput nonShared $ A.Chan A.DirOutput nonShared A.Bool)  
+  ,pass ("?!bool",RP.dataType,assertEqual "testDataType 6" $ A.Chan A.DirInput nonShared $ A.Chan A.DirOutput nonShared A.Bool)  
+  
+  ,fail ("?",RP.dataType)
+  ,fail ("!",RP.dataType)
+  ,fail ("??",RP.dataType)
+  ,fail ("int?",RP.dataType)
+  ,fail ("bool!",RP.dataType)
+  ,fail ("int?int",RP.dataType)
+  
+  
  ]
         
 --Returns the list of tests:
