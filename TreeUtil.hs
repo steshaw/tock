@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (MatchErrors, AnyDataItem(..), Items, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7) where
+module TreeUtil (MatchErrors, AnyDataItem(..), Items, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, stopCaringPattern) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
@@ -196,6 +196,18 @@ mkPattern :: (Data a) => a -> Pattern
 mkPattern x = case ((cast x) :: Maybe Pattern) of
   Just x' -> x'
   Nothing -> Match (toConstr x) (gmapQ mkPattern x)
+
+
+-- | Replaces (mkPattern a) with DontCare everywhere in the given pattern
+stopCaringPattern :: Data a => a -> Pattern -> Pattern
+-- We can't use everywhere, because Pattern doesn't have a proper gunfold implementation
+stopCaringPattern item = stopCaringPattern' (mkPattern item)
+  where
+    stopCaringPattern' :: Pattern -> Pattern -> Pattern
+    stopCaringPattern' replace p@(DontCare) = p
+    stopCaringPattern' replace p@(Named n p') = if (p == replace) then DontCare else (Named n $ stopCaringPattern' replace p')
+    stopCaringPattern' replace p@(Match c ps) = if (p == replace) then DontCare else (Match c $ map (stopCaringPattern' replace) ps)
+    
 
 --I'm not sure tag0 is ever needed, but just in case:
 tag0 :: (Data a) => a -> Pattern
