@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Driver for the compiler.
-module Main where
+module Main (main) where
 
 import Control.Monad
 import Control.Monad.Error
@@ -34,6 +34,7 @@ import GenerateC
 import GenerateCPPCSP
 import Parse
 import Pass
+import PreprocessOccam
 import PrettyShow
 import RainParse
 import RainPasses
@@ -141,14 +142,10 @@ compile :: String -> PassM ()
 compile fn
   =  do optsPS <- get
 
-        debug "{{{ Preprocess"
-        loadSource fn
-        debug "}}}"
-
         debug "{{{ Parse"
         progress "Parse"
         ast1 <- case csFrontend optsPS of
-          FrontendOccam -> parseProgram fn
+          FrontendOccam -> preprocessOccamProgram fn >>= parseOccamProgram
           FrontendRain -> parseRainProgram fn
         debugAST ast1
         debug "}}}"

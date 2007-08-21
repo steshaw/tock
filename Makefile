@@ -1,4 +1,4 @@
-targets = tock tocktest lextest
+targets = tock tocktest
 
 all: $(targets)
 
@@ -19,9 +19,6 @@ tock: $(sources)
 
 tocktest: $(sources)
 	ghc $(ghc_opts) -o tocktest -main-is TestMain --make TestMain
-
-lextest: $(sources)
-	ghc $(ghc_opts) -o lextest -main-is PreprocessOccam --make PreprocessOccam
 
 CFLAGS = \
 	-O2 \

@@ -10,6 +10,6 @@ PROC P ()
   VAL []BYTE mls IS "first*
                     *second*
                     *third":
-  VAL [5][5]BYTE square IS ["sator", "arepo", "tenas", "opera", "rotas"]:
+  VAL [5][5]BYTE square IS ["sator", "arepo", "tenat", "opera", "rotas"]:
   SKIP
 :

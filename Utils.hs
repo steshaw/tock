@@ -66,3 +66,7 @@ transformEither funcLeft funcRight x = case x of
 maybeIO :: IO a -> IO (Maybe a)
 maybeIO op = catch (op >>= (return . Just)) (\e -> return Nothing)
 
+-- | Remove a number of items from the start and end of a list.
+chop :: Int -> Int -> [a] -> [a]
+chop start end s = drop start (take (length s - end) s)
+

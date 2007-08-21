@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Parse occam code into an AST.
-module Parse where
+module Parse (parseOccamProgram) where
 
 import Control.Monad (liftM, when)
 import Control.Monad.Error (runErrorT)
@@ -26,26 +26,23 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import Debug.Trace
-import qualified IO
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Language (emptyDef)
-import qualified Text.ParserCombinators.Parsec.Token as P
-import Text.Regex
+import Text.ParserCombinators.Parsec.Pos (newPos)
 
 import qualified AST as A
 import CompState
 import Errors
 import EvalConstants
 import EvalLiterals
-import Indentation
 import Intrinsics
+import LexOccam
 import Metadata
 import Pass
 import Types
 import Utils
 
---{{{ setup stuff for Parsec
-type OccParser = GenParser Char CompState
+--{{{ the parser monad
+type OccParser = GenParser Token CompState
 
 -- | Make MonadState functions work in the parser monad.
 -- This came from <http://hackage.haskell.org/trac/ghc/ticket/1274> -- which means
@@ -56,145 +53,48 @@ instance MonadState st (GenParser tok st) where
 
 instance Die (GenParser tok st) where
   die = fail
-
-occamStyle
-    = emptyDef
-    { P.commentLine    = "--"
-    , P.nestedComments = False
-    , P.identStart     = letter
-    , P.identLetter    = alphaNum <|> char '.'
-    , P.opStart        = oneOf "+-*/\\>=<~"
-    , P.opLetter       = oneOf "/\\>=<"
-    , P.reservedOpNames= [
-                          "+",
-                          "-",
-                          "*",
-                          "/",
-                          "\\",
-                          "/\\",
-                          "\\/",
-                          "><",
-                          "<<",
-                          ">>",
-                          "=",
-                          "<>",
-                          "<",
-                          ">",
-                          ">=",
-                          "<=",
-                          "-",
-                          "~"
-                         ]
-    , P.reservedNames  = [
-                          "AFTER",
-                          "ALT",
-                          "AND",
-                          "ANY",
-                          "AT",
-                          "BITAND",
-                          "BITNOT",
-                          "BITOR",
-                          "BOOL",
-                          "BYTE",
-                          "BYTESIN",
-                          "CASE",
-                          "CHAN",
-                          "DATA",
-                          "ELSE",
-                          "FALSE",
-                          "FOR",
-                          "FROM",
-                          "FUNCTION",
-                          "IF",
-                          "IN",
-                          "INLINE",
-                          "INT",
-                          "INT16",
-                          "INT32",
-                          "INT64",
-                          "IS",
-                          "MINUS",
-                          "MOSTNEG",
-                          "MOSTPOS",
-                          "NOT",
-                          "OF",
-                          "OFFSETOF",
-                          "OR",
-                          "PACKED",
-                          "PAR",
-                          "PLACE",
-                          "PLACED",
-                          "PLUS",
-                          "PORT",
-                          "PRI",
-                          "PROC",
-                          "PROCESSOR",
-                          "PROTOCOL",
-                          "REAL32",
-                          "REAL64",
-                          "RECORD",
-                          "REM",
-                          "RESHAPES",
-                          "RESULT",
-                          "RETYPES",
-                          "ROUND",
-                          "SEQ",
-                          "SIZE",
-                          "SKIP",
-                          "STOP",
-                          "TIMER",
-                          "TIMES",
-                          "TRUE",
-                          "TRUNC",
-                          "TYPE",
-                          "VAL",
-                          "VALOF",
-                          "WHILE",
-                          "WORKSPACE",
-                          "VECSPACE",
-                          "#INCLUDE",
-                          "#USE",
-                          indentMarker,
-                          outdentMarker,
-                          eolMarker,
-                          mainMarker
-                         ]
-    , P.caseSensitive  = True
-    }
-
-lexer :: P.TokenParser CompState
-lexer  = P.makeTokenParser occamStyle
-
--- XXX replace whitespace with something that doesn't eat \ns
-
-whiteSpace = P.whiteSpace lexer
-lexeme = P.lexeme lexer
-symbol = P.symbol lexer
-natural = P.natural lexer
-parens = P.parens lexer
-semi = P.semi lexer
-identifier = P.identifier lexer
-reserved = P.reserved lexer
-reservedOp = P.reservedOp lexer
 --}}}
 
+--{{{ matching rules for raw tokens
+-- | Extract source position from a `Token`.
+tokenPos :: Token -> SourcePos
+tokenPos (m, _) = metaToSourcePos m
+
+genToken :: (Token -> Maybe a) -> OccParser a
+genToken test = token show tokenPos test
+
+reserved :: String -> OccParser ()
+reserved name = genToken test
+  where
+    test (_, TokReserved name')
+        = if name' == name then Just () else Nothing
+    test _ = Nothing
+
+identifier :: OccParser String
+identifier = genToken test
+  where
+    test (_, TokIdentifier s) = Just s
+    test _ = Nothing
+
+plainToken :: TokenType -> OccParser ()
+plainToken t = genToken test
+  where
+    test (_, t') = if t == t' then Just () else Nothing
+--}}}
 --{{{ symbols
-sLeft = try $ symbol "["
-sRight = try $ symbol "]"
-sLeftR = try $ symbol "("
-sRightR = try $ symbol ")"
-sAssign = try $ symbol ":="
-sColon = try $ symbol ":"
-sColons = try $ symbol "::"
-sComma = try $ symbol ","
-sSemi = try $ symbol ";"
-sAmp = try $ symbol "&"
-sQuest = try $ symbol "?"
-sBang = try $ symbol "!"
-sEq = try $ symbol "="
-sApos = try $ symbol "'"
-sQuote = try $ symbol "\""
-sHash = try $ symbol "#"
+sAmp = reserved "&"
+sAssign = reserved ":="
+sBang = reserved "!"
+sColon = reserved ":"
+sColons = reserved "::"
+sComma = reserved ","
+sEq = reserved "="
+sLeft = reserved "["
+sLeftR = reserved "("
+sQuest = reserved "?"
+sRight = reserved "]"
+sRightR = reserved ")"
+sSemi = reserved ";"
 --}}}
 --{{{ keywords
 sAFTER = reserved "AFTER"
@@ -263,29 +163,40 @@ sVALOF = reserved "VALOF"
 sWHILE = reserved "WHILE"
 sWORKSPACE = reserved "WORKSPACE"
 sVECSPACE = reserved "VECSPACE"
-sppINCLUDE = reserved "#INCLUDE"
-sppUSE = reserved "#USE"
 --}}}
 --{{{ markers inserted by the preprocessor
--- XXX could handle VALOF by translating each step to one { and matching multiple ones?
-mainMarker = "__main"
-
-sMainMarker = do { whiteSpace; reserved mainMarker } <?> "end of input (top-level process)"
-
-indent = do { whiteSpace; reserved indentMarker } <?> "indentation increase"
-outdent = do { whiteSpace; reserved outdentMarker } <?> "indentation decrease"
-eol = do { whiteSpace; reserved eolMarker } <?> "end of line"
+indent = do { plainToken Indent } <?> "indentation increase"
+outdent = do { plainToken Outdent } <?> "indentation decrease"
+eol = do { plainToken EndOfLine } <?> "end of line"
 --}}}
 
 --{{{ helper functions
 md :: OccParser Meta
 md
   =  do pos <- getPosition
-        return Meta {
-                 metaFile = Just $ sourceName pos,
-                 metaLine = sourceLine pos,
-                 metaColumn = sourceColumn pos
-               }
+        return $ sourcePosToMeta pos
+
+--{{{ Meta to/from SourcePos
+-- | Convert source position into Parsec's format.
+metaToSourcePos :: Meta -> SourcePos
+metaToSourcePos meta
+    = newPos filename (metaLine meta) (metaColumn meta)
+  where
+    filename = case metaFile meta of
+                 Just s -> s
+                 Nothing -> ""
+
+-- | Convert source position out of Parsec's format.
+sourcePosToMeta :: SourcePos -> Meta
+sourcePosToMeta pos
+    = emptyMeta {
+        metaFile = case sourceName pos of
+                     "" -> Nothing
+                     s -> Just s,
+        metaLine = sourceLine pos,
+        metaColumn = sourceColumn pos
+      }
+--}}}
 
 --{{{ try*
 -- These functions let you try a sequence of productions and only retrieve the
@@ -334,12 +245,6 @@ tryXVVX a b c d = try (do { a; bv <- b; cv <- c; d; return (bv, cv) })
 
 tryVXXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, d)
 tryVXXV a b c d = try (do { av <- a; b; c; dv <- d; return (av, dv) })
-
-tryVXVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, c)
-tryVXVX a b c d = try (do { av <- a; b; cv <- c; d; return (av, cv) })
-
-tryVVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b)
-tryVVXX a b c d = try (do { av <- a; bv <- b; c; d; return (av, bv) })
 
 tryVVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b, d)
 tryVVXV a b c d = try (do { av <- a; bv <- b; c; dv <- d; return (av, bv, dv) })
@@ -430,15 +335,6 @@ handleSpecs specs inner specMarker
            v <- inner
            mapM scopeOutSpec ss'
            return $ foldl (\e s -> specMarker m s e) v ss'
-
--- | Like sepBy1, but not eager: it won't consume the separator unless it finds
--- another item after it.
-sepBy1NE :: OccParser a -> OccParser b -> OccParser [a]
-sepBy1NE item sep
-    =  do i <- item
-          rest <- option [] $ try (do sep
-                                      sepBy1NE item sep)
-          return $ i : rest
 
 -- | Run several different parsers with a separator between them.
 -- If you give it [a, b, c] and s, it'll parse [a, s, b, s, c] then
@@ -803,42 +699,31 @@ untypedLiteral
 real :: OccParser A.LiteralRepr
 real
     =   do m <- md
-           (l, r) <- tryVXVX digits (char '.') digits (char 'E')
-           e <- lexeme occamExponent
-           return $ A.RealLiteral m (l ++ "." ++ r ++ "E" ++ e)
-    <|> do m <- md
-           l <- tryVX digits (char '.')
-           r <- lexeme digits
-           return $ A.RealLiteral m (l ++ "." ++ r)
+           genToken (test m)
     <?> "real literal"
-
-occamExponent :: OccParser String
-occamExponent
-    =  do c <- oneOf "+-"
-          d <- digits
-          return $ c : d
-    <?> "exponent"
+  where
+    test m (_, TokRealLiteral s) = Just $ A.RealLiteral m s
+    test _ _ = Nothing
 
 integer :: OccParser A.LiteralRepr
 integer
     =  do m <- md
-          do { d <- lexeme digits; return $ A.IntLiteral m d }
-            <|> do { d <- lexeme (sHash >> many1 hexDigit); return $ A.HexLiteral m d }
+          genToken (test m)
     <?> "integer literal"
-
-digits :: OccParser String
-digits
-    =   many1 digit
-    <?> "decimal digits"
+  where
+    test m (_, TokIntLiteral s) = Just $ A.IntLiteral m s
+    test m (_, TokHexLiteral s) = Just $ A.HexLiteral m (drop 1 s)
+    test _ _ = Nothing
 
 byte :: OccParser A.LiteralRepr
 byte
     =  do m <- md
-          char '\''
-          c <- literalCharacter
-          sApos
-          return c
+          genToken (test m)
     <?> "byte literal"
+  where
+    test m (_, TokCharLiteral s)
+        = case splitStringLiteral m (chop 1 1 s) of [lr] -> Just lr
+    test _ _ = Nothing
 
 -- | Parse a table -- an array literal which might be subscripted or sliced.
 -- (The implication of this is that the type of the expression this parses
@@ -884,29 +769,45 @@ tableElems
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
 stringLiteral
     =  do m <- md
-          char '"'
-          cs <- manyTill literalCharacter sQuote
-          let aes = [A.ArrayElemExpr $ A.Literal m A.Byte c | c <- cs]
+          cs <- stringCont <|> stringLit
+          let aes = [A.ArrayElemExpr $ A.Literal m' A.Byte c
+                     | c@(A.ByteLiteral m' _) <- cs]
           return (A.ArrayLiteral m aes, A.Dimension $ length cs)
     <?> "string literal"
+  where
+    stringCont :: OccParser [A.LiteralRepr]
+    stringCont
+        =  do m <- md
+              s <- genToken test
+              rest <- stringCont <|> stringLit
+              return $ (splitStringLiteral m s) ++ rest
+      where
+        test (_, TokStringCont s) = Just (chop 1 2 s)
+        test _ = Nothing
 
-character :: OccParser String
-character
-    =   do char '*'
-           do char '#'
-              a <- hexDigit
-              b <- hexDigit
-              return $ ['*', '#', a, b]
-            <|> do { c <- anyChar; return ['*', c] }
-    <|> do c <- anyChar
-           return [c]
-    <?> "character"
+    stringLit :: OccParser [A.LiteralRepr]
+    stringLit
+        =  do m <- md
+              s <- genToken test
+              return $ splitStringLiteral m s
+      where
+        test (_, TokStringLiteral s) = Just (chop 1 1 s)
+        test _ = Nothing
 
-literalCharacter :: OccParser A.LiteralRepr
-literalCharacter
-    =   do m <- md
-           c <- character
-           return $ A.ByteLiteral m c
+-- | Parse a string literal.
+-- FIXME: This should decode the occam escapes.
+splitStringLiteral :: Meta -> String -> [A.LiteralRepr]
+splitStringLiteral m cs = ssl cs
+  where
+    ssl [] = []
+    ssl ('*':'#':a:b:cs)
+        = (A.ByteLiteral m ['*', '#', a, b]) : ssl cs
+    ssl ('*':'\n':cs)
+        = (A.ByteLiteral m $ tail $ dropWhile (/= '*') cs) : ssl cs
+    ssl ('*':c:cs)
+        = (A.ByteLiteral m ['*', c]) : ssl cs
+    ssl (c:cs)
+        = (A.ByteLiteral m [c]) : ssl cs
 --}}}
 --{{{ expressions
 expressionList :: [A.Type] -> OccParser A.ExpressionList
@@ -1071,42 +972,42 @@ intrinsicFunctionSingle
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
-    =   do { reservedOp "-" <|> sMINUS; return A.MonadicSubtr }
-    <|> do { reservedOp "~" <|> sBITNOT; return A.MonadicBitNot }
+    =   do { reserved "-" <|> sMINUS; return A.MonadicSubtr }
+    <|> do { reserved "~" <|> sBITNOT; return A.MonadicBitNot }
     <|> do { sNOT; return A.MonadicNot }
     <?> "monadic operator"
 
 dyadicOperator :: OccParser A.DyadicOp
 dyadicOperator
-    =   do { reservedOp "+"; return A.Add }
-    <|> do { reservedOp "-"; return A.Subtr }
-    <|> do { reservedOp "*"; return A.Mul }
-    <|> do { reservedOp "/"; return A.Div }
-    <|> do { reservedOp "\\"; return A.Rem }
+    =   do { reserved "+"; return A.Add }
+    <|> do { reserved "-"; return A.Subtr }
+    <|> do { reserved "*"; return A.Mul }
+    <|> do { reserved "/"; return A.Div }
+    <|> do { reserved "\\"; return A.Rem }
     <|> do { sREM; return A.Rem }
     <|> do { sMINUS; return A.Minus }
-    <|> do { reservedOp "/\\" <|> sBITAND; return A.BitAnd }
-    <|> do { reservedOp "\\/" <|> sBITOR; return A.BitOr }
-    <|> do { reservedOp "><"; return A.BitXor }
+    <|> do { reserved "/\\" <|> sBITAND; return A.BitAnd }
+    <|> do { reserved "\\/" <|> sBITOR; return A.BitOr }
+    <|> do { reserved "><"; return A.BitXor }
     <?> "dyadic operator"
 
 -- These always need an INT on their right-hand side.
 shiftOperator :: OccParser A.DyadicOp
 shiftOperator
-    =   do { reservedOp "<<"; return A.LeftShift }
-    <|> do { reservedOp ">>"; return A.RightShift }
+    =   do { reserved "<<"; return A.LeftShift }
+    <|> do { reserved ">>"; return A.RightShift }
     <?> "shift operator"
 
 -- These always return a BOOL, so we have to deal with them specially for type
 -- context.
 comparisonOperator :: OccParser A.DyadicOp
 comparisonOperator
-    =   do { reservedOp "="; return A.Eq }
-    <|> do { reservedOp "<>"; return A.NotEq }
-    <|> do { reservedOp "<"; return A.Less }
-    <|> do { reservedOp ">"; return A.More }
-    <|> do { reservedOp "<="; return A.LessEq }
-    <|> do { reservedOp ">="; return A.MoreEq }
+    =   do { reserved "="; return A.Eq }
+    <|> do { reserved "<>"; return A.NotEq }
+    <|> do { reserved "<"; return A.Less }
+    <|> do { reserved ">"; return A.More }
+    <|> do { reserved "<="; return A.LessEq }
+    <|> do { reserved ">="; return A.MoreEq }
     <|> do { sAFTER; return A.After }
     <?> "comparison operator"
 
@@ -1617,7 +1518,6 @@ process
     <|> mainProcess
     <|> handleSpecs (allocation <|> specification) process
                     (\m s p -> A.Seq m (A.Spec m s (A.OnlyP m p)))
-    <|> preprocessorDirective
     <?> "process"
 
 --{{{ assignment (:=)
@@ -2021,67 +1921,11 @@ intrinsicProc
           return $ A.IntrinsicProcCall m s as
     <?> "intrinsic PROC instance"
 --}}}
---{{{ preprocessor directives
-preprocessorDirective :: OccParser A.Process
-preprocessorDirective
-    =   ppInclude
-    <|> ppUse
-    <|> unknownPP
-    <?> "preprocessor directive"
-
-ppInclude :: OccParser A.Process
-ppInclude
-    =  do sppINCLUDE
-          char '"'
-          file <- manyTill character sQuote
-          eol
-          includeFile $ concat file
-    <?> "#INCLUDE directive"
-
-ppUse :: OccParser A.Process
-ppUse
-    =  do sppUSE
-          char '"'
-          mod <- manyTill character sQuote
-          eol
-          let file = mangleModName $ concat mod
-
-          -- Check whether it's been included already.
-          ps <- getState
-          if file `elem` csLoadedFiles ps
-            then process
-            else includeFile file
-    <?> "#USE directive"
-
--- | Invoke the parser recursively to handle an included file.
-includeFile :: String -> OccParser A.Process
-includeFile file
-    =  do ps <- getState
-          (r, ps') <- parseFile file includedFile ps
-          case r of
-            Left p ->
-              do setState ps'
-                 return p
-            Right f ->
-              do setState ps' { csLocalNames = csMainLocals ps' }
-                 p <- process
-                 return $ f p
-
-unknownPP :: OccParser A.Process
-unknownPP
-    =  do m <- md
-          char '#'
-          rest <- manyTill anyChar (try eol)
-          addWarning m $ "unknown preprocessor directive ignored: " ++ rest
-          process
-    <?> "unknown preprocessor directive"
---}}}
 --{{{ main process
 mainProcess :: OccParser A.Process
 mainProcess
     =  do m <- md
-          sMainMarker
-          eol
+          eof
           -- Stash the current locals so that we can either restore them
           -- when we get back to the file we included this one from, or
           -- pull the TLP name from them at the end.
@@ -2096,100 +1940,26 @@ mainProcess
 -- have the earlier ones in scope, so we can't parse them separately.
 sourceFile :: OccParser (A.Process, CompState)
 sourceFile
-    =   do whiteSpace
-           p <- process
+    =   do p <- process
            s <- getState
            return (p, s)
-
--- | An included file is either a process, or a bunch of specs that can be
--- applied to a process (which we return as a function). This is likewise a bit
--- of a cheat, in that included files should really be *textually* included,
--- but it's good enough for most reasonable uses.
-includedFile :: OccParser (Either A.Process (A.Process -> A.Process), CompState)
-includedFile
-    =  do whiteSpace
-          p <- process
-          s <- getState
-          do eof
-             return $ (Right $ replaceMain p, s)
-           <|> do sMainMarker
-                  eol
-                  return $ (Left p, s)
-  where
-    replaceMain :: A.Process -> A.Process -> A.Process
-    replaceMain (A.Seq m (A.Spec m' s (A.OnlyP m'' p))) np
-        = A.Seq m (A.Spec m' s (A.OnlyP m'' (replaceMain p np)))
-    replaceMain (A.Main _) np = np
 --}}}
---}}}
-
---{{{  preprocessor
--- XXX Doesn't handle conditionals.
-
--- | Find (via a nasty regex search) all the files that this source file includes.
-preFindIncludes :: String -> [String]
-preFindIncludes source
-    = concat [case matchRegex incRE l of
-                Just [_, fn] -> [fn]
-                Nothing -> []
-              | l <- lines source]
-  where
-    incRE = mkRegex "^ *#(INCLUDE|USE) +\"([^\"]*)\""
-
--- | If a module name doesn't already have a suffix, add one.
-mangleModName :: String -> String
-mangleModName mod
-    = if ".occ" `isSuffixOf` mod || ".inc" `isSuffixOf` mod
-        then mod
-        else mod ++ ".occ"
-
--- | Load all the source files necessary for a program.
--- We have to do this now, before entering the parser, because the parser
--- doesn't run in the IO monad. If there were a monad transformer version of
--- Parsec then we could just open files as we need them.
-loadSource :: String -> PassM ()
-loadSource file = load file file
-  where
-    load :: String -> String -> PassM ()
-    load file realName
-        =  do ps <- get
-              case Map.lookup file (csSourceFiles ps) of
-                Just _ -> return ()
-                Nothing ->
-                  do progress $ "Loading source file " ++ realName
-                     rawSource <- liftIO $ readFile realName
-                     source <- removeIndentation realName (rawSource ++ "\n" ++ mainMarker ++ "\n")
-                     debug $ "Preprocessed source:"
-                     debug $ numberLines source
-                     modify $ (\ps -> ps { csSourceFiles = Map.insert file source (csSourceFiles ps) })
-                     let deps = map mangleModName $ preFindIncludes source
-                     sequence_ [load dep (joinPath realName dep) | dep <- deps]
 --}}}
 
 --{{{  entry points for the parser itself
--- | Test a parser production (for use from ghci while debugging the parser).
-testParse :: Show a => OccParser a -> String -> IO ()
-testParse prod text
-    = do let r = runParser prod emptyState "" text
-         putStrLn $ "Result: " ++ show r
-
--- | Parse a file with the given production.
-parseFile :: Monad m => String -> OccParser t -> CompState -> m t
-parseFile file prod ps
-    =  do let source = case Map.lookup file (csSourceFiles ps) of
-                         Just s -> s
-                         Nothing -> dieIO $ "Failed to preload file: " ++ show file
-          let ps' = ps { csLoadedFiles = file : csLoadedFiles ps }
-          case runParser prod ps' file source of
-            Left err -> dieIO $ "Parse error: " ++ show err
+-- | Parse a token stream with the given production.
+runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
+runTockParser toks prod cs
+    =  do case runParser prod cs "irrelevant filename" toks of
+            Left err -> die $ "Parse error: " ++ show err
             Right r -> return r
 
--- | Parse the top level source file in a program.
-parseProgram :: String -> PassM A.Process
-parseProgram file
-    =  do ps <- get
-          (p, ps') <- parseFile file sourceFile ps
-          put ps'
+-- | Parse an occam program.
+parseOccamProgram :: [Token] -> PassM A.Process
+parseOccamProgram toks
+    =  do cs <- get
+          (p, cs') <- runTockParser toks sourceFile cs
+          put cs'
           return p
 --}}}
 

@@ -43,7 +43,6 @@ import CompState
 import Errors
 import EvalConstants
 import EvalLiterals
-import Indentation
 import Intrinsics
 import Metadata
 import Pass
@@ -296,21 +295,13 @@ rainSourceFile
            s <- getState
            return (A.Seq emptyMeta p, s)
 
--- | Parse a file with the given production.
--- This is copied from Parse.hs (because OccParser is about to be changed to not be the same as RainParser):
-parseFile :: Monad m => String -> RainParser t -> CompState -> m t
-parseFile file prod ps
-    =  do let source = case Map.lookup file (csSourceFiles ps) of
-                         Just s -> s
-                         Nothing -> dieIO $ "Failed to preload file: " ++ show file
-          let ps' = ps { csLoadedFiles = file : csLoadedFiles ps }
-          case runParser prod ps' file source of
-            Left err -> dieIO $ "Parse error: " ++ show err
-            Right r -> return r
-
+-- | Load and parse a Rain source file.
 parseRainProgram :: String -> PassM A.Process
-parseRainProgram file
-    =  do ps <- get
-          (p, ps') <- parseFile file rainSourceFile ps
-          put ps'
-          return p
+parseRainProgram filename
+    =  do source <- liftIO $ readFile filename
+          cs <- get
+          case runParser rainSourceFile cs filename source of
+            Left err -> dieIO $ "Parse error: " ++ show err
+            Right (p, cs') ->
+              do put cs'
+                 return p

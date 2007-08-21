@@ -50,14 +50,9 @@ data CompState = CompState {
     csVerboseLevel :: Int,
     csOutputFile :: String,
 
-    -- Set by (new) preprocessor
+    -- Set by preprocessor
     csCurrentFile :: String,
     csUsedFiles :: Set.Set String,
-
-    -- Set by (old) preprocessor
-    csSourceFiles :: Map String String,
-    csIndentLinesIn :: [String],
-    csIndentLinesOut :: [String],
 
     -- Set by Parse
     csLocalNames :: [(String, A.Name)],
@@ -92,10 +87,6 @@ emptyState = CompState {
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
-
-    csSourceFiles = Map.empty,
-    csIndentLinesIn = [],
-    csIndentLinesOut = [],
 
     csLocalNames = [],
     csMainLocals = [],

@@ -17,25 +17,22 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Preprocess occam code.
-module PreprocessOccam where
+module PreprocessOccam (preprocessOccamProgram) where
 
+import Control.Monad.State
 import Data.List
 import qualified Data.Set as Set
+import System.IO
 import Text.Regex
 
+import CompState
 import Errors
 import LexOccam
 import Metadata
 import Pass
+import PrettyShow
 import StructureOccam
 import Utils
-
-import CompState
-import Control.Monad.Error
-import Control.Monad.State
-import System
-import System.IO
-import PrettyShow
 
 -- | Open an included file, looking for it in the search path.
 -- Return the open filehandle and the location of the file.
@@ -59,21 +56,38 @@ searchFile m filename
 preprocessFile :: Meta -> String -> PassM [Token]
 preprocessFile m filename
     =  do (handle, realFilename) <- searchFile m filename
-          liftIO $ putStrLn $ "Loading " ++ realFilename
+          progress $ "Loading source file " ++ realFilename
           origCS <- get
           modify (\cs -> cs { csCurrentFile = realFilename })
           s <- liftIO $ hGetContents handle
-          toks <- runLexer realFilename s >>= structureOccam >>= preprocessOccam
+          toks <- runLexer realFilename s
+          veryDebug $ "{{{ lexer tokens"
+          veryDebug $ pshow toks
+          veryDebug $ "}}}"
+          toks' <- structureOccam toks
+          veryDebug $ "{{{ structured tokens"
+          veryDebug $ pshow toks'
+          veryDebug $ "}}}"
+          toks'' <- preprocessOccam toks'
+          veryDebug $ "{{{ preprocessed tokens"
+          veryDebug $ pshow toks''
+          veryDebug $ "}}}"
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
-          return toks
+          return toks''
 
 -- | Preprocess a token stream.
 preprocessOccam :: [Token] -> PassM [Token]
 preprocessOccam [] = return []
-preprocessOccam ((m, TokPreprocessor ('#':s)):(_, EndOfLine):ts)
-    =  do func <- handleDirective m s
+preprocessOccam ((m, TokPreprocessor s):(_, EndOfLine):ts)
+    =  do func <- handleDirective m (stripPrefix s)
           rest <- preprocessOccam ts
           return $ func rest
+  where
+    stripPrefix :: String -> String
+    stripPrefix (' ':cs) = stripPrefix cs
+    stripPrefix ('\t':cs) = stripPrefix cs
+    stripPrefix ('#':cs) = cs
+    stripPrefix _ = error "bad TokPreprocessor prefix"
 -- Check the above case didn't miss something.
 preprocessOccam ((_, TokPreprocessor _):_)
     = error "bad TokPreprocessor token"
@@ -134,17 +148,12 @@ handleUse m [modName]
             else mod ++ ".occ"
 --}}}
 
--- | Main function for testing.
-main :: IO ()
-main
-    =  do (arg:_) <- getArgs
-          v <- evalStateT (runErrorT (test arg)) emptyState
-          case v of
-            Left e -> dieIO e
-            Right r -> return ()
-  where
-    test :: String -> PassM ()
-    test fn
-        = do tokens <- preprocessFile emptyMeta fn
-             liftIO $ putStrLn $ pshow tokens
+-- | Load and preprocess an occam program.
+preprocessOccamProgram :: String -> PassM [Token]
+preprocessOccamProgram filename
+    =  do toks <- preprocessFile emptyMeta filename
+          veryDebug $ "{{{ tokenised source"
+          veryDebug $ pshow toks
+          veryDebug $ "}}}"
+          return toks
 
