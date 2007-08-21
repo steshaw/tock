@@ -34,7 +34,10 @@ $hexDigit = [0-9 a-f A-F]
 $horizSpace = [\ \t]
 $vertSpace = [\r\n]
 
-@preprocessor = "#" [^\n]*
+@directive = "ELSE" | "ENDIF" | "IF" | "INCLUDE"
+           | "OPTION" | "PRAGMA" | "RELAX" | "USE"
+
+@preprocessor = "#" @directive [^\n]*
 
 @reserved = "[" | "]" | "(" | ")"
           | "::" | ":=" | ":" | "," | ";" | "&"
