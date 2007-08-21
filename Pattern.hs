@@ -10,7 +10,14 @@ data Pattern =
     -- | A constructed item.  This is special because the sub-items may not be of the right type for the constructor,
     --   because they may be special items (such as DontCare)
     | Match Constr [Pattern]
-  deriving (Typeable,Show,Eq)
+  deriving (Typeable,Show)
+  
+--Tests if patterns are identical, NOT if they'll match the same thing:
+instance Eq Pattern where
+  (==) DontCare DontCare = True
+  (==) (Named s0 p0) (Named s1 p1) = (s0 == s1) && (p0 == p1)
+  (==) (Match c0 ps0) (Match c1 ps1) = (c0 == c1) && (show c0 == show c1) && (ps0 == ps1)
+  (==) _ _ = False
 
 --No proper gunfold, as I still can't figure out to implement it (Constr is problematic)
 instance Data Pattern where
