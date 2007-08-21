@@ -90,8 +90,26 @@ data ChanAttributes = ChanAttributes {
 -- have.
 data Type =
   Bool
+  -- | 8-bit unsigned integer.
   | Byte
-  | Int | Int16 | Int32 | Int64
+  
+  -- | 16-bit unsigned integer.  Only exists in Rain.
+  | UInt16
+  -- | 32-bit unsigned integer.  Only exists in Rain.
+  | UInt32
+  -- | 64-bit unsigned integer.  Only exists in Rain.
+  | UInt64
+  -- | 8-bit signed integer.  Only exists in Rain.
+  | Int8
+
+  -- | In occam: a signed integer that uses the most efficient word-size in the target.  In Rain: transformed to an Int64.
+  | Int
+  -- | 16-bit signed integer.
+  | Int16
+  -- | 32-bit signed integer.
+  | Int32
+  -- | 64-bit signed integer.
+  | Int64
   | Real32 | Real64
   -- | An array.
   -- For N-dimensional arrays, the [Dimension] list will be of length N.
@@ -113,7 +131,14 @@ data Type =
 
 instance Show Type where
   show Bool = "BOOL"
-  show Byte = "BYTE"
+  show Byte = "BYTE"  
+  --Not sure how to show the non-occam types -- just use their AST names:
+  show UInt16 = "UInt16"
+  show UInt32 = "UInt32"
+  show UInt64 = "UInt64"
+  show Int8 = "Int8"
+  
+  
   show Int = "INT"
   show Int16 = "INT16"
   show Int32 = "INT32"

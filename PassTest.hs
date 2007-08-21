@@ -140,6 +140,66 @@ testFunctionsToProcs2 = testPassWithItemsStateCheck "testFunctionsToProcs2 A" ex
                              assertEqual "testFunctionsToProcs2 F" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
                              assertEqual "testFunctionsToProcs2 G" (Just [A.Int]) (Map.lookup "fooOuter" (csFunctionReturns state)) 
 
+--Not strictly a pass test but it can live here for now:
+testIsSafeConversion :: Test
+testIsSafeConversion = TestList $ map runTestRow resultsWithIndexes
+  where
+    resultsWithIndexes :: [(Int,[(Int,Bool)])]
+    resultsWithIndexes = zip [0..] $ map (zip [0..]) results
+    
+    runTestRow :: (Int,[(Int,Bool)]) -> Test
+    runTestRow (a,b) = TestList $ map (runTest a) b
+      where
+        runTest :: Int -> (Int,Bool) -> Test
+        runTest destIndex (srcIndex,result) = TestCase $ assertEqual 
+          ("Testing from type: " ++ (show $ index srcIndex) ++ " to: " ++ (show $ index destIndex))
+          result $ isSafeConversion (index srcIndex) (index destIndex)
+      
+--Integer types are:
+--A.Bool
+--A.Byte
+--A.UInt16
+--A.UInt32
+--A.UInt64
+--A.Int8
+--A.Int
+--A.Int16
+--A.Int32
+--A.Int64
+
+--We will assume (like the rest of Tock) that Int is 32-bits for testing.  We can actually perform an exhaustive test without too much trouble:
+    index :: Int -> A.Type
+    index 0 = A.Bool
+    index 1 = A.Byte
+    index 2 = A.UInt16
+    index 3 = A.UInt32
+    index 4 = A.UInt64
+    index 5 = A.Int8
+    index 6 = A.Int16
+    index 7 = A.Int
+    index 8 = A.Int32
+    index 9 = A.Int64
+
+    t = True
+    f = False
+
+    results :: [[Bool]]
+    --Each row is a conversion to that type.  For example, the first row is conversions *to* Bool:
+    results =
+      [ [t, f,f,f,f, f,f,f,f,f] --to Bool
+
+       ,[t, t,f,f,f, f,f,f,f,f] --to Byte
+       ,[t, t,t,f,f, f,f,f,f,f] --to UInt16
+       ,[t, t,t,t,f, f,f,f,f,f] --to UInt32
+       ,[t, t,t,t,t, f,f,f,f,f] --to UInt64
+
+       ,[t, f,f,f,f, t,f,f,f,f] --to Int8
+       ,[t, t,f,f,f, t,t,f,f,f] --to Int16
+       ,[t, t,t,f,f, t,t,t,t,f] --to Int
+       ,[t, t,t,f,f, t,t,t,t,f] --to Int32
+       ,[t, t,t,t,f, t,t,t,t,t] --to Int64
+      ]
+
 
                              
 --Returns the list of tests:
@@ -149,6 +209,7 @@ tests = TestList
    testFunctionsToProcs0
    ,testFunctionsToProcs1
    ,testFunctionsToProcs2
+   ,testIsSafeConversion
  ]
 
 

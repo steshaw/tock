@@ -961,6 +961,10 @@ cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
 cppgetScalarType :: GenOps -> A.Type -> Maybe String
 cppgetScalarType _ A.Bool = Just "tockBool"
 cppgetScalarType _ A.Byte = Just "uint8_t"
+cppgetScalarType _ A.UInt16 = Just "uint16_t"
+cppgetScalarType _ A.UInt32 = Just "uint32_t"
+cppgetScalarType _ A.UInt64 = Just "uint64_t"
+cppgetScalarType _ A.Int8 = Just "int8_t"
 cppgetScalarType _ A.Int = Just "int"
 cppgetScalarType _ A.Int16 = Just "int16_t"
 cppgetScalarType _ A.Int32 = Just "int32_t"

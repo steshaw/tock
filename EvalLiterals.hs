@@ -43,6 +43,12 @@ instance Die EvalM where
 data OccValue =
   OccBool Bool
   | OccByte Word8
+  -- The following four aren't occam types, but I need to put them in here for handling Rain code:
+  | OccUInt16 Word16
+  | OccUInt32 Word32
+  | OccUInt64 Word64
+  | OccInt8 Int8
+  
   | OccInt Int32
   | OccInt16 Int16
   | OccInt32 Int32
@@ -112,6 +118,22 @@ evalSimpleLiteral (A.Literal _ A.Byte (A.IntLiteral _ s))
     = fromRead OccByte (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Byte (A.HexLiteral _ s))
     = fromRead OccByte readHex s
+evalSimpleLiteral (A.Literal _ A.UInt16 (A.IntLiteral _ s))
+    = fromRead OccUInt16 (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.UInt16 (A.HexLiteral _ s))
+    = fromRead OccUInt16 readHex s
+evalSimpleLiteral (A.Literal _ A.UInt32 (A.IntLiteral _ s))
+    = fromRead OccUInt32 (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.UInt32 (A.HexLiteral _ s))
+    = fromRead OccUInt32 readHex s
+evalSimpleLiteral (A.Literal _ A.UInt64 (A.IntLiteral _ s))
+    = fromRead OccUInt64 (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.UInt64 (A.HexLiteral _ s))
+    = fromRead OccUInt64 readHex s
+evalSimpleLiteral (A.Literal _ A.Int8 (A.IntLiteral _ s))
+    = fromRead OccInt8 (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.Int8 (A.HexLiteral _ s))
+    = fromRead OccInt8 readHex s
 evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s))
     = fromRead OccInt (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s))

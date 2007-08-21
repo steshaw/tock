@@ -303,30 +303,52 @@ isPreciseConversion fromT toT
     = fromT == toT || not (isRealType fromT || isRealType toT)
 
 -- | Will a conversion between two types always succeed?
+--Parameters are src dest
 isSafeConversion :: A.Type -> A.Type -> Bool
 isSafeConversion A.Real32 A.Real64 = True
-isSafeConversion fromT toT = (fromT == toT) || ((fromP /= -1) && (toP /= -1) && (fromP <= toP))
+isSafeConversion src dest = (src' == dest') || ((src' == A.Bool || isIntegerType src') && (dest' == A.Bool || isIntegerType dest') && (findCastRoute dest' src'))
   where
-    fromP = precNum fromT
-    toP = precNum toT
+    src' = convInt src
+    dest' = convInt dest
 
-    precNum :: A.Type -> Int
-    precNum t = precNum' t 0 convPrec
+    --Turn Int into Int32:
+    convInt :: A.Type -> A.Type
+    convInt A.Int = A.Int32
+    convInt t = t
 
-    precNum' :: A.Type -> Int -> [[A.Type]] -> Int
-    precNum' _ n [] = (-1)
-    precNum' t n (tl:tls)
-        = if t `elem` tl then n
-                         else precNum' t (n + 1) tls
+    --Parameters are dest src
+    findCastRoute :: A.Type -> A.Type -> Bool
+    findCastRoute dest src
+        --Either a direct converstion is possible
+      = (elem (dest,src) possibleConversions)
+        --Or there exists some chained conversion:
+        || (any (findCastRoute dest) (findDests src possibleConversions))
 
-    convPrec :: [[A.Type]]
-    convPrec
-        = [ [A.Bool]
-          , [A.Byte]
-          , [A.Int16]
-          , [A.Int, A.Int32]
-          , [A.Int64]
-          ]
+    --Finds all the conversions from the src type using the given list of (dest,src)
+    --Note that the list must not allow any cycles!  (or else we will engage in infinite recursion)
+    findDests :: A.Type -> [(A.Type,A.Type)] -> [A.Type]
+    findDests _ [] = []
+    findDests src ((dest,src'):ts) = if src == src' then dest : (findDests src ts) else findDests src ts
+
+    --Listed in order (dest, src)
+    --Signed numbers cannot be safely cast to unsigned numbers.  So (A.UInt16, A.Int8) isn't possible
+    possibleConversions :: [(A.Type,A.Type)]
+    possibleConversions
+      = [
+          (A.Byte, A.Bool)
+          ,(A.Int8, A.Bool)
+
+          ,(A.Int16, A.Int8)
+          ,(A.Int16, A.Byte)
+          ,(A.Int32, A.Int16)
+          ,(A.Int32, A.UInt16)
+          ,(A.Int64, A.Int32)
+          ,(A.Int64, A.UInt32)
+
+          ,(A.UInt16, A.Byte)
+          ,(A.UInt32, A.UInt16)
+          ,(A.UInt64, A.UInt32)
+        ]
 
 --{{{ classes of types
 -- | Scalar integer types.
@@ -334,6 +356,10 @@ isIntegerType :: A.Type -> Bool
 isIntegerType t
     = case t of
         A.Byte -> True
+        A.UInt16 -> True
+        A.UInt32 -> True
+        A.UInt64 -> True
+        A.Int8 -> True
         A.Int -> True
         A.Int16 -> True
         A.Int32 -> True
@@ -389,6 +415,10 @@ data BytesInResult =
 -- | Return the size in bytes of a data type.
 bytesInType :: (CSM m, Die m) => A.Type -> m BytesInResult
 bytesInType A.Byte = return $ BIJust 1
+bytesInType A.UInt16 = return $ BIJust 2
+bytesInType A.UInt32 = return $ BIJust 4
+bytesInType A.UInt64 = return $ BIJust 8
+bytesInType A.Int8 = return $ BIJust 1
 -- FIXME This is tied to the backend we're using (as is the constant folder).
 bytesInType A.Int = return $ BIJust 4
 bytesInType A.Int16 = return $ BIJust 2

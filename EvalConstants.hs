@@ -122,6 +122,14 @@ evalExpression (A.Dyadic _ op e1 e2)
           evalDyadic op v1 v2
 evalExpression (A.MostPos _ A.Byte) = return $ OccByte maxBound
 evalExpression (A.MostNeg _ A.Byte) = return $ OccByte minBound
+evalExpression (A.MostPos _ A.UInt16) = return $ OccUInt16 maxBound
+evalExpression (A.MostNeg _ A.UInt16) = return $ OccUInt16 minBound
+evalExpression (A.MostPos _ A.UInt32) = return $ OccUInt32 maxBound
+evalExpression (A.MostNeg _ A.UInt32) = return $ OccUInt32 minBound
+evalExpression (A.MostPos _ A.UInt64) = return $ OccUInt64 maxBound
+evalExpression (A.MostNeg _ A.UInt64) = return $ OccUInt64 minBound
+evalExpression (A.MostPos _ A.Int8) = return $ OccInt8 maxBound
+evalExpression (A.MostNeg _ A.Int8) = return $ OccInt8 minBound
 evalExpression (A.MostPos _ A.Int) = return $ OccInt maxBound
 evalExpression (A.MostNeg _ A.Int) = return $ OccInt minBound
 evalExpression (A.MostPos _ A.Int16) = return $ OccInt16 maxBound
@@ -163,6 +171,10 @@ evalExpression e = throwError "bad expression"
 
 evalMonadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t) -> OccValue -> EvalM OccValue
 evalMonadicOp f (OccByte a) = return $ OccByte (f a)
+evalMonadicOp f (OccUInt16 a) = return $ OccUInt16 (f a)
+evalMonadicOp f (OccUInt32 a) = return $ OccUInt32 (f a)
+evalMonadicOp f (OccUInt64 a) = return $ OccUInt64 (f a)
+evalMonadicOp f (OccInt8 a) = return $ OccInt8 (f a)
 evalMonadicOp f (OccInt a) = return $ OccInt (f a)
 evalMonadicOp f (OccInt16 a) = return $ OccInt16 (f a)
 evalMonadicOp f (OccInt32 a) = return $ OccInt32 (f a)
@@ -179,6 +191,10 @@ evalMonadic _ _ = throwError "bad monadic op"
 
 evalDyadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t -> t) -> OccValue -> OccValue -> EvalM OccValue
 evalDyadicOp f (OccByte a) (OccByte b) = return $ OccByte (f a b)
+evalDyadicOp f (OccUInt16 a) (OccUInt16 b) = return $ OccUInt16 (f a b)
+evalDyadicOp f (OccUInt32 a) (OccUInt32 b) = return $ OccUInt32 (f a b)
+evalDyadicOp f (OccUInt64 a) (OccUInt64 b) = return $ OccUInt64 (f a b)
+evalDyadicOp f (OccInt8 a) (OccInt8 b) = return $ OccInt8 (f a b)
 evalDyadicOp f (OccInt a) (OccInt b) = return $ OccInt (f a b)
 evalDyadicOp f (OccInt16 a) (OccInt16 b) = return $ OccInt16 (f a b)
 evalDyadicOp f (OccInt32 a) (OccInt32 b) = return $ OccInt32 (f a b)
@@ -187,6 +203,10 @@ evalDyadicOp _ _ _ = throwError "dyadic operator not implemented for this type"
 
 evalCompareOp :: (forall t. (Eq t, Ord t) => t -> t -> Bool) -> OccValue -> OccValue -> EvalM OccValue
 evalCompareOp f (OccByte a) (OccByte b) = return $ OccBool (f a b)
+evalCompareOp f (OccUInt16 a) (OccUInt16 b) = return $ OccBool (f a b)
+evalCompareOp f (OccUInt32 a) (OccUInt32 b) = return $ OccBool (f a b)
+evalCompareOp f (OccUInt64 a) (OccUInt64 b) = return $ OccBool (f a b)
+evalCompareOp f (OccInt8 a) (OccInt8 b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt a) (OccInt b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt16 a) (OccInt16 b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt32 a) (OccInt32 b) = return $ OccBool (f a b)
@@ -233,6 +253,10 @@ renderValue m v = (t, A.Literal m t lr)
 
 renderLiteral :: Meta -> OccValue -> (A.Type, A.LiteralRepr)
 renderLiteral m (OccByte c) = (A.Byte, A.ByteLiteral m $ renderChar (chr $ fromIntegral c))
+renderLiteral m (OccUInt16 i) = (A.UInt16, A.IntLiteral m $ show i)
+renderLiteral m (OccUInt32 i) = (A.UInt32, A.IntLiteral m $ show i)
+renderLiteral m (OccUInt64 i) = (A.UInt64, A.IntLiteral m $ show i)
+renderLiteral m (OccInt8 i) = (A.Int8, A.IntLiteral m $ show i)
 renderLiteral m (OccInt i) = (A.Int, A.IntLiteral m $ show i)
 renderLiteral m (OccInt16 i) = (A.Int16, A.IntLiteral m $ show i)
 renderLiteral m (OccInt32 i) = (A.Int32, A.IntLiteral m $ show i)

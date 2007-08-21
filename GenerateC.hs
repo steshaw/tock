@@ -318,6 +318,10 @@ genName n = tell [nameString n]
 cgetScalarType :: GenOps -> A.Type -> Maybe String
 cgetScalarType _ A.Bool = Just "bool"
 cgetScalarType _ A.Byte = Just "uint8_t"
+cgetScalarType _ A.UInt16 = Just "uint16_t"
+cgetScalarType _ A.UInt32 = Just "uint32_t"
+cgetScalarType _ A.UInt64 = Just "uint64_t"
+cgetScalarType _ A.Int8 = Just "int8_t"
 cgetScalarType _ A.Int = Just "int"
 cgetScalarType _ A.Int16 = Just "int16_t"
 cgetScalarType _ A.Int32 = Just "int32_t"
