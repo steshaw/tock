@@ -68,8 +68,8 @@ $hexDigit = [0-9 a-f A-F]
 $escapeChar = [cnrts \" \' \* \n]
 @escape = \* ( $escapeChar | \# $hexDigit $hexDigit )
 
-@stringLiteral = \" ( @escape | [^\"] )* \"
-@charLiteral = \' ( @escape | [^\'] ) \'
+@stringLiteral = \" ( @escape | [^\"\*] )* \"
+@charLiteral = \' ( @escape | [^\'\*] ) \'
 
 -- Note that occam number literals don't include their signs -- if you say
 -- "-3", then that's the operator "-" applied to the literal "3".
