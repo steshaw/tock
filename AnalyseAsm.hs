@@ -134,7 +134,9 @@ collectInfo ais = collectInfo' ais "" Map.empty
     collectInfo' [] _ fmap = fmap
     collectInfo' (ai:ais) func fmap
         = case ai of
-            AsmFunction newFunc -> collectInfo' ais newFunc fmap
+            AsmFunction newFunc ->
+              let fi = Map.findWithDefault emptyFI func fmap
+                in collectInfo' ais newFunc (Map.insert func fi fmap)
             AsmStackInc v ->
               let ofi = Map.findWithDefault emptyFI func fmap
                   -- This overestimates: it adds together all the stack
@@ -151,6 +153,10 @@ collectInfo ais = collectInfo' ais "" Map.empty
 -- | Stack size for unknown functions.
 unknownSize :: Int
 unknownSize = 512
+
+-- | Additional stack size to give to all functions.
+baseStackSize :: Int
+baseStackSize = 16
 
 -- | Add the stack sizes for called functions to their callers.
 addCalls :: FuncMap -> PassM FuncMap
@@ -174,7 +180,7 @@ addCalls fmap
     knownStack :: String -> PassM Int
     knownStack func
         =  do let fi = fmap Map.! func
-              let localStack = fiStack fi
+              let localStack = fiStack fi + baseStackSize
               calledStacks <- mapM totalStack $ Set.toList $ fiCalls fi
               return $ localStack + maximum (0 : calledStacks)
 
