@@ -134,6 +134,8 @@ sSemiColon = try $ symbol ";"
 sColon = try $ symbol ":"
 sComma = try $ symbol ","
 sQuote = try $ symbol "\""
+sIn = try $ symbol "?"
+sOut = try $ symbol "!"
 --}}}
 
 --{{{ Keywords
@@ -177,6 +179,8 @@ dataType
   = do {sBool ; return A.Bool}
     <|> do {sInt ; return A.Int64}
     <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <?> "data type"
 
 variableId :: RainParser A.Variable
