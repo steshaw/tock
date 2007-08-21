@@ -68,7 +68,7 @@ parseAsmLine s
             Just [l] -> Just $ AsmFunction l
             _ -> Nothing
       where
-        labelRE = mkRegex "^([^\\.0-9].*):$"
+        labelRE = mkRegex "^([^\\.0-9][a-zA-Z0-9_]*):$"
 
     matchInc :: String -> Maybe AsmItem
     matchInc s
