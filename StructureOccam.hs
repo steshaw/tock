@@ -38,7 +38,8 @@ structureOccam ts = analyse 1 firstLine ts
 
     analyse :: Int -> Int -> [Token] -> PassM [Token]
     -- Add extra EndOfLine at the end of the file.
-    analyse _ _ [] = return [(emptyMeta, EndOfLine)]
+    analyse prevCol _ [] = return $ (emptyMeta, EndOfLine) : out
+      where out = replicate (prevCol `div` 2) (emptyMeta, Outdent)
     analyse prevCol prevLine (t@(m, tokType):ts)
         = if line /= prevLine
              then do rest <- analyse col line ts
