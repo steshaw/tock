@@ -20,8 +20,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module GenerateC where
 
 import Data.Char
+import Data.Generics
 import Data.List
 import Data.Maybe
+import qualified Data.Set as Set
 import Control.Monad.Writer
 import Control.Monad.Error
 import Control.Monad.State
@@ -38,6 +40,29 @@ import Errors
 import TLP
 import Types
 import Utils
+
+--{{{  passes related to C generation
+genCPasses :: [(String, Pass)]
+genCPasses =
+  [ ("Identify parallel processes", identifyParProcs)
+  ]
+
+-- | Identify processes that we'll need to compute the stack size of.
+identifyParProcs :: Pass
+identifyParProcs = everywhereM (mkM doProcess)
+  where
+    doProcess :: A.Process -> PassM A.Process
+    doProcess p@(A.Par _ _ s) = findProcs s >> return p
+    doProcess p = return p
+
+    findProcs :: A.Structured -> PassM ()
+    findProcs (A.Rep _ _ s) = findProcs s
+    findProcs (A.Spec _ _ s) = findProcs s
+    findProcs (A.ProcThen _ _ s) = findProcs s
+    findProcs (A.Several _ ss) = sequence_ $ map findProcs ss
+    findProcs (A.OnlyP _ (A.ProcCall _ n _))
+        = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
+--}}}
 
 --{{{  monad definition
 type CGen = WriterT [String] PassM
@@ -216,15 +241,13 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generate :: GenOps -> String -> A.Process -> PassM String
-generate ops headerFileName ast
-    =  do (a, w) <- runWriterT (call genTopLevel ops ast)
-          gds <- getGeneratedDefs
-          let out = ["#include ",headerFileName,"\n"] ++ gds ++ w
+generate :: GenOps -> A.Process -> PassM String
+generate ops ast
+    =  do (a, out) <- runWriterT (call genTopLevel ops ast)
           return $ concat out
 
 generateC :: A.Process -> PassM String
-generateC = generate cgenOps "<tock_support.h>"
+generateC = generate cgenOps
 
 cgenTLPChannel :: GenOps -> TLPChannel -> CGen ()
 cgenTLPChannel _ TLPIn = tell ["in"]
@@ -233,7 +256,11 @@ cgenTLPChannel _ TLPError = tell ["err"]
 
 cgenTopLevel :: GenOps -> A.Process -> CGen ()
 cgenTopLevel ops p
-    =  do call genProcess ops p
+    =  do tell ["#include <tock_support.h>\n"]
+          cs <- get
+          tell ["extern int " ++ nameString n ++ "_stack_size;\n"
+                | n <- Set.toList $ csParProcs cs]
+          call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
@@ -1638,7 +1665,6 @@ cgenPar ops pm s
         =  do tell ["ProcAlloc ("]
               genName n
               let stackSize = nameString n ++ "_stack_size"
-              addGeneratedDef $ "extern int " ++ stackSize ++ ";\n"
               tell [", ", stackSize, ", ", show $ numCArgs as]
               call genActuals ops as
               tell [")"]

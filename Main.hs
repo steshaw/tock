@@ -163,6 +163,9 @@ compile fn
                                 , if csFrontend optsPS == FrontendRain
                                     then rainPasses
                                     else []
+                                , if csBackend optsPS == BackendC
+                                    then genCPasses
+                                    else []
                                 ]
                  ast2 <- runPasses passes ast1
 

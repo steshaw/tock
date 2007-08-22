@@ -54,6 +54,9 @@ instance Show Name where
 instance Eq Name where
   (==) a b = nameName a == nameName b
 
+instance Ord Name where
+  compare a b = compare (nameName a) (nameName b)
+
 -- | The definition of a name.
 data NameDef = NameDef {
     -- | Metadata.

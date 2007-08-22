@@ -22,6 +22,7 @@ module CompState where
 import Data.Generics
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad.State
 
@@ -52,7 +53,7 @@ data CompState = CompState {
 
     -- Set by preprocessor
     csCurrentFile :: String,
-    csUsedFiles :: Set.Set String,
+    csUsedFiles :: Set String,
 
     -- Set by Parse
     csLocalNames :: [(String, A.Name)],
@@ -69,9 +70,7 @@ data CompState = CompState {
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[A.Structured -> A.Structured]],
     csAdditionalArgs :: Map String [A.Actual],
-
-    -- Set by code generators
-    csGeneratedDefs :: [String]
+    csParProcs :: Set A.Name
   }
   deriving (Show, Data, Typeable)
 
@@ -102,8 +101,7 @@ emptyState = CompState {
     csFunctionReturns = Map.empty,
     csPulledItems = [],
     csAdditionalArgs = Map.empty,
-
-    csGeneratedDefs = []
+    csParProcs = Set.empty
   }
 
 -- | Class of monads which keep a CompState.
@@ -166,19 +164,6 @@ applyPulled ast
           case csPulledItems ps of
             (l:ls) -> do put $ ps { csPulledItems = [] : ls }
                          return $ foldl (\p f -> f p) ast l
---}}}
-
---{{{  generated definitions
--- | Add a generated definition to the collection.
-addGeneratedDef :: CSM m => String -> m ()
-addGeneratedDef s = modify (\ps -> ps { csGeneratedDefs = s : csGeneratedDefs ps })
-
--- | Get and clear the collection of generated definitions.
-getGeneratedDefs :: CSM m => m [String]
-getGeneratedDefs
-    =  do ps <- get
-          put $ ps { csGeneratedDefs = [] }
-          return $ csGeneratedDefs ps
 --}}}
 
 --{{{  type contexts
