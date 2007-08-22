@@ -50,14 +50,22 @@ tlpInterface
           return (mainName, chans)
   where
     tlpChannel :: (CSM m, Die m) => A.Formal -> m TLPChannel
-    tlpChannel (A.Formal _ (A.Chan _ _ A.Byte) n)
+    tlpChannel (A.Formal _ (A.Chan dir _ A.Byte) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def
               case lookup origN tlpChanNames of
-                Just c -> return c
+                Just c ->
+                  if (dir == A.DirUnknown || dir == (tlpDir c))
+                    then return c
+                    else die $ "TLP formal " ++ show n ++ " has wrong direction for its name"
                 _ -> die $ "TLP formal " ++ show n ++ " has unrecognised name"
     tlpChannel (A.Formal _ _ n)
         = die $ "TLP formal " ++ show n ++ " has unrecognised type"
+
+    tlpDir :: TLPChannel -> A.Direction
+    tlpDir TLPIn = A.DirInput
+    tlpDir TLPOut = A.DirOutput
+    tlpDir TLPError = A.DirOutput
 
     tlpChanNames :: [(String, TLPChannel)]
     tlpChanNames
