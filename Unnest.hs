@@ -29,6 +29,7 @@ import CompState
 import EvalConstants
 import Metadata
 import Pass
+import Errors
 import Types
 
 unnest :: A.Process -> PassM A.Process
@@ -111,6 +112,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              -- we know it's not going to be moved by removeNesting, so anything
              -- that it had in scope originally will still be in scope.
              ps <- get
+             when (null $ csMainLocals ps) (die "No main process found")
              let isTLP = (snd $ head $ csMainLocals ps) == n
 
              -- Figure out the free names.

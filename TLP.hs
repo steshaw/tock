@@ -39,6 +39,7 @@ data TLPChannel = TLPIn | TLPOut | TLPError
 tlpInterface :: (CSM m, Die m) => m (A.Name, [TLPChannel])
 tlpInterface
     =  do ps <- get
+          when (null $ csMainLocals ps) (die "No main process found")
           let mainName = snd $ head $ csMainLocals ps
           st <- specTypeOfName mainName
           formals <- case st of
