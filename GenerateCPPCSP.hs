@@ -166,6 +166,26 @@ cppgenStop _ m s
        genMeta m
        tell [" \"",s,"\" );"]
 
+--{{{ Two helper functions to aggregate some common functionality in this file.
+genCPPCSPChannelInput :: GenOps -> A.Variable -> CGen()
+genCPPCSPChannelInput ops var
+  = do t <- typeOfVariable var
+       case t of
+         (A.Chan A.DirInput _ _) -> call genVariable ops var
+         (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
+                                         tell [" ->reader() "]
+         _ -> call genMissing ops $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
+
+genCPPCSPChannelOutput :: GenOps -> A.Variable -> CGen()
+genCPPCSPChannelOutput ops var
+  = do t <- typeOfVariable var
+       case t of
+         (A.Chan A.DirOutput _ _) -> call genVariable ops var
+         (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
+                                         tell [" ->writer() "]
+         _ -> call genMissing ops $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
+--}}}
+
 cppgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()
 cppgenInput ops c im
     =  do case im of
@@ -179,8 +199,8 @@ cppgenInput ops c im
                      do inputVar <- makeNonce "proto_var"
                         genProtocolName innerType 
                         tell [" ",inputVar, " ; "]
-                        call genVariable ops c
-                        tell [" ->reader() >> ",inputVar," ; "]
+                        genCPPCSPChannelInput ops c
+                        tell [" >> ",inputVar," ; "]
                         cases <- casesOfProtocol innerType
                         genInputTupleAssign ops ((length cases) /= 0) inputVar is
                    _ -> sequence_ $ map (call genInputItem ops c) is
@@ -198,8 +218,8 @@ cppgenInputCase ops m c s
           genProtocolName proto
           tell [" ", tag, " ; "]
           tell ["unsigned ", which, " ; "]
-          call genVariable ops c
-          tell [" ->reader() >> ", tag, " ; "]
+          genCPPCSPChannelInput ops c
+          tell [" >> ", tag, " ; "]
           whichExpr proto which tag 0 (genProtocolName proto)
           tell [" switch ( ", which, " ) { "]
           genInputCaseBody proto tag (return ()) s
@@ -379,8 +399,8 @@ cppgenInputItem ops c (A.InCounted m cv av)
           call genVariable ops av
           tell [" .extent(0); "]
 cppgenInputItem ops c (A.InVariable m v)
-    =  do    call genVariable ops c
-             tell ["->reader() >> "]
+    =  do    genCPPCSPChannelInput ops c
+             tell [" >> "]
              call genVariable ops v
              tell [";\n"]
 
@@ -400,8 +420,8 @@ genJustOutputItem ops (A.OutExpression m e)
 
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cppgenOutputItem ops chan item 
-    =  do call genVariable ops chan
-          tell [" ->writer() << "]
+    =  do genCPPCSPChannelOutput ops chan
+          tell [" << "]
           genJustOutputItem ops item
           tell [" ; "]
 
@@ -411,8 +431,8 @@ cppgenOutput ops c ois
          case t of 
            --If it's a protocol, we have to build the appropriate tuple to send down the channel:
            A.Chan _ _ (A.UserProtocol innerType) -> 
-             do call genVariable ops c
-                tell [" ->writer() << "]
+             do genCPPCSPChannelOutput ops c
+                tell [" << "]
                 genProtocolName innerType
                 tell [" ( "]
                 infixComma $ map (genJustOutputItem ops) ois
@@ -486,8 +506,8 @@ cppgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase ops c tag ois 
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          call genVariable ops c
-          tell [" ->writer() << "]
+          genCPPCSPChannelInput ops c
+          tell [" << "]
           genSubTypes proto tag (middle proto)
           tell [" ; "]        
           where
@@ -553,8 +573,8 @@ cppgenAlt ops _ s
                         tell [guardList, " . push_back( new csp::TimeoutGuard (",timeVal,"));\n"]
                    _ ->
                      do tell [guardList, " . push_back( "]
-                        call genVariable ops c
-                        tell [" -> reader() . inputGuard());\n"]
+                        genCPPCSPChannelInput ops c
+                        tell [" . inputGuard());\n"]
 
     -- This is the same as GenerateC for now -- but it's not really reusable
     -- because it's so closely tied to how ALT is implemented in the backend.
@@ -614,9 +634,18 @@ cppdeclareType ops (A.Counted countType valueType)
            _ -> call genType ops valueType
          tell ["/**/>/**/"]
     
-cppdeclareType ops (A.Chan _ _ t) 
-    = do tell [" csp::One2OneChannel < "] 
-         call genType ops t 
+cppdeclareType ops (A.Chan dir attr t)
+    = do let chanType = case dir of
+                          A.DirInput -> "csp::Chanin"
+                          A.DirOutput -> "csp::Chanout"
+                          A.DirUnknown ->
+                            case (A.caWritingShared attr,A.caReadingShared attr) of
+                              (False,False) -> "csp::One2OneChannel"
+                              (False,True)  -> "csp::One2AnyChannel"
+                              (True,False)  -> "csp::Any2OneChannel"
+                              (True,True)   -> "csp::Any2AnyChannel"
+         tell [" ",chanType," < "]
+         call genType ops t
          tell ["/**/>/**/ "]
 cppdeclareType ops t = call genType ops t
 
@@ -938,7 +967,7 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
               -- we need to dereference the pointer that cppabbrevVariable gives us.
               do let deref = case (am, t) of
                                (_, A.Array _ _) -> False
-                               (_, A.Chan {}) -> False
+                               (_, A.Chan A.DirUnknown _ _) -> False
                                (A.ValAbbrev, _) -> True
                                _ -> False
                  when deref $ tell ["*"]
@@ -999,10 +1028,17 @@ cppgenType ops arr@(A.Array _ _)
     =  cppgenArrayType ops False arr 0    
 cppgenType _ (A.Record n) = genName n
 cppgenType _ (A.UserProtocol n) = genProtocolName n
-cppgenType ops (A.Chan _ _ t) 
-    = do tell ["csp::One2OneChannel < "]
+cppgenType ops ch@(A.Chan A.DirUnknown _ _)
+    = do call declareType ops ch
+         tell [" * "]
+cppgenType ops (A.Chan A.DirInput _ t)
+    = do tell [" csp::Chanin< "]
          call genType ops t
-         tell [" > * "]
+         tell ["/**/>/**/"]
+cppgenType ops (A.Chan A.DirOutput _ t)
+    = do tell [" csp::Chanout< "]
+         call genType ops t
+         tell ["/**/>/**/"]
 cppgenType ops (A.Counted countType valueType)
     = call genType ops (A.Array [A.UnknownDimension] valueType)
 cppgenType _ (A.Any)
