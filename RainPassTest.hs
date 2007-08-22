@@ -191,24 +191,27 @@ testUnique3 = testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveV
 testUnique4 :: Test
 testUnique4 = testPassWithItemsStateCheck "testUnique4" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ A.Skip m) (A.OnlyP m $ 
-      A.ProcCall m (procName "foo") [A.ActualExpression A.Byte $ exprVariable "c"])
+    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ 
+      A.ProcCall m (procName "foo") [A.ActualExpression A.Byte $ exprVariable "c"]) (skipP)
     exp = tag3 A.Spec DontCare 
              (tag3 A.Specification DontCare (procNamePattern "foo") $ tag4 A.Proc DontCare A.PlainSpec 
-               [tag3 A.Formal A.ValAbbrev A.Byte newc] $ tag1 A.Skip DontCare) 
-             (tag2 A.OnlyP DontCare $ tag3 A.ProcCall DontCare (procNamePattern "foo") 
-               [tag2 A.ActualExpression A.Byte $ tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare newc]
+               [tag3 A.Formal A.ValAbbrev A.Byte newc] 
+               (bodyPattern newc)
              )
-             
+             skipP
+    bodyPattern n = (tag3 A.ProcCall DontCare (procNamePattern "foo") 
+                      [tag2 A.ActualExpression A.Byte $ tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare n]
+                    )
+
     newc = Named "newc" DontCare
     check (items,state) 
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique4: Variable was not made unique" "c" (A.nameName newcName)
            assertVarDef "testUnique4: Variable was not recorded" state (A.nameName newcName)
-             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.ValAbbrev A.Unplaced)
            assertVarDef "testUnique4: Variable was not recorded" state "foo"
-             (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte newcName] $ 
-               tag1 A.Skip DontCare) A.Original A.Unplaced)
+             (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (tag4 A.Proc DontCare A.PlainSpec 
+               [tag3 A.Formal A.ValAbbrev A.Byte newcName] (bodyPattern newcName)) A.Original A.Unplaced)
            
 
 
