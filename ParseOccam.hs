@@ -364,16 +364,22 @@ tableType m l = tableType' m (length l) l
                       else return $ makeArrayType (A.Dimension len) A.Any
     tableType' m len [] = return $ makeArrayType (A.Dimension 0) A.Any
 
+-- | Check that the second dimension can be used in a context where the first
+-- is expected.
+isValidDimension :: A.Dimension -> A.Dimension -> Bool
+isValidDimension A.UnknownDimension A.UnknownDimension = True
+isValidDimension A.UnknownDimension (A.Dimension _) = True
+isValidDimension (A.Dimension n1) (A.Dimension n2) = n1 == n2
+isValidDimension _ _ = False
+
 -- | Check that the second second of dimensions can be used in a context where
 -- the first is expected.
 areValidDimensions :: [A.Dimension] -> [A.Dimension] -> Bool
 areValidDimensions [] [] = True
-areValidDimensions (A.UnknownDimension:ds1) (A.UnknownDimension:ds2)
-    = areValidDimensions ds1 ds2
-areValidDimensions (A.UnknownDimension:ds1) (A.Dimension _:ds2)
-    = areValidDimensions ds1 ds2
-areValidDimensions (A.Dimension n1:ds1) (A.Dimension n2:ds2)
-    =  if n1 /= n2 then False else areValidDimensions ds1 ds2
+areValidDimensions (d1:ds1) (d2:ds2)
+    = if isValidDimension d1 d2
+        then areValidDimensions ds1 ds2
+        else False
 areValidDimensions _ _ = False
 
 -- | Check that a type we've inferred matches the type we expected.
@@ -592,9 +598,14 @@ isValidLiteralType m rawT wantT
               -- so we need to do that below.
               do fs <- recordFields m wantT
                  return $ nf == length fs
-            (A.Array ds1 t1, A.Array ds2 t2) ->
-              if areValidDimensions ds2 ds1
-                then isValidLiteralType m t1 t2
+            (A.Array (d1:ds1) t1, A.Array (d2:ds2) t2) ->
+              -- Check the outermost dimension is OK, then recurse.
+              -- We can't just look at all the dimensions because this
+              -- might be an array of a record type, or similar.
+              if isValidDimension d2 d1
+                then do rawT' <- trivialSubscriptType rawT
+                        underT' <- trivialSubscriptType underT
+                        isValidLiteralType m rawT' underT'
                 else return False
             _ -> return $ rawT == wantT
 
