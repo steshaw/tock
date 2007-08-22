@@ -43,8 +43,8 @@ import SimplifyProcs
 import SimplifyTypes
 import Unnest
 
-passes :: [(String, Pass)]
-passes =
+commonPasses :: [(String, Pass)]
+commonPasses =
   [ ("Simplify types", simplifyTypes)
   , ("Simplify expressions", simplifyExprs)
   , ("Simplify processes", simplifyProcs)
@@ -157,10 +157,14 @@ compile fn
             ModeParse -> return $ show ast1
             ModeCompile ->
               do progress "Passes:"
-                 ast2 <- case csFrontend optsPS of                   
-                   FrontendOccam -> (runPasses passes) ast1
-                   --Run the rain passes, then all the normal occam passes too:
-                   FrontendRain -> ((runPasses rainPasses) ast1) >>= (runPasses passes)
+
+                 let passes
+                       = concat [ commonPasses
+                                , if csFrontend optsPS == FrontendRain
+                                    then rainPasses
+                                    else []
+                                ]
+                 ast2 <- runPasses passes ast1
 
                  debug "{{{ Generate code"
                  let generator

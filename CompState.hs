@@ -31,15 +31,15 @@ import Metadata
 
 -- | Modes that Tock can run in.
 data CompMode = ModeParse | ModeCompile | ModePostC
-  deriving (Show, Data, Typeable)
+  deriving (Show, Data, Typeable, Eq)
 
 -- | Backends that Tock can use.
 data CompBackend = BackendC | BackendCPPCSP
-  deriving (Show, Data, Typeable)
-  
+  deriving (Show, Data, Typeable, Eq)
+
 -- | Frontends that Tock can use.
 data CompFrontend = FrontendOccam | FrontendRain
-  deriving (Show, Data, Typeable)  
+  deriving (Show, Data, Typeable, Eq)
 
 -- | State necessary for compilation.
 data CompState = CompState {
