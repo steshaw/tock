@@ -78,6 +78,7 @@ data NameDef = NameDef {
 data Direction = DirInput | DirOutput | DirUnknown
   deriving (Show, Eq, Typeable, Data)
 
+-- | Attributes of the type of a channel.
 data ChanAttributes = ChanAttributes {
     caWritingShared :: Bool,
     caReadingShared :: Bool
@@ -89,28 +90,18 @@ data ChanAttributes = ChanAttributes {
 -- makes sense to be able to ask what type a particular name is defined to
 -- have.
 data Type =
-  Bool
-  -- | 8-bit unsigned integer.
-  | Byte
-  
-  -- | 16-bit unsigned integer.  Only exists in Rain.
-  | UInt16
-  -- | 32-bit unsigned integer.  Only exists in Rain.
-  | UInt32
-  -- | 64-bit unsigned integer.  Only exists in Rain.
-  | UInt64
-  -- | 8-bit signed integer.  Only exists in Rain.
-  | Int8
-
-  -- | In occam: a signed integer that uses the most efficient word-size in the target.  In Rain: transformed to an Int64.
-  | Int
-  -- | 16-bit signed integer.
-  | Int16
-  -- | 32-bit signed integer.
-  | Int32
-  -- | 64-bit signed integer.
-  | Int64
-  | Real32 | Real64
+  Bool                                      -- ^ Boolean
+  | Byte                                    -- ^ 8-bit unsigned integer
+  | UInt16                                  -- ^ 16-bit unsigned integer
+  | UInt32                                  -- ^ 32-bit unsigned integer
+  | UInt64                                  -- ^ 64-bit unsigned integer
+  | Int                                     -- ^ Most efficient signed integer
+  | Int8                                    -- ^ 8-bit signed integer
+  | Int16                                   -- ^ 16-bit signed integer
+  | Int32                                   -- ^ 32-bit signed integer
+  | Int64                                   -- ^ 64-bit signed integer
+  | Real32                                  -- ^ IEEE single-length float
+  | Real64                                  -- ^ IEEE double-length float
   -- | An array.
   -- For N-dimensional arrays, the [Dimension] list will be of length N.
   | Array [Dimension] Type
@@ -131,15 +122,12 @@ data Type =
 
 instance Show Type where
   show Bool = "BOOL"
-  show Byte = "BYTE"  
-  --Not sure how to show the non-occam types -- just use their AST names:
-  show UInt16 = "UInt16"
-  show UInt32 = "UInt32"
-  show UInt64 = "UInt64"
-  show Int8 = "Int8"
-  
-  
+  show Byte = "BYTE"
+  show UInt16 = "UINT16"
+  show UInt32 = "UINT32"
+  show UInt64 = "UINT64"
   show Int = "INT"
+  show Int8 = "INT8"
   show Int16 = "INT16"
   show Int32 = "INT32"
   show Int64 = "INT64"
@@ -315,12 +303,13 @@ data OutputItem =
 
 -- | A replicator.
 data Replicator = 
-  -- | The 'Name' names the replicator index, the first expression is the base and
-  -- the second expression is the count.
-  -- (In the future this will have additional constructors for stepped replicators.)
+  -- | Count up in 1s from a start value.
+  -- The 'Name' names the replicator index, the first expression is the base
+  -- and the second expression is the count.
   For Meta Name Expression Expression
-  -- | Rain addition.
-  -- The 'Name' names the loop variable and the expression is the list to iterate over
+  -- | Iterate over a list.
+  -- The 'Name' names the loop variable and the expression is the list to
+  -- iterate over.
   | ForEach Meta Name Expression
   deriving (Show, Eq, Typeable, Data)
 
