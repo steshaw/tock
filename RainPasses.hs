@@ -98,12 +98,13 @@ transformEach = everywhereM (mkM transformEach')
            --spec is a function A.Structured -> A.Structured, var is an A.Variable
            
            loopVarType <- typeOfName loopVar
-           loopIndex <- makeNonce "loopIndex"
-           let newRep = A.For m' (simpleName loopIndex) (intLiteral 0) (A.SizeVariable m' var)
+           A.Specification _ loopIndexName _ <- makeNonceVariable "loopIndex" m' A.Int64 A.VariableName A.Original
+
+           let newRep = A.For m' loopIndexName (intLiteral 0) (A.SizeVariable m' var)
            let s' = A.Spec m'
                  (A.Specification m' loopVar
                    (A.Is m' A.Abbrev loopVarType
-                     (A.SubscriptedVariable m' (A.Subscript m' (A.ExprVariable m' (variable loopIndex)))  var)
+                     (A.SubscriptedVariable m' (A.Subscript m' (A.ExprVariable m' (A.Variable m' loopIndexName)))  var)
                    )
                  )
                  s
