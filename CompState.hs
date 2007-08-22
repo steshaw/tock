@@ -214,7 +214,7 @@ makeNonce s
 defineNonce :: CSM m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
 defineNonce m s st nt am
     =  do ns <- makeNonce s
-          let n = A.Name m A.ProcName ns
+          let n = A.Name m nt ns
           let nd = A.NameDef {
                      A.ndMeta = m,
                      A.ndName = ns,
