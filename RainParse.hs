@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module RainParse where
 
 import qualified Text.ParserCombinators.Parsec.Token as P
-
+import qualified LexRain as L
 
 
 
@@ -35,7 +35,7 @@ import Debug.Trace
 import qualified IO
 import Numeric (readHex)
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Language (emptyDef)
+import Text.ParserCombinators.Parsec.Pos (newPos)
 import Text.Regex
 
 import qualified AST as A
@@ -52,90 +52,21 @@ import Utils
 
 
 type RainState = CompState
-type RainParser = GenParser Char CompState
-
-rainStyle 
-  = emptyDef
-  { P.commentLine    = "#"
-    , P.nestedComments = False
-    , P.identStart     = letter <|> char '_'
-    , P.identLetter    = alphaNum <|> char '_'
-    , P.opStart        = oneOf ":+-*/>=<!"
-    , P.opLetter       = oneOf "+-="
-    , P.reservedOpNames= [
-                          "+",
-                          "-",
-                          "*",
-                          "/",
-                          "==",
-                          "<",
-                          ">",
-                          ">=",
-                          "<=",
-                          "!=",
-                          "-",
-                          ":"
-                         ]
-    , P.reservedNames  = [
-                          "par",
-                          "seq",
-                          "alt",
-                          "seqeach",
-                          "pareach",
-                          "channel",
-                          "one2one",
-                          "int",
-                          "if",
-                          "while",
-                          "process",
-                          "bool"
-{-                          
-                          "tuple",
-                          "sleep",
-                          "for",
-                          "until",
-                          "poison",
-                          "return",
-                          "function",
-                          "typedef",
-                          "sint8","sint16","sint32","sint64"
-                          "uint8","uint16","uint32","uint64"
-                          "shared",
-                          "template",
-                          "constant",
-                          "namespace"
--}                          
-                         ]
-    , P.caseSensitive  = True
-    }
-    
-lexer :: P.TokenParser RainState
-lexer  = P.makeTokenParser rainStyle
-
-whiteSpace = P.whiteSpace lexer
-lexeme = P.lexeme lexer
-symbol = P.symbol lexer
-natural = P.natural lexer
-parens = P.parens lexer
-semi = P.semi lexer
-identifier = P.identifier lexer
-reserved = P.reserved lexer
-reservedOp = P.reservedOp lexer
+type RainParser = GenParser L.Token RainState
 
 --{{{ Symbols
-sLeftQ = try $ symbol "["
-sRightQ = try $ symbol "]"
-sLeftR = try $ symbol "("
-sRightR = try $ symbol ")"
-sLeftC = try $ symbol "{"
-sRightC = try $ symbol "}"
-sEquality = try $ symbol "=="
-sSemiColon = try $ symbol ";"
-sColon = try $ symbol ":"
-sComma = try $ symbol ","
-sQuote = try $ symbol "\""
-sIn = try $ symbol "?"
-sOut = try $ symbol "!"
+sLeftQ = reserved "["
+sRightQ = reserved "]"
+sLeftR = reserved "("
+sRightR = reserved ")"
+sLeftC = reserved "{"
+sRightC = reserved "}"
+sEquality = reserved "=="
+sSemiColon = reserved ";"
+sColon = reserved ":"
+sComma = reserved ","
+sIn = reserved "?"
+sOut = reserved "!"
 --}}}
 
 --{{{ Keywords
@@ -155,24 +86,38 @@ sWhile = reserved "while"
 sProcess = reserved "process"
 --}}}
 
---{{{Ideas nicked from GenerateC:
-md :: RainParser Meta
-md
-  =  do pos <- getPosition
-        return Meta {
-                 metaFile = Just $ sourceName pos,
-                 metaLine = sourceLine pos,
-                 metaColumn = sourceColumn pos
-               }
+metaToPos :: Meta -> SourcePos
+metaToPos m = newPos (fromMaybe "" $ metaFile m) (metaLine m) (metaColumn m)
+
+getToken :: (L.TokenType -> Maybe x) -> RainParser (Meta, x)
+getToken test = token (show) (metaToPos . fst) (wrap test)
+  where
+    wrap :: (L.TokenType -> Maybe x) -> (Meta,L.TokenType) -> Maybe (Meta,x)
+    wrap f (m,t) = case f t of
+      Nothing -> Nothing
+      Just t' -> Just (m,t')
+
+identifier :: RainParser (Meta, String)
+identifier = getToken testToken
+  where
+    testToken (L.TokIdentifier id) = Just id
+    testToken _ = Nothing
+
+reserved :: String -> RainParser Meta
+reserved word 
+  = (liftM fst) (getToken testToken)
+    <?> ("reserved word: " ++ word)
+      where
+        testToken (L.TokReserved r) = if r == word then Just r else Nothing
+        testToken _ = Nothing
+
 
 name :: RainParser A.Name
 name 
-    =   do m <- md
-           s <- identifier
+    =   do (m,s) <- identifier
            return $ A.Name m (A.VariableName) s --A.VariableName is a placeholder until a later pass
     <?> "name"
 
---}}}
 
 dataType :: RainParser A.Type
 dataType 
@@ -184,73 +129,73 @@ dataType
     <?> "data type"
 
 variableId :: RainParser A.Variable
-variableId = do {m <- md ; v <- name ; return $ A.Variable m v}
+variableId = do {v <- name ; return $ A.Variable (findMeta v) v}
              <?> "variable name"
 
 stringLiteral :: RainParser (A.LiteralRepr, A.Dimension)
 stringLiteral
-    =  do m <- md
-          char '"'
-          cs <- manyTill literalCharacter sQuote
-          let aes = [A.ArrayElemExpr $ A.Literal m A.Byte c | c <- cs]
-          return (A.ArrayLiteral m aes, A.Dimension $ length cs)
+    =  do (m,str) <- getToken testToken
+          let aes = [A.ArrayElemExpr $ A.Literal m A.Byte $ A.ByteLiteral m [c] | c <- str]
+          return (A.ArrayLiteral m aes, A.Dimension $ length str)
     <?> "string literal"
+  where
+    testToken (L.TokStringLiteral str) = Just str
+    testToken _ = Nothing
 
 literalCharacter :: RainParser A.LiteralRepr
 literalCharacter
-    =   do m <- md
-           c <- anyChar
-           return $ A.ByteLiteral m [c]
+    =   do (m,c) <- getToken testToken
+           return $ A.ByteLiteral m c
+  where
+    testToken (L.TokCharLiteral c) = Just c
+    testToken _ = Nothing
            
-digits :: RainParser String
-digits
-    =   many1 digit
-    <?> "decimal digits"
-
 integer :: RainParser A.LiteralRepr
 integer
-    =  do m <- md
-          d <- lexeme digits
+    =  do (m,d) <- getToken testToken
           return $ A.IntLiteral m d
+  where
+    testToken (L.TokDecimalLiteral d) = Just d
+    testToken _ = Nothing
 
 literal :: RainParser A.Expression
-literal = do {m <- md ; (lr, dim) <- stringLiteral ; return $ A.Literal m (A.Array [dim] A.Byte) lr }
-          <|> do {m <- md ; i <- integer ; return $ A.Literal m A.Int i}
+literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.Array [dim] A.Byte) lr }
+          <|> do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
           <?> "literal"
 
 expression :: RainParser A.Expression
 expression
-  = do {m <- md ; lhs <- subExpression ; 
-           do {sEquality ; rhs <- expression ; return $ A.Dyadic m A.Eq lhs rhs}
+  = do {lhs <- subExpression ; 
+           do {m <- sEquality ; rhs <- expression ; return $ A.Dyadic m A.Eq lhs rhs}
            <|> do {return lhs}           
        }
        <?> "expression"
 
 subExpression :: RainParser A.Expression
 subExpression
-  = do {m <- md ; id <- variableId ; return $ A.ExprVariable m id}
+  = do {id <- variableId ; return $ A.ExprVariable (findMeta id) id}
     <|> literal
     <?> "[sub-]expression"
 
 innerBlock :: RainParser A.Structured
-innerBlock = do {m <- md ; sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
+innerBlock = do {m <- sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
   where
     wrapProc :: A.Process -> RainParser A.Structured
     wrapProc x = return (A.OnlyP (findMeta x) x)
 
 block :: RainParser A.Process
-block = do { m <- md ; optionalSeq ; b <- innerBlock ; return $ A.Seq m b}
-        <|> do { m <- md ; sPar ; b <- innerBlock ; return $ A.Par m A.PlainPar b}
+block = do { optionalSeq ; b <- innerBlock ; return $ A.Seq (findMeta b) b}
+        <|> do { m <- sPar ; b <- innerBlock ; return $ A.Par m A.PlainPar b}
 
 optionalSeq :: RainParser ()
-optionalSeq = option () sSeq
+optionalSeq = option () (sSeq >> return ())
 
 assignOp :: RainParser (Meta, Maybe A.DyadicOp)
 --consume an optional operator, then an equals sign (so we can handle = += /= etc)  This should not handle !=, nor crazy things like ===, <== (nor <=)
 assignOp
-  = do {m <- md; reservedOp "+=" ; return (m,Just A.Plus)}
-    <|> do {m <- md; reservedOp "-=" ; return (m,Just A.Minus)}
-    <|> do {m <- md; reservedOp "=" ; return (m,Nothing)}	
+  = do {m <- reserved "+=" ; return (m,Just A.Plus)}
+    <|> do {m <- reserved "-=" ; return (m,Just A.Minus)}
+    <|> do {m <- reserved "=" ; return (m,Nothing)}	
     --TODO the rest
 
 lvalue :: RainParser A.Variable
@@ -259,22 +204,22 @@ lvalue = variableId
 
 statement :: RainParser A.Process
 statement 
-  = do { m <- md ; sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; return $ A.While m exp st}
-    <|> do { m <- md ; sIf ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; 
+  = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; return $ A.While m exp st}
+    <|> do { m <- sIf ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; 
              option (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) (A.Skip m))])
                     (do {sElse ; elSt <- statement ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
            }
     <|> block
-    <|> do { m <- md ; sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+    <|> do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
              return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
-    <|> do { m <- md ; sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+    <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
              return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }             
-    <|> do { m <- md ; lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
+    <|> do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
-               (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable m lv) exp)]))
-               (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList m [exp]))
+               (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
+               (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList (findMeta exp) [exp]))
            }    
-    <|> do { m <- md ; sSemiColon ; return $ A.Skip m}
+    <|> do { m <- sSemiColon ; return $ A.Skip m}
     <?> "statement"
 
 formaliseTuple :: [(A.Name,A.Type)] -> [A.Formal]
@@ -287,15 +232,14 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
 topLevelDecl :: RainParser A.Structured
-topLevelDecl = do {m <- md; sProcess ; procName <- name ; params <- tupleDef ; bm <- md ; body <- block ;
+topLevelDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m
     (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
   (A.OnlyP m $ A.Main m)}
 
 rainSourceFile :: RainParser (A.Process, CompState)
 rainSourceFile
-    =   do whiteSpace
-           p <- topLevelDecl
+    =   do p <- topLevelDecl
            s <- getState
            return (A.Seq emptyMeta p, s)
 
@@ -303,9 +247,13 @@ rainSourceFile
 parseRainProgram :: String -> PassM A.Process
 parseRainProgram filename
     =  do source <- liftIO $ readFile filename
-          cs <- get
-          case runParser rainSourceFile cs filename source of
-            Left err -> dieIO $ "Parse error: " ++ show err
-            Right (p, cs') ->
-              do put cs'
-                 return p
+          lexOut <- liftIO $ L.runLexer filename source          
+          case lexOut of
+            Left merr -> dieIO $ "Parse error at: " ++ (show merr)
+            Right toks ->
+              do cs <- get
+                 case runParser rainSourceFile cs filename toks of
+                   Left err -> dieIO $ "Parse error: " ++ show err
+                   Right (p, cs') ->
+                     do put cs'
+                        return p

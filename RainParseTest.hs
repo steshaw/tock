@@ -20,6 +20,7 @@ module RainParseTest (tests) where
 
 import qualified RainParse as RP
 import qualified AST as A
+import qualified LexRain as L
 import Text.ParserCombinators.Parsec (runParser,eof)
 import Test.HUnit
 import Metadata (Meta,emptyMeta)
@@ -41,9 +42,12 @@ fail x = ExpFail x
 --Runs a parse test, given a tuple of: (source text, parser function, assert)
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion
 testParsePass (text,prod,test)
-    = case (runParser parser emptyState "" text) of
-        Left error -> assertString (show error)
-        Right result -> ((return result) >>= test)
+  = do lexOut <- (L.runLexer "<test>" text)
+       case lexOut of
+         Left m -> assertFailure $ "Parse error in:\n" ++ text ++ "\n***at: " ++ (show m)
+         Right toks -> case (runParser parser emptyState "<test>" toks) of
+                         Left error -> assertFailure $  "Parse error in:\n" ++ text ++ "\n***" ++ (show error)
+                         Right result -> ((return result) >>= test)
     where parser = do { p <- prod ; eof ; return p}
     --Adding the eof parser above ensures that all the input is consumed from a test.  Otherwise
     --tests such as "seq {}}" would succeed, because the final character simply wouldn't be parsed -
@@ -51,10 +55,15 @@ testParsePass (text,prod,test)
 
 testParseFail :: Show a => (String, RP.RainParser a) -> Assertion
 testParseFail (text,prod)
-    = case (runParser parser emptyState "" text) of
-        Left error -> return ()
-        Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
+    = do lexOut <- (L.runLexer "<test>" text)
+         case lexOut of
+           Left error -> return ()
+           Right toks -> case (runParser parser emptyState "<test>" toks) of
+                           Left error -> return ()
+                           Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}
+
+
 testExp0 = pass ("b",RP.expression,      
   assertEqual "Variable Expression Test" (exprVariable "b") )
 
