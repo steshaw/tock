@@ -120,68 +120,79 @@ data FunctionInfo = FunctionInfo {
 emptyFI :: FunctionInfo
 emptyFI = FunctionInfo {
     fiStack = 0
-  , fiTotalStack = 0
+  , fiTotalStack = -1
   , fiCalls = Set.empty
   }
 
-type FuncMap = Map.Map String FunctionInfo
+-- | Monad for `AnalyseAsm` operations.
+type AAM = StateT (Map.Map String FunctionInfo) PassM
 
 -- | Collect information about each function that's been defined.
-collectInfo :: [AsmItem] -> FuncMap
-collectInfo ais = collectInfo' ais "" Map.empty
+collectInfo :: [AsmItem] -> AAM ()
+collectInfo ais = collectInfo' ais ""
   where
-    collectInfo' :: [AsmItem] -> String -> FuncMap -> FuncMap
-    collectInfo' [] _ fmap = fmap
-    collectInfo' (ai:ais) func fmap
-        = case ai of
-            AsmFunction newFunc ->
+    collectInfo' :: [AsmItem] -> String -> AAM ()
+    collectInfo' [] _ = return ()
+    collectInfo' (ai:ais) func
+        =  do fmap <- get
               let fi = Map.findWithDefault emptyFI func fmap
-                in collectInfo' ais newFunc (Map.insert func fi fmap)
-            AsmStackInc v ->
-              let ofi = Map.findWithDefault emptyFI func fmap
-                  -- This overestimates: it adds together all the stack
-                  -- allocations it finds, rather than trying to figure out
-                  -- whether any of them are optional or get undone (e.g. push;
-                  -- pop; push will result in allocating two slots).
-                  fi = ofi { fiStack = v + fiStack ofi }
-                in collectInfo' ais func (Map.insert func fi fmap)
-            AsmCall callFunc ->
-              let ofi = Map.findWithDefault emptyFI func fmap
-                  fi = ofi { fiCalls = Set.insert callFunc $ fiCalls ofi  }
-                in collectInfo' ais func (Map.insert func fi fmap)
+              let (func', fi')
+                    = case ai of
+                        AsmFunction newFunc -> (newFunc, fi)
+                        AsmStackInc v ->
+                          -- This overestimates: it adds together all the stack
+                          -- allocations it finds, rather than trying to figure
+                          -- out whether any of them are optional or get undone
+                          -- (e.g. push; pop; push will result in allocating
+                          -- two slots).
+                          (func, fi {
+                                   fiStack = v + fiStack fi
+                                 })
+                        AsmCall callFunc ->
+                          (func, fi {
+                                   fiCalls = Set.insert callFunc $ fiCalls fi
+                                 })
+              modify $ Map.insert func fi'
+              collectInfo' ais func'
 
 -- | Stack size for unknown functions.
 unknownSize :: Int
 unknownSize = 512
 
 -- | Additional stack size to give to all functions.
+-- This is necessary because CCSP does odd things with the provided stack
+-- size; it doesn't calculate the space that it needs for the arguments.
 baseStackSize :: Int
-baseStackSize = 16
+baseStackSize = 32
 
 -- | Add the stack sizes for called functions to their callers.
-addCalls :: FuncMap -> PassM FuncMap
-addCalls fmap
-    =  do l <- mapM addCalls' (Map.toList fmap)
-          return $ Map.fromList l
+addCalls :: AAM ()
+addCalls
+    =  do fmap <- get
+          sequence_ $ map computeStack (Map.keys fmap)
   where
-    addCalls' :: (String, FunctionInfo) -> PassM (String, FunctionInfo)
-    addCalls' (func, fi)
-        =  do stack <- totalStack func
-              return (func, fi { fiTotalStack = stack })
+    computeStack :: String -> AAM Int
+    computeStack func
+        =  do fmap <- get
+              let fi = Map.findWithDefault emptyFI func fmap
+              let tstack = fiTotalStack fi
+              tstack' <- if Map.member func fmap
+                           then (if tstack == -1
+                                   then userFunc fi
+                                   else return tstack)
+                           else systemFunc func
+              modify $ Map.insert func (fi { fiTotalStack = tstack' })
+              return tstack'
 
-    totalStack :: String -> PassM Int
-    totalStack func
-        = if Map.member func fmap
-            then knownStack func
-            -- FIXME: We should have a list of known system functions.
-            else do addPlainWarning $ "Unknown function " ++ func ++ "; allocating " ++ show unknownSize ++ " bytes stack"
-                    return unknownSize
+    systemFunc :: String -> AAM Int
+    systemFunc func
+        =  do lift $ addPlainWarning $ "Unknown function " ++ func ++ "; allocating " ++ show unknownSize ++ " bytes stack"
+              return unknownSize
 
-    knownStack :: String -> PassM Int
-    knownStack func
-        =  do let fi = fmap Map.! func
-              let localStack = fiStack fi + baseStackSize
-              calledStacks <- mapM totalStack $ Set.toList $ fiCalls fi
+    userFunc :: FunctionInfo -> AAM Int
+    userFunc fi
+        =  do let localStack = fiStack fi + baseStackSize
+              calledStacks <- mapM computeStack $ Set.toList $ fiCalls fi
               return $ localStack + maximum (0 : calledStacks)
 
 -- | Analyse assembler and return C source defining sizes.
@@ -189,7 +200,7 @@ analyseAsm :: String -> PassM String
 analyseAsm asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
-        info <- addCalls $ collectInfo stream
+        info <- execStateT (collectInfo stream >> addCalls) Map.empty
         debug $ "Analysed function information:"
         debug $ concat [printf "  %-40s %5d %5d %s\n"
                           func (fiStack fi) (fiTotalStack fi)
@@ -198,4 +209,3 @@ analyseAsm asm
         let lines = ["const int " ++ func ++ "_stack_size = " ++ show (fiTotalStack fi) ++ ";\n"
                      | (func, fi) <- Map.toList info]
         return $ concat lines
-
