@@ -249,9 +249,21 @@ testDataType =
   ,fail ("??",RP.dataType)
   ,fail ("int?",RP.dataType)
   ,fail ("bool!",RP.dataType)
-  ,fail ("int?int",RP.dataType)
-  
-  
+  ,fail ("int?int",RP.dataType)  
+ ]
+
+testComm :: [ParseTest A.Process]
+testComm =
+ [
+  pass ("c ! x;",RP.statement,assertEqual "testComm 0" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
+  ,pass ("c!x;",RP.statement,assertEqual "testComm 1" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
+  ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Add (intLiteral 0) (exprVariable "x")])
+  ,fail ("c!x",RP.statement)
+  ,fail ("c!x!y;",RP.statement)  
+  ,fail ("c!x,y;",RP.statement)
+  ,fail ("c!;",RP.statement)
+  ,fail ("!x;",RP.statement)
+  ,fail ("c!!x;",RP.statement)  
  ]
         
 --Returns the list of tests:
@@ -266,6 +278,7 @@ tests = TestList
   parseTests testIf,
   parseTests testAssign,
   parseTests testDataType,
+  parseTests testComm,
   parseTests testTopLevelDecl
  ]
 --TODO test:

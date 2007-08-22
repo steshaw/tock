@@ -214,6 +214,9 @@ each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sR
        <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
              return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
 
+comm :: RainParser A.Process
+comm = do { lv <- lvalue ; sOut ; exp <- expression ; sSemiColon ;
+            return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] }
 
 statement :: RainParser A.Process
 statement 
@@ -223,12 +226,13 @@ statement
                     (do {sElse ; elSt <- statement ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
            }
     <|> block
-    <|> each    
-    <|> do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
+    <|> each
+    <|> try comm
+    <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
                (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList (findMeta exp) [exp]))
-           }    
+           })   
     <|> do { m <- sSemiColon ; return $ A.Skip m}
     <?> "statement"
 
