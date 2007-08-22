@@ -1,6 +1,12 @@
 PROC P ()
   VAL size IS 32:
-  [100]BYTE src:
-  [32]BYTE dest:
-  dest := [src FROM 0 FOR size]
+  [100]INT src:
+  [32]INT dest:
+  SEQ
+    SEQ i = 0 FOR SIZE src
+      src[i] := i
+    dest := [src FROM 0 FOR size]
+    ASSERT ((SIZE dest) = size)
+    SEQ i = 0 FOR size
+      ASSERT (dest[i] = i)
 :

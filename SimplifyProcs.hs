@@ -36,6 +36,7 @@ simplifyProcs = runPasses passes
     passes =
       [ ("Wrap PAR subprocesses in PROCs", parsToProcs)
       , ("Remove parallel assignment", removeParAssign)
+      , ("Flatten assignment", flattenAssign)
       ]
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
@@ -88,4 +89,66 @@ removeParAssign = doGeneric `extM` doProcess
               let second = [A.Assign m [v] (A.ExpressionList m [A.ExprVariable m v']) | (v, v') <- zip vs temps]
               return $ A.Seq m $ foldl (\s spec -> A.Spec m spec s) (A.Several m (map (A.OnlyP m) (first ++ second))) specs
     doProcess p = doGeneric p
+
+-- | Turn assignment of arrays and records into multiple assignments.
+flattenAssign :: Data t => t -> PassM t
+flattenAssign = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric flattenAssign
+
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.Assign m [v] (A.ExpressionList m' [e]))
+        =  do t <- typeOfVariable v
+              assign m t v m' e
+    doProcess p = doGeneric p
+
+    assign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
+    assign m t@(A.Array _ _) v m' e = complexAssign m t v m' e
+    assign m t@(A.Record _) v m' e = complexAssign m t v m' e
+    assign m _ v m' e = return $ A.Assign m [v] (A.ExpressionList m' [e])
+
+    complexAssign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
+    complexAssign m t v m' e
+     = do -- Abbreviate the source and destination, to avoid doing the
+          -- subscript each time.
+          destAM <- liftM makeAbbrevAM $ abbrevModeOfVariable v
+          dest@(A.Specification _ destN _) <-
+            makeNonceIs "assign_dest" m t destAM v
+          let destV = A.Variable m destN
+          src@(A.Specification _ srcN _) <-
+            makeNonceIsExpr "assign_src" m' t e
+          let srcV = A.Variable m' srcN
+
+          body <- case t of
+                    A.Array _ _ ->
+                      -- Array assignments become a loop with an assignment
+                      -- inside.
+                      do counter <- makeNonceCounter "i" m
+                         let zero = A.Literal m A.Int $ A.IntLiteral m "0"
+                         let rep = A.For m counter zero
+                                                   (A.SizeVariable m srcV)
+                         itemT <- trivialSubscriptType t
+                         let sub = A.Subscript m (A.ExprVariable m
+                                                   (A.Variable m counter))
+                         inner <- assign m itemT
+                                         (A.SubscriptedVariable m sub destV) m'
+                                         (A.ExprVariable m'
+                                           (A.SubscriptedVariable m' sub srcV))
+                         return $ A.Rep m rep $ A.OnlyP m inner
+                    A.Record _ ->
+                      -- Record assignments become a sequence of
+                      -- assignments, one for each field.
+                      do 
+                         fs <- recordFields m t
+                         assigns <-
+                           sequence [do let sub = A.SubscriptField m fName
+                                        assign m fType
+                                          (A.SubscriptedVariable m sub destV) m'
+                                          (A.ExprVariable m'
+                                            (A.SubscriptedVariable m' sub srcV))
+                                     | (fName, fType) <- fs]
+                         return $ A.Several m $ map (A.OnlyP m) assigns
+
+          return $ A.Seq m $ A.Spec m src $ A.Spec m dest body
 

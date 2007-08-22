@@ -232,6 +232,12 @@ makeNonceProc :: CSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
     = defineNonce m "wrapper_proc" (A.Proc m A.PlainSpec [] p) A.ProcName A.Abbrev
 
+-- | Generate and define a counter for a replicator.
+makeNonceCounter :: CSM m => String -> Meta -> m A.Name
+makeNonceCounter s m
+    =  do (A.Specification _ n _) <- defineNonce m s (A.Declaration m A.Int) A.VariableName A.ValAbbrev
+          return n
+
 -- | Generate and define a variable abbreviation.
 makeNonceIs :: CSM m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
 makeNonceIs s m t am v

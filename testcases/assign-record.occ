@@ -1,0 +1,15 @@
+PROC P ()
+  DATA TYPE FOO
+    RECORD
+      INT a:
+      BYTE b:
+      REAL32 c:
+  :
+  VAL FOO src IS [111, 222, 333.3]:
+  FOO dest:
+  SEQ
+    dest := src
+    ASSERT (dest[a] = src[a])
+    ASSERT (dest[b] = src[b])
+    ASSERT (dest[c] = src[c])
+:

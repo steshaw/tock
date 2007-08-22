@@ -1438,13 +1438,6 @@ cgenAssign ops m [v] el
              doAssign t v e
   where
     doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
-    doAssign t@(A.Array _ subT) toV (A.ExprVariable m fromV)
-        = call genOverArray ops m fromV (\sub -> Just $ doAssign subT (sub toV) (A.ExprVariable m (sub fromV)))
-    doAssign rt@(A.Record _) toV (A.ExprVariable m fromV)
-        =  do fs <- recordFields m rt
-              sequence_ [let subV v = A.SubscriptedVariable m (A.SubscriptField m n) v
-                           in doAssign t (subV toV) (A.ExprVariable m $ subV fromV)
-                         | (n, t) <- fs]
     doAssign t v e
         = case call getScalarType ops t of
             Just _ ->
