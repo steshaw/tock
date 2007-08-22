@@ -424,10 +424,26 @@ findName thisN
             then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
+makeUniqueName :: String -> OccParser String
+makeUniqueName s
+    =  do st <- getState
+          setState $ st { csNameCounter = csNameCounter st + 1 }
+          return $ s ++ "_u" ++ show (csNameCounter st)
+
+findUnscopedName :: A.Name -> OccParser A.Name
+findUnscopedName n@(A.Name m nt s)
+    =  do st <- getState
+          case Map.lookup s (csUnscopedNames st) of
+            Just s' -> return $ A.Name m nt s'
+            Nothing ->
+              do s' <- makeUniqueName s
+                 modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
+                 return $ A.Name m nt s'
+
 scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
 scopeIn n@(A.Name m nt s) t am
     =  do st <- getState
-          let s' = s ++ "_u" ++ (show $ csNameCounter st)
+          s' <- makeUniqueName s
           let n' = n { A.nameName = s' }
           let nd = A.NameDef {
             A.ndMeta = m,
@@ -440,7 +456,6 @@ scopeIn n@(A.Name m nt s) t am
           }
           defineName n' nd
           modify $ (\st -> st {
-                             csNameCounter = (csNameCounter st) + 1,
                              csLocalNames = (s, n') : (csLocalNames st)
                            })
           return n'
@@ -525,12 +540,21 @@ newRecordName = newName A.RecordName
 newTimerName = newName A.TimerName
 newVariableName = newName A.VariableName
 
--- These are special because their scope is only valid within the particular
--- record or protocol they're used in.
-fieldName = anyName A.FieldName
-tagName = anyName A.TagName
-newFieldName = anyName A.FieldName
-newTagName = anyName A.TagName
+-- | A name that isn't scoped.
+-- This is for things like record fields: we don't need to track their scope
+-- because they're only valid with the particular record they're defined in,
+-- but we do need to add a unique suffix so that they don't collide with
+-- keywords in the target language
+unscopedName :: A.NameType -> OccParser A.Name
+unscopedName nt
+    =  do n <- anyName nt
+          findUnscopedName n
+    <?> show nt
+
+fieldName = unscopedName A.FieldName
+tagName = unscopedName A.TagName
+newFieldName = unscopedName A.FieldName
+newTagName = unscopedName A.TagName
 --}}}
 --{{{ types
 -- | A sized array of a production.
