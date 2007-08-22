@@ -50,7 +50,7 @@ clean-cgtests:
 
 haddock:
 	@mkdir -p doc
-	haddock -o doc --html $(filter-out LexOccam.hs,$(sources))
+	haddock -o doc --html $(filter-out LexOccam.hs LexRain.hs,$(sources))
 
 clean:
 	rm -f $(targets) *.o *.hi
