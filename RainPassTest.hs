@@ -38,12 +38,18 @@ simpleDef :: String -> A.SpecType -> A.NameDef
 simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
                             A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
+simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
+simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+
 skipP :: A.Structured
 skipP = A.OnlyP m (A.Skip m)
 
+castADI :: (Typeable b) => Maybe AnyDataItem -> Maybe b
+castADI (Just (ADI x)) = cast x
+castADI Nothing = Nothing
 
 testEachPass0 :: Test
-testEachPass0 = testPass "testEachPass0" exp (transformEach orig) startState'
+testEachPass0 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
@@ -76,10 +82,21 @@ testEachPass0 = testPass "testEachPass0" exp (transformEach orig) startState'
     indexVar = Named "indexVar" DontCare
     listVarName = Named "listVarName" DontCare
     listVar = tag2 A.Variable DontCare listVarName
-
+    
+    --Need to also check the names were recorded properly in CompState, so that later passes will work properly:
+    check :: (Items,CompState) -> Assertion
+    check (items,st) = 
+      do case castADI (Map.lookup "indexVar" items) of
+           Just indexVarName -> assertVarDef "testEachPass0" st (A.nameName indexVarName) 
+             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration DontCare A.Int64)) 
+           Nothing -> assertFailure "testEachPass0: Internal error, indexVar not found"
+         case castADI (Map.lookup "listVarName" items) of
+           Just listVarName -> assertVarDef "testEachPass0" st (A.nameName listVarName)
+             (simpleDefPattern (A.nameName listVarName) A.ValAbbrev (tag4 A.IsExpr DontCare A.ValAbbrev (A.Array [A.Dimension 1] A.Byte) (makeLiteralStringPattern "1") ))
+           Nothing -> assertFailure "testEachPass0: Internal error, listVarName not found"
 
 testEachPass1 :: Test
-testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
+testEachPass1 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
@@ -106,6 +123,13 @@ testEachPass1 = testPass "testEachPass0" exp (transformEach orig) startState'
                )
              )
     indexVar = Named "indexVar" DontCare
+    --Need to also check the names were recorded properly in CompState, so that later passes will work properly:
+    check :: (Items,CompState) -> Assertion
+    check (items,st) = 
+      do case castADI (Map.lookup "indexVar" items) of
+           Just indexVarName -> assertVarDef "testEachPass1" st (A.nameName indexVarName) 
+             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration DontCare A.Int64)) 
+           Nothing -> assertFailure "testEachPass1: Internal error, indexVar not found"
 
 -- | Test variable is made unique in a declaration:
 testUnique0 :: Test
