@@ -178,6 +178,16 @@ testUnique2 = testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveV
     check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
                              assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
 
+-- | Tests that proc names are recorded, but not made unique (because they might be exported), and not resolved either
+testUnique3 :: Test
+testUnique3 = testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveVars orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [] $ A.Skip m) (A.OnlyP m $ A.ProcCall m (procName "foo") [])
+    exp = orig
+    check (items,state) = assertVarDef "testUnique3: Variable was not recorded" state "foo"
+                            (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (A.Proc m A.PlainSpec [] $ A.Skip m) A.Original A.Unplaced)
+
+
 -- | checks that c's type is recorded in: ***each (c : "hello") {}
 testRecordInfNames0 :: Test
 testRecordInfNames0 = testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
@@ -227,6 +237,7 @@ tests = TestList
    ,testUnique0
    ,testUnique1
    ,testUnique2
+   ,testUnique3
    ,testRecordInfNames0
    ,testRecordInfNames1
    ,testRecordInfNames2

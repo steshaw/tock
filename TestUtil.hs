@@ -39,6 +39,9 @@ m = emptyMeta
 simpleName :: String -> A.Name
 simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
 
+procName :: String -> A.Name
+procName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.ProcName }
+
 simpleNamePattern :: String -> Pattern
 simpleNamePattern s = tag3 A.Name DontCare DontCare s
 
