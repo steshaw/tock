@@ -96,8 +96,9 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
     --Other:
     uniquifyAndResolveVars' s = return s
 
-    replaceNameName :: String -> String -> A.Name -> A.Name
-    replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
+--Helper function for a few of the passes:
+replaceNameName :: String -> String -> A.Name -> A.Name
+replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
 recordInfNameTypes :: Data t => t -> PassM t
 recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
@@ -121,14 +122,19 @@ findMain :: Data t => t -> PassM t
 --Because findMain runs after uniquifyAndResolveVars, the types of all the process will have been recorded
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
 --in the CompState, and pull it out into csMainLocals
-findMain x = do st <- get
-                put (findMain' st)
-                return x
+findMain x = do modify findMain'
+                everywhereM (mkM $ return . (replaceNameName "main" "____main")) x
   where
+    --We have to mangle the main name because otherwise it will cause problems on some backends (including C and C++)
     findMain' :: CompState -> CompState 
     findMain' st = case (Map.lookup "main" (csNames st)) of
-      Just n -> st {csMainLocals = [("main",A.Name {A.nameName = "main", A.nameMeta = A.ndMeta n, A.nameType = A.ndNameType n})]}
+      Just n -> st {csNames = changeMainName (csNames st) , csMainLocals = [("____main",A.Name {A.nameName = "____main", A.nameMeta = A.ndMeta n, A.nameType = A.ndNameType n})]}
       Nothing -> st 
+    changeMainName :: Map.Map String A.NameDef -> Map.Map String A.NameDef
+    changeMainName m = case (Map.lookup "main" m) of
+      Nothing -> m
+      Just nd -> ((Map.insert "____main" (nd {A.ndName = "____main"})) . (Map.delete "main")) m     
+    
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')

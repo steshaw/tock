@@ -261,11 +261,20 @@ testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTyp
 (>>>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
 (>>>) f0 f1 x = (f0 x) >>= f1
 
+--Normally, process names in Rain are not mangled.  And this should be fine in all cases - but not for the main process (which would
+--result in a function called main.  Therefore we must mangle main.  Ideally into a nonce, but for now into ____main
+
+--TODO check recursive main function works
+
 testFindMain0 :: Test
-testFindMain0 = testPassWithStateCheck "testFindMain0" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain0 = testPassWithStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
-    check state = assertEqual "testFindMain0" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
+    orig = proc "main"
+    exp = proc "____main"
+    check state = do assertEqual "testFindMain0 A" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
+                     assertVarDef "testFindMain0 B" state "____main"
+                       (tag7 A.NameDef DontCare "____main" "main" A.ProcName DontCare A.Original A.Unplaced)
 
 testFindMain1 :: Test
 testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
@@ -274,20 +283,24 @@ testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolve
     check state = assertEqual "testFindMain1" [] (csMainLocals state)
     
 testFindMain2 :: Test
-testFindMain2 = testPassWithStateCheck "testFindMain2" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain2 = testPassWithStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
-             A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
-               A.Several m []
-    check state = assertEqual "testFindMain2" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
+                  A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+                    A.Several m []
+    orig = proc "main"
+    exp = proc "____main"
+    check state = assertEqual "testFindMain2" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
 
 testFindMain3 :: Test
-testFindMain3 = testPassWithStateCheck "testFindMain3" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain3 = testPassWithStateCheck "testFindMain3" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
-             A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
-               A.Several m []
-    check state = assertEqual "testFindMain3" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
+                  A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+                    A.Several m []
+    orig = proc "main"
+    exp = proc "____main"
+    check state = assertEqual "testFindMain3" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
 
 
 --Returns the list of tests:
