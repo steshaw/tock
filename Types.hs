@@ -141,7 +141,7 @@ unsubscriptType (A.SubscriptFor _ _) t
 unsubscriptType (A.SubscriptField _ _) t
     = die $ "unsubscript of record type (but we can't tell which one)"
 unsubscriptType (A.Subscript _ sub) t
-    = return $ makeArrayType A.UnknownDimension t
+    = return $ addDimensions [A.UnknownDimension] t
 
 -- | Just remove the first dimension from an array type -- like doing
 -- subscriptType with constant 0 as a subscript, but without the checking.
@@ -242,7 +242,7 @@ abbrevModeOfSpec s
 underlyingType :: (CSM m, Die m) => A.Type -> m A.Type
 underlyingType t@(A.UserDataType _)
     = resolveUserType t >>= underlyingType
-underlyingType (A.Array ds t) = liftM (A.Array ds) (underlyingType t)
+underlyingType (A.Array ds t) = liftM (addDimensions ds) (underlyingType t)
 underlyingType t = return t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
@@ -256,11 +256,11 @@ resolveUserType (A.UserDataType n)
             _ -> die $ "not a type name " ++ show n
 resolveUserType t = return t
 
--- | Add an array dimension to a type; if it's already an array it'll just add
--- a new dimension to the existing array.
-makeArrayType :: A.Dimension -> A.Type -> A.Type
-makeArrayType d (A.Array ds t) = A.Array (d : ds) t
-makeArrayType d t = A.Array [d] t
+-- | Add array dimensions to a type; if it's already an array it'll just add
+-- the new dimensions to the existing array.
+addDimensions :: [A.Dimension] -> A.Type -> A.Type
+addDimensions newDs (A.Array ds t) = A.Array (newDs ++ ds) t
+addDimensions ds t = A.Array ds t
 
 -- | Return a type with any enclosing arrays removed; useful for identifying
 -- things that should be channel names, timer names, etc. in the parser.

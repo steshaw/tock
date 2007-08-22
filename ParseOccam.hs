@@ -358,11 +358,11 @@ intersperseP (f:fs) sep
 tableType :: Meta -> [A.Type] -> OccParser A.Type
 tableType m l = tableType' m (length l) l
   where
-    tableType' m len [t] = return $ makeArrayType (A.Dimension len) t
+    tableType' m len [t] = return $ addDimensions [A.Dimension len] t
     tableType' m len (t1 : rest@(t2 : _))
         = if t1 == t2 then tableType' m len rest
-                      else return $ makeArrayType (A.Dimension len) A.Any
-    tableType' m len [] = return $ makeArrayType (A.Dimension 0) A.Any
+                      else return $ addDimensions [A.Dimension len] A.Any
+    tableType' m len [] = return $ addDimensions [A.Dimension 0] A.Any
 
 -- | Check that the second dimension can be used in a context where the first
 -- is expected.
@@ -538,14 +538,14 @@ arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
     =  do (s, t) <- tryXVXV sLeft constIntExpr sRight element
           sVal <- evalIntExpression s
-          return $ makeArrayType (A.Dimension sVal) t
+          return $ addDimensions [A.Dimension sVal] t
 
 -- | Either a sized or unsized array of a production.
 specArrayType :: OccParser A.Type -> OccParser A.Type
 specArrayType element
     =   arrayType element
     <|> do t <- tryXXV sLeft sRight element
-           return $ makeArrayType A.UnknownDimension t
+           return $ addDimensions [A.UnknownDimension] t
 
 dataType :: OccParser A.Type
 dataType
@@ -1604,7 +1604,7 @@ inputItem t
           do m <- md
              v <- variableOfType ct
              sColons
-             w <- variableOfType (makeArrayType A.UnknownDimension it)
+             w <- variableOfType (addDimensions [A.UnknownDimension] it)
              return $ A.InCounted m v w
         A.Any ->
           do m <- md
@@ -1684,7 +1684,7 @@ outputItem t
           do m <- md
              a <- expressionOfType ct
              sColons
-             b <- expressionOfType (makeArrayType A.UnknownDimension it)
+             b <- expressionOfType (addDimensions [A.UnknownDimension] it)
              return $ A.OutCounted m a b
         A.Any ->
           do m <- md

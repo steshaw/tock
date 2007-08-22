@@ -1,0 +1,68 @@
+-- From cgtest56
+
+PROC title (VAL []BYTE s)
+  SKIP
+:
+PROC check (VAL INT a, b, VAL []BYTE s)
+  ASSERT (a = b)
+:
+INT FUNCTION id (VAL INT x) IS x:
+
+PROC arrays.of.arrays()
+  VAL n IS 5 :
+  DATA TYPE m0 IS INT :
+  DATA TYPE m1 IS [n]m0 :
+  DATA TYPE m2 IS [n]m1 :
+  DATA TYPE m3 IS [n]m2 :
+  INT i, j, k :
+  m0 m.0 :
+  m1 m.1 :
+  m2 m.2 :
+  m3 m.3 :
+  SEQ
+    title("arrays of arrays")
+    i := SIZE m.3
+    check(i, n, "ARR-01")
+    i := SIZE m.3[0]
+    check(i, n, "ARR-02")
+    i := SIZE m.3[0][0]
+    check(i, n, "ARR-03")
+
+    SEQ i = 0 FOR SIZE m.3
+      SEQ j = 0 FOR SIZE m.3[0]
+        SEQ k = 0 FOR SIZE m.3[0][0]
+          m.3[i][j][k] := m0 ((i + j) + k)
+
+    i := id(1)
+    m.2 := m.3[i]
+    SEQ j = 0 FOR SIZE m.2
+      SEQ k = 0 FOR SIZE m.2[0]
+        check(INT m.2[j][k], (j + k) + 1, "ARR-04")
+
+    j := id(2)
+    m.1 := m.2[j]
+    SEQ k = 0 FOR SIZE m.1
+      check(INT m.1[k], k + 3, "ARR-05")
+
+    i := id(2)
+    j := id(3)
+    m.1 := m.3[i][j]
+    SEQ k = 0 FOR SIZE m.1
+      check(INT m.1[k], k + 5, "ARR-06")
+
+    k := id(4)
+    m.0 := m.1[k] -- m1 already has m.3[2][3]
+    check(INT m.0, 9, "ARR-07")
+
+    j := id(3)
+    k := id(4)
+    m.0 := m.2[j][k] -- m2 already has m.3[1]
+    check(INT m.0, 8, "ARR-08")
+
+    i := id(2)
+    j := id(3)
+    k := id(4)
+    m.0 := m.3[i][j][k]
+    check(INT m.0, 9, "ARR-09")
+:
+

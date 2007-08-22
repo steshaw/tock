@@ -264,7 +264,7 @@ renderLiteral m (OccInt64 i) = (A.Int64, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
     = (t, A.ArrayLiteral m aes)
   where
-    t = makeArrayType (A.Dimension $ length vs) (head ts)
+    t = addDimensions [A.Dimension $ length vs] (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
 renderLiteral m (OccRecord n vs)
     = (A.Record n, A.RecordLiteral m (map (snd . renderValue m) vs))
@@ -285,7 +285,7 @@ renderLiteralArray :: Meta -> OccValue -> (A.Type, A.ArrayElem)
 renderLiteralArray m (OccArray vs)
     = (t, A.ArrayElemArray aes)
   where
-    t = makeArrayType (A.Dimension $ length vs) (head ts)
+    t = addDimensions [A.Dimension $ length vs] (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
 renderLiteralArray m v
     = (t, A.ArrayElemExpr e)
