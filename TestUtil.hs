@@ -43,7 +43,10 @@ procName :: String -> A.Name
 procName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.ProcName }
 
 simpleNamePattern :: String -> Pattern
-simpleNamePattern s = tag3 A.Name DontCare DontCare s
+simpleNamePattern s = tag3 A.Name DontCare A.VariableName s
+
+procNamePattern :: String -> Pattern
+procNamePattern s = tag3 A.Name DontCare A.ProcName s
 
 variable :: String -> A.Variable
 variable e = A.Variable m $ simpleName e
