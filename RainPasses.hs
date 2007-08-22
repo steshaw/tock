@@ -53,6 +53,8 @@ uniquifyAndResolveVars :: Data t => t -> PassM t
 uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
   where
     uniquifyAndResolveVars' :: A.Structured -> PassM A.Structured
+    
+    --Variable declarations:
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration {})) scope) 
       = do n' <- makeNonce $ A.nameName n
            defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
@@ -60,6 +62,14 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
                                                        A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
+           
+    --Processes:
+    uniquifyAndResolveVars' input@(A.Spec _ (A.Specification m' n decl@(A.Proc {})) _) 
+      = do defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
+                                   A.ndNameType = A.ProcName, A.ndType = decl, 
+                                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+           return input
+    --Other:
     uniquifyAndResolveVars' s = return s
 
     replaceNameName :: String -> String -> A.Name -> A.Name
