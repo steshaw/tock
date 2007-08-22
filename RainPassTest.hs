@@ -33,6 +33,7 @@ import Types
 import Pass
 import Data.Generics
 import Utils
+import Errors
 
 simpleDef :: String -> A.SpecType -> A.NameDef
 simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
@@ -47,6 +48,11 @@ skipP = A.OnlyP m (A.Skip m)
 castADI :: (Typeable b) => Maybe AnyDataItem -> Maybe b
 castADI (Just (ADI x)) = cast x
 castADI Nothing = Nothing
+
+castAssertADI :: (Typeable b) => Maybe AnyDataItem -> IO b
+castAssertADI x = case (castADI x) of
+  Just y -> return y
+  Nothing -> dieInternal "Pattern successfully matched but did not find item afterwards"
 
 testEachPass0 :: Test
 testEachPass0 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
@@ -133,48 +139,44 @@ testEachPass1 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach o
 
 -- | Test variable is made unique in a declaration:
 testUnique0 :: Test
-testUnique0 = testPassWithCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique0 = testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) skipP
-    check items = assertItemNotEqual "testUnique0: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
+    check (items,state) 
+      = do newcName <- castAssertADI (Map.lookup "newc" items)
+           assertNotEqual "testUnique0: Variable was not made unique" "c" (A.nameName newcName)
+           assertVarDef "testUnique0: Variable was not recorded" state (A.nameName newcName)
+             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
 testUnique1 :: Test
-testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique1 = testPassWithItemsStateCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
                         A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int64) skipP]
     exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m $ A.Byte) skipP,
                             tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int64) skipP]
-    check items = do assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc0" items)
-                     assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc1" items)
-                     assertItemNotSame "testUnique1: Variables were not made unique" items "newc0" "newc1"
+    check (items,state) 
+                = do newc0Name <- castAssertADI (Map.lookup "newc0" items)
+                     newc1Name <- castAssertADI (Map.lookup "newc1" items)
+                     assertNotEqual "testUnique1: Variable was not made unique" "c" (A.nameName newc0Name)
+                     assertNotEqual "testUnique1: Variable was not made unique" "c" (A.nameName newc1Name)
+                     assertNotEqual "testUnique1: Variables were not made unique" (A.nameName newc0Name) (A.nameName newc1Name)
+                     assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc0Name)
+                       (tag7 A.NameDef DontCare (A.nameName newc0Name) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+                     assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc1Name)
+                       (tag7 A.NameDef DontCare (A.nameName newc1Name) "c" A.VariableName (A.Declaration m A.Int64) A.Original A.Unplaced)
 
 -- | Tests that the unique pass does resolve the variables that are in scope
 testUnique2 :: Test
-testUnique2 = testPassWithCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique2 = testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) 
       (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
-    check items = assertItemNotEqual "testUnique2: Variable was not made unique" (simpleName "c") (Map.lookup "newc" items)
-
-testRecordDeclNames0 :: Test
-testRecordDeclNames0 = testPassWithStateCheck "testRecordDeclNames0" exp (recordDeclNameTypes orig) (return ()) check
-  where
-    orig = (A.Specification m (simpleName "c") $ A.Declaration m A.Byte)
-    exp = orig
-    check state = assertVarDef "testRecordDeclNames0" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
-
-testRecordDeclNames1 :: Test
-testRecordDeclNames1 = testPassWithStateCheck "testRecordDeclNames1" exp (recordDeclNameTypes orig) (return ()) check
-  where
-    orig = (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m))
-    exp = orig
-    check state = assertVarDef "testRecordDeclNames1" state "foo" 
-      (tag7 A.NameDef DontCare "foo" "foo" A.VariableName (A.Proc m A.PlainSpec [] (A.Skip m)) A.Original A.Unplaced)      
+    check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
+                             assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
 
 -- | checks that c's type is recorded in: ***each (c : "hello") {}
 testRecordInfNames0 :: Test
@@ -225,8 +227,6 @@ tests = TestList
    ,testUnique0
    ,testUnique1
    ,testUnique2
-   ,testRecordDeclNames0
-   ,testRecordDeclNames1
    ,testRecordInfNames0
    ,testRecordInfNames1
    ,testRecordInfNames2

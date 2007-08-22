@@ -29,8 +29,7 @@ import Errors
 rainPasses :: [(String,Pass)]
 rainPasses = 
      [ ("Resolve Int -> Int64",transformInt)
-       ,("Uniquify variable declarations and resolve variable names",uniquifyAndResolveVars)
-       ,("Record declared name types in dictionary",recordDeclNameTypes)
+       ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars)
        ,("Record inferred name types in dictionary",recordInfNameTypes)
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
@@ -42,29 +41,29 @@ transformInt = everywhereM (mkM transformInt')
     transformInt' A.Int = return A.Int64
     transformInt' t = return t
 
+-- | This pass effectively does three things in one:
+--
+-- 1. Creates unique names for all declared variables
+-- 2. Records the type of these declarations into the state 
+-- 3. Resolves all uses of the name into its unique version
+--
+-- This may seem like three passes in one, but if you try to separate them out, it just ends up
+-- with more confusion and more code, instead of less.
 uniquifyAndResolveVars :: Data t => t -> PassM t
 uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
   where
     uniquifyAndResolveVars' :: A.Structured -> PassM A.Structured
-    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration _ _)) scope) 
+    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration {})) scope) 
       = do n' <- makeNonce $ A.nameName n
+           defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
+                                                       A.ndNameType = A.VariableName, A.ndType = decl, 
+                                                       A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
     uniquifyAndResolveVars' s = return s
 
     replaceNameName :: String -> String -> A.Name -> A.Name
     replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
-
-recordDeclNameTypes :: Data t => t -> PassM t
-recordDeclNameTypes = everywhereM (mkM recordDeclNameTypes')
-  where
-    recordDeclNameTypes' :: A.Specification -> PassM A.Specification
-    recordDeclNameTypes' input@(A.Specification m n decl@(A.Declaration _ declType)) 
-      = defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                A.ndNameType = A.VariableName, A.ndType = decl, 
-                                A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
-        >> return input	
-    recordDeclNameTypes' s = return s
 
 recordInfNameTypes :: Data t => t -> PassM t
 recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
