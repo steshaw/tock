@@ -265,7 +265,7 @@ cgenTopLevel ops p
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
           tell [" (me"]
-          sequence_ [tell [", "] >> call genTLPChannel ops c | c <- chans]
+          sequence_ [tell [", "] >> call genTLPChannel ops c | (_,c) <- chans]
           tell [");\n"]
           tell ["}\n"]
 --}}}

@@ -36,7 +36,7 @@ data TLPChannel = TLPIn | TLPOut | TLPError
 
 -- | Get the name of the TLP and the channels it uses.
 -- Fail if the process isn't using a valid interface.
-tlpInterface :: (CSM m, Die m) => m (A.Name, [TLPChannel])
+tlpInterface :: (CSM m, Die m) => m ( A.Name, [(A.Direction, TLPChannel)] )
 tlpInterface
     =  do ps <- get
           when (null $ csMainLocals ps) (die "No main process found")
@@ -46,17 +46,17 @@ tlpInterface
                        A.Proc _ _ fs _ -> return fs
                        _ -> die "Last definition is not a PROC"
           chans <- mapM tlpChannel formals
-          when ((nub chans) /= chans) $ die "Channels used more than once in TLP"
+          when ((nub (map snd chans)) /= (map snd chans)) $ die "Channels used more than once in TLP"
           return (mainName, chans)
   where
-    tlpChannel :: (CSM m, Die m) => A.Formal -> m TLPChannel
+    tlpChannel :: (CSM m, Die m) => A.Formal -> m (A.Direction, TLPChannel)
     tlpChannel (A.Formal _ (A.Chan dir _ A.Byte) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def
               case lookup origN tlpChanNames of
                 Just c ->
                   if (dir == A.DirUnknown || dir == (tlpDir c))
-                    then return c
+                    then return (dir,c)
                     else die $ "TLP formal " ++ show n ++ " has wrong direction for its name"
                 _ -> die $ "TLP formal " ++ show n ++ " has unrecognised name"
     tlpChannel (A.Formal _ _ n)

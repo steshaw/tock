@@ -143,8 +143,16 @@ cppgenTopLevel ops p
           tell [" csp::Run( csp::InParallel (new StreamWriter(std::cout,out.reader())) (new StreamWriter(std::cerr,err.reader())) (csp::InSequenceOneThread ( new proc_"]
           genName name 
           tell ["("]
-          infixComma [tell ["&"] >> call genTLPChannel ops c | c <- chans]
+          infixComma $ map (tlpChannel ops) chans
           tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<uint8_t>/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<uint8_t>/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}"]
+  where
+    tlpChannel :: GenOps -> (A.Direction,TLPChannel) -> CGen()
+    tlpChannel ops (dir,c) = case dir of
+                               A.DirUnknown -> tell ["&"] >> chanName
+                               A.DirInput -> chanName >> tell [" .reader() "]
+                               A.DirOutput -> chanName >> tell [" .writer() "]
+                             where
+                               chanName = call genTLPChannel ops c
 
 --}}}
 
