@@ -208,6 +208,13 @@ lvalue :: RainParser A.Variable
 --For now, only handle plain variables:
 lvalue = variableId
 
+each :: RainParser A.Process
+each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
+       <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
+
+
 statement :: RainParser A.Process
 statement 
   = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; return $ A.While m exp st}
@@ -216,10 +223,7 @@ statement
                     (do {sElse ; elSt <- statement ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
            }
     <|> block
-    <|> do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
-             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
-    <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
-             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }             
+    <|> each    
     <|> do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
