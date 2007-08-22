@@ -56,7 +56,7 @@ intLiteral :: Int -> A.Expression
 intLiteral n = A.Literal m A.Int $ A.IntLiteral m (show n)
 
 intLiteralPattern :: Int -> Pattern
-intLiteralPattern n = tag3 A.Literal DontCare A.Int (tag2 A.IntLiteral DontCare (show n))
+intLiteralPattern = (stopCaringPattern m) . mkPattern . intLiteral
 
 makeNamesWR :: ([String],[String]) -> ([A.Variable],[A.Variable])
 makeNamesWR (x,y) = (map variable x,map variable y)
@@ -85,6 +85,8 @@ makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) 
     makeLiteralChar :: Char -> A.ArrayElem
     makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
 
+makeLiteralStringPattern :: String -> Pattern
+makeLiteralStringPattern = (stopCaringPattern m) . mkPattern . makeLiteralString
 
 assertCompareCustom :: (Show a) => String -> (a -> a -> Bool) -> a -> a -> Assertion
 assertCompareCustom  preface cmp expected actual =
