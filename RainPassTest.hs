@@ -120,9 +120,9 @@ testUnique1 :: Test
 testUnique1 = testPassWithCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
-                        A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int) skipP]
+                        A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int64) skipP]
     exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m $ A.Byte) skipP,
-                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int) skipP]
+                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int64) skipP]
     check items = do assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc0" items)
                      assertItemNotEqual "testUnique1: Variable was not made unique" (simpleName "c") (Map.lookup "newc1" items)
                      assertItemNotSame "testUnique1: Variables were not made unique" items "newc0" "newc1"
