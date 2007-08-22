@@ -44,6 +44,11 @@ data CompFrontend = FrontendOccam | FrontendRain
 
 -- | State necessary for compilation.
 data CompState = CompState {
+    -- This structure needs to be printable with pshow.
+    -- There are explicit rules for the Maps and Sets used here
+    -- in PrettyShow.hs; if you add any new ones here then remember
+    -- to add matching rules there.
+
     -- Set by Main (from command-line options)
     csMode :: CompMode,
     csBackend :: CompBackend,

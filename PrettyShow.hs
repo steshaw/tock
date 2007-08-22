@@ -24,6 +24,7 @@ module PrettyShow (pshow) where
 
 import Data.Generics
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 
 import qualified AST as A
@@ -65,6 +66,9 @@ doMeta m = text $ show m
 doMap :: (Data a, Data b) => Map.Map a b -> Doc
 doMap map = braces $ sep $ punctuate (text ",") [doAny k <+> text ":" <+> doAny v
                                                  | (k, v) <- Map.toAscList map]
+
+doSet :: Data a => Set.Set a -> Doc
+doSet set = brackets $ sep $ punctuate (text ",") (map doAny $ Set.toList set)
 
 foldPatternList :: Pattern -> [Pattern]
 foldPatternList (Match con patList)
@@ -123,6 +127,8 @@ doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta `extQ` doPattern
           `extQ` (doMap :: Map.Map String A.NameDef -> Doc)
           `extQ` (doMap :: Map.Map String [A.Type] -> Doc)
           `extQ` (doMap :: Map.Map String [A.Actual] -> Doc)
+          `extQ` (doSet :: Set.Set String -> Doc)
+          `extQ` (doSet :: Set.Set A.Name -> Doc)
 
 -- | Convert an arbitrary data structure to a string in a reasonably pretty way.
 -- This is currently rather slow.

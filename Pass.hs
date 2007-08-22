@@ -89,7 +89,7 @@ debugAST p
           veryDebug $ "}}}"
           veryDebug $ "{{{ State"
           ps <- get
-          veryDebug $ show ps
+          veryDebug $ pshow ps
           veryDebug $ "}}}"
 
 -- | Number lines in a piece of text.
