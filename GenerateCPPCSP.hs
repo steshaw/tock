@@ -131,12 +131,11 @@ In occam-pi I could possibly use the channel-ends properly, but in occam 2.1 I h
 
 --{{{  top-level
 generateCPPCSP :: A.Process -> PassM String
-generateCPPCSP = generate cppgenOps
+generateCPPCSP = generate cppgenOps "<tock_support_cppcsp.h>"
 
 cppgenTopLevel :: GenOps -> A.Process -> CGen ()
 cppgenTopLevel ops p
-    =  do tell ["#include <tock_support_cppcsp.h>\n"]
-          call genProcess ops p
+    =  do call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           tell ["csp::One2OneChannel<uint8_t> in,out,err;"] --TODO add streamreader

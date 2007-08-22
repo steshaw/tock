@@ -216,15 +216,15 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generate :: GenOps -> A.Process -> PassM String
-generate ops ast
+generate :: GenOps -> String -> A.Process -> PassM String
+generate ops headerFileName ast
     =  do (a, w) <- runWriterT (call genTopLevel ops ast)
           gds <- getGeneratedDefs
-          let out = ["#include <tock_support.h>\n"] ++ gds ++ w
+          let out = ["#include ",headerFileName,"\n"] ++ gds ++ w
           return $ concat out
 
 generateC :: A.Process -> PassM String
-generateC = generate cgenOps
+generateC = generate cgenOps "<tock_support.h>"
 
 cgenTLPChannel :: GenOps -> TLPChannel -> CGen ()
 cgenTLPChannel _ TLPIn = tell ["in"]
