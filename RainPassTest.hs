@@ -168,6 +168,14 @@ testRecordDeclNames0 = testPassWithStateCheck "testRecordDeclNames0" exp (record
     check state = assertVarDef "testRecordDeclNames0" state "c" 
       (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
 
+testRecordDeclNames1 :: Test
+testRecordDeclNames1 = testPassWithStateCheck "testRecordDeclNames1" exp (recordDeclNameTypes orig) (return ()) check
+  where
+    orig = (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m))
+    exp = orig
+    check state = assertVarDef "testRecordDeclNames1" state "foo" 
+      (tag7 A.NameDef DontCare "foo" "foo" A.VariableName (A.Proc m A.PlainSpec [] (A.Skip m)) A.Original A.Unplaced)      
+
 -- | checks that c's type is recorded in: ***each (c : "hello") {}
 testRecordInfNames0 :: Test
 testRecordInfNames0 = testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
@@ -218,6 +226,7 @@ tests = TestList
    ,testUnique1
    ,testUnique2
    ,testRecordDeclNames0
+   ,testRecordDeclNames1
    ,testRecordInfNames0
    ,testRecordInfNames1
    ,testRecordInfNames2
