@@ -78,8 +78,6 @@ sSeqeach = reserved "seqeach"
 sPareach = reserved "pareach"
 sChannel = reserved "channel"
 sOne2One = reserved "one2one"
-sBool = reserved "bool"
-sInt = reserved "int"
 sIf = reserved "if"
 sElse = reserved "else"
 sWhile = reserved "while"
@@ -121,8 +119,16 @@ name
 
 dataType :: RainParser A.Type
 dataType 
-  = do {sBool ; return A.Bool}
-    <|> do {sInt ; return A.Int}
+  = do {reserved "bool" ; return A.Bool}
+    <|> do {reserved "int" ; return A.Int}
+    <|> do {reserved "uint8" ; return A.Byte}
+    <|> do {reserved "uint16" ; return A.UInt16}
+    <|> do {reserved "uint32" ; return A.UInt32}
+    <|> do {reserved "uint64" ; return A.UInt64}
+    <|> do {reserved "sint8" ; return A.Int8}
+    <|> do {reserved "sint16" ; return A.Int16}
+    <|> do {reserved "sint32" ; return A.Int32}
+    <|> do {reserved "sint64" ; return A.Int64}    
     <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
