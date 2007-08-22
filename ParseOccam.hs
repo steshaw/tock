@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Parse occam code into an AST.
-module Parse (parseOccamProgram) where
+module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (liftM, when)
 import Control.Monad.Error (runErrorT)

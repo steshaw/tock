@@ -32,7 +32,7 @@ import CompState
 import Errors
 import GenerateC
 import GenerateCPPCSP
-import Parse
+import ParseOccam
 import Pass
 import PreprocessOccam
 import PrettyShow
