@@ -22,6 +22,8 @@ import TestUtil
 import qualified AST as A
 import Pass
 import Data.Generics
+import qualified Data.Map as Map
+import Control.Monad.State
 import Types
 import CompState
 import Errors
@@ -30,7 +32,8 @@ rainPasses :: [(String,Pass)]
 rainPasses = 
      [ ("Resolve Int -> Int64",transformInt)
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars)
-       ,("Record inferred name types in dictionary",recordInfNameTypes)
+       ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
+       ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
 
@@ -93,6 +96,18 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
            return input
     recordInfNameTypes' r = return r
 
+findMain :: Data t => t -> PassM t
+--Because findMain runs after uniquifyAndResolveVars, the types of all the process will have been recorded
+--Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
+--in the CompState, and pull it out into csMainLocals
+findMain x = do st <- get
+                put (findMain' st)
+                return x
+  where
+    findMain' :: CompState -> CompState 
+    findMain' st = case (Map.lookup "main" (csNames st)) of
+      Just n -> st {csMainLocals = [("main",A.Name {A.nameName = "main", A.nameMeta = A.ndMeta n, A.nameType = A.ndNameType n})]}
+      Nothing -> st 
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')

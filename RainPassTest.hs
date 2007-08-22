@@ -228,6 +228,39 @@ testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTyp
   where
     orig = A.Rep m (A.ForEach m (simpleName "c") (intLiteral 0)) skipP
 
+--Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
+(>>>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+(>>>) f0 f1 x = (f0 x) >>= f1
+
+testFindMain0 :: Test
+testFindMain0 = testPassWithStateCheck "testFindMain0" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
+    check state = assertEqual "testFindMain0" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+
+testFindMain1 :: Test
+testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
+    check state = assertEqual "testFindMain1" [] (csMainLocals state)
+    
+testFindMain2 :: Test
+testFindMain2 = testPassWithStateCheck "testFindMain2" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
+             A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+               A.Several m []
+    check state = assertEqual "testFindMain2" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+
+testFindMain3 :: Test
+testFindMain3 = testPassWithStateCheck "testFindMain3" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
+             A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+               A.Several m []
+    check state = assertEqual "testFindMain3" [("main",(A.Name m A.ProcName "main"))] (csMainLocals state)
+
+
 --Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -242,6 +275,10 @@ tests = TestList
    ,testRecordInfNames1
    ,testRecordInfNames2
    ,testRecordInfNames3
+   ,testFindMain0
+   ,testFindMain1
+   ,testFindMain2
+   ,testFindMain3
  ]
 
 
