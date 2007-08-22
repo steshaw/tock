@@ -74,7 +74,8 @@ testEachPass0 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach o
                  (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
                  (tag3 A.Spec DontCare 
                    (tag3 A.Specification DontCare (simpleName "c") 
-                     (tag4 A.Is DontCare A.Abbrev A.Byte
+                     --ValAbbrev because we are abbreviating an expression:
+                     (tag4 A.Is DontCare A.ValAbbrev A.Byte 
                        (tag3 A.SubscriptedVariable DontCare 
                          (tag2 A.Subscript DontCare (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
                          listVar

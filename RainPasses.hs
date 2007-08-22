@@ -135,11 +135,11 @@ transformEach = everywhereM (mkM transformEach')
   where
     transformEach' :: A.Structured -> PassM A.Structured
     transformEach' (A.Rep m (A.ForEach m' loopVar loopExp) s)
-      = do (spec,var) <- case loopExp of
-             (A.ExprVariable _ v) -> return (id,v)
+      = do (spec,var,am) <- case loopExp of
+             (A.ExprVariable _ v) -> return (id,v,A.Abbrev)
              _ -> do t <- typeOfExpression loopExp
                      spec@(A.Specification _ n' _) <- makeNonceIsExpr "loopVar" m t loopExp 
-                     return (A.Spec m spec,A.Variable m n')
+                     return (A.Spec m spec,A.Variable m n',A.ValAbbrev)
            --spec is a function A.Structured -> A.Structured, var is an A.Variable
            
            loopVarType <- typeOfName loopVar
@@ -148,7 +148,7 @@ transformEach = everywhereM (mkM transformEach')
            let newRep = A.For m' loopIndexName (intLiteral 0) (A.SizeVariable m' var)
            let s' = A.Spec m'
                  (A.Specification m' loopVar
-                   (A.Is m' A.Abbrev loopVarType
+                   (A.Is m' am loopVarType
                      (A.SubscriptedVariable m' (A.Subscript m' (A.ExprVariable m' (A.Variable m' loopIndexName)))  var)
                    )
                  )
