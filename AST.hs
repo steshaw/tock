@@ -74,8 +74,12 @@ data NameDef = NameDef {
   }
   deriving (Show, Eq, Typeable, Data)
 
--- | The direction of a channel -- input (reading-end), output (writing-end) or unknown (either)
-data Direction = DirInput | DirOutput | DirUnknown
+-- | The direction of a channel.
+data Direction =
+  DirInput         -- ^ The input end.
+  | DirOutput      -- ^ The output end.
+  | DirUnknown     -- ^ Either direction; either this is a whole channel,
+                   -- or its direction is to be figured out later.
   deriving (Show, Eq, Typeable, Data)
 
 -- | Attributes of the type of a channel.
