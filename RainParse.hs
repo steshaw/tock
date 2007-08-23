@@ -245,6 +245,9 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember :: RainParser (A.Name,A.Type)
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
+declaration :: RainParser (A.Structured -> A.Structured)
+declaration = return id
+
 topLevelDecl :: RainParser A.Structured
 topLevelDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m

@@ -251,6 +251,27 @@ testDataType =
   ,fail ("bool!",RP.dataType)
   ,fail ("int?int",RP.dataType)  
  ]
+ 
+testDecl :: [ParseTest (A.Structured -> A.Structured)]
+testDecl =
+ [
+  passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare A.Bool)
+  ,passd ("uint8: x;",0,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
+  ,passd ("?bool: bc;",0,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
+  
+  ,fail ("bool:;",RP.declaration)
+  ,fail ("bool;",RP.declaration)
+  ,fail (":b;",RP.declaration)
+  ,fail ("bool:b",RP.declaration)
+  ,fail ("bool b",RP.declaration)
+  ,fail ("bool b;",RP.declaration)
+  ,fail ("bool:?b;",RP.declaration)
+ ]
+ where
+   passd :: (String,Int,Pattern) -> ParseTest (A.Structured -> A.Structured)
+   passd (code,index,exp) = pass(code,RP.declaration,check ("testDecl " ++ (show index)) exp)
+   check :: String -> Pattern -> (A.Structured -> A.Structured) -> Assertion
+   check msg spec act = assertPatternMatch msg (tag3 A.Spec DontCare spec $ A.Several m []) (act $ A.Several m [])
 
 testComm :: [ParseTest A.Process]
 testComm =
@@ -279,6 +300,7 @@ tests = TestList
   parseTests testAssign,
   parseTests testDataType,
   parseTests testComm,
+  parseTests testDecl,
   parseTests testTopLevelDecl
  ]
 --TODO test:
