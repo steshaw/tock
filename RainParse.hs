@@ -220,8 +220,10 @@ each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sR
              return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
 
 comm :: RainParser A.Process
-comm = do { lv <- lvalue ; sOut ; exp <- expression ; sSemiColon ;
-            return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] }
+comm = do { lv <- lvalue ; 
+              do {sOut ; exp <- expression ; sSemiColon ; return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] }
+              <|> do {sIn ; rv <- lvalue ; sSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] }
+          }
 
 statement :: RainParser A.Process
 statement 
