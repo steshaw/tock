@@ -316,15 +316,16 @@ testBlock =
     (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
    ])
-  ,pass("{ uint8: x; a = b; b = c; }",RP.innerBlock,assertPatternMatch "testBlock 2" $ tag2 A.Several DontCare [tag3 A.Spec DontCare 
+  ,pass("{ uint8: x; a = b; b = c; }",RP.innerBlock,assertPatternMatch "testBlock 3" $ tag2 A.Several DontCare [tag3 A.Spec DontCare 
     (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]
    ])   
-  ,pass("{ b = c; uint8: x; a = b; }",RP.innerBlock,assertPatternMatch "testBlock 2" $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c",
+  ,pass("{ b = c; uint8: x; a = b; }",RP.innerBlock,assertPatternMatch "testBlock 4" $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c",
     tag3 A.Spec DontCare 
       (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
-   ])   
+   ])
+  ,fail("{b}",RP.innerBlock)
  ]
         
 testEach :: [ParseTest A.Process]
@@ -420,8 +421,8 @@ testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
 testDecl =
  [
   passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare A.Bool)
-  ,passd ("uint8: x;",0,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
-  ,passd ("?bool: bc;",0,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
+  ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
+  ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
   
   ,fail ("bool:;",RP.declaration)
   ,fail ("bool;",RP.declaration)
