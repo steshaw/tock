@@ -252,7 +252,7 @@ testDataType =
   ,fail ("int?int",RP.dataType)  
  ]
  
-testDecl :: [ParseTest (A.Structured -> A.Structured)]
+testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
 testDecl =
  [
   passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare A.Bool)
@@ -268,10 +268,10 @@ testDecl =
   ,fail ("bool:?b;",RP.declaration)
  ]
  where
-   passd :: (String,Int,Pattern) -> ParseTest (A.Structured -> A.Structured)
+   passd :: (String,Int,Pattern) -> ParseTest (Meta, A.Structured -> A.Structured)
    passd (code,index,exp) = pass(code,RP.declaration,check ("testDecl " ++ (show index)) exp)
-   check :: String -> Pattern -> (A.Structured -> A.Structured) -> Assertion
-   check msg spec act = assertPatternMatch msg (tag3 A.Spec DontCare spec $ A.Several m []) (act $ A.Several m [])
+   check :: String -> Pattern -> (Meta, A.Structured -> A.Structured) -> Assertion
+   check msg spec (_,act) = assertPatternMatch msg (tag3 A.Spec DontCare spec $ A.Several m []) (act $ A.Several m [])
 
 testComm :: [ParseTest A.Process]
 testComm =
