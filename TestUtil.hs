@@ -42,6 +42,9 @@ simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A
 procName :: String -> A.Name
 procName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.ProcName }
 
+typeName :: String -> A.Name
+typeName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.DataTypeName }
+
 simpleNamePattern :: String -> Pattern
 simpleNamePattern s = tag3 A.Name DontCare A.VariableName s
 

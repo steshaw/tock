@@ -132,6 +132,7 @@ dataType
     <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n, A.nameType = A.DataTypeName}}
     <?> "data type"
 
 variableId :: RainParser A.Variable
@@ -260,7 +261,7 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
 declaration :: RainParser (Meta,A.Structured -> A.Structured)
-declaration = do {t <- dataType; sColon ; n <- name ; sSemiColon ; 
+declaration = try $ do {t <- dataType; sColon ; n <- name ; sSemiColon ; 
   return (findMeta t, A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t) }
 
 topLevelDecl :: RainParser A.Structured

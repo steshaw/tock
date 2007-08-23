@@ -295,9 +295,10 @@ testDataType =
   ,pass ("sint16",RP.dataType,assertEqual "testDataType 7" A.Int16)
   ,pass ("sint32",RP.dataType,assertEqual "testDataType 8" A.Int32)
   ,pass ("sint64",RP.dataType,assertEqual "testDataType 9" A.Int64)
-  ,fail ("boolean",RP.dataType)
-  ,fail ("uint24",RP.dataType)
-  ,fail ("int0",RP.dataType)
+  ,pass ("boolean",RP.dataType,assertEqual "testDataType 10" $ A.UserDataType $ typeName "boolean")
+  ,pass ("uint24",RP.dataType,assertEqual "testDataType 11" $ A.UserDataType $ typeName "uint24")
+  ,pass ("int0",RP.dataType,assertEqual "testDataType 12" $ A.UserDataType $ typeName "int0")
+  ,fail ("bool bool",RP.dataType)
   
   ,pass ("?int",RP.dataType,assertEqual "testDataType 102" $ A.Chan A.DirInput nonShared A.Int)
   ,pass ("! bool",RP.dataType,assertEqual "testDataType 103" $ A.Chan A.DirOutput nonShared A.Bool)
