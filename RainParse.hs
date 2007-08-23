@@ -303,11 +303,19 @@ declaration :: RainParser (Meta,A.Structured -> A.Structured)
 declaration = try $ do {t <- dataType; sColon ; n <- name ; sSemiColon ; 
   return (findMeta t, A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t) }
 
-topLevelDecl :: RainParser A.Structured
-topLevelDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
+terminator :: A.Structured
+terminator = (A.OnlyP emptyMeta $ A.Main emptyMeta)
+
+processDecl :: RainParser A.Structured
+processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m
     (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
-  (A.OnlyP m $ A.Main m)}
+  terminator}
+
+topLevelDecl :: RainParser A.Structured
+topLevelDecl = do decls <- many processDecl
+                  eof
+                  return $ A.Several emptyMeta decls
 
 rainSourceFile :: RainParser (A.Process, CompState)
 rainSourceFile
