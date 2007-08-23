@@ -184,10 +184,15 @@ subExpression
     <?> "[sub-]expression"
 
 innerBlock :: RainParser A.Structured
-innerBlock = do {m <- sLeftC ; procs <- (many statement) ; sts <- sequence (map wrapProc procs) ; sRightC ; return $ A.Several m sts}
+innerBlock = do {m <- sLeftC ; lines <- linesToEnd ; return $ A.Several m lines}
   where
-    wrapProc :: A.Process -> RainParser A.Structured
-    wrapProc x = return (A.OnlyP (findMeta x) x)
+    wrapProc :: A.Process -> A.Structured
+    wrapProc x = A.OnlyP (findMeta x) x
+    linesToEnd :: RainParser [A.Structured]
+    linesToEnd = do {(m,decl) <- declaration ; rest <- linesToEnd ; return [decl $ A.Several m rest]}
+                 <|> do {st <- statement ; rest <- linesToEnd ; return $ (wrapProc st) : rest}
+                 <|> do {sRightC ; return []}
+                 <?> "statement, declaration, or end of block"
 
 block :: RainParser A.Process
 block = do { optionalSeq ; b <- innerBlock ; return $ A.Seq (findMeta b) b}
