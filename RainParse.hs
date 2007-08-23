@@ -81,6 +81,7 @@ sIf = reserved "if"
 sElse = reserved "else"
 sWhile = reserved "while"
 sProcess = reserved "process"
+sRun = reserved "run"
 --}}}
 
 --{{{Operators
@@ -272,6 +273,20 @@ comm = do { lv <- lvalue ;
               <|> do {sIn ; rv <- lvalue ; sSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] }
           }
 
+tuple :: RainParser [A.Expression]
+tuple = do { sLeftR ; items <- expression `sepBy` sComma ; sRightR ; return items }
+
+runProcess :: RainParser A.Process
+runProcess = do m <- sRun
+                (mProcess,processName) <- identifier
+                items <- tuple
+                sSemiColon
+                return $ A.ProcCall m A.Name {A.nameName = processName, A.nameMeta = mProcess, A.nameType = A.ProcName} (map convertItem items)
+  where
+    convertItem :: A.Expression -> A.Actual
+    convertItem (A.ExprVariable _ v) = A.ActualVariable A.Original A.Any v
+    convertItem e = A.ActualExpression A.Any e
+
 statement :: RainParser A.Process
 statement 
   = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; return $ A.While m exp st}
@@ -281,6 +296,7 @@ statement
            }
     <|> block
     <|> each
+    <|> runProcess
     <|> try comm
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
