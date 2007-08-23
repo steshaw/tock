@@ -64,11 +64,97 @@ testParseFail (text,prod)
     where parser = do { p <- prod ; eof ; return p}
 
 
-testExp0 = pass ("b",RP.expression,      
-  assertEqual "Variable Expression Test" (exprVariable "b") )
+data ExprHelper = Dy ExprHelper A.DyadicOp ExprHelper | Mon A.MonadicOp ExprHelper | Cast A.Type ExprHelper | Var String | Lit A.Expression
 
-testExp1 = pass ("b == c",RP.expression,      
-  assertEqual "Operator Expression Test" $ A.Dyadic emptyMeta A.Eq (exprVariable "b") (exprVariable "c") )
+buildExprPattern :: ExprHelper -> Pattern
+buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
+buildExprPattern (Mon op rhs) = tag3 A.Monadic DontCare op (buildExprPattern rhs)
+buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion (stopCaringPattern m $ mkPattern ty) (buildExprPattern rhs)
+buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
+buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
+
+
+--You are allowed to chain arithmetic operators without brackets, but not comparison operators
+-- (the meaning of "b == c == d" is obscure enough to be dangerous, even if it passes the type checker)
+--All arithmetic operators bind at the same level, which is a closer binding than all comparison operators.
+--To clear that up, here's some BNF:
+-- expression ::= comparisonExpression | subExpr | dataType ":" expression
+-- comparsionExpression ::= subExpr comparisonOp subExpr
+-- subExpr ::= exprItem | monadicArithOp subExpr | subExpr dyadicArithOp subExpr | "(" expression ")"
+-- exprItem ::= identifier | literal
+
+-- Partially left-factor subExpr:
+--subExpr ::= subExpr' | subExpr' dyadicArithOp subExpr
+--subExpr' ::= exprItem | monadicArithOp subExpr' | "(" expression ")"
+
+
+testExprs :: [ParseTest A.Expression]
+testExprs =
+ [
+  --Just a variable:
+  passE ("b", -1, Var "b" )
+
+  --Dyadic operators:
+  ,passE ("b + c", 0 ,Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("b == c", 1 ,Dy (Var "b") A.Eq (Var "c") )
+  ,passE ("(b + c)", 2 ,Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("(b == c)", 3 ,Dy (Var "b") A.Eq (Var "c") )
+  ,passE ("((b + c))", 4 ,Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("((b == c))", 5 ,Dy (Var "b") A.Eq (Var "c") )
+  ,passE ("b - c", 6 ,Dy (Var "b") A.Minus (Var "c" ))
+  ,passE ("b + c + d", 7, Dy (Dy (Var "b") A.Plus (Var "c")) A.Plus (Var "d") )
+  ,passE ("(b + c) + d", 8, Dy (Dy (Var "b") A.Plus (Var "c")) A.Plus (Var "d") )
+  ,passE ("b + (c + d)", 9, Dy (Var "b") A.Plus (Dy (Var "c") A.Plus (Var "d")) )
+
+  ,passE ("b - c * d / e", 10, Dy (Dy (Dy (Var "b") A.Minus (Var "c")) A.Times (Var "d")) A.Div (Var "e") )
+
+  ,passE ("b + c == d * e", 11, Dy (Dy (Var "b") A.Plus (Var "c")) A.Eq (Dy (Var "d") A.Times (Var "e")) )
+  ,passE ("(b + c) == d * e", 12, Dy (Dy (Var "b") A.Plus (Var "c")) A.Eq (Dy (Var "d") A.Times (Var "e")) )
+  ,passE ("b + c == (d * e)", 13, Dy (Dy (Var "b") A.Plus (Var "c")) A.Eq (Dy (Var "d") A.Times (Var "e")) )
+  ,passE ("(b + c) == (d * e)", 14, Dy (Dy (Var "b") A.Plus (Var "c")) A.Eq (Dy (Var "d") A.Times (Var "e")) )
+  ,passE ("(b == c) + (d == e)", 15, Dy (Dy (Var "b") A.Eq (Var "c")) A.Plus (Dy (Var "d") A.Eq (Var "e")) )
+  ,passE ("(b == c) + d == e", 16, Dy (Dy (Dy (Var "b") A.Eq (Var "c")) A.Plus (Var "d")) A.Eq (Var "e") )
+  ,passE ("(b == c) == (d == e)", 17, Dy (Dy (Var "b") A.Eq (Var "c")) A.Eq (Dy (Var "d") A.Eq (Var "e")) )
+  ,passE ("(b == c) == d", 18, Dy (Dy (Var "b") A.Eq (Var "c")) A.Eq (Var "d") )
+
+  ,failE ("b == c + d == e")
+  ,failE ("b == c == d")
+  ,failE ("b < c < d")
+  ,failE ("b + c == d + e <= f")
+
+  --Monadic operators:
+
+  ,passE ("-b", 101, Mon A.MonadicSubtr (Var "b") )
+  ,failE ("+b")
+  ,passE ("a - - b", 102, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
+  ,passE ("a--b", 103, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
+  ,passE ("a---b", 104, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
+  ,passE ("-b+c", 105, Dy (Mon A.MonadicSubtr $ Var "b") A.Plus (Var "c") )
+  ,passE ("-(b+c)", 106, Mon A.MonadicSubtr $ Dy (Var "b") A.Plus (Var "c") )
+
+  --Casting:
+
+  ,passE ("bool: b", 201, Cast A.Bool (Var "b"))
+  ,passE ("mytype: b", 202, Cast (A.UserDataType $ typeName "mytype") (Var "b"))
+    --Should at least parse:
+  ,passE ("uint8 : true", 203, Cast A.Byte $ Lit (A.True m) )
+  ,passE ("uint8 : b == c", 204, Cast A.Byte $ Dy (Var "b") A.Eq (Var "c") )
+  ,passE ("uint8 : b + c", 205, Cast A.Byte $ Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("uint8 : b + c == d * e", 206, Cast A.Byte $ Dy (Dy (Var "b") A.Plus (Var "c")) A.Eq (Dy (Var "d") A.Times (Var "e")) )
+  ,passE ("uint8 : b + (uint8 : c)", 207, Cast A.Byte $ Dy (Var "b") A.Plus (Cast A.Byte $ Var "c") )
+  ,passE ("(uint8 : b) + (uint8 : c)", 208, Dy (Cast A.Byte $ Var "b") A.Plus (Cast A.Byte $ Var "c") )
+  ,passE ("uint8 : b == (uint8 : c)", 209, Cast A.Byte $ Dy (Var "b") A.Eq (Cast A.Byte $ Var "c") )
+  ,passE ("(uint8 : b) == (uint8 : c)", 210, Dy (Cast A.Byte $ Var "b") A.Eq (Cast A.Byte $ Var "c") )
+  ,failE ("uint8 : b + uint8 : c")
+  ,failE ("uint8 : b == uint8 : c")
+  ,failE ("(uint8 : b) + uint8 : c")
+  ,failE ("(uint8 : b) == uint8 : c")
+
+ ]
+ where
+   passE :: (String,Int,ExprHelper) -> ParseTest A.Expression
+   passE (code,index,expr) = pass(code,RP.expression,assertPatternMatch ("testExprs " ++ show index) (buildExprPattern expr))
+   failE x = fail (x,RP.expression)
 
 testLiteral :: [ParseTest A.Expression]
 testLiteral =
@@ -368,7 +454,7 @@ testComm =
 tests :: Test
 tests = TestList
  [
-  parseTest testExp0,parseTest testExp1,
+  parseTests testExprs,
   parseTests testLiteral,
   parseTests testWhile,
   parseTests testSeq,
