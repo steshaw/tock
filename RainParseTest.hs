@@ -343,7 +343,7 @@ testComm =
   --Output:
   pass ("c ! x;",RP.statement,assertEqual "testComm 0" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
   ,pass ("c!x;",RP.statement,assertEqual "testComm 1" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
-  ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Add (intLiteral 0) (exprVariable "x")])
+  ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Plus (intLiteral 0) (exprVariable "x")])
   ,fail ("c!x",RP.statement)
   ,fail ("c!x!y;",RP.statement)  
   ,fail ("c!x,y;",RP.statement)
