@@ -103,7 +103,7 @@ dyadicCompOp
 
 monadicArithOp :: RainParser (Meta,A.MonadicOp)
 monadicArithOp
-  = do {m <- reserved "-" ; return (m,A.MonadicSubtr) }
+  = do {m <- reserved "-" ; return (m,A.MonadicMinus) }
 
 
 

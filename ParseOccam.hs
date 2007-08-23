@@ -1010,7 +1010,8 @@ intrinsicFunctionSingle
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
-    =   do { reserved "-" <|> sMINUS; return A.MonadicSubtr }
+    =   do { reserved "-"; return A.MonadicSubtr }
+    <|> do { sMINUS; return A.MonadicMinus }
     <|> do { reserved "~" <|> sBITNOT; return A.MonadicBitNot }
     <|> do { sNOT; return A.MonadicNot }
     <?> "monadic operator"

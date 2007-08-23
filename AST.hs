@@ -275,6 +275,7 @@ data ExpressionList =
 -- Nothing to do with Haskell monads.
 data MonadicOp =
   MonadicSubtr
+  | MonadicMinus
   | MonadicBitNot
   | MonadicNot
   deriving (Show, Eq, Typeable, Data)

@@ -185,6 +185,7 @@ evalMonadic :: A.MonadicOp -> OccValue -> EvalM OccValue
 -- This, oddly, is probably the most important rule here: "-4" isn't a literal
 -- in occam, it's an operator applied to a literal.
 evalMonadic A.MonadicSubtr a = evalMonadicOp negate a
+evalMonadic A.MonadicMinus a = evalMonadicOp negate a
 evalMonadic A.MonadicBitNot a = evalMonadicOp complement a
 evalMonadic A.MonadicNot (OccBool b) = return $ OccBool (not b)
 evalMonadic _ _ = throwError "bad monadic op"

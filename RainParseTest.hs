@@ -124,13 +124,13 @@ testExprs =
 
   --Monadic operators:
 
-  ,passE ("-b", 101, Mon A.MonadicSubtr (Var "b") )
+  ,passE ("-b", 101, Mon A.MonadicMinus (Var "b") )
   ,failE ("+b")
-  ,passE ("a - - b", 102, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
-  ,passE ("a--b", 103, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
-  ,passE ("a---b", 104, Dy (Var "a") A.Minus (Mon A.MonadicSubtr $ Mon A.MonadicSubtr $ Var "b") ) --TODO change this to MonadicMinus
-  ,passE ("-b+c", 105, Dy (Mon A.MonadicSubtr $ Var "b") A.Plus (Var "c") )
-  ,passE ("-(b+c)", 106, Mon A.MonadicSubtr $ Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("a - - b", 102, Dy (Var "a") A.Minus (Mon A.MonadicMinus $ Var "b") )
+  ,passE ("a--b", 103, Dy (Var "a") A.Minus (Mon A.MonadicMinus $ Var "b") )
+  ,passE ("a---b", 104, Dy (Var "a") A.Minus (Mon A.MonadicMinus $ Mon A.MonadicMinus $ Var "b") )
+  ,passE ("-b+c", 105, Dy (Mon A.MonadicMinus $ Var "b") A.Plus (Var "c") )
+  ,passE ("-(b+c)", 106, Mon A.MonadicMinus $ Dy (Var "b") A.Plus (Var "c") )
 
   --Casting:
 

@@ -106,6 +106,7 @@ data GenOps = GenOps {
     genFormal :: GenOps -> A.Formal -> CGen (),
     genFormals :: GenOps -> [A.Formal] -> CGen (),
     genFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen (),
+    genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
     genInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen (),
@@ -191,6 +192,7 @@ cgenOps = GenOps {
     genFormal = cgenFormal,
     genFormals = cgenFormals,
     genFuncDyadic = cgenFuncDyadic,
+    genFuncMonadic = cgenFuncMonadic,
     genIf = cgenIf,
     genInput = cgenInput,
     genInputCase = cgenInputCase,
@@ -826,8 +828,19 @@ cgenSimpleMonadic ops s e
           call genExpression ops e
           tell [")"]
 
+cgenFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen ()
+cgenFuncMonadic ops m s e
+    =  do t <- typeOfExpression e
+          call genTypeSymbol ops s t
+          tell [" ("]
+          call genExpression ops e
+          tell [", "]
+          genMeta m
+          tell [")"]
+
 cgenMonadic :: GenOps -> Meta -> A.MonadicOp -> A.Expression -> CGen ()
-cgenMonadic ops _ A.MonadicSubtr e = call genSimpleMonadic ops "-" e
+cgenMonadic ops m A.MonadicSubtr e = call genFuncMonadic ops m "negate" e
+cgenMonadic ops _ A.MonadicMinus e = call genSimpleMonadic ops "-" e
 cgenMonadic ops _ A.MonadicBitNot e = call genSimpleMonadic ops "~" e
 cgenMonadic ops _ A.MonadicNot e = call genSimpleMonadic ops "!" e
 
