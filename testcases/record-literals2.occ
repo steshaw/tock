@@ -1,0 +1,13 @@
+-- From cgtest56
+
+PROC record.literals()
+  DATA TYPE contains.array
+    RECORD
+      BYTE b :
+      [3]INT a :
+      INT i :
+  :
+  [2]contains.array aca :
+  aca := [['a', [2,3,4], 6],['b', [3,4,5], 7]]
+:
+

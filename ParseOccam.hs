@@ -684,8 +684,11 @@ makeLiteral x@(A.Literal m t lr) wantT
             -- representation.
             (A.Record _, A.ArrayLiteral ml aes)  ->
               do fs <- recordFields m underT
-                 es <- sequence [makeLiteral e t
-                                 | ((_, t), A.ArrayElemExpr e) <- zip fs aes]
+                 es <- sequence [case ae of
+                                   A.ArrayElemExpr e -> makeLiteral e t
+                                   A.ArrayElemArray aes ->
+                                     makeLiteral (A.Literal m t $ A.ArrayLiteral ml aes) t
+                                 | ((_, t), ae) <- zip fs aes]
                  return $ A.Literal m wantT (A.RecordLiteral ml es)
             -- Some other kind of literal (one of the trivial types).
             _ -> return $ A.Literal m wantT lr
