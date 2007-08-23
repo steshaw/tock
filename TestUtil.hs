@@ -58,10 +58,10 @@ variablePattern e = tag2 A.Variable DontCare (simpleNamePattern e)
 exprVariable :: String -> A.Expression
 exprVariable e = A.ExprVariable m $ variable e
 
-intLiteral :: Int -> A.Expression
+intLiteral :: Integer -> A.Expression
 intLiteral n = A.Literal m A.Int $ A.IntLiteral m (show n)
 
-intLiteralPattern :: Int -> Pattern
+intLiteralPattern :: Integer -> Pattern
 intLiteralPattern = (stopCaringPattern m) . mkPattern . intLiteral
 
 makeNamesWR :: ([String],[String]) -> ([A.Variable],[A.Variable])

@@ -70,6 +70,47 @@ testExp0 = pass ("b",RP.expression,
 testExp1 = pass ("b == c",RP.expression,      
   assertEqual "Operator Expression Test" $ A.Dyadic emptyMeta A.Eq (exprVariable "b") (exprVariable "c") )
 
+testLiteral :: [ParseTest A.Expression]
+testLiteral =
+ [
+  --Int literals: 
+  pass ("0", RP.literal, assertEqual "testLiteral 0" (intLiteral 0))
+  --2^32:
+  ,pass ("4294967296", RP.literal, assertEqual "testLiteral 1" (intLiteral 4294967296))
+  --2^64:
+  ,pass ("18446744073709551616", RP.literal, assertEqual "testLiteral 2" (intLiteral 18446744073709551616))  
+  --2^100:  We should be able to parse this, but it will be rejected at a later stage:
+  ,pass ("1267650600228229401496703205376", RP.literal, assertEqual "testLiteral 3" (intLiteral 1267650600228229401496703205376))  
+  
+  --Non-integers currently unsupported:
+  ,fail ("0.",RP.literal)
+  ,fail ("0.0",RP.literal)
+  ,fail (".0",RP.literal)
+  ,fail ("0x0",RP.literal)
+  ,fail ("0a0",RP.literal)
+  ,fail ("0a",RP.literal)
+  
+  --Identifiers are not literals (except true and false):
+  ,pass ("true", RP.literal, assertEqual "testLiteral 100" (A.True m))
+  ,pass ("false", RP.literal, assertEqual "testLiteral 101" (A.False m))
+  ,fail ("x",RP.literal)
+  ,fail ("x0",RP.literal)
+  ,fail ("TRUE",RP.literal)
+  ,fail ("FALSE",RP.literal)
+    
+  --Strings:
+  ,pass ("\"\"", RP.literal, assertPatternMatch "testLiteral 201" $ makeLiteralStringPattern "")
+  ,pass ("\"abc\"", RP.literal, assertPatternMatch "testLiteral 202" $ makeLiteralStringPattern "abc")
+  ,pass ("\"abc\\n\"", RP.literal, assertPatternMatch "testLiteral 203" $ makeLiteralStringPattern "abc\n")
+  ,pass ("\"a\\\"bc\"", RP.literal, assertPatternMatch "testLiteral 204" $ makeLiteralStringPattern "a\"bc")
+  ,fail ("\"",RP.literal)
+  ,fail ("\"\"\"",RP.literal)
+  ,fail ("a\"\"",RP.literal)
+  ,fail ("\"\"a",RP.literal)
+  ,fail ("\"\\\"",RP.literal)
+  
+ ]
+
 --Helper function for ifs:
 makeIf :: [(A.Expression,A.Process)] -> A.Process
 makeIf list = A.If m $ A.Several m (map makeChoice list)
@@ -327,6 +368,7 @@ tests :: Test
 tests = TestList
  [
   parseTest testExp0,parseTest testExp1,
+  parseTests testLiteral,
   parseTests testWhile,
   parseTests testSeq,
   parseTests testPar,
