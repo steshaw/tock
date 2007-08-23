@@ -42,6 +42,7 @@ $hexDigit = [0-9 a-f A-F]
           | "sint8" | "sint16" | "sint32" | "sint64"
           | "uint8" | "uint16" | "uint32" | "uint64"
           | "int" | "bool"
+          | "true" | "false"
 
 
 @identifier = [a-z A-Z _] [a-z A-Z 0-9 _]*
@@ -49,7 +50,7 @@ $hexDigit = [0-9 a-f A-F]
 $escapeChar = [cnrts \" \' \\ \n]
 @escape = \\ ( $escapeChar | \# $hexDigit $hexDigit )
 
-@stringLiteral = \" ( @escape | [^\"] )* \"
+@stringLiteral = \" ( @escape | [^\\\"] )* \"
 @charLiteral = \' ( @escape | [^\'] ) \'
 
 -- Note that occam number literals don't include their signs -- if you say
