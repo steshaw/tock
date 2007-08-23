@@ -70,6 +70,9 @@ makeNamesWR (x,y) = (map variable x,map variable y)
 makeSimpleAssign :: String -> String -> A.Process
 makeSimpleAssign dest src = A.Assign m [A.Variable m $ simpleName dest] (A.ExpressionList m [exprVariable src])
 
+makeSimpleAssignPattern :: String -> String -> Pattern
+makeSimpleAssignPattern lhs rhs = stopCaringPattern m $ mkPattern $ makeSimpleAssign lhs rhs
+
 makeSeq :: [A.Process] -> A.Process
 makeSeq procList = A.Seq m $ A.Several m (map (\x -> A.OnlyP m x) procList)
 

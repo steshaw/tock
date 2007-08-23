@@ -177,6 +177,28 @@ testPar =
   ,pass ("par { ; ; }",RP.statement,
     assertEqual "Par Skip Test" $ A.Par m A.PlainPar $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m (A.Skip m))] )      
  ]
+
+-- | Test innerBlock, particularly with declarations mixed with statements:
+testBlock :: [ParseTest A.Structured]
+testBlock =
+ [
+  pass("{ a = b; }",RP.innerBlock,assertPatternMatch "testBlock 0" (tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]) )
+  ,pass("{ a = b; b = c; }",RP.innerBlock,assertPatternMatch "testBlock 1" (tag2 A.Several DontCare 
+    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]) )
+  ,pass("{ uint8: x; a = b; }",RP.innerBlock,assertPatternMatch "testBlock 2" $ tag2 A.Several DontCare [tag3 A.Spec DontCare 
+    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
+   ])
+  ,pass("{ uint8: x; a = b; b = c; }",RP.innerBlock,assertPatternMatch "testBlock 2" $ tag2 A.Several DontCare [tag3 A.Spec DontCare 
+    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]
+   ])   
+  ,pass("{ b = c; uint8: x; a = b; }",RP.innerBlock,assertPatternMatch "testBlock 2" $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c",
+    tag3 A.Spec DontCare 
+      (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
+   ])   
+ ]
         
 testEach :: [ParseTest A.Process]
 testEach =
@@ -295,6 +317,7 @@ tests = TestList
   parseTests testWhile,
   parseTests testSeq,
   parseTests testPar,
+  parseTests testBlock,
   parseTests testEach,
   parseTests testIf,
   parseTests testAssign,
