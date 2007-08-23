@@ -298,6 +298,7 @@ testDecl =
 testComm :: [ParseTest A.Process]
 testComm =
  [
+  --Output:
   pass ("c ! x;",RP.statement,assertEqual "testComm 0" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
   ,pass ("c!x;",RP.statement,assertEqual "testComm 1" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
   ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Add (intLiteral 0) (exprVariable "x")])
@@ -307,6 +308,18 @@ testComm =
   ,fail ("c!;",RP.statement)
   ,fail ("!x;",RP.statement)
   ,fail ("c!!x;",RP.statement)  
+
+  --Input:
+  ,pass ("c ? x;",RP.statement, assertEqual "testComm 100" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
+  ,pass ("c?x;",RP.statement, assertEqual "testComm 101" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
+  --Fail for now, but later will probably become the extended rendezvous syntax:
+  ,fail ("c??x;",RP.statement)
+  ,fail ("c ? x + 0;",RP.statement)
+  ,fail ("?x;",RP.statement)
+  ,fail ("c ? x",RP.statement)
+  ,fail ("c ? ;",RP.statement)
+  ,fail ("c ? x ? y;",RP.statement)
+  ,fail ("c ? x , y;",RP.statement)  
  ]
         
 --Returns the list of tests:
