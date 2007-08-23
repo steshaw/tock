@@ -412,6 +412,8 @@ testDataType =
   ,fail ("int?",RP.dataType)
   ,fail ("bool!",RP.dataType)
   ,fail ("int?int",RP.dataType)  
+  
+  ,pass ("channel bool",RP.dataType,assertEqual "testDataType 200" $ A.Chan A.DirUnknown nonShared A.Bool)
  ]
  
 testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
