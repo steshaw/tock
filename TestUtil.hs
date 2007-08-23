@@ -61,6 +61,9 @@ variablePattern e = tag2 A.Variable DontCare (simpleNamePattern e)
 exprVariable :: String -> A.Expression
 exprVariable e = A.ExprVariable m $ variable e
 
+exprVariablePattern :: String -> Pattern
+exprVariablePattern e = tag2 A.ExprVariable DontCare $ variablePattern e
+
 intLiteral :: Integer -> A.Expression
 intLiteral n = A.Literal m A.Int $ A.IntLiteral m (show n)
 

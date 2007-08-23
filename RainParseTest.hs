@@ -464,6 +464,22 @@ testComm =
   ,fail ("c ? x ? y;",RP.statement)
   ,fail ("c ? x , y;",RP.statement)  
  ]
+
+testRun :: [ParseTest A.Process]
+testRun =
+ [
+  pass ("run foo();",RP.statement,assertPatternMatch "testRun 1" $ tag3 A.ProcCall DontCare (procNamePattern "foo") ([] :: [A.Actual]))
+  ,pass ("run foo(c);",RP.statement,assertPatternMatch "testRun 2" $ tag3 A.ProcCall DontCare (procNamePattern "foo") 
+    [tag3 A.ActualVariable A.Original A.Any (variablePattern "c")])
+  ,pass ("run foo(c,0+x);",RP.statement,assertPatternMatch "testRun 3" $ tag3 A.ProcCall DontCare (procNamePattern "foo")
+    [tag3 A.ActualVariable A.Original A.Any (variablePattern "c"),tag2 A.ActualExpression A.Any $ tag4 A.Dyadic DontCare A.Plus (intLiteralPattern 0) (exprVariablePattern "x")])  
+  ,fail ("run",RP.statement)
+  ,fail ("run;",RP.statement)
+  ,fail ("run ();",RP.statement)
+  ,fail ("run foo()",RP.statement)
+  ,fail ("run foo(,);",RP.statement)
+  
+ ]
         
 --Returns the list of tests:
 tests :: Test
@@ -480,6 +496,7 @@ tests = TestList
   parseTests testAssign,
   parseTests testDataType,
   parseTests testComm,
+  parseTests testRun,
   parseTests testDecl,
   parseTests testTopLevelDecl
  ]
