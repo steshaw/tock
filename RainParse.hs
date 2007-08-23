@@ -84,6 +84,31 @@ sWhile = reserved "while"
 sProcess = reserved "process"
 --}}}
 
+--{{{Operators
+
+dyadicArithOp :: RainParser (Meta,A.DyadicOp)
+dyadicArithOp
+  = do {m <- reserved "+" ; return (m,A.Plus) }
+    <|> do {m <- reserved "-" ; return (m,A.Minus) }
+    <|> do {m <- reserved "*" ; return (m,A.Times) }
+    <|> do {m <- reserved "/" ; return (m,A.Div) }
+
+dyadicCompOp :: RainParser (Meta,A.DyadicOp)
+dyadicCompOp
+  = do {m <- reserved "<" ; return (m,A.Less) }
+    <|> do {m <- reserved ">" ; return (m,A.More) }
+    <|> do {m <- reserved "<=" ; return (m,A.LessEq) }
+    <|> do {m <- reserved ">=" ; return (m,A.MoreEq) }
+    <|> do {m <- reserved "==" ; return (m,A.Eq) }
+
+monadicArithOp :: RainParser (Meta,A.MonadicOp)
+monadicArithOp
+  = do {m <- reserved "-" ; return (m,A.MonadicSubtr) }
+
+
+
+--}}}
+
 metaToPos :: Meta -> SourcePos
 metaToPos m = newPos (fromMaybe "" $ metaFile m) (metaLine m) (metaColumn m)
 
@@ -179,17 +204,32 @@ literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.A
 
 expression :: RainParser A.Expression
 expression
-  = do {lhs <- subExpression ; 
-           do {m <- sEquality ; rhs <- expression ; return $ A.Dyadic m A.Eq lhs rhs}
-           <|> do {return lhs}           
-       }
-       <?> "expression"
+  = try compExpression
+    <|> try castExpression
+    <|> try subExpression
+    <?> "expression"
+  where
+    castExpression :: RainParser A.Expression
+    castExpression = do {ty <- dataType ; m <- sColon ; e <- expression ; return $ A.Conversion m A.DefaultConversion ty e}
 
-subExpression :: RainParser A.Expression
-subExpression
-  = do {id <- variableId ; return $ A.ExprVariable (findMeta id) id}
-    <|> literal
-    <?> "[sub-]expression"
+    compExpression :: RainParser A.Expression
+    compExpression = do {lhs <- subExpression ; (m,op) <- dyadicCompOp ; rhs <- subExpression ; return $ A.Dyadic m op lhs rhs }
+
+    subExpression :: RainParser A.Expression
+    subExpression
+      = do se <- subExpr'
+           further <- many (do {(m, op) <- dyadicArithOp ; exp <- subExpr' ; return (m,op,exp)})
+           --further :: [(Meta,A.DyadicOp,A.Expression)]
+           return $ foldl foldOps se further
+
+    foldOps :: A.Expression -> (Meta,A.DyadicOp,A.Expression) -> A.Expression
+    foldOps lhs (m,op,rhs) = A.Dyadic m op lhs rhs
+
+    subExpr' :: RainParser A.Expression
+    subExpr' = do {id <- variableId ; return $ A.ExprVariable (findMeta id) id}
+               <|> literal
+               <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
+               <|> do {sLeftR ; e <- expression ; sRightR ; return e}
 
 innerBlock :: RainParser A.Structured
 innerBlock = do {m <- sLeftC ; lines <- linesToEnd ; return $ A.Several m lines}
