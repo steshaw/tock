@@ -267,14 +267,17 @@ testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTyp
 --TODO check recursive main function works
 
 testFindMain0 :: Test
-testFindMain0 = testPassWithStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain0 = testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
-    orig = proc "main"
-    exp = proc "____main"
-    check state = do assertEqual "testFindMain0 A" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
-                     assertVarDef "testFindMain0 B" state "____main"
-                       (tag7 A.NameDef DontCare "____main" "main" A.ProcName DontCare A.Original A.Unplaced)
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName (Named "main" DontCare)) $
+      tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) $ tag2 A.Several DontCare ([] :: [A.Structured])
+    check (items,state) 
+      = do mainName <- castAssertADI (Map.lookup "main" items)
+           assertNotEqual "testFindMain0 A" "main" mainName
+           assertEqual "testFindMain0 B" [(mainName,(A.Name m A.ProcName mainName))] (csMainLocals state)
+           assertVarDef "testFindMain0 C" state mainName
+                       (tag7 A.NameDef DontCare mainName "main" A.ProcName DontCare A.Original A.Unplaced)
 
 testFindMain1 :: Test
 testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
@@ -283,25 +286,18 @@ testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolve
     check state = assertEqual "testFindMain1" [] (csMainLocals state)
     
 testFindMain2 :: Test
-testFindMain2 = testPassWithStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain2 = testPassWithItemsStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
-                  A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
-                    A.Several m []
-    orig = proc "main"
-    exp = proc "____main"
-    check state = assertEqual "testFindMain2" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
-
-testFindMain3 :: Test
-testFindMain3 = testPassWithStateCheck "testFindMain3" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
-  where
-    proc name = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ 
-                  A.Spec m (A.Specification m (A.Name m A.ProcName name) $ A.Proc m A.PlainSpec [] (A.Skip m)) $
-                    A.Several m []
-    orig = proc "main"
-    exp = proc "____main"
-    check state = assertEqual "testFindMain3" [("____main",(A.Name m A.ProcName "____main"))] (csMainLocals state)
-
+    inner = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+               A.Several m []
+    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) inner
+             
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName (Named "main" DontCare)) $
+      tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) (stopCaringPattern m $ mkPattern inner)
+    check (items,state) 
+      = do mainName <- castAssertADI (Map.lookup "main" items)
+           assertNotEqual "testFindMain2 A" "main" mainName
+           assertEqual "testFindMain2 B" [(mainName,(A.Name m A.ProcName mainName))] (csMainLocals state)
 
 --Returns the list of tests:
 tests :: Test
@@ -321,7 +317,6 @@ tests = TestList
    ,testFindMain0
    ,testFindMain1
    ,testFindMain2
-   ,testFindMain3
  ]
 
 
