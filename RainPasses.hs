@@ -27,6 +27,7 @@ import Control.Monad.State
 import Types
 import CompState
 import Errors
+import Metadata
 
 rainPasses :: [(String,Pass)]
 rainPasses = 
@@ -139,7 +140,38 @@ findMain x = do newMainName <- makeNonce "main_"
     
 -- | Finds all the ProcCall in the AST, and checks that the actual parameters are valid inputs, given the Formal parameters in the process's type
 matchParamPass :: Data t => t -> PassM t
-matchParamPass = return
+matchParamPass = everywhereM (mkM matchParamPass')
+  where
+    matchParamPass' :: A.Process -> PassM A.Process
+    matchParamPass' (A.ProcCall m n actualParams)
+      = do def <- lookupNameOrError n $ dieP m ("Process name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
+           case A.ndType def of
+             A.Proc _ _ expectedParams _ ->
+               if (length expectedParams) == (length actualParams)
+               then do transActualParams <- mapM (doParam m (A.nameName n)) (zip3 [0..] expectedParams actualParams)
+                       return $ A.ProcCall m n transActualParams
+               else dieP m $ "Wrong number of parameters given to process call; expected: " ++ show (length expectedParams) ++ " but found: " ++ show (length actualParams)
+             _ -> dieP m $ "You cannot run things that are not processes, such as: \"" ++ (show $ A.nameName n) ++ "\""
+    matchParamPass' p = return p
+
+    doParam :: Meta -> String -> (Int,A.Formal, A.Actual) -> PassM A.Actual
+    doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualVariable _ _ v)
+      = do actualType <- typeOfVariable v
+           if (actualType == formalType)
+             then return $ A.ActualVariable formalAbbrev formalType v
+             else doActualCast index formalType actualType (A.ExprVariable (findMeta v) v )
+    doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualExpression _ e)
+      = do actualType <- typeOfExpression e
+           if (actualType == formalType)
+             then return $ A.ActualExpression formalType e
+             else doActualCast index formalType actualType e
+
+    doActualCast :: Int -> A.Type -> A.Type -> A.Expression -> PassM A.Actual
+    doActualCast index to from item
+      = if isSafeConversion from to
+          then return $ A.ActualExpression to $ A.Conversion (findMeta item) A.DefaultConversion to item
+          else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
+            " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
