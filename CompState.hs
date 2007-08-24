@@ -122,11 +122,15 @@ defineName n nd
 
 -- | Find the definition of a name.
 lookupName :: (CSM m, Die m) => A.Name -> m A.NameDef
-lookupName n
+lookupName n = lookupNameOrError n (die $ "cannot find name " ++ A.nameName n)
+
+lookupNameOrError :: CSM m => A.Name -> m A.NameDef -> m A.NameDef
+lookupNameOrError n err
     =  do ps <- get
           case Map.lookup (A.nameName n) (csNames ps) of
             Just nd -> return nd
-            Nothing -> die $ "cannot find name " ++ A.nameName n
+            Nothing -> err
+
 --}}}
 
 --{{{  warnings

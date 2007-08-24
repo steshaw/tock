@@ -1218,7 +1218,7 @@ allocation
            p <- placement
            sColon
            eol
-           nd <- lookupName n
+           nd <- lookupNameOrError n $ dieP m ("Attempted to PLACE unknown variable: " ++ (show $ A.nameName n))
            defineName n $ nd { A.ndPlacement = p }
            return []
     <?> "allocation"
