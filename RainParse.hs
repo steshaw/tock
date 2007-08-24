@@ -210,7 +210,11 @@ expression
     <?> "expression"
   where
     castExpression :: RainParser A.Expression
-    castExpression = do {ty <- dataType ; m <- sColon ; e <- expression ; return $ A.Conversion m A.DefaultConversion ty e}
+    castExpression = (try $ do {ty <- dataType ; m <- sColon ; e <- expression ; return $ A.Conversion m A.DefaultConversion ty e})
+                     <|> do {m <- sIn ; e <- expression ; return $ A.Conversion m A.DefaultConversion 
+                              (A.Chan A.DirInput A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} A.Any) e}
+                     <|> do {m <- sOut ; e <- expression ; return $ A.Conversion m A.DefaultConversion
+                              (A.Chan A.DirOutput A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} A.Any) e}
 
     compExpression :: RainParser A.Expression
     compExpression = do {lhs <- subExpression ; (m,op) <- dyadicCompOp ; rhs <- subExpression ; return $ A.Dyadic m op lhs rhs }
