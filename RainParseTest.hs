@@ -447,6 +447,8 @@ testDecl =
   passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare A.Bool)
   ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
   ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
+  ,passd ("a: b;",3,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare (tag1 A.UserDataType $ tag3 A.Name DontCare A.DataTypeName "a"))
+  
   
   ,fail ("bool:;",RP.declaration)
   ,fail ("bool;",RP.declaration)
