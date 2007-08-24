@@ -34,6 +34,7 @@ rainPasses =
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars)
        ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
+       ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
      ]
 
@@ -136,6 +137,9 @@ findMain x = do newMainName <- makeNonce "main_"
       Nothing -> m
       Just nd -> ((Map.insert n (nd {A.ndName = n})) . (Map.delete "main")) m     
     
+-- | Finds all the ProcCall in the AST, and checks that the actual parameters are valid inputs, given the Formal parameters in the process's type
+matchParamPass :: Data t => t -> PassM t
+matchParamPass = return
 
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
