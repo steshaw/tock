@@ -159,10 +159,10 @@ compile fn
               do progress "Passes:"
 
                  let passes
-                       = concat [ commonPasses
-                                , if csFrontend optsPS == FrontendRain
+                       = concat [ if csFrontend optsPS == FrontendRain
                                     then rainPasses
                                     else []
+                                , commonPasses
                                 , if csBackend optsPS == BackendC
                                     then genCPasses
                                     else []
