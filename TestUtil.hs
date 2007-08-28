@@ -52,56 +52,56 @@ procNamePattern :: String -> Pattern
 procNamePattern s = tag3 A.Name DontCare A.ProcName s
 
 variable :: String -> A.Variable
-variable e = A.Variable m $ simpleName e
+variable e = A.Variable emptyMeta $ simpleName e
 
 variablePattern :: String -> Pattern
 variablePattern e = tag2 A.Variable DontCare (simpleNamePattern e)
 
 --Helper function for creating a simple variable name as an expression:
 exprVariable :: String -> A.Expression
-exprVariable e = A.ExprVariable m $ variable e
+exprVariable e = A.ExprVariable emptyMeta $ variable e
 
 exprVariablePattern :: String -> Pattern
 exprVariablePattern e = tag2 A.ExprVariable DontCare $ variablePattern e
 
 intLiteral :: Integer -> A.Expression
-intLiteral n = A.Literal m A.Int $ A.IntLiteral m (show n)
+intLiteral n = A.Literal emptyMeta A.Int $ A.IntLiteral emptyMeta (show n)
 
 intLiteralPattern :: Integer -> Pattern
-intLiteralPattern = (stopCaringPattern m) . mkPattern . intLiteral
+intLiteralPattern = (stopCaringPattern emptyMeta) . mkPattern . intLiteral
 
 makeNamesWR :: ([String],[String]) -> ([A.Variable],[A.Variable])
 makeNamesWR (x,y) = (map variable x,map variable y)
 
 makeSimpleAssign :: String -> String -> A.Process
-makeSimpleAssign dest src = A.Assign m [A.Variable m $ simpleName dest] (A.ExpressionList m [exprVariable src])
+makeSimpleAssign dest src = A.Assign emptyMeta [A.Variable emptyMeta $ simpleName dest] (A.ExpressionList emptyMeta [exprVariable src])
 
 makeSimpleAssignPattern :: String -> String -> Pattern
-makeSimpleAssignPattern lhs rhs = stopCaringPattern m $ mkPattern $ makeSimpleAssign lhs rhs
+makeSimpleAssignPattern lhs rhs = stopCaringPattern emptyMeta $ mkPattern $ makeSimpleAssign lhs rhs
 
 makeSeq :: [A.Process] -> A.Process
-makeSeq procList = A.Seq m $ A.Several m (map (\x -> A.OnlyP m x) procList)
+makeSeq procList = A.Seq emptyMeta $ A.Several emptyMeta (map (\x -> A.OnlyP emptyMeta x) procList)
 
 makePar :: [A.Process] -> A.Process
-makePar procList = A.Par m A.PlainPar $ A.Several m (map (\x -> A.OnlyP m x) procList)
+makePar procList = A.Par emptyMeta A.PlainPar $ A.Several emptyMeta (map (\x -> A.OnlyP emptyMeta x) procList)
 
 makeRepPar :: A.Process -> A.Process
-makeRepPar proc = A.Par m A.PlainPar $ A.Rep m (A.For m (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.OnlyP m proc)
+makeRepPar proc = A.Par emptyMeta A.PlainPar $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.OnlyP emptyMeta proc)
 
 makeAssign :: A.Variable -> A.Expression -> A.Process
-makeAssign v e = A.Assign m [v] $ A.ExpressionList m [e]
+makeAssign v e = A.Assign emptyMeta [v] $ A.ExpressionList emptyMeta [e]
 
 makeAssignPattern :: Pattern -> Pattern -> Pattern
 makeAssignPattern v e = tag3 A.Assign DontCare [v] $ tag2 A.ExpressionList DontCare [e]
  
 makeLiteralString :: String -> A.Expression
-makeLiteralString str = A.Literal m (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral m (map makeLiteralChar str))
+makeLiteralString str = A.Literal emptyMeta (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral emptyMeta (map makeLiteralChar str))
   where
     makeLiteralChar :: Char -> A.ArrayElem
-    makeLiteralChar c = A.ArrayElemExpr $ A.Literal m A.Byte (A.ByteLiteral m [c] {-(show (fromEnum c))-})
+    makeLiteralChar c = A.ArrayElemExpr $ A.Literal emptyMeta A.Byte (A.ByteLiteral emptyMeta [c] {-(show (fromEnum c))-})
 
 makeLiteralStringPattern :: String -> Pattern
-makeLiteralStringPattern = (stopCaringPattern m) . mkPattern . makeLiteralString
+makeLiteralStringPattern = (stopCaringPattern emptyMeta) . mkPattern . makeLiteralString
 
 assertCompareCustom :: (Show a) => String -> (a -> a -> Bool) -> a -> a -> Assertion
 assertCompareCustom  preface cmp expected actual =
