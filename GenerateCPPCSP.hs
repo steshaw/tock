@@ -16,7 +16,58 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | Generate C code from the mangled AST.
+-- #ignore-exports
+
+{-| Generate C++ code from the mangled AST that uses the C++CSP2 library.
+In order to compile the generated code, you will need:
+
+* A standards-compliant C++98 compiler (GCC or Visual Studio >= 2003, but not Visual Studio 6).
+ 
+* The C++CSP2 library (>= 2.0.2), available from <http://www.cppcsp.net/>, and any appropriate dependencies (e.g. Boost).
+
+For the array handling I am currently using a combination of std::vector and an array view class (tockArrayView) I built myself.
+
+I considered the following options:
+
+1. in-built C arrays
+
+2. boost::array
+
+3. std::vector
+
+4. boost::multi_array
+
+5. Blitz++
+
+6. Roll my own.
+
+Option 1 is what Adam used in GenerateC, but it involves carrying around the array sizes, which is a real pain.
+Options 2 and 3 are fairly similar (boost::array is possible because arrays are of constant size in occam) but neither supports multiple dimensions
+nor array slicing, so that would have been awkward.
+Option 4 does support multiple dimensions and array slicing - but the latter would involve keeping tabs of the dimensions of the *original* array
+(that was sliced *from*), even through multiple slices and indexes, which would have been a nightmare.
+Option 5 makes slicing nice and simple, and multiple dimensions are easy too.  However, things like retyping are still a big problem, so in the end 
+it became untenable.
+
+Therefore the only remaining option was 6.  I use std::vector (although this may become boost::array) to actually store each array, and then
+use tockArrayView to work with the array.  tockArrayView represents a view of an array, and never allocates or deallocates any memory.  Thus they
+can be passed around freely, which makes them easy to work with.
+
+For the ANY type I am currently using boost::any.  However, this is not a correct solution because the type that occam pulls out is not
+necessarily the type that was put in.  Therefore ANY probably needs some serialisation of types (akin to what used to happen in C++CSP.NET)
+to work properly.
+
+For the variant protocols I am using boost::variant.  But when there are more than 9 cases, I have to chain several variants together.
+This is perfectly legal C++, but I think it is causing excessive memory usage in g++ (or possibly the tuples that work similarly...)
+
+For the sequential protocols (including those after a tag in variant protocols) I am using boost::tuple for convenience (along with the handy
+boost::tie function to extract the values).  However I suspect this (or the variants -- see above) is causing a lot of memory usage in g++.  Plus,
+when more than 9 items are present in the protocol (including variant-tag) I have to chain the tuples together, which means chaining the tie function
+as well.  May be worth changing in future.
+
+Channels of direction 'A.DirUnknown' are passed around as pointers to a One2OneChannel\<\> object.  To read I use the reader() function and to write I use the writer() function.
+For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chanin\<\> and Chanout\<\> objects as you would expect.
+-}
 module GenerateCPPCSP (generateCPPCSP) where
 
 import Data.Char
@@ -43,7 +94,7 @@ import GenerateC
 
 --{{{  generator ops
 -- | Operations for the C++CSP backend.
--- Most of this can be inherited directly from the C backend.
+-- Most of this is inherited directly from the C backend in the "GenerateC" module.
 cppgenOps :: GenOps
 cppgenOps = cgenOps {
     declareFree = cppdeclareFree,
@@ -81,58 +132,12 @@ cppgenOps = cgenOps {
   }
 --}}}
 
-{-
-For the array handling I am currently using a combination of std::vector and an array view class (tockArrayView) I built myself
-
-I considered the following options:
-1. in-built C arrays
-2. boost::array
-3. std::vector
-4. boost::multi_array
-5. Blitz++
-6. Roll my own.
-
-Option 1 is what Adam used in GenerateC, but it involves carrying around the array sizes, which is a real pain.
-Options 2 and 3 are fairly similar (boost::array is possible because arrays are of constant size in occam) but neither supports multiple dimensions
-nor array slicing, so that would have been awkward.
-Option 4 does support multiple dimensions and array slicing - but the latter would involve keeping tabs of the dimensions of the *original* array
-(that was sliced *from*), even through multiple slices and indexes, which would have been a nightmare.
-Option 5 makes slicing nice and simple, and multiple dimensions are easy too.  However, things like retyping are still a big problem, so in the end 
-it became untenable.
-
-Therefore the only remaining option was 6.  I use std::vector (although this may become boost::array) to actually store each array, and then
-use tockArrayView to work with the array.  tockArrayView represents a view of an array, and never allocates or deallocates any memory.  Thus they
-can be passed around freely, which makes them easy to work with.
-
--}
-
-{-
-For the ANY type I am currently using boost::any, although knowing *exactly* which type to cast into (and indeed, which type it cast from) is 
-problematic so that may have to be reviewed.
--}
-
-{-
-For the variant protocols I am using boost::variant.  But when there are more than 9 cases, I have to chain several variants together.
-This is perfectly legal C++, but I think it is causing excessive memory usage in g++ (or possibly the tuples....)
--}
-
-{-
-For the sequential protocols (including those after a tag in variant protocols) I am using boost::tuple for convenience (along with the handy
-boost::tie function to extract the values).  However I suspect this (or the variants -- see above) is causing a lot of memory usage in g++.  Plus,
-when more than 9 items are present in the protocol (including variant-tag) I have to chain the tuples together, which means chaining the tie function
-as well.  May be worth changing in future
--}
-
-{-
-Channels are passed around as pointers to a One2OneChannel<> object.  To read I use the reader() function and to write I use the writer() function.
-In occam-pi I could possibly use the channel-ends properly, but in occam 2.1 I have to pass the pointer to the channel itself about the place.
--}
-
-
 --{{{  top-level
+-- | Transforms the given AST into a pass that generates C++ code.
 generateCPPCSP :: A.Process -> PassM String
 generateCPPCSP = generate cppgenOps
 
+-- | Generates the top-level code for an AST.
 cppgenTopLevel :: GenOps -> A.Process -> CGen ()
 cppgenTopLevel ops p
     =  do tell ["#include <tock_support_cppcsp.h>\n"]
@@ -157,7 +162,7 @@ cppgenTopLevel ops p
 --}}}
 
 
---CIF has a stop function for stopping processes
+-- | CIF has a stop function for stopping processes.
 --In C++CSP I use the exception handling to make a stop call throw a StopException,
 --and the catch is placed so that catching a stop exception immediately finishes the process
 cppgenStop :: GenOps -> Meta -> String -> CGen ()
@@ -167,6 +172,8 @@ cppgenStop _ m s
        tell [" \"",s,"\" );"]
 
 --{{{ Two helper functions to aggregate some common functionality in this file.
+
+-- | Generates code from a channel 'A.Variable' that will be of type Chanin\<\>
 genCPPCSPChannelInput :: GenOps -> A.Variable -> CGen()
 genCPPCSPChannelInput ops var
   = do t <- typeOfVariable var
@@ -176,6 +183,7 @@ genCPPCSPChannelInput ops var
                                          tell [" ->reader() "]
          _ -> call genMissing ops $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
+-- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
 genCPPCSPChannelOutput :: GenOps -> A.Variable -> CGen()
 genCPPCSPChannelOutput ops var
   = do t <- typeOfVariable var
@@ -250,7 +258,7 @@ cppgenInputCase ops m c s
     genInputCaseBody proto var coll (A.Several _ ss)
         = sequence_ $ map (genInputCaseBody proto var coll) ss
 
---This function processes (potentially chained) variants to get the real index of the data item inside the variant
+-- | This function processes (potentially chained) variants to get the real index of the data item inside the variant
 whichExpr :: A.Name -> String -> String -> Int -> CGen() -> CGen()
 whichExpr proto which variant offset protoGen
     = do cases <- casesOfProtocol proto 
@@ -272,7 +280,7 @@ whichExpr proto which variant offset protoGen
                        where innerProto = protoGen >> tell ["_"]
 
 
---Generates the long boost::tie expression that will be used to get all the data out of a tuple that we have read
+-- | Generates the long boost::tie expression that will be used to get all the data out of a tuple that we have read
 genInputTupleAssign :: GenOps -> Bool -> String -> [A.InputItem] -> CGen()
 genInputTupleAssign ops hasTag caseVar items
     = do genInputTupleAssign' hasTag caseVar items
@@ -302,7 +310,7 @@ genInputTupleAssign ops hasTag caseVar items
     genInputSizeAssign (A.InCounted _ count arr)
         = call genVariable ops count >> tell [" = "] >> call genVariable ops arr >> tell [" .extent(0);"]
 
---Generates the code for getting a particular tagged value out of a (potentially chained) variant
+-- | Generates the code for getting a particular tagged value out of a (potentially chained) variant
 genVariantGet :: A.Name -> A.Name -> String -> CGen() -> CGen String
 genVariantGet proto tag var variantName
     = do cases <- casesOfProtocol proto
@@ -323,7 +331,7 @@ genVariantGet proto tag var variantName
                recur
       
 
---C++CSP returns the number of seconds since the epoch as the time
+-- | C++CSP2 returns the number of seconds since the epoch as the time
 --Since this is too large to be contained in an int once it has been multiplied,
 --the remainder is taken to trim the timer back down to something that will be useful in an int
 cppgenTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen ()
@@ -336,7 +344,9 @@ cppgenTimerRead ops c v
           call genVariable ops c
           tell ["),4294967296.0);\n"]
 
-{-
+{-|
+Gets a csp::Time to wait with, given a 32-bit microsecond value (returns the temp variable we have put it in)
+
 
 Time in occam is in microseconds, and is usually stored in the user's programs as a signed 32-bit integer.  Therefore the timer wraps round 
 approx every 72 minutes.  A usual pattern of behaviour might be: 
@@ -365,8 +375,6 @@ We could say that HIGHalpha = HIGH.  But if the user wrapped around LOWalpha, we
 if LOWalpha is a wrapped round version of LOW.  This could be done by checking whether LOWalpha < LOW.  If this is true, it must have wrapped.  
 Otherwise, it must not have.
 -}
-
---Gets a csp::Time to wait with, given a 32-bit microsecond value (returns the temp variable we have put it in)
 genCPPCSPTime :: GenOps -> A.Expression -> CGen String
 genCPPCSPTime ops e
     = do  time <- makeNonce "time_exp"
@@ -404,7 +412,7 @@ cppgenInputItem ops c (A.InVariable m v)
              call genVariable ops v
              tell [";\n"]
 
---If we are sending an array, we use the versionToSend function to coerce away any annoying const tags on the array data:
+-- | If we are sending an array, we use the versionToSend function to coerce away any annoying const tags on the array data:
 genJustOutputItem :: GenOps -> A.OutputItem -> CGen()
 genJustOutputItem ops (A.OutCounted m ce ae)
     =  do call genExpression ops ae
@@ -440,7 +448,7 @@ cppgenOutput ops c ois
            _ -> sequence_ $ map (call genOutputItem ops c) ois
 
 -- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
---Helper function to place a comma between items, but not before or after
+-- | Helper function to place a comma between items, but not before or after
 infixComma :: [CGen ()] -> CGen ()
 infixComma (c0:cs) = c0 >> sequence_ [genComma >> c | c <- cs]
 infixComma [] = return ()
@@ -482,7 +490,7 @@ casesOfProtocol proto
 
 --}}}
 
---Used when constructing a chained variant -- we must specify the variant types through the chain, so the
+-- | Used when constructing a chained variant -- we must specify the variant types through the chain, so the
 --compiler understands that we're giving it one of the inner variants
 genSubTypes :: A.Name -> A.Name -> CGen() -> CGen()
 genSubTypes proto tag middle 
@@ -514,8 +522,8 @@ cppgenOutputCase ops c tag ois
             middle proto = tupleExpression True (genTupleProtocolTagName proto tag)  (((genProtocolTagName proto tag) >> tell ["()"]) : map (genJustOutputItem ops) ois)
 
 
---We use the process wrappers here, in order to execute the functions in parallel:
---We use forking instead of Run/InParallelOneThread, because it is easier to use forking with replication
+-- | We use the process wrappers here, in order to execute the functions in parallel.
+--We use forking instead of Run\/InParallelOneThread, because it is easier to use forking with replication.
 cppgenPar :: GenOps -> A.ParMode -> A.Structured -> CGen ()
 cppgenPar ops _ s
   = do forking <- makeNonce "forking"
@@ -536,7 +544,7 @@ cppgenPar ops _ s
       
 
 
---Changed to use C++CSP's Alternative class:
+-- | Changed to use C++CSP's Alternative class:
 cppgenAlt :: GenOps -> Bool -> A.Structured -> CGen ()
 cppgenAlt ops _ s 
   = do guards <- makeNonce "alt_guards"
@@ -600,18 +608,18 @@ cppgenAlt ops _ s
                  tell ["}\n"]
 
 
---In GenerateC this uses prefixComma (because "Process * me" is always the first argument), but here we use infixComma:
+-- | In GenerateC this uses prefixComma (because "Process * me" is always the first argument), but here we use infixComma.
 cppgenActuals :: GenOps -> [A.Actual] -> CGen ()
 cppgenActuals ops as = infixComma (map (call genActual ops) as)
 
---In GenerateC this has special code for passing array sizes around, which we don't need:
+-- | In GenerateC this has special code for passing array sizes around, which we don't need.
 cppgenActual :: GenOps -> A.Actual -> CGen ()
 cppgenActual ops actual
     = case actual of
         A.ActualExpression t e -> call genExpression ops e
         A.ActualVariable am t v -> cppabbrevVariable ops am t v
 
---The only change from GenerateC is that passing "me" is not necessary in C++CSP
+-- | The only change from GenerateC is that passing "me" is not necessary in C++CSP
 cppgenProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen ()
 cppgenProcCall ops n as 
     = do genName n
@@ -620,7 +628,7 @@ cppgenProcCall ops n as
          tell [");"]
 
 
---Changed from CIF's untyped channels to C++CSP's typed (templated) channels, and changed the declaration type of an array to be a vector:
+-- | Changed from CIF's untyped channels to C++CSP's typed (templated) channels, and changed the declaration type of an array to be a vector.
 cppdeclareType :: GenOps -> A.Type -> CGen ()
 cppdeclareType ops (A.Array ds t)
     = do tell [" std::vector< "]
@@ -649,7 +657,7 @@ cppdeclareType ops (A.Chan dir attr t)
          tell ["/**/>/**/ "]
 cppdeclareType ops t = call genType ops t
 
---Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays:
+-- | Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays.
 --An array is actually stored as a std::vector, but an array-view object is automatically created with the array
 --The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
 --I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
@@ -676,7 +684,7 @@ cppgenDeclaration ops t n
           genName n
           tell [";\n"]
 
---Changed because of channel arrays:
+-- | Changed because of channel arrays.
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareInit ops m t@(A.Array ds t') var
     = Just $ do init <- case t' of
@@ -692,7 +700,7 @@ cppdeclareInit ops m t@(A.Array ds t') var
 
 cppdeclareInit _ _ _ _ = Nothing
 
---Changed to free channel arrays:
+-- | Changed to free channel arrays.
 cppdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareFree ops m t@(A.Array ds t') var
     = Just $ do free <- case t' of
@@ -708,7 +716,7 @@ cppdeclareFree ops m t@(A.Array ds t') var
                 
 cppdeclareFree _ _ _ _ = Nothing
 
---Changed to work properly with declareFree to free channel arrays:
+-- | Changed to work properly with declareFree to free channel arrays.
 cppremoveSpec :: GenOps -> A.Specification -> CGen ()
 cppremoveSpec ops (A.Specification m n (A.Declaration _ t))
     = do case call declareFree ops m t var of
@@ -720,7 +728,7 @@ cppremoveSpec _ _ = return ()
 
 
 -- FIXME: This could be used elsewhere (and work in any monad)
---A helper function that maps a function and calls sequence on the resulting [CGen()]
+-- | A helper function that maps a function and calls sequence on the resulting [CGen()]
 cgmap :: (t -> CGen()) -> [t] -> CGen()
 cgmap func list = sequence_ $ map func list
 
@@ -735,7 +743,7 @@ cppabbrevExpression ops am t@(A.Array _ _) e
     bad = call genMissing ops "array expression abbreviation"
 cppabbrevExpression ops am _ e = call genExpression ops e
 
---Used to create boost::variant and boost::tuple types.  Both these classes can have a maximum of nine items
+-- | Used to create boost::variant and boost::tuple types.  Both these classes can have a maximum of nine items
 --so if there are more than nine items, we must have variants containing variants, or tuples containing tuples
 createChainedType :: String -> CGen() -> [CGen()] -> CGen ()
 createChainedType combinator typeName items
@@ -753,7 +761,7 @@ createChainedType combinator typeName items
          subName = (typeName >> tell ["_"])
          (firstNine,rest) = splitAt 9 items
          
---Used to create (potentially chained) tuple expressions
+-- | Used to create (potentially chained) tuple expressions
 tupleExpression :: Bool -> CGen() -> [CGen()] -> CGen()
 tupleExpression useBrackets tupleType items
     =  do tupleType
@@ -765,7 +773,7 @@ tupleExpression useBrackets tupleType items
        where 
          (firstNine,rest) = splitAt 9 items
 
---Takes a list of dimensions and outputs a comma-seperated list of the numerical values
+-- | Takes a list of dimensions and outputs a comma-seperated list of the numerical values
 --Unknown dimensions have value 0 (which is treated specially by the tockArrayView class)
 genDims:: [A.Dimension] -> CGen()
 genDims dims = infixComma $ map genDim dims
@@ -774,7 +782,7 @@ genDims dims = infixComma $ map genDim dims
     genDim (A.Dimension n) = tell [show n]
     genDim (A.UnknownDimension) = tell ["0"]
 
---Generates an expression that yields the number of total elements in a declared multi-dimensional array
+-- | Generates an expression that yields the number of total elements in a declared multi-dimensional array
 --Using it on arrays with unknown dimensions will cause an error (they should only be abbreviations, not declared as actual variables)
 cppgenFlatArraySize:: GenOps -> [A.Dimension] -> CGen()
 cppgenFlatArraySize ops dims = sequence_ $ intersperse (tell ["*"]) $ map genDim dims
@@ -909,7 +917,7 @@ cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
 
---We must create the channel array then fill it:
+-- We must create the channel array then fill it:
 cppintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
     =  do call genDeclaration ops t n
           sequence_ $ map genChanArrayElemInit (zip [0 .. ((length cs) - 1)] cs)
@@ -992,9 +1000,8 @@ cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
 
 --{{{  types
 -- | If a type maps to a simple C type, return Just that; else return Nothing.
-
---Changed from GenerateC to change the A.Timer type to use C++CSP time
---Also changed the bool type, because vector<bool> in C++ is odd, so we hide it from the compiler:
+--Changed from GenerateC to change the A.Timer type to use C++CSP time.
+--Also changed the bool type, because vector<bool> in C++ is odd, so we hide it from the compiler.
 cppgetScalarType :: GenOps -> A.Type -> Maybe String
 cppgetScalarType _ A.Bool = Just "tockBool"
 cppgetScalarType _ A.Byte = Just "uint8_t"
@@ -1011,7 +1018,7 @@ cppgetScalarType _ A.Real64 = Just "double"
 cppgetScalarType _ A.Timer = Just "csp::Time"
 cppgetScalarType _ _ = Nothing
 
---Generates an array type, giving the Blitz++ array the correct dimensions
+-- | Generates an array type, giving the Blitz++ array the correct dimensions
 cppgenArrayType :: GenOps -> Bool -> A.Type -> Int -> CGen ()
 cppgenArrayType ops const (A.Array dims t) rank
     =  cppgenArrayType ops const t (rank + (max 1 (length dims)))
@@ -1021,7 +1028,7 @@ cppgenArrayType ops const t rank
           call genType ops t
           tell [" , ",show rank, " > /**/"]
     
---Changed from GenerateC to change the arrays and the channels
+-- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
 cppgenType :: GenOps -> A.Type -> CGen ()
 cppgenType ops arr@(A.Array _ _)
@@ -1051,7 +1058,7 @@ cppgenType ops t
         Nothing -> call genMissing ops $ "genType " ++ show t
 
 
---Helper function for prefixing an underscore 
+-- | Helper function for prefixing an underscore to a name.
 prefixUnderscore :: A.Name -> A.Name
 prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 
@@ -1078,7 +1085,7 @@ cppabbrevVariable ops am t v
     = call genVariableAM ops v am
 
 
---Use C++ array slices:
+-- | Use C++ array slices:
 --TODO put index checking back:
 cppgenSlice :: GenOps -> A.Variable -> A.Variable -> A.Type -> A.Expression -> A.Expression -> [A.Dimension] -> CGen ()
 cppgenSlice ops _ v ty start count ds
@@ -1092,12 +1099,12 @@ cppgenSlice ops _ v ty start count ds
           tell [")"]          
          
 
---Removed the sizing and the & from GenerateC:
+-- | Removed the sizing and the & from GenerateC:
 cppgenArrayAbbrev :: GenOps -> A.Variable -> CGen ()
 cppgenArrayAbbrev = call genVariable
 
 
---Changed from GenerateC to use Blitz++ subscripting (round brackets with commas) rather than traditional C indexing
+-- | Changed from GenerateC to use Blitz++ subscripting (round brackets with commas) rather than traditional C indexing
 cppgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
 cppgenArraySubscript ops checkValid v es
     =  do t <- typeOfVariable v
@@ -1157,14 +1164,14 @@ cppgenOverArray ops m var func
 
 
 
---Changed to remove array size:
+-- | Changed to remove array size:
 cppgenUnfoldedExpression :: GenOps -> A.Expression -> CGen ()
 cppgenUnfoldedExpression ops (A.Literal _ t lr)
     =  call genLiteralRepr ops lr
 cppgenUnfoldedExpression ops (A.ExprVariable m var) = call genUnfoldedVariable ops m var
 cppgenUnfoldedExpression ops e = call genExpression ops e
 
---Changed to remove array size:
+-- | Changed to remove array size:
 cppgenUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen ()
 cppgenUnfoldedVariable ops m var
     =  do t <- typeOfVariable var
@@ -1193,7 +1200,7 @@ cppgenUnfoldedVariable ops m var
 
 
 --{{{  if
---Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
+-- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
 
 cppgenIf :: GenOps -> Meta -> A.Structured -> CGen ()
 cppgenIf ops m s
@@ -1215,7 +1222,7 @@ cppgenIf ops m s
 --}}}
 
 
---Changed to make array VAL abbreviations have constant data:
+-- | Changed to make array VAL abbreviations have constant data:
 cppgenDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen ()
 cppgenDeclType ops am t
     =  do case t of
@@ -1230,7 +1237,7 @@ cppgenDeclType ops am t
 
 
 
---This function was changed deep inside -- the addition of .access() in the "inner" sub-function
+-- | This function was changed deep inside -- the addition of .access() in the "inner" sub-function
 cppgenVariable' :: GenOps -> Bool -> A.Variable -> CGen ()
 cppgenVariable' ops checkValid v
      =  do am <- accessAbbrevMode v
