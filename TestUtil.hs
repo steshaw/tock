@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 {-|
 
-This TestUtil module contains useful helper functions for testing.  Examples of their use can be found in 'RainPassTest' and 'RainParseTest'.
+This TestUtil module contains useful helper functions for testing.  Examples of their use can be found in "RainPassTest" and "RainParseTest".
 Unless otherwise stated, all functions use empty meta tags (see 'emptyMeta').
 
 See also the 'TreeUtil.assertPatternMatch' function.
