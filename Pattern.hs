@@ -1,14 +1,33 @@
+{-
+Tock: a compiler for parallel languages
+Copyright (C) 2007  University of Kent
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program.  If not, see <http://www.gnu.org/licenses/>.
+-}
+
+-- | The module containing the definition of the Pattern data-type.  For details on using 'Pattern', see the "TreeUtil" module.
 module Pattern (Pattern(..)) where
 
 import Data.Generics
 
+-- | A Pattern that can match any Haskell data structure.  Its implementation of 'Data' is incomplete ('gunfold' will give an error).
 data Pattern =
-    -- | We don't care what the value is -- will match against any item
+    -- | We don't care what the value is -- will match against any item.
     DontCare
-    -- | A named "item of interest".  Given the specified key, all data items with the same key should be identical (otherwise match errors will be given)
+    -- | A named item of interest with the given 'String' key.  For any key, all data items with the same key should be identical (otherwise match errors will be given)
     | Named String Pattern
-    -- | A constructed item.  This is special because the sub-items may not be of the right type for the constructor,
-    --   because they may be special items (such as DontCare)
+    -- | A constructed item.
     | Match Constr [Pattern]
   deriving (Typeable,Show)
   
