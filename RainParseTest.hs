@@ -443,6 +443,9 @@ testDecl =
   ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
   ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
   ,passd ("a: b;",3,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare (tag1 A.UserDataType $ tag3 A.Name DontCare A.DataTypeName "a"))
+
+  ,passd2 ("bool: b0,b1;",100,tag3 A.Specification DontCare (simpleNamePattern "b0") $ tag2 A.Declaration DontCare A.Bool,
+                                tag3 A.Specification DontCare (simpleNamePattern "b1") $ tag2 A.Declaration DontCare A.Bool)
   
   
   ,fail ("bool:;",RP.declaration)
@@ -452,12 +455,19 @@ testDecl =
   ,fail ("bool b",RP.declaration)
   ,fail ("bool b;",RP.declaration)
   ,fail ("bool:?b;",RP.declaration)
+  ,fail ("bool:b,;",RP.declaration)
+  ,fail ("bool: b0 b1;",RP.declaration)
  ]
  where
    passd :: (String,Int,Pattern) -> ParseTest (Meta, A.Structured -> A.Structured)
    passd (code,index,exp) = pass(code,RP.declaration,check ("testDecl " ++ (show index)) exp)
    check :: String -> Pattern -> (Meta, A.Structured -> A.Structured) -> Assertion
    check msg spec (_,act) = assertPatternMatch msg (tag3 A.Spec DontCare spec $ A.Several m []) (act $ A.Several m [])
+
+   passd2 :: (String,Int,Pattern,Pattern) -> ParseTest (Meta, A.Structured -> A.Structured)
+   passd2 (code,index,expOuter,expInner) = pass(code,RP.declaration,check2 ("testDecl " ++ (show index)) expOuter expInner)
+   check2 :: String -> Pattern -> Pattern -> (Meta, A.Structured -> A.Structured) -> Assertion
+   check2 msg specOuter specInner (_,act) = assertPatternMatch msg (tag3 A.Spec DontCare specOuter $ tag3 A.Spec DontCare specInner $ A.Several m []) (act $ A.Several m [])
 
 testComm :: [ParseTest A.Process]
 testComm =

@@ -322,8 +322,11 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
 declaration :: RainParser (Meta,A.Structured -> A.Structured)
-declaration = try $ do {t <- dataType; sColon ; n <- name ; sSemiColon ; 
-  return (findMeta t, A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t) }
+declaration = try $ do {t <- dataType; sColon ; ns <- name `sepBy1` sComma ; sSemiColon ; 
+                          return (findMeta t, \x -> foldr (foldSpec t) x ns) }
+  where
+    foldSpec :: A.Type -> A.Name -> (A.Structured -> A.Structured)
+    foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t
 
 terminator :: A.Structured
 terminator = (A.OnlyP emptyMeta $ A.Main emptyMeta)
