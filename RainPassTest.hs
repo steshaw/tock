@@ -182,6 +182,21 @@ testUnique2 = testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveV
     check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
                              assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
 
+
+testUnique2b :: Test
+testUnique2b = testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolveVars orig) (return ()) check
+  where
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) $
+    	A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) $
+      tag2 A.Several DontCare [
+        (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
+        ,(tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "e")]))
+      ]
+    check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
+                             assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
+
+
 -- | Tests that proc names are recorded, but not made unique (because they might be exported), and not resolved either
 testUnique3 :: Test
 testUnique3 = testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveVars orig) (return ()) check
@@ -395,6 +410,7 @@ tests = TestList
    ,testUnique0
    ,testUnique1
    ,testUnique2
+   ,testUnique2b
    ,testUnique3
    ,testUnique4
    ,testRecordInfNames0
