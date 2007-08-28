@@ -120,12 +120,6 @@ assertNotEqual msg = assertCompareCustom msg (/=)
 assertItemNotSame :: String -> Items -> String -> String -> Assertion
 assertItemNotSame msg items key0 key1 = assertNotEqual msg ((Map.lookup key0 items) :: Maybe AnyDataItem) ((Map.lookup key1 items) :: Maybe AnyDataItem)
 
--- | Helper function that checks if a looked-up value is what was expected
-assertItemNotEqual :: Data a => String -> a -> Maybe AnyDataItem -> Assertion
-assertItemNotEqual msg _ Nothing = assertFailure $ msg ++ " item not matched!"
---Putting x into ADI wrapper and using the Eq instance for AnyDataItem is easier than taking y out and checking the data types match:
-assertItemNotEqual msg exp (Just act) = assertNotEqual msg (ADI exp) act
-
 testPassGetItems :: (Data a, Data b) => String -> a -> PassM b -> (State CompState ()) -> IO (CompState, Either Assertion Items)
 testPassGetItems testName expected actualPass startStateTrans = 
        --passResult :: Either String b
