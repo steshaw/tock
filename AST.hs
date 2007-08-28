@@ -235,6 +235,18 @@ data Variable =
   | DirectedVariable Meta Direction Variable
   deriving (Show, Eq, Typeable, Data)
 
+-- | An array constructor expression.
+data ArrayConstr =
+  -- | A simple integer range, beginning at the first value (inclusive) and ending at the second value (inclusive), with stepping 1.
+  -- If the first value is bigger than the second, the effective value is an empty array.
+  -- This will be transformed by an early pass into the second form (RepConstr).
+  RangeConstr Meta Expression Expression
+  -- | A more general and powerful array constructor as used in occam-pi.
+  -- The first item is the replicator, the second is the expression
+  | RepConstr Meta Replicator Expression
+  deriving (Show, Eq, Typeable, Data)
+
+
 -- | An expression.
 data Expression =
   -- | A monadic (unary) operator.
@@ -263,6 +275,7 @@ data Expression =
   | BytesInExpr Meta Expression
   | BytesInType Meta Type
   | OffsetOf Meta Type Name
+  | ExprConstr Meta ArrayConstr
   deriving (Show, Eq, Typeable, Data)
 
 -- | A list of expressions.
