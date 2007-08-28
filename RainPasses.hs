@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- | A module containing all the Rain-specific passes that must be run on the parsed Rain AST before it can be fed into the shared passes.
 module RainPasses where
 
 import TestUtil
@@ -29,17 +30,19 @@ import CompState
 import Errors
 import Metadata
 
+-- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [(String,Pass)]
 rainPasses = 
      [ ("Resolve Int -> Int64",transformInt)
-       ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars)
+       ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt
        ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
        ,("Fix the types for channel-end casts",fixChannelEndCasts) --depends on uniquifyAndResolveVars and recordInfNameTypes
        ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes and fixChannelEndCasts
-       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach)
+       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) --depends on uniquifyAndResolveVars and recordInfNameTypes and fixChannelEndCasts
      ]
 
+-- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
 transformInt :: Data t => t -> PassM t
 transformInt = everywhereM (mkM transformInt')
   where
@@ -50,11 +53,13 @@ transformInt = everywhereM (mkM transformInt')
 -- | This pass effectively does three things in one:
 --
 -- 1. Creates unique names for all declared variables
+--
 -- 2. Records the type of these declarations into the state 
+--
 -- 3. Resolves all uses of the name into its unique version
 --
 -- This may seem like three passes in one, but if you try to separate them out, it just ends up
--- with more confusion and more code, instead of less.
+-- with more confusion and more code.
 uniquifyAndResolveVars :: Data t => t -> PassM t
 uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
   where
@@ -99,10 +104,15 @@ uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
     --Other:
     uniquifyAndResolveVars' s = return s
 
---Helper function for a few of the passes:
-replaceNameName :: String -> String -> A.Name -> A.Name
+-- | Helper function for a few of the passes.  Replaces 'A.nameName' of a 'A.Name' if it matches a given 'String'.
+replaceNameName :: 
+  String     -- ^ The variable name to be replaced.
+  -> String  -- ^ The new variable to use instead.
+  -> A.Name  -- ^ The name to check.
+  -> A.Name  -- ^ The new name, with the 'A.nameName' field replaced if it matched.
 replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
+-- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
 recordInfNameTypes :: Data t => t -> PassM t
 recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
   where
@@ -121,6 +131,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
            return input
     recordInfNameTypes' r = return r
 
+-- | A pass that finds and tags the main process, and also mangles its name (to avoid problems in the C\/C++ backends with having a function called main).
 findMain :: Data t => t -> PassM t
 --Because findMain runs after uniquifyAndResolveVars, the types of all the process will have been recorded
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
@@ -139,7 +150,7 @@ findMain x = do newMainName <- makeNonce "main_"
       Nothing -> m
       Just nd -> ((Map.insert n (nd {A.ndName = n})) . (Map.delete "main")) m     
     
--- | Finds all the ProcCall in the AST, and checks that the actual parameters are valid inputs, given the Formal parameters in the process's type
+-- | A pass that finds all the 'A.ProcCall' in the AST, and checks that the actual parameters are valid inputs, given the 'A.Formal' parameters in the process's type
 matchParamPass :: Data t => t -> PassM t
 matchParamPass = everywhereM (mkM matchParamPass')
   where
@@ -174,7 +185,7 @@ matchParamPass = everywhereM (mkM matchParamPass')
           else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
             " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
 
--- | Finds all channel-end casts in the AST (that will have A.Any as the inner-type of the destination channel, and fix it accordingly)
+-- | A pass that finds all channel-end casts in the AST (that will have 'A.Any' as the inner-type of the destination channel, and fix it accordingly)
 fixChannelEndCasts :: Data t => t -> PassM t
 fixChannelEndCasts = everywhereM (mkM fixChannelEndCasts')
   where
@@ -201,6 +212,7 @@ fixChannelEndCasts = everywhereM (mkM fixChannelEndCasts')
                  then dieP m "Could not cast a channel that is not shared for reading into a shared reading channel-end"
                  else return exp
 
+-- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
 transformEach :: Data t => t -> PassM t
 transformEach = everywhereM (mkM transformEach')
   where
