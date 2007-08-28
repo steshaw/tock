@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (MatchErrors, AnyDataItem(..), Items, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, stopCaringPattern) where
+module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
@@ -46,6 +46,11 @@ instance Eq AnyDataItem where
 -- | A type representing the state involved in recording items of interest.  It is simply a map
 --   from arbitrary string keys to AnyDataItem, which is just a wrapper for any item of class Data
 type Items = Map.Map String AnyDataItem
+
+castADI :: (Typeable b) => Maybe AnyDataItem -> Maybe b
+castADI (Just (ADI x)) = cast x
+castADI Nothing = Nothing
+
 
 -- | A function that takes a string key (of an item of interest), and a value.
 --   If the key has NOT been seen before, checkItem merely records its value in the set of items of interest
@@ -259,3 +264,31 @@ tag7 :: (Data a, Data b0, Data b1, Data b2, Data b3, Data b4, Data b5, Data b6) 
 tag7 con x0 x1 x2 x3 x4 x5 x6 = (Match (toConstr con') [mkPattern x0,mkPattern x1,mkPattern x2,mkPattern x3,mkPattern x4,mkPattern x5,mkPattern x6])
   where
     con' = con (undefined :: a0) (undefined :: a1) (undefined :: a2) (undefined :: a3) (undefined :: a4) (undefined :: a5) (undefined :: a6)
+
+-- | Like tag1, but with DontCare for all the sub-items
+tag1d :: (Data a) => (a0  -> a) -> Pattern
+tag1d x = tag1 x DontCare
+
+-- | Like tag2, but with DontCare for all the sub-items
+tag2d :: (Data a) => (a0 -> a1 -> a) -> Pattern
+tag2d x = tag2 x DontCare DontCare
+
+-- | Like tag3, but with DontCare for all the sub-items
+tag3d :: (Data a) => (a0 -> a1 -> a2 -> a) -> Pattern
+tag3d x = tag3 x DontCare DontCare DontCare
+
+-- | Like tag4, but with DontCare for all the sub-items
+tag4d :: (Data a) => (a0 -> a1 -> a2 -> a3 -> a) -> Pattern
+tag4d x = tag4 x DontCare DontCare DontCare DontCare
+
+-- | Like tag5, but with DontCare for all the sub-items
+tag5d :: (Data a) => (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Pattern
+tag5d x = tag5 x DontCare DontCare DontCare DontCare DontCare
+
+-- | Like tag6, but with DontCare for all the sub-items
+tag6d :: (Data a) => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a) -> Pattern
+tag6d x = tag6 x DontCare DontCare DontCare DontCare DontCare DontCare
+
+-- | Like tag7, but with DontCare for all the sub-items
+tag7d :: (Data a) => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a) -> Pattern
+tag7d x = tag7 x DontCare DontCare DontCare DontCare DontCare DontCare DontCare

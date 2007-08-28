@@ -50,10 +50,6 @@ simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Un
 skipP :: A.Structured
 skipP = A.OnlyP m (A.Skip m)
 
-castADI :: (Typeable b) => Maybe AnyDataItem -> Maybe b
-castADI (Just (ADI x)) = cast x
-castADI Nothing = Nothing
-
 castAssertADI :: (Typeable b) => Maybe AnyDataItem -> IO b
 castAssertADI x = case (castADI x) of
   Just y -> return y
