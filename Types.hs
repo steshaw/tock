@@ -37,11 +37,11 @@ import Metadata
 
 specTypeOfName :: (CSM m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
-    = liftM A.ndType (lookupName n)
+    = liftM A.ndType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find type in specTypeOfName for: " ++ (show $ A.nameName n))
 
 abbrevModeOfName :: (CSM m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
-    = liftM A.ndAbbrevMode (lookupName n)
+    = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
 
 typeOfName :: (CSM m, Die m) => A.Name -> m A.Type
 typeOfName n

@@ -134,7 +134,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              -- Generate and define new names to replace them with
              newNamesS <- sequence [makeNonce (A.nameName n) | n <- freeNames]
              let newNames = [on { A.nameName = nn } | (on, nn) <- zip freeNames newNamesS]
-             onds <- mapM lookupName freeNames
+             onds <- mapM (\n -> lookupNameOrError n $ dieP mp $ "Could not find recorded type for free name: " ++ (show $ A.nameName n)) freeNames
              sequence_ [defineName nn (ond { A.ndName = A.nameName nn,
                                              A.ndAbbrevMode = am })
                         | (ond, nn, am) <- zip3 onds newNames ams]
