@@ -66,7 +66,7 @@ occam :-
 
 -- Ignore whitespace and comments.
 $white+            ;
-"#" [^\n]*         ;
+"###" [^\n]*       ;
 
 @reserved          { mkToken TokReserved }
 @identifier        { mkToken TokIdentifier }
