@@ -92,6 +92,7 @@ dyadicArithOp
     <|> do {m <- reserved "-" ; return (m,A.Minus) }
     <|> do {m <- reserved "*" ; return (m,A.Times) }
     <|> do {m <- reserved "/" ; return (m,A.Div) }
+    <|> do {m <- reserved "%" ; return (m,A.Rem) }
 
 dyadicCompOp :: RainParser (Meta,A.DyadicOp)
 dyadicCompOp
@@ -256,6 +257,9 @@ assignOp :: RainParser (Meta, Maybe A.DyadicOp)
 assignOp
   = do {m <- reserved "+=" ; return (m,Just A.Plus)}
     <|> do {m <- reserved "-=" ; return (m,Just A.Minus)}
+    <|> do {m <- reserved "*=" ; return (m,Just A.Times)}
+    <|> do {m <- reserved "/=" ; return (m,Just A.Div)}
+    <|> do {m <- reserved "%=" ; return (m,Just A.Rem)}
     <|> do {m <- reserved "=" ; return (m,Nothing)}	
     --TODO the rest
 

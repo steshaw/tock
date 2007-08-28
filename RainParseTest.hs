@@ -103,6 +103,7 @@ testExprs =
 
   --Dyadic operators:
   ,passE ("b + c", 0 ,Dy (Var "b") A.Plus (Var "c") )
+  ,passE ("b % c", 0 ,Dy (Var "b") A.Rem (Var "c") )
   ,passE ("b == c", 1 ,Dy (Var "b") A.Eq (Var "c") )
   ,passE ("(b + c)", 2 ,Dy (Var "b") A.Plus (Var "c") )
   ,passE ("(b == c)", 3 ,Dy (Var "b") A.Eq (Var "c") )
