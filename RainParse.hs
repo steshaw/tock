@@ -66,6 +66,7 @@ sColon = reserved ":"
 sComma = reserved ","
 sIn = reserved "?"
 sOut = reserved "!"
+sDots = reserved ".."
 --}}}
 
 --{{{ Keywords
@@ -198,12 +199,18 @@ integer
     testToken (L.TokDecimalLiteral d) = Just d
     testToken _ = Nothing
 
+integerLiteral :: RainParser A.Expression
+integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
+
 literal :: RainParser A.Expression
 literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.Array [dim] A.Byte) lr }
-          <|> do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
+          <|> integerLiteral
           <|> do {m <- reserved "true" ; return $ A.True m}
           <|> do {m <- reserved "false" ; return $ A.False m}
           <?> "literal"
+
+range :: RainParser A.Expression
+range = try $ do {m <- sLeftQ ; begin <- integerLiteral; sDots ; end <- integerLiteral ; sRightQ ; return $ A.ExprConstr m $ A.RangeConstr m begin end}
 
 expression :: RainParser A.Expression
 expression
@@ -231,6 +238,7 @@ expression
     subExpr' :: RainParser A.Expression
     subExpr' = do {id <- variableId ; return $ A.ExprVariable (findMeta id) id}
                <|> literal
+               <|> range
                <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
                <|> do {sLeftR ; e <- expression ; sRightR ; return e}
 

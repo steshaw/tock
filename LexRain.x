@@ -37,6 +37,7 @@ $hexDigit = [0-9 a-f A-F]
           | "+" | "-" | "*" | "/" | "%"
           | ">=" | "<="
           | "<" | ">"
+          | ".."
           | "process" | "pareach" | "seqeach" | "par" | "seq" 
           | "run"
           | "if" | "while" | "else"

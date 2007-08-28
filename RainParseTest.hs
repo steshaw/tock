@@ -216,6 +216,16 @@ testLiteral =
   
  ]
 
+testRange :: [ParseTest A.Expression]
+testRange =
+ [
+  pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern 0) (intLiteralPattern 1))
+  ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern 0) (intLiteralPattern 10000))
+  ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern $ -3) (intLiteralPattern $ -1))
+  --For now, at least, this should fail:
+  ,fail("[0..x]", RP.expression)
+ ]
+
 --Helper function for ifs:
 makeIf :: [(A.Expression,A.Process)] -> A.Process
 makeIf list = A.If m $ A.Several m (map makeChoice list)
@@ -518,6 +528,7 @@ tests = TestList
  [
   parseTests testExprs,
   parseTests testLiteral,
+  parseTests testRange,
   parseTests testWhile,
   parseTests testSeq,
   parseTests testPar,
