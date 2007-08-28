@@ -386,6 +386,63 @@ testParamPass8 = testPassShouldFail "testParamPass6" (matchParamPass orig) (star
 
 --TODO test passing in channel ends
 
+sharedness :: Bool -> Bool -> A.ChanAttributes
+sharedness w r = A.ChanAttributes { A.caWritingShared = w, A.caReadingShared = r}
+
+testFixChannelEndCasts0 :: Test
+testFixChannelEndCasts0 = testPass "testFixChannelEndCasts0" exp (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (sharedness False False) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Any) (exprVariable "c")
+    exp = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Int16) (exprVariable "c")
+    
+testFixChannelEndCasts1 :: Test
+testFixChannelEndCasts1 = testPass "testFixChannelEndCasts1" exp (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (sharedness True True) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Any) (exprVariable "c")
+    exp = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Int16) (exprVariable "c")    
+    
+testFixChannelEndCasts2 :: Test
+testFixChannelEndCasts2 = testPass "testFixChannelEndCasts2" exp (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (sharedness True True) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False True) A.Any) (exprVariable "c")
+    exp = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False True) A.Int16) (exprVariable "c")    
+
+testFixChannelEndCasts3 :: Test
+testFixChannelEndCasts3 = testPass "testFixChannelEndCasts3" exp (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (sharedness True False) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirOutput (sharedness True False) A.Any) (exprVariable "c")
+    exp = A.Conversion m A.DefaultConversion (A.Chan A.DirOutput (sharedness True False) A.Int16) (exprVariable "c")
+
+testFixChannelEndCasts4 :: Test
+testFixChannelEndCasts4 = testPassShouldFail "testFixChannelEndCasts4" (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirInput (sharedness False False) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Any) (exprVariable "c")
+
+
+testFixChannelEndCasts5 :: Test
+testFixChannelEndCasts5 = testPassShouldFail "testFixChannelEndCasts5" (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirOutput (sharedness False False) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirInput (sharedness False False) A.Any) (exprVariable "c")
+
+testFixChannelEndCasts6 :: Test
+testFixChannelEndCasts6 = testPassShouldFail "testFixChannelEndCasts6" (fixChannelEndCasts orig) (startState')
+  where
+    startState' :: State CompState ()
+    startState' = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (sharedness False False) A.Int16)
+    orig = A.Conversion m A.DefaultConversion (A.Chan A.DirOutput (sharedness True False) A.Any) (exprVariable "c")
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -413,6 +470,13 @@ tests = TestList
    ,testParamPass6
    ,testParamPass7
    ,testParamPass8
+   ,testFixChannelEndCasts0
+   ,testFixChannelEndCasts1
+   ,testFixChannelEndCasts2
+   ,testFixChannelEndCasts3
+   ,testFixChannelEndCasts4
+   ,testFixChannelEndCasts5
+   ,testFixChannelEndCasts6
  ]
 
 
