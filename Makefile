@@ -26,6 +26,15 @@ CFLAGS = \
 	-std=gnu99 -fgnu89-inline \
 	`kroc --cflags` `kroc --ccincpath`
 
+CXXFLAGS = -I. -O2 -ggdb3 -Wall
+
+%x.tock.cpp: %.rain tock
+	./tock -v --backend=cppcsp --frontend=rain -o $@ $<
+	indent -nut -bli0 -pcs $@
+
+%x: %x.tock.o tock
+	g++ $@.tock.o -pthread -lcppcsp2 -o $@
+
 %.tock.c: %.occ tock
 	./tock -v -o $@ $<
 	indent -kr -pcs $@
