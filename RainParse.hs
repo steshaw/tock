@@ -347,7 +347,7 @@ parseRainProgram filename
     =  do source <- liftIO $ readFile filename
           lexOut <- liftIO $ L.runLexer filename source          
           case lexOut of
-            Left merr -> dieIO $ "Parse error at: " ++ (show merr)
+            Left merr -> dieIO $ "Parse (lexing) error at: " ++ (show merr)
             Right toks ->
               do cs <- get
                  case runParser rainSourceFile cs filename toks of
