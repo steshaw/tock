@@ -54,12 +54,10 @@ $escapeChar = [cnrts \" \' \\ \n]
 @stringLiteral = \" ( @escape | [^\\\"] )* \"
 @charLiteral = \' ( @escape | [^\'] ) \'
 
--- Note that occam number literals don't include their signs -- if you say
--- "-3", then that's the operator "-" applied to the literal "3".
-@decimalLiteral = $decimalDigit+
+@decimalLiteral = ("-")? $decimalDigit+
 @hexLiteral = "#" $hexDigit+
 @exponent = ("+" | "-") $decimalDigit+
-@realLiteral = ( $decimalDigit+ "." $decimalDigit+ "E" @exponent )
+@realLiteral = ("-")? ( $decimalDigit+ "." $decimalDigit+ "E" @exponent )
              | ( $decimalDigit+ "." $decimalDigit+ )
 
 occam :-

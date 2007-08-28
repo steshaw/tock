@@ -183,6 +183,9 @@ testLiteral =
   ,pass ("18446744073709551616", RP.literal, assertEqual "testLiteral 2" (intLiteral 18446744073709551616))  
   --2^100:  We should be able to parse this, but it will be rejected at a later stage:
   ,pass ("1267650600228229401496703205376", RP.literal, assertEqual "testLiteral 3" (intLiteral 1267650600228229401496703205376))  
+  --Test that both literal and expression parse -3 the same way:
+  ,pass ("-3", RP.literal, assertEqual "testLiteral 4" (intLiteral (-3)))
+  ,pass ("-3", RP.expression, assertEqual "testLiteral 5" (intLiteral (-3)))
   
   --Non-integers currently unsupported:
   ,fail ("0.",RP.literal)
