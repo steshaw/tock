@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern) where
+module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern, namePattern, nameAndStopCaringPattern) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
@@ -212,7 +212,21 @@ stopCaringPattern item = stopCaringPattern' (mkPattern item)
     stopCaringPattern' replace p@(DontCare) = p
     stopCaringPattern' replace p@(Named n p') = if (p == replace) then DontCare else (Named n $ stopCaringPattern' replace p')
     stopCaringPattern' replace p@(Match c ps) = if (p == replace) then DontCare else (Match c $ map (stopCaringPattern' replace) ps)
-    
+ 
+-- | Replaces (mkPattern a) with (Named "name" (mkPattern a)) everywhere in the given pattern
+-- Useful to combine with stopCaringPattern; if you already know the value, there would be little point in naming it.
+-- Use namePattern, then stopCaringPattern; it won't be much help in the other order (nameAndStopCaringPattern does this already).
+-- If the pattern you pass to replace is (Named n' p), this will be transformed to (Named n p)
+namePattern :: Data a => String -> a -> Pattern -> Pattern
+namePattern name item = namePattern' name (mkPattern item)
+  where
+    namePattern' :: String -> Pattern -> Pattern -> Pattern
+    namePattern' n replace p@(DontCare) = if (p == replace) then Named n p else p
+    namePattern' n replace p@(Named n' p') = if (p == replace) then Named n (namePattern' n replace p') else Named n' (namePattern' n replace p')
+    namePattern' n replace p@(Match c ps) = if (p == replace) then Named n $ Match c $ map (namePattern' n replace) ps else Match c $ map (namePattern' n replace) ps
+
+nameAndStopCaringPattern :: Data a => String -> a -> Pattern -> Pattern
+nameAndStopCaringPattern n item = (stopCaringPattern item) . (namePattern n item)
 
 --I'm not sure tag0 is ever needed, but just in case:
 tag0 :: (Data a) => a -> Pattern
