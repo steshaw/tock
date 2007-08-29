@@ -39,6 +39,7 @@ simplifyExprs = runPasses passes
       , ("Convert AFTER to MINUS", removeAfter)
       , ("Expand array literals", expandArrayLiterals)
       , ("Pull up definitions", pullUp)
+      , ("Transform array constructors into initialisation code", transformConstr)
       ]
 
 -- | Convert FUNCTION declarations to PROCs.
@@ -118,6 +119,31 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
     expand (A.Dimension n:ds) e
         = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
       where m = findMeta e
+
+transformConstr :: Data t => t -> PassM t
+transformConstr = doGeneric `extM` doStructured
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformConstr
+    
+    doStructured :: A.Structured -> PassM A.Structured
+    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ t (A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
+      = do indexVarSpec@(A.Specification _ indexVar _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
+           scope' <- doGeneric scope
+           return $ A.Spec m (A.Specification m' n (A.Declaration m' t)) $ A.ProcThen m''
+             (A.Seq m'' $ A.Spec m'' (indexVarSpec) $ A.Several m'' [
+               A.OnlyP m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
+               A.Rep m'' rep $ A.OnlyP m'' $ A.Seq m'' $ A.Several m'' 
+                   [A.OnlyP m'' $ A.Assign m'' 
+                     [A.SubscriptedVariable m'' (A.Subscript m'' $ A.ExprVariable m'' $ A.Variable m'' indexVar) $ A.Variable m'' n]
+                     $ A.ExpressionList m'' [exp]
+                   ,A.OnlyP m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus 
+                     (A.ExprVariable m'' $ A.Variable m'' indexVar)
+                     (A.Literal m'' A.Int $ A.IntLiteral m'' "1")]
+                   ]
+             ])
+             scope'
+    doStructured s = doGeneric s
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.

@@ -200,6 +200,27 @@ testIsSafeConversion = TestList $ map runTestRow resultsWithIndexes
        ,[t, t,t,t,f, t,t,t,t,t] --to Int64
       ]
 
+skipP :: A.Structured
+skipP = A.OnlyP m (A.Skip m)
+
+-- | Tests that a simple constructor (with no expression, nor function call) gets converted into the appropriate initialisation code
+testTransformConstr0 :: Test
+testTransformConstr0 = testPass "transformConstr0" exp (transformConstr orig) (return ())
+  where
+    orig = A.Spec m (A.Specification m (simpleName "arr") $ A.IsExpr m A.ValAbbrev (A.Array [A.Dimension 10] A.Int) $ A.ExprConstr m $
+      A.RepConstr m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
+      ) skipP
+    exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
+    exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Array [A.Dimension 10] A.Int))) $ 
+      A.ProcThen m 
+      (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int)) $
+          A.Several m [A.OnlyP m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
+            A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.OnlyP m $ A.Seq m $ A.Several m
+            [A.OnlyP m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
+            A.OnlyP m $ A.Assign m [variable "i"] $ A.ExpressionList m [A.Dyadic m A.Plus (exprVariable "i") (intLiteral 1)]]
+          ]
+      )
+      skipP
 
                              
 --Returns the list of tests:
@@ -210,6 +231,7 @@ tests = TestList
    ,testFunctionsToProcs1
    ,testFunctionsToProcs2
    ,testIsSafeConversion
+   ,testTransformConstr0
  ]
 
 
