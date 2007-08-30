@@ -37,9 +37,8 @@ rainPasses =
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt
        ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
-       ,("Fix the types for channel-end casts",fixChannelEndCasts) --depends on uniquifyAndResolveVars and recordInfNameTypes
-       ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes and fixChannelEndCasts
-       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) --depends on uniquifyAndResolveVars and recordInfNameTypes and fixChannelEndCasts
+       ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes
+       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) --depends on uniquifyAndResolveVars and recordInfNameTypes
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -184,33 +183,6 @@ matchParamPass = everywhereM (mkM matchParamPass')
           then return $ A.ActualExpression to $ A.Conversion (findMeta item) A.DefaultConversion to item
           else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
             " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
-
--- | A pass that finds all channel-end casts in the AST (that will have 'A.Any' as the inner-type of the destination channel, and fix it accordingly)
-fixChannelEndCasts :: Data t => t -> PassM t
-fixChannelEndCasts = everywhereM (mkM fixChannelEndCasts')
-  where
-    fixChannelEndCasts' :: A.Expression -> PassM A.Expression
-    fixChannelEndCasts' e@(A.Conversion m A.DefaultConversion (A.Chan dir shared A.Any) rhs)
-      = if (dir == A.DirInput || dir == A.DirOutput)
-          then
-            do rhsT <- typeOfExpression rhs
-               case (rhsT) of
-                 (A.Chan rhsDir rhsShared t) ->
-                   --Cannot use ? or ! on DirInput or DirOutput; it must be a DirUnknown:
-                   if (rhsDir == A.DirUnknown)
-                     then checkShared m shared rhsShared (A.Conversion m A.DefaultConversion (A.Chan dir shared t) rhs)
-                     else dieP m "Could not perform channel-end cast (operator ? or !) on something that is already a channel-end"
-                 _ -> dieP m "Could not perform channel-end cast (operator ? or !) on non-channel type"
-          else return e
-    fixChannelEndCasts' e = return e
-
-    checkShared :: Meta -> A.ChanAttributes -> A.ChanAttributes -> A.Expression -> PassM A.Expression
-    checkShared m destAttr srcAttr exp
-      = if ((A.caWritingShared destAttr) && (not $ A.caWritingShared srcAttr))
-          then dieP m "Could not cast a channel that is not shared for writing into a shared writing channel-end"
-          else if ((A.caReadingShared destAttr) && (not $ A.caReadingShared srcAttr))
-                 then dieP m "Could not cast a channel that is not shared for reading into a shared reading channel-end"
-                 else return exp
 
 -- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
 transformEach :: Data t => t -> PassM t
