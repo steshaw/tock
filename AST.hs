@@ -231,6 +231,8 @@ data Variable =
   Variable Meta Name
   -- | A subscripted variable (e.g. @c[0]@ or @person[name]@).
   | SubscriptedVariable Meta Subscript Variable
+  -- | A channel-end variable (e.g. @c?@)
+  | DirectedVariable Meta Direction Variable
   deriving (Show, Eq, Typeable, Data)
 
 -- | An expression.

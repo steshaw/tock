@@ -695,6 +695,7 @@ cgenVariable' ops checkValid v
           let isSub = case v of
                         A.Variable _ _ -> False
                         A.SubscriptedVariable _ _ _ -> True
+                        A.DirectedVariable _ _ _ -> False
 
           let prefix = case (am, t) of
                          (_, A.Array _ _) -> ""
@@ -724,6 +725,7 @@ cgenVariable' ops checkValid v
 
     inner :: A.Variable -> CGen ()
     inner (A.Variable _ n) = genName n
+    inner (A.DirectedVariable _ _ v) = inner v
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         =  do let (es, v) = collectSubs sv
               call genVariable ops v
@@ -1049,6 +1051,8 @@ cgenArrayAbbrev ops v
     genAASize (A.Variable _ on) arg
         = call genArraySize ops True
                        (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
+    genAASize (A.DirectedVariable _ _ v)  arg
+        = genAASize v arg
 
 cgenArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen ()
 cgenArraySize ops isPtr size n

@@ -1238,6 +1238,7 @@ cppgenVariable' ops checkValid v
            let isSub = case v of
                          A.Variable _ _ -> False
                          A.SubscriptedVariable _ _ _ -> True
+                         A.DirectedVariable _ _ _ -> False                        
 
            let prefix = case (am, t) of
                           (_, A.Array _ _) -> ""
@@ -1267,6 +1268,8 @@ cppgenVariable' ops checkValid v
 
      inner :: A.Variable -> CGen ()
      inner (A.Variable _ n) = genName n
+     inner (A.DirectedVariable _ A.DirInput v) = tell ["(("] >> inner v >> tell [")->reader())"]
+     inner (A.DirectedVariable _ A.DirOutput v) = tell ["(("] >> inner v >> tell [")->writer())"]
      inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
          =  do let (es, v) = collectSubs sv
                call genVariable ops v

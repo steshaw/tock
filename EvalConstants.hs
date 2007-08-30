@@ -96,6 +96,7 @@ evalVariable (A.Variable _ n)
             Just e -> evalExpression e
             Nothing -> throwError $ "non-constant variable " ++ show n ++ " used"
 evalVariable (A.SubscriptedVariable _ sub v) = evalVariable v >>= evalSubscript sub
+evalVariable (A.DirectedVariable _ _ v) = evalVariable v
 
 evalIndex :: A.Expression -> EvalM Int
 evalIndex e

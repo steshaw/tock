@@ -156,11 +156,17 @@ typeOfVariable :: (CSM m, Die m) => A.Variable -> m A.Type
 typeOfVariable (A.Variable m n) = typeOfName n
 typeOfVariable (A.SubscriptedVariable m s v)
     = typeOfVariable v >>= subscriptType s
+typeOfVariable (A.DirectedVariable m dir v)
+    = do t <- typeOfVariable v
+         case t of 
+           (A.Chan A.DirUnknown attr innerT) -> return (A.Chan dir attr innerT)
+           _ -> die $ "Used specifier on something that was not a directionless channel: " ++ show v
 
 -- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (CSM m, Die m) => A.Variable -> m A.AbbrevMode
 abbrevModeOfVariable (A.Variable _ n) = abbrevModeOfName n
 abbrevModeOfVariable (A.SubscriptedVariable _ sub v) = abbrevModeOfVariable v
+abbrevModeOfVariable (A.DirectedVariable _ _ v) = abbrevModeOfVariable v
 
 dyadicIsBoolean :: A.DyadicOp -> Bool
 dyadicIsBoolean A.Eq = True

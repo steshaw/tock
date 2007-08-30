@@ -196,6 +196,7 @@ pullUp = doGeneric
                 A.Array _ _ ->
                   case e' of
                     A.ExprVariable _ (A.Variable _ _) -> return e'
+                    A.ExprVariable _ (A.DirectedVariable _ _ _) -> return e'
                     _ -> pull t e'
                 _ -> return e'
       where
