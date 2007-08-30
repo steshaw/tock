@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) and then hand-edited -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"      
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   viewBox="0 0 720 360"
+   id="svg2"   
+   inkscape:version="0.45.1"   
+   inkscape:output_extension="org.inkscape.output.svg.inkscape"
+   version="1.0">
+  <defs
+     id="defs4" >
+	 <style type="text/css"><![CDATA[
+      rect {        
+		fill:#000000;
+		fill-opacity:0;
+		stroke:#000000;
+		stroke-opacity:1;
+      }
+	  text.label {
+		font-size:12px;
+		font-style:normal;
+		font-weight:normal;
+		fill:#000000;
+		fill-opacity:1;
+		stroke:none;
+		stroke-width:1px;
+		stroke-linecap:butt;
+		stroke-linejoin:miter;
+		stroke-opacity:1;
+		font-family:Bitstream Vera Sans;
+	  }
+	  text.module {
+		font-size:12px;
+		font-style:normal;
+		font-weight:normal;
+		fill:#0000ff;
+		fill-opacity:1;
+		stroke:none;
+		stroke-width:1px;
+		stroke-linecap:butt;
+		stroke-linejoin:miter;
+		stroke-opacity:1;
+		font-family:Bitstream Vera Sans;
+		text-align:center;
+		text-anchor:middle;
+	  }
+	  path {
+		fill:none;
+		fill-rule:evenodd;
+		stroke:#000000;
+		stroke-width:1px;
+		stroke-linecap:butt;
+		stroke-linejoin:miter;
+		stroke-opacity:1;
+		display:inline
+	  }
+    ]]></style>
+  </defs>
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <cc:license
+           rdf:resource="" />
+        <dc:title>Tock Passes Diagram</dc:title>
+        <dc:date>30/08/07</dc:date>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Neil Brown</dc:title>
+          </cc:Agent>
+        </dc:creator>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+	 transform="translate(10,5)"
+  >
+    <g
+       id="g2230"
+      >
+      <rect
+         y="20"
+         x="0"
+         height="100"
+         width="200"
+         id="rect2160"
+      />
+      <text
+         id="text3134"
+         y="10"
+         x="0"
+         class="label"         
+         xml:space="preserve">occam frontend</text>
+      <a         
+         xlink:href="ParseOccam.html"
+         xlink:show="new"
+         id="a4113">
+      <rect
+         y="40"
+         x="20"
+         height="50"
+         width="150"
+         id="rect3138"
+      />      
+        <text
+           xml:space="preserve"           
+           x="95"
+           y="70"
+		   class="module"
+           id="text4109">ParseOccam</text>
+	  </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4135"
+         d="M 170,65 L 200,65"
+        />
+    </g>
+    <g
+       id="g2240">
+      <rect
+         y="250"
+         x="0"
+         height="100"
+         width="200"
+         id="rect4139"
+      />
+      <text
+         id="text4141"
+         y="240"
+         x="0"     
+		 class="label"
+         xml:space="preserve">Rain frontend</text>
+	  <a         
+         xlink:href="RainParse.html"
+         xlink:show="new"
+         id="a4147">        
+      <rect
+         y="270"
+         x="10"
+         height="50"
+         width="80"
+         id="rect4145"
+      />      
+          <text
+             id="text4149"
+             y="300"
+             x="50"             
+			 class="module"
+             xml:space="preserve">RainParse</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4153"
+         d="M 90,295 L 105,295"
+      />
+	  <a         
+         xlink:href="RainPasses.html"
+         xlink:show="new"
+         id="a4161">        
+      <rect
+         y="270"
+         x="105"
+         height="50"
+         width="80"
+         id="rect4159"
+      />
+          <text
+             id="text4165"
+             y="300"
+             x="145"
+			 class="module"
+             xml:space="preserve">RainPasses</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4169"
+         d="M 185,295 L 200,295"
+      />
+    </g>
+    <path       
+       d="M 200,295 L 300,95"
+       id="path4194"
+       inkscape:connector-type="polyline" />
+    <path       
+       d="M 200,65 L 300,95"
+       id="path4198"
+       inkscape:connector-type="polyline" />
+    <g
+       id="g2257">
+      <rect
+         y="50"
+         x="300"
+         height="300"
+         width="140"
+         id="rect4171"
+      />
+      <text
+         id="text4173"
+         y="40"
+         x="300"
+         class="label"
+         xml:space="preserve">Shared passes</text>      
+	  <a         
+         xlink:href="SimplifyTypes.html"
+         xlink:show="new"
+         id="a4181">
+      <rect         
+         id="rect4179"
+         width="100"
+         height="50"
+         x="320"
+         y="70" />
+          <text
+             id="text4185"
+             y="100"
+             x="370"
+             class="module"
+             xml:space="preserve">SimplifyTypes</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4202"
+         d="M 300,95 L 320,95"
+      />
+	  <path
+         inkscape:connector-type="polyline"
+         id="path4202"
+         d="M 370,120 L 370,140"
+      />
+	  <a         
+         xlink:href="SimplifyExprs.html"
+         xlink:show="new"
+         id="a4181">
+      <rect         
+         id="rect4179"
+         width="100"
+         height="50"
+         x="320"
+         y="140" />
+          <text
+             id="text4185"
+             y="170"
+             x="370"
+             class="module"
+             xml:space="preserve">SimplifyExprs</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4202"
+         d="M 370,190 L 370,210"
+      />
+      <a         
+         xlink:href="SimplifyProcs.html"
+         xlink:show="new"
+         id="a4181">
+      <rect         
+         id="rect4179"
+         width="100"
+         height="50"
+         x="320"
+         y="210" />
+          <text
+             id="text4185"
+             y="240"
+             x="370"
+             class="module"
+             xml:space="preserve">SimplifyProcs</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4202"
+         d="M 370,260 L 370,280"
+      />
+	  <a         
+         xlink:href="Unnest.html"
+         xlink:show="new"
+         id="a4181">
+      <rect         
+         id="rect4179"
+         width="100"
+         height="50"
+         x="320"
+         y="280" />
+          <text
+             id="text4185"
+             y="310"
+             x="370"
+             class="module"
+             xml:space="preserve">Unnest</text>        
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4202"
+         d="M 420,300 L 440,300"
+      />
+    </g>
+    <path       
+       d="M 440,300 L 530,285"
+       id="path4319"
+       inkscape:connector-type="polyline" />
+    <g
+       id="g2298"
+     >
+      <rect
+         y="240"
+         x="530"
+         height="90"
+         width="170"
+         id="rect4297"
+      />
+      <text
+         id="text4299"
+         y="230"
+         x="530"
+         class="label"
+         xml:space="preserve">C++/C++CSP backend</text>
+	  <a         
+         xlink:href="GenerateCPPCSP.html"
+         xlink:show="new"
+         id="a4305">        
+      <rect
+         y="260"
+         x="550"
+         height="50"
+         width="130"
+         id="rect4303"
+      />      
+          <text
+             id="text4307"
+             y="290"
+             x="615"
+             class="module"
+             xml:space="preserve">GenerateCPPCSP</text>
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4323"
+         d="M 530,285 L 550,285"
+      />
+    </g>
+    <path       
+       d="M 440,300 L 530,95"
+       id="path4327"
+       inkscape:connector-type="polyline" />
+    <g
+       id="g2288">
+      <rect
+         y="50"
+         x="530"
+         height="90"
+         width="170"
+         id="rect4281"
+      />
+      <text
+         id="text4283"
+         y="40"
+         x="530"
+         class="label"
+         xml:space="preserve">C/CIF backend</text>
+	  <a         
+         xlink:href="GenerateC.html"
+         xlink:show="new"
+         id="a4289">
+      <rect
+         y="70"
+         x="550"
+         height="50"
+         width="130"
+         id="rect4287"
+      />
+        <text
+           xml:space="preserve"
+           class="module"
+           x="615"
+           y="100"
+           id="text4291">GenerateC</text>
+      </a>
+      <path
+         inkscape:connector-type="polyline"
+         id="path4329"
+         d="M 530,95 L 550,95"
+      />
+    </g>
+  </g>
+</svg>
