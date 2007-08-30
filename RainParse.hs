@@ -162,6 +162,8 @@ dataType
 
 variableId :: RainParser A.Variable
 variableId = do {v <- name ; return $ A.Variable (findMeta v) v}
+             <|> try (do {m <- sIn ; v <- variableId ; return $ A.DirectedVariable m A.DirInput v})
+             <|> try (do {m <- sOut ; v <- variableId ; return $ A.DirectedVariable m A.DirOutput v})
              <?> "variable name"
 
 stringLiteral :: RainParser (A.LiteralRepr, A.Dimension)
@@ -211,10 +213,6 @@ expression
   where
     castExpression :: RainParser A.Expression
     castExpression = (try $ do {ty <- dataType ; m <- sColon ; e <- expression ; return $ A.Conversion m A.DefaultConversion ty e})
-                     <|> do {m <- sIn ; e <- expression ; return $ A.Conversion m A.DefaultConversion 
-                              (A.Chan A.DirInput A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} A.Any) e}
-                     <|> do {m <- sOut ; e <- expression ; return $ A.Conversion m A.DefaultConversion
-                              (A.Chan A.DirOutput A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} A.Any) e}
 
     compExpression :: RainParser A.Expression
     compExpression = do {lhs <- subExpression ; (m,op) <- dyadicCompOp ; rhs <- subExpression ; return $ A.Dyadic m op lhs rhs }

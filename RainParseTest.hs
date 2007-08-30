@@ -64,13 +64,20 @@ testParseFail (text,prod)
     where parser = do { p <- prod ; eof ; return p}
 
 
-data ExprHelper = Dy ExprHelper A.DyadicOp ExprHelper | Mon A.MonadicOp ExprHelper | Cast A.Type ExprHelper | Var String | Lit A.Expression
+data ExprHelper = 
+  Dy ExprHelper A.DyadicOp ExprHelper
+  | Mon A.MonadicOp ExprHelper
+  | Cast A.Type ExprHelper
+  | Var String
+  | DirVar A.Direction String
+  | Lit A.Expression
 
 buildExprPattern :: ExprHelper -> Pattern
 buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
 buildExprPattern (Mon op rhs) = tag3 A.Monadic DontCare op (buildExprPattern rhs)
 buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion (stopCaringPattern m $ mkPattern ty) (buildExprPattern rhs)
 buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
+buildExprPattern (DirVar dir n) = tag2 A.ExprVariable DontCare $ (stopCaringPattern m $ tag3 A.DirectedVariable DontCare dir $ variablePattern n)
 buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
 
 
@@ -132,22 +139,6 @@ testExprs =
   ,passE ("-b+c", 105, Dy (Mon A.MonadicMinus $ Var "b") A.Plus (Var "c") )
   ,passE ("c+-b", 106, Dy (Var "c") A.Plus (Mon A.MonadicMinus $ Var "b") )
   ,passE ("-(b+c)", 107, Mon A.MonadicMinus $ Dy (Var "b") A.Plus (Var "c") )
-  ,passE ("?c", 108, Cast (A.Chan A.DirInput nonShared A.Any) $ Var "c")
-  ,passE ("(?c)+d", 109, Dy (Cast  (A.Chan A.DirInput nonShared A.Any) $ Var "c") A.Plus (Var "d"))
-  ,passE ("?c+d", 110, Cast (A.Chan A.DirInput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))
-  ,passE ("?(c+d)", 111, Cast (A.Chan A.DirInput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))
-  ,passE ("??c", 112, Cast (A.Chan A.DirInput nonShared A.Any) $ Cast (A.Chan A.DirInput nonShared A.Any) $ Var "c")
-  ,passE ("??c+d", 113, Cast  (A.Chan A.DirInput nonShared A.Any) $ Cast (A.Chan A.DirInput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))
-  ,passE ("!c", 113, Cast (A.Chan A.DirOutput nonShared A.Any) $ Var "c")
-  ,passE ("(!c)+d", 115, Dy (Cast  (A.Chan A.DirOutput nonShared A.Any) $ Var "c") A.Plus (Var "d"))
-  ,passE ("!c+d", 116, Cast (A.Chan A.DirOutput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))
-  ,passE ("!(c+d)", 117, Cast (A.Chan A.DirOutput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))
-  ,passE ("!?c", 118, Cast (A.Chan A.DirOutput nonShared A.Any) $ Cast (A.Chan A.DirInput nonShared A.Any) $ Var "c")
-  ,passE ("?!c+d", 119, Cast  (A.Chan A.DirInput nonShared A.Any) $ Cast (A.Chan A.DirOutput nonShared A.Any) $ Dy (Var "c") A.Plus (Var "d"))  
-  ,failE ("c?d")
-  ,failE ("c!d")
-  ,failE ("?")
-  ,failE ("!")
 
   --Casting:
 
@@ -167,9 +158,9 @@ testExprs =
   ,failE ("(uint8 : b) + uint8 : c")
   ,failE ("(uint8 : b) == uint8 : c")
   
-  ,passE ("?uint8: ?c", 240, Cast (A.Chan A.DirInput nonShared A.Byte) $ Cast (A.Chan A.DirInput nonShared A.Any) $ Var "c")
+  ,passE ("?uint8: ?c", 240, Cast (A.Chan A.DirInput nonShared A.Byte) $ DirVar A.DirInput "c")
   --Should parse:
-  ,passE ("?c: ?c", 241, Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ Cast (A.Chan A.DirInput nonShared A.Any) $ Var "c")
+  ,passE ("?c: ?c", 241, Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ DirVar A.DirInput "c")
   ,passE ("?c: ?c : b", 242, Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ 
                                Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ Var "b")
   ,failE ("?c:")
@@ -471,8 +462,7 @@ testComm =
   pass ("c ! x;",RP.statement,assertEqual "testComm 0" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
   ,pass ("c!x;",RP.statement,assertEqual "testComm 1" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
   ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Plus (intLiteral 0) (exprVariable "x")])
-  ,pass ("c!!x;",RP.statement,assertEqual "testComm 3" $ A.Output m (variable "c") [A.OutExpression m $ 
-    A.Conversion m A.DefaultConversion (A.Chan A.DirOutput nonShared A.Any) (exprVariable "x")])
+  ,pass ("c!!x;",RP.statement,assertEqual "testComm 3" $ A.Output m (variable "c") [A.OutExpression m $ (exprDirVariable A.DirOutput "x")])
   ,fail ("c!x",RP.statement)
   ,fail ("c!x!y;",RP.statement)  
   ,fail ("c!x,y;",RP.statement)
@@ -482,8 +472,8 @@ testComm =
   --Input:
   ,pass ("c ? x;",RP.statement, assertEqual "testComm 100" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
   ,pass ("c?x;",RP.statement, assertEqual "testComm 101" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
-  --Fail for now, but later will probably become the extended rendezvous syntax:
-  ,fail ("c??x;",RP.statement)
+  --Later will probably become the extended rendezvous syntax:
+  ,pass ("c??x;",RP.statement, assertEqual "testComm 101" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (A.DirectedVariable m A.DirInput $ variable "x")])
   ,fail ("c ? x + 0;",RP.statement)
   ,fail ("?x;",RP.statement)
   ,fail ("c ? x",RP.statement)

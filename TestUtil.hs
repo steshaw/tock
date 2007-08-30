@@ -61,6 +61,10 @@ variablePattern e = tag2 A.Variable DontCare (simpleNamePattern e)
 exprVariable :: String -> A.Expression
 exprVariable e = A.ExprVariable emptyMeta $ variable e
 
+-- | Creates an 'A.Expression' that has the 'A.ExprVariable' constructor with the given 'String' as the variable name in a 'A.DirectedVariable' with the given direction.
+exprDirVariable :: A.Direction -> String -> A.Expression
+exprDirVariable dir e = A.ExprVariable emptyMeta $ A.DirectedVariable emptyMeta dir $ variable e
+
 exprVariablePattern :: String -> Pattern
 exprVariablePattern e = tag2 A.ExprVariable DontCare $ variablePattern e
 
