@@ -24,11 +24,14 @@ import qualified AST as A
 import Pass
 import Data.Generics
 import qualified Data.Map as Map
+import Data.Maybe
 import Control.Monad.State
 import Types
 import CompState
 import Errors
 import Metadata
+import Pattern
+import TreeUtil
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [(String,Pass)]
@@ -38,7 +41,10 @@ rainPasses =
        ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
        ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes
-       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) --depends on uniquifyAndResolveVars and recordInfNameTypes
+       ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange)
+         --depends on uniquifyAndResolveVars and recordInfNameTypes       
+       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) 
+         --depends on uniquifyAndResolveVars and recordInfNameTypes, and should be done after transformEachRange
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -183,6 +189,45 @@ matchParamPass = everywhereM (mkM matchParamPass')
           then return $ A.ActualExpression to $ A.Conversion (findMeta item) A.DefaultConversion to item
           else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
             " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
+
+checkIntegral :: A.LiteralRepr -> Maybe Integer
+checkIntegral (A.IntLiteral _ s) = Just $ read s
+checkIntegral (A.HexLiteral _ s) = Nothing -- TODO support hex literals
+checkIntegral (A.ByteLiteral _ s) = Nothing -- TODO support char literals
+checkIntegral _ = Nothing
+
+-- | Transforms seqeach\/pareach loops over things like [0..99] into SEQ i = 0 FOR 100 loops
+transformEachRange :: Data t => t -> PassM t
+transformEachRange = everywhereM (mkM transformEachRange')
+  where
+    transformEachRange' :: A.Structured -> PassM A.Structured
+    transformEachRange' s@(A.Rep {})
+      = case getMatchedItems patt s of 
+          Left _ -> return s --Doesn't match, return the original 
+          Right items ->
+            do repMeta <- castOrDie "repMeta" items
+               eachMeta <- castOrDie "eachMeta" items
+               loopVar <- castOrDie "loopVar" items
+               begin <- castOrDie "begin" items
+               end <- castOrDie "end" items
+               body <- castOrDie "body" items
+               if (isJust $ checkIntegral begin) && (isJust $ checkIntegral end)
+                 then return $ A.Rep repMeta (A.For eachMeta loopVar (A.Literal eachMeta A.Int begin) 
+                   (A.Literal eachMeta A.Int $ A.IntLiteral eachMeta $ show ((fromJust $ checkIntegral end) - (fromJust $ checkIntegral begin) + 1))
+                   ) body
+                 else dieP eachMeta "Items in range constructor (x..y) are not integer literals"
+      where
+        patt = tag3 A.Rep (Named "repMeta" DontCare) (
+                 tag3 A.ForEach (Named "eachMeta" DontCare) (Named "loopVar" DontCare) $ 
+                   tag2 A.ExprConstr DontCare $ 
+                     tag3 A.RangeConstr DontCare (tag3 A.Literal DontCare DontCare $ Named "begin" DontCare) 
+                                              (tag3 A.Literal DontCare DontCare $ Named "end" DontCare)
+               ) (Named "body" DontCare)
+        castOrDie :: (Typeable b) => String -> Items -> PassM b
+        castOrDie key items = case castADI (Map.lookup key items) of
+          Just y -> return y
+          Nothing -> die "Internal error in transformEachRange"
+    transformEachRange' s = return s
 
 -- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
 transformEach :: Data t => t -> PassM t

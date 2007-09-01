@@ -139,6 +139,47 @@ testEachPass1 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach o
              (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration DontCare A.Int64)) 
            Nothing -> assertFailure "testEachPass1: Internal error, indexVar not found"
 
+testEachRangePass0 :: Test
+testEachRangePass0 = testPass "testEachRangePass0" exp (transformEachRange orig) (return ())
+  where
+    orig = A.Par m A.PlainPar $ A.Rep m
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 0) (intLiteral 9))))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+    exp = A.Par m A.PlainPar $ A.Rep m
+               (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+               
+testEachRangePass1 :: Test
+testEachRangePass1 = testPass "testEachRangePass1" exp (transformEachRange orig) (return ())
+  where
+    orig = A.Par m A.PlainPar $ A.Rep m
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral (-5)) (intLiteral (-2)))))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+    exp = A.Par m A.PlainPar $ A.Rep m
+               (A.For m (simpleName "x") (intLiteral (-5)) (intLiteral 4))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))                            
+
+testEachRangePass2 :: Test
+testEachRangePass2 = testPass "testEachRangePass2" exp (transformEachRange orig) (return ())
+  where
+    orig = A.Seq m $ A.Rep m
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 6))))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+    exp = A.Seq m $ A.Rep m
+               (A.For m (simpleName "x") (intLiteral 6) (intLiteral 1))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+               
+testEachRangePass3 :: Test
+testEachRangePass3 = testPass "testEachRangePass3" exp (transformEachRange orig) (return ())
+  where
+    orig = A.Seq m $ A.Rep m
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 0))))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))
+    exp = A.Seq m $ A.Rep m
+               (A.For m (simpleName "x") (intLiteral 6) (intLiteral (-5)))
+               (A.OnlyP m (makeSimpleAssign "c" "x"))               
+
+
 -- | Test variable is made unique in a declaration:
 testUnique0 :: Test
 testUnique0 = testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
@@ -405,6 +446,10 @@ tests = TestList
  [
    testEachPass0
    ,testEachPass1
+   ,testEachRangePass0
+   ,testEachRangePass1
+   ,testEachRangePass2
+   ,testEachRangePass3
    ,testUnique0
    ,testUnique1
    ,testUnique2
