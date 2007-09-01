@@ -45,6 +45,8 @@ rainPasses =
          --depends on uniquifyAndResolveVars and recordInfNameTypes       
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) 
          --depends on uniquifyAndResolveVars and recordInfNameTypes, and should be done after transformEachRange
+       ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep)
+         --must be done after transformEachRange
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -255,3 +257,26 @@ transformEach = everywhereM (mkM transformEach')
                  s
            return (spec (A.Rep m newRep s'))
     transformEach' s = return s
+
+-- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
+transformRangeRep :: Data t => t -> PassM t
+transformRangeRep = everywhereM (mkM transformRangeRep')
+  where
+    transformRangeRep' :: A.Expression -> PassM A.Expression
+    transformRangeRep' (A.ExprConstr _ (A.RangeConstr m (A.Literal _ _ beginLit) (A.Literal _ _ endLit)))
+      = if (isJust $ checkIntegral beginLit) && (isJust $ checkIntegral endLit)
+          then transformRangeRep'' m (fromJust $ checkIntegral beginLit) (fromJust $ checkIntegral endLit)
+          else dieP m "Items in range constructor (x..y) are not integer literals"
+      where
+        transformRangeRep'' :: Meta -> Integer -> Integer -> PassM A.Expression
+        transformRangeRep'' m begin end 
+          = if (end < begin)
+              then return $ A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
+              else do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
+                      let count = end - begin + 1
+                      return $ A.ExprConstr m $ A.RepConstr m 
+                        (A.For m rep 
+                          (A.Literal m A.Int (A.IntLiteral m $ show begin)) 
+                          (A.Literal m A.Int (A.IntLiteral m $ show count))
+                        ) (A.ExprVariable m $ A.Variable m rep)
+    transformRangeRep' s = return s

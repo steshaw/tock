@@ -440,6 +440,22 @@ testParamPass8 = testPassShouldFail "testParamPass6" (matchParamPass orig) (star
 
 --TODO test passing in channel ends
 
+-- | Transform an example list
+testRangeRepPass0 :: Test
+testRangeRepPass0 = testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
+  where
+    orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 1)
+    exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare (Named "repIndex" DontCare) (intLiteral 0) (intLiteral 2)) 
+      (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ Named "repIndex" DontCare)
+
+-- | Lists with negative counts should be turned into an empty literal list
+testRangeRepPass1 :: Test
+testRangeRepPass1 = testPass "testRangeRepPass1" exp (transformRangeRep orig) (return())
+  where
+    orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 1) (intLiteral 0)
+    exp = A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
+
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -472,6 +488,8 @@ tests = TestList
    ,testParamPass6
    ,testParamPass7
    ,testParamPass8
+   ,testRangeRepPass0
+   ,testRangeRepPass1
  ]
 
 
