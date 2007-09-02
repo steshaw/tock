@@ -68,6 +68,10 @@ procName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.P
 typeName :: String -> A.Name
 typeName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.DataTypeName }
 
+-- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.FunctionName'.
+funcName :: String -> A.Name
+funcName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.FunctionName }
+
 -- | Creates a 'Pattern' to match a 'A.Name' instance.
 -- @'assertPatternMatch' ('simpleNamePattern' x) ('simpleName' x)@ will always succeed.
 -- All meta tags are ignored.
