@@ -47,6 +47,8 @@ rainPasses =
          --depends on uniquifyAndResolveVars and recordInfNameTypes, and should be done after transformEachRange
        ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep)
          --must be done after transformEachRange
+       ,("Transform Rain functions into the occam form",transformFunction)
+         --must be done after transformEach, depends on uniquifyAndResolveVars and recordInfNameTypes
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -301,3 +303,21 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
                           (A.Literal m A.Int (A.IntLiteral m $ show count))
                         ) (A.ExprVariable m $ A.Variable m rep)
     transformRangeRep' s = return s
+
+transformFunction :: Data t => t -> PassM t
+transformFunction = everywhereM (mkM transformFunction')
+  where
+    transformFunction' :: A.SpecType -> PassM A.SpecType
+    transformFunction' (A.Function m specMode types params body)
+      = case body of 
+          (A.OnlyP _ (A.Seq m' (A.Several m'' statements))) ->
+            if (null statements)
+              then dieP m "Functions must not have empty bodies"
+              else case (last statements) of 
+                ret@(A.OnlyEL {}) -> return $
+                  (A.Function m specMode types params 
+                    (A.ProcThen m' (A.Seq m' (A.Several m'' (init statements))) ret)
+                  )
+                _ -> dieP m "Functions must have a return statement as their last statement"
+          _ -> dieP m "Functions must have seq[uential] bodies"
+    transformFunction' s = return s

@@ -472,6 +472,27 @@ testRangeRepPass1 = testPass "testRangeRepPass1" exp (transformRangeRep orig) (r
     orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 1) (intLiteral 0)
     exp = A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
 
+--TODO consider/test pulling up the definitions of variables involved in return statements in functions
+
+-- | Test a fairly standard function:
+testTransformFunction0 :: Test
+testTransformFunction0 = testPass "testTransformFunction0" exp (transformFunction orig) (return ())
+  where
+    orig = A.Specification m (procName "id") $
+        A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
+          (A.OnlyP m $ A.Seq m $ A.Several m [A.OnlyEL m $ A.ExpressionList m [exprVariable "x"]])
+    exp = tag3 A.Specification DontCare (procNamePattern "id") $
+        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
+          tag3 A.ProcThen DontCare (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured])) $
+            tag2 A.OnlyEL DontCare $ tag2 A.ExpressionList DontCare [exprVariablePattern "x"]
+
+-- | Test a function without a return as the final statement:
+testTransformFunction1 :: Test
+testTransformFunction1 = testPassShouldFail "testTransformFunction1" (transformFunction orig) (return ())
+  where
+    orig = A.Specification m (procName "brokenid") $
+        A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
+          (A.OnlyP m $ A.Seq m $ A.Several m [])
 
 ---Returns the list of tests:
 tests :: Test
@@ -507,6 +528,8 @@ tests = TestList
    ,testParamPass8
    ,testRangeRepPass0
    ,testRangeRepPass1
+   ,testTransformFunction0
+   ,testTransformFunction1
  ]
 
 
