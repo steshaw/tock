@@ -378,6 +378,14 @@ testTopLevelDecl =
       )
       (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)]
   )
+  , pass ("process noargs() par {}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 0b" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
+        (tag3 A.Par DontCare A.PlainPar $ tag2 A.Several DontCare ([] :: [A.Structured]))
+      )
+      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)]
+  )
+  
   , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
     assertPatternMatch "testTopLevelDecl 1" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
       (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleNamePattern "x")]
