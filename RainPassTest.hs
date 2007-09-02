@@ -365,16 +365,30 @@ testParamPass ::
 
 testParamPass testName formals params transParams 
   = case transParams of 
-      Just act -> TestList [testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc]
-      Nothing -> TestList [testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc]
+      Just act -> TestList [testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc,
+                            testPass (testName ++ "/function") (expFunc act) (matchParamPass origFunc) startStateFunc]
+      Nothing -> TestList [testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc,
+                           testPassShouldFail (testName ++ "/function") (matchParamPass origFunc) startStateFunc]
   where
     startStateProc :: State CompState ()
     startStateProc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
                         case formals of
                           Nothing -> return ()
                           Just formals' -> defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec formals' (A.Skip m)
+    startStateFunc :: State CompState ()
+    startStateFunc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
+                        case formals of
+                          Nothing -> return ()
+                          Just formals' -> defineName (funcName "foo") $ simpleDef "foo" $ A.Function m A.PlainSpec [A.Byte] formals' (A.OnlyP m $ A.Skip m)
     origProc = A.ProcCall m (procName "foo") params
     expProc ps = A.ProcCall m (procName "foo") ps
+    origFunc = A.FunctionCall m (funcName "foo") (deActualise params)
+    expFunc ps = A.FunctionCall m (funcName "foo") (deActualise ps)
+    deActualise :: [A.Actual] -> [A.Expression]
+    deActualise = map deActualise'
+    deActualise' :: A.Actual -> A.Expression
+    deActualise' (A.ActualVariable _ _ v) = A.ExprVariable m v
+    deActualise' (A.ActualExpression _ e) = e
 
 -- | Test no-params:
 testParamPass0 :: Test
@@ -433,11 +447,13 @@ testParamPass7 = testParamPass "testParamPass7"
 
 -- | Test calling something that is not a process:
 testParamPass8 :: Test
-testParamPass8 = testPassShouldFail "testParamPass8" (matchParamPass orig) (startState')
+testParamPass8 = TestList [testPassShouldFail "testParamPass8/process" (matchParamPass origProc) (startState'),
+                           testPassShouldFail "testParamPass8/function" (matchParamPass origFunc) (startState')]
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-    orig = A.ProcCall m (procName "x") []
+    origProc = A.ProcCall m (procName "x") []
+    origFunc = A.FunctionCall m (funcName "x") []
 
 --TODO test passing in channel ends
 
