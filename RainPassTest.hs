@@ -356,83 +356,84 @@ testFindMain2 = testPassWithItemsStateCheck "testFindMain2" exp ((uniquifyAndRes
            assertNotEqual "testFindMain2 A" "main" mainName
            assertEqual "testFindMain2 B" [(mainName,(A.Name m A.ProcName mainName))] (csMainLocals state)
 
+testParamPass :: 
+  String              -- ^ The test name
+  -> Maybe [A.Formal] -- ^ The parameters of a process\/function to optionally define
+  -> [A.Actual]       -- ^ The parameters of the process\/function call 
+  -> Maybe [A.Actual] -- ^ The result (or Nothing if failure is expected)
+  -> Test
+
+testParamPass testName formals params transParams 
+  = case transParams of 
+      Just act -> TestList [testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc]
+      Nothing -> TestList [testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc]
+  where
+    startStateProc :: State CompState ()
+    startStateProc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
+                        case formals of
+                          Nothing -> return ()
+                          Just formals' -> defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec formals' (A.Skip m)
+    origProc = A.ProcCall m (procName "foo") params
+    expProc ps = A.ProcCall m (procName "foo") ps
+
 -- | Test no-params:
 testParamPass0 :: Test
-testParamPass0 = testPass "testParamPass0" exp (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") []
-    exp = orig
+testParamPass0 = testParamPass "testParamPass0" (Just []) [] (Just [])
 
 -- | Test param of right type:
 testParamPass1 :: Test
-testParamPass1 = testPass "testParamPass1" exp (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") [A.ActualVariable A.Original A.Any (variable "x")]
-    exp = A.ProcCall m (procName "foo") [A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")]
+testParamPass1 = testParamPass "testParamPass1" 
+  (Just [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")]) 
+  [A.ActualVariable A.Original A.Any (variable "x")]
+  (Just [A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")])
 
 -- | Test up-casts:
 testParamPass2 :: Test
-testParamPass2 = testPass "testParamPass2" exp (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Int32 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
-    exp = A.ProcCall m (procName "foo") [A.ActualExpression A.Int32 $ A.Conversion m A.DefaultConversion A.Int32 (exprVariable "x"),
-                                         A.ActualExpression A.UInt32 $ A.Conversion m A.DefaultConversion A.UInt32 (exprVariable "x")]
+testParamPass2 = testParamPass "testParamPass2"
+  (Just [A.Formal A.ValAbbrev A.Int32 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")])
+  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  (Just [A.ActualExpression A.Int32 $ A.Conversion m A.DefaultConversion A.Int32 (exprVariable "x"),
+         A.ActualExpression A.UInt32 $ A.Conversion m A.DefaultConversion A.UInt32 (exprVariable "x")])
 
 -- | Test invalid implicit down-cast:
 testParamPass3 :: Test
-testParamPass3 = testPassShouldFail "testParamPass3" (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+testParamPass3 = testParamPass "testParamPass3"
+  (Just [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")])
+  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  Nothing
 
 -- | Test explicit down-cast:
 testParamPass4 :: Test
-testParamPass4 = testPass "testParamPass4" exp (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt16 (simpleName "p1")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),A.ActualVariable A.Original A.Any (variable "x")]
-    exp = A.ProcCall m (procName "foo") [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),
-                                         A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")]
+testParamPass4 = testParamPass "testParamPass4"
+  (Just [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt16 (simpleName "p1")])
+  [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  (Just [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),
+         A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")])
 
 -- | Test too few parameters:
 testParamPass5 :: Test
-testParamPass5 = testPassShouldFail "testParamPass5" (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") []
+testParamPass5 = testParamPass "testParamPass5"
+  (Just [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")])
+  []
+  Nothing
 
 -- | Test too many parameters:
 testParamPass6 :: Test
-testParamPass6 = testPassShouldFail "testParamPass6" (matchParamPass orig) (startState')
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
-                     defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")] (A.Skip m)
-    orig = A.ProcCall m (procName "foo") [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+testParamPass6 = testParamPass "testParamPass6"
+  (Just [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")])
+  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  Nothing
 
 -- | Test unknown process:
 testParamPass7 :: Test
-testParamPass7 = testPassShouldFail "testParamPass6" (matchParamPass orig) (return())
-  where
-    orig = A.ProcCall m (procName "foo") [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+testParamPass7 = testParamPass "testParamPass7"
+  Nothing
+  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  Nothing
 
 -- | Test calling something that is not a process:
 testParamPass8 :: Test
-testParamPass8 = testPassShouldFail "testParamPass6" (matchParamPass orig) (startState')
+testParamPass8 = testPassShouldFail "testParamPass8" (matchParamPass orig) (startState')
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
