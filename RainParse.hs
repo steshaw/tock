@@ -84,6 +84,7 @@ sWhile = reserved "while"
 sProcess = reserved "process"
 sFunction = reserved "function"
 sRun = reserved "run"
+sReturn = reserved "return"
 --}}}
 
 --{{{Operators
@@ -251,6 +252,10 @@ innerBlock = do {m <- sLeftC ; lines <- linesToEnd ; return $ A.Several m lines}
     linesToEnd :: RainParser [A.Structured]
     linesToEnd = do {(m,decl) <- declaration ; rest <- linesToEnd ; return [decl $ A.Several m rest]}
                  <|> do {st <- statement ; rest <- linesToEnd ; return $ (wrapProc st) : rest}
+                 --Although return is technically a statement, we parse it here because it can only occur inside a block,
+                 --and we don't want to wrap it in an A.OnlyP:
+                 <|> do {m <- sReturn ; exp <- expression ; sSemiColon ; rest <- linesToEnd ; 
+                   return $ (A.OnlyEL m $ A.ExpressionList (findMeta exp) [exp]) : rest}
                  <|> do {sRightC ; return []}
                  <?> "statement, declaration, or end of block"
 

@@ -432,6 +432,14 @@ testTopLevelDecl =
     ]	
    )   
 
+  ,pass ("function uint8: id(uint8: x) {return x;}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 101" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "id") $
+        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
+          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyEL DontCare $ tag2 A.ExpressionList DontCare [exprVariablePattern "x"]])
+      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+    ]
+   )
  ]
 
 nonShared :: A.ChanAttributes
