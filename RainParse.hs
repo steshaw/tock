@@ -82,6 +82,7 @@ sIf = reserved "if"
 sElse = reserved "else"
 sWhile = reserved "while"
 sProcess = reserved "process"
+sFunction = reserved "function"
 sRun = reserved "run"
 --}}}
 
@@ -345,8 +346,14 @@ processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <
     (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
   terminator}
 
+functionDecl :: RainParser A.Structured
+functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- block ;
+  return $ A.Spec m
+    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (A.OnlyP (findMeta body) body)))
+  terminator}
+
 topLevelDecl :: RainParser A.Structured
-topLevelDecl = do decls <- many processDecl
+topLevelDecl = do decls <- many (processDecl <|> functionDecl <?> "process or function declaration")
                   eof
                   return $ A.Several emptyMeta decls
 

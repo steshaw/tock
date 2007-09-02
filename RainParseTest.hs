@@ -413,6 +413,25 @@ testTopLevelDecl =
   , fail ("process foo (int: x)", RP.topLevelDecl)
   , fail ("process foo (int x) {}", RP.topLevelDecl)
     
+    
+  ,pass ("function uint8: cons() {}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 100" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "cons") $
+        tag5 A.Function DontCare A.PlainSpec [A.Byte] ([] :: [A.Formal]) $
+          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
+      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+    ]
+   )
+   
+  ,pass ("function uint8: f(uint8: x) {}", RP.topLevelDecl,
+    assertPatternMatch "testTopLevelDecl 101" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (simpleNamePattern "f") $
+        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
+          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
+      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+    ]	
+   )   
+
  ]
 
 nonShared :: A.ChanAttributes
