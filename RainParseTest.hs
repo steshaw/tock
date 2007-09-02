@@ -42,7 +42,7 @@ fail x = ExpFail x
 --Runs a parse test, given a tuple of: (source text, parser function, assert)
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion
 testParsePass (text,prod,test)
-  = do lexOut <- (L.runLexer "<test>" text)
+  = do lexOut <- (L.runLexer "<unknown-parse-test>" text)
        case lexOut of
          Left m -> assertFailure $ "Parse error in:\n" ++ text ++ "\n***at: " ++ (show m)
          Right toks -> case (runParser parser emptyState "<test>" toks) of
@@ -166,6 +166,8 @@ testExprs =
                                Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ Var "b")
   ,failE ("?c:")
   ,failE (":?c")
+  
+  ,passE ("(48 + (uint8: src % 10)) + r",300,Dy (Dy (Lit $ intLiteral 48) A.Plus (Cast A.Byte $ Dy (Var "src") A.Rem (Lit $ intLiteral 10))) A.Plus (Var "r"))
  ]
  where
    passE :: (String,Int,ExprHelper) -> ParseTest A.Expression
@@ -214,6 +216,17 @@ testLiteral =
   ,fail ("\"\"a",RP.literal)
   ,fail ("\"\\\"",RP.literal)
   
+  --Characters:
+  
+  ,pass ("'0'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '0')
+  ,pass ("'\\''", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\'')
+  ,pass ("'\\n'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\n')
+  ,pass ("'\\\\'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\\')
+  ,fail ("''",RP.literal)
+  ,fail ("'",RP.literal)
+  ,fail ("'\\",RP.literal)
+  ,fail ("'ab'",RP.literal)  
+  ,fail ("'\\n\\n'",RP.literal)  
  ]
 
 testRange :: [ParseTest A.Expression]

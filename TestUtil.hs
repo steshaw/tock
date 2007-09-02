@@ -167,6 +167,11 @@ makeLiteralString str = A.Literal emptyMeta (A.Array [A.Dimension (length str)] 
 makeLiteralStringPattern :: String -> Pattern
 makeLiteralStringPattern = (stopCaringPattern emptyMeta) . mkPattern . makeLiteralString
 
+-- | Creates a 'Pattern' to match an 'A.Expression' instance.
+-- All meta tags are ignored
+makeLiteralCharPattern :: Char -> Pattern
+makeLiteralCharPattern c = tag3 A.Literal DontCare A.Byte (tag2 A.ByteLiteral DontCare [c])
+
 -- | Asserts a comparison using a custom comparison function.
 -- @'assertCompareCustom' msg (==) x y@ will function the same (except for slightly different messages on failure) as @'assertEqual' msg x y@.
 assertCompareCustom :: 

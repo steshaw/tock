@@ -180,15 +180,16 @@ stringLiteral
   where
     testToken (L.TokStringLiteral str) = Just str
     testToken _ = Nothing
-    replaceEscapes :: String -> String
-    replaceEscapes [] = []
-    replaceEscapes ('\\':(c:cs)) = if c == 'n' then ('\n':replaceEscapes cs) else (c:replaceEscapes cs)
-    replaceEscapes (c:cs) = (c:replaceEscapes cs)
+
+replaceEscapes :: String -> String
+replaceEscapes [] = []
+replaceEscapes ('\\':(c:cs)) = if c == 'n' then ('\n':replaceEscapes cs) else (c:replaceEscapes cs)
+replaceEscapes (c:cs) = (c:replaceEscapes cs)
 
 literalCharacter :: RainParser A.LiteralRepr
 literalCharacter
     =   do (m,c) <- getToken testToken
-           return $ A.ByteLiteral m c
+           return $ A.ByteLiteral m (replaceEscapes c)
   where
     testToken (L.TokCharLiteral c) = Just c
     testToken _ = Nothing
@@ -206,6 +207,7 @@ integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
 
 literal :: RainParser A.Expression
 literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.Array [dim] A.Byte) lr }
+          <|> do {c <- literalCharacter ; return $ A.Literal (findMeta c) A.Byte c}
           <|> integerLiteral
           <|> do {m <- reserved "true" ; return $ A.True m}
           <|> do {m <- reserved "false" ; return $ A.False m}
