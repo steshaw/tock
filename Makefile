@@ -4,7 +4,7 @@ all: $(targets)
 
 sources = $(wildcard *.hs frontends/*.hs backends/*.hs transformations/*.hs common/*.hs) $(patsubst %.x,%.hs,$(wildcard frontends/*.x))
 
-builtfiles = $(patsubst %.hs,%.hi,$(sources)) $(patsubst %.hs,%.o,$(sources)) $(patsubst %.x,%.hs,$(wildcard frontends/*.x))
+builtfiles = $(patsubst %.x,%.hs,$(wildcard frontends/*.x))
 
 %.hs: %.x
 	alex $<
@@ -18,10 +18,12 @@ ghc_opts = \
 	$(profile_opts)
 
 tock: $(sources)
-	ghc $(ghc_opts) -o tock --make Main
+	mkdir -p obj
+	ghc $(ghc_opts) -o tock --make Main -odir obj -hidir obj
 
 tocktest: $(sources)
-	ghc $(ghc_opts) -o tocktest -main-is TestMain --make TestMain
+	mkdir -p obj
+	ghc $(ghc_opts) -o tocktest -main-is TestMain --make TestMain -odir obj -hidir obj
 
 CFLAGS = \
 	-O2 \
@@ -77,7 +79,7 @@ haddock:
 	@mv doc/index.html-2 doc/index.html
 
 clean:
-	rm -f $(targets) $(builtfiles)
+	rm -f $(targets) $(builtfiles) obj/*.o obj/*.hi
 
 # Don't delete intermediate files.
 .SECONDARY:
