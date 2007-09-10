@@ -16,9 +16,9 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module RainParseTest (tests) where
+module ParseRainTest (tests) where
 
-import qualified RainParse as RP
+import qualified ParseRain as RP
 import qualified AST as A
 import qualified LexRain as L
 import Text.ParserCombinators.Parsec (runParser,eof)

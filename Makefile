@@ -2,7 +2,9 @@ targets = tock tocktest
 
 all: $(targets)
 
-sources = $(wildcard *.hs) $(patsubst %.x,%.hs,$(wildcard *.x))
+sources = $(wildcard *.hs frontends/*.hs backends/*.hs transformations/*.hs common/*.hs) $(patsubst %.x,%.hs,$(wildcard frontends/*.x))
+
+builtfiles = $(patsubst %.hs,%.hi,$(sources)) $(patsubst %.hs,%.o,$(sources)) $(patsubst %.x,%.hs,$(wildcard frontends/*.x))
 
 %.hs: %.x
 	alex $<
@@ -12,6 +14,7 @@ ghc_opts = \
 	-fglasgow-exts \
 	-fallow-undecidable-instances \
 	-fwarn-unused-binds \
+	-icommon -itransformations -ifrontends -ibackends \
 	$(profile_opts)
 
 tock: $(sources)
@@ -74,7 +77,7 @@ haddock:
 	@mv doc/index.html-2 doc/index.html
 
 clean:
-	rm -f $(targets) *.o *.hi
+	rm -f $(targets) $(builtfiles)
 
 # Don't delete intermediate files.
 .SECONDARY:

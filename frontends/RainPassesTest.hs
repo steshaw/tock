@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- #ignore-exports
 
-module RainPassTest (tests) where
+module RainPassesTest (tests) where
 
 import Test.HUnit hiding (State)
 import Control.Monad.State as CSM

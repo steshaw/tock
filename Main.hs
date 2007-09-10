@@ -36,7 +36,7 @@ import ParseOccam
 import Pass
 import PreprocessOccam
 import PrettyShow
-import RainParse
+import ParseRain
 import RainPasses
 import SimplifyExprs
 import SimplifyProcs

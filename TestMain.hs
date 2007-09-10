@@ -27,8 +27,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * "UsageCheckTest"
 module TestMain () where
 
-import qualified RainParseTest (tests)
-import qualified RainPassTest (tests)
+import qualified ParseRainTest (tests)
+import qualified RainPassesTest (tests)
 import qualified UsageCheckTest (tests)
 import qualified PassTest (tests)
 import Test.HUnit
@@ -37,8 +37,8 @@ main :: IO ()
 main = do runTestTT $ TestList
             [
               PassTest.tests
-              ,RainParseTest.tests
-              ,RainPassTest.tests
+              ,ParseRainTest.tests
+              ,RainPassesTest.tests
               ,UsageCheckTest.tests
             ]
           return ()
