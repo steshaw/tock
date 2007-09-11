@@ -31,6 +31,8 @@ type MatchErrors = [String]
 
 -- | A data item used when matching items of interest.  Note that it is similar to Pattern but not the same;
 --   AnyDataItem can only contain Data, and has no other special values.
+--   We do not use Data.Dynamic because Dynamic only requires Typeable a; we want Data a to enable us
+--   to test the items for equality.
 data AnyDataItem = forall a. Data a => ADI a
 
 instance Show AnyDataItem where
