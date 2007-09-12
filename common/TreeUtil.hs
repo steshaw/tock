@@ -16,7 +16,15 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern, namePattern, nameAndStopCaringPattern, checkTreeForConstr) where
+module TreeUtil (
+  MatchErrors, 
+  AnyDataItem(..), Items, castADI, 
+  assertPatternMatch, getMatchedItems, 
+  tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, 
+  mkPattern, stopCaringPattern, namePattern, nameAndStopCaringPattern, 
+  checkTreeForConstr,
+  con0, con1, con2, con3, con4, con5, con6, con7
+  ) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
@@ -338,3 +346,37 @@ checkTreeForConstr cons = makeCheckFunction $ zip (map constrType cons) cons
     makeCheckFunction' (tr,con) d = (show (dataTypeOf d) == show tr) && (c == con) && (show c == show con)
       where
         c = toConstr d
+
+-- | Converts a 0-argument constructor into its Constr form.
+con0 :: Data a => a -> Constr
+con0 = toConstr
+
+-- | Converts a 1-argument constructor into its Constr form.
+con1 :: Data a => (a0  -> a) -> Constr
+con1 f = toConstr (f undefined)
+
+-- | Converts a 2-argument constructor into its Constr form.
+con2 :: Data a => (a0 -> a1 -> a) -> Constr
+con2 f = toConstr (f undefined undefined)
+
+-- | Converts a 3-argument constructor into its Constr form.
+con3 :: Data a => (a0 -> a1 -> a2 -> a) -> Constr
+con3 f = toConstr (f undefined undefined undefined)
+
+-- | Converts a 4-argument constructor into its Constr form.
+con4 :: Data a => (a0 -> a1 -> a2 -> a3 -> a) -> Constr
+con4 f = toConstr (f undefined undefined undefined undefined)
+
+-- | Converts a 5-argument constructor into its Constr form.
+con5 :: Data a => (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Constr
+con5 f = toConstr (f undefined undefined undefined undefined undefined)
+
+-- | Converts a 6-argument constructor into its Constr form.
+con6 :: Data a => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a) -> Constr
+con6 f = toConstr (f undefined undefined undefined undefined undefined undefined)
+
+-- | Converts a 7-argument constructor into its Constr form.
+con7 :: Data a => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a) -> Constr
+con7 f = toConstr (f undefined undefined undefined undefined undefined undefined undefined)
+
+
