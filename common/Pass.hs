@@ -30,6 +30,7 @@ import CompState
 import Errors
 import Metadata
 import PrettyShow
+import TreeUtil
 
 -- | The monad in which AST-mangling passes operate.
 type PassM = ErrorT String (StateT CompState IO)
@@ -105,3 +106,8 @@ makeGeneric top
         `extM` (return :: String -> PassM String)
         `extM` (return :: Meta -> PassM Meta)
 
+excludeConstr :: Data a => [Constr] -> a -> PassM a
+excludeConstr cons x 
+  = if null items then return x else dieInternal $ "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x
+      where
+        items = checkTreeForConstr cons x
