@@ -105,6 +105,7 @@ data GenOps = GenOps {
     genFlatArraySize :: GenOps -> [A.Dimension] -> CGen (),
     genFormal :: GenOps -> A.Formal -> CGen (),
     genFormals :: GenOps -> [A.Formal] -> CGen (),
+    genForwardDeclaration :: GenOps -> A.Specification -> CGen(),
     genFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen (),
     genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
@@ -191,6 +192,7 @@ cgenOps = GenOps {
     genFlatArraySize = cgenFlatArraySize,
     genFormal = cgenFormal,
     genFormals = cgenFormals,
+    genForwardDeclaration = cgenForwardDeclaration,
     genFuncDyadic = cgenFuncDyadic,
     genFuncMonadic = cgenFuncMonadic,
     genIf = cgenIf,
@@ -262,6 +264,7 @@ cgenTopLevel ops p
           cs <- get
           tell ["extern int " ++ nameString n ++ "_stack_size;\n"
                 | n <- Set.toList $ csParProcs cs]
+          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) p)
           call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
@@ -1387,6 +1390,16 @@ cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
           call genRetypeSizes ops m am t n origT v
 --cintroduceSpec ops (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec ops n = call genMissing ops $ "introduceSpec " ++ show n
+
+cgenForwardDeclaration :: GenOps -> A.Specification -> CGen ()
+cgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
+    =  do call genSpecMode ops sm
+          tell ["void "]
+          genName n
+          tell [" (Process *me"]
+          call genFormals ops fs
+          tell [");"]
+cgenForwardDeclaration _ _ = return ()
 
 cremoveSpec :: GenOps -> A.Specification -> CGen ()
 cremoveSpec ops (A.Specification m n (A.Declaration _ t))

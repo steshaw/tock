@@ -73,6 +73,7 @@ module GenerateCPPCSP (generateCPPCSP) where
 import Data.Char
 import Data.List
 import Data.Maybe
+import Data.Generics
 import Control.Monad.Writer
 import Control.Monad.Error
 import Control.Monad.State
@@ -107,6 +108,7 @@ cppgenOps = cgenOps {
     genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
     genFlatArraySize = cppgenFlatArraySize,
+    genForwardDeclaration = cppgenForwardDeclaration,
     genIf = cppgenIf,
     genInput = cppgenInput,
     genInputCase = cppgenInputCase,
@@ -141,6 +143,8 @@ generateCPPCSP = generate cppgenOps
 cppgenTopLevel :: GenOps -> A.Process -> CGen ()
 cppgenTopLevel ops p
     =  do tell ["#include <tock_support_cppcsp.h>\n"]
+          --In future, these declarations could be moved to a header file:
+          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) p)
           call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
@@ -791,6 +795,67 @@ cppgenFlatArraySize ops dims = sequence_ $ intersperse (tell ["*"]) $ map genDim
     genDim (A.Dimension n) = tell [show n]
     genDim dim = call genMissing ops ("No support for dimension: " ++ show dim)
 
+--Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
+--and also changed to use infixComma.
+--Therefore these functions are not part of GenOps.  They are called directly by cppgenForwardDeclaration and cppintroduceSpec.
+--To use for a constructor list, pass prefixUnderscore as the function, otherwise pass the identity function
+cppgenFormals :: GenOps -> (A.Name -> A.Name) -> [A.Formal] -> CGen ()
+cppgenFormals ops nameFunc list = infixComma (map (cppgenFormal ops nameFunc) list)
+
+--Changed as genFormals
+cppgenFormal :: GenOps -> (A.Name -> A.Name) -> A.Formal -> CGen ()
+cppgenFormal ops nameFunc (A.Formal am t n) = call genDecl ops am t (nameFunc n)
+
+cppgenForwardDeclaration :: GenOps -> A.Specification -> CGen()
+cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
+    =  do --Generate the "process" as a C++ function:
+          call genSpecMode ops sm
+          tell ["void "]
+          name 
+          tell [" ("]
+          cppgenFormals ops (\x -> x) fs
+          tell [");"]
+
+          --And generate its CSProcess wrapper:
+          tell ["class proc_"]
+          name
+          tell [" : public csp::CSProcess {private:"]
+          genClassVars fs
+          tell ["public:inline proc_"]
+          name
+          tell ["("]
+          cppgenFormals ops prefixUnderscore fs
+          tell [") : csp::CSProcess(262144)"]
+          genConstructorList fs
+          tell ["{} protected: virtual void run(); };"]
+  where
+    name = genName n
+
+    --A simple function for generating declarations of class variables
+    genClassVar :: A.Formal -> CGen()
+    genClassVar (A.Formal am t n) 
+        = do call genDecl ops am t n
+             tell[";"]
+
+    --Generates the given list of class variables
+    genClassVars :: [A.Formal] -> CGen ()
+    genClassVars fs = cgmap genClassVar fs
+
+    --A helper function for generating the initialiser list in a process wrapper constructor
+    genConsItem :: A.Formal -> CGen()
+    genConsItem (A.Formal am t n)
+        = do tell[","]
+             genName n
+             tell["(_"]
+             genName n
+             tell[")"]
+
+    --A function for generating the initialiser list in a process wrapper constructor
+    genConstructorList :: [A.Formal] -> CGen ()
+    genConstructorList fs = cgmap genConsItem fs
+
+cppgenForwardDeclaration _ _ = return ()
+
 cppintroduceSpec :: GenOps -> A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
 cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
@@ -805,56 +870,15 @@ cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
           tell ["}\n"]                                                                          
 
           --And generate its CSProcess wrapper:
-          tell ["class proc_"]
+          tell ["void proc_"]
           name
-          tell [" : public csp::CSProcess {private:"]
-          genClassVars fs
-          tell ["public:inline proc_"]
-          name
-          tell ["("]
-          cppgenFormals ops prefixUnderscore fs
-          tell [") : csp::CSProcess(262144)"]
-          genConstructorList fs
-          tell ["{} protected: virtual void run() { try {"]
+          tell ["::run() { try {"]
           name
           tell [" ( "]
           genParamList fs
-          tell [" ); } catch (StopException e) {std::cerr << \"Stopped because: \" << e.reason << std::endl; } } };"]
+          tell [" ); } catch (StopException e) {std::cerr << \"Stopped because: \" << e.reason << std::endl; } }"]
   where
     name = genName n
-
-    --A simple function for generating declarations of class variables
-    genClassVar :: A.Formal -> CGen()
-    genClassVar (A.Formal am t n) 
-        = do call genDecl ops am t n
-             tell[";"]
-
-    --Generates the given list of class variables
-    genClassVars :: [A.Formal] -> CGen ()
-    genClassVars fs = cgmap genClassVar fs
-
-    --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
-    --and also changed to use infixComma
-    --To use for a constructor list, pass prefixUnderscore as the function, otherwise pass the identity function
-    cppgenFormals :: GenOps -> (A.Name -> A.Name) -> [A.Formal] -> CGen ()
-    cppgenFormals ops nameFunc list = infixComma (map (cppgenFormal ops nameFunc) list)
-
-    --Changed as genFormals
-    cppgenFormal :: GenOps -> (A.Name -> A.Name) -> A.Formal -> CGen ()
-    cppgenFormal ops nameFunc (A.Formal am t n) = call genDecl ops am t (nameFunc n)
-
-    --A helper function for generating the initialiser list in a process wrapper constructor
-    genConsItem :: A.Formal -> CGen()
-    genConsItem (A.Formal am t n)
-        = do tell[","]
-             genName n
-             tell["(_"]
-             genName n
-             tell[")"]
-
-    --A function for generating the initialiser list in a process wrapper constructor
-    genConstructorList :: [A.Formal] -> CGen ()
-    genConstructorList fs = cgmap genConsItem fs
 
     --A helper function for calling the wrapped functions:
     genParam :: A.Formal -> CGen()
