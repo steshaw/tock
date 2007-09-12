@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern, namePattern, nameAndStopCaringPattern) where
+module TreeUtil (MatchErrors, AnyDataItem(..), Items, castADI, assertPatternMatch, getMatchedItems, mkPattern, tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, stopCaringPattern, namePattern, nameAndStopCaringPattern, checkTreeForConstr) where
 
 import Test.HUnit hiding (State)
 import qualified Data.Map as Map
@@ -308,3 +308,33 @@ tag6d x = tag6 x DontCare DontCare DontCare DontCare DontCare DontCare
 -- | Like tag7, but with DontCare for all the sub-items
 tag7d :: (Data a) => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a) -> Pattern
 tag7d x = tag7 x DontCare DontCare DontCare DontCare DontCare DontCare DontCare
+
+
+-- | Checks that the given tree does not contain any of the constructors supplied.
+-- Returns a list of all tree items matching those constructors
+checkTreeForConstr :: Data a => [Constr] -> a -> [AnyDataItem]
+checkTreeForConstr cons = makeCheckFunction $ zip (map constrType cons) cons
+  where
+    makeCheckFunction :: Data a => [(DataType, Constr)] -> (a -> [AnyDataItem])
+    makeCheckFunction tcs = listify' (anyFunc $ ((map makeCheckFunction' tcs) :: [GenericQ Bool]))
+
+    -- anyFunc takes a list of generic queries, and returns a single generic query that ORs the results together
+    -- Note that this is not the same as using foldl and extQ, because extQ deals with type-specific cases,
+    -- not generic queries as we have here.
+    anyFunc :: [GenericQ Bool] -> GenericQ Bool
+    anyFunc [] _ = False
+    anyFunc (f:fs) x = (f x) || (anyFunc fs x)
+
+    -- listify expects a type-specific function as its parameter, not a generic query.
+    -- This function only differs from listify by using a generic query, and wrapping the result in an AnyDataItem wrapper.
+    listify' :: GenericQ Bool -> GenericQ [AnyDataItem]
+    listify' f = everything (++) f'
+      where
+        f' :: GenericQ [AnyDataItem]
+        f' x = if (f x) then [ADI x] else []
+
+    -- checks that the DataType and Constr match the given Data item.
+    makeCheckFunction' :: (DataType, Constr) -> (GenericQ Bool)
+    makeCheckFunction' (tr,con) d = (show (dataTypeOf d) == show tr) && (c == con) && (show c == show con)
+      where
+        c = toConstr d

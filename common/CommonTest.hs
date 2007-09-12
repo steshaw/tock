@@ -21,6 +21,9 @@ module CommonTest (tests) where
 import Test.HUnit hiding (State)
 import qualified AST as A
 import Types
+import TreeUtil
+import Metadata
+import Data.Generics
 
 -- | Tests the isSafeConversion function:
 testIsSafeConversion :: Test
@@ -82,10 +85,33 @@ testIsSafeConversion = TestList $ map runTestRow resultsWithIndexes
        ,[t, t,t,t,f, t,t,t,t,t] --to Int64
       ]
 
+testCheckTreeForConstr :: Test
+testCheckTreeForConstr = TestList
+ [
+   doTest (0,A.Int,[],[])
+  ,doTest (1,A.Int,[tc0 A.Int],[ADI A.Int])
+  ,doTest (100, A.True emptyMeta, [tc1 A.True],[ADI $ A.True emptyMeta])
+  
+  ,doTest (200, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [tc1 A.Skip], [ADI $ A.Skip emptyMeta])
+  ,doTest (201, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [tc2 A.Several], [ADI $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta]])
+  ,doTest (202, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [tc0 A.Int], [])
+  ,doTest (203, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [tc2 A.OnlyP, tc1 A.Skip],
+    [ADI $ A.OnlyP emptyMeta $ A.Skip emptyMeta, ADI $ A.Skip emptyMeta])
+ ]
+ where
+   doTest :: Data a => (Int, a, [Constr], [AnyDataItem]) -> Test
+   doTest (n,testIn,testFor,testOut) = TestCase $ assertEqual ("testCheckAny " ++ (show n)) testOut (checkTreeForConstr testFor testIn)
+   tc0 :: Data a => a -> Constr
+   tc0 = toConstr
+   tc1 :: Data a => (a0 -> a) -> Constr
+   tc1 f = toConstr (f undefined)
+   tc2 :: Data a => (a0 -> a1 -> a) -> Constr
+   tc2 f = toConstr (f undefined undefined)
 
 --Returns the list of tests:
 tests :: Test
 tests = TestList
  [
    testIsSafeConversion
+   ,testCheckTreeForConstr
  ]
