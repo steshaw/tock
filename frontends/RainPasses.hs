@@ -36,7 +36,8 @@ import TreeUtil
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [(String,Pass)]
 rainPasses = 
-     [ ("Resolve Int -> Int64",transformInt)
+     [ ("AST Validity check, Rain #1", excludeNonRainFeatures)
+       ,("Resolve Int -> Int64",transformInt)
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt
        ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
@@ -49,6 +50,7 @@ rainPasses =
          --must be done after transformEachRange
        ,("Transform Rain functions into the occam form",transformFunction)
          --must be done after transformEach, depends on uniquifyAndResolveVars and recordInfNameTypes
+       ,("AST Validity check, Rain #2", (\x -> excludeNonRainFeatures x >>= excludeTransformedRainFeatures))
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -321,3 +323,41 @@ transformFunction = everywhereM (mkM transformFunction')
                 _ -> dieP m "Functions must have a return statement as their last statement"
           _ -> dieP m "Functions must have seq[uential] bodies"
     transformFunction' s = return s
+
+-- | All the items that should have been removed at the end of the Rain passes.
+excludeTransformedRainFeatures :: Data t => t -> PassM t
+excludeTransformedRainFeatures = excludeConstr
+  [ con0 A.Int
+   ,con0 A.Any
+   ,con3 A.RangeConstr
+   ,con3 A.ForEach
+  ]
+
+-- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
+excludeNonRainFeatures :: Data t => t -> PassM t
+excludeNonRainFeatures = excludeConstr
+  [ con0 A.Real32
+   ,con0 A.Real64
+   ,con2 A.Counted
+   ,con0 A.Timer
+   ,con1 A.Port
+   ,con3 A.IntrinsicFunctionCall
+   ,con2 A.BytesInExpr
+   ,con2 A.BytesInType
+   ,con3 A.OffsetOf
+   ,con0 A.After
+   ,con3 A.InCounted
+   ,con3 A.OutCounted
+   ,con2 A.InputTimerRead
+   ,con2 A.InputTimerAfter
+   ,con2 A.Place
+   ,con3 A.IsChannelArray
+   ,con4 A.Retypes
+   ,con4 A.RetypesExpr
+   ,con0 A.PriPar
+   ,con0 A.PlacedPar
+   ,con1 A.Stop
+   ,con3 A.Processor
+   ,con3 A.IntrinsicProcCall
+  ]
+
