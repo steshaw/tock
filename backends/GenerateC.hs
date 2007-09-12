@@ -716,6 +716,7 @@ cgenVariable' ops checkValid v
     -- treat c->x as if it's just x).
     accessAbbrevMode :: A.Variable -> CGen A.AbbrevMode
     accessAbbrevMode (A.Variable _ n) = abbrevModeOfName n
+    accessAbbrevMode (A.DirectedVariable _ _ v) = accessAbbrevMode v
     accessAbbrevMode (A.SubscriptedVariable _ sub v)
         =  do am <- accessAbbrevMode v
               return $ case (am, sub) of
