@@ -246,24 +246,40 @@ expression
                <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
                <|> do {sLeftR ; e <- expression ; sRightR ; return e}
 
-innerBlock :: RainParser A.Structured
-innerBlock = do {m <- sLeftC ; lines <- linesToEnd ; return $ A.Several m lines}
+data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
+
+
+innerBlock :: Bool -> RainParser A.Structured
+innerBlock declsMustBeFirst = do m <- sLeftC 
+                                 lines <- linesToEnd (if declsMustBeFirst then Decls else Mixed)
+                                 case lines of
+                                   Left single -> return single
+                                   Right lines -> return $ A.Several m lines
   where
     wrapProc :: A.Process -> A.Structured
     wrapProc x = A.OnlyP (findMeta x) x
-    linesToEnd :: RainParser [A.Structured]
-    linesToEnd = do {(m,decl) <- declaration ; rest <- linesToEnd ; return [decl $ A.Several m rest]}
-                 <|> do {st <- statement ; rest <- linesToEnd ; return $ (wrapProc st) : rest}
+        
+    makeList :: Either A.Structured [A.Structured] -> [A.Structured]
+    makeList (Left s) = [s]
+    makeList (Right ss) = ss
+        
+    --Returns either a single line (which means the immediate next line is a declaration) or a list of remaining lines
+    linesToEnd :: InnerBlockLineState -> RainParser (Either A.Structured [A.Structured])
+    linesToEnd state
+               = (if state /= NoMoreDecls then do {(m,decl) <- declaration ; rest <- linesToEnd state ; return $ Left $ decl $ A.Several m (makeList rest)} else pzero)
+                 <|> do {st <- statement ; rest <- linesToEnd nextState ; return $ Right $ (wrapProc st) : (makeList rest)}
                  --Although return is technically a statement, we parse it here because it can only occur inside a block,
                  --and we don't want to wrap it in an A.OnlyP:
-                 <|> do {m <- sReturn ; exp <- expression ; sSemiColon ; rest <- linesToEnd ; 
-                   return $ (A.OnlyEL m $ A.ExpressionList (findMeta exp) [exp]) : rest}
-                 <|> do {sRightC ; return []}
+                 <|> do {m <- sReturn ; exp <- expression ; sSemiColon ; rest <- linesToEnd nextState ; 
+                   return $ Right $ (A.OnlyEL m $ A.ExpressionList (findMeta exp) [exp]) : (makeList rest)}
+                 <|> do {sRightC ; return $ Right []}
                  <?> "statement, declaration, or end of block"
+                 where
+                   nextState = if state == Mixed then Mixed else NoMoreDecls
 
 block :: RainParser A.Process
-block = do { optionalSeq ; b <- innerBlock ; return $ A.Seq (findMeta b) b}
-        <|> do { m <- sPar ; b <- innerBlock ; return $ A.Par m A.PlainPar b}
+block = do { optionalSeq ; b <- innerBlock False ; return $ A.Seq (findMeta b) b}
+        <|> do { m <- sPar ; b <- innerBlock True ; return $ A.Par m A.PlainPar b}
 
 optionalSeq :: RainParser ()
 optionalSeq = option () (sSeq >> return ())
