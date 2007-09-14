@@ -494,6 +494,29 @@ testTransformFunction1 = testPassShouldFail "testTransformFunction1" (transformF
         A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
           (A.OnlyP m $ A.Seq m $ A.Several m [])
 
+testPullUpParDecl0 :: Test
+testPullUpParDecl0 = testPass "testPullUpParDecl0" orig (pullUpParDeclarations orig) (return ())
+  where
+    orig = A.Par m A.PlainPar (A.Several m [])
+
+testPullUpParDecl1 :: Test
+testPullUpParDecl1 = testPass "testPullUpParDecl1" exp (pullUpParDeclarations orig) (return ())
+  where
+    orig = A.Par m A.PlainPar $
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.Several m [])
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
+
+testPullUpParDecl2 :: Test
+testPullUpParDecl2 = testPass "testPullUpParDecl2" exp (pullUpParDeclarations orig) (return ())
+  where
+    orig = A.Par m A.PlainPar $
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $
+      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte) $
+      (A.Several m [])
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) 
+                  $ A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte)
+                    (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -530,6 +553,9 @@ tests = TestList
    ,testRangeRepPass1
    ,testTransformFunction0
    ,testTransformFunction1
+   ,testPullUpParDecl0
+   ,testPullUpParDecl1
+   ,testPullUpParDecl2
  ]
 
 

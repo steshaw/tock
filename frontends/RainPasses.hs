@@ -50,6 +50,7 @@ rainPasses =
          --must be done after transformEachRange
        ,("Transform Rain functions into the occam form",transformFunction)
          --must be done after transformEach, depends on uniquifyAndResolveVars and recordInfNameTypes
+       ,("Pull up par declarations", pullUpParDeclarations) --doesn't depend on anything
        ,("AST Validity check, Rain #2", (\x -> excludeNonRainFeatures x >>= excludeTransformedRainFeatures))
      ]
 
@@ -323,6 +324,23 @@ transformFunction = everywhereM (mkM transformFunction')
                 _ -> dieP m "Functions must have a return statement as their last statement"
           _ -> dieP m "Functions must have seq[uential] bodies"
     transformFunction' s = return s
+
+pullUpParDeclarations :: Data t => t -> PassM t
+pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
+  where
+    pullUpParDeclarations' :: A.Process -> PassM A.Process
+    pullUpParDeclarations' p@(A.Par m mode inside) 
+      = case chaseSpecs inside of
+          Just (specs, innerCode) -> return $ A.Seq m $ specs $ A.OnlyP m $ A.Par m mode innerCode
+          Nothing -> return p
+    pullUpParDeclarations' p = return p
+    
+    chaseSpecs :: A.Structured -> Maybe (A.Structured -> A.Structured, A.Structured)
+    chaseSpecs (A.Spec m spec inner) 
+      = case chaseSpecs inner of
+          Nothing -> Just (A.Spec m spec,inner)
+          Just (trans,inner') -> Just ( (A.Spec m spec) . trans,inner')
+    chaseSpecs _ = Nothing
 
 -- | All the items that should have been removed at the end of the Rain passes.
 excludeTransformedRainFeatures :: Data t => t -> PassM t
