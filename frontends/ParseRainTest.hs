@@ -63,6 +63,9 @@ testParseFail (text,prod)
                            Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}
 
+emptyBlock :: A.Process
+emptyBlock = A.Seq m $ A.Several m []
+
 
 data ExprHelper = 
   Dy ExprHelper A.DyadicOp ExprHelper
@@ -252,16 +255,16 @@ dyExp op v0 v1 = A.Dyadic m op (A.ExprVariable m v0) (A.ExprVariable m v1)
 testIf :: [ParseTest A.Process]
 testIf =
  [
-  pass ("if (a) ;",RP.statement,
-    assertEqual "If Test 0" $ makeIf [(exprVariable "a",A.Skip m),(A.True m,A.Skip m)])
-  ,pass ("if (a) ; else ;",RP.statement,
-    assertEqual "If Test 1" $ makeIf [(exprVariable "a",A.Skip m),(A.True m,A.Skip m)])
-  ,pass ("if (a) ; else a = b;",RP.statement,
-    assertEqual "If Test 2" $ makeIf [(exprVariable "a",A.Skip m),(A.True m,makeSimpleAssign "a" "b")])    
-  ,pass ("if (a) ; else if (b) ; ",RP.statement,
-    assertEqual "If Test 3" $ makeIf [(exprVariable "a",A.Skip m),(A.True m,makeIf [(exprVariable "b",A.Skip m),(A.True m,A.Skip m)])])
-  ,pass ("if (a) ; else if (b) ; else ; ",RP.statement,
-    assertEqual "If Test 4" $ makeIf [(exprVariable "a",A.Skip m),(A.True m,makeIf [(exprVariable "b",A.Skip m),(A.True m,A.Skip m)])])    
+  pass ("if (a) {}",RP.statement,
+    assertEqual "If Test 0" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,A.Skip m)])
+  ,pass ("if (a) {} else {}",RP.statement,
+    assertEqual "If Test 1" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,emptyBlock)])
+  ,pass ("if (a) {} else a = b;",RP.statement,
+    assertEqual "If Test 2" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSimpleAssign "a" "b")])    
+  ,pass ("if (a) {} else if (b) {} ",RP.statement,
+    assertEqual "If Test 3" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeIf [(exprVariable "b",emptyBlock),(A.True m,A.Skip m)])])
+  ,pass ("if (a) {} else if (b) {} else {} ",RP.statement,
+    assertEqual "If Test 4" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeIf [(exprVariable "b",emptyBlock),(A.True m,emptyBlock)])])
   ,pass ("if (a) c = d; else if (b) e = f; else g = h;",RP.statement,
     assertEqual "If Test 5" $ makeIf [(exprVariable "a",makeSimpleAssign "c" "d"),(A.True m,makeIf [(exprVariable "b",makeSimpleAssign "e" "f"),(A.True m,makeSimpleAssign "g" "h")])])    
   --TODO add fail tests, maybe {} brackets
@@ -281,8 +284,8 @@ testAssign =
 testWhile :: [ParseTest A.Process]
 testWhile = 
  [
-  pass ("while (a) ;",RP.statement, 
-        assertEqual "While Test" $ A.While emptyMeta (exprVariable "a") (A.Skip emptyMeta) )
+  pass ("while (a) {}",RP.statement, 
+        assertEqual "While Test" $ A.While emptyMeta (exprVariable "a") (emptyBlock) )
   ,fail ("while (a)",RP.statement)
   ,fail ("while () ;",RP.statement)
   ,fail ("while () {}",RP.statement)
@@ -296,14 +299,12 @@ testSeq =
  [
   pass ("seq { }",RP.statement,
     assertEqual "Empty Seq Test" $ A.Seq m $ A.Several m [] )
-  ,pass ("seq { ; ; }",RP.statement,
-    assertEqual "Seq Skip Test" $ A.Seq m $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m (A.Skip m))] )
+  ,fail ("seq { ; ; }",RP.statement)
 
   ,pass ("{ }",RP.statement,
     assertEqual "Empty Unlabelled-Seq Test" $ A.Seq m $ A.Several m [] )
 
-  ,pass ("{ ; ; }",RP.statement,
-    assertEqual "Unlabelled-Seq Skip Test" $ A.Seq m $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m (A.Skip m))] )
+  ,fail ("{ ; ; }",RP.statement)
 
   ,pass ("{ { } }",RP.statement,
     assertEqual "Unlabelled-Seq Nest Test 0" $ A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
@@ -312,14 +313,6 @@ testSeq =
   ,pass ("{ seq { } }",RP.statement,
     assertEqual "Unlabelled-Seq Nest Test 2" $ A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )        
 
-  ,pass ("{ ; {} }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 3" $ A.Seq m $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m $ A.Seq m (A.Several m []))] )
-
-  ,pass ("seq { ; {} }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 4" $ A.Seq m $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m $ A.Seq m (A.Several m []))] )
-
-  ,pass ("{ ; seq {} }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 5" $ A.Seq m $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m $ A.Seq m (A.Several m []))] )
 
   ,fail ("seq",RP.statement)
   ,fail ("seq ;",RP.statement)
@@ -343,8 +336,8 @@ testPar =
   pass ("par { }",RP.statement,
     assertEqual "Empty Par Test" $ A.Par m A.PlainPar $ A.Several m [] )
 
-  ,pass ("par { ; ; }",RP.statement,
-    assertEqual "Par Skip Test" $ A.Par m A.PlainPar $ A.Several m [(A.OnlyP m (A.Skip m)),(A.OnlyP m (A.Skip m))] )      
+  ,pass ("par { {} {} }",RP.statement,
+    assertEqual "Par Skip Test" $ A.Par m A.PlainPar $ A.Several m [A.OnlyP m emptyBlock, A.OnlyP m emptyBlock] )
  ]
 
 -- | Test innerBlock, particularly with declarations mixed with statements:

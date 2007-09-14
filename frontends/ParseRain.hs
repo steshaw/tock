@@ -325,7 +325,6 @@ statement
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
                (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList (findMeta exp) [exp]))
            })   
-    <|> do { m <- sSemiColon ; return $ A.Skip m}
     <?> "statement"
 
 formaliseTuple :: [(A.Name,A.Type)] -> [A.Formal]
