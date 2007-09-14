@@ -266,7 +266,13 @@ innerBlock declsMustBeFirst = do m <- sLeftC
     --Returns either a single line (which means the immediate next line is a declaration) or a list of remaining lines
     linesToEnd :: InnerBlockLineState -> RainParser (Either A.Structured [A.Structured])
     linesToEnd state
-               = (if state /= NoMoreDecls then do {(m,decl) <- declaration ; rest <- linesToEnd state ; return $ Left $ decl $ A.Several m (makeList rest)} else pzero)
+               = (if state /= NoMoreDecls then 
+                    do (m,decl) <- declaration 
+                       rest <- linesToEnd state 
+                       case rest of 
+                         Left s -> return $ Left $ decl s
+                         Right ss -> return $ Left $ decl $ A.Several m ss 
+                  else pzero)
                  <|> do {st <- statement ; rest <- linesToEnd nextState ; return $ Right $ (wrapProc st) : (makeList rest)}
                  --Although return is technically a statement, we parse it here because it can only occur inside a block,
                  --and we don't want to wrap it in an A.OnlyP:

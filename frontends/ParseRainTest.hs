@@ -345,6 +345,13 @@ testPar =
     assertEqual "Par Decl Test 0" $ A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $ A.Several m 
       [A.OnlyP m $ A.Seq m $ A.Several m []] )
       
+
+  ,pass ("par {uint16:x; uint32:y; {} }",RP.statement,
+    assertEqual "Par Decl Test 1" $ A.Par m A.PlainPar $ 
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16) $ 
+      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32) $ 
+      A.Several m [A.OnlyP m $ A.Seq m $ A.Several m []] )
+      
   ,fail ("par { {} int: x; }",RP.statement)
  ]
 
