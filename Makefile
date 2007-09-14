@@ -81,5 +81,23 @@ haddock:
 clean:
 	rm -f $(targets) $(builtfiles) obj/*.o obj/*.hi
 
+#This generates the ASTXML module, which is not currently used anywhere in Tock.
+#It requires the HaXml modules (1.13.x or earlier), and the DrIFT preprocessor, urls:
+# http://www.cs.york.ac.uk/fp/HaXml/
+# http://repetae.net/~john/computer/haskell/DrIFT/
+#I had to exclude a few other definitions from the imports because AST has entries like True,
+#and we cannot get DrIFT to import AST qualified.  The alternative would be to append the 
+#instances from DrIFT to AST.hs itself, but I didn't want to do that just yet:
+
+common/ASTXML.hs: common/AST.hs common/Metadata.hs
+	echo -e "module ASTXML where\n" > common/ASTXML.hs
+	echo -e "import AST\n" >> common/ASTXML.hs
+	echo -e "import Metadata\n" >> common/ASTXML.hs
+	echo -e "import Text.XML.HaXml.Haskell2Xml hiding (Seq, TagName, Name, Plus, Choice)\n" >> common/ASTXML.hs
+	echo -e "import Prelude hiding (True,False)\n" >> common/ASTXML.hs
+	cd common && DrIFT -r AST.hs >> ASTXML.hs
+	cd common && DrIFT -r Metadata.hs >> ASTXML.hs
+
+
 # Don't delete intermediate files.
 .SECONDARY:

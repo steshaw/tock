@@ -20,6 +20,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- This is intended to be imported qualified as A.
 module AST where
 
+{-! global : Haskell2Xml !-}
+
 import Data.Generics
 
 import Metadata

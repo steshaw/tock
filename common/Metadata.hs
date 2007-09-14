@@ -19,6 +19,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Metadata -- i.e. source position.
 module Metadata where
 
+{-! global : Haskell2Xml !-}
+
 import Data.Generics
 
 import Utils
