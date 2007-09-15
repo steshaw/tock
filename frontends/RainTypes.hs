@@ -91,3 +91,11 @@ annnotateIntLiteralTypes = everywhereASTM doExpression
       where
         n = read s        
     doExpression e = return e
+
+-- | Checks the types in expressions
+checkExpressionTypes :: Data t => t -> PassM t
+checkExpressionTypes = everywhereASTM checkExpression
+  where
+    checkExpression :: A.Expression -> PassM A.Expression
+    checkExpression = return
+

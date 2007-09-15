@@ -26,6 +26,9 @@ import Pattern
 import qualified AST as A
 import CompState
 import Control.Monad.State
+import Control.Monad.Error
+import Types
+import Pass
 
 constantFoldTest :: Test
 constantFoldTest = TestList
@@ -83,9 +86,61 @@ annotateIntTest = TestList
   failSigned :: Integer -> Test
   failSigned n = testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
 
+checkExpressionTest :: Test
+checkExpressionTest = TestList
+ [
+  passSame 0 A.Int64 $ Dy (Var "x") A.Plus (Var "y")
+  ,passSame 1 A.Byte $ Dy (Var "xu8") A.Plus (Var "yu8")
+  
+  ,pass 100 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Var "yu8")) (Dy (Var "x") A.Plus (Var "yu8"))
+ ]
+ where
+  passSame :: Int -> A.Type -> ExprHelper -> Test
+  passSame n t e = pass n t e e
+  
+  pass :: Int -> A.Type -> ExprHelper -> ExprHelper -> Test
+  pass n t exp act = testPassWithCheck ("checkExpressionTest " ++ show n) (buildExprPattern exp) (checkExpressionTypes $ buildExpr act) state (check t)
+    where
+      check :: A.Type -> A.Expression -> Assertion
+      check t e
+        = do eot <- errorOrType
+             case eot of
+               Left err -> assertFailure ("checkExpressionTest " ++ show n ++ " typeOfExpression failed")
+               Right t' -> assertEqual ("checkExpressionTest " ++ show n) t t'
+            where
+              errorOrType :: IO (Either String A.Type)
+              errorOrType = evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState)
+  
+  
+  fail :: Int -> ExprHelper -> Test
+  fail n e = testPassShouldFail ("checkExpressionTest " ++ show n) (checkExpressionTypes $ buildExpr e) state
+  
+  int :: A.Type -> Integer -> ExprHelper
+  int t n = Lit $ A.Literal m t $ A.IntLiteral m (show n)
+
+  defVar :: String -> A.Type -> State CompState ()
+  defVar n t = defineName (simpleName n) $ simpleDefDecl n t
+  
+  state :: State CompState ()
+  state = do defVar "x" A.Int64
+             defVar "y" A.Int64
+             defVar "z" A.Int64
+             defVar "b" A.Bool
+             defVar "b0" A.Bool
+             defVar "b1" A.Bool
+             defVar "xu8" A.Byte
+             defVar "yu8" A.Byte
+             defVar "xu16" A.UInt16
+             defVar "yu16" A.UInt16
+             defVar "xu32" A.UInt32
+             defVar "yu32" A.UInt32
+             defVar "xu64" A.UInt64
+             defVar "yu64" A.UInt64
+
 tests :: Test
 tests = TestList
  [
   constantFoldTest
   ,annotateIntTest
+  ,checkExpressionTest
  ]
