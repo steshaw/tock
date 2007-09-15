@@ -89,31 +89,49 @@ annotateIntTest = TestList
 checkExpressionTest :: Test
 checkExpressionTest = TestList
  [
-  passSame 0 A.Int64 $ Dy (Var "x") A.Plus (Var "y")
-  ,passSame 1 A.Byte $ Dy (Var "xu8") A.Plus (Var "yu8")
+  passSame 0 A.Int64 $ Dy (Var "x") A.Plus (Var "x")
+  ,passSame 1 A.Byte $ Dy (Var "xu8") A.Plus (Var "xu8")
   
-  ,pass 100 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Var "yu8")) (Dy (Var "x") A.Plus (Var "yu8"))
+  ,pass 100 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Var "xu8")) (Dy (Var "x") A.Plus (Var "xu8"))
+  ,pass 101 A.Int32 (Dy (Cast A.Int32 $ Var "x16") A.Plus (Cast A.Int32 $ Var "xu16")) (Dy (Var "x16") A.Plus (Var "xu16"))
+  
+  ,pass 200 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Cast A.Int32 $ Var "xu8")) (Dy (Var "x") A.Plus (Cast A.Int32 $ Var "xu8"))
+  
+  ,fail 300 $ Dy (Var "x") A.Plus (Var "xu64")
+  
+  ,pass 400 A.Int16 (Dy (Var "x16") A.Plus (Cast A.Int16 $ int A.Int8 100)) (Dy (Var "x16") A.Plus (int A.Int8 100))
+  ,pass 401 A.Int16 (Dy (Cast A.Int16 $ Var "x8") A.Plus (int A.Int16 200)) (Dy (Var "x8") A.Plus (int A.Int16 200))
+  --This fails because you are trying to add a signed constant to an unsigned integer that cannot be expanded:
+  ,fail 402 $ Dy (Var "xu64") A.Plus (int A.Int64 0)
  ]
  where
   passSame :: Int -> A.Type -> ExprHelper -> Test
   passSame n t e = pass n t e e
   
   pass :: Int -> A.Type -> ExprHelper -> ExprHelper -> Test
-  pass n t exp act = testPassWithCheck ("checkExpressionTest " ++ show n) (buildExprPattern exp) (checkExpressionTypes $ buildExpr act) state (check t)
+  pass n t exp act = TestCase $ pass' n t (buildExprPattern exp) (buildExpr act)
+
+  --To easily get more tests, we take the result of every successful pass (which must be fine now), and feed it back through
+  --the type-checker to check that it is unchanged
+  
+  pass' :: Int -> A.Type -> Pattern -> A.Expression -> Assertion
+  pass' n t exp act = testPassWithCheck ("checkExpressionTest " ++ show n) exp (checkExpressionTypes act) state (check t)   
     where
       check :: A.Type -> A.Expression -> Assertion
       check t e
         = do eot <- errorOrType
              case eot of
                Left err -> assertFailure ("checkExpressionTest " ++ show n ++ " typeOfExpression failed")
-               Right t' -> assertEqual ("checkExpressionTest " ++ show n) t t'
+               Right t' -> do assertEqual ("checkExpressionTest " ++ show n) t t'
+                              --Now feed it through again, to make sure it isn't changed:
+                              if (e /= act) then pass' (10000 + n) t (mkPattern e) e else return ()
             where
               errorOrType :: IO (Either String A.Type)
               errorOrType = evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState)
   
   
   fail :: Int -> ExprHelper -> Test
-  fail n e = testPassShouldFail ("checkExpressionTest " ++ show n) (checkExpressionTypes $ buildExpr e) state
+  fail n e = TestCase $ testPassShouldFail ("checkExpressionTest " ++ show n) (checkExpressionTypes $ buildExpr e) state
   
   int :: A.Type -> Integer -> ExprHelper
   int t n = Lit $ A.Literal m t $ A.IntLiteral m (show n)
@@ -123,19 +141,13 @@ checkExpressionTest = TestList
   
   state :: State CompState ()
   state = do defVar "x" A.Int64
-             defVar "y" A.Int64
-             defVar "z" A.Int64
              defVar "b" A.Bool
-             defVar "b0" A.Bool
-             defVar "b1" A.Bool
              defVar "xu8" A.Byte
-             defVar "yu8" A.Byte
              defVar "xu16" A.UInt16
-             defVar "yu16" A.UInt16
              defVar "xu32" A.UInt32
-             defVar "yu32" A.UInt32
              defVar "xu64" A.UInt64
-             defVar "yu64" A.UInt64
+             defVar "x16" A.Int16
+             defVar "x8" A.Int16
 
 tests :: Test
 tests = TestList
