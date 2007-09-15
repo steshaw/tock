@@ -48,13 +48,19 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
            return input
     recordInfNameTypes' r = return r
 
--- | Folds all constants.
-constantFoldPass :: Data t => t -> PassM t
-constantFoldPass = doGeneric `extM` doExpression
+everywhereASTM :: (Data s, Data t) => (s -> PassM s) -> t -> PassM t
+everywhereASTM f = doGeneric `extM` (doSpecific f)
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric constantFoldPass
+    doGeneric = makeGeneric (everywhereASTM f)
+    
+    doSpecific :: Data t => (t -> PassM t) -> t -> PassM t
+    doSpecific f x = (doGeneric x >>= f)
 
+-- | Folds all constants.
+constantFoldPass :: Data t => t -> PassM t
+constantFoldPass = everywhereASTM doExpression
+  where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
 

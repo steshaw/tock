@@ -35,6 +35,8 @@ constantFoldTest = TestList
   ,foldCon 100 (lit 2) (Dy (lit 1) A.Plus (lit 1))  
   ,foldCon 101 (lit 65537) (Dy (lit 2) A.Plus (lit 65535))
   ,foldCon 102 (lit (- two63)) (Dy (lit $ two63 - 1) A.Plus (lit 1))
+  
+  ,foldCon 110 (Dy (Var "x") A.Plus (lit 2)) (Dy (Var "x") A.Plus (Dy (lit 1) A.Plus (lit 1)))
  ]
  where
    two63 :: Integer
