@@ -148,7 +148,7 @@ findMain x = do newMainName <- makeNonce "main_"
       Nothing -> m
       Just nd -> ((Map.insert n (nd {A.ndName = n})) . (Map.delete "main")) m     
     
--- | A pass that finds all the 'A.ProcCall' in the AST, and checks that the actual parameters are valid inputs, given the 'A.Formal' parameters in the process's type
+-- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the AST, and checks that the actual parameters are valid inputs, given the 'A.Formal' parameters in the process's type
 matchParamPass :: Data t => t -> PassM t
 matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc)
   where
