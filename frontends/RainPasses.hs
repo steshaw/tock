@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | A module containing all the misc Rain-specific passes that must be run on the parsed Rain AST before it can be fed into the shared passes.
 module RainPasses where
 
-import TestUtil
 import qualified AST as A
 import Pass
 import Data.Generics
@@ -259,7 +258,7 @@ transformEach = everywhereM (mkM transformEach')
            loopVarType <- typeOfName loopVar
            A.Specification _ loopIndexName _ <- makeNonceVariable "loopIndex" m' A.Int64 A.VariableName A.Original
 
-           let newRep = A.For m' loopIndexName (intLiteral 0) (A.SizeVariable m' var)
+           let newRep = A.For m' loopIndexName (makeConstant m' 0) (A.SizeVariable m' var)
            let s' = A.Spec m'
                  (A.Specification m' loopVar
                    (A.Is m' am loopVarType

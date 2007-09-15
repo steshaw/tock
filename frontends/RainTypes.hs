@@ -18,7 +18,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainTypes where
 
-import TestUtil
 import qualified AST as A
 import Pass
 import Data.Generics
