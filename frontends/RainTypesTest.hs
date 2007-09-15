@@ -22,6 +22,7 @@ import Test.HUnit hiding (State)
 import TestUtil
 import RainTypes
 import TreeUtil
+import Pattern
 import qualified AST as A
 import CompState
 import Control.Monad.State
@@ -54,8 +55,37 @@ constantFoldTest = TestList
    lit :: Integer -> ExprHelper
    lit n = Lit $ int64Literal n
 
+annotateIntTest :: Test
+annotateIntTest = TestList
+ [
+  failSigned (-9223372036854775809)
+  ,signed A.Int64 (-9223372036854775808)
+  ,signed A.Int64 (-2147483649)
+  ,signed A.Int32 (-2147483648)
+  ,signed A.Int32 (-32769)
+  ,signed A.Int16 (-32768)
+  ,signed A.Int16 (-129)
+  ,signed A.Int8 (-128)
+  ,signed A.Int8 0
+  ,signed A.Int8 127
+  ,signed A.Int16 128
+  ,signed A.Int16 32767
+  ,signed A.Int32 32768
+  ,signed A.Int32 2147483647
+  ,signed A.Int64 2147483648
+  ,signed A.Int64 9223372036854775807
+  ,failSigned 9223372036854775808
+ ]
+ where
+  signed :: A.Type -> Integer -> Test
+  signed t n = testPass ("annotateIntTest: " ++ show n) (tag3 A.Literal DontCare t $ tag2 A.IntLiteral DontCare (show n)) 
+    (annnotateIntLiteralTypes $ int64Literal n) (return ())
+  failSigned :: Integer -> Test
+  failSigned n = testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
+
 tests :: Test
 tests = TestList
  [
   constantFoldTest
+  ,annotateIntTest
  ]

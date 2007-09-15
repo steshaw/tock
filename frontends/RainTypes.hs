@@ -64,3 +64,9 @@ constantFoldPass = everywhereASTM doExpression
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
 
+-- | Annotates all integer literal types
+annnotateIntLiteralTypes :: Data t => t -> PassM t
+annnotateIntLiteralTypes = everywhereASTM doExpression
+  where
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression = return
