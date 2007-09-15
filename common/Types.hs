@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Types
   (
     specTypeOfName, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
-    , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion
+    , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, sizeOfReplicator, sizeOfStructured
 
@@ -327,6 +327,16 @@ findMeta e = if null metaList then emptyMeta else head metaList
     metaList = gmapQ (mkQ emptyMeta findMeta') e
     findMeta' :: Meta -> Meta
     findMeta' m = m
+
+-- | Checks whether a given conversion can be done implicitly in Rain
+-- Parameters are src dest
+isImplicitConversionRain :: A.Type -> A.Type -> Bool
+isImplicitConversionRain x y
+  = if (x == y)
+      then True
+      else if (x == A.Bool || y == A.Bool)
+             then False
+             else isSafeConversion x y
 
 -- | Is a conversion between two types precise (i.e. do you need to specify
 -- ROUND or TRUNC when doing it)?

@@ -198,7 +198,7 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
     --Adds a cast between two types if it is safe to do so, otherwise gives an error
     doCast :: Int -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
     doCast index to from item
-      = if isSafeConversion from to
+      = if isImplicitConversionRain from to
           then return $ A.Conversion (findMeta item) A.DefaultConversion to item
           else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
             " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
