@@ -356,4 +356,15 @@ buildExpr (Var n) = A.ExprVariable m $ variable n
 buildExpr (DirVar dir n) = A.ExprVariable m $ (A.DirectedVariable m dir $ variable n)
 buildExpr (Lit e) = e
 
+-- | A simple definition of a variable
+simpleDef :: String -> A.SpecType -> A.NameDef
+simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
+                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
+-- | A simple definition of a declared variable
+simpleDefDecl :: String -> A.Type -> A.NameDef
+simpleDefDecl n t = simpleDef n (A.Declaration m t)
+
+-- | A pattern that will match simpleDef, with a different abbreviation mode
+simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
+simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced

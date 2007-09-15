@@ -38,16 +38,6 @@ import Data.Generics
 import Utils
 import Errors
 
-simpleDef :: String -> A.SpecType -> A.NameDef
-simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
-                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
-
-simpleDefDecl :: String -> A.Type -> A.NameDef
-simpleDefDecl n t = simpleDef n (A.Declaration m t)
-
-simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
-simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
-
 skipP :: A.Structured
 skipP = A.OnlyP m (A.Skip m)
 
