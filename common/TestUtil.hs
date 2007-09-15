@@ -251,9 +251,9 @@ testPass ::
   -> a                      -- ^ The expected value.  Can either be an actual AST, or a 'Pattern' to match an AST.
   -> PassM b                -- ^ The actual pass.
   -> (State CompState ())   -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
-  -> Test
+  -> Assertion
 --If Items are returned by testPassGetItems we return () [i.e. give an empty assertion], otherwise give back the assertion:
-testPass w x y z = TestCase $ join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
+testPass w x y z = join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
 
 -- | A test that runs a given AST pass and checks that it succeeds, and performs an additional check on the result
 testPassWithCheck ::
@@ -263,8 +263,8 @@ testPassWithCheck ::
   -> PassM b                -- ^ The actual pass.
   -> (State CompState ())   -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> (b -> Assertion)
-  -> Test
-testPassWithCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  -> Assertion
+testPassWithCheck testName expected actualPass startStateTrans checkFunc =
   do passResult <- runPass actualPass (execState startStateTrans emptyState)
      case snd passResult of
        Left err -> assertFailure (testName ++ "; pass actually failed: " ++ err)
@@ -278,8 +278,8 @@ testPassWithItemsCheck ::
   -> PassM b              -- ^ The actual pass.
   -> (State CompState ()) -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> (Items -> Assertion) -- ^ A function to check the 'Items' once the pass succeeds.
-  -> Test
-testPassWithItemsCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  -> Assertion
+testPassWithItemsCheck testName expected actualPass startStateTrans checkFunc =
   ((liftM snd) (testPassGetItems testName expected actualPass startStateTrans))
   >>= (\res ->
     case res of 
@@ -295,8 +295,8 @@ testPassWithStateCheck ::
   -> PassM b                  -- ^ The actual pass.
   -> (State CompState ())     -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> (CompState -> Assertion) -- ^ A function to check the 'CompState' once the pass succeeds.
-  -> Test
-testPassWithStateCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  -> Assertion
+testPassWithStateCheck testName expected actualPass startStateTrans checkFunc =
   (testPassGetItems testName expected actualPass startStateTrans)
   >>= (\x ->
     case x of 
@@ -312,8 +312,8 @@ testPassWithItemsStateCheck ::
   -> PassM b                          -- ^ The actual pass.
   -> (State CompState ())             -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> ((Items,CompState) -> Assertion) -- ^ A function to check the 'Items' and 'CompState' once the pass succeeds.
-  -> Test
-testPassWithItemsStateCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  -> Assertion
+testPassWithItemsStateCheck testName expected actualPass startStateTrans checkFunc =
   (testPassGetItems testName expected actualPass startStateTrans)
   >>= (\x ->
     case x of 
@@ -327,8 +327,8 @@ testPassShouldFail ::
   String                  -- ^ The test name.
   -> PassM b              -- ^ The actual pass.
   -> (State CompState ()) -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
-  -> Test
-testPassShouldFail testName actualPass startStateTrans = TestCase $
+  -> Assertion
+testPassShouldFail testName actualPass startStateTrans =
     do ret <- runPass actualPass (execState startStateTrans emptyState)
        case ret of
          (_,Left err) -> return ()

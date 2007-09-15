@@ -47,7 +47,7 @@ castAssertADI x = case (castADI x) of
   Nothing -> dieInternal "Pattern successfully matched but did not find item afterwards"
 
 testEachPass0 :: Test
-testEachPass0 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
+testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
@@ -95,7 +95,7 @@ testEachPass0 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach o
            Nothing -> assertFailure "testEachPass0: Internal error, listVarName not found"
 
 testEachPass1 :: Test
-testEachPass1 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
+testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
@@ -131,7 +131,7 @@ testEachPass1 = testPassWithItemsStateCheck "testEachPass0" exp (transformEach o
            Nothing -> assertFailure "testEachPass1: Internal error, indexVar not found"
 
 testEachRangePass0 :: Test
-testEachRangePass0 = testPass "testEachRangePass0" exp (transformEachRange orig) (return ())
+testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp (transformEachRange orig) (return ())
   where
     orig = A.Par m A.PlainPar $ A.Rep m
                (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 0) (intLiteral 9))))
@@ -141,7 +141,7 @@ testEachRangePass0 = testPass "testEachRangePass0" exp (transformEachRange orig)
                (A.OnlyP m (makeSimpleAssign "c" "x"))
                
 testEachRangePass1 :: Test
-testEachRangePass1 = testPass "testEachRangePass1" exp (transformEachRange orig) (return ())
+testEachRangePass1 = TestCase $ testPass "testEachRangePass1" exp (transformEachRange orig) (return ())
   where
     orig = A.Par m A.PlainPar $ A.Rep m
                (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral (-5)) (intLiteral (-2)))))
@@ -151,7 +151,7 @@ testEachRangePass1 = testPass "testEachRangePass1" exp (transformEachRange orig)
                (A.OnlyP m (makeSimpleAssign "c" "x"))                            
 
 testEachRangePass2 :: Test
-testEachRangePass2 = testPass "testEachRangePass2" exp (transformEachRange orig) (return ())
+testEachRangePass2 = TestCase $ testPass "testEachRangePass2" exp (transformEachRange orig) (return ())
   where
     orig = A.Seq m $ A.Rep m
                (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 6))))
@@ -161,7 +161,7 @@ testEachRangePass2 = testPass "testEachRangePass2" exp (transformEachRange orig)
                (A.OnlyP m (makeSimpleAssign "c" "x"))
                
 testEachRangePass3 :: Test
-testEachRangePass3 = testPass "testEachRangePass3" exp (transformEachRange orig) (return ())
+testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp (transformEachRange orig) (return ())
   where
     orig = A.Seq m $ A.Rep m
                (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 0))))
@@ -173,7 +173,7 @@ testEachRangePass3 = testPass "testEachRangePass3" exp (transformEachRange orig)
 
 -- | Test variable is made unique in a declaration:
 testUnique0 :: Test
-testUnique0 = testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique0 = TestCase $ testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) skipP
@@ -185,7 +185,7 @@ testUnique0 = testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveV
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
 testUnique1 :: Test
-testUnique1 = testPassWithItemsStateCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique1 = TestCase $ testPassWithItemsStateCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
                         A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int64) skipP]
@@ -204,7 +204,7 @@ testUnique1 = testPassWithItemsStateCheck "testUnique1" exp (uniquifyAndResolveV
 
 -- | Tests that the unique pass does resolve the variables that are in scope
 testUnique2 :: Test
-testUnique2 = testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique2 = TestCase $ testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) 
@@ -214,7 +214,7 @@ testUnique2 = testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveV
 
 
 testUnique2b :: Test
-testUnique2b = testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique2b = TestCase $ testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) $
     	A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
@@ -229,7 +229,7 @@ testUnique2b = testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolv
 
 -- | Tests that proc names are recorded, but not made unique (because they might be exported), and not resolved either
 testUnique3 :: Test
-testUnique3 = testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique3 = TestCase $ testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [] $ A.Skip m) (A.OnlyP m $ A.ProcCall m (procName "foo") [])
     exp = orig
@@ -238,7 +238,7 @@ testUnique3 = testPassWithItemsStateCheck "testUnique3" exp (uniquifyAndResolveV
 
 -- | Tests that parameters are uniquified and resolved:
 testUnique4 :: Test
-testUnique4 = testPassWithItemsStateCheck "testUnique4" exp (uniquifyAndResolveVars orig) (return ()) check
+testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ 
       A.ProcCall m (procName "foo") [A.ActualExpression A.Byte $ exprVariable "c"]) (skipP)
@@ -267,7 +267,7 @@ testUnique4 = testPassWithItemsStateCheck "testUnique4" exp (uniquifyAndResolveV
 
 -- | checks that c's type is recorded in: ***each (c : "hello") {}
 testRecordInfNames0 :: Test
-testRecordInfNames0 = testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
+testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
   where
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "hello")) skipP)
     exp = orig
@@ -276,7 +276,7 @@ testRecordInfNames0 = testPassWithStateCheck "testRecordInfNames0" exp (recordIn
       
 -- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
 testRecordInfNames1 :: Test
-testRecordInfNames1 = testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
+testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
@@ -287,7 +287,7 @@ testRecordInfNames1 = testPassWithStateCheck "testRecordInfNames1" exp (recordIn
 
 -- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
 testRecordInfNames2 :: Test
-testRecordInfNames2 = testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
+testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte))
@@ -301,7 +301,7 @@ testRecordInfNames2 = testPassWithStateCheck "testRecordInfNames2" exp (recordIn
 
 -- | checks that doing a foreach over a non-array type is barred:
 testRecordInfNames3 :: Test
-testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTypes orig) (return ())
+testRecordInfNames3 = TestCase $ testPassShouldFail "testRecordInfNames3" (recordInfNameTypes orig) (return ())
   where
     orig = A.Rep m (A.ForEach m (simpleName "c") (intLiteral 0)) skipP
 
@@ -315,7 +315,7 @@ testRecordInfNames3 = testPassShouldFail "testRecordInfNames3" (recordInfNameTyp
 --TODO check recursive main function works
 
 testFindMain0 :: Test
-testFindMain0 = testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain0 = TestCase $ testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName (Named "main" DontCare)) $
@@ -328,13 +328,13 @@ testFindMain0 = testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndRes
                        (tag7 A.NameDef DontCare mainName "main" A.ProcName DontCare A.Original A.Unplaced)
 
 testFindMain1 :: Test
-testFindMain1 = testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain1 = TestCase $ testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
     check state = assertEqual "testFindMain1" [] (csMainLocals state)
     
 testFindMain2 :: Test
-testFindMain2 = testPassWithItemsStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
+testFindMain2 = TestCase $ testPassWithItemsStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
     inner = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
                A.Several m []
@@ -356,10 +356,10 @@ testParamPass ::
 
 testParamPass testName formals params transParams 
   = case transParams of 
-      Just act -> TestList [testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc,
-                            testPass (testName ++ "/function") (expFunc act) (matchParamPass origFunc) startStateFunc]
-      Nothing -> TestList [testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc,
-                           testPassShouldFail (testName ++ "/function") (matchParamPass origFunc) startStateFunc]
+      Just act -> TestList [TestCase $ testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc,
+                            TestCase $ testPass (testName ++ "/function") (expFunc act) (matchParamPass origFunc) startStateFunc]
+      Nothing -> TestList [TestCase $ testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc,
+                           TestCase $ testPassShouldFail (testName ++ "/function") (matchParamPass origFunc) startStateFunc]
   where
     startStateProc :: State CompState ()
     startStateProc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
@@ -438,8 +438,8 @@ testParamPass7 = testParamPass "testParamPass7"
 
 -- | Test calling something that is not a process:
 testParamPass8 :: Test
-testParamPass8 = TestList [testPassShouldFail "testParamPass8/process" (matchParamPass origProc) (startState'),
-                           testPassShouldFail "testParamPass8/function" (matchParamPass origFunc) (startState')]
+testParamPass8 = TestList [TestCase $ testPassShouldFail "testParamPass8/process" (matchParamPass origProc) (startState'),
+                           TestCase $ testPassShouldFail "testParamPass8/function" (matchParamPass origFunc) (startState')]
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
@@ -450,7 +450,7 @@ testParamPass8 = TestList [testPassShouldFail "testParamPass8/process" (matchPar
 
 -- | Transform an example list
 testRangeRepPass0 :: Test
-testRangeRepPass0 = testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
+testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 1)
     exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare (Named "repIndex" DontCare) (intLiteral 0) (intLiteral 2)) 
@@ -458,7 +458,7 @@ testRangeRepPass0 = testPass "testRangeRepPass0" exp (transformRangeRep orig) (r
 
 -- | Lists with negative counts should be turned into an empty literal list
 testRangeRepPass1 :: Test
-testRangeRepPass1 = testPass "testRangeRepPass1" exp (transformRangeRep orig) (return())
+testRangeRepPass1 = TestCase $ testPass "testRangeRepPass1" exp (transformRangeRep orig) (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 1) (intLiteral 0)
     exp = A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
@@ -467,7 +467,7 @@ testRangeRepPass1 = testPass "testRangeRepPass1" exp (transformRangeRep orig) (r
 
 -- | Test a fairly standard function:
 testTransformFunction0 :: Test
-testTransformFunction0 = testPass "testTransformFunction0" exp (transformFunction orig) (return ())
+testTransformFunction0 = TestCase $ testPass "testTransformFunction0" exp (transformFunction orig) (return ())
   where
     orig = A.Specification m (procName "id") $
         A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
@@ -479,26 +479,26 @@ testTransformFunction0 = testPass "testTransformFunction0" exp (transformFunctio
 
 -- | Test a function without a return as the final statement:
 testTransformFunction1 :: Test
-testTransformFunction1 = testPassShouldFail "testTransformFunction1" (transformFunction orig) (return ())
+testTransformFunction1 = TestCase $ testPassShouldFail "testTransformFunction1" (transformFunction orig) (return ())
   where
     orig = A.Specification m (procName "brokenid") $
         A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
           (A.OnlyP m $ A.Seq m $ A.Several m [])
 
 testPullUpParDecl0 :: Test
-testPullUpParDecl0 = testPass "testPullUpParDecl0" orig (pullUpParDeclarations orig) (return ())
+testPullUpParDecl0 = TestCase $ testPass "testPullUpParDecl0" orig (pullUpParDeclarations orig) (return ())
   where
     orig = A.Par m A.PlainPar (A.Several m [])
 
 testPullUpParDecl1 :: Test
-testPullUpParDecl1 = testPass "testPullUpParDecl1" exp (pullUpParDeclarations orig) (return ())
+testPullUpParDecl1 = TestCase $ testPass "testPullUpParDecl1" exp (pullUpParDeclarations orig) (return ())
   where
     orig = A.Par m A.PlainPar $
       A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.Several m [])
     exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
 
 testPullUpParDecl2 :: Test
-testPullUpParDecl2 = testPass "testPullUpParDecl2" exp (pullUpParDeclarations orig) (return ())
+testPullUpParDecl2 = TestCase $ testPass "testPullUpParDecl2" exp (pullUpParDeclarations orig) (return ())
   where
     orig = A.Par m A.PlainPar $
       A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $

@@ -64,7 +64,7 @@ singleParamSpecExp body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValA
 
 -- | Tests a function with a single return, and a single parameter.
 testFunctionsToProcs0 :: Test
-testFunctionsToProcs0 = testPassWithItemsStateCheck "testFunctionsToProcs0" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs0" exp (functionsToProcs orig) (return ()) check
   where
     orig = singleParamFunc valof0
     exp = tag3 A.Specification DontCare (simpleName "foo") procSpec
@@ -81,7 +81,7 @@ testFunctionsToProcs0 = testPassWithItemsStateCheck "testFunctionsToProcs0" exp 
 
 -- | Tests a function with multiple returns, and multiple parameters.
 testFunctionsToProcs1 :: Test
-testFunctionsToProcs1 = testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp (functionsToProcs orig) (return ()) check
   where
     orig = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int,A.Real32] 
       [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] (valofTwo "param0" "param1"))
@@ -111,7 +111,7 @@ testFunctionsToProcs1 = testPassWithItemsStateCheck "testFunctionsToProcs1 A" ex
 -- Currently I have chosen to put DontCare for the body of the function as stored in the NameDef.
 -- This behaviour is not too important, and may change at a later date.
 testFunctionsToProcs2 :: Test
-testFunctionsToProcs2 = testPassWithItemsStateCheck "testFunctionsToProcs2 A" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs2 A" exp (functionsToProcs orig) (return ()) check
   where
     orig = A.Specification m (simpleName "fooOuter") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0")] $
       A.Spec m (singleParamFunc valof0) valof0)
@@ -145,7 +145,7 @@ skipP = A.OnlyP m (A.Skip m)
 
 -- | Tests that a simple constructor (with no expression, nor function call) gets converted into the appropriate initialisation code
 testTransformConstr0 :: Test
-testTransformConstr0 = testPass "transformConstr0" exp (transformConstr orig) (return ())
+testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformConstr orig) (return ())
   where
     orig = A.Spec m (A.Specification m (simpleName "arr") $ A.IsExpr m A.ValAbbrev (A.Array [A.Dimension 10] A.Int) $ A.ExprConstr m $
       A.RepConstr m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")

@@ -47,10 +47,10 @@ constantFoldTest = TestList
    two63 = 9223372036854775808
  
    foldVar :: Int -> ExprHelper -> Test
-   foldVar n e = testPass ("constantFoldTest " ++ show n) (buildExprPattern e) (constantFoldPass $ buildExpr e) state
+   foldVar n e = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern e) (constantFoldPass $ buildExpr e) state
 
    foldCon :: Int -> ExprHelper -> ExprHelper -> Test
-   foldCon n exp orig = testPass ("constantFoldTest " ++ show n) (buildExprPattern exp) (constantFoldPass $ buildExpr orig) state
+   foldCon n exp orig = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern exp) (constantFoldPass $ buildExpr orig) state
 
    state :: State CompState ()
    state = return ()
@@ -81,10 +81,10 @@ annotateIntTest = TestList
  ]
  where
   signed :: A.Type -> Integer -> Test
-  signed t n = testPass ("annotateIntTest: " ++ show n) (tag3 A.Literal DontCare t $ tag2 A.IntLiteral DontCare (show n)) 
+  signed t n = TestCase $ testPass ("annotateIntTest: " ++ show n) (tag3 A.Literal DontCare t $ tag2 A.IntLiteral DontCare (show n)) 
     (annnotateIntLiteralTypes $ int64Literal n) (return ())
   failSigned :: Integer -> Test
-  failSigned n = testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
+  failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
 
 checkExpressionTest :: Test
 checkExpressionTest = TestList
