@@ -255,6 +255,21 @@ testPass ::
 --If Items are returned by testPassGetItems we return () [i.e. give an empty assertion], otherwise give back the assertion:
 testPass w x y z = TestCase $ join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
 
+-- | A test that runs a given AST pass and checks that it succeeds, and performs an additional check on the result
+testPassWithCheck ::
+  (Data a, Data b) => 
+  String                    -- ^ The test name.
+  -> a                      -- ^ The expected value.  Can either be an actual AST, or a 'Pattern' to match an AST.
+  -> PassM b                -- ^ The actual pass.
+  -> (State CompState ())   -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
+  -> (b -> Assertion)
+  -> Test
+testPassWithCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+  do passResult <- runPass actualPass (execState startStateTrans emptyState)
+     case snd passResult of
+       Left err -> assertFailure (testName ++ "; pass actually failed: " ++ err)
+       Right result -> (assertPatternMatch testName expected result) >> (checkFunc result)
+
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'Items' with a given function.
 testPassWithItemsCheck :: 
   (Data a, Data b) => 
