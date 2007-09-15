@@ -17,9 +17,20 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Type inference and checking.
-module Types where
+module Types
+  (
+    specTypeOfName, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
+    , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion
+    , returnTypesOfFunction
+    , BytesInResult(..), bytesInType, sizeOfReplicator, sizeOfStructured
 
--- FIXME: This module is a mess -- sort it and document the functions.
+    , makeAbbrevAM, makeConstant, addOne
+    , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
+    , recordFields, protocolItems
+
+    , findMeta
+
+  ) where
 
 import Control.Monad
 import Control.Monad.State
@@ -35,14 +46,17 @@ import EvalLiterals
 import Intrinsics
 import Metadata
 
+-- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 specTypeOfName :: (CSM m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
     = liftM A.ndType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find type in specTypeOfName for: " ++ (show $ A.nameName n))
 
+-- | Gets the 'A.AbbrevMode' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 abbrevModeOfName :: (CSM m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
     = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
 
+-- | Gets the 'A.Type' for a given 'A.Name' by looking at its definition in the 'CompState'.  Dies with an error if the name is unknown.
 typeOfName :: (CSM m, Die m) => A.Name -> m A.Type
 typeOfName n
     =  do st <- specTypeOfName n
@@ -152,6 +166,7 @@ trivialSubscriptType (A.Array [d] t) = return t
 trivialSubscriptType (A.Array (d:ds) t) = return $ A.Array ds t
 trivialSubscriptType t = die $ "not plain array type: " ++ show t
 
+-- | Gets the 'A.Type' of a 'A.Variable' by looking at the types recorded in the 'CompState'.
 typeOfVariable :: (CSM m, Die m) => A.Variable -> m A.Type
 typeOfVariable (A.Variable m n) = typeOfName n
 typeOfVariable (A.SubscriptedVariable m s v)
@@ -178,6 +193,7 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
+-- | Gets the 'A.Type' of an 'A.Expression'.  This function assumes that the expression has already been type-checked.
 typeOfExpression :: (CSM m, Die m) => A.Expression -> m A.Type
 typeOfExpression e
     = case e of
@@ -211,6 +227,7 @@ typeOfExpression e
              return $ A.Array [A.Dimension count] t
 --}}}
 
+-- | Gets the return type(s) of a function call from the 'CompState'.
 returnTypesOfFunction :: (CSM m, Die m) => A.Name -> m [A.Type]
 returnTypesOfFunction n
     =  do st <- specTypeOfName n
@@ -241,6 +258,7 @@ protocolItems v
                    A.ProtocolCase _ nts -> return $ Right nts
             _ -> return $ Left [t]
 
+-- | Gets the 'A.AbrrevMode' of a 'A.SpecType' directly.
 abbrevModeOfSpec :: A.SpecType -> A.AbbrevMode
 abbrevModeOfSpec s
     = case s of
