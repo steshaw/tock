@@ -118,6 +118,17 @@ intLiteral n = A.Literal emptyMeta A.Int $ A.IntLiteral emptyMeta (show n)
 intLiteralPattern :: Integer -> Pattern
 intLiteralPattern = (stopCaringPattern emptyMeta) . mkPattern . intLiteral
 
+
+-- | Creates an integer literal 'A.Expression' with the given integer.
+int64Literal :: Integer -> A.Expression
+int64Literal n = A.Literal emptyMeta A.Int64 $ A.IntLiteral emptyMeta (show n)
+
+-- | Creates a 'Pattern' to match an 'A.Expression' instance.
+-- @'assertPatternMatch' ('intLiteralPattern' x) ('intLiteral' x)@ will always succeed.
+-- All meta tags are ignored.
+int64LiteralPattern :: Integer -> Pattern
+int64LiteralPattern = (stopCaringPattern emptyMeta) . mkPattern . int64Literal
+
 -- | Creates a pair of variable lists, given a pair of variable-name lists as input.
 makeNamesWR :: ([String],[String]) -> ([A.Variable],[A.Variable])
 makeNamesWR (x,y) = (map variable x,map variable y)
