@@ -28,6 +28,8 @@ module Types
     , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
 
+	, leastGeneralSharedTypeRain
+
     , findMeta
 
   ) where
@@ -37,7 +39,8 @@ import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
-import Debug.Trace
+import Data.List
+import Data.Ord
 
 import qualified AST as A
 import CompState
@@ -45,6 +48,7 @@ import Errors
 import EvalLiterals
 import Intrinsics
 import Metadata
+import Utils
 
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 specTypeOfName :: (CSM m, Die m) => A.Name -> m A.SpecType
@@ -392,6 +396,63 @@ isSafeConversion src dest = (src' == dest') || ((src' == A.Bool || isIntegerType
           ,(A.UInt32, A.UInt16)
           ,(A.UInt64, A.UInt32)
         ]
+
+
+
+
+-- | Works out the least-general type that all given types can be upcast to.  Does not work with A.Int (as this function is expected only to be used by Rain)
+-- As you would expect from the name, this function specifically follows the conversion rules for Rain.
+leastGeneralSharedTypeRain :: [A.Type] -> Maybe A.Type
+leastGeneralSharedTypeRain [] = Nothing
+leastGeneralSharedTypeRain [t] = Just t
+leastGeneralSharedTypeRain list@(t:ts)
+  = if (all ((==) t) ts) then Just t else
+      if (all isIntegerType list) then findInt list
+      else Nothing
+  where
+    findInt :: [A.Type] -> Maybe A.Type
+    findInt list = if null candidates
+                     then Nothing
+                     else Just $ snd $ maximumBy (comparing fst) candidates
+                   where
+                     candidates = if (all unsignedInt list) then (zip (map intSize list) list) else (allJustElseEmpty $ map findIntSigned list)
+
+    signedInt :: A.Type -> Bool
+    signedInt = not . unsignedInt
+
+    unsignedInt :: A.Type -> Bool
+    unsignedInt A.Byte = True
+    unsignedInt A.UInt16 = True
+    unsignedInt A.UInt32 = True
+    unsignedInt A.UInt64 = True
+    unsignedInt _ = False
+
+    intSize :: A.Type -> Int
+    intSize A.Byte = 1
+    intSize A.UInt16 = 2
+    intSize A.UInt32 = 4
+    intSize A.UInt64 = 8
+    intSize A.Int8 = 1
+    intSize A.Int16 = 2
+    intSize A.Int32 = 4
+    intSize A.Int64 = 8
+    intSize _ = 0 --should never happen
+
+    --If all the items in the list are Just x, returns a list of them all.
+    --If one (or more items) is Nothing, returns an empty list.
+    allJustElseEmpty :: [Maybe a] -> [a]
+    allJustElseEmpty ms = if (any isNothing ms) then [] else catMaybes ms
+
+    --For each item in the list, get an ordered list of types we can cast to.
+    findIntSigned :: A.Type -> Maybe (Int,A.Type)
+    findIntSigned t = if (signedInt t)
+                        then Just (intSize t,t)
+                        --if it's unsigned, we need to cast it up by one type, assuming it's not already the biggest size
+                        else transformMaybe (\x -> (intSize x,x)) (case t of
+                               A.Byte -> Just A.Int16
+                               A.UInt16 -> Just A.Int32
+                               A.UInt32 -> Just A.Int64
+                               A.UInt64 -> Nothing)
 
 --{{{ classes of types
 -- | Scalar integer types.

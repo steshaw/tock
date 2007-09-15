@@ -96,5 +96,19 @@ checkExpressionTypes :: Data t => t -> PassM t
 checkExpressionTypes = everywhereASTM checkExpression
   where
     checkExpression :: A.Expression -> PassM A.Expression
-    checkExpression = return
+    checkExpression e@(A.Dyadic m op lhs rhs)
+      = do tlhs <- typeOfExpression lhs
+           trhs <- typeOfExpression rhs
+           if (tlhs == trhs)
+             then return e
+             else case (leastGeneralSharedTypeRain [tlhs,trhs]) of
+                    Nothing -> dieP m $ "Cannot find a suitable type to convert expression to, types are: " ++ show tlhs ++ " and " ++ show trhs
+                    Just t -> return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs)
+    checkExpression e = return e
+
+    convert :: A.Type -> A.Type -> A.Expression -> A.Expression
+    convert dest src e = if (dest == src)
+                           then e
+                           else A.Conversion (findMeta e) A.DefaultConversion dest e
+
 

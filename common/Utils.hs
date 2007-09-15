@@ -62,6 +62,11 @@ transformEither funcLeft funcRight x = case x of
   Left l -> Left (funcLeft l)
   Right r -> Right (funcRight r)
 
+-- | Transforms between two 'Maybe' types using a function:
+transformMaybe :: (a -> b) -> Maybe a -> Maybe b
+transformMaybe _ Nothing = Nothing
+transformMaybe f (Just x) = Just (f x)
+
 -- | Try an IO operation, returning `Nothing` if it fails.
 maybeIO :: IO a -> IO (Maybe a)
 maybeIO op = catch (op >>= (return . Just)) (\e -> return Nothing)
