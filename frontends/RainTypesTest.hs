@@ -103,6 +103,12 @@ checkExpressionTest = TestList
   ,pass 401 A.Int16 (Dy (Cast A.Int16 $ Var "x8") A.Plus (int A.Int16 200)) (Dy (Var "x8") A.Plus (int A.Int16 200))
   --This fails because you are trying to add a signed constant to an unsigned integer that cannot be expanded:
   ,fail 402 $ Dy (Var "xu64") A.Plus (int A.Int64 0)
+  
+  ,passSame 500 A.Int32 (Mon A.MonadicMinus (Var "x32"))
+  ,pass 501 A.Int32 (Mon A.MonadicMinus (Cast A.Int32 $ Var "xu16")) (Mon A.MonadicMinus (Var "xu16"))
+  ,fail 502 $ Mon A.MonadicMinus (Var "xu64")
+  ,pass 503 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Mon A.MonadicMinus (Var "x32"))) (Dy (Var "x") A.Plus (Mon A.MonadicMinus (Var "x32")))
+  
  ]
  where
   passSame :: Int -> A.Type -> ExprHelper -> Test
@@ -146,6 +152,7 @@ checkExpressionTest = TestList
              defVar "xu16" A.UInt16
              defVar "xu32" A.UInt32
              defVar "xu64" A.UInt64
+             defVar "x32" A.Int32
              defVar "x16" A.Int16
              defVar "x8" A.Int8
 

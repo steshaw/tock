@@ -101,9 +101,21 @@ checkExpressionTypes = everywhereASTM checkExpression
            trhs <- typeOfExpression rhs
            if (tlhs == trhs)
              then return e
-             else case (leastGeneralSharedTypeRain [tlhs,trhs]) of
-                    Nothing -> dieP m $ "Cannot find a suitable type to convert expression to, types are: " ++ show tlhs ++ " and " ++ show trhs
-                    Just t -> return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs)
+             else if (isIntegerType tlhs && isIntegerType trhs) 
+                    then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
+                           Nothing -> dieP m $ "Cannot find a suitable type to convert expression to, types are: " ++ show tlhs ++ " and " ++ show trhs
+                           Just t -> return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs)
+                    else return e --TODO
+    checkExpression e@(A.Monadic m op rhs)
+      = do trhs <- typeOfExpression rhs
+           if (op == A.MonadicMinus)
+             then case trhs of
+                    A.Byte -> return $ A.Monadic m op $ convert A.Int16 trhs rhs
+                    A.UInt16 -> return $ A.Monadic m op $ convert A.Int32 trhs rhs
+                    A.UInt32 -> return $ A.Monadic m op $ convert A.Int64 trhs rhs
+                    A.UInt64 -> dieP m $ "Cannot apply unary minus to type: " ++ show trhs ++ " because there is no type large enough to safely contain the result"
+                    _ -> if (isIntegerType trhs) then return e else dieP m $ "Trying to apply unary minus to non-integer type: " ++ show trhs
+             else return e
     checkExpression e = return e
 
     convert :: A.Type -> A.Type -> A.Expression -> A.Expression
