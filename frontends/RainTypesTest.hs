@@ -147,7 +147,7 @@ checkExpressionTest = TestList
              defVar "xu32" A.UInt32
              defVar "xu64" A.UInt64
              defVar "x16" A.Int16
-             defVar "x8" A.Int16
+             defVar "x8" A.Int8
 
 tests :: Test
 tests = TestList
