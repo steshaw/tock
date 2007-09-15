@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | A module containing all the Rain-specific passes that must be run on the parsed Rain AST before it can be fed into the shared passes.
+-- | A module containing all the misc Rain-specific passes that must be run on the parsed Rain AST before it can be fed into the shared passes.
 module RainPasses where
 
 import TestUtil
@@ -32,6 +32,7 @@ import Errors
 import Metadata
 import Pattern
 import TreeUtil
+import RainTypes
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [(String,Pass)]
@@ -123,25 +124,6 @@ replaceNameName ::
   -> A.Name  -- ^ The name to check.
   -> A.Name  -- ^ The new name, with the 'A.nameName' field replaced if it matched.
 replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
-
--- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
-recordInfNameTypes :: Data t => t -> PassM t
-recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
-  where
-    recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
-    recordInfNameTypes' input@(A.ForEach m n e)
-      = do arrType <- typeOfExpression e
-           innerT <- case arrType of 
-             A.Array (_:innerDims) t ->
-               return $ case innerDims of 
-                 [] -> t
-                 _ -> A.Array innerDims t               
-             _ -> dieP m "Cannot do a foreach loop over a non-array type (or array with zero dimensions)"
-           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
-                                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
-           return input
-    recordInfNameTypes' r = return r
 
 -- | A pass that finds and tags the main process, and also mangles its name (to avoid problems in the C\/C++ backends with having a function called main).
 findMain :: Data t => t -> PassM t

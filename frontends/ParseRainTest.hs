@@ -67,23 +67,6 @@ emptyBlock :: A.Process
 emptyBlock = A.Seq m $ A.Several m []
 
 
-data ExprHelper = 
-  Dy ExprHelper A.DyadicOp ExprHelper
-  | Mon A.MonadicOp ExprHelper
-  | Cast A.Type ExprHelper
-  | Var String
-  | DirVar A.Direction String
-  | Lit A.Expression
-
-buildExprPattern :: ExprHelper -> Pattern
-buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
-buildExprPattern (Mon op rhs) = tag3 A.Monadic DontCare op (buildExprPattern rhs)
-buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion (stopCaringPattern m $ mkPattern ty) (buildExprPattern rhs)
-buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
-buildExprPattern (DirVar dir n) = tag2 A.ExprVariable DontCare $ (stopCaringPattern m $ tag3 A.DirectedVariable DontCare dir $ variablePattern n)
-buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
-
-
 --You are allowed to chain arithmetic operators without brackets, but not comparison operators
 -- (the meaning of "b == c == d" is obscure enough to be dangerous, even if it passes the type checker)
 --All arithmetic operators bind at the same level, which is a closer binding than all comparison operators.

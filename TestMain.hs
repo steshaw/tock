@@ -31,6 +31,7 @@ module TestMain () where
 
 import qualified ParseRainTest (tests)
 import qualified RainPassesTest (tests)
+import qualified RainTypesTest (tests)
 import qualified UsageCheckTest (tests)
 import qualified PassTest (tests)
 import qualified CommonTest (tests)
@@ -43,6 +44,7 @@ main = do runTestTT $ TestList
               ,CommonTest.tests
               ,ParseRainTest.tests
               ,RainPassesTest.tests
+              ,RainTypesTest.tests
               ,UsageCheckTest.tests
             ]
           return ()

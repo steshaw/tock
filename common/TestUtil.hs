@@ -319,3 +319,30 @@ assertVarDef prefix state varName varDef
   = case (Map.lookup varName (csNames state)) of
       Nothing -> assertFailure $ prefix ++ " variable was not recorded: " ++ varName
       Just actVarDef -> assertPatternMatch (prefix ++ " variable definition not as expected for " ++ varName) varDef actVarDef
+
+
+data ExprHelper = 
+  Dy ExprHelper A.DyadicOp ExprHelper
+  | Mon A.MonadicOp ExprHelper
+  | Cast A.Type ExprHelper
+  | Var String
+  | DirVar A.Direction String
+  | Lit A.Expression
+
+buildExprPattern :: ExprHelper -> Pattern
+buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
+buildExprPattern (Mon op rhs) = tag3 A.Monadic DontCare op (buildExprPattern rhs)
+buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion (stopCaringPattern m $ mkPattern ty) (buildExprPattern rhs)
+buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
+buildExprPattern (DirVar dir n) = tag2 A.ExprVariable DontCare $ (stopCaringPattern m $ tag3 A.DirectedVariable DontCare dir $ variablePattern n)
+buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
+
+buildExpr :: ExprHelper -> A.Expression
+buildExpr (Dy lhs op rhs) = A.Dyadic m op (buildExpr lhs) (buildExpr rhs)
+buildExpr (Mon op rhs) = A.Monadic m op (buildExpr rhs)
+buildExpr (Cast ty rhs) = A.Conversion m A.DefaultConversion ty (buildExpr rhs)
+buildExpr (Var n) = A.ExprVariable m $ variable n
+buildExpr (DirVar dir n) = A.ExprVariable m $ (A.DirectedVariable m dir $ variable n)
+buildExpr (Lit e) = e
+
+

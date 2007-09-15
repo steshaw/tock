@@ -28,6 +28,7 @@ import TestUtil
 import Pattern
 import TreeUtil
 import RainPasses
+import RainTypes
 import CompState
 import Control.Monad.Error (runErrorT)
 import Control.Monad.Identity
