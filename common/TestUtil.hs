@@ -256,7 +256,7 @@ testPass ::
 testPass w x y z = TestCase $ join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
 
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'Items' with a given function.
-testPassWithCheck :: 
+testPassWithItemsCheck :: 
   (Data a, Data b) => 
   String                  -- ^ The test name.
   -> a                    -- ^ The expected value.  Can either be an actual AST, or a 'Pattern' to match an AST.
@@ -264,7 +264,7 @@ testPassWithCheck ::
   -> (State CompState ()) -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> (Items -> Assertion) -- ^ A function to check the 'Items' once the pass succeeds.
   -> Test
-testPassWithCheck testName expected actualPass startStateTrans checkFunc = TestCase $
+testPassWithItemsCheck testName expected actualPass startStateTrans checkFunc = TestCase $
   ((liftM snd) (testPassGetItems testName expected actualPass startStateTrans))
   >>= (\res ->
     case res of 
