@@ -147,62 +147,6 @@ findMain x = do newMainName <- makeNonce "main_"
       Nothing -> m
       Just nd -> ((Map.insert n (nd {A.ndName = n})) . (Map.delete "main")) m     
     
--- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the AST, and checks that the actual parameters are valid inputs, given the 'A.Formal' parameters in the process's type
-matchParamPass :: Data t => t -> PassM t
-matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc)
-  where
-    --Picks out the parameters of a process call, checks the number is correct, and maps doParam over them
-    matchParamPassProc :: A.Process -> PassM A.Process
-    matchParamPassProc (A.ProcCall m n actualParams)
-      = do def <- lookupNameOrError n $ dieP m ("Process name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
-           case A.ndType def of
-             A.Proc _ _ expectedParams _ ->
-               if (length expectedParams) == (length actualParams)
-               then do transActualParams <- mapM (doParam m (A.nameName n)) (zip3 [0..] expectedParams actualParams)
-                       return $ A.ProcCall m n transActualParams
-               else dieP m $ "Wrong number of parameters given to process call; expected: " ++ show (length expectedParams) ++ " but found: " ++ show (length actualParams)
-             _ -> dieP m $ "You cannot run things that are not processes, such as: \"" ++ (show $ A.nameName n) ++ "\""
-    matchParamPassProc p = return p
-    
-    --Picks out the parameters of a function call, checks the number is correct, and maps doExpParam over them
-    matchParamPassFunc :: A.Expression -> PassM A.Expression
-    matchParamPassFunc (A.FunctionCall m n actualParams)
-      = do def <- lookupNameOrError n $ dieP m ("Function name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
-           case A.ndType def of
-             A.Function _ _ _ expectedParams _ ->
-               if (length expectedParams) == (length actualParams)
-               then do transActualParams <- mapM (doExpParam m (A.nameName n)) (zip3 [0..] expectedParams actualParams)
-                       return $ A.FunctionCall m n transActualParams
-               else dieP m $ "Wrong number of parameters given to function call; expected: " ++ show (length expectedParams) ++ " but found: " ++ show (length actualParams)
-             _ -> dieP m $ "Attempt to make a function call with something that is not a function: \"" ++ (show $ A.nameName n) ++ "\""
-    matchParamPassFunc e = return e
-
-    --Checks the type of a parameter (A.Actual), and inserts a cast if it is safe to do so
-    doParam :: Meta -> String -> (Int,A.Formal, A.Actual) -> PassM A.Actual
-    doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualVariable _ _ v)
-      = do actualType <- typeOfVariable v
-           if (actualType == formalType)
-             then return $ A.ActualVariable formalAbbrev formalType v
-             else (liftM $ A.ActualExpression formalType) $ doCast index formalType actualType (A.ExprVariable (findMeta v) v )
-    doParam m n (index, for@(A.Formal _ formalType _), A.ActualExpression _ e)
-      = (liftM $ A.ActualExpression formalType) $ doExpParam m n (index, for, e)
-
-    --Checks the type of a parameter (A.Expression), and inserts a cast if it is safe to do so
-    doExpParam :: Meta -> String -> (Int, A.Formal, A.Expression) -> PassM A.Expression
-    doExpParam m n (index, A.Formal formalAbbrev formalType formalName, e)
-      = do actualType <- typeOfExpression e
-           if (actualType == formalType)
-             then return e
-             else doCast index formalType actualType e
-
-    --Adds a cast between two types if it is safe to do so, otherwise gives an error
-    doCast :: Int -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
-    doCast index to from item
-      = if isImplicitConversionRain from to
-          then return $ A.Conversion (findMeta item) A.DefaultConversion to item
-          else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
-            " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
-
 checkIntegral :: A.LiteralRepr -> Maybe Integer
 checkIntegral (A.IntLiteral _ s) = Just $ read s
 checkIntegral (A.HexLiteral _ s) = Nothing -- TODO support hex literals
