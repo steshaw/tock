@@ -299,7 +299,6 @@ assignOp
     <|> do {m <- reserved "/=" ; return (m,Just A.Div)}
     <|> do {m <- reserved "%=" ; return (m,Just A.Rem)}
     <|> do {m <- reserved "=" ; return (m,Nothing)}	
-    --TODO the rest
 
 lvalue :: RainParser A.Variable
 --For now, only handle plain variables:
