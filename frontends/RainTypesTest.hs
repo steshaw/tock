@@ -89,25 +89,51 @@ annotateIntTest = TestList
 checkExpressionTest :: Test
 checkExpressionTest = TestList
  [
+  --Already same types:
   passSame 0 A.Int64 $ Dy (Var "x") A.Plus (Var "x")
   ,passSame 1 A.Byte $ Dy (Var "xu8") A.Plus (Var "xu8")
   
+  --Upcasting:
   ,pass 100 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Var "xu8")) (Dy (Var "x") A.Plus (Var "xu8"))
   ,pass 101 A.Int32 (Dy (Cast A.Int32 $ Var "x16") A.Plus (Cast A.Int32 $ Var "xu16")) (Dy (Var "x16") A.Plus (Var "xu16"))
   
+  --Upcasting a cast:
   ,pass 200 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Cast A.Int32 $ Var "xu8")) (Dy (Var "x") A.Plus (Cast A.Int32 $ Var "xu8"))
   
+  --Impossible conversions:
   ,fail 300 $ Dy (Var "x") A.Plus (Var "xu64")
   
+  --Integer literals:
   ,pass 400 A.Int16 (Dy (Var "x16") A.Plus (Cast A.Int16 $ int A.Int8 100)) (Dy (Var "x16") A.Plus (int A.Int8 100))
   ,pass 401 A.Int16 (Dy (Cast A.Int16 $ Var "x8") A.Plus (int A.Int16 200)) (Dy (Var "x8") A.Plus (int A.Int16 200))
   --This fails because you are trying to add a signed constant to an unsigned integer that cannot be expanded:
   ,fail 402 $ Dy (Var "xu64") A.Plus (int A.Int64 0)
   
+  --Monadic integer operations:
   ,passSame 500 A.Int32 (Mon A.MonadicMinus (Var "x32"))
   ,pass 501 A.Int32 (Mon A.MonadicMinus (Cast A.Int32 $ Var "xu16")) (Mon A.MonadicMinus (Var "xu16"))
   ,fail 502 $ Mon A.MonadicMinus (Var "xu64")
   ,pass 503 A.Int64 (Dy (Var "x") A.Plus (Cast A.Int64 $ Mon A.MonadicMinus (Var "x32"))) (Dy (Var "x") A.Plus (Mon A.MonadicMinus (Var "x32")))
+  
+  --Mis-matched types (integer/boolean):
+  ,fail 600 $ Dy (Var "b") A.Plus (Var "x")
+  ,fail 601 $ Mon A.MonadicMinus (Var "b")
+  ,fail 602 $ Dy (Var "x") A.Or (Var "x")
+  ,fail 603 $ Dy (Var "x") A.Eq (Var "b")
+  ,fail 604 $ Dy (Var "b") A.Plus (Var "b")
+  ,fail 605 $ Dy (Var "b") A.Less (Var "b")  
+  
+  --Booleans (easy!)
+  ,passSame 1000 A.Bool $ Mon A.MonadicNot (Var "b")
+  ,passSame 1001 A.Bool $ Dy (Var "b") A.Or (Var "b")
+  ,passSame 1002 A.Bool $ Dy (Var "b") A.And (Mon A.MonadicNot $ Var "b")
+  
+  --Comparison (same types):
+  ,passSame 1100 A.Bool $ Dy (Var "b") A.Eq (Var "b")
+  ,passSame 1101 A.Bool $ Dy (Var "x") A.Eq (Var "x")
+  ,passSame 1102 A.Bool $ Dy (Var "xu8") A.NotEq (Var "xu8")
+  ,passSame 1103 A.Bool $ Dy (Var "x") A.Less (Var "x")
+  ,passSame 1104 A.Bool $ Dy (Dy (Var "x") A.Eq (Var "x")) A.And (Dy (Var "xu8") A.NotEq (Var "xu8"))
   
  ]
  where

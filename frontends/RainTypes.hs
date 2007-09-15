@@ -100,12 +100,14 @@ checkExpressionTypes = everywhereASTM checkExpression
       = do tlhs <- typeOfExpression lhs
            trhs <- typeOfExpression rhs
            if (tlhs == trhs)
-             then return e
+             then (if validOp op tlhs then return e else dieP m $ "Operator: \"" ++ show op ++ "\" is not valid on type: \"" ++ show tlhs)
              else if (isIntegerType tlhs && isIntegerType trhs) 
                     then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
                            Nothing -> dieP m $ "Cannot find a suitable type to convert expression to, types are: " ++ show tlhs ++ " and " ++ show trhs
-                           Just t -> return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs)
-                    else return e --TODO
+                           Just t -> if validOp op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else dieP m $
+                             "Operator: \"" ++ show op ++ "\" is not valid on type: \"" ++ show tlhs
+                    else --The operators are not equal, and are not integers.  Therefore this must be an error:
+                      dieP m $ "Mis-matched types; no operator applies to types: " ++ show tlhs ++ " and " ++ show trhs
     checkExpression e@(A.Monadic m op rhs)
       = do trhs <- typeOfExpression rhs
            if (op == A.MonadicMinus)
@@ -115,7 +117,12 @@ checkExpressionTypes = everywhereASTM checkExpression
                     A.UInt32 -> return $ A.Monadic m op $ convert A.Int64 trhs rhs
                     A.UInt64 -> dieP m $ "Cannot apply unary minus to type: " ++ show trhs ++ " because there is no type large enough to safely contain the result"
                     _ -> if (isIntegerType trhs) then return e else dieP m $ "Trying to apply unary minus to non-integer type: " ++ show trhs
-             else return e
+             else if (op == A.MonadicNot)
+                    then
+                      case trhs of
+                        A.Bool -> return e
+                        _ -> dieP m $ "Cannot apply unary not to non-boolean type: " ++ show trhs
+                    else dieP m $ "Invalid Rain operator: \"" ++ show op ++ "\""
     checkExpression e = return e
 
     convert :: A.Type -> A.Type -> A.Expression -> A.Expression
@@ -123,4 +130,21 @@ checkExpressionTypes = everywhereASTM checkExpression
                            then e
                            else A.Conversion (findMeta e) A.DefaultConversion dest e
 
-
+    validOp :: A.DyadicOp -> A.Type -> Bool
+    validOp A.Plus t = isIntegerType t
+    validOp A.Minus t = isIntegerType t
+    validOp A.Times t = isIntegerType t
+    validOp A.Div t = isIntegerType t
+    validOp A.Rem t = isIntegerType t
+    validOp A.Eq _ = True
+    validOp A.NotEq _ = True
+    validOp A.Less t = haveOrder t
+    validOp A.LessEq t = haveOrder t
+    validOp A.More t = haveOrder t
+    validOp A.MoreEq t = haveOrder t
+    validOp A.And A.Bool = True
+    validOp A.Or A.Bool = True
+    validOp _ _ = False
+    
+    haveOrder :: A.Type -> Bool
+    haveOrder = isIntegerType
