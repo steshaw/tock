@@ -40,7 +40,11 @@ rainPasses =
      [ ("AST Validity check, Rain #1", excludeNonRainFeatures)
        ,("Resolve Int -> Int64",transformInt)
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt
-       ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars
+       
+       ,("Fold all constant expressions",constantFoldPass) -- depends on transformInt and possibly depends on uniquifyAndResolveVars, not sure
+       ,("Annotate integer literal types",annnotateIntLiteralTypes) --depends on transformInt and constantFoldPass
+       
+       ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars and annnotateIntLiteralTypes
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
        ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange)

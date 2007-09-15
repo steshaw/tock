@@ -69,4 +69,25 @@ annnotateIntLiteralTypes :: Data t => t -> PassM t
 annnotateIntLiteralTypes = everywhereASTM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression = return
+    doExpression (A.Literal m t (A.IntLiteral m' s))
+      = do t' <-       
+             if (t == A.Int64) then --it's a signed literal
+              (if (n >= 2^63 || n < (-(2^63))) 
+                 then dieP m $ "Signed integer literal too large to fit into 64 bits: " ++ s
+                 else 
+                   if (n < (-(2^31)) || n >= 2^31)
+                     then return A.Int64
+                     else 
+                       if (n < (-(2^15)) || n >= 2^15)
+                         then return A.Int32
+                         else
+                           if (n < (-(2^7)) || n >= 2^7)
+                             then return A.Int16
+                             else return A.Int8
+              )
+              else
+                dieP m $ "Unsigned literals currently unsupported"
+           return $ A.Literal m t' (A.IntLiteral m' s)
+      where
+        n = read s        
+    doExpression e = return e
