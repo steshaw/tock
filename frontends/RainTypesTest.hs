@@ -123,6 +123,15 @@ checkExpressionTest = TestList
   ,fail 604 $ Dy (Var "b") A.Plus (Var "b")
   ,fail 605 $ Dy (Var "b") A.Less (Var "b")  
   
+  --Comparisons between different integer types:
+  ,pass 700 A.Bool (Dy (Var "x") A.Eq (Cast A.Int64 $ Var "xu8")) (Dy (Var "x") A.Eq (Var "xu8"))
+  ,pass 701 A.Bool (Dy (Cast A.Int32 $ Var "x16") A.Less (Cast A.Int32 $ Var "xu16")) (Dy (Var "x16") A.Less (Var "xu16"))
+  ,pass 702 A.Bool (Dy (Var "x") A.More (Cast A.Int64 $ Cast A.Int32 $ Var "xu8")) (Dy (Var "x") A.More (Cast A.Int32 $ Var "xu8"))
+  ,fail 703 $ Dy (Var "x") A.Less (Var "xu64")
+  ,pass 704 A.Bool (Dy (Var "x16") A.NotEq (Cast A.Int16 $ int A.Int8 100)) (Dy (Var "x16") A.NotEq (int A.Int8 100))
+  ,pass 705 A.Bool (Dy (Cast A.Int16 $ Var "x8") A.MoreEq (int A.Int16 200)) (Dy (Var "x8") A.MoreEq (int A.Int16 200))
+
+  
   --Booleans (easy!)
   ,passSame 1000 A.Bool $ Mon A.MonadicNot (Var "b")
   ,passSame 1001 A.Bool $ Dy (Var "b") A.Or (Var "b")
@@ -135,6 +144,22 @@ checkExpressionTest = TestList
   ,passSame 1103 A.Bool $ Dy (Var "x") A.Less (Var "x")
   ,passSame 1104 A.Bool $ Dy (Dy (Var "x") A.Eq (Var "x")) A.And (Dy (Var "xu8") A.NotEq (Var "xu8"))
   
+  --Invalid casts:
+  ,fail 2000 $ Cast A.Bool (Var "x")
+  ,fail 2001 $ Cast A.Bool (int A.Int8 0)
+  ,fail 2002 $ Cast A.Int8 (Var "b")
+  ,fail 2003 $ Cast A.Int8 (Var "x")
+  ,fail 2004 $ Cast A.Int8 (Var "xu8")
+  ,fail 2005 $ Cast A.Byte (Var "x8")
+  ,fail 2006 $ Cast A.UInt64 (Var "x8")
+    
+  --Valid casts:
+  ,passSame 2100 A.Bool $ Cast A.Bool (Var "b")
+  ,passSame 2101 A.Int64 $ Cast A.Int64 (Var "x")
+  ,passSame 2102 A.Int64 $ Cast A.Int64 (Var "x8")
+  ,passSame 2103 A.Int64 $ Cast A.Int64 (Var "xu8")
+  ,passSame 2104 A.Int64 $ Cast A.Int64 $ Cast A.Int32 $ Cast A.UInt16 $ Var "xu8"  
+  ,passSame 2105 A.UInt64 $ Cast A.UInt64 (Var "xu8")
  ]
  where
   passSame :: Int -> A.Type -> ExprHelper -> Test

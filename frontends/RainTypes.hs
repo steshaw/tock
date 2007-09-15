@@ -123,6 +123,13 @@ checkExpressionTypes = everywhereASTM checkExpression
                         A.Bool -> return e
                         _ -> dieP m $ "Cannot apply unary not to non-boolean type: " ++ show trhs
                     else dieP m $ "Invalid Rain operator: \"" ++ show op ++ "\""
+    checkExpression e@(A.Conversion m cm dest rhs)
+      = do src <- typeOfExpression rhs
+           if (src == dest)
+             then return e
+             else if isImplicitConversionRain src dest
+                    then return e
+                    else dieP m $ "Invalid cast from: " ++ show dest ++ " to: " ++ show src
     checkExpression e = return e
 
     convert :: A.Type -> A.Type -> A.Expression -> A.Expression
