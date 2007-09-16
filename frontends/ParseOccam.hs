@@ -38,6 +38,7 @@ import Intrinsics
 import LexOccam
 import Metadata
 import Pass
+import ShowCode
 import Types
 import Utils
 
@@ -294,7 +295,7 @@ maybeSliced inner subscripter typer
           t <- typer v >>= underlyingType
           case t of
             (A.Array _ _) -> return ()
-            _ -> fail $ "slice of non-array type " ++ show t
+            _ -> fail $ "slice of non-array type " ++ showOccam t
 
           e <- intExpr
           sub <- case ff1 of
@@ -392,7 +393,7 @@ matchType et rt
             else bad
         _ -> if rt == et then return () else bad
   where
-    bad = fail $ "type mismatch (got " ++ show rt ++ "; expected " ++ show et ++ ")"
+    bad = fail $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
 
 -- | Check that two lists of types match (for example, for parallel assignment).
 matchTypes :: [A.Type] -> [A.Type] -> OccParser ()
@@ -672,7 +673,7 @@ makeLiteral x@(A.Literal m t lr) wantT
 
           typesOK <- isValidLiteralType m t wantT
           when (not typesOK) $
-            dieP m $ "default type of literal (" ++ show t ++ ") cannot be coerced to desired type (" ++ show wantT ++ ")"
+            dieP m $ "default type of literal (" ++ showOccam t ++ ") cannot be coerced to desired type (" ++ showOccam wantT ++ ")"
 
           case (underT, lr) of
             -- An array literal.
@@ -1936,7 +1937,7 @@ actual (A.Formal am t n)
                 A.Timer -> var timer
                 A.Port _ -> var (portOfType t)
                 _ -> var (variableOfType t)
-    <?> "actual of type " ++ show t ++ " for " ++ show n
+    <?> "actual of type " ++ showOccam t ++ " for " ++ show n
     where
       var inner = liftM (A.ActualVariable am t) inner
 --}}}

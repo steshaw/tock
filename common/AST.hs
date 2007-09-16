@@ -127,34 +127,7 @@ data Type =
   | Any
   | Timer
   | Port Type
-  deriving (Eq, Typeable, Data)
-
-instance Show Type where
-  show Bool = "BOOL"
-  show Byte = "BYTE"
-  show UInt16 = "UINT16"
-  show UInt32 = "UINT32"
-  show UInt64 = "UINT64"
-  show Int = "INT"
-  show Int8 = "INT8"
-  show Int16 = "INT16"
-  show Int32 = "INT32"
-  show Int64 = "INT64"
-  show Real32 = "REAL32"
-  show Real64 = "REAL64"
-  show (Array ds t)
-      = concat [case d of
-                  Dimension n -> "[" ++ show n ++ "]"
-                  UnknownDimension -> "[]"
-                | d <- ds] ++ show t
-  show (UserDataType n) = nameName n ++ "{data type}"
-  show (Record n) = nameName n ++ "{record}"
-  show (UserProtocol n) = nameName n ++ "{protocol}"
-  show (Chan _ _ t) = "CHAN OF " ++ show t
-  show (Counted ct et) = show ct ++ "::" ++ show et
-  show Any = "ANY"
-  show Timer = "TIMER"
-  show (Port t) = "PORT OF " ++ show t
+  deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.
 -- Depending on the context, an array type may have empty dimensions, which is

@@ -49,6 +49,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import Pass
 import CompState
+import PrettyShow
 import Utils
 import qualified Data.Map as Map
 
@@ -332,7 +333,7 @@ testPassShouldFail testName actualPass startStateTrans =
     do ret <- runPass actualPass (execState startStateTrans emptyState)
        case ret of
          (_,Left err) -> return ()
-         _ -> assertFailure $ testName ++ " pass succeeded when expected to fail, data: " ++ (show ret)
+         _ -> assertFailure $ testName ++ " pass succeeded when expected to fail, data: " ++ (pshow ret)
 
 -- | Asserts that a particular variable is defined in the given 'CompState'.
 assertVarDef :: 

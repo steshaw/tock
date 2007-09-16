@@ -24,6 +24,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Control.Monad.Error
 import Control.Monad.State
 
 import qualified AST as A
@@ -77,7 +78,7 @@ data CompState = CompState {
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Set A.Name
   }
-  deriving (Show, Data, Typeable)
+  deriving (Data, Typeable)
 
 instance Show (A.Structured -> A.Structured) where
   show p = "(function on Structured)"
@@ -247,3 +248,12 @@ makeNonceVariable :: CSM m => String -> Meta -> A.Type -> A.NameType -> A.Abbrev
 makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t) nt am
 --}}}
+
+diePC :: (CSM m, Die m) => Meta -> m String -> m a
+diePC m str = str >>= (dieP m)
+
+dieC :: (CSM m, Die m) => m String -> m a
+dieC str = str >>= die
+
+throwErrorC :: (CSM m,MonadError String m) => m String -> m a
+throwErrorC str = str >>= throwError

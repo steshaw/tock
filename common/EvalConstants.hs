@@ -37,6 +37,7 @@ import Errors
 import EvalLiterals
 import Metadata
 import Pass
+import ShowCode
 import Types
 
 -- | Simplify an expression by constant folding, and also return whether it's a
@@ -167,7 +168,7 @@ evalExpression (A.BytesInType _ t)
     =  do b <- underlyingType t >>= bytesInType
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
-            _ -> throwError $ "BYTESIN non-constant-size type " ++ show t ++ " used"
+            _ -> throwErrorC $ formatCode "BYTESIN non-constant-size type % used" t
 evalExpression e = throwError "bad expression"
 
 evalMonadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t) -> OccValue -> EvalM OccValue

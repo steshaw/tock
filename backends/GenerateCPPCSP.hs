@@ -87,6 +87,7 @@ import EvalLiterals
 import Metadata
 import Pass
 import Errors
+import ShowCode
 import TLP
 import Types
 import Utils
@@ -1079,7 +1080,7 @@ cppgenType _ (A.Any)
 cppgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]
-        Nothing -> call genMissing ops $ "genType " ++ show t
+        Nothing -> call genMissingC ops $ formatCode "genType %" t
 
 
 -- | Helper function for prefixing an underscore to a name.

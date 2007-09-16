@@ -37,6 +37,7 @@ import EvalLiterals
 import Metadata
 import Pass
 import Errors
+import ShowCode
 import TLP
 import Types
 import Utils
@@ -117,6 +118,7 @@ data GenOps = GenOps {
     genLiteral :: GenOps -> A.LiteralRepr -> CGen (),
     genLiteralRepr :: GenOps -> A.LiteralRepr -> CGen (),
     genMissing :: GenOps -> String -> CGen (),
+    genMissingC :: GenOps -> CGen String -> CGen (),
     genMonadic :: GenOps -> Meta -> A.MonadicOp -> A.Expression -> CGen (),
     genOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen (),
     genOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
@@ -204,6 +206,7 @@ cgenOps = GenOps {
     genLiteral = cgenLiteral,
     genLiteralRepr = cgenLiteralRepr,
     genMissing = cgenMissing,
+    genMissingC = (\ops x -> x >>= cgenMissing ops),
     genMonadic = cgenMonadic,
     genOutput = cgenOutput,
     genOutputCase = cgenOutputCase,
@@ -376,7 +379,7 @@ cgenType _ (A.Chan _ _ t) = tell ["Channel *"]
 cgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]
-        Nothing -> call genMissing ops $ "genType " ++ show t
+        Nothing -> call genMissingC ops $ formatCode "genType %" t
 
 -- | Generate the number of bytes in a type that must have a fixed size.
 cgenBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen ()
@@ -423,7 +426,7 @@ cgenBytesIn' _ (A.Chan {}) _
 cgenBytesIn' ops t _
     = case call getScalarType ops t of
         Just s -> tell ["sizeof (", s, ")"] >> return Nothing
-        Nothing -> die $ "genBytesIn' " ++ show t
+        Nothing -> dieC $ formatCode "genBytesIn' %" t
 --}}}
 
 --{{{  declarations
@@ -817,7 +820,7 @@ cgenTypeSymbol :: GenOps -> String -> A.Type -> CGen ()
 cgenTypeSymbol ops s t
     = case call getScalarType ops t of
         Just ct -> tell ["occam_", s, "_", ct]
-        Nothing -> call genMissing ops $ "genTypeSymbol " ++ show t
+        Nothing -> call genMissingC ops $ formatCode "genTypeSymbol %" t
 
 cgenIntrinsicFunction :: GenOps -> Meta -> String -> [A.Expression] -> CGen ()
 cgenIntrinsicFunction ops m s es
@@ -1503,7 +1506,7 @@ cgenAssign ops m [v] el
                  tell [" = "]
                  call genExpression ops e
                  tell [";\n"]
-            Nothing -> call genMissing ops $ "assignment of type " ++ show t
+            Nothing -> call genMissingC ops $ formatCode "assignment of type %" t
 --}}}
 --{{{  input
 cgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()

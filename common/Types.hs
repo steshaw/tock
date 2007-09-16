@@ -48,6 +48,7 @@ import Errors
 import EvalLiterals
 import Intrinsics
 import Metadata
+import ShowCode
 import Utils
 
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
@@ -124,7 +125,7 @@ plainSubscriptType m sub (A.Array (d:ds) t)
     ok = case ds of
            [] -> t
            _ -> A.Array ds t
-plainSubscriptType m _ t = dieP m $ "subscript of non-array type " ++ show t
+plainSubscriptType m _ t = diePC m $ formatCode "subscript of non-array type: %" t
 
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
@@ -145,7 +146,7 @@ subscriptType (A.SubscriptFor m count) t
     = sliceType m (makeConstant emptyMeta 0) count t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
 subscriptType (A.Subscript m sub) t = plainSubscriptType m sub t
-subscriptType _ t = die $ "unsubscriptable type: " ++ show t
+subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %" t
 
 -- | The inverse of 'subscriptType': given a type that we know is the result of
 -- a subscript, return what the type being subscripted is.
@@ -165,10 +166,10 @@ unsubscriptType (A.Subscript _ sub) t
 -- subscriptType with constant 0 as a subscript, but without the checking.
 -- This is used for the couple of cases where we know it's safe and don't want
 -- the usage check.
-trivialSubscriptType :: (Die m) => A.Type -> m A.Type
+trivialSubscriptType :: (CSM m, Die m) => A.Type -> m A.Type
 trivialSubscriptType (A.Array [d] t) = return t
 trivialSubscriptType (A.Array (d:ds) t) = return $ A.Array ds t
-trivialSubscriptType t = die $ "not plain array type: " ++ show t
+trivialSubscriptType t = dieC $ formatCode "not plain array type: %" t
 
 -- | Gets the 'A.Type' of a 'A.Variable' by looking at the types recorded in the 'CompState'.
 typeOfVariable :: (CSM m, Die m) => A.Variable -> m A.Type

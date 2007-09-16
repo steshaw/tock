@@ -27,6 +27,7 @@ import Types
 import Control.Monad.State
 import CompState
 import Metadata
+import ShowCode
 
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
@@ -148,8 +149,7 @@ coerceType :: String -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
 coerceType customMsg to from item
       = if isImplicitConversionRain from to
           then return $ A.Conversion (findMeta item) A.DefaultConversion to item
-          else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
-            " to expected type: " ++ (show to) ++ customMsg
+          else diePC (findMeta item) $ (liftM concat) $ sequence [formatCode "Could not perform implicit cast from supplied type: % to expected type: %" from to, return customMsg]
 
 
 -- | Checks the types in expressions
@@ -161,14 +161,14 @@ checkExpressionTypes = everywhereASTM checkExpression
       = do tlhs <- typeOfExpression lhs
            trhs <- typeOfExpression rhs
            if (tlhs == trhs)
-             then (if validOp op tlhs then return e else dieP m $ "Operator: \"" ++ show op ++ "\" is not valid on type: \"" ++ show tlhs)
+             then (if validOp op tlhs then return e else diePC m $ formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs)
              else if (isIntegerType tlhs && isIntegerType trhs) 
                     then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
-                           Nothing -> dieP m $ "Cannot find a suitable type to convert expression to, types are: " ++ show tlhs ++ " and " ++ show trhs
-                           Just t -> if validOp op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else dieP m $
-                             "Operator: \"" ++ show op ++ "\" is not valid on type: \"" ++ show tlhs
+                           Nothing -> diePC m $ formatCode "Cannot find a suitable type to convert expression to, types are: % and %" tlhs trhs
+                           Just t -> if validOp op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else diePC m $
+                             formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs
                     else --The operators are not equal, and are not integers.  Therefore this must be an error:
-                      dieP m $ "Mis-matched types; no operator applies to types: " ++ show tlhs ++ " and " ++ show trhs
+                      diePC m $ formatCode "Mis-matched types; no operator applies to types: % and %" tlhs trhs
     checkExpression e@(A.Monadic m op rhs)
       = do trhs <- typeOfExpression rhs
            if (op == A.MonadicMinus)
@@ -176,13 +176,13 @@ checkExpressionTypes = everywhereASTM checkExpression
                     A.Byte -> return $ A.Monadic m op $ convert A.Int16 trhs rhs
                     A.UInt16 -> return $ A.Monadic m op $ convert A.Int32 trhs rhs
                     A.UInt32 -> return $ A.Monadic m op $ convert A.Int64 trhs rhs
-                    A.UInt64 -> dieP m $ "Cannot apply unary minus to type: " ++ show trhs ++ " because there is no type large enough to safely contain the result"
-                    _ -> if (isIntegerType trhs) then return e else dieP m $ "Trying to apply unary minus to non-integer type: " ++ show trhs
+                    A.UInt64 -> diePC m $ formatCode "Cannot apply unary minus to type: % because there is no type large enough to safely contain the result" trhs
+                    _ -> if (isIntegerType trhs) then return e else diePC m $ formatCode "Trying to apply unary minus to non-integer type: %" trhs
              else if (op == A.MonadicNot)
                     then
                       case trhs of
                         A.Bool -> return e
-                        _ -> dieP m $ "Cannot apply unary not to non-boolean type: " ++ show trhs
+                        _ -> diePC m $ formatCode "Cannot apply unary not to non-boolean type: %" trhs
                     else dieP m $ "Invalid Rain operator: \"" ++ show op ++ "\""
     checkExpression e@(A.Conversion m cm dest rhs)
       = do src <- typeOfExpression rhs
@@ -190,7 +190,7 @@ checkExpressionTypes = everywhereASTM checkExpression
              then return e
              else if isImplicitConversionRain src dest
                     then return e
-                    else dieP m $ "Invalid cast from: " ++ show dest ++ " to: " ++ show src
+                    else diePC m $ formatCode "Invalid cast from: % to: %" dest src
     checkExpression e = return e
 
     convert :: A.Type -> A.Type -> A.Expression -> A.Expression
@@ -266,8 +266,8 @@ checkCommTypes = everywhereASTM checkInputOutput
                  else 
                    if (innerType == destType)
                      then return p
-                     else dieP m $ "Mis-matching types; channel: " ++ show chanVar ++ " has inner-type: " ++ show innerType ++
-                       " but destination variable: " ++ show destVar ++ " has type: " ++ show destType
+                     else diePC m $ formatCode "Mis-matching types; channel: \"%\" has inner-type: % but destination variable: \"%\" has type: %"
+                                               chanVar innerType destVar destType
              _ -> dieP m $ "Tried to input from a variable that is not of type channel: " ++ show chanVar
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
       = do chanType <- typeOfVariable chanVar
