@@ -357,13 +357,7 @@ data ExprHelper =
   | EHTrue
 
 buildExprPattern :: ExprHelper -> Pattern
-buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
-buildExprPattern (Mon op rhs) = tag3 A.Monadic DontCare op (buildExprPattern rhs)
-buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion (stopCaringPattern m $ mkPattern ty) (buildExprPattern rhs)
-buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
-buildExprPattern (DirVar dir n) = tag2 A.ExprVariable DontCare $ (stopCaringPattern m $ tag3 A.DirectedVariable DontCare dir $ variablePattern n)
-buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
-buildExprPattern EHTrue = tag1 A.True DontCare
+buildExprPattern = (stopCaringPattern m) . mkPattern . buildExpr
 
 buildExpr :: ExprHelper -> A.Expression
 buildExpr (Dy lhs op rhs) = A.Dyadic m op (buildExpr lhs) (buildExpr rhs)
