@@ -69,7 +69,7 @@ clean-cgtests:
 haddock:
 	@mkdir -p doc
 	@echo "putmycustomdocumentationhere" > .temp-haddock-file
-	haddock -o doc --html -p temp-haddock-file -t Tock $(filter-out LexOccam.hs LexRain.hs,$(sources))
+	haddock -o doc --html -p .temp-haddock-file -t Tock $(filter-out frontends/LexOccam.hs frontends/LexRain.hs,$(sources))
 	cp docextra/*.svg doc/
 	@rm .temp-haddock-file
 	@grep -B 10000 putmycustomdocumentationhere doc/index.html | sed "s/putmycustomdocumentationhere//" > doc/index.html-2	
