@@ -250,3 +250,36 @@ checkConditionalTypes t = (everywhereASTM checkWhile t) >>= (everywhereASTM chec
            if (t == A.Bool)
              then return c
              else dieP m "Expression in if conditional must be of boolean type"
+
+-- | Checks the types in inputs and outputs
+checkCommTypes :: Data t => t -> PassM t
+checkCommTypes = everywhereASTM checkInputOutput
+  where
+    checkInputOutput :: A.Process -> PassM A.Process
+    checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
+      = do chanType <- typeOfVariable chanVar
+           destType <- typeOfVariable destVar
+           case chanType of
+             A.Chan dir _ innerType -> 
+               if (dir == A.DirOutput) 
+                 then dieP m $ "Tried to input from the writing end of a channel: " ++ show chanVar
+                 else 
+                   if (innerType == destType)
+                     then return p
+                     else dieP m $ "Mis-matching types; channel: " ++ show chanVar ++ " has inner-type: " ++ show innerType ++
+                       " but destination variable: " ++ show destVar ++ " has type: " ++ show destType
+             _ -> dieP m $ "Tried to input from a variable that is not of type channel: " ++ show chanVar
+    checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
+      = do chanType <- typeOfVariable chanVar
+           srcType <- typeOfExpression srcExp
+           case chanType of
+             A.Chan dir _ innerType ->
+               if (dir == A.DirInput)
+                 then dieP m $ "Tried to output to the reading end of a channel: " ++ show chanVar
+                 else
+                   if (innerType == srcType)
+                     then return p
+                     else do castExp <- coerceType " for writing to channel" innerType srcType srcExp
+                             return $ A.Output m chanVar [A.OutExpression m' castExp]
+             _ -> dieP m $ "Tried to output to a variable that is not of type channel: " ++ show chanVar
+    checkInputOutput p = return p
