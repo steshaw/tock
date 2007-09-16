@@ -160,8 +160,40 @@ checkExpressionTest = TestList
   ,passSame 2103 A.Int64 $ Cast A.Int64 (Var "xu8")
   ,passSame 2104 A.Int64 $ Cast A.Int64 $ Cast A.Int32 $ Cast A.UInt16 $ Var "xu8"  
   ,passSame 2105 A.UInt64 $ Cast A.UInt64 (Var "xu8")
+  
+  --Assignments:
+  ,passAssignSame 3000 "x" (Var "x")
+  ,passAssignSame 3001 "xu8" (Var "xu8")
+  ,passAssignSame 3002 "b" (Var "b")
+  ,passAssignSame 3003 "x" $ Dy (Var "x") A.Plus (Var "x")
+  ,passAssignSame 3004 "b" $ Dy (Var "x8") A.Eq (Var "x8")
+  ,passAssignSame 3004 "x" $ Mon A.MonadicMinus (Var "x")
+
+  ,passAssign 3100 "x" (Cast A.Int64 $ Var "xu8") (Var "xu8")
+  ,failAssign 3101 "xu8" (Var "x")
+  ,failAssign 3102 "x" (Var "b")
+  ,failAssign 3103 "b" (Var "x")
+  ,failAssign 3104 "x8" (Var "xu8")
+  ,failAssign 3105 "xu8" (Var "x8")
  ]
  where
+  passAssign :: Int -> String -> ExprHelper -> ExprHelper -> Test
+  passAssign n lhs exp src = TestCase $ testPassWithCheck ("checkExpressionTest " ++ show n) 
+    (tag3 A.Assign DontCare [variablePattern lhs] $ tag2 A.ExpressionList DontCare [buildExprPattern exp])
+    (checkAssignmentTypes $ src')
+    state refeed
+    where
+      src' = A.Assign m [variable lhs] $ A.ExpressionList m [buildExpr src]
+    
+      refeed :: A.Process -> Assertion
+      refeed changed = if (src' /= changed) then testPass ("checkExpressionTest refeed " ++ show n) (mkPattern changed) (checkAssignmentTypes changed) state else return ()
+  
+  passAssignSame :: Int -> String -> ExprHelper -> Test
+  passAssignSame n s e = passAssign n s e e
+  
+  failAssign :: Int -> String -> ExprHelper -> Test
+  failAssign n lhs src = TestCase $ testPassShouldFail ("checkExpressionTest " ++ show n) (checkAssignmentTypes $ A.Assign m [variable lhs] $ A.ExpressionList m [buildExpr src]) state
+ 
   passSame :: Int -> A.Type -> ExprHelper -> Test
   passSame n t e = pass n t e e
   

@@ -140,13 +140,16 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
              then return e
              else doCast index formalType actualType e
 
-    --Adds a cast between two types if it is safe to do so, otherwise gives an error
     doCast :: Int -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
-    doCast index to from item
+    doCast index = coerceType $ " for parameter (zero-based): " ++ (show index)
+
+--Adds a cast between two types if it is safe to do so, otherwise gives an error
+coerceType :: String -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
+coerceType customMsg to from item
       = if isImplicitConversionRain from to
           then return $ A.Conversion (findMeta item) A.DefaultConversion to item
           else dieP (findMeta item) $ "Could not perform implicit cast from supplied type: " ++ (show from) ++
-            " to expected type: " ++ (show to) ++ " for parameter (zero-based): " ++ (show index)
+            " to expected type: " ++ (show to) ++ customMsg
 
 
 -- | Checks the types in expressions
@@ -213,3 +216,19 @@ checkExpressionTypes = everywhereASTM checkExpression
     
     haveOrder :: A.Type -> Bool
     haveOrder = isIntegerType
+
+-- | Checks the types in assignments
+checkAssignmentTypes :: Data t => t -> PassM t
+checkAssignmentTypes = everywhereASTM checkAssignment
+  where
+    checkAssignment :: A.Process -> PassM A.Process
+    checkAssignment ass@(A.Assign m [v] (A.ExpressionList m' [e]))
+      = do trhs <- typeOfExpression e
+           tlhs <- typeOfVariable v
+           if (tlhs == trhs)
+             then return ass
+             else do rhs' <- coerceType " in assignment" tlhs trhs e
+                     return $ A.Assign m [v] (A.ExpressionList m' [rhs'])
+    checkAssignment (A.Assign {}) = dieInternal "Rain checker found occam-style assignment"
+    checkAssignment st = return st
+
