@@ -167,7 +167,9 @@ checkExpressionTest = TestList
   ,passAssignSame 3002 "b" (Var "b")
   ,passAssignSame 3003 "x" $ Dy (Var "x") A.Plus (Var "x")
   ,passAssignSame 3004 "b" $ Dy (Var "x8") A.Eq (Var "x8")
-  ,passAssignSame 3004 "x" $ Mon A.MonadicMinus (Var "x")
+  ,passAssignSame 3005 "x" $ Mon A.MonadicMinus (Var "x")
+  ,passAssignSame 3006 "x8" $ int A.Int8 0
+  ,passAssignSame 3007 "b" EHTrue
 
   ,passAssign 3100 "x" (Cast A.Int64 $ Var "xu8") (Var "xu8")
   ,failAssign 3101 "xu8" (Var "x")
@@ -175,6 +177,18 @@ checkExpressionTest = TestList
   ,failAssign 3103 "b" (Var "x")
   ,failAssign 3104 "x8" (Var "xu8")
   ,failAssign 3105 "xu8" (Var "x8")
+  ,passAssign 3106 "x" (Cast A.Int64 $ int A.Int8 0) (int A.Int8 0)
+  
+  --Conditionals:
+  ,passWhileIfSame 4000 $ Var "b"
+  ,passWhileIfSame 4001 $ Mon A.MonadicNot $ Var "b"
+  ,passWhileIfSame 4002 $ Dy (Var "x") A.Eq (Var "x")
+  ,passWhileIfSame 4003 $ EHTrue 
+  
+  ,failWhileIf 4100 $ Var "x"
+  ,failWhileIf 4101 $ Dy (Var "x") A.Plus (Var "x")
+  
+  
  ]
  where
   passAssign :: Int -> String -> ExprHelper -> ExprHelper -> Test
@@ -193,6 +207,33 @@ checkExpressionTest = TestList
   
   failAssign :: Int -> String -> ExprHelper -> Test
   failAssign n lhs src = TestCase $ testPassShouldFail ("checkExpressionTest " ++ show n) (checkAssignmentTypes $ A.Assign m [variable lhs] $ A.ExpressionList m [buildExpr src]) state
+  
+  passWhileIfSame :: Int -> ExprHelper -> Test
+  passWhileIfSame n e = passWhileIf n e e
+  
+  passWhileIf :: Int -> ExprHelper -> ExprHelper -> Test
+  passWhileIf n exp src = TestList
+    [
+      TestCase $ testPass ("checkExpressionTest/if " ++ show n) 
+        (tag2 A.If DontCare $ tag2 A.OnlyC DontCare $ tag3 A.Choice DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
+        (checkConditionalTypes $ A.If m $ A.OnlyC m $ A.Choice m (buildExpr src) (A.Skip m))
+        state
+      ,TestCase $ testPass ("checkExpressionTest/while " ++ show n)
+        (tag3 A.While DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
+        (checkConditionalTypes $ A.While m (buildExpr src) (A.Skip m))
+        state
+    ]
+ 
+  failWhileIf :: Int -> ExprHelper -> Test
+  failWhileIf n src = TestList
+    [
+      TestCase $ testPassShouldFail ("checkExpressionTest/if " ++ show n) 
+        (checkConditionalTypes $ A.If m $ A.OnlyC m $ A.Choice m (buildExpr src) (A.Skip m))
+        state
+      ,TestCase $ testPassShouldFail ("checkExpressionTest/while " ++ show n)
+        (checkConditionalTypes $ A.While m (buildExpr src) (A.Skip m))
+        state
+    ]
  
   passSame :: Int -> A.Type -> ExprHelper -> Test
   passSame n t e = pass n t e e

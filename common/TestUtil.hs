@@ -354,6 +354,7 @@ data ExprHelper =
   | Var String
   | DirVar A.Direction String
   | Lit A.Expression
+  | EHTrue
 
 buildExprPattern :: ExprHelper -> Pattern
 buildExprPattern (Dy lhs op rhs) = tag4 A.Dyadic DontCare op (buildExprPattern lhs) (buildExprPattern rhs)
@@ -362,6 +363,7 @@ buildExprPattern (Cast ty rhs) = tag4 A.Conversion DontCare A.DefaultConversion 
 buildExprPattern (Var n) = tag2 A.ExprVariable DontCare $ variablePattern n
 buildExprPattern (DirVar dir n) = tag2 A.ExprVariable DontCare $ (stopCaringPattern m $ tag3 A.DirectedVariable DontCare dir $ variablePattern n)
 buildExprPattern (Lit e) = (stopCaringPattern m) $ mkPattern e
+buildExprPattern EHTrue = tag1 A.True DontCare
 
 buildExpr :: ExprHelper -> A.Expression
 buildExpr (Dy lhs op rhs) = A.Dyadic m op (buildExpr lhs) (buildExpr rhs)
@@ -370,6 +372,7 @@ buildExpr (Cast ty rhs) = A.Conversion m A.DefaultConversion ty (buildExpr rhs)
 buildExpr (Var n) = A.ExprVariable m $ variable n
 buildExpr (DirVar dir n) = A.ExprVariable m $ (A.DirectedVariable m dir $ variable n)
 buildExpr (Lit e) = e
+buildExpr EHTrue = A.True m
 
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef

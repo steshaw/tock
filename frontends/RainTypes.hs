@@ -232,3 +232,21 @@ checkAssignmentTypes = everywhereASTM checkAssignment
     checkAssignment (A.Assign {}) = dieInternal "Rain checker found occam-style assignment"
     checkAssignment st = return st
 
+-- | Checks the types in if and while conditionals
+checkConditionalTypes :: Data t => t -> PassM t
+checkConditionalTypes t = (everywhereASTM checkWhile t) >>= (everywhereASTM checkIf)
+  where
+    checkWhile :: A.Process -> PassM A.Process
+    checkWhile w@(A.While m exp _)
+      = do t <- typeOfExpression exp
+           if (t == A.Bool)
+             then return w
+             else dieP m "Expression in while conditional must be of boolean type"
+    checkWhile p = return p
+    
+    checkIf :: A.Choice -> PassM A.Choice
+    checkIf c@(A.Choice m exp _)
+      = do t <- typeOfExpression exp
+           if (t == A.Bool)
+             then return c
+             else dieP m "Expression in if conditional must be of boolean type"
