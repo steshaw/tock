@@ -68,7 +68,6 @@ data CompState = CompState {
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
     csTypeContext :: [Maybe A.Type],
-    csLoadedFiles :: [String],
     csWarnings :: [String],
 
     -- Set by passes
@@ -100,7 +99,6 @@ emptyState = CompState {
     csUnscopedNames = Map.empty,
     csNameCounter = 0,
     csTypeContext = [],
-    csLoadedFiles = [],
     csWarnings = [],
 
     csNonceCounter = 0,
