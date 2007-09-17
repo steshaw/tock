@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | A module with type-classes and functions for displaying code, dependent on the context.
 -- Primarily, this means showing code as occam in error messages for the occam frontend, and Rain code for the Rain frontend.
-module ShowCode where 
+module ShowCode (showCode, showOccam, showRain, formatCode, extCode) where 
 
 import Control.Monad.State
 import Data.Generics
@@ -176,6 +176,12 @@ instance ShowRain A.Variable where
   showRain x = "<invalid Rain variable: " ++ show x ++ ">"
 
 -- | Extends an existing (probably generic) function with cases for everything that has a specific ShowOccam and ShowRain instance
+-- This is a bit of manual wiring.  Because we can't generically deduce whether or not 
+-- a given Data item has a showRain/showOccam implementation (that I know of), I have 
+-- had to add this function that has a line for each type that does have a 
+-- ShowOccam/ShowRain implementation.  But since to add a type to the ShowOccam/ShowRain 
+-- classes you have to provide a specific instance above anyway, I don't think that adding 
+-- one more line while you're at it is too bad.
 extCode :: Typeable b => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
 extCode q f = q `extQ` (text . (f :: A.Type -> String))
                 `extQ` (text . (f :: A.DyadicOp -> String))

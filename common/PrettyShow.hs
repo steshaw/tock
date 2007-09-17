@@ -20,6 +20,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- This ought to use a class (like show does), so that it can be extended
 -- properly without me needing to have Tock-specific cases in here -- see the
 -- appropriate SYB paper.
+--
+-- PrettyShow exports two functions: pshow and pshowCode.  pshow works
+-- much like 'gshow', but it uses the 'Text.PrettyPrint.HughesPJ' module
+-- to render the text with line-breaks and such.
+--
+-- pshowCode uses the 'ShowOccam' and 'ShowRain' type-classes wherever possible
+-- (via the 'extCode' function) to print out data, otherwise it acts
+-- like pshow.  Note that because pshowCode chooses the appropriate
+-- language based on the 'csFrontend' in 'CompState', it is inside the CSM monad.
 module PrettyShow (pshow, pshowCode) where
 
 import Control.Monad.State
