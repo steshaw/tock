@@ -35,7 +35,6 @@ import Debug.Trace
 import qualified IO
 import Numeric (readHex)
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Pos (newPos)
 import Text.Regex
 
 import qualified AST as A
@@ -45,6 +44,7 @@ import EvalConstants
 import EvalLiterals
 import Intrinsics
 import Metadata
+import ParseUtils
 import Pass
 import Types
 import Utils
@@ -113,11 +113,8 @@ monadicArithOp
 
 --}}}
 
-metaToPos :: Meta -> SourcePos
-metaToPos m = newPos (fromMaybe "" $ metaFile m) (metaLine m) (metaColumn m)
-
 getToken :: (L.TokenType -> Maybe x) -> RainParser (Meta, x)
-getToken test = token (show) (metaToPos . fst) (wrap test)
+getToken test = token (show) (metaToSourcePos . fst) (wrap test)
   where
     wrap :: (L.TokenType -> Maybe x) -> (Meta,L.TokenType) -> Maybe (Meta,x)
     wrap f (m,t) = case f t of

@@ -27,7 +27,6 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Debug.Trace
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Pos (newPos)
 
 import qualified AST as A
 import CompState
@@ -37,6 +36,7 @@ import EvalLiterals
 import Intrinsics
 import LexOccam
 import Metadata
+import ParseUtils
 import Pass
 import ShowCode
 import Types
@@ -176,28 +176,6 @@ md :: OccParser Meta
 md
   =  do pos <- getPosition
         return $ sourcePosToMeta pos
-
---{{{ Meta to/from SourcePos
--- | Convert source position into Parsec's format.
-metaToSourcePos :: Meta -> SourcePos
-metaToSourcePos meta
-    = newPos filename (metaLine meta) (metaColumn meta)
-  where
-    filename = case metaFile meta of
-                 Just s -> s
-                 Nothing -> ""
-
--- | Convert source position out of Parsec's format.
-sourcePosToMeta :: SourcePos -> Meta
-sourcePosToMeta pos
-    = emptyMeta {
-        metaFile = case sourceName pos of
-                     "" -> Nothing
-                     s -> Just s,
-        metaLine = sourceLine pos,
-        metaColumn = sourceColumn pos
-      }
---}}}
 
 --{{{ try*
 -- These functions let you try a sequence of productions and only retrieve the
