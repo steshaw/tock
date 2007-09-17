@@ -22,6 +22,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module ShowCode where 
 
 import Control.Monad.State
+import Data.Generics
+import Data.List
+import Text.PrettyPrint.HughesPJ
 import Text.Regex
 import qualified AST as A
 import CompState
@@ -171,3 +174,9 @@ instance ShowRain A.Variable where
   showRain (A.DirectedVariable _ A.DirInput v) = "?" ++ showRain v
   showRain (A.DirectedVariable _ A.DirOutput v) = "!" ++ showRain v
   showRain x = "<invalid Rain variable: " ++ show x ++ ">"
+
+-- | Extends an existing (probably generic) function with cases for everything that has a specific ShowOccam and ShowRain instance
+extCode :: Typeable b => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
+extCode q f = q `extQ` (text . (f :: A.Type -> String))
+                `extQ` (text . (f :: A.DyadicOp -> String))
+                `extQ` (text . (f :: A.Variable -> String))

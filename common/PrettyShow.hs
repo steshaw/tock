@@ -20,16 +20,19 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- This ought to use a class (like show does), so that it can be extended
 -- properly without me needing to have Tock-specific cases in here -- see the
 -- appropriate SYB paper.
-module PrettyShow (pshow) where
+module PrettyShow (pshow, pshowCode) where
 
+import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 
 import qualified AST as A
+import CompState
 import Metadata
 import Pattern
+import ShowCode
 
 -- This is ugly -- but it looks like you can't easily define a generic function
 -- even for a single tuple type, since it has to parameterise over multiple Data
@@ -42,8 +45,8 @@ isTupleCtr ('(':cs) = checkRest cs
     checkRest _ = False
 isTupleCtr _ = False
 
-doGeneral :: Data a => a -> Doc
-doGeneral t =
+doGeneral :: Data a => GenericQ Doc -> a -> Doc
+doGeneral anyFunc t =
   if isTupleCtr cn then
     parens $ sep $ punctuate (text ",") l
   else case l of
@@ -52,10 +55,10 @@ doGeneral t =
   where
     cn = showConstr (toConstr t)
     con = text $ cn
-    l = gmapQ doAny t
+    l = gmapQ anyFunc t
 
-doList :: Data a => [a] -> Doc
-doList t = brackets $ sep $ punctuate (text ",") (map doAny t)
+doList :: Data a => GenericQ Doc -> [a] -> Doc
+doList anyFunc t = brackets $ sep $ punctuate (text ",") (map anyFunc t)
 
 doString :: String -> Doc
 doString s = text $ show s
@@ -63,12 +66,12 @@ doString s = text $ show s
 doMeta :: Meta -> Doc
 doMeta m = text $ show m
 
-doMap :: (Data a, Data b) => Map.Map a b -> Doc
-doMap map = braces $ sep $ punctuate (text ",") [doAny k <+> text ":" <+> doAny v
-                                                 | (k, v) <- Map.toAscList map]
+doMap :: (Data a, Data b) => GenericQ Doc -> Map.Map a b -> Doc
+doMap anyFunc map = braces $ sep $ punctuate (text ",") [anyFunc k <+> text ":" <+> anyFunc v
+                                                         | (k, v) <- Map.toAscList map]
 
-doSet :: Data a => Set.Set a -> Doc
-doSet set = brackets $ sep $ punctuate (text ",") (map doAny $ Set.toList set)
+doSet :: Data a => GenericQ Doc -> Set.Set a -> Doc
+doSet anyFunc set = brackets $ sep $ punctuate (text ",") (map anyFunc $ Set.toList set)
 
 foldPatternList :: Pattern -> [Pattern]
 foldPatternList (Match con patList)
@@ -113,25 +116,39 @@ doPattern p@(Match c ps) =
            --It's a string:
        then doString (showStringPattern folded)
            --It's some other kind of list:
-       else doList folded
+       else doList (mkQ empty doPattern) folded
      --It's neither a list nor a tuple:
      else parens $ (text (showConstr c)) $+$ (sep items)
    where
      items = map doPattern ps
      folded = foldPatternList p
 
-
-doAny :: Data a => a -> Doc
-doAny = doGeneral `ext1Q` doList `extQ` doString `extQ` doMeta `extQ` doPattern
-          `extQ` (doMap :: Map.Map String String -> Doc)
-          `extQ` (doMap :: Map.Map String A.NameDef -> Doc)
-          `extQ` (doMap :: Map.Map String [A.Type] -> Doc)
-          `extQ` (doMap :: Map.Map String [A.Actual] -> Doc)
-          `extQ` (doSet :: Set.Set String -> Doc)
-          `extQ` (doSet :: Set.Set A.Name -> Doc)
+doAny :: (forall a. Typeable a => (a -> Doc) -> (a -> Doc)) -> GenericQ Doc
+doAny extFunc = extFunc (
+  (doGeneral anyFunc) `ext1Q` (doList anyFunc) `extQ` doString `extQ` doMeta `extQ` doPattern
+          `extQ` (doMap anyFunc :: Map.Map String String -> Doc)
+          `extQ` (doMap anyFunc :: Map.Map String A.NameDef -> Doc)
+          `extQ` (doMap anyFunc :: Map.Map String [A.Type] -> Doc)
+          `extQ` (doMap anyFunc :: Map.Map String [A.Actual] -> Doc)
+          `extQ` (doSet anyFunc :: Set.Set String -> Doc)
+          `extQ` (doSet anyFunc :: Set.Set A.Name -> Doc)
+  )
+     where
+       anyFunc :: GenericQ Doc
+       anyFunc = doAny extFunc
 
 -- | Convert an arbitrary data structure to a string in a reasonably pretty way.
 -- This is currently rather slow.
 pshow :: Data a => a -> String
-pshow x = render $ doAny x
+pshow x = render $ doAny id x
 
+pshowCode :: (Data a, CSM m) => a -> m String
+pshowCode c = do st <- get
+                 case csFrontend st of
+                   FrontendOccam -> return $ render $ (extOccam $ doAny extOccam) c
+                   FrontendRain -> return $ render $ (extRain $ doAny extRain) c
+  where
+    extOccam :: forall a. Typeable a => (a -> Doc) -> (a -> Doc)
+    extOccam f = extCode f showOccam
+    extRain :: forall a. Typeable a => (a -> Doc) -> (a -> Doc)
+    extRain f = extCode f showRain
