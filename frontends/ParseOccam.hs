@@ -1990,7 +1990,7 @@ sourceFile
 -- | Parse a token stream with the given production.
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
-    =  do case runParser prod cs "irrelevant filename" toks of
+    =  do case runParser prod cs "" toks of
             Left err -> die $ "Parse error: " ++ show err
             Right r -> return r
 
