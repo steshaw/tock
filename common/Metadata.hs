@@ -22,6 +22,8 @@ module Metadata where
 {-! global : Haskell2Xml !-}
 
 import Data.Generics
+import Text.Printf
+import Text.Read
 
 import Utils
 
@@ -51,3 +53,25 @@ instance Eq Meta where
     if ((metaFile a == Nothing) && (metaLine a == 0) && (metaColumn a == 0)) then True else
     if ((metaFile b == Nothing) && (metaLine b == 0) && (metaColumn b == 0)) then True else
     ((metaFile a == metaFile b) && (metaLine a == metaLine b) && (metaColumn a == metaColumn b))
+
+-- | Encode a Meta as the prefix of a string.
+packMeta :: Meta -> String -> String
+packMeta m s
+    = case metaFile m of
+        Nothing -> s
+        Just fn -> printf "~%d\0%d\0%s\0%s"
+                          (metaLine m) (metaColumn m) fn s
+
+-- | Extract a Meta (encoded by packMeta) from a String.
+unpackMeta :: String -> (Meta, String)
+unpackMeta ('~':s) = (m, rest)
+  where
+    (ls, _:s') = break (== '\0') s
+    (cs, _:s'') = break (== '\0') s'
+    (fn, _:rest) = break (== '\0') s''
+    m = emptyMeta {
+          metaFile = Just fn,
+          metaLine = read ls,
+          metaColumn = read cs
+        }
+unpackMeta s = (emptyMeta, s)
