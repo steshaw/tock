@@ -42,12 +42,12 @@ import Types
 
 -- | Simplify an expression by constant folding, and also return whether it's a
 -- constant after that.
-constantFold :: CSM m => A.Expression -> m (A.Expression, Bool, String)
+constantFold :: CSM m => A.Expression -> m (A.Expression, Bool, ErrorReport)
 constantFold e
     =  do ps <- get
           let (e', msg) = case simplifyExpression ps e of
                             Left err -> (e, err)
-                            Right val -> (val, "already folded")
+                            Right val -> (val, (Nothing, "already folded"))
           return (e', isConstant e', msg)
 
 -- | Is a name defined as a constant expression? If so, return its definition.
@@ -70,7 +70,7 @@ isConstantName n
 
 -- | Attempt to simplify an expression as far as possible by precomputing
 -- constant bits.
-simplifyExpression :: CompState -> A.Expression -> Either String A.Expression
+simplifyExpression :: CompState -> A.Expression -> Either ErrorReport A.Expression
 simplifyExpression ps e
     = case runEvaluator ps (evalExpression e) of
         Left err -> Left err
@@ -78,8 +78,8 @@ simplifyExpression ps e
 
 --{{{  expression evaluator
 evalLiteral :: A.Expression -> EvalM OccValue
-evalLiteral (A.Literal _ _ (A.ArrayLiteral _ []))
-    = throwError "empty array"
+evalLiteral (A.Literal m _ (A.ArrayLiteral _ []))
+    = throwError (Just m, "empty array")
 evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
     = liftM OccArray (mapM evalLiteralArray aes)
 evalLiteral (A.Literal _ (A.Record n) (A.RecordLiteral _ es))
@@ -91,11 +91,11 @@ evalLiteralArray (A.ArrayElemArray aes) = liftM OccArray (mapM evalLiteralArray 
 evalLiteralArray (A.ArrayElemExpr e) = evalExpression e
 
 evalVariable :: A.Variable -> EvalM OccValue
-evalVariable (A.Variable _ n)
+evalVariable (A.Variable m n)
     =  do me <- getConstantName n
           case me of
             Just e -> evalExpression e
-            Nothing -> throwError $ "non-constant variable " ++ show n ++ " used"
+            Nothing -> throwError (Just m, "non-constant variable " ++ show n ++ " used")
 evalVariable (A.SubscriptedVariable _ sub v) = evalVariable v >>= evalSubscript sub
 evalVariable (A.DirectedVariable _ _ v) = evalVariable v
 
@@ -104,15 +104,15 @@ evalIndex e
     =  do index <- evalExpression e
           case index of
             OccInt n -> return $ fromIntegral n
-            _ -> throwError $ "index has non-INT type"
+            _ -> throwError (Just $ findMeta e, "index has non-INT type")
 
 evalSubscript :: A.Subscript -> OccValue -> EvalM OccValue
-evalSubscript (A.Subscript _ e) (OccArray vs)
+evalSubscript (A.Subscript m e) (OccArray vs)
     =  do index <- evalIndex e
           if index >= 0 && index < length vs
             then return $ vs !! index
-            else throwError $ "subscript out of range"
-evalSubscript _ _ = throwError $ "invalid subscript"
+            else throwError (Just m, "subscript out of range")
+evalSubscript s _ = throwError (Just $ findMeta s, "invalid subscript")
 
 evalExpression :: A.Expression -> EvalM OccValue
 evalExpression (A.Monadic _ op e)
@@ -140,7 +140,7 @@ evalExpression (A.MostPos _ A.Int32) = return $ OccInt32 maxBound
 evalExpression (A.MostNeg _ A.Int32) = return $ OccInt32 minBound
 evalExpression (A.MostPos _ A.Int64) = return $ OccInt64 maxBound
 evalExpression (A.MostNeg _ A.Int64) = return $ OccInt64 minBound
-evalExpression (A.SizeExpr _ e)
+evalExpression (A.SizeExpr m e)
     =  do t <- typeOfExpression e >>= underlyingType
           case t of
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
@@ -148,28 +148,28 @@ evalExpression (A.SizeExpr _ e)
               do v <- evalExpression e
                  case v of
                    OccArray vs -> return $ OccInt (fromIntegral $ length vs)
-                   _ -> throwError $ "size of non-constant expression " ++ show e ++ " used"
+                   _ -> throwError (Just m, "size of non-constant expression " ++ show e ++ " used")
 evalExpression (A.SizeVariable m v)
     =  do t <- typeOfVariable v >>= underlyingType
           case t of
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
-            _ -> throwError $ "size of non-fixed-size variable " ++ show v ++ " used"
+            _ -> throwError (Just m, "size of non-fixed-size variable " ++ show v ++ " used")
 evalExpression e@(A.Literal _ _ _) = evalLiteral e
 evalExpression (A.ExprVariable _ v) = evalVariable v
 evalExpression (A.True _) = return $ OccBool True
 evalExpression (A.False _) = return $ OccBool False
 evalExpression (A.SubscriptedExpr _ sub e) = evalExpression e >>= evalSubscript sub
-evalExpression (A.BytesInExpr _ e)
+evalExpression (A.BytesInExpr m e)
     =  do b <- typeOfExpression e >>= underlyingType >>= bytesInType
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
-            _ -> throwError $ "BYTESIN non-constant-size expression " ++ show e ++ " used"
-evalExpression (A.BytesInType _ t)
+            _ -> throwError (Just m, "BYTESIN non-constant-size expression " ++ show e ++ " used")
+evalExpression (A.BytesInType m t)
     =  do b <- underlyingType t >>= bytesInType
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
-            _ -> throwErrorC $ formatCode "BYTESIN non-constant-size type % used" t
-evalExpression e = throwError "bad expression"
+            _ -> throwErrorC (Just m, formatCode "BYTESIN non-constant-size type % used" t)
+evalExpression e = throwError (Just $ findMeta e, "bad expression")
 
 evalMonadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t) -> OccValue -> EvalM OccValue
 evalMonadicOp f (OccByte a) = return $ OccByte (f a)
@@ -181,7 +181,7 @@ evalMonadicOp f (OccInt a) = return $ OccInt (f a)
 evalMonadicOp f (OccInt16 a) = return $ OccInt16 (f a)
 evalMonadicOp f (OccInt32 a) = return $ OccInt32 (f a)
 evalMonadicOp f (OccInt64 a) = return $ OccInt64 (f a)
-evalMonadicOp _ _ = throwError "monadic operator not implemented for this type"
+evalMonadicOp _ v = throwError (Nothing, "monadic operator not implemented for this type: " ++ show v)
 
 evalMonadic :: A.MonadicOp -> OccValue -> EvalM OccValue
 -- This, oddly, is probably the most important rule here: "-4" isn't a literal
@@ -190,7 +190,7 @@ evalMonadic A.MonadicSubtr a = evalMonadicOp negate a
 evalMonadic A.MonadicMinus a = evalMonadicOp negate a
 evalMonadic A.MonadicBitNot a = evalMonadicOp complement a
 evalMonadic A.MonadicNot (OccBool b) = return $ OccBool (not b)
-evalMonadic _ _ = throwError "bad monadic op"
+evalMonadic op _ = throwError (Nothing, "bad monadic op: " ++ show op)
 
 evalDyadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t -> t) -> OccValue -> OccValue -> EvalM OccValue
 evalDyadicOp f (OccByte a) (OccByte b) = return $ OccByte (f a b)
@@ -202,7 +202,7 @@ evalDyadicOp f (OccInt a) (OccInt b) = return $ OccInt (f a b)
 evalDyadicOp f (OccInt16 a) (OccInt16 b) = return $ OccInt16 (f a b)
 evalDyadicOp f (OccInt32 a) (OccInt32 b) = return $ OccInt32 (f a b)
 evalDyadicOp f (OccInt64 a) (OccInt64 b) = return $ OccInt64 (f a b)
-evalDyadicOp _ _ _ = throwError "dyadic operator not implemented for this type"
+evalDyadicOp _ v0 v1 = throwError (Nothing, "dyadic operator not implemented for these types: " ++ show v0 ++ " and " ++ show v1)
 
 evalCompareOp :: (forall t. (Eq t, Ord t) => t -> t -> Bool) -> OccValue -> OccValue -> EvalM OccValue
 evalCompareOp f (OccByte a) (OccByte b) = return $ OccBool (f a b)
@@ -214,7 +214,7 @@ evalCompareOp f (OccInt a) (OccInt b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt16 a) (OccInt16 b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt32 a) (OccInt32 b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt64 a) (OccInt64 b) = return $ OccBool (f a b)
-evalCompareOp _ _ _ = throwError "comparison operator not implemented for this type"
+evalCompareOp _ v0 v1 = throwError (Nothing, "comparison operator not implemented for these types: " ++ show v0 ++ " and " ++ show v1)
 
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
 -- FIXME These should check for overflow.
@@ -243,7 +243,7 @@ evalDyadic A.More a b = evalCompareOp (>) a b
 evalDyadic A.LessEq a b = evalCompareOp (<=) a b
 evalDyadic A.MoreEq a b = evalCompareOp (>=) a b
 evalDyadic A.After (OccInt a) (OccInt b) = return $ OccBool ((a - b) > 0)
-evalDyadic _ _ _ = throwError "bad dyadic op"
+evalDyadic op _ _ = throwError (Nothing, "bad dyadic op: " ++ show op)
 --}}}
 
 --{{{  rendering values

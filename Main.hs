@@ -68,7 +68,7 @@ optMode s ps
             "parse" -> return ModeParse
             "compile" -> return ModeCompile
             "post-c" -> return ModePostC
-            _ -> dieIO $ "Unknown mode: " ++ s
+            _ -> dieIO (Nothing, "Unknown mode: " ++ s)
           return $ ps { csMode = mode }
 
 optBackend :: String -> OptFunc
@@ -76,7 +76,7 @@ optBackend s ps
     =  do backend <- case s of
             "c" -> return BackendC
             "cppcsp" -> return BackendCPPCSP
-            _ -> dieIO $ "Unknown backend: " ++ s
+            _ -> dieIO (Nothing, "Unknown backend: " ++ s)
           return $ ps { csBackend = backend }
 
 optFrontend :: String -> OptFunc
@@ -84,7 +84,7 @@ optFrontend s ps
     =  do frontend <- case s of
             "occam" -> return FrontendOccam
             "rain" -> return FrontendRain
-            _ -> dieIO $ "Unknown frontend: " ++ s
+            _ -> dieIO (Nothing, "Unknown frontend: " ++ s)
           return $ ps { csFrontend = frontend }
 
 optVerbose :: OptFunc
@@ -148,6 +148,8 @@ compile fn
           FrontendOccam -> preprocessOccamProgram fn >>= parseOccamProgram
           FrontendRain -> parseRainProgram fn
         debugAST ast1
+        shownAST <- pshowCode ast1
+        liftIO $ putStr shownAST
         debug "}}}"
 
         showWarnings

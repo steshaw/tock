@@ -69,7 +69,7 @@ identifyParProcs = everywhereM (mkM doProcess)
 type CGen = WriterT [String] PassM
 
 instance Die CGen where
-  die = throwError
+  dieReport = throwError
 --}}}
 
 --{{{  generator ops

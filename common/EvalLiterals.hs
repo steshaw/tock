@@ -33,11 +33,12 @@ import Numeric
 import qualified AST as A
 import CompState
 import Errors
+import Metadata
 
-type EvalM = ErrorT String (StateT CompState Identity)
+type EvalM = ErrorT ErrorReport (StateT CompState Identity)
 
 instance Die EvalM where
-  die = throwError
+  dieReport = throwError
 
 -- | Occam values of various types.
 data OccValue =
@@ -80,7 +81,7 @@ evalIntExpression :: (CSM m, Die m) => A.Expression -> m Int
 evalIntExpression e
     =  do ps <- get
           case runEvaluator ps (evalSimpleExpression e) of
-            Left err -> die $ "cannot evaluate expression: " ++ err
+            Left (m,err) -> dieReport (m,"cannot evaluate expression: " ++ err)
             Right (OccInt val) -> return $ fromIntegral val
             Right _ -> die "expression is not of INT type"
 
@@ -89,18 +90,18 @@ evalByte :: (CSM m, Die m) => String -> m Char
 evalByte s
     =  do ps <- get
           case runEvaluator ps (evalByteLiteral s) of
-            Left err -> die $ "cannot evaluate byte literal: " ++ err
+            Left (m,err) -> dieReport (m,"cannot evaluate byte literal: " ++ err)
             Right (OccByte ch) -> return (chr $ fromIntegral ch)
 
 -- | Run an evaluator operation.
-runEvaluator :: CompState -> EvalM OccValue -> Either String OccValue
+runEvaluator :: CompState -> EvalM OccValue -> Either ErrorReport OccValue
 runEvaluator ps func
     = runIdentity (evalStateT (runErrorT func) ps)
 
 -- | Evaluate a simple literal expression.
 evalSimpleExpression :: A.Expression -> EvalM OccValue
 evalSimpleExpression e@(A.Literal _ _ _) = evalSimpleLiteral e
-evalSimpleExpression _ = throwError "not a literal"
+evalSimpleExpression e = throwError (Just $ findMeta e,"not a literal")
 
 -- | Turn the result of one of the read* functions into an OccValue,
 -- or throw an error if it didn't parse.
@@ -108,7 +109,7 @@ fromRead :: (t -> OccValue) -> (String -> [(t, String)]) -> String -> EvalM OccV
 fromRead cons reader s
     = case reader s of
         [(v, "")] -> return $ cons v
-        _ -> throwError $ "cannot parse literal: " ++ s
+        _ -> throwError (Nothing,"cannot parse literal: " ++ s)
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
@@ -150,7 +151,7 @@ evalSimpleLiteral (A.Literal _ A.Int64 (A.IntLiteral _ s))
     = fromRead OccInt64 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int64 (A.HexLiteral _ s))
     = fromRead OccInt64 readHex s
-evalSimpleLiteral l = throwError $ "bad literal: " ++ show l
+evalSimpleLiteral l = throwError (Just $ findMeta l,"bad literal: " ++ show l)
 
 -- | Evaluate a byte literal.
 evalByteLiteral :: String -> EvalM OccValue
@@ -168,4 +169,4 @@ evalByteLiteral ['*', ch]
     star c = c
 evalByteLiteral [ch]
     = return $ OccByte (fromIntegral $ ord ch)
-evalByteLiteral _ = throwError "bad BYTE literal"
+evalByteLiteral _ = throwError (Nothing,"bad BYTE literal")

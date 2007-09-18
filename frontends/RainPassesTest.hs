@@ -44,7 +44,7 @@ skipP = A.OnlyP m (A.Skip m)
 castAssertADI :: (Typeable b) => Maybe AnyDataItem -> IO b
 castAssertADI x = case (castADI x) of
   Just y -> return y
-  Nothing -> dieInternal "Pattern successfully matched but did not find item afterwards"
+  Nothing -> dieInternal (Nothing, "Pattern successfully matched but did not find item afterwards")
 
 testEachPass0 :: Test
 testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check

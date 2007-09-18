@@ -44,7 +44,7 @@ emptyMeta = Meta {
 instance Show Meta where
   show m =
       case metaFile m of
-        Just s -> basenamePath s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
+        Just s -> s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
         Nothing -> "no source position"
 
 --emptyMeta is equal to any meta tag:
@@ -63,8 +63,8 @@ packMeta m s
                           (metaLine m) (metaColumn m) fn s
 
 -- | Extract a Meta (encoded by packMeta) from a String.
-unpackMeta :: String -> (Meta, String)
-unpackMeta ('~':s) = (m, rest)
+unpackMeta :: String -> (Maybe Meta, String)
+unpackMeta ('~':s) = (Just m, rest)
   where
     (ls, _:s') = break (== '\0') s
     (cs, _:s'') = break (== '\0') s'
@@ -74,7 +74,7 @@ unpackMeta ('~':s) = (m, rest)
           metaLine = read ls,
           metaColumn = read cs
         }
-unpackMeta s = (emptyMeta, s)
+unpackMeta s = (Nothing, s)
 
 -- | Find the first Meta value in some part of the AST.
 findMeta :: (Data t, Typeable t) => t -> Meta

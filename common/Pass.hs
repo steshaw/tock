@@ -33,10 +33,10 @@ import PrettyShow
 import TreeUtil
 
 -- | The monad in which AST-mangling passes operate.
-type PassM = ErrorT String (StateT CompState IO)
+type PassM = ErrorT ErrorReport (StateT CompState IO)
 
 instance Die PassM where
-  die = throwError
+  dieReport = throwError
 
 -- | The type of an AST-mangling pass.
 type Pass = A.Process -> PassM A.Process
@@ -108,6 +108,6 @@ makeGeneric top
 
 excludeConstr :: Data a => [Constr] -> a -> PassM a
 excludeConstr cons x 
-  = if null items then return x else dieInternal $ "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x
+  = if null items then return x else dieInternal (Nothing, "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x)
       where
         items = checkTreeForConstr cons x

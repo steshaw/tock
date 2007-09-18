@@ -52,6 +52,7 @@ import CompState
 import PrettyShow
 import Utils
 import qualified Data.Map as Map
+import Errors
 
 -- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
 m :: Meta
@@ -232,7 +233,7 @@ testPassGetItems testName expected actualPass startStateTrans =
        --passResult :: Either String b
     do passResult <- runPass actualPass startState
        case passResult of
-         (st,Left err) -> return (st, Left $ assertFailure (testName ++ "; pass actually failed: " ++ err) )
+         (st,Left (_,err)) -> return (st, Left $ assertFailure (testName ++ "; pass actually failed: " ++ err)) 
          (st,Right resultItem) -> return (st, transformEither (sequence_ . map (assertFailure . ((++) testName))) (id) $ getMatchedItems expected resultItem )
        where
          startState :: CompState
@@ -242,7 +243,7 @@ testPassGetItems testName expected actualPass startStateTrans =
 runPass :: 
   PassM b                            -- ^ The actual pass.
   -> CompState                       -- ^ The state to use to run the pass.
-  -> IO (CompState, Either String b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
+  -> IO (CompState, Either ErrorReport b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
 runPass actualPass startState = (liftM (\(x,y) -> (y,x))) (runStateT (runErrorT actualPass) startState)
 
 -- | A test that runs a given AST pass and checks that it succeeds.
@@ -268,7 +269,7 @@ testPassWithCheck ::
 testPassWithCheck testName expected actualPass startStateTrans checkFunc =
   do passResult <- runPass actualPass (execState startStateTrans emptyState)
      case snd passResult of
-       Left err -> assertFailure (testName ++ "; pass actually failed: " ++ err)
+       Left (_,err) -> assertFailure (testName ++ "; pass actually failed: " ++ err)
        Right result -> (assertPatternMatch testName expected result) >> (checkFunc result)
 
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'Items' with a given function.

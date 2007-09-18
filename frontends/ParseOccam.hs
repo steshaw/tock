@@ -53,7 +53,8 @@ instance MonadState st (GenParser tok st) where
   put = setState
 
 instance Die (GenParser tok st) where
-  die = fail
+  dieReport (Just m, err) = fail $ packMeta m err
+  dieReport (Nothing, err) = fail err
 --}}}
 
 --{{{ matching rules for raw tokens
@@ -273,7 +274,7 @@ maybeSliced inner subscripter typer
           t <- typer v >>= underlyingType
           case t of
             (A.Array _ _) -> return ()
-            _ -> fail $ "slice of non-array type " ++ showOccam t
+            _ -> dieP m $ "slice of non-array type " ++ showOccam t
 
           e <- intExpr
           sub <- case ff1 of
@@ -371,7 +372,7 @@ matchType et rt
             else bad
         _ -> if rt == et then return () else bad
   where
-    bad = fail $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
+    bad = die $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
 
 -- | Check that two lists of types match (for example, for parallel assignment).
 matchTypes :: [A.Type] -> [A.Type] -> OccParser ()
@@ -397,10 +398,10 @@ findName :: A.Name -> OccParser A.Name
 findName thisN
     =  do st <- getState
           origN <- case lookup (A.nameName thisN) (csLocalNames st) of
-                     Nothing -> fail $ "name " ++ A.nameName thisN ++ " not defined"
+                     Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
                      Just n -> return n
           if A.nameType thisN /= A.nameType origN
-            then fail $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
+            then dieP (A.nameMeta thisN) $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
 makeUniqueName :: String -> OccParser String
@@ -444,7 +445,7 @@ scopeOut n@(A.Name m nt s)
     =  do st <- getState
           let lns' = case csLocalNames st of
                        (s, _):ns -> ns
-                       otherwise -> dieInternal "scopeOut trying to scope out the wrong name"
+                       otherwise -> dieInternal (Just m, "scopeOut trying to scope out the wrong name")
           setState $ st { csLocalNames = lns' }
 
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
@@ -632,7 +633,7 @@ makeArrayElem t@(A.Array _ _) (A.ArrayElemArray aes)
     =  do elemT <- trivialSubscriptType t
           liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
 makeArrayElem _ (A.ArrayElemArray _)
-    = fail $ "unexpected nested array literal"
+    = die $ "unexpected nested array literal"
 -- A nested array literal that's still of array type (i.e. it's not a
 -- record inside the array) -- collapse it.
 makeArrayElem t@(A.Array _ _) (A.ArrayElemExpr (A.Literal _ _ (A.ArrayLiteral _ aes)))
@@ -905,9 +906,9 @@ booleanExpr = expressionOfType A.Bool <?> "boolean expression"
 constExprOfType :: A.Type -> OccParser A.Expression
 constExprOfType wantT
     =  do e <- expressionOfType wantT
-          (e', isConst, msg) <- constantFold e
+          (e', isConst, (m,msg)) <- constantFold e
           when (not isConst) $
-            fail $ "expression is not constant (" ++ msg ++ ")"
+            dieReport (m,"expression is not constant (" ++ msg ++ ")")
           return e'
 
 constIntExpr = constExprOfType A.Int <?> "constant integer expression"
@@ -1047,7 +1048,7 @@ conversion
           baseOT <- underlyingType ot
           c <- case (isPreciseConversion baseOT baseT, c) of
                  (False, A.DefaultConversion) ->
-                   fail "imprecise conversion must specify ROUND or TRUNC"
+                   dieP m "imprecise conversion must specify ROUND or TRUNC"
                  (False, _) -> return c
                  (True, A.DefaultConversion) -> return c
                  (True, _) ->
@@ -1284,7 +1285,7 @@ chanArrayAbbrev
            t <- tableType m ts
            case t of
              (A.Array _ (A.Chan {})) -> return ()
-             _ -> fail $ "types do not match in channel array abbreviation"
+             _ -> dieP m $ "types do not match in channel array abbreviation"
            return $ A.Specification m n $ A.IsChannelArray m t cs
     <|> do m <- md
            (ct, s, n) <- try (do s <- channelSpecifier
@@ -1385,11 +1386,11 @@ checkRetypes fromT toT
           bt <- bytesInType toT
           case (bf, bt) of
             (BIJust a, BIJust b) ->
-              when (a /= b) $ fail "size mismatch in RETYPES"
+              when (a /= b) $ die "size mismatch in RETYPES"
             (BIJust a, BIOneFree b _) ->
-              when (not ((b <= a) && (a `mod` b == 0))) $ fail "size mismatch in RETYPES"
+              when (not ((b <= a) && (a `mod` b == 0))) $ die "size mismatch in RETYPES"
             (_, BIManyFree) ->
-              fail "multiple free dimensions in RETYPES/RESHAPES type"
+              die "multiple free dimensions in RETYPES/RESHAPES type"
             -- Otherwise we have to do a runtime check.
             _ -> return ()
 
@@ -1628,7 +1629,7 @@ caseInputItems :: A.Variable -> OccParser [(A.Name, [A.Type])]
 caseInputItems c
     =   do pis <- protocolItems c
            case pis of
-             Left _ -> fail "CASE input on channel of non-variant protocol"
+             Left _ -> dieP (findMeta c) "CASE input on channel of non-variant protocol"
              Right nts -> return nts
 
 caseInput :: OccParser A.Process
@@ -1755,7 +1756,7 @@ caseProcess
            sel <- expression
            t <- typeOfExpression sel
            t' <- underlyingType t
-           when (not $ isCaseableType t') $ fail "case selector has non-CASEable type"
+           when (not $ isCaseableType t') $ dieP m "case selector has non-CASEable type"
            eol
            os <- maybeIndentedList m "empty CASE" (caseOption t)
            return $ A.Case m sel (A.Several m os)

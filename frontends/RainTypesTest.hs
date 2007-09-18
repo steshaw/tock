@@ -29,6 +29,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import Types
 import Pass
+import Errors
 
 constantFoldTest :: Test
 constantFoldTest = TestList
@@ -297,7 +298,7 @@ checkExpressionTest = TestList
                               --Now feed it through again, to make sure it isn't changed:
                               if (e /= act) then pass' (10000 + n) t (mkPattern e) e else return ()
             where
-              errorOrType :: IO (Either String A.Type)
+              errorOrType :: IO (Either ErrorReport A.Type)
               errorOrType = evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState)
   
   

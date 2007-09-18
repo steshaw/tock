@@ -253,5 +253,5 @@ diePC m str = str >>= (dieP m)
 dieC :: (CSM m, Die m) => m String -> m a
 dieC str = str >>= die
 
-throwErrorC :: (CSM m,MonadError String m) => m String -> m a
-throwErrorC str = str >>= throwError
+throwErrorC :: (CSM m,MonadError ErrorReport m) => (Maybe Meta,m String) -> m a
+throwErrorC (m,str) = str >>= ((curry throwError) m)

@@ -229,7 +229,7 @@ checkAssignmentTypes = everywhereASTM checkAssignment
              then return ass
              else do rhs' <- coerceType " in assignment" tlhs trhs e
                      return $ A.Assign m [v] (A.ExpressionList m' [rhs'])
-    checkAssignment (A.Assign {}) = dieInternal "Rain checker found occam-style assignment"
+    checkAssignment (A.Assign m _ _) = dieInternal (Just m,"Rain checker found occam-style assignment")
     checkAssignment st = return st
 
 -- | Checks the types in if and while conditionals
