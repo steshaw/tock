@@ -21,6 +21,8 @@ module Errors where
 
 import Control.Monad.Error
 import Control.Monad.Trans
+import Data.List
+import System.IO.Error
 
 import qualified AST as A
 import Metadata
@@ -42,9 +44,46 @@ class Monad m => Die m where
   dieP :: Die m => Meta -> String -> m a
   dieP m s = dieReport (Just m,s)
 
--- | Wrapper around error that gives nicer formatting.
+-- | Wrapper around error that gives nicer formatting, and prints out context
+--
 dieIO :: (Monad m, MonadIO m) => ErrorReport -> m a
-dieIO (_,s) = error $ "\n\nError: " ++ s ++ "\n"
+dieIO (Just m@(Meta (Just fn) line column),s) = liftIO $
+       -- If we can't read the file successfully, still print our original error
+       -- rather than a "can't read file" error:
+    do fileContents <- catch (readFile fn) (\_ -> printError s)
+       let startingLine = max 1 (line - contextLines)
+       let lines = map replaceTabs $ getLines fileContents (startingLine) ((2 * contextLines) + 1)
+       putStrLn $ fn ++ ":"
+       printLines startingLine (take (line - startingLine + 1) lines)
+       putStr "Here"
+       replicateM_ column (putChar '-')   -- column is unit-based, but we want an extra dash anyway
+       putStrLn "^"
+       printLines (line + 1) (drop (line - startingLine + 1) lines)
+       putStrLn ""
+       printError $ (show m) ++ " " ++ s
+         where
+           contextLines = 5
+           -- start is unit-based, so we need to convert to zero-based
+           getLines :: String -> Int -> Int -> [String]
+           getLines all start total = take total (drop (start - 1) (lines all))
+           printLines :: Int -> [String] -> IO ()
+           printLines n lines = mapM_ (\(n,s) -> (putStrLn . ((++) (justify5 n) )) s) (zip [n..] lines)
+           --Makes sure line number and colon are exactly 5 characters long:
+           justify5 :: Int -> String
+           justify5 num = if n <= 4 then s ++ ":" ++ (replicate (4 - n) ' ') else "x" ++ (drop (n - 3) s) ++ ":"
+             where
+               s = show num
+               n = length s
+           -- Replace tabs with eight spaces, to match alex:
+           replaceTabs :: String -> String
+           replaceTabs [] = []
+           replaceTabs ('\t':ss) = (replicate 8 ' ') ++ replaceTabs ss
+           replaceTabs (s:ss) = (s : replaceTabs ss)
+
+dieIO (_,s) = printError s
+
+printError :: String -> a
+printError s = error $ "Error: " ++ s ++ "\n"
 
 -- | Fail after an internal error.
 dieInternal :: Monad m => ErrorReport -> m a
