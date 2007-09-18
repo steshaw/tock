@@ -148,8 +148,6 @@ compile fn
           FrontendOccam -> preprocessOccamProgram fn >>= parseOccamProgram
           FrontendRain -> parseRainProgram fn
         debugAST ast1
-        shownAST <- pshowCode ast1
-        liftIO $ putStr shownAST
         debug "}}}"
 
         showWarnings
