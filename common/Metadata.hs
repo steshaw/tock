@@ -75,3 +75,11 @@ unpackMeta ('~':s) = (m, rest)
           metaColumn = read cs
         }
 unpackMeta s = (emptyMeta, s)
+
+-- | Find the first Meta value in some part of the AST.
+findMeta :: (Data t, Typeable t) => t -> Meta
+findMeta e = if null metaList then emptyMeta else head metaList
+  where
+    metaList = gmapQ (mkQ emptyMeta findMeta') e
+    findMeta' :: Meta -> Meta
+    findMeta' m = m

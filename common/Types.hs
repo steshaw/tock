@@ -30,8 +30,6 @@ module Types
 
 	, leastGeneralSharedTypeRain
 
-    , findMeta
-
   ) where
 
 import Control.Monad
@@ -324,14 +322,6 @@ makeAbbrevAM am = am
 -- | Generate a constant expression from an integer -- for array sizes and the like.
 makeConstant :: Meta -> Int -> A.Expression
 makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
-
--- | Find the first Meta value in some part of the AST.
-findMeta :: (Data t, Typeable t) => t -> Meta
-findMeta e = if null metaList then emptyMeta else head metaList
-  where
-    metaList = gmapQ (mkQ emptyMeta findMeta') e
-    findMeta' :: Meta -> Meta
-    findMeta' m = m
 
 -- | Checks whether a given conversion can be done implicitly in Rain
 -- Parameters are src dest
