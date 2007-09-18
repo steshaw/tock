@@ -275,10 +275,12 @@ abbrevModeOfSpec s
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
 underlyingType :: (CSM m, Die m) => A.Type -> m A.Type
-underlyingType t@(A.UserDataType _)
-    = resolveUserType t >>= underlyingType
-underlyingType (A.Array ds t) = liftM (addDimensions ds) (underlyingType t)
-underlyingType t = return t
+underlyingType = everywhereM (mkM underlyingType')
+  where
+    underlyingType' :: (CSM m, Die m) => A.Type -> m A.Type
+    underlyingType' t@(A.UserDataType _)
+      = resolveUserType t >>= underlyingType
+    underlyingType' (A.Array ds t) = return $ addDimensions ds t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
@@ -479,23 +481,14 @@ isCaseableType t = isIntegerType t
 -- | Simplify a type as far as possible: resolve data type aliases to their
 -- real types, and remove non-constant array dimensions.
 simplifyType :: (CSM m, Die m) => A.Type -> m A.Type
-simplifyType origT@(A.Record n)
-    =  do st <- specTypeOfName n
-          case st of
-            A.DataType _ t -> simplifyType t
-            A.RecordType _ _ _ -> return origT
-simplifyType (A.Array ds t)
-    =  do t' <- simplifyType t
-          return $ A.Array ds t'
-simplifyType (A.Chan d a t)
-    = liftM (A.Chan d a) $ simplifyType t
-simplifyType (A.Counted ct it)
-    =  do ct' <- simplifyType ct
-          it' <- simplifyType it
-          return $ A.Counted ct' it'
-simplifyType (A.Port t)
-    = liftM A.Port $ simplifyType t
-simplifyType t = return t
+simplifyType = everywhereM (mkM simplifyType')
+  where
+    simplifyType' :: (CSM m, Die m) => A.Type -> m A.Type
+    simplifyType' origT@(A.Record n)
+      =  do st <- specTypeOfName n
+            case st of
+              A.DataType _ t -> return t
+              A.RecordType _ _ _ -> return origT
 --}}}
 
 --{{{ sizes of types
