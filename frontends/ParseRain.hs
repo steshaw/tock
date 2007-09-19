@@ -161,11 +161,14 @@ dataType
     <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n, A.nameType = A.DataTypeName}}
     <?> "data type"
 
-variableId :: RainParser A.Variable
-variableId = do {v <- name ; return $ A.Variable (findMeta v) v}
-             <|> try (do {m <- sIn ; v <- variableId ; return $ A.DirectedVariable m A.DirInput v})
-             <|> try (do {m <- sOut ; v <- variableId ; return $ A.DirectedVariable m A.DirOutput v})
-             <?> "variable name"
+variable :: RainParser A.Variable
+variable = do {v <- name ; return $ A.Variable (findMeta v) v}
+             <|> try (do {m <- sIn ; v <- variable ; return $ A.DirectedVariable m A.DirInput v})
+             <|> try (do {m <- sOut ; v <- variable ; return $ A.DirectedVariable m A.DirOutput v})
+             <?> "variable"
+
+lvalue :: RainParser A.Variable
+lvalue = variable
 
 stringLiteral :: RainParser (A.LiteralRepr, A.Dimension)
 stringLiteral
@@ -237,7 +240,7 @@ expression
     foldOps lhs (m,op,rhs) = A.Dyadic m op lhs rhs
 
     subExpr' :: RainParser A.Expression
-    subExpr' = do {id <- variableId ; return $ A.ExprVariable (findMeta id) id}
+    subExpr' = do {id <- variable ; return $ A.ExprVariable (findMeta id) id}
                <|> literal
                <|> range
                <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
@@ -297,9 +300,6 @@ assignOp
     <|> do {m <- reserved "%=" ; return (m,Just A.Rem)}
     <|> do {m <- reserved "=" ; return (m,Nothing)}	
 
-lvalue :: RainParser A.Variable
---For now, only handle plain variables:
-lvalue = variableId
 
 each :: RainParser A.Process
 each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
