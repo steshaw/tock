@@ -87,6 +87,7 @@ annotateIntTest = TestList
   failSigned :: Integer -> Test
   failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
 
+--TODO add typechecks for expressions involving channels
 checkExpressionTest :: Test
 checkExpressionTest = TestList
  [
@@ -189,7 +190,43 @@ checkExpressionTest = TestList
   ,failWhileIf 4100 $ Var "x"
   ,failWhileIf 4101 $ Dy (Var "x") A.Plus (Var "x")
   
+  --Communication:
   ,testAllCheckCommTypesIn 5000
+  
+  --Time types:
+  ,fail 6000 $ Dy (Var "t") A.Plus (Var "x")
+  ,fail 6001 $ Dy (Var "x") A.Minus (Var "t")
+  ,passSame 6002 A.Time $ Dy (Var "t") A.Plus (Var "t")
+  ,passSame 6003 A.Time $ Dy (Var "t") A.Minus (Var "t")
+  
+  ,fail 6100 $ Dy (Var "t") A.Times (Var "t")
+  ,passSame 6101 A.Time $ Dy (Var "t") A.Times (Var "x")
+  ,passSame 6102 A.Time $ Dy (Var "x") A.Times (Var "t")
+  ,pass 6103 A.Time (Dy (Var "t") A.Times (Cast A.Int64 $ Var "xu32")) (Dy (Var "t") A.Times (Var "xu32"))
+  ,pass 6104 A.Time (Dy (Cast A.Int64 $ Var "xu32") A.Times (Var "t")) (Dy (Var "xu32") A.Times (Var "t"))
+  ,fail 6105 $ Dy (Var "t") A.Times (Var "xu64")
+  ,fail 6106 $ Dy (Var "xu64") A.Times (Var "t")
+  ,passSame 6107 A.Time $ Dy (Dy (Var "x") A.Times (Var "t")) A.Plus (Dy (Var "t") A.Times (Var "x"))
+  ,fail 6108 $ Dy (Dy (Var "x") A.Times (Var "t")) A.Times (Dy (Var "t") A.Times (Var "x"))
+  
+  ,fail 6200 $ Dy (Var "t") A.Div (Var "t")
+  ,fail 6201 $ Dy (Var "x") A.Div (Var "t")
+  ,passSame 6202 A.Time $ Dy (Var "t") A.Div (Var "x")
+  ,pass 6203 A.Time (Dy (Var "t") A.Div (Cast A.Int64 $ Var "xu32")) (Dy (Var "t") A.Div (Var "xu32"))
+  ,fail 6204 $ Dy (Var "t") A.Div (Var "xu64")
+  
+  ,fail 6300 $ Dy (Var "t") A.Rem (Var "t")
+  ,fail 6301 $ Dy (Var "x") A.Rem (Var "t")
+  ,fail 6302 $ Dy (Var "t") A.Rem (Var "x")
+  
+  ,fail 6400 $ Cast A.Time (Var "x")
+  ,fail 6401 $ Cast A.Int64 (Var "t")
+  
+  ,passSame 6500 A.Bool $ Dy (Var "t") A.Eq (Var "t")
+  ,passSame 6501 A.Bool $ Dy (Var "t") A.NotEq (Var "t")
+  ,passSame 6502 A.Bool $ Dy (Var "t") A.Less (Var "t")
+  ,passSame 6503 A.Bool $ Dy (Var "t") A.More (Var "t")
+  
  ]
  where
   passAssign :: Int -> String -> ExprHelper -> ExprHelper -> Test
@@ -324,6 +361,8 @@ checkExpressionTest = TestList
              defVar "c" $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int64
              defVar "cu8" $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte
              defVar "cb" $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Bool
+             defVar "t" $ A.Time
+             markRainTest
 
 tests :: Test
 tests = TestList
