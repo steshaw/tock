@@ -155,6 +155,7 @@ dataType
     <|> do {reserved "sint16" ; return A.Int16}
     <|> do {reserved "sint32" ; return A.Int32}
     <|> do {reserved "sint64" ; return A.Int64}    
+    <|> do {reserved "time" ; return A.Time}
     <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
@@ -337,6 +338,7 @@ statement
     <|> block
     <|> each
     <|> runProcess
+    <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.GetTime m dest}
     <|> try comm
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
