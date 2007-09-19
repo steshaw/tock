@@ -27,6 +27,7 @@ import qualified AST as A
 import CompState
 import Control.Monad.State
 import Control.Monad.Error
+import Data.Generics
 import Types
 import Pass
 import Errors
@@ -227,8 +228,14 @@ checkExpressionTest = TestList
   ,passSame 6502 A.Bool $ Dy (Var "t") A.Less (Var "t")
   ,passSame 6503 A.Bool $ Dy (Var "t") A.More (Var "t")
   
+  --Now statements:
+  ,testPassUntouched 7000 checkGetTimeTypes (A.GetTime m $ variable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7001" (checkGetTimeTypes $ A.GetTime m $ variable "x") state
  ]
  where
+  testPassUntouched :: Data t => Int -> (t -> PassM t) -> t -> Test
+  testPassUntouched n passFunc src = TestCase $ testPass ("checkExpressionTest " ++ show n) (mkPattern src) (passFunc src) state
+ 
   passAssign :: Int -> String -> ExprHelper -> ExprHelper -> Test
   passAssign n lhs exp src = TestCase $ testPassWithCheck ("checkExpressionTest " ++ show n) 
     (tag3 A.Assign DontCare [variablePattern lhs] $ tag2 A.ExpressionList DontCare [buildExprPattern exp])

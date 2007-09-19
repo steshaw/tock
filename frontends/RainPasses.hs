@@ -50,6 +50,7 @@ rainPasses =
        ,("Check types in assignments",checkAssignmentTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
        ,("Check types in if/while conditions",checkConditionalTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
        ,("Check types in input/output",checkCommTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
+       ,("Check types in now statements",checkGetTimeTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes
        
        ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
        ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes and checkExpressionTypes

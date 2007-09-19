@@ -301,3 +301,15 @@ checkCommTypes = everywhereASTM checkInputOutput
                              return $ A.Output m chanVar [A.OutExpression m' castExp]
              _ -> dieP m $ "Tried to output to a variable that is not of type channel: " ++ show chanVar
     checkInputOutput p = return p
+
+-- | Checks the types in now statements:
+checkGetTimeTypes :: Data t => t -> PassM t
+checkGetTimeTypes = everywhereASTM checkGetTime
+  where
+    checkGetTime :: A.Process -> PassM A.Process
+    checkGetTime p@(A.GetTime m v)
+      = do t <- typeOfVariable v
+           case t of
+             A.Time -> return p
+             _ -> diePC m $ formatCode "Cannot store time in variable of type \"%\"" t
+    checkGetTime p = return p
