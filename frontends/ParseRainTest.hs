@@ -483,6 +483,9 @@ testDataType =
   ,fail ("int?int",RP.dataType)  
   
   ,pass ("channel bool",RP.dataType,assertEqual "testDataType 200" $ A.Chan A.DirUnknown nonShared A.Bool)
+  
+  ,pass ("time",RP.dataType,assertEqual "testDataType 300" A.Time)
+  ,pass ("timer",RP.dataType,assertEqual "testDataType 301" $ A.UserDataType $ typeName "timer")
  ]
  
 testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
@@ -560,6 +563,15 @@ testRun =
   ,fail ("run foo(,);",RP.statement)
   
  ]
+
+testTime :: [ParseTest A.Process]
+testTime =
+ [
+  pass ("now t;",RP.statement, assertPatternMatch "testTime 0" $ tag2 A.GetTime DontCare (variablePattern "t"))
+  ,fail ("now t",RP.statement)
+  ,fail ("now ;",RP.statement)
+  ,fail ("now t + t;",RP.statement)
+ ]
         
 --Returns the list of tests:
 tests :: Test
@@ -577,6 +589,7 @@ tests = TestList
   parseTests testAssign,
   parseTests testDataType,
   parseTests testComm,
+  parseTests testTime,
   parseTests testRun,
   parseTests testDecl,
   parseTests testTopLevelDecl
