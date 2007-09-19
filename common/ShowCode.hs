@@ -97,6 +97,7 @@ instance ShowOccam A.Type where
   showOccam (A.Counted ct et) = showOccam ct ++ "::" ++ showOccam et
   showOccam A.Any = "ANY"
   showOccam A.Timer = "TIMER"
+  showOccam A.Time = "TIME"
   showOccam (A.Port t) = "PORT OF " ++ showOccam t
 
 
@@ -119,6 +120,7 @@ instance ShowRain A.Type where
     where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  
+  showRain A.Time = "time"
   showRain x = "<invalid Rain type: " ++ show x ++ ">"
 
 instance ShowOccam A.DyadicOp where

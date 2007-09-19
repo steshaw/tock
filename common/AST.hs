@@ -126,6 +126,7 @@ data Type =
   | Counted Type Type
   | Any
   | Timer
+  | Time
   | Port Type
   deriving (Show, Eq, Typeable, Data)
 
@@ -465,6 +466,7 @@ data Process =
   | Input Meta Variable InputMode
   | Output Meta Variable [OutputItem]
   | OutputCase Meta Variable Name [OutputItem]
+  | GetTime Meta Variable
   | Skip Meta
   | Stop Meta
   -- | The main process.
