@@ -110,6 +110,7 @@ cppgenOps = cgenOps {
     genDeclaration = cppgenDeclaration,
     genFlatArraySize = cppgenFlatArraySize,
     genForwardDeclaration = cppgenForwardDeclaration,
+    genGetTime = cppgenGetTime,
     genIf = cppgenIf,
     genInput = cppgenInput,
     genInputCase = cppgenInputCase,
@@ -348,6 +349,12 @@ cppgenTimerRead ops c v
           tell [" = (int)(unsigned)remainder(1000000.0 * csp::GetSeconds("]
           call genVariable ops c
           tell ["),4294967296.0);\n"]
+
+cppgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
+cppgenGetTime ops m v
+    =  do tell ["csp::CurrentTime (&"]
+          call genVariable ops v
+          tell [");"]
 
 {-|
 Gets a csp::Time to wait with, given a 32-bit microsecond value (returns the temp variable we have put it in)
@@ -1041,6 +1048,7 @@ cppgetScalarType _ A.Int64 = Just "int64_t"
 cppgetScalarType _ A.Real32 = Just "float"
 cppgetScalarType _ A.Real64 = Just "double"
 cppgetScalarType _ A.Timer = Just "csp::Time"
+cppgetScalarType _ A.Time = Just "csp::Time"
 cppgetScalarType _ _ = Nothing
 
 -- | Generates an array type, giving the Blitz++ array the correct dimensions

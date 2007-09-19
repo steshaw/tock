@@ -109,6 +109,7 @@ data GenOps = GenOps {
     genForwardDeclaration :: GenOps -> A.Specification -> CGen(),
     genFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen (),
     genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
+    genGetTime :: GenOps -> Meta -> A.Variable -> CGen (),
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
     genInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen (),
@@ -197,6 +198,7 @@ cgenOps = GenOps {
     genForwardDeclaration = cgenForwardDeclaration,
     genFuncDyadic = cgenFuncDyadic,
     genFuncMonadic = cgenFuncMonadic,
+    genGetTime = cgenGetTime,
     genIf = cgenIf,
     genInput = cgenInput,
     genInputCase = cgenInputCase,
@@ -364,6 +366,7 @@ cgetScalarType _ A.Int64 = Just "int64_t"
 cgetScalarType _ A.Real32 = Just "float"
 cgetScalarType _ A.Real64 = Just "double"
 cgetScalarType _ A.Timer = Just "Time"
+cgetScalarType _ A.Time = Just "Time"
 cgetScalarType _ _ = Nothing
 
 cgenType :: GenOps -> A.Type -> CGen ()
@@ -1475,6 +1478,7 @@ cgenProcess ops p = case p of
   A.Input m c im -> call genInput ops c im
   A.Output m c ois -> call genOutput ops c ois
   A.OutputCase m c t ois -> call genOutputCase ops c t ois
+  A.GetTime m v -> call genGetTime ops m v
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop ops m "STOP process"
   A.Main m -> tell ["/* main */\n"]
@@ -1568,6 +1572,13 @@ cgenTimerWait ops e
     =  do tell ["ProcTimeAfter ("]
           call genExpression ops e
           tell [");\n"]
+
+cgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
+cgenGetTime ops m v
+    =  do tell ["ProcTime(&"]
+          call genVariable ops v
+          tell [");\n"]
+
 --}}}
 --{{{  output
 cgenOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen ()
