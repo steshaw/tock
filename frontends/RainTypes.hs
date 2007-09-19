@@ -160,15 +160,23 @@ checkExpressionTypes = everywhereASTM checkExpression
     checkExpression e@(A.Dyadic m op lhs rhs)
       = do tlhs <- typeOfExpression lhs
            trhs <- typeOfExpression rhs
-           if (tlhs == trhs)
-             then (if validOp op tlhs then return e else diePC m $ formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs)
-             else if (isIntegerType tlhs && isIntegerType trhs) 
-                    then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
-                           Nothing -> diePC m $ formatCode "Cannot find a suitable type to convert expression to, types are: % and %" tlhs trhs
-                           Just t -> if validOp op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else diePC m $
-                             formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs
-                    else --The operators are not equal, and are not integers.  Therefore this must be an error:
-                      diePC m $ formatCode "Mis-matched types; no operator applies to types: % and %" tlhs trhs
+           if (tlhs == A.Time || trhs == A.Time) --Expressions with times can have asymmetric types, so we handle them specially:
+             then case (validOpWithTime op tlhs trhs) of
+                    Nothing -> diePC m $ formatCode "Operator: \"%\" is not valid on types: \"%\" and \"%\"" op tlhs trhs
+                    Just (destLHS, destRHS) -> 
+                      if (isImplicitConversionRain tlhs destLHS) && (isImplicitConversionRain trhs destRHS)
+                        then return $ A.Dyadic m op (convert destLHS tlhs lhs) (convert destRHS trhs rhs)
+                        else diePC m $ formatCode "Operator: \"%\" is not valid on types: \"%\" and \"%\" (implicit conversions not possible)" op tlhs trhs
+             else 
+               if (tlhs == trhs)
+                 then (if validOpSameType op tlhs then return e else diePC m $ formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs)
+                 else if (isIntegerType tlhs && isIntegerType trhs) 
+                        then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
+                               Nothing -> diePC m $ formatCode "Cannot find a suitable type to convert expression to, types are: % and %" tlhs trhs
+                               Just t -> if validOpSameType op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else diePC m $
+                                 formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs
+                        else --The operands are not equal, and are not integers, and neither of them is a time type.  Therefore this must be an error:
+                          diePC m $ formatCode "Mis-matched types; no operator applies to types: % and %" tlhs trhs
     checkExpression e@(A.Monadic m op rhs)
       = do trhs <- typeOfExpression rhs
            if (op == A.MonadicMinus)
@@ -198,24 +206,34 @@ checkExpressionTypes = everywhereASTM checkExpression
                            then e
                            else A.Conversion (findMeta e) A.DefaultConversion dest e
 
-    validOp :: A.DyadicOp -> A.Type -> Bool
-    validOp A.Plus t = isIntegerType t
-    validOp A.Minus t = isIntegerType t
-    validOp A.Times t = isIntegerType t
-    validOp A.Div t = isIntegerType t
-    validOp A.Rem t = isIntegerType t
-    validOp A.Eq _ = True
-    validOp A.NotEq _ = True
-    validOp A.Less t = haveOrder t
-    validOp A.LessEq t = haveOrder t
-    validOp A.More t = haveOrder t
-    validOp A.MoreEq t = haveOrder t
-    validOp A.And A.Bool = True
-    validOp A.Or A.Bool = True
-    validOp _ _ = False
+    validOpSameType :: A.DyadicOp -> A.Type -> Bool
+    validOpSameType A.Plus t = (isIntegerType t) || (t == A.Time)
+    validOpSameType A.Minus t = (isIntegerType t) || (t == A.Time)
+    validOpSameType A.Times t = isIntegerType t
+    validOpSameType A.Div t = isIntegerType t
+    validOpSameType A.Rem t = isIntegerType t
+    validOpSameType A.Eq _ = True
+    validOpSameType A.NotEq _ = True
+    validOpSameType A.Less t = haveOrder t
+    validOpSameType A.LessEq t = haveOrder t
+    validOpSameType A.More t = haveOrder t
+    validOpSameType A.MoreEq t = haveOrder t
+    validOpSameType A.And A.Bool = True
+    validOpSameType A.Or A.Bool = True
+    validOpSameType _ _ = False
+    
+    -- | Takes an operator, the types of LHS and RHS, and returns Nothing if no cast will fix it,
+    -- or Just (needTypeLHS,needTypeRHS) for what types will be okay
+    validOpWithTime :: A.DyadicOp -> A.Type -> A.Type -> Maybe (A.Type,A.Type)
+    validOpWithTime A.Times A.Time _ = Just (A.Time, A.Int64)
+    validOpWithTime A.Times _ A.Time = Just (A.Int64, A.Time)
+    validOpWithTime A.Div A.Time _ = Just (A.Time, A.Int64)
+    --Any other operators involving Time are symmetric:
+    validOpWithTime op tlhs trhs = if (tlhs == trhs && validOpSameType op tlhs) then Just (tlhs,trhs) else Nothing
+    
     
     haveOrder :: A.Type -> Bool
-    haveOrder = isIntegerType
+    haveOrder t = (isIntegerType t) || (t == A.Time)
 
 -- | Checks the types in assignments
 checkAssignmentTypes :: Data t => t -> PassM t

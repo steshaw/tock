@@ -202,7 +202,16 @@ typeOfExpression e
     = case e of
         A.Monadic m op e -> typeOfExpression e
         A.Dyadic m op e f ->
-          if dyadicIsBoolean op then return A.Bool else typeOfExpression e
+          if dyadicIsBoolean op then return A.Bool 
+          else
+            --Need to handle multiplying Time types specially, due to the asymmetry:           
+            if (op == A.Times)
+              then do tlhs <- typeOfExpression e
+                      trhs <- typeOfExpression f
+                      if (tlhs == A.Time || trhs == A.Time)
+                        then return A.Time
+                        else return tlhs
+              else typeOfExpression e
         A.MostPos m t -> return t
         A.MostNeg m t -> return t
         A.SizeType m t -> return A.Int
