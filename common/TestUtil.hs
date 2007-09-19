@@ -382,3 +382,6 @@ simpleDefDecl n t = simpleDef n (A.Declaration m t)
 -- | A pattern that will match simpleDef, with a different abbreviation mode
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
 simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+
+markRainTest :: State CompState ()
+markRainTest = modify (\cs -> cs { csFrontend = FrontendRain })
