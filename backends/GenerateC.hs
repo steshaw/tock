@@ -153,6 +153,7 @@ data GenOps = GenOps {
     genVariable' :: GenOps -> Bool -> A.Variable -> CGen (),
     genVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen (),
     genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
+    genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
     genWhile :: GenOps -> A.Expression -> A.Process -> CGen (),
     getScalarType :: GenOps -> A.Type -> Maybe String,
     introduceSpec :: GenOps -> A.Specification -> CGen (),
@@ -243,6 +244,7 @@ cgenOps = GenOps {
     genVariableAM = cgenVariableAM,
     genVariableUnchecked = cgenVariableUnchecked,
     genWhile = cgenWhile,
+    genWait = cgenWait,
     getScalarType = cgetScalarType,
     introduceSpec = cintroduceSpec,
     removeSpec = cremoveSpec
@@ -1479,6 +1481,7 @@ cgenProcess ops p = case p of
   A.Output m c ois -> call genOutput ops c ois
   A.OutputCase m c t ois -> call genOutputCase ops c t ois
   A.GetTime m v -> call genGetTime ops m v
+  A.Wait m wm e -> call genWait ops wm e
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop ops m "STOP process"
   A.Main m -> tell ["/* main */\n"]
@@ -1577,6 +1580,13 @@ cgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
 cgenGetTime ops m v
     =  do tell ["ProcTime(&"]
           call genVariable ops v
+          tell [");\n"]
+
+cgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
+cgenWait ops A.WaitUntil e = call genTimerWait ops e
+cgenWait ops A.WaitFor e
+    =  do tell ["ProcAfter ("]
+          call genExpression ops e
           tell [");\n"]
 
 --}}}

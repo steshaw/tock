@@ -130,6 +130,7 @@ cppgenOps = cgenOps {
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
     genVariable' = cppgenVariable',
+    genWait = cppgenWait,
     getScalarType = cppgetScalarType,
     introduceSpec = cppintroduceSpec,
     removeSpec = cppremoveSpec
@@ -354,6 +355,12 @@ cppgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
 cppgenGetTime ops m v
     =  do tell ["csp::CurrentTime (&"]
           call genVariable ops v
+          tell [");"]
+
+cppgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
+cppgenWait ops wm e
+    =  do tell [if wm == A.WaitFor then "csp::SleepFor" else "csp::SleepUntil", "("]
+          call genExpression ops e
           tell [");"]
 
 {-|
