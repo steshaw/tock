@@ -309,9 +309,9 @@ assignOp
 
 
 each :: RainParser A.Process
-each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
              return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
-       <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
+       <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
              return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
 
 comm :: Bool -> RainParser A.Process
@@ -359,10 +359,10 @@ runProcess = do m <- sRun
 
 statement :: RainParser A.Process
 statement 
-  = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; return $ A.While m exp st}
-    <|> do { m <- sIf ; sLeftR ; exp <- expression ; sRightR ; st <- statement ; 
+  = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- block ; return $ A.While m exp st}
+    <|> do { m <- sIf ; sLeftR ; exp <- expression ; sRightR ; st <- block ; 
              option (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) (A.Skip m))])
-                    (do {sElse ; elSt <- statement ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
+                    (do {sElse ; elSt <- block ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
            }
     <|> block
     <|> each

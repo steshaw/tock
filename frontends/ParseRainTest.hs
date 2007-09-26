@@ -242,14 +242,18 @@ testIf =
     assertEqual "If Test 0" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,A.Skip m)])
   ,pass ("if (a) {} else {}",RP.statement,
     assertEqual "If Test 1" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,emptyBlock)])
-  ,pass ("if (a) {} else a = b;",RP.statement,
-    assertEqual "If Test 2" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSimpleAssign "a" "b")])    
-  ,pass ("if (a) {} else if (b) {} ",RP.statement,
-    assertEqual "If Test 3" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeIf [(exprVariable "b",emptyBlock),(A.True m,A.Skip m)])])
-  ,pass ("if (a) {} else if (b) {} else {} ",RP.statement,
-    assertEqual "If Test 4" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeIf [(exprVariable "b",emptyBlock),(A.True m,emptyBlock)])])
-  ,pass ("if (a) c = d; else if (b) e = f; else g = h;",RP.statement,
-    assertEqual "If Test 5" $ makeIf [(exprVariable "a",makeSimpleAssign "c" "d"),(A.True m,makeIf [(exprVariable "b",makeSimpleAssign "e" "f"),(A.True m,makeSimpleAssign "g" "h")])])    
+  ,pass ("if (a) {} else {a = b;}",RP.statement,
+    assertEqual "If Test 2" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeSimpleAssign "a" "b"])])
+  ,pass ("if (a) {} else {if (b) {} }",RP.statement,
+    assertEqual "If Test 3" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,A.Skip m)]])])
+  ,pass ("if (a) {} else {if (b) {} else {} }",RP.statement,
+    assertEqual "If Test 4a" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,emptyBlock)]])])
+  ,pass ("if (a) {c = d;} else {if (b) {e = f;} else par {g = h;}}",RP.statement,
+    assertEqual "If Test 5" $ makeIf [(exprVariable "a",makeSeq [makeSimpleAssign "c" "d"]),(A.True m,makeSeq [makeIf [(exprVariable "b",makeSeq [makeSimpleAssign "e" "f"]),(A.True m,makePar [makeSimpleAssign "g" "h"])]])])
+  ,fail ("if (a) c = d;",RP.statement)
+  ,fail ("if (a) {c = d;} else e = f;",RP.statement)
+  ,fail ("if (a) {c = d;} else if (b) {e = f;}",RP.statement)
+  ,fail ("if (a) {} else { if (b) {} } else {} ",RP.statement)
   --TODO add fail tests, maybe {} brackets
  ]
 
@@ -364,9 +368,9 @@ testBlock =
 testEach :: [ParseTest A.Process]
 testEach =
  [
-  pass ("seqeach (c : \"1\") c = 7;", RP.statement,
+  pass ("seqeach (c : \"1\") par {c = 7;}", RP.statement,
     assertPatternMatch  "Each Test 0" (stopCaringPattern m $ mkPattern $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "1")) $    
-      A.OnlyP m $ (makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7"))) ))
+      A.OnlyP m $ makePar [(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7")))] ))
   ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
     assertEqual "Each Test 1" $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "345")) $ 
       A.OnlyP m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
