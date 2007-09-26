@@ -554,7 +554,7 @@ testAlt =
   pass("pri alt {}", RP.statement, assertEqual "testAlt 0" $ A.Alt m True $ A.Several m [])
   ,pass("pri alt { c ? x {} }", RP.statement, assertEqual "testAlt 1" $ A.Alt m True $ A.Several m [A.OnlyA m $ A.Alternative m 
     (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock])
-  ,pass("pri alt { c ? x {} d ? y {} }", RP.statement, assertEqual "testAlt 1" $ A.Alt m True $ A.Several m [
+  ,pass("pri alt { c ? x {} d ? y {} }", RP.statement, assertEqual "testAlt 2" $ A.Alt m True $ A.Several m [
     A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.OnlyA m $ A.Alternative m (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
     
