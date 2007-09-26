@@ -557,6 +557,14 @@ testAlt =
   ,pass("pri alt { c ? x {} d ? y {} }", RP.statement, assertEqual "testAlt 2" $ A.Alt m True $ A.Several m [
     A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.OnlyA m $ A.Alternative m (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
+  --Fairly nonsensical, but valid:
+  ,pass("pri alt { else {} }", RP.statement, assertEqual "testAlt 3" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
+  ,pass("pri alt { c ? x {} else {} }", RP.statement, assertEqual "testAlt 4" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
+    ,A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
+  
+
     
   ,fail("pri {}",RP.statement)
   ,fail("alt {}",RP.statement)
@@ -569,6 +577,10 @@ testAlt =
   ,fail("pri alt { c ! x {} }",RP.statement)
   ,fail("pri alt { {} }",RP.statement)
   ,fail("pri alt { c = x {} }",RP.statement)
+  ,fail("pri alt { else {} c ? x {} }",RP.statement)
+  ,fail("pri alt { d ? y {} else {} c ? x {} }",RP.statement)
+  ,fail("pri alt { else {} else {} }",RP.statement)
+  ,fail("pri alt { d ? y {} else {} c ? x {} else {} }",RP.statement)
  ]
 
 testRun :: [ParseTest A.Process]
