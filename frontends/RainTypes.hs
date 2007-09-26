@@ -311,7 +311,7 @@ checkCommTypes p = (everywhereASTM checkInputOutput p) >>= (everywhereASTM check
       = checkInput chanVar destVar m a
     checkAltInput a = return a
 
--- | Checks the types in now statements:
+-- | Checks the types in now and wait statements:
 checkGetTimeTypes :: Data t => t -> PassM t
 checkGetTimeTypes = everywhereASTM checkGetTime
   where
@@ -321,4 +321,9 @@ checkGetTimeTypes = everywhereASTM checkGetTime
            case t of
              A.Time -> return p
              _ -> diePC m $ formatCode "Cannot store time in variable of type \"%\"" t
+    checkGetTime p@(A.Wait m _ e)
+      = do t <- typeOfExpression e
+           case t of
+             A.Time -> return p
+             _ -> diePC m $ formatCode "Cannot wait for an expression of non-time type: \"%\"" t
     checkGetTime p = return p
