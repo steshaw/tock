@@ -367,7 +367,9 @@ statement
     <|> block
     <|> each
     <|> runProcess
-    <|> try comm
+    <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.GetTime m dest}
+    <|> try (comm False)
+    <|> alt
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))

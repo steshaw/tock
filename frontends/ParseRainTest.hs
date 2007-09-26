@@ -628,6 +628,8 @@ tests = TestList
   parseTests testAssign,
   parseTests testDataType,
   parseTests testComm,
+  parseTests testAlt,
+  parseTests testTime,
   parseTests testRun,
   parseTests testDecl,
   parseTests testTopLevelDecl
