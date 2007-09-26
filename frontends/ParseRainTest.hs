@@ -548,6 +548,29 @@ testComm =
   ,fail ("c ? x , y;",RP.statement)  
  ]
 
+testAlt :: [ParseTest A.Process]
+testAlt =
+ [
+  pass("pri alt {}", RP.statement, assertEqual "testAlt 0" $ A.Alt m True $ A.Several m [])
+  ,pass("pri alt { c ? x {} }", RP.statement, assertEqual "testAlt 1" $ A.Alt m True $ A.Several m [A.OnlyA m $ A.Alternative m 
+    (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock])
+  ,pass("pri alt { c ? x {} d ? y {} }", RP.statement, assertEqual "testAlt 1" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
+    ,A.OnlyA m $ A.Alternative m (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
+    
+  ,fail("pri {}",RP.statement)
+  ,fail("alt {}",RP.statement)
+  ,fail("pri alt ;",RP.statement)
+  ,fail("pri alt {",RP.statement)
+  ,fail("pri alt }",RP.statement)
+  ,fail("pri alt { c ? x }",RP.statement)
+  ,fail("pri alt { c ? x ; }",RP.statement)
+  ,fail("pri alt { c ? x {}; }",RP.statement)
+  ,fail("pri alt { c ! x {} }",RP.statement)
+  ,fail("pri alt { {} }",RP.statement)
+  ,fail("pri alt { c = x {} }",RP.statement)
+ ]
+
 testRun :: [ParseTest A.Process]
 testRun =
  [
@@ -589,7 +612,6 @@ tests = TestList
   parseTests testAssign,
   parseTests testDataType,
   parseTests testComm,
-  parseTests testTime,
   parseTests testRun,
   parseTests testDecl,
   parseTests testTopLevelDecl
