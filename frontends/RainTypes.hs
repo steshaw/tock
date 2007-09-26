@@ -269,12 +269,12 @@ checkConditionalTypes t = (everywhereASTM checkWhile t) >>= (everywhereASTM chec
              then return c
              else dieP m "Expression in if conditional must be of boolean type"
 
--- | Checks the types in inputs and outputs
+-- | Checks the types in inputs and outputs, including inputs in alts
 checkCommTypes :: Data t => t -> PassM t
-checkCommTypes = everywhereASTM checkInputOutput
+checkCommTypes p = (everywhereASTM checkInputOutput p) >>= (everywhereASTM checkAltInput)
   where
-    checkInputOutput :: A.Process -> PassM A.Process
-    checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
+    checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM a
+    checkInput chanVar destVar m p
       = do chanType <- typeOfVariable chanVar
            destType <- typeOfVariable destVar
            case chanType of
@@ -287,6 +287,10 @@ checkCommTypes = everywhereASTM checkInputOutput
                      else diePC m $ formatCode "Mis-matching types; channel: \"%\" has inner-type: % but destination variable: \"%\" has type: %"
                                                chanVar innerType destVar destType
              _ -> dieP m $ "Tried to input from a variable that is not of type channel: " ++ show chanVar
+
+    checkInputOutput :: A.Process -> PassM A.Process
+    checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
+      = checkInput chanVar destVar m p
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
       = do chanType <- typeOfVariable chanVar
            srcType <- typeOfExpression srcExp
@@ -301,6 +305,11 @@ checkCommTypes = everywhereASTM checkInputOutput
                              return $ A.Output m chanVar [A.OutExpression m' castExp]
              _ -> dieP m $ "Tried to output to a variable that is not of type channel: " ++ show chanVar
     checkInputOutput p = return p
+
+    checkAltInput :: A.Alternative -> PassM A.Alternative
+    checkAltInput a@(A.Alternative m chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
+      = checkInput chanVar destVar m a
+    checkAltInput a = return a
 
 -- | Checks the types in now statements:
 checkGetTimeTypes :: Data t => t -> PassM t
