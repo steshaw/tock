@@ -341,6 +341,9 @@ alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- many altCase ; optElseCase 
                  case input of
                    A.Input m lv im -> do { body <- block ; return $ A.OnlyA m $ A.Alternative m lv im body }
                    _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
+              <|> do (m, wm, e) <- waitStatement True
+                     body <- block
+                     return $ A.OnlyA m $ A.AlternativeWait m wm e body
     elseCase :: RainParser A.Structured
     elseCase = do m <- sElse
                   body <- block
