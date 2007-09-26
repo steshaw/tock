@@ -289,11 +289,21 @@ checkExpressionTest = TestList
         else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
       where
         st = A.Input m chanVar $ A.InputSimple m [A.InVariable m destVar]              
+
+  --Takes an index, the inner type of the channel and direction with a variable, then the type and variable for the RHS
+  --Expects a pass only if the inner type of the channel is the same as the type of the variable, and channel direction is unknown or input
+  testCheckCommTypesInAlt :: Int -> (A.Direction,A.Type,A.Variable) -> (A.Type,A.Variable) -> Test
+  testCheckCommTypesInAlt n (chanDir,chanType,chanVar) (destType,destVar)
+    = if (chanType == destType && chanDir /= A.DirOutput)
+        then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (checkCommTypes st) state
+        else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
+      where
+        st = A.Alt m True $ A.OnlyA m $ A.Alternative m chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
  
   --Automatically tests checking inputs and outputs for various combinations of channel type and direction
   testAllCheckCommTypes :: Int -> Test
   testAllCheckCommTypes n = TestList $ map (\(n,f) -> f n) $ zip [n..] $ 
-      concat [[\ind -> testCheckCommTypesIn ind c d,\ind -> testCheckCommTypesOut ind c d] | c <- chans, d <- vars]
+      concat [[\ind -> testCheckCommTypesIn ind c d, \ind -> testCheckCommTypesInAlt ind c d, \ind -> testCheckCommTypesOut ind c d] | c <- chans, d <- vars]
     where
       chans = concatMap allDirs [(A.Int64,variable "c"), (A.Bool,variable "cb"), (A.Byte, variable "cu8")]
       vars = [(A.Bool, variable "b"), (A.Int64, variable "x"), (A.Byte, variable "xu8"), (A.Int16, variable "x16")]
