@@ -240,6 +240,14 @@ checkExpressionTest = TestList
   ,testPassUntouched 7200 checkGetTimeTypes (A.Wait m A.WaitUntil $ exprVariable "t")
   ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (checkGetTimeTypes $ A.Wait m A.WaitUntil $ exprVariable "x") state
   ,testPassUntouched 7202 checkGetTimeTypes (A.Wait m A.WaitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+  
+  ,testPassUntouched 7300 checkGetTimeTypes (A.AlternativeWait m A.WaitFor (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7301" (checkGetTimeTypes $ A.AlternativeWait m A.WaitFor (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7302 checkGetTimeTypes (A.AlternativeWait m A.WaitFor (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)
+
+  ,testPassUntouched 7400 checkGetTimeTypes (A.AlternativeWait m A.WaitUntil (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7401" (checkGetTimeTypes $ A.AlternativeWait m A.WaitUntil (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7402 checkGetTimeTypes (A.AlternativeWait m A.WaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)  
  ]
  where
   testPassUntouched :: Data t => Int -> (t -> PassM t) -> t -> Test
