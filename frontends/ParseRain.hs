@@ -54,6 +54,10 @@ import Utils
 type RainState = CompState
 type RainParser = GenParser L.Token RainState
 
+instance Die (GenParser tok st) where
+  dieReport (Just m, err) = fail $ packMeta m err
+  dieReport (Nothing, err) = fail err  
+
 --{{{ Symbols
 sLeftQ = reserved "["
 sRightQ = reserved "]"
@@ -74,6 +78,7 @@ sDots = reserved ".."
 sPar = reserved "par"
 sSeq = reserved "seq"
 sAlt = reserved "alt"
+sPri = reserved "pri"
 sSeqeach = reserved "seqeach"
 sPareach = reserved "pareach"
 sChannel = reserved "channel"
@@ -287,6 +292,7 @@ innerBlock declsMustBeFirst = do m <- sLeftC
 block :: RainParser A.Process
 block = do { optionalSeq ; b <- innerBlock False ; return $ A.Seq (findMeta b) b}
         <|> do { m <- sPar ; b <- innerBlock True ; return $ A.Par m A.PlainPar b}
+        <?> "seq or par block"
 
 optionalSeq :: RainParser ()
 optionalSeq = option () (sSeq >> return ())
@@ -308,11 +314,27 @@ each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sR
        <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- statement ; 
              return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
 
-comm :: RainParser A.Process
-comm = do { lv <- lvalue ; 
-              do {sOut ; exp <- expression ; sSemiColon ; return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] }
-              <|> do {sIn ; rv <- lvalue ; sSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] }
+comm :: Bool -> RainParser A.Process
+comm isAlt
+     = do { lv <- lvalue ; 
+              (if isAlt
+                then pzero
+                else do {sOut ; exp <- expression ; possSemiColon ; return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] })
+              <|> do {sIn ; rv <- lvalue ; possSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] }
+              <?> (if isAlt then "input statement" else "input or output statement")
           }
+       where
+         possSemiColon :: RainParser ()
+         possSemiColon = if isAlt then return () else sSemiColon >> return ()
+
+alt :: RainParser A.Process
+alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- manyTill altCase sRightC ; return $ A.Alt m True $ A.Several m' cases}
+  where
+    altCase :: RainParser A.Structured
+    altCase = do input <- comm True
+                 case input of
+                   A.Input m lv im -> do { body <- block ; return $ A.OnlyA m $ A.Alternative m lv im body }
+                   _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
 
 tuple :: RainParser [A.Expression]
 tuple = do { sLeftR ; items <- expression `sepBy` sComma ; sRightR ; return items }
@@ -338,7 +360,6 @@ statement
     <|> block
     <|> each
     <|> runProcess
-    <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.GetTime m dest}
     <|> try comm
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
