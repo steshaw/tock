@@ -192,7 +192,7 @@ checkExpressionTest = TestList
   ,failWhileIf 4101 $ Dy (Var "x") A.Plus (Var "x")
   
   --Communication:
-  ,testAllCheckCommTypesIn 5000
+  ,testAllCheckCommTypes 5000
   
   --Time types:
   ,fail 6000 $ Dy (Var "t") A.Plus (Var "x")
@@ -290,9 +290,9 @@ checkExpressionTest = TestList
       where
         st = A.Input m chanVar $ A.InputSimple m [A.InVariable m destVar]              
  
-  --Automatically tests checking inputs for various combinations of channel type and direction
-  testAllCheckCommTypesIn :: Int -> Test
-  testAllCheckCommTypesIn n = TestList $ map (\(n,f) -> f n) $ zip [n..] $ 
+  --Automatically tests checking inputs and outputs for various combinations of channel type and direction
+  testAllCheckCommTypes :: Int -> Test
+  testAllCheckCommTypes n = TestList $ map (\(n,f) -> f n) $ zip [n..] $ 
       concat [[\ind -> testCheckCommTypesIn ind c d,\ind -> testCheckCommTypesOut ind c d] | c <- chans, d <- vars]
     where
       chans = concatMap allDirs [(A.Int64,variable "c"), (A.Bool,variable "cb"), (A.Byte, variable "cu8")]
