@@ -328,13 +328,20 @@ comm isAlt
          possSemiColon = if isAlt then return () else sSemiColon >> return ()
 
 alt :: RainParser A.Process
-alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- manyTill altCase sRightC ; return $ A.Alt m True $ A.Several m' cases}
+alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- many altCase ; optElseCase <- option [] (singleton elseCase) ; sRightC ; return $ A.Alt m True $ A.Several m' (cases ++ optElseCase)}
   where
+    singleton :: RainParser a -> RainParser [a]
+    singleton p = do {a <- p ; return [a]}
+  
     altCase :: RainParser A.Structured
     altCase = do input <- comm True
                  case input of
                    A.Input m lv im -> do { body <- block ; return $ A.OnlyA m $ A.Alternative m lv im body }
                    _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
+    elseCase :: RainParser A.Structured
+    elseCase = do m <- sElse
+                  body <- block
+                  return $ A.OnlyA m $ A.AlternativeSkip m (A.True m) body
 
 tuple :: RainParser [A.Expression]
 tuple = do { sLeftR ; items <- expression `sepBy` sComma ; sRightR ; return items }
