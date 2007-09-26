@@ -41,6 +41,7 @@ $hexDigit = [0-9 a-f A-F]
           | "process" | "function" 
           | "pareach" | "seqeach" | "par" | "seq" 
           | "run" | "return" | "now"
+          | "wait" | "for" | "until"
           | "if" | "while" | "else"
           | "pri" | "alt"
           | "sint8" | "sint16" | "sint32" | "sint64"

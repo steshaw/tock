@@ -90,6 +90,9 @@ sProcess = reserved "process"
 sFunction = reserved "function"
 sRun = reserved "run"
 sReturn = reserved "return"
+sWait = reserved "wait"
+sFor = reserved "for"
+sUntil = reserved "until"
 --}}}
 
 --{{{Operators
@@ -357,6 +360,17 @@ runProcess = do m <- sRun
     convertItem (A.ExprVariable _ v) = A.ActualVariable A.Original A.Any v
     convertItem e = A.ActualExpression A.Any e
 
+waitStatement :: Bool -> RainParser (Meta, A.WaitMode, A.Expression)
+waitStatement isAlt
+  = do { m <- sWait ;
+         do { sFor ; e <- expression ; possSemiColon ; return (m, A.WaitFor, e)}
+         <|> do { sUntil ; e <- expression ; possSemiColon ; return (m, A.WaitUntil, e)}
+         <?> "reserved word \"for\" or \"until\" should follow reserved word \"wait\""
+       }
+    where
+      possSemiColon :: RainParser ()
+      possSemiColon = if isAlt then return () else sSemiColon >> return ()
+
 statement :: RainParser A.Process
 statement 
   = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- block ; return $ A.While m exp st}
@@ -368,6 +382,7 @@ statement
     <|> each
     <|> runProcess
     <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.GetTime m dest}
+    <|> do {(m,wm,exp) <- waitStatement False ; return $ A.Wait m wm exp}
     <|> try (comm False)
     <|> alt
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
