@@ -231,6 +231,15 @@ checkExpressionTest = TestList
   --Now statements:
   ,testPassUntouched 7000 checkGetTimeTypes (A.GetTime m $ variable "t")
   ,TestCase $ testPassShouldFail "checkExpressionTest 7001" (checkGetTimeTypes $ A.GetTime m $ variable "x") state
+  
+  --Wait statements:
+  ,testPassUntouched 7100 checkGetTimeTypes (A.Wait m A.WaitFor $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7101" (checkGetTimeTypes $ A.Wait m A.WaitFor $ exprVariable "x") state
+  ,testPassUntouched 7102 checkGetTimeTypes (A.Wait m A.WaitFor $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+
+  ,testPassUntouched 7200 checkGetTimeTypes (A.Wait m A.WaitUntil $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (checkGetTimeTypes $ A.Wait m A.WaitUntil $ exprVariable "x") state
+  ,testPassUntouched 7202 checkGetTimeTypes (A.Wait m A.WaitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
  ]
  where
   testPassUntouched :: Data t => Int -> (t -> PassM t) -> t -> Test
