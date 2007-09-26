@@ -568,6 +568,15 @@ testAlt =
     A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
   
+  ,pass("pri alt { wait for t {} }", RP.statement, assertEqual "testAlt 100" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock])
+  ,pass("pri alt { wait for t {} wait until t {} }", RP.statement, assertEqual "testAlt 101" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock
+    ,A.OnlyA m $ A.AlternativeWait m A.WaitUntil (exprVariable "t") emptyBlock])
+  ,pass("pri alt { wait until t + t {} else {} }", RP.statement, assertEqual "testAlt 102" $ A.Alt m True $ A.Several m [
+    A.OnlyA m $ A.AlternativeWait m A.WaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) emptyBlock
+    ,A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
+
 
     
   ,fail("pri {}",RP.statement)
@@ -585,6 +594,11 @@ testAlt =
   ,fail("pri alt { d ? y {} else {} c ? x {} }",RP.statement)
   ,fail("pri alt { else {} else {} }",RP.statement)
   ,fail("pri alt { d ? y {} else {} c ? x {} else {} }",RP.statement)
+  ,fail("pri alt { wait for {} }",RP.statement)
+  ,fail("pri alt { wait until t; {} }",RP.statement)
+  ,fail("pri alt { wait t {} }",RP.statement)
+  ,fail("pri alt { for t {} }",RP.statement)
+  
  ]
 
 testRun :: [ParseTest A.Process]
