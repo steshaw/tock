@@ -610,6 +610,14 @@ testTime =
   ,fail ("now t",RP.statement)
   ,fail ("now ;",RP.statement)
   ,fail ("now t + t;",RP.statement)
+  
+  ,pass ("wait for t;",RP.statement, assertPatternMatch "testTime 1" $ tag3 A.Wait DontCare A.WaitFor (exprVariablePattern "t"))
+  ,pass ("wait until t;",RP.statement, assertPatternMatch "testTime 2" $ tag3 A.Wait DontCare A.WaitUntil (exprVariablePattern "t"))
+  ,pass ("wait until t + t;",RP.statement, assertPatternMatch "testTime 3" $ tag3 A.Wait DontCare A.WaitUntil $ buildExprPattern $ Dy (Var "t") A.Plus (Var "t"))
+  ,fail ("waitfor t;",RP.statement)
+  ,fail ("waituntil t;",RP.statement)
+  ,fail ("wait for t",RP.statement)
+  ,fail ("until t;",RP.statement)
  ]
         
 --Returns the list of tests:

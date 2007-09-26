@@ -316,6 +316,12 @@ data Replicator =
 data Choice = Choice Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
+-- | A mode of waiting -- either for a specified duration, or until a specified time.
+data WaitMode =
+  WaitFor
+  | WaitUntil
+  deriving (Show, Eq, Typeable, Data)
+
 -- | A guard in an @ALT@.
 data Alternative =
   -- | A plain guard.
@@ -467,6 +473,7 @@ data Process =
   | Output Meta Variable [OutputItem]
   | OutputCase Meta Variable Name [OutputItem]
   | GetTime Meta Variable
+  | Wait Meta WaitMode Expression
   | Skip Meta
   | Stop Meta
   -- | The main process.
