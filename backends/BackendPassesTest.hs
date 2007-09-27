@@ -20,51 +20,14 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module BackendPassesTest (tests) where
 
+import Control.Monad.State
 import Test.HUnit hiding (State)
-import Control.Monad.State as CSM
-import qualified Data.Map as Map
+
 import qualified AST as A
-import TestUtil
-import Pattern
-import TreeUtil
-import CompState
-import Control.Monad.Error (runErrorT)
-import Data.Generics
-import Utils
-import Errors
 import BackendPasses
-
-skipP :: A.Structured
-skipP = A.OnlyP m (A.Skip m)
-
-castAssertADI :: (Typeable b) => Maybe AnyDataItem -> IO b
-castAssertADI x = case (castADI x) of
-  Just y -> return y
-  Nothing -> dieInternal (Nothing, "Pattern successfully matched but did not find item afterwards")
-{-
-testPullUpParDecl0 :: Test
-testPullUpParDecl0 = TestCase $ testPass "testPullUpParDecl0" orig (pullUpParDeclarations orig) (return ())
-  where
-    orig = A.Par m A.PlainPar (A.Several m [])
-
-testPullUpParDecl1 :: Test
-testPullUpParDecl1 = TestCase $ testPass "testPullUpParDecl1" exp (pullUpParDeclarations orig) (return ())
-  where
-    orig = A.Par m A.PlainPar $
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.Several m [])
-    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
-
-testPullUpParDecl2 :: Test
-testPullUpParDecl2 = TestCase $ testPass "testPullUpParDecl2" exp (pullUpParDeclarations orig) (return ())
-  where
-    orig = A.Par m A.PlainPar $
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $
-      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte) $
-      (A.Several m [])
-    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) 
-                  $ A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte)
-                    (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
--}
+import Pattern
+import TestUtil
+import TreeUtil
 
 -- | Test WaitUntil guard (should be unchanged)
 testTransformWaitFor0 :: Test
