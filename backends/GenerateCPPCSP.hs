@@ -591,6 +591,10 @@ cppgenAlt ops _ s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
+                A.AlternativeWait _ wm e _ -> 
+                  do tell [guardList, " . push_back( new ", if wm == A.WaitUntil then "csp::TimeoutGuard (" else "csp::RelTimeoutGuard("]
+                     call genExpression ops e
+                     tell ["));"]
 
         doIn c im
             = do case im of
@@ -613,6 +617,7 @@ cppgenAlt ops _ s
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
+                A.AlternativeWait _ _ _ p -> doCheck (call genProcess ops p)
 
         doIn c im p
             = do case im of
