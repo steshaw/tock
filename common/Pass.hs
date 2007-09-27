@@ -93,12 +93,6 @@ debugAST p
           veryDebug $ pshow ps
           veryDebug $ "}}}"
 
--- | Number lines in a piece of text.
-numberLines :: String -> String
-numberLines s
-    = concat $ intersperse "\n" $ [show n ++ ": " ++ s
-                                   | (n, s) <- zip [1..] (lines s)]
-
 -- | Make a generic rule for a pass.
 makeGeneric :: (Data t) => (forall s. Data s => s -> PassM s) -> t -> PassM t
 makeGeneric top

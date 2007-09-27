@@ -15,6 +15,7 @@ ghc_opts = \
 	-fallow-undecidable-instances \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
+	-fwarn-type-defaults \
 	-icommon -itransformations -ifrontends -ibackends \
 	$(profile_opts)
 

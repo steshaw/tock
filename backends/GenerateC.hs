@@ -307,7 +307,7 @@ cgenOverArray ops m var func
                                tell ["_sizes[", show v, "]; "]
                                call genVariable ops i
                                tell ["++) {\n"]
-                            | (v, i) <- zip [0..] indices]
+                            | (v :: Integer, i) <- zip [0..] indices]
                  p
                  sequence_ [tell ["}\n"] | _ <- indices]
             Nothing -> return ()
@@ -1043,6 +1043,7 @@ cgenArrayAbbrev :: GenOps -> A.Variable -> (CGen (), A.Name -> CGen ())
 cgenArrayAbbrev ops v
     = (tell ["&"] >> call genVariable ops v, genAASize v 0)
   where
+    genAASize :: A.Variable -> Integer -> A.Name -> CGen ()
     genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
         = genAASize v (arg + 1)
     genAASize (A.Variable _ on) arg

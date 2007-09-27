@@ -1196,7 +1196,7 @@ cppgenOverArray ops m var func
                                tell [".extent(", show v, "); "]
                                call genVariable ops i
                                tell ["++) {\n"]
-                            | (v, i) <- zip [0..] indices]
+                            | (v :: Integer, i) <- zip [0..] indices]
                  p
                  sequence_ [tell ["}\n"] | _ <- indices]
             Nothing -> return ()
