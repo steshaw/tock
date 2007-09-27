@@ -290,6 +290,7 @@ underlyingType = everywhereM (mkM underlyingType')
     underlyingType' t@(A.UserDataType _)
       = resolveUserType t >>= underlyingType
     underlyingType' (A.Array ds t) = return $ addDimensions ds t
+    underlyingType' t = return t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
@@ -498,6 +499,7 @@ simplifyType = everywhereM (mkM simplifyType')
             case st of
               A.DataType _ t -> return t
               A.RecordType _ _ _ -> return origT
+    simplifyType' t = return t
 --}}}
 
 --{{{ sizes of types
