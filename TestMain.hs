@@ -18,6 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | A module containing the 'main' function for the Tock test suite.  It currently runs tests from the following modules:
 --
+-- * "BackendPassesTest"
+--
 -- * "CommonTest"
 --
 -- * "PassTest"
@@ -35,6 +37,7 @@ import qualified RainTypesTest (tests)
 import qualified UsageCheckTest (tests)
 import qualified PassTest (tests)
 import qualified CommonTest (tests)
+import qualified BackendPassesTest (tests)
 import Test.HUnit
 
 main :: IO ()
@@ -46,5 +49,6 @@ main = do runTestTT $ TestList
               ,RainPassesTest.tests
               ,RainTypesTest.tests
               ,UsageCheckTest.tests
+              ,BackendPassesTest.tests
             ]
           return ()

@@ -31,6 +31,7 @@ import Numeric
 import Text.Printf
 
 import qualified AST as A
+import BackendPasses
 import CompState
 import EvalConstants
 import EvalLiterals
@@ -46,23 +47,8 @@ import Utils
 genCPasses :: [(String, Pass)]
 genCPasses =
   [ ("Identify parallel processes", identifyParProcs)
+   ,("Transform wait for guards into wait until guards", transformWaitFor)
   ]
-
--- | Identify processes that we'll need to compute the stack size of.
-identifyParProcs :: Pass
-identifyParProcs = everywhereM (mkM doProcess)
-  where
-    doProcess :: A.Process -> PassM A.Process
-    doProcess p@(A.Par _ _ s) = findProcs s >> return p
-    doProcess p = return p
-
-    findProcs :: A.Structured -> PassM ()
-    findProcs (A.Rep _ _ s) = findProcs s
-    findProcs (A.Spec _ _ s) = findProcs s
-    findProcs (A.ProcThen _ _ s) = findProcs s
-    findProcs (A.Several _ ss) = sequence_ $ map findProcs ss
-    findProcs (A.OnlyP _ (A.ProcCall _ n _))
-        = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
 --}}}
 
 --{{{  monad definition
@@ -1756,6 +1742,11 @@ cgenAlt ops isPri s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltEnableSkip ();\n"]
+                --transformWaitFor should have removed all A.WaitFor guards (transforming them into A.WaitUntil):
+                A.AlternativeWait _ A.WaitUntil e _ ->
+                  do tell ["AltEnableTimer ( "]
+                     call genExpression ops e
+                     tell [" );\n"]
 
         doIn c im
             = do case im of
@@ -1777,7 +1768,10 @@ cgenAlt ops isPri s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltDisableSkip (", id, "++);\n"]
-
+                A.AlternativeWait _ A.WaitUntil e _ ->
+                     do tell ["AltDisableTimer (", id, "++, "]
+                        call genExpression ops e
+                        tell [");\n"]
         doIn c im
             = do case im of
                    A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
@@ -1798,6 +1792,7 @@ cgenAlt ops isPri s
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
+                A.AlternativeWait _ _ _ p -> doCheck (call genProcess ops p)
 
         doIn c im p
             = do case im of
