@@ -19,13 +19,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Compiler state.
 module CompState where
 
+import Control.Monad.Error
+import Control.Monad.State
 import Data.Generics
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Control.Monad.Error
-import Control.Monad.State
 
 import qualified AST as A
 import Errors

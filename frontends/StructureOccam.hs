@@ -19,8 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Analyse syntactic structure of occam code.
 module StructureOccam (structureOccam) where
 
-import Data.Generics
-
 import Errors
 import LexOccam
 import Metadata

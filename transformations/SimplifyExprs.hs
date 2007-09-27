@@ -22,14 +22,13 @@ module SimplifyExprs where
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
-import Data.Maybe
 
 import qualified AST as A
 import CompState
 import Errors
 import Metadata
-import Types
 import Pass
+import Types
 
 simplifyExprs :: A.Process -> PassM A.Process
 simplifyExprs = runPasses passes

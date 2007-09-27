@@ -20,12 +20,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (liftM, when)
-import Control.Monad.Error (runErrorT)
-import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get, put)
+import Control.Monad.State (MonadState, modify, get, put)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import Debug.Trace
 import Text.ParserCombinators.Parsec
 
 import qualified AST as A

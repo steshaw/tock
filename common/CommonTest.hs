@@ -18,12 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module CommonTest (tests) where
 
-import Test.HUnit hiding (State)
-import qualified AST as A
-import Types
-import TreeUtil
-import Metadata
 import Data.Generics
+import Test.HUnit hiding (State)
+
+import qualified AST as A
+import Metadata
+import TreeUtil
+import Types
 
 -- | Tests the isSafeConversion function:
 testIsSafeConversion :: Test

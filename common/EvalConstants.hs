@@ -20,15 +20,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module EvalConstants (constantFold, isConstantName) where
 
 import Control.Monad.Error
-import Control.Monad.Identity
 import Control.Monad.State
 import Data.Bits
 import Data.Char
-import Data.Generics
 import Data.Int
 import Data.Maybe
-import Data.Word
-import Numeric
 import Text.Printf
 
 import qualified AST as A
@@ -36,7 +32,6 @@ import CompState
 import Errors
 import EvalLiterals
 import Metadata
-import Pass
 import ShowCode
 import Types
 

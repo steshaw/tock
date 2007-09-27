@@ -25,8 +25,6 @@ import Data.Generics
 import Text.Printf
 import Text.Read
 
-import Utils
-
 data Meta = Meta {
     metaFile :: Maybe String,
     metaLine :: Int,

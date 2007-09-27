@@ -26,10 +26,10 @@ import Data.Maybe
 
 import qualified AST as A
 import CompState
+import Errors
 import EvalConstants
 import Metadata
 import Pass
-import Errors
 import Types
 
 unnest :: A.Process -> PassM A.Process

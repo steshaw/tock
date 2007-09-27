@@ -18,21 +18,17 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module PassTest (tests) where
 
-import Test.HUnit hiding (State)
-import Control.Monad.State as CSM
-import qualified Data.Map as Map
-import qualified AST as A
-import TestUtil
-import Pattern
-import TreeUtil
-import CompState
-import Control.Monad.Error (runErrorT)
 import Control.Monad.Identity
-import Types
-import Pass
 import Data.Generics
-import Utils
+import qualified Data.Map as Map
+import Test.HUnit hiding (State)
+
+import qualified AST as A
+import CompState
+import Pattern
 import SimplifyExprs
+import TestUtil
+import TreeUtil
 
 valof0 :: A.Structured 
 valof0 = A.OnlyEL m $ A.ExpressionList m [intLiteral 0]

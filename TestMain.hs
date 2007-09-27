@@ -31,24 +31,25 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * "UsageCheckTest"
 module TestMain () where
 
+import Test.HUnit
+
+import qualified BackendPassesTest (tests)
+import qualified CommonTest (tests)
 import qualified ParseRainTest (tests)
+import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
 import qualified UsageCheckTest (tests)
-import qualified PassTest (tests)
-import qualified CommonTest (tests)
-import qualified BackendPassesTest (tests)
-import Test.HUnit
 
 main :: IO ()
 main = do runTestTT $ TestList
             [
-              PassTest.tests
+              BackendPassesTest.tests
               ,CommonTest.tests
               ,ParseRainTest.tests
+              ,PassTest.tests
               ,RainPassesTest.tests
               ,RainTypesTest.tests
               ,UsageCheckTest.tests
-              ,BackendPassesTest.tests
             ]
           return ()

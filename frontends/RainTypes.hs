@@ -18,16 +18,17 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainTypes where
 
-import qualified AST as A
-import Pass
-import Data.Generics
-import EvalConstants
-import Errors
-import Types
 import Control.Monad.State
+import Data.Generics
+
+import qualified AST as A
 import CompState
+import Errors
+import EvalConstants
 import Metadata
+import Pass
 import ShowCode
+import Types
 
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.

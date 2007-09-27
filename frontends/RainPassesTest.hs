@@ -20,23 +20,20 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainPassesTest (tests) where
 
-import Test.HUnit hiding (State)
-import Control.Monad.State as CSM
+import Control.Monad.State
+import Control.Monad.Identity
+import Data.Generics
 import qualified Data.Map as Map
+import Test.HUnit hiding (State)
+
 import qualified AST as A
-import TestUtil
+import CompState
+import Errors
 import Pattern
-import TreeUtil
 import RainPasses
 import RainTypes
-import CompState
-import Control.Monad.Error (runErrorT)
-import Control.Monad.Identity
-import Types
-import Pass
-import Data.Generics
-import Utils
-import Errors
+import TestUtil
+import TreeUtil
 
 skipP :: A.Structured
 skipP = A.OnlyP m (A.Skip m)

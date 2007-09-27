@@ -1,4 +1,5 @@
-{ {-
+{ {-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-
 Tock: a compiler for parallel languages
 Copyright (C) 2007  University of Kent
 
@@ -21,9 +22,7 @@ module LexRain where
 
 import Data.Generics
 
-import Errors
 import Metadata
-import Pass
 }
 
 %wrapper "posn"

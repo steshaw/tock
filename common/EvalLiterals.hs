@@ -22,7 +22,6 @@ module EvalLiterals where
 import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
-import Data.Bits
 import Data.Char
 import Data.Generics
 import Data.Int

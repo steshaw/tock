@@ -18,36 +18,21 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module ParseRain where
 
-import qualified Text.ParserCombinators.Parsec.Token as P
-import qualified LexRain as L
 
-
-
-
---Chuck a whole load from Parse:
-import Control.Monad (liftM, when)
-import Control.Monad.Error (runErrorT)
-import Control.Monad.State (MonadState, StateT, execStateT, liftIO, modify, get, put)
+import Control.Monad (liftM)
+import Control.Monad.State (MonadState, liftIO, get, put)
 import Data.List
-import qualified Data.Map as Map
 import Data.Maybe
-import Debug.Trace
 import qualified IO
-import Numeric (readHex)
 import Text.ParserCombinators.Parsec
-import Text.Regex
 
 import qualified AST as A
 import CompState
 import Errors
-import EvalConstants
-import EvalLiterals
-import Intrinsics
+import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
-import Types
-import Utils
 
 
 

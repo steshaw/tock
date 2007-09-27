@@ -70,29 +70,23 @@ For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chan
 -}
 module GenerateCPPCSP (generateCPPCSP) where
 
+import Control.Monad.Writer
 import Data.Char
+import Data.Generics
 import Data.List
 import Data.Maybe
-import Data.Generics
-import Control.Monad.Writer
-import Control.Monad.Error
-import Control.Monad.State
-import Numeric
-import Text.Printf
 
 import qualified AST as A
 import CompState
-import EvalConstants
-import EvalLiterals
+import Errors
+import GenerateC
 import Metadata
 import Pass
-import Errors
 import ShowCode
 import TLP
 import Types
 import Utils
 
-import GenerateC
 
 --{{{  generator ops
 -- | Operations for the C++CSP backend.

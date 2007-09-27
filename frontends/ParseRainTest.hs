@@ -18,17 +18,18 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module ParseRainTest (tests) where
 
-import qualified ParseRain as RP
-import qualified AST as A
-import qualified LexRain as L
-import Text.ParserCombinators.Parsec (runParser,eof)
-import Test.HUnit
-import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
-import TestUtil
-import Pattern
-import TreeUtil
+import Test.HUnit
+import Text.ParserCombinators.Parsec (runParser,eof)
+
+import qualified AST as A
 import CompState
+import qualified LexRain as L
+import Metadata (Meta,emptyMeta)
+import qualified ParseRain as RP
+import Pattern
+import TestUtil
+import TreeUtil
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
 

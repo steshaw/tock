@@ -21,8 +21,6 @@ module SimplifyProcs (simplifyProcs) where
 
 import Control.Monad.State
 import Data.Generics
-import qualified Data.Map as Map
-import Data.Maybe
 
 import qualified AST as A
 import CompState

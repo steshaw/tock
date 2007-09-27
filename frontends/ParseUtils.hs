@@ -20,6 +20,7 @@ module ParseUtils where
 
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Pos (newPos)
+
 import Metadata
 
 --{{{ Meta to/from SourcePos

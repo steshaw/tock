@@ -24,7 +24,6 @@ import Control.Monad.Trans
 import Data.List
 import System.IO.Error
 
-import qualified AST as A
 import Metadata
 
 type ErrorReport = (Maybe Meta, String)

@@ -19,19 +19,20 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | A module containing all the misc Rain-specific passes that must be run on the parsed Rain AST before it can be fed into the shared passes.
 module RainPasses where
 
-import qualified AST as A
-import Pass
+import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
-import Control.Monad.State
-import Types
+
+import qualified AST as A
 import CompState
 import Errors
 import Metadata
+import Pass
 import Pattern
-import TreeUtil
 import RainTypes
+import TreeUtil
+import Types
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [(String,Pass)]

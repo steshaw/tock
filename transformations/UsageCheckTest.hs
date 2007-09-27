@@ -18,14 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UsageCheckTest (tests) where
 
-import qualified UsageCheck as UC
-import qualified AST as A
-import Test.HUnit
-import Metadata (Meta,emptyMeta)
 import Prelude hiding (fail)
+import Test.HUnit
+
+
+import qualified AST as A
 import TestUtil
-import Data.List
-import Data.Ord
+import qualified UsageCheck as UC
 
 
 --See note in UsageCheck about WrittenRead not using sets.  Therefore our equality function is inefficient

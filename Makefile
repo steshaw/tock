@@ -14,6 +14,7 @@ ghc_opts = \
 	-fglasgow-exts \
 	-fallow-undecidable-instances \
 	-fwarn-unused-binds \
+	-fwarn-unused-imports \
 	-icommon -itransformations -ifrontends -ibackends \
 	$(profile_opts)
 

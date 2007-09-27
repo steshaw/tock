@@ -31,12 +31,10 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Numeric (readDec)
-import System
 import Text.Printf
 import Text.Regex
 
 import CompState
-import Errors
 import Pass
 import PrettyShow
 

@@ -38,21 +38,21 @@ If they are not equal, it shows them (using 'show') with the given message prefi
 
 module TestUtil where
 
-import qualified AST as A
-import Metadata (Meta,emptyMeta)
-import Monad
-import Test.HUnit hiding (State)
-import Data.Generics
-import Pattern
-import TreeUtil
-import Control.Monad.State
 import Control.Monad.Error
-import Pass
-import CompState
-import PrettyShow
-import Utils
+import Control.Monad.State
+import Data.Generics
 import qualified Data.Map as Map
+import Test.HUnit hiding (State)
+
+import qualified AST as A
+import CompState
 import Errors
+import Metadata (Meta,emptyMeta)
+import Pass
+import Pattern
+import PrettyShow
+import TreeUtil
+import Utils
 
 -- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
 m :: Meta

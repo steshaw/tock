@@ -1,4 +1,5 @@
-{ {-
+{ {-# OPTIONS_GHC -fno-warn-unused-imports #-}
+{-
 Tock: a compiler for parallel languages
 Copyright (C) 2007  University of Kent
 

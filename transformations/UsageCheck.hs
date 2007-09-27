@@ -18,11 +18,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UsageCheck where
 
-import qualified AST as A
 import Data.Generics
-import Metadata
 import Data.List
 import Data.Maybe
+
+import qualified AST as A
 
 --An obvious thing to do would be to hold these lists (of written/read variables respectively) instead as sets
 --However, this would involve defining an ordering over A.Variable.  This would be do-able for plain A.Variables,

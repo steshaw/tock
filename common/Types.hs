@@ -32,7 +32,6 @@ module Types
 
   ) where
 
-import Control.Monad
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map

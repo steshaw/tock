@@ -24,20 +24,19 @@ import Data.Generics
 import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
-import Control.Monad.Writer
 import Control.Monad.Error
 import Control.Monad.State
-import Numeric
+import Control.Monad.Writer
 import Text.Printf
 
 import qualified AST as A
 import BackendPasses
 import CompState
+import Errors
 import EvalConstants
 import EvalLiterals
 import Metadata
 import Pass
-import Errors
 import ShowCode
 import TLP
 import Types

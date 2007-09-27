@@ -18,19 +18,20 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainTypesTest where
 
-import Test.HUnit hiding (State)
-import TestUtil
-import RainTypes
-import TreeUtil
-import Pattern
-import qualified AST as A
-import CompState
 import Control.Monad.State
 import Control.Monad.Error
 import Data.Generics
-import Types
-import Pass
+import Test.HUnit hiding (State)
+
+import qualified AST as A
+import CompState
 import Errors
+import Pass
+import Pattern
+import RainTypes
+import TestUtil
+import TreeUtil
+import Types
 
 constantFoldTest :: Test
 constantFoldTest = TestList

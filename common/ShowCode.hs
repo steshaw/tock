@@ -26,6 +26,7 @@ import Data.Generics
 import Data.List
 import Text.PrettyPrint.HughesPJ
 import Text.Regex
+
 import qualified AST as A
 import CompState
 

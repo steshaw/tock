@@ -26,14 +26,15 @@ module TreeUtil (
   con0, con1, con2, con3, con4, con5, con6, con7
   ) where
 
-import Test.HUnit hiding (State)
-import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Generics
-import qualified PrettyShow as PS
-import Data.Maybe
 import Data.List
+import qualified Data.Map as Map
+import Data.Maybe
+import Test.HUnit hiding (State)
+
 import Pattern
+import qualified PrettyShow as PS
 
 type MatchErrors = [String]
 

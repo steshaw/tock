@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Top-level process support.
 module TLP where
 
-import Control.Monad.Error
 import Control.Monad.State
 import Data.Generics
 import Data.List
@@ -28,7 +27,6 @@ import Data.Maybe
 import qualified AST as A
 import CompState
 import Errors
-import Metadata
 import Types
 
 data TLPChannel = TLPIn | TLPOut | TLPError

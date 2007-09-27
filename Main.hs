@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Driver for the compiler.
 module Main (main) where
 
-import Control.Monad
 import Control.Monad.Error
 import Control.Monad.State
 import List
@@ -33,10 +32,9 @@ import Errors
 import GenerateC
 import GenerateCPPCSP
 import ParseOccam
+import ParseRain
 import Pass
 import PreprocessOccam
-import PrettyShow
-import ParseRain
 import RainPasses
 import SimplifyExprs
 import SimplifyProcs
