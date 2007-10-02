@@ -335,7 +335,7 @@ data Alternative =
   -- | A @SKIP@ guard (one that is always ready).
   -- The 'Expression' is the pre-condition.
   | AlternativeSkip Meta Expression Process
-  -- | A @wait for@/@until@ guard.
+  -- | A @wait for@\/@until@ guard.
   | AlternativeWait Meta WaitMode Expression Process
   deriving (Show, Eq, Typeable, Data)
 
