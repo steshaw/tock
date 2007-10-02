@@ -486,21 +486,6 @@ isCaseableType A.Bool = True
 isCaseableType t = isIntegerType t
 --}}}
 
---{{{ simplifying and comparing types
--- | Simplify a type as far as possible: resolve data type aliases to their
--- real types, and remove non-constant array dimensions.
-simplifyType :: (CSM m, Die m) => A.Type -> m A.Type
-simplifyType = everywhereM (mkM simplifyType')
-  where
-    simplifyType' :: (CSM m, Die m) => A.Type -> m A.Type
-    simplifyType' origT@(A.Record n)
-      =  do st <- specTypeOfName n
-            case st of
-              A.DataType _ t -> return t
-              A.RecordType _ _ _ -> return origT
-    simplifyType' t = return t
---}}}
-
 --{{{ sizes of types
 -- | The size in bytes of a data type.
 data BytesInResult =
