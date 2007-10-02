@@ -362,7 +362,7 @@ cgenType ops (A.Array _ t)
           tell ["*"]
 cgenType _ (A.Record n) = genName n
 -- UserProtocol -- not used
-cgenType _ (A.Chan _ _ t) = tell ["Channel *"]
+cgenType _ (A.Chan _ _ t) = tell ["Channel*"]
 -- Counted -- not used
 -- Any -- not used
 --cgenType ops (A.Port t) =

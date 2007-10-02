@@ -68,7 +68,7 @@ as well.  May be worth changing in future.
 Channels of direction 'A.DirUnknown' are passed around as pointers to a One2OneChannel\<\> object.  To read I use the reader() function and to write I use the writer() function.
 For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chanin\<\> and Chanout\<\> objects as you would expect.
 -}
-module GenerateCPPCSP (generateCPPCSP) where
+module GenerateCPPCSP (generateCPPCSP, cppgenOps) where
 
 import Control.Monad.Writer
 import Data.Char
@@ -670,9 +670,9 @@ cppdeclareType ops (A.Chan dir attr t)
                               (False,True)  -> "csp::One2AnyChannel"
                               (True,False)  -> "csp::Any2OneChannel"
                               (True,True)   -> "csp::Any2AnyChannel"
-         tell [" ",chanType," < "]
+         tell [chanType,"<"]
          call genType ops t
-         tell ["/**/>/**/ "]
+         tell [">/**/"]
 cppdeclareType ops t = call genType ops t
 
 -- | Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays.
@@ -1062,10 +1062,10 @@ cppgenArrayType :: GenOps -> Bool -> A.Type -> Int -> CGen ()
 cppgenArrayType ops const (A.Array dims t) rank
     =  cppgenArrayType ops const t (rank + (max 1 (length dims)))
 cppgenArrayType ops const t rank
-    =  do tell [" tockArrayView< "]
-          when (const) (tell [" const "])
+    =  do tell ["tockArrayView<"]
+          when (const) (tell ["const "])
           call genType ops t
-          tell [" , ",show rank, " > /**/"]
+          tell [",",show rank, ">/**/"]
     
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
@@ -1076,19 +1076,19 @@ cppgenType _ (A.Record n) = genName n
 cppgenType _ (A.UserProtocol n) = genProtocolName n
 cppgenType ops ch@(A.Chan A.DirUnknown _ _)
     = do call declareType ops ch
-         tell [" * "]
+         tell ["*"]
 cppgenType ops (A.Chan A.DirInput _ t)
-    = do tell [" csp::Chanin< "]
+    = do tell ["csp::Chanin<"]
          call genType ops t
-         tell ["/**/>/**/"]
+         tell [">/**/"]
 cppgenType ops (A.Chan A.DirOutput _ t)
-    = do tell [" csp::Chanout< "]
+    = do tell ["csp::Chanout<"]
          call genType ops t
-         tell ["/**/>/**/"]
+         tell [">/**/"]
 cppgenType ops (A.Counted countType valueType)
     = call genType ops (A.Array [A.UnknownDimension] valueType)
 cppgenType _ (A.Any)
-    = tell [" tockAny "]
+    = tell ["tockAny"]
 -- Any -- not used
 --cppgenType (A.Port t) =
 cppgenType ops t
