@@ -35,6 +35,7 @@ import Test.HUnit
 
 import qualified BackendPassesTest (tests)
 import qualified CommonTest (tests)
+import qualified GenerateCTest (tests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
@@ -46,6 +47,7 @@ main = do runTestTT $ TestList
             [
               BackendPassesTest.tests
               ,CommonTest.tests
+              ,GenerateCTest.tests
               ,ParseRainTest.tests
               ,PassTest.tests
               ,RainPassesTest.tests
