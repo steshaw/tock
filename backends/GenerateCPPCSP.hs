@@ -1137,12 +1137,15 @@ cppgenSlice ops _ v ty start count ds
           call genExpression ops count
           tell [")"]          
          
--- | Changed from GenerateC to use Blitz++ subscripting (round brackets with commas) rather than traditional C indexing
+-- | Changed from GenerateC to use multiple subscripting (e.g. [1][2][3]) rather than the combined indexing of the C method (e.g. [1*x*y+2*y+3])
 cppgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
 cppgenArraySubscript ops checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           sequence_ $ genPlainSub v es [0..(numDims - 1)]
+          --To index an actual element of an array we must use the .access() function
+          --Only needed when we have applied enough subscripts to get out an element:
+          when (numDims == (length es)) (tell [".access()"])          
   where
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -1154,17 +1157,17 @@ cppgenArraySubscript ops checkValid v es
     
     genPlainSub :: A.Variable -> [A.Expression] -> [Int] -> [CGen ()]
     genPlainSub _ _ [] = []
-    genPlainSub v [] (sub:subs) = (tell [" "]) : (genPlainSub v [] subs)
+    genPlainSub v [] (sub:subs) = (return ()) : (genPlainSub v [] subs)
     genPlainSub v (e:es) (sub:subs)
         = (tell ["["] >> genSub >> tell ["]"]) : genPlainSub v es subs
       where
         genSub
             = if checkValid
-                then do tell ["occam_check_index ("]
+                then do tell ["occam_check_index("]
                         call genExpression ops e
-                        tell [", "]
+                        tell [","]
                         call genVariable ops v
-                        tell [".extent(", show sub, "), "]
+                        tell [".extent(", show sub, "),"]
                         genMeta (findMeta e)
                         tell [")"]
                 else call genExpression ops e
@@ -1315,10 +1318,6 @@ cppgenVariable' ops checkValid v
          =  do let (es, v) = collectSubs sv
                call genVariable ops v
                call genArraySubscript ops checkValid v es
-               t <- typeOfVariable v
-               --To index an actual element of an array we must use the .access() function
-               --Only needed when we have applied enough subscripts to get out an element:
-               case t of A.Array dims _ -> when ((length dims) == (length es)) (tell [" .access() "])
      inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
          =  do call genVariable ops v
                tell ["->"]

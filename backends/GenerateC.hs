@@ -757,7 +757,7 @@ cgenArraySubscript ops checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
-          sequence_ $ intersperse (tell [" + "]) $ genPlainSub v es [0..(numDims - 1)]
+          sequence_ $ intersperse (tell ["+"]) $ genPlainSub v es [0..(numDims - 1)]
           tell ["]"]
   where
     -- | Generate the individual offsets that need adding together to find the
@@ -769,14 +769,14 @@ cgenArraySubscript ops checkValid v es
     genPlainSub v (e:es) (sub:subs)
         = gen : genPlainSub v es subs
       where
-        gen = sequence_ $ intersperse (tell [" * "]) $ genSub : genChunks
+        gen = sequence_ $ intersperse (tell ["*"]) $ genSub : genChunks
         genSub
             = if checkValid
-                then do tell ["occam_check_index ("]
+                then do tell ["occam_check_index("]
                         call genExpression ops e
-                        tell [", "]
+                        tell [","]
                         call genVariable ops v
-                        tell ["_sizes[", show sub, "], "]
+                        tell ["_sizes[", show sub, "],"]
                         genMeta (findMeta e)
                         tell [")"]
                 else call genExpression ops e

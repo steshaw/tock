@@ -216,6 +216,32 @@ testActuals = TestList
  ]
  where
    over = (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
+   
+testArraySubscript :: Test
+testArraySubscript = TestList
+ [
+  testBothS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]" "[5]"
+    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+  ,testBothS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]" "[5][6]"
+    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+  ,testBothS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]" "[5][6][7].access()"
+    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+  
+  ,testBothS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]") ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")]")
+    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+  ,testBothS "genArraySubscript 4"
+    ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]]")
+    ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")][occam_check_index(6,foo.extent(1)," ++ m ++ ")]")
+    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+  ,testBothS "genArraySubscript 5"
+    ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]+occam_check_index(7,foo_sizes[2]," ++ m ++ ")]")
+    ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")][occam_check_index(6,foo.extent(1)," ++ m ++ ")][occam_check_index(7,foo.extent(2)," ++ m ++ ")].access()")
+    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+    
+ ]
+ where
+   stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
+   m = "\"" ++ show emptyMeta ++ "\""
 
 ---Returns the list of tests:
 tests :: Test
@@ -223,6 +249,7 @@ tests = TestList
  [
    testActuals
    ,testArraySizes
+   ,testArraySubscript
    ,testGenType
    ,testStop
  ]
