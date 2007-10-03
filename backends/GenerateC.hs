@@ -91,6 +91,7 @@ data GenOps = GenOps {
     genDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),
     genDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen (),
     genDeclaration :: GenOps -> A.Type -> A.Name -> CGen (),
+    genDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen (),
     genDyadic :: GenOps -> Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: GenOps -> A.Expression -> CGen (),
     genFlatArraySize :: GenOps -> [A.Dimension] -> CGen (),
@@ -182,6 +183,7 @@ cgenOps = GenOps {
     genDecl = cgenDecl,
     genDeclType = cgenDeclType,
     genDeclaration = cgenDeclaration,
+    genDirectedVariable = cgenDirectedVariable,
     genDyadic = cgenDyadic,
     genExpression = cgenExpression,
     genFlatArraySize = cgenFlatArraySize,
@@ -728,7 +730,7 @@ cgenVariable' ops checkValid v
 
     inner :: A.Variable -> CGen ()
     inner (A.Variable _ n) = genName n
-    inner (A.DirectedVariable _ _ v) = inner v
+    inner (A.DirectedVariable _ dir v) = call genDirectedVariable ops (inner v) dir
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         =  do let (es, v) = collectSubs sv
               call genVariable ops v
@@ -751,6 +753,10 @@ cgenVariable' ops checkValid v
       where
         (es', v') = collectSubs v
     collectSubs v = ([], v)
+
+
+cgenDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen ()
+cgenDirectedVariable _ var _ = var
 
 cgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
 cgenArraySubscript ops checkValid v es
