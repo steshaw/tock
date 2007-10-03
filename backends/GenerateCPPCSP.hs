@@ -113,7 +113,6 @@ cppgenOps = cgenOps {
     genOutput = cppgenOutput,
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
-    genOverArray = cppgenOverArray,
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
     genSizeSuffix = cppgenSizeSuffix,
@@ -1172,33 +1171,6 @@ cppgenArraySubscript ops checkValid v es
                         tell [")"]
                 else call genExpression ops e
 --}}}
-
--- | Map an operation over every item of an occam array.
---Changed from GenerateC because it uses the array sizes of Blitz++
-cppgenOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
-cppgenOverArray ops m var func
-    =  do A.Array ds _ <- typeOfVariable var
-          specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
-          let indices = [A.Variable m n | A.Specification _ n _ <- specs]
-
-          let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m $ A.ExprVariable m i | i <- indices])
-          case func arg of
-            Just p ->
-              do sequence_ [do tell ["for (int "]
-                               call genVariable ops i
-                               tell [" = 0; "]
-                               call genVariable ops i
-                               tell [" < "]
-                               call genVariable ops var
-                               tell [".extent(", show v, "); "]
-                               call genVariable ops i
-                               tell ["++) {\n"]
-                            | (v :: Integer, i) <- zip [0..] indices]
-                 p
-                 sequence_ [tell ["}\n"] | _ <- indices]
-            Nothing -> return ()
-
-
 
 -- | Changed to remove array size:
 cppgenUnfoldedExpression :: GenOps -> A.Expression -> CGen ()

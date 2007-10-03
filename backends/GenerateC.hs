@@ -117,6 +117,7 @@ data GenOps = GenOps {
     genOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen (),
     genOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
     genOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen (),
+    -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
     genOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
     genPar :: GenOps -> A.ParMode -> A.Structured -> CGen (),
     genProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen (),
@@ -306,18 +307,19 @@ cgenOverArray ops m var func
           let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m $ A.ExprVariable m i | i <- indices])
           case func arg of
             Just p ->
-              do sequence_ [do tell ["for (int "]
+              do sequence_ [do tell ["for(int "]
                                call genVariable ops i
-                               tell [" = 0; "]
+                               tell ["=0;"]
                                call genVariable ops i
-                               tell [" < "]
+                               tell ["<"]
                                call genVariable ops var
-                               tell ["_sizes[", show v, "]; "]
+                               call genSizeSuffix ops (show v)
+                               tell [";"]
                                call genVariable ops i
-                               tell ["++) {\n"]
+                               tell ["++){"]
                             | (v :: Integer, i) <- zip [0..] indices]
                  p
-                 sequence_ [tell ["}\n"] | _ <- indices]
+                 sequence_ [tell ["}"] | _ <- indices]
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
