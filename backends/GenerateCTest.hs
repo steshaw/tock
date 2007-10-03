@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | Tests for the C and C++ backends
-module GenerateCTest where
+module GenerateCTest (tests) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -57,7 +57,7 @@ assertGenFail n act
                            else assertFailure $ n ++ " pass succeeded when expected to fail, output: " ++ (subRegex (mkRegex "/\\*\\*/") (concat ss) "")
 
 
-testBoth :: 
+testBothS :: 
   String -- ^ Test Name
   -> String -- ^ C expected
   -> String -- ^ C++ expected
@@ -65,35 +65,47 @@ testBoth ::
   -> (State CompState ()) -- ^ State transformation  
   -> Test
   
-testBoth testName expC expCPP act startState = TestCase $
+testBothS testName expC expCPP act startState = TestCase $
   do assertGen (testName ++ "/C") expC $ (evalStateT (runErrorT (execWriterT $ act cgenOps)) state) 
      assertGen (testName ++ "/C++") expCPP $ (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state) 
   where
     state = execState startState emptyState
 
 -- Tests C output, expects C++ to fail
-testCF :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
-testCF testName expC act startState = TestCase $
+testCFS :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
+testCFS testName expC act startState = TestCase $
   do assertGen (testName ++ "/C") expC $ (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
      assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
   where
     state = execState startState emptyState
     
 -- Tests C++ output, expects C to fail
-testCPPF :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
-testCPPF testName expCPP act startState = TestCase $
+testCPPFS :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
+testCPPFS testName expCPP act startState = TestCase $
   do assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
      assertGen (testName ++ "/C++") expCPP $ (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
   where
     state = execState startState emptyState    
 
-testBothSame :: 
+testBothSameS :: 
   String    -- ^ Test Name
   -> String -- ^ C and C++ expected
   -> (GenOps -> CGen ()) -- ^ Actual
   -> (State CompState ()) -- ^ State transformation
   -> Test
-testBothSame n e a s = testBoth n e e a s
+testBothSameS n e a s = testBothS n e e a s
+  
+testBoth :: String -> String -> String -> (GenOps -> CGen ()) -> Test
+testBoth a b c d = testBothS a b c d (return ())
+
+testBothSame :: String -> String -> (GenOps -> CGen ()) -> Test
+testBothSame a b c = testBothSameS a b c (return ())
+  
+testCF :: String -> String -> (GenOps -> CGen ()) -> Test
+testCF a b c = testCFS a b c (return ())
+
+testCPPF :: String -> String -> (GenOps -> CGen ()) -> Test
+testCPPF a b c = testCPPFS a b c (return ())
   
 tcall :: (GenOps -> GenOps -> a -> b) -> a -> (GenOps -> b)
 tcall f x = (\o -> f o o x)
@@ -101,39 +113,39 @@ tcall f x = (\o -> f o o x)
 testGenType :: Test
 testGenType = TestList 
  [
-  testBothSame "GenType 0" "uint8_t" (tcall genType A.Byte) (return ())
-  ,testBothSame "GenType 1" "uint16_t" (tcall genType A.UInt16) (return ())
-  ,testBothSame "GenType 2" "uint32_t" (tcall genType A.UInt32) (return ())
-  ,testBothSame "GenType 3" "uint64_t" (tcall genType A.UInt64) (return ())
-  ,testBothSame "GenType 4" "int8_t" (tcall genType A.Int8) (return ())
-  ,testBothSame "GenType 5" "int16_t" (tcall genType A.Int16) (return ())
-  ,testBothSame "GenType 6" "int32_t" (tcall genType A.Int32) (return ())
-  ,testBothSame "GenType 7" "int64_t" (tcall genType A.Int64) (return ())
-  ,testBothSame "GenType 8" "int" (tcall genType A.Int) (return ())
-  ,testBoth "GenType 9" "bool" "tockBool" (tcall genType A.Bool) (return ())
-  ,testBothSame "GenType 10" "float" (tcall genType A.Real32) (return ())
-  ,testBothSame "GenType 11" "double" (tcall genType A.Real64) (return ())
-  ,testBoth "GenType 100" "int*" "tockArrayView<int,1>" (tcall genType $ A.Array [A.Dimension 5] A.Int) (return ())
-  ,testBoth "GenType 101" "int*" "tockArrayView<int,3>" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) (return ())
-  ,testBoth "GenType 102" "int*" "tockArrayView<int,2>" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) (return ())
-  ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) (return ())
-  ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) (return ())
-  ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) (return ())
+  testBothSame "GenType 0" "uint8_t" (tcall genType A.Byte) 
+  ,testBothSame "GenType 1" "uint16_t" (tcall genType A.UInt16) 
+  ,testBothSame "GenType 2" "uint32_t" (tcall genType A.UInt32) 
+  ,testBothSame "GenType 3" "uint64_t" (tcall genType A.UInt64) 
+  ,testBothSame "GenType 4" "int8_t" (tcall genType A.Int8) 
+  ,testBothSame "GenType 5" "int16_t" (tcall genType A.Int16) 
+  ,testBothSame "GenType 6" "int32_t" (tcall genType A.Int32) 
+  ,testBothSame "GenType 7" "int64_t" (tcall genType A.Int64) 
+  ,testBothSame "GenType 8" "int" (tcall genType A.Int) 
+  ,testBoth "GenType 9" "bool" "tockBool" (tcall genType A.Bool) 
+  ,testBothSame "GenType 10" "float" (tcall genType A.Real32) 
+  ,testBothSame "GenType 11" "double" (tcall genType A.Real64) 
+  ,testBoth "GenType 100" "int*" "tockArrayView<int,1>" (tcall genType $ A.Array [A.Dimension 5] A.Int) 
+  ,testBoth "GenType 101" "int*" "tockArrayView<int,3>" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
+  ,testBoth "GenType 102" "int*" "tockArrayView<int,2>" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
+  ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
+  ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
 
-  ,testBoth "GenType 300" "Channel*" "csp::One2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) (return ())
-  ,testBoth "GenType 301" "Channel*" "csp::One2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) (return ())
-  ,testBoth "GenType 302" "Channel*" "csp::Any2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) (return ())
-  ,testBoth "GenType 303" "Channel*" "csp::Any2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) (return ())
+  ,testBoth "GenType 300" "Channel*" "csp::One2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) 
+  ,testBoth "GenType 301" "Channel*" "csp::One2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) 
+  ,testBoth "GenType 302" "Channel*" "csp::Any2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) 
+  ,testBoth "GenType 303" "Channel*" "csp::Any2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) 
   
-  ,testBoth "GenType 400" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) (return ())
-  ,testBoth "GenType 401" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False True) A.Int) (return ())
+  ,testBoth "GenType 400" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) 
+  ,testBoth "GenType 401" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False True) A.Int) 
 
-  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) (return ())
-  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) (return ())
+  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) 
+  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) 
   
   --ANY and protocols can occur outside channels in C++ (e.g. temporaries for reading from channels), so they are tested here:
-  ,testCPPF "GenType 500" "tockAny" (tcall genType $ A.Any) (return ())
-  ,testCPPF "GenType 600" "protocol_foo" (tcall genType $ A.UserProtocol (simpleName "foo")) (return ())
+  ,testCPPF "GenType 500" "tockAny" (tcall genType $ A.Any) 
+  ,testCPPF "GenType 600" "protocol_foo" (tcall genType $ A.UserProtocol (simpleName "foo")) 
  ]
 
 ---Returns the list of tests:
