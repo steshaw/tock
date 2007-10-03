@@ -122,7 +122,9 @@ data GenOps = GenOps {
     genPar :: GenOps -> A.ParMode -> A.Structured -> CGen (),
     genProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen (),
     genProcess :: GenOps -> A.Process -> CGen (),
+    -- | Generates a replicator loop, given the replicator and body
     genReplicator :: GenOps -> A.Replicator -> CGen () -> CGen (),
+    -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
     genReplicatorLoop :: GenOps -> A.Replicator -> CGen (),
     genRetypeSizes :: GenOps -> Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: GenOps -> A.Structured -> CGen (),
@@ -983,11 +985,11 @@ cgenOutputItem ops c (A.OutExpression m e)
 --{{{  replicators
 cgenReplicator :: GenOps -> A.Replicator -> CGen () -> CGen ()
 cgenReplicator ops rep body
-    =  do tell ["for ("]
+    =  do tell ["for("]
           call genReplicatorLoop ops rep
-          tell [") {\n"]
+          tell ["){"]
           body
-          tell ["}\n"]
+          tell ["}"]
 
 isZero :: A.Expression -> Bool
 isZero (A.Literal _ A.Int (A.IntLiteral _ "0")) = True
@@ -1003,24 +1005,24 @@ cgenReplicatorLoop ops (A.For m index base count)
     simple
         =  do tell ["int "]
               genName index
-              tell [" = 0; "]
+              tell ["=0;"]
               genName index
-              tell [" < "]
+              tell ["<"]
               call genExpression ops count
-              tell ["; "]
+              tell [";"]
               genName index
               tell ["++"]
 
     general :: CGen ()
     general
         =  do counter <- makeNonce "replicator_count"
-              tell ["int ", counter, " = "]
+              tell ["int ", counter, "="]
               call genExpression ops count
-              tell [", "]
+              tell [","]
               genName index
-              tell [" = "]
+              tell ["="]
               call genExpression ops base
-              tell ["; ", counter, " > 0; ", counter, "--, "]
+              tell [";", counter, ">0;", counter, "--,"]
               genName index
               tell ["++"]
 

@@ -65,7 +65,7 @@ assertGenR n exp act
              Right ss ->
                case matchRegex (mkRegex exp) (subRegex (mkRegex "/\\*\\*/") (concat ss) "") of
                  Just matches -> return matches
-                 Nothing -> (assertFailure $ n ++ " regex match failed, regex: \"" ++ show exp ++ "\" text: " ++ (concat ss)) >> return []
+                 Nothing -> (assertFailure $ n ++ " regex match failed, regex: \"" ++ exp ++ "\" text: " ++ (concat ss)) >> return []
 
 
 -- | Asserts that the given output of a CGen pass is a failure
@@ -128,6 +128,13 @@ testBothSameS ::
   -> (State CompState ()) -- ^ State transformation
   -> Test
 testBothSameS n e a s = testBothS n e e a s
+
+testBothSameR :: 
+  String    -- ^ Test Name
+  -> String -- ^ C and C++ expected
+  -> (GenOps -> CGen ()) -- ^ Actual
+  -> Test
+testBothSameR n e a = TestCase $ (testRS n e (a cgenOps) (return ())) >> (testRS n e (a cppgenOps) (return ())) >> (return ())
 
 testBothFail :: String -> (GenOps -> CGen ()) -> Test
 testBothFail a b = testBothFailS a b (return ())
@@ -291,6 +298,13 @@ testOverArray = TestList $ map testOverArray'
         state1 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
         state3 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
 
+testReplicator :: Test
+testReplicator = TestList
+ [
+  testBothSame "testReplicator 0" "for(int foo=0;foo<10;foo++){@}" (tcall2 genReplicator (A.For emptyMeta foo (intLiteral 0) (intLiteral 10)) at)
+  ,testBothSameR "testReplicator 1" "for\\(int ([[:alnum:]_]+)=10,foo=1;\\1>0;\\1--,foo\\+\\+\\)\\{@\\}" (tcall2 genReplicator (A.For emptyMeta foo (intLiteral 1) (intLiteral 10)) at)
+ ]
+
 testDeclaration :: Test
 testDeclaration = TestList
  [
@@ -343,5 +357,6 @@ tests = TestList
    ,testDeclaration
    ,testGenType
    ,testOverArray
+   ,testReplicator
    ,testStop
  ]
