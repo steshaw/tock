@@ -124,7 +124,6 @@ data GenOps = GenOps {
     genProcess :: GenOps -> A.Process -> CGen (),
     genReplicator :: GenOps -> A.Replicator -> CGen () -> CGen (),
     genReplicatorLoop :: GenOps -> A.Replicator -> CGen (),
-    genReplicatorSize :: GenOps -> A.Replicator -> CGen (),
     genRetypeSizes :: GenOps -> Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: GenOps -> A.Structured -> CGen (),
     genSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen (),
@@ -215,7 +214,6 @@ cgenOps = GenOps {
     genProcess = cgenProcess,
     genReplicator = cgenReplicator,
     genReplicatorLoop = cgenReplicatorLoop,
-    genReplicatorSize = cgenReplicatorSize,
     genRetypeSizes = cgenRetypeSizes,
     genSeq = cgenSeq,
     genSimpleDyadic = cgenSimpleDyadic,
@@ -1026,8 +1024,6 @@ cgenReplicatorLoop ops (A.For m index base count)
               genName index
               tell ["++"]
 
-cgenReplicatorSize :: GenOps -> A.Replicator -> CGen ()
-cgenReplicatorSize ops rep = call genExpression ops (sizeOfReplicator rep)
 --}}}
 
 --{{{  abbreviations
