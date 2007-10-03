@@ -193,15 +193,36 @@ testArraySizes = TestList
   ,testBothSame "genArraySizesSize 0" "[1]" (tcall genArraySizesSize [A.Dimension 7])
   ,testBothSame "genArraySize 0" "const int*foo_sizes=@;" (tcall3 genArraySize True at foo)
   ,testBothSame "genArraySize 1" "const int foo_sizes[]={@};" (tcall3 genArraySize False at foo)
-  
+  ,testBothSame "genArrayLiteralElems 0" "$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined]) . unfolded
+  ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]) . unfolded
+  ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]]) . unfolded
  ]
+ where
+  unfolded = (\ops -> ops {genUnfoldedExpression = override1 dollar})
 
+testActuals :: Test
+testActuals = TestList
+ [
+  -- C adds a prefix comma (to follow Process* me) but C++ does not:
+  testBoth "genActuals 0" ",@,@" "@,@" $ (tcall genActuals [undefined, undefined]) . (\ops -> ops {genActual = override1 at})
+  ,testBothSame "genActuals 1" "" $ (tcall genActuals [])
+  
+  --For expressions, genExpression should be called:
+  ,testBothSame "genActual 0" "$" $ (tcall genActual $ A.ActualExpression A.Bool (A.True undefined)) . over
+  
+  --For abbreviating arrays, C++ should call genExpression/genVariable, whereas C should do its foo,foo_sizes thing:
+  ,testBoth "genActual 1" "@,@_sizes" "$" $ (tcall genActual $ A.ActualExpression (A.Array undefined undefined) (A.ExprVariable undefined $ A.Variable undefined foo)) . over
+  ,testBoth "genActual 2" "@,@_sizes" "@" $ (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo)) . over
+ ]
+ where
+   over = (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
 
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
  [
-   testGenType
-   ,testStop
+   testActuals
    ,testArraySizes
+   ,testGenType
+   ,testStop
  ]

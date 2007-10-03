@@ -66,7 +66,9 @@ data GenOps = GenOps {
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareType :: GenOps -> A.Type -> CGen (),
+    -- | Generates an individual parameter to a function/proc.
     genActual :: GenOps -> A.Actual -> CGen (),
+    -- | Generates the list of actual parameters to a function/proc.
     genActuals :: GenOps -> [A.Actual] -> CGen (),
     genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
@@ -1427,7 +1429,7 @@ cgenActual ops actual
           case (t, e) of
             (A.Array _ _, A.ExprVariable _ v) ->
               do call genVariable ops v
-                 tell [", "]
+                 tell [","]
                  call genVariable ops v
                  tell ["_sizes"]
             _ -> call genExpression ops e
@@ -1435,7 +1437,7 @@ cgenActual ops actual
           case t of
             A.Array _ _ ->
               do call genVariable ops v
-                 tell [", "]
+                 tell [","]
                  call genVariable ops v
                  tell ["_sizes"]
             _ -> fst $ abbrevVariable ops am t v
