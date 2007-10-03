@@ -1107,7 +1107,7 @@ prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 --I also pass the type of the array through to cppgenSlice
 cppabbrevVariable :: GenOps -> A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
 cppabbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = cppgenArrayAbbrev ops v
+    = call genVariable ops v
 cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) v')
     = cppgenSlice ops v v' ty start count ds
 cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
@@ -1137,12 +1137,6 @@ cppgenSlice ops _ v ty start count ds
           call genExpression ops count
           tell [")"]          
          
-
--- | Removed the sizing and the & from GenerateC:
-cppgenArrayAbbrev :: GenOps -> A.Variable -> CGen ()
-cppgenArrayAbbrev = call genVariable
-
-
 -- | Changed from GenerateC to use Blitz++ subscripting (round brackets with commas) rather than traditional C indexing
 cppgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
 cppgenArraySubscript ops checkValid v es

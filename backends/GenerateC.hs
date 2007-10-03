@@ -69,7 +69,7 @@ data GenOps = GenOps {
     genActual :: GenOps -> A.Actual -> CGen (),
     genActuals :: GenOps -> [A.Actual] -> CGen (),
     genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
-    genArrayAbbrev :: GenOps -> A.Variable -> (CGen (), A.Name -> CGen ()),
+    -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
     genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
     -- | Declares a constant array for the sizes (dimensions) of a C array.
     genArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen (),
@@ -164,7 +164,6 @@ cgenOps = GenOps {
     genActual = cgenActual,
     genActuals = cgenActuals,
     genAlt = cgenAlt,
-    genArrayAbbrev = cgenArrayAbbrev,
     genArrayLiteralElems = cgenArrayLiteralElems,
     genArraySize = cgenArraySize,
     genArraySizesLiteral = cgenArraySizesLiteral,
@@ -1044,19 +1043,6 @@ cgenSlice ops v (A.Variable _ on) start count ds
                                       tell ["_sizes[", show i, "]"]
                                    | i <- [1..(length ds - 1)]]))
 
-cgenArrayAbbrev :: GenOps -> A.Variable -> (CGen (), A.Name -> CGen ())
-cgenArrayAbbrev ops v
-    = (tell ["&"] >> call genVariable ops v, genAASize v 0)
-  where
-    genAASize :: A.Variable -> Integer -> A.Name -> CGen ()
-    genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
-        = genAASize v (arg + 1)
-    genAASize (A.Variable _ on) arg
-        = call genArraySize ops True
-                       (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
-    genAASize (A.DirectedVariable _ _ v)  arg
-        = genAASize v arg
-
 cgenArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen ()
 cgenArraySize ops isPtr size n
     = if isPtr
@@ -1082,7 +1068,17 @@ cgenVariableAM ops v am
 -- | Generate the right-hand side of an abbreviation of a variable.
 abbrevVariable :: GenOps -> A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
 abbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = call genArrayAbbrev ops v
+    = (tell ["&"] >> call genVariable ops v, genAASize v 0)
+  where
+        genAASize :: A.Variable -> Integer -> A.Name -> CGen ()
+        genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
+            = genAASize v (arg + 1)
+        genAASize (A.Variable _ on) arg
+            = call genArraySize ops True
+                       (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
+        genAASize (A.DirectedVariable _ _ v)  arg
+            = const $ call genMissing ops "Cannot abbreviate a directed variable as an array"
+                
 abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) v')
     = call genSlice ops v v' start count ds
 abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
