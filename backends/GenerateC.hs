@@ -66,9 +66,9 @@ data GenOps = GenOps {
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareType :: GenOps -> A.Type -> CGen (),
-    -- | Generates an individual parameter to a function/proc.
+    -- | Generates an individual parameter to a function\/proc.
     genActual :: GenOps -> A.Actual -> CGen (),
-    -- | Generates the list of actual parameters to a function/proc.
+    -- | Generates the list of actual parameters to a function\/proc.
     genActuals :: GenOps -> [A.Actual] -> CGen (),
     genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
