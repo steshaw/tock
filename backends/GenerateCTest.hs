@@ -24,7 +24,8 @@ module GenerateCTest (tests) where
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, intersperse)
+import Data.Maybe (fromMaybe)
 import Test.HUnit hiding (State)
 import Text.Regex
 
@@ -54,6 +55,17 @@ assertGen n exp act
            case r of 
              Left (_,err) -> assertFailure $ n ++ " pass failed, error: " ++ err
              Right ss -> assertEqual n exp (subRegex (mkRegex "/\\*\\*/") (concat ss) "")
+
+-- | Asserts that the given output of a CGen pass matches the expected regex
+assertGenR :: String -> String -> IO (Either Errors.ErrorReport [String]) -> IO [String]
+assertGenR n exp act
+      = do r <- act 
+           case r of 
+             Left (_,err) -> (assertFailure $ n ++ " pass failed, error: " ++ err) >> return []
+             Right ss ->
+               case matchRegex (mkRegex exp) (subRegex (mkRegex "/\\*\\*/") (concat ss) "") of
+                 Just matches -> return matches
+                 Nothing -> (assertFailure $ n ++ " regex match failed, regex: \"" ++ show exp ++ "\" text: " ++ (concat ss)) >> return []
 
 
 -- | Asserts that the given output of a CGen pass is a failure
@@ -85,6 +97,11 @@ testBothFailS :: String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
 testBothFailS testName act startState = TestList
    [TestCase $ assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
    ,TestCase $ assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state) ]
+  where
+    state = execState startState emptyState
+
+testRS :: String -> String -> CGen () -> State CompState () -> IO [String]
+testRS testName exp act startState = assertGenR testName exp (evalStateT (runErrorT (execWriterT act)) state)
   where
     state = execState startState emptyState
 
@@ -243,6 +260,37 @@ testArraySubscript = TestList
    stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
 
+testOverArray :: Test
+testOverArray = TestList $ map testOverArray'
+  [(cSize,cIndex,"",cgenOps)
+  ,((\n -> "\\.extent\\(" ++ show n ++ "\\)"),cppIndex,"\\.access\\(\\)",cppgenOps)
+  ]
+  where
+    cSize n = "_sizes\\[" ++ show n ++ "\\]"
+
+    cppIndex = concat . (map cppIndex')
+    cppIndex' :: (String,[Int]) -> String
+    cppIndex' (s,_) = "\\[" ++ s ++ "\\]"
+
+    cIndex x = "\\[" ++ concat (intersperse "\\+" $ map cIndex' x) ++ "\\]"
+    cIndex' :: (String,[Int]) -> String
+    cIndex' (s,ns) = s ++ concat (map (\n -> "\\*foo" ++ cSize n) ns)
+
+    testOverArray' :: ((Int -> String),[(String,[Int])] -> String,String,GenOps) -> Test
+    testOverArray' (sz,f',suff,ops) = TestCase $
+      do testRS "testOverArray'" rx1 (tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func ops) state1
+         testRS "testOverArray'" rx3 (tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func ops) state3
+         return ()
+      where
+        func f = Just $ call genVariableUnchecked ops (f $ A.Variable emptyMeta foo) >> tell [";"]
+        rx1 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
+        rx3 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{" ++
+              "for\\(int ([[:alnum:]_]+)=0;\\2<foo" ++ sz 1 ++ ";\\2\\+\\+)\\{" ++
+              "for\\(int ([[:alnum:]_]+)=0;\\3<foo" ++ sz 2 ++ ";\\3\\+\\+)\\{" ++
+              "foo" ++ (f' [("\\1",[1,2]),("\\2",[2]),("\\3",[])]) ++ suff ++ ";\\}\\}\\}$"
+        state1 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
+        state3 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
+
 testDeclaration :: Test
 testDeclaration = TestList
  [
@@ -294,5 +342,6 @@ tests = TestList
    ,testArraySubscript
    ,testDeclaration
    ,testGenType
+   ,testOverArray
    ,testStop
  ]
