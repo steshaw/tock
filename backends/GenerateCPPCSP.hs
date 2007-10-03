@@ -170,7 +170,7 @@ cppgenStop :: GenOps -> Meta -> String -> CGen ()
 cppgenStop _ m s 
   = do tell ["throw StopException("]
        genMeta m
-       tell [" \"",s,"\" );"]
+       tell [" \"",s,"\");"]
 
 --{{{ Two helper functions to aggregate some common functionality in this file.
 

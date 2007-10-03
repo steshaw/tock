@@ -71,8 +71,11 @@ data GenOps = GenOps {
     genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
     genArrayAbbrev :: GenOps -> A.Variable -> (CGen (), A.Name -> CGen ()),
     genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
+    -- | Declares a constant array for the sizes (dimensions) of a C array.
     genArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen (),
+    -- | Writes out the dimensions of an array, separated by commas.  Fails if there is an 'A.UnknownDimension' present.
     genArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen (),
+    -- | Writes out the size of the _sizes array, in square brackets.
     genArraySizesSize :: GenOps -> [A.Dimension] -> CGen (),
     genArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen (),
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
@@ -124,12 +127,14 @@ data GenOps = GenOps {
     genSlice :: GenOps -> A.Variable -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ()),
     genSpec :: GenOps -> A.Specification -> CGen () -> CGen (),
     genSpecMode :: GenOps -> A.SpecMode -> CGen (),
+    -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
     genStop :: GenOps -> Meta -> String -> CGen (),
     genStructured :: GenOps -> A.Structured -> (A.Structured -> CGen ()) -> CGen (),
     genTLPChannel :: GenOps -> TLPChannel -> CGen (),
     genTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen (),
     genTimerWait :: GenOps -> A.Expression -> CGen (),
     genTopLevel :: GenOps -> A.Process -> CGen (),
+    -- | Generates the type as it might be used in a cast expression
     genType :: GenOps -> A.Type -> CGen (),
     genTypeSymbol :: GenOps -> String -> A.Type -> CGen (),
     genUnfoldedExpression :: GenOps -> A.Expression -> CGen (),
@@ -273,7 +278,7 @@ cgenMissing _ s = tell ["\n#error Unimplemented: ", s, "\n"]
 
 --{{{  simple punctuation
 genComma :: CGen ()
-genComma = tell [", "]
+genComma = tell [","]
 
 seqComma :: [CGen ()] -> CGen ()
 seqComma ps = sequence_ $ intersperse genComma ps
@@ -1055,16 +1060,16 @@ cgenArrayAbbrev ops v
 cgenArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen ()
 cgenArraySize ops isPtr size n
     = if isPtr
-        then do tell ["const int *"]
+        then do tell ["const int*"]
                 genName n
-                tell ["_sizes = "]
+                tell ["_sizes="]
                 size
-                tell [";\n"]
+                tell [";"]
         else do tell ["const int "]
                 genName n
-                tell ["_sizes[] = { "]
+                tell ["_sizes[]={"]
                 size
-                tell [" };\n"]
+                tell ["};"]
 
 noSize :: A.Name -> CGen ()
 noSize n = return ()
@@ -1596,9 +1601,9 @@ cgenOutputCase ops c tag ois
 --{{{  stop
 cgenStop :: GenOps -> Meta -> String -> CGen ()
 cgenStop ops m s
-    =  do tell ["occam_stop ("]
+    =  do tell ["occam_stop("]
           genMeta m
-          tell [", \"", s, "\");\n"]
+          tell [",\"", s, "\");"]
 --}}}
 --{{{  seq
 cgenSeq :: GenOps -> A.Structured -> CGen ()
