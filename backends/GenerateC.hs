@@ -143,7 +143,6 @@ data GenOps = GenOps {
     genUnfoldedExpression :: GenOps -> A.Expression -> CGen (),
     genUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen (),
     genVariable :: GenOps -> A.Variable -> CGen (),
-    genVariable' :: GenOps -> Bool -> A.Variable -> CGen (),
     genVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen (),
     genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
     genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
@@ -233,7 +232,6 @@ cgenOps = GenOps {
     genUnfoldedExpression = cgenUnfoldedExpression,
     genUnfoldedVariable = cgenUnfoldedVariable,
     genVariable = cgenVariable,
-    genVariable' = cgenVariable',
     genVariableAM = cgenVariableAM,
     genVariableUnchecked = cgenVariableUnchecked,
     genWhile = cgenWhile,
@@ -591,7 +589,7 @@ cgenUnfoldedVariable ops m var
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariable' ops False var
+            _ -> call genVariableUnchecked ops var
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = call genUnfoldedVariable ops m v
@@ -682,11 +680,11 @@ the above table this isn't too horrible...
 -}
 -- | Generate C code for a variable.
 cgenVariable :: GenOps -> A.Variable -> CGen ()
-cgenVariable ops = call genVariable' ops True
+cgenVariable ops = cgenVariable' ops True
 
 -- | Generate C code for a variable without doing any range checks.
 cgenVariableUnchecked :: GenOps -> A.Variable -> CGen ()
-cgenVariableUnchecked ops = call genVariable' ops False
+cgenVariableUnchecked ops = cgenVariable' ops False
 
 -- FIXME This needs to detect when we've "gone through" a record and revert to
 -- the Original prefixing behaviour. (Can do the same for arrays?)

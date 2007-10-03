@@ -1225,7 +1225,7 @@ cppgenUnfoldedVariable ops m var
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariable' ops False var
+            _ -> call genVariableUnchecked ops var
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = call genUnfoldedVariable ops m v
