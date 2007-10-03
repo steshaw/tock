@@ -79,6 +79,7 @@ data GenOps = GenOps {
     genArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen (),
     -- | Writes out the size of the _sizes array, in square brackets.
     genArraySizesSize :: GenOps -> [A.Dimension] -> CGen (),
+    -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
     genArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen (),
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
     genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
@@ -1163,7 +1164,6 @@ cgenSpec ops spec body
 -- | Generate the C type corresponding to a variable being declared.
 -- It must be possible to use this in arrays.
 cdeclareType :: GenOps -> A.Type -> CGen ()
-cdeclareType _ (A.Chan {}) = tell ["Channel *"]
 cdeclareType ops t = call genType ops t
 
 -- | Generate a declaration of a new variable.
