@@ -75,16 +75,16 @@ testBothS ::
   -> (State CompState ()) -- ^ State transformation  
   -> Test
   
-testBothS testName expC expCPP act startState = TestCase $
-  do assertGen (testName ++ "/C") expC $ (evalStateT (runErrorT (execWriterT $ act cgenOps)) state) 
-     assertGen (testName ++ "/C++") expCPP $ (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state) 
+testBothS testName expC expCPP act startState = TestList
+   [TestCase $ assertGen (testName ++ "/C") expC $ (evalStateT (runErrorT (execWriterT $ act cgenOps)) state) 
+   ,TestCase $ assertGen (testName ++ "/C++") expCPP $ (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state) ]
   where
     state = execState startState emptyState
 
 testBothFailS :: String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
-testBothFailS testName act startState = TestCase $
-  do assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
-     assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
+testBothFailS testName act startState = TestList
+   [TestCase $ assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
+   ,TestCase $ assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state) ]
   where
     state = execState startState emptyState
 
