@@ -243,6 +243,48 @@ testArraySubscript = TestList
    stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
 
+testDeclaration :: Test
+testDeclaration = TestList
+ [
+  --Simple: 
+  testBothSame "genDeclaration 0" "int foo;" (tcall2 genDeclaration A.Int foo)
+  
+  --Channels and channel-ends:
+  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
+  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) foo)
+  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) foo)
+  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) foo)
+  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int> foo;" (tcall2 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo)
+  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int> foo;" (tcall2 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False True) A.Int) foo)
+  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int> foo;" (tcall2 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
+  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int> foo;" (tcall2 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) foo)  
+  
+  --Arrays (of simple):
+  ,testBoth "genDeclaration 100" "int foo[8];const int foo_sizes[]={8};" "std::vector<int> foo_actual(8);tockArrayView<int,1> foo(foo_actual,tockDims(8));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8] A.Int) foo)
+  ,testBoth "genDeclaration 101" "int foo[8*9];const int foo_sizes[]={8,9};" "std::vector<int> foo_actual(8*9);tockArrayView<int,2> foo(foo_actual,tockDims(8,9));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo)
+  ,testBoth "genDeclaration 102" "int foo[8*9*10];const int foo_sizes[]={8,9,10};" "std::vector<int> foo_actual(8*9*10);tockArrayView<int,3> foo(foo_actual,tockDims(8,9,10));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo)
+  
+  --Arrays of channels and channel-ends:
+  ,testBoth "genDeclaration 200" "Channel* foo[8];const int foo_sizes[]={8};"
+    "std::vector<csp::One2OneChannel<int>*> foo_actual(8);tockArrayView<csp::One2OneChannel<int>*,1> foo(foo_actual,tockDims(8));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
+
+  ,testBoth "genDeclaration 201" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
+    "std::vector<csp::One2OneChannel<int>*> foo_actual(8*9);tockArrayView<csp::One2OneChannel<int>*,2> foo(foo_actual,tockDims(8,9));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
+    
+  ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
+    "std::vector<csp::Chanin<int>> foo_actual(8);tockArrayView<csp::Chanin<int>,1> foo(foo_actual,tockDims(8));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo)
+
+  ,testBoth "genDeclaration 203" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
+    "std::vector<csp::Chanout<int>> foo_actual(8*9);tockArrayView<csp::Chanout<int>,2> foo(foo_actual,tockDims(8,9));"
+    (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
+ ]
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -250,6 +292,7 @@ tests = TestList
    testActuals
    ,testArraySizes
    ,testArraySubscript
+   ,testDeclaration
    ,testGenType
    ,testStop
  ]

@@ -91,6 +91,7 @@ data GenOps = GenOps {
     genConversionSymbol :: GenOps -> A.Type -> A.Type -> A.ConversionMode -> CGen (),
     genDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),
     genDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen (),
+    -- | Generates a declaration of a variable of the specified type and name
     genDeclaration :: GenOps -> A.Type -> A.Name -> CGen (),
     genDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen (),
     genDyadic :: GenOps -> Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
@@ -1168,29 +1169,30 @@ cdeclareType ops t = call genType ops t
 
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
-cgenDeclaration ops (A.Chan {}) n
+-- Channels are of type "Channel", but channel-ends are of type "Channel*"
+cgenDeclaration ops (A.Chan A.DirUnknown _ _) n
     =  do tell ["Channel "]
           genName n
-          tell [";\n"]
+          tell [";"]
 cgenDeclaration ops (A.Array ds t) n
     =  do call declareType ops t
           tell [" "]
           genName n
           call genFlatArraySize ops ds
-          tell [";\n"]
+          tell [";"]
           call declareArraySizes ops ds n
 cgenDeclaration ops t n
     =  do call declareType ops t
           tell [" "]
           genName n
-          tell [";\n"]
+          tell [";"]
 
 -- | Generate the size of the C array that an occam array of the given
 -- dimensions maps to.
 cgenFlatArraySize :: GenOps -> [A.Dimension] -> CGen ()
 cgenFlatArraySize ops ds
     =  do tell ["["]
-          sequence $ intersperse (tell [" * "])
+          sequence $ intersperse (tell ["*"])
                                  [case d of A.Dimension n -> tell [show n] | d <- ds]
           tell ["]"]
 

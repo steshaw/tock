@@ -649,11 +649,11 @@ cppgenProcCall ops n as
 -- | Changed from CIF's untyped channels to C++CSP's typed (templated) channels, and changed the declaration type of an array to be a vector.
 cppdeclareType :: GenOps -> A.Type -> CGen ()
 cppdeclareType ops (A.Array ds t)
-    = do tell [" std::vector< "]
+    = do tell ["std::vector<"]
          call genType ops t
          tell ["/**/>/**/"]
 cppdeclareType ops (A.Counted countType valueType)
-    = do tell [" std::vector< "]    
+    = do tell ["std::vector<"]
          case valueType of
            --Don't nest when it's a counted array of arrays:
            (A.Array _ t) -> call genType ops t
@@ -685,9 +685,9 @@ cppgenDeclaration ops arrType@(A.Array ds t) n
     =  do call declareType ops arrType
           tell [" "]
           genName n
-          tell ["_actual ("]
+          tell ["_actual("]
           call genFlatArraySize ops ds
-          tell ["); "]
+          tell [");"]
           call genType ops arrType
           tell [" "]
           genName n;
@@ -695,12 +695,12 @@ cppgenDeclaration ops arrType@(A.Array ds t) n
           genName n
           tell ["_actual,tockDims("]
           genDims ds
-          tell ["));\n"]
+          tell ["));"]
 cppgenDeclaration ops t n
     =  do call declareType ops t
           tell [" "]
           genName n
-          tell [";\n"]
+          tell [";"]
 
 -- | Changed because of channel arrays.
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
