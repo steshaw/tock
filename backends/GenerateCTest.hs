@@ -33,9 +33,19 @@ import CompState
 import Errors
 import GenerateC
 import GenerateCPPCSP
+import Metadata
 import Pattern
 import TestUtil
 import TreeUtil
+
+at :: CGen ()
+at = tell ["@"]
+
+dollar :: CGen ()
+dollar = tell ["$"]
+
+foo :: A.Name
+foo = simpleName "foo"
 
 -- | Asserts that the given output of a CGen pass matches the expected value.
 assertGen :: String -> String -> IO (Either Errors.ErrorReport [String]) -> Assertion
@@ -71,6 +81,13 @@ testBothS testName expC expCPP act startState = TestCase $
   where
     state = execState startState emptyState
 
+testBothFailS :: String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
+testBothFailS testName act startState = TestCase $
+  do assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
+     assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
+  where
+    state = execState startState emptyState
+
 -- Tests C output, expects C++ to fail
 testCFS :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
 testCFS testName expC act startState = TestCase $
@@ -94,6 +111,9 @@ testBothSameS ::
   -> (State CompState ()) -- ^ State transformation
   -> Test
 testBothSameS n e a s = testBothS n e e a s
+
+testBothFail :: String -> (GenOps -> CGen ()) -> Test
+testBothFail a b = testBothFailS a b (return ())
   
 testBoth :: String -> String -> String -> (GenOps -> CGen ()) -> Test
 testBoth a b c d = testBothS a b c d (return ())
@@ -109,7 +129,19 @@ testCPPF a b c = testCPPFS a b c (return ())
   
 tcall :: (GenOps -> GenOps -> a -> b) -> a -> (GenOps -> b)
 tcall f x = (\o -> f o o x)
-  
+
+tcall2 :: (GenOps -> GenOps -> a0 -> a1 -> b) -> a0 -> a1 -> (GenOps -> b)
+tcall2 f x y = (\o -> f o o x y)
+
+tcall3 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> b) -> a0 -> a1 -> a2 -> (GenOps -> b)
+tcall3 f x y z = (\o -> f o o x y z)
+
+-- | Overrides a specified function in GenOps to return the given value
+override1 ::
+  b -- ^ The value to return for the overridden function
+  -> (GenOps -> a -> b) -- ^ The resulting overriden function
+override1 val = (\_ _ -> val)
+
 testGenType :: Test
 testGenType = TestList 
  [
@@ -148,11 +180,28 @@ testGenType = TestList
   ,testCPPF "GenType 600" "protocol_foo" (tcall genType $ A.UserProtocol (simpleName "foo")) 
  ]
 
+testStop :: Test
+testStop =
+  testBoth "Stop" "occam_stop(\"foo:4:9\",\"bar\");" "throw StopException(\"foo:4:9\" \"bar\");" (tcall2 genStop (Meta (Just "foo") 4 9) "bar") 
+
+testArraySizes :: Test
+testArraySizes = TestList
+ [
+  testBothSame "genArraySizesLiteral 0" "3" (tcall genArraySizesLiteral [A.Dimension 3]) 
+  ,testBothSame "genArraySizesLiteral 1" "3,6,8" (tcall genArraySizesLiteral [A.Dimension 3, A.Dimension 6, A.Dimension 8]) 
+  ,testBothFail "genArraySizesLiteral 2" (tcall genArraySizesLiteral [A.Dimension 6, A.UnknownDimension]) 
+  ,testBothSame "genArraySizesSize 0" "[1]" (tcall genArraySizesSize [A.Dimension 7])
+  ,testBothSame "genArraySize 0" "const int*foo_sizes=@;" (tcall3 genArraySize True at foo)
+  ,testBothSame "genArraySize 1" "const int foo_sizes[]={@};" (tcall3 genArraySize False at foo)
+  
+ ]
+
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
  [
    testGenType
+   ,testStop
+   ,testArraySizes
  ]
-
-
