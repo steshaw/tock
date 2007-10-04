@@ -85,8 +85,6 @@ import Pass
 import ShowCode
 import TLP
 import Types
-import Utils
-
 
 --{{{  generator ops
 -- | Operations for the C++CSP backend.
@@ -697,36 +695,12 @@ cppgenDeclaration ops t n
           genName n
           tell [";"]
 
--- | Changed because of channel arrays.
+-- | Changed because we don't need any initialisation in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cppdeclareInit ops m t@(A.Array ds t') var
-    = Just $ do init <- case t' of
-                          A.Chan {} ->                    
-                               return (\sub -> Just $ do call genVariable ops (sub var)
-                                                         tell [" = new "]
-                                                         call declareType ops t'
-                                                         tell [";\n"]
-                                                         doMaybe $ call declareInit ops m t' (sub var))
-
-                          _ -> return (\sub -> call declareInit ops m t' (sub var))
-                call genOverArray ops m var init
-
 cppdeclareInit _ _ _ _ = Nothing
 
--- | Changed to free channel arrays.
+-- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
 cppdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cppdeclareFree ops m t@(A.Array ds t') var
-    = Just $ do free <- case t' of
-                          A.Chan {} ->                    
-                               return (\sub -> Just $ do tell ["delete "]
-                                                         call genVariable ops (sub var)
-                                                         tell [";\n"]
-                                                         --doMaybe $ call declareFree ops m t' (sub var)
-                                                         )
-
-                          _ -> return (\sub -> call declareFree ops m t' (sub var))
-                call genOverArray ops m var free
-                
 cppdeclareFree _ _ _ _ = Nothing
 
 -- | Changed to work properly with declareFree to free channel arrays.
@@ -1059,7 +1033,7 @@ cppgenArrayType ops const (A.Array dims t) rank
 cppgenArrayType ops const t rank
     =  do tell ["tockArrayView<"]
           when (const) (tell ["const "])
-          call genType ops t
+          call declareType ops t
           tell [",",show rank, ">/**/"]
     
 -- | Changed from GenerateC to change the arrays and the channels
@@ -1069,17 +1043,8 @@ cppgenType ops arr@(A.Array _ _)
     =  cppgenArrayType ops False arr 0    
 cppgenType _ (A.Record n) = genName n
 cppgenType _ (A.UserProtocol n) = genProtocolName n
-cppgenType ops ch@(A.Chan A.DirUnknown _ _)
+cppgenType ops ch@(A.Chan {})
     = do call declareType ops ch
-         tell ["*"]
-cppgenType ops (A.Chan A.DirInput _ t)
-    = do tell ["csp::Chanin<"]
-         call genType ops t
-         tell [">/**/"]
-cppgenType ops (A.Chan A.DirOutput _ t)
-    = do tell ["csp::Chanout<"]
-         call genType ops t
-         tell [">/**/"]
 cppgenType ops (A.Counted countType valueType)
     = call genType ops (A.Array [A.UnknownDimension] valueType)
 cppgenType _ (A.Any)

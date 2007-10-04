@@ -373,6 +373,8 @@ cgenType ops (A.Array _ t)
           tell ["*"]
 cgenType _ (A.Record n) = genName n
 -- UserProtocol -- not used
+-- Channels are of type "Channel", but channel-ends are of type "Channel*"
+cgenType _ (A.Chan A.DirUnknown _ t) = tell ["Channel"]
 cgenType _ (A.Chan _ _ t) = tell ["Channel*"]
 -- Counted -- not used
 -- Any -- not used
@@ -676,9 +678,9 @@ MYREC r:                MYREC r;        MYREC *r;   MYREC *r;
 CHAN OF INT c:          Channel c;                  Channel *c;
   c                     &c                          c
 
-[10]CHAN OF INT cs:     Channel **cs;               Channel **cs;
+[10]CHAN OF INT cs:     Channel *cs;                Channel *cs;
   cs                    cs                          cs
-  cs[i]                 cs[i]                       cs[i]
+  cs[i]                 &cs[i]                      &cs[i]
 
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
@@ -699,14 +701,10 @@ cgenVariable' :: GenOps -> Bool -> A.Variable -> CGen ()
 cgenVariable' ops checkValid v
     =  do am <- accessAbbrevMode v
           t <- typeOfVariable v
-          let isSub = case v of
-                        A.Variable _ _ -> False
-                        A.SubscriptedVariable _ _ _ -> True
-                        A.DirectedVariable _ _ _ -> False
-
           let prefix = case (am, t) of
                          (_, A.Array _ _) -> ""
-                         (A.Original, A.Chan {}) -> if isSub then "" else "&"
+                         (A.Original, A.Chan A.DirUnknown _ _) -> "&"
+                         (A.Original, A.Chan _ _ _) -> ""
                          (A.Abbrev, A.Chan {}) -> ""
                          (A.Original, A.Record _) -> "&"
                          (A.Abbrev, A.Record _) -> ""
@@ -1171,11 +1169,6 @@ cdeclareType ops t = call genType ops t
 
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
--- Channels are of type "Channel", but channel-ends are of type "Channel*"
-cgenDeclaration ops (A.Chan A.DirUnknown _ _) n
-    =  do tell ["Channel "]
-          genName n
-          tell [";"]
 cgenDeclaration ops (A.Array ds t) n
     =  do call declareType ops t
           tell [" "]
@@ -1226,24 +1219,10 @@ cgenArraySizesLiteral ops ds
 cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var
     = Just $ do tell ["ChanInit("]
-                call genVariable ops var
+                call genVariableUnchecked ops var
                 tell [");"]
 cdeclareInit ops m t@(A.Array ds t') var
-    = Just $ do init <- case t' of
-                          A.Chan {} ->
-                            do A.Specification _ store _ <- makeNonceVariable "storage" m (A.Array ds A.Int) A.VariableName A.Original
-                               let storeV = A.Variable m store
-                               tell ["Channel "]
-                               genName store
-                               call genFlatArraySize ops ds
-                               tell [";\n"]
-                               call declareArraySizes ops ds store
-                               return (\sub -> Just $ do call genVariable ops (sub var)
-                                                         tell [" = &"]
-                                                         call genVariable ops (sub storeV)
-                                                         tell [";\n"]
-                                                         doMaybe $ call declareInit ops m t' (sub var))
-                          _ -> return (\sub -> call declareInit ops m t' (sub var))
+    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var))
                 call genOverArray ops m var init
 cdeclareInit ops m rt@(A.Record _) var
     = Just $ do fs <- recordFields m rt

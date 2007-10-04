@@ -197,10 +197,10 @@ testGenType = TestList
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
   ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
 
-  ,testBoth "GenType 300" "Channel*" "csp::One2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) 
-  ,testBoth "GenType 301" "Channel*" "csp::One2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) 
-  ,testBoth "GenType 302" "Channel*" "csp::Any2OneChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) 
-  ,testBoth "GenType 303" "Channel*" "csp::Any2AnyChannel<int>*" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) 
+  ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) 
+  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) 
+  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) 
+  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) 
   
   ,testBoth "GenType 400" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) 
   ,testBoth "GenType 401" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False True) A.Int) 
@@ -211,6 +211,9 @@ testGenType = TestList
   --ANY and protocols can occur outside channels in C++ (e.g. temporaries for reading from channels), so they are tested here:
   ,testCPPF "GenType 500" "tockAny" (tcall genType $ A.Any) 
   ,testCPPF "GenType 600" "protocol_foo" (tcall genType $ A.UserProtocol (simpleName "foo")) 
+  
+  ,testBoth "GenType 700" "Channel*" "tockArrayView<csp::One2OneChannel<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 701" "Channel**" "tockArrayView<csp::Chanin<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
  ]
 
 testStop :: Test
@@ -339,12 +342,12 @@ testDeclaration = TestList
     (tcall2 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo)
   
   --Arrays of channels and channel-ends:
-  ,testBoth "genDeclaration 200" "Channel* foo[8];const int foo_sizes[]={8};"
-    "csp::One2OneChannel<int>* foo_actual[8];tockArrayView<csp::One2OneChannel<int>*,1> foo(foo_actual,tockDims(8));"
+  ,testBoth "genDeclaration 200" "Channel foo[8];const int foo_sizes[]={8};"
+    "csp::One2OneChannel<int> foo_actual[8];tockArrayView<csp::One2OneChannel<int>,1> foo(foo_actual,tockDims(8));"
     (tcall2 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
 
-  ,testBoth "genDeclaration 201" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::One2OneChannel<int>* foo_actual[8*9];tockArrayView<csp::One2OneChannel<int>*,2> foo(foo_actual,tockDims(8,9));"
+  ,testBoth "genDeclaration 201" "Channel foo[8*9];const int foo_sizes[]={8,9};"
+    "csp::One2OneChannel<int> foo_actual[8*9];tockArrayView<csp::One2OneChannel<int>,2> foo(foo_actual,tockDims(8,9));"
     (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
@@ -364,6 +367,8 @@ testDeclareInitFree = TestList
   ,testAll 1 ("ChanInit((&foo));","") ("","") $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllSame 2 ("","") $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
+  ,testAll 4 ("^ChanInit((&foo[0]));^","") ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 5 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
  ]
  where
    testAll :: Int -> (String,String) -> (String,String) -> A.Type -> Test
