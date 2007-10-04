@@ -107,6 +107,7 @@ data GenOps = GenOps {
     genForwardDeclaration :: GenOps -> A.Specification -> CGen(),
     genFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen (),
     genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
+    -- | Gets the current time into the given variable
     genGetTime :: GenOps -> Meta -> A.Variable -> CGen (),
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
@@ -1568,7 +1569,7 @@ cgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
 cgenGetTime ops m v
     =  do tell ["ProcTime(&"]
           call genVariable ops v
-          tell [");\n"]
+          tell [");"]
 
 cgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
 cgenWait ops A.WaitUntil e = call genTimerWait ops e

@@ -344,7 +344,7 @@ cppgenTimerRead ops c v
 
 cppgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
 cppgenGetTime ops m v
-    =  do tell ["csp::CurrentTime (&"]
+    =  do tell ["csp::CurrentTime(&"]
           call genVariable ops v
           tell [");"]
 

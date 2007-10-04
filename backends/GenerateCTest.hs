@@ -548,6 +548,11 @@ testCase = TestList
     spec = A.Spec emptyMeta undefined
     over ops = ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
+testGetTime :: Test
+testGetTime = testBoth "testGetTime 0" "ProcTime(&@);" "csp::CurrentTime(&@);" ((tcall2 genGetTime emptyMeta undefined) . over)
+  where
+    over ops = ops {genVariable = override1 at}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -561,6 +566,7 @@ tests = TestList
    ,testDeclareInitFree
    ,testGenType
    ,testGenVariable
+   ,testGetTime
    ,testOverArray
    ,testReplicator
    ,testStop
