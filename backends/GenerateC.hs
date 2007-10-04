@@ -89,6 +89,7 @@ data GenOps = GenOps {
     genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
     genBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen (),
     genBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int),
+    -- | Generates a case statement over the given expression with the structured as the body.
     genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
     genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
     genConversion :: GenOps -> Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
@@ -1629,33 +1630,32 @@ cgenIf ops m s
 --{{{  case
 cgenCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen ()
 cgenCase ops m e s
-    =  do tell ["switch ("]
+    =  do tell ["switch("]
           call genExpression ops e
-          tell [") {\n"]
+          tell ["){"]
           seenDefault <- genCaseBody (return ()) s
           when (not seenDefault) $
-            do tell ["default:\n"]
+            do tell ["default:"]
                call genStop ops m "no option matched in CASE process"
-          tell ["}\n"]
+          tell ["}"]
   where
     -- FIXME -- can this be made common with genInputCaseBody above?
     genCaseBody :: CGen () -> A.Structured -> CGen Bool
     genCaseBody coll (A.Spec _ spec s)
         = genCaseBody (call genSpec ops spec coll) s
     genCaseBody coll (A.OnlyO _ (A.Option _ es p))
-        =  do sequence_ [tell ["case "] >> call genExpression ops e >> tell [":\n"] | e <- es]
-              tell ["{\n"]
+        =  do sequence_ [tell ["case "] >> call genExpression ops e >> tell [":"] | e <- es]
+              tell ["{"]
               coll
               call genProcess ops p
-              tell ["break;\n"]
-              tell ["}\n"]
+              tell ["}break;"]
               return False
     genCaseBody coll (A.OnlyO _ (A.Else _ p))
-        =  do tell ["default:\n"]
-              tell ["{\n"]
+        =  do tell ["default:"]
+              tell ["{"]
               coll
               call genProcess ops p
-              tell ["}\n"]
+              tell ["}break;"]
               return True
     genCaseBody coll (A.Several _ ss)
         =  do seens <- mapM (genCaseBody coll) ss

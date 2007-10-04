@@ -58,6 +58,9 @@ dollar = tell ["$"]
 caret :: CGen ()
 caret = tell ["^"]
 
+hash :: CGen ()
+hash = tell ["#"]
+
 foo :: A.Name
 foo = simpleName "foo"
 
@@ -523,6 +526,28 @@ testAssign = TestList
    state t = defineName (simpleName "foo") $ simpleDefDecl "foo" t
    over ops = ops {genVariable = override1 at, genExpression = override1 dollar}
 
+testCase :: Test
+testCase = TestList
+ [
+  testBothSame "testCase 0" "switch($){default:^}" ((tcall3 genCase emptyMeta e (A.Several emptyMeta [])) . over)
+  ,testBothSame "testCase 1" "switch($){default:{@}break;}" ((tcall3 genCase emptyMeta e (A.OnlyO emptyMeta $ A.Else emptyMeta p)) . over)
+  ,testBothSame "testCase 2" "switch($){default:{#@}break;}" ((tcall3 genCase emptyMeta e (spec $ A.OnlyO emptyMeta $ A.Else emptyMeta p)) . over)
+  
+  ,testBothSame "testCase 10" "switch($){case $:{@}break;default:^}" ((tcall3 genCase emptyMeta e (A.OnlyO emptyMeta $ A.Option emptyMeta [intLiteral 0] p)) . over)
+
+  ,testBothSame "testCase 20" "switch($){case $:case $:{#@}break;default:{@}break;case $:{@}break;}" ((tcall3 genCase emptyMeta e $ A.Several emptyMeta
+      [spec $ A.OnlyO emptyMeta $ A.Option emptyMeta [e, e] p
+      ,A.OnlyO emptyMeta $ A.Else emptyMeta p
+      ,A.OnlyO emptyMeta $ A.Option emptyMeta [e] p]
+    ) . over)
+ ]
+  where
+    --The expression and process won't be used so we can use what we like:
+    e = A.True emptyMeta
+    p = A.Skip emptyMeta
+    spec = A.Spec emptyMeta undefined
+    over ops = ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -531,6 +556,7 @@ tests = TestList
    ,testArraySizes
    ,testArraySubscript
    ,testAssign
+   ,testCase
    ,testDeclaration
    ,testDeclareInitFree
    ,testGenType
