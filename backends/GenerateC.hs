@@ -1232,8 +1232,9 @@ cdeclareInit ops m rt@(A.Record _) var
     initField :: A.Type -> A.Variable -> CGen ()
     -- An array as a record field; we must initialise the sizes.
     initField t@(A.Array ds _) v
-        =  do sequence_ [do call genVariable ops v
-                            tell ["_sizes[", show i, "] = ", show n, ";\n"]
+        =  do sequence_ [do call genVariableUnchecked ops v
+                            call genSizeSuffix ops (show i) 
+                            tell ["=", show n, ";"]
                          | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
               doMaybe $ call declareInit ops m t v
     initField t v = doMaybe $ call declareInit ops m t v
