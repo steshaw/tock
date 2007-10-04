@@ -498,6 +498,31 @@ testGenVariable = TestList
    testSameA2 :: Int -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testSameA2 n (eO,eA) sub t = TestList [testSame n eO sub A.Original t,testSame (n+1) eA sub A.Abbrev t]
 
+testAssign :: Test
+testAssign = TestList
+ [
+  testBothSameS "testAssign 0" "@=$;" ((tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])) . over) (state A.Int)
+  ,testBothSameS "testAssign 1" "@=$;" ((tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])) . over) (state A.Time)
+  ,testBothSameS "testAssign 2" "@=$;" ((tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])) . over)
+    (state $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+
+  -- Fail because genAssign only handles one destination and one source:
+  ,testBothFail "testAssign 100" (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo,A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e]))
+  ,testBothFail "testAssign 101" (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e,e]))
+  ,testBothFail "testAssign 102" (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo,A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e, e]))
+  
+  -- Fail because assignment can't be done with these types (should have already been transformed away):
+  ,testBothFailS "testAssign 200" ((tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])) . over)
+    (state $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testBothFailS "testAssign 201" ((tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])) . over)
+    (state $ A.Record bar)
+ ]
+ where
+   --The expression won't be examined so we can use what we like:
+   e = A.True emptyMeta
+   state t = defineName (simpleName "foo") $ simpleDefDecl "foo" t
+   over ops = ops {genVariable = override1 at, genExpression = override1 dollar}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -505,6 +530,7 @@ tests = TestList
    testActuals
    ,testArraySizes
    ,testArraySubscript
+   ,testAssign
    ,testDeclaration
    ,testDeclareInitFree
    ,testGenType

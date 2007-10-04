@@ -64,7 +64,9 @@ instance Die CGen where
 data GenOps = GenOps {
     -- | Declares the C array of sizes for an occam array.
     declareArraySizes :: GenOps -> [A.Dimension] -> A.Name -> CGen (),
+    -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
+    -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
     declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareType :: GenOps -> A.Type -> CGen (),
     -- | Generates an individual parameter to a function\/proc.
@@ -83,6 +85,7 @@ data GenOps = GenOps {
     -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
     genArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen (),
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
+    -- | Generates an assignment statement with a single destination and single source.
     genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
     genBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen (),
     genBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int),
@@ -1480,22 +1483,24 @@ cgenProcess ops p = case p of
 
 --{{{  assignment
 cgenAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
-cgenAssign ops m [v] el
-    = case el of
-        A.FunctionCallList _ _ _ -> call genMissing ops "function call"
-        A.ExpressionList _ [e] ->
-          do t <- typeOfVariable v
-             doAssign t v e
+cgenAssign ops m [v] (A.ExpressionList _ [e])
+    = do t <- typeOfVariable v
+         case call getScalarType ops t of
+           Just _ -> doAssign v e
+           Nothing -> case t of
+             -- Assignment of channel-ends, but not channels, is possible (at least in Rain):
+             A.Chan A.DirInput _ _ -> doAssign v e
+             A.Chan A.DirOutput _ _ -> doAssign v e
+             _ -> call genMissingC ops $ formatCode "assignment of type %" t
   where
-    doAssign :: A.Type -> A.Variable -> A.Expression -> CGen ()
-    doAssign t v e
-        = case call getScalarType ops t of
-            Just _ ->
-              do call genVariable ops v
-                 tell [" = "]
-                 call genExpression ops e
-                 tell [";\n"]
-            Nothing -> call genMissingC ops $ formatCode "assignment of type %" t
+    doAssign :: A.Variable -> A.Expression -> CGen ()
+    doAssign v e
+        = do call genVariable ops v
+             tell ["="]
+             call genExpression ops e
+             tell [";"]
+cgenAssign ops m _ _ = call genMissing ops "Cannot perform assignment with multiple destinations or multiple sources"
+
 --}}}
 --{{{  input
 cgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()
