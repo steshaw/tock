@@ -62,6 +62,7 @@ instance Die CGen where
 -- These are in a structure so that we can reuse operations in other
 -- backends without breaking the mutual recursion.
 data GenOps = GenOps {
+    -- | Declares the C array of sizes for an occam array.
     declareArraySizes :: GenOps -> [A.Dimension] -> A.Name -> CGen (),
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
@@ -784,11 +785,12 @@ cgenArraySubscript ops checkValid v es
                         call genExpression ops e
                         tell [","]
                         call genVariable ops v
-                        tell ["_sizes[", show sub, "],"]
+                        call genSizeSuffix ops (show sub)
+                        tell [","]
                         genMeta (findMeta e)
                         tell [")"]
                 else call genExpression ops e
-        genChunks = [call genVariable ops v >> tell ["_sizes[", show i, "]"] | i <- subs]
+        genChunks = [call genVariable ops v >> call genSizeSuffix ops (show i) | i <- subs]
 --}}}
 
 --{{{  expressions

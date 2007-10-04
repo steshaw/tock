@@ -1166,7 +1166,8 @@ cppgenArraySubscript ops checkValid v es
                         call genExpression ops e
                         tell [","]
                         call genVariable ops v
-                        tell [".extent(", show sub, "),"]
+                        call genSizeSuffix ops (show sub)
+                        tell [","]
                         genMeta (findMeta e)
                         tell [")"]
                 else call genExpression ops e
