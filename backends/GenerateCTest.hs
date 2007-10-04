@@ -148,12 +148,16 @@ testBothSameS ::
   -> Test
 testBothSameS n e a s = testBothS n e e a s
 
-testBothSameR :: 
+testBothR :: 
   String    -- ^ Test Name
-  -> String -- ^ C and C++ expected
+  -> String -- ^ C expected
+  -> String -- ^ C++ expected
   -> (GenOps -> CGen ()) -- ^ Actual
   -> Test
-testBothSameR n e a = TestCase $ (testRS n e (a cgenOps) (return ())) >> (testRS n e (a cppgenOps) (return ())) >> (return ())
+testBothR n eC eCPP a = TestList [TestCase $ (testRS n eC (a cgenOps) (return ())) >> return (), TestCase $ (testRS n eCPP (a cppgenOps) (return ())) >> (return ())]
+
+testBothSameR :: String -> String -> (GenOps -> CGen ()) -> Test
+testBothSameR n e a = testBothR n e e a
 
 testBothFail :: String -> (GenOps -> CGen ()) -> Test
 testBothFail a b = testBothFailS a b (return ())
@@ -553,6 +557,22 @@ testGetTime = testBoth "testGetTime 0" "ProcTime(&@);" "csp::CurrentTime(&@);" (
   where
     over ops = ops {genVariable = override1 at}
 
+testIf :: Test
+testIf = TestList
+ [
+  testBothR "testIf 0" "/\\*([[:alnum:]_]+)\\*/\\^\\1:;" "class ([[:alnum:]_]+)\\{\\};try\\{\\^\\}catch\\(\\1\\)\\{\\}"
+    ((tcall2 genIf emptyMeta (A.Several emptyMeta [])) . over)
+  ,testBothR "testIf 1" "/\\*([[:alnum:]_]+)\\*/if\\(\\$\\)\\{@goto \\1;\\}\\^\\1:;" 
+    "class ([[:alnum:]_]+)\\{\\};try\\{if\\(\\$\\)\\{@throw \\1\\(\\);\\}\\^\\}catch\\(\\1\\)\\{\\}"
+    ((tcall2 genIf emptyMeta (A.OnlyC emptyMeta $ A.Choice emptyMeta e p)) . over)
+ ]
+ where
+   e :: A.Expression
+   e = undefined
+   p :: A.Process
+   p = undefined 
+   over ops = ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -567,6 +587,7 @@ tests = TestList
    ,testGenType
    ,testGenVariable
    ,testGetTime
+   ,testIf
    ,testOverArray
    ,testReplicator
    ,testStop

@@ -1175,20 +1175,20 @@ cppgenUnfoldedVariable ops m var
 cppgenIf :: GenOps -> Meta -> A.Structured -> CGen ()
 cppgenIf ops m s
     =  do ifExc <- makeNonce "if_exc"
-          tell ["class ",ifExc, " {}; try {"]
+          tell ["class ",ifExc, "{};try{"]
           genIfBody ifExc s
           call genStop ops m "no choice matched in IF process"
-          tell ["} catch (",ifExc,") {}"]
+          tell ["}catch(",ifExc,"){}"]
   where
     genIfBody :: String -> A.Structured -> CGen ()
     genIfBody ifExc s = call genStructured ops s doC
       where
         doC (A.OnlyC m (A.Choice m' e p))
-            = do tell ["if ("]
+            = do tell ["if("]
                  call genExpression ops e
-                 tell [") {\n"]
+                 tell ["){"]
                  call genProcess ops p
-                 tell ["throw ",ifExc, "(); }\n"]
+                 tell ["throw ",ifExc, "();}"]
 --}}}
 
 

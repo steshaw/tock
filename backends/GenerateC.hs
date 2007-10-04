@@ -109,6 +109,7 @@ data GenOps = GenOps {
     genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
     -- | Gets the current time into the given variable
     genGetTime :: GenOps -> Meta -> A.Variable -> CGen (),
+    -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
     genInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen (),
@@ -1613,20 +1614,21 @@ cgenSeq ops s = call genStructured ops s doP
 cgenIf :: GenOps -> Meta -> A.Structured -> CGen ()
 cgenIf ops m s
     =  do label <- makeNonce "if_end"
+          tell ["/*",label,"*/"]
           genIfBody label s
           call genStop ops m "no choice matched in IF process"
-          tell [label, ":\n;\n"]
+          tell [label, ":;"]
   where
     genIfBody :: String -> A.Structured -> CGen ()
     genIfBody label s = call genStructured ops s doC
       where
         doC (A.OnlyC m (A.Choice m' e p))
-            = do tell ["if ("]
+            = do tell ["if("]
                  call genExpression ops e
-                 tell [") {\n"]
+                 tell ["){"]
                  call genProcess ops p
-                 tell ["goto ", label, ";\n"]
-                 tell ["}\n"]
+                 tell ["goto ", label, ";"]
+                 tell ["}"]
 --}}}
 --{{{  case
 cgenCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen ()
