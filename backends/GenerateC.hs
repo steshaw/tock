@@ -160,6 +160,7 @@ data GenOps = GenOps {
     genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
     -- | Performs a wait for\/until (depending on the 'A.WaitMode') a specified time
     genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
+    -- | Generates a while loop with the given condition and body.
     genWhile :: GenOps -> A.Expression -> A.Process -> CGen (),
     getScalarType :: GenOps -> A.Type -> Maybe String,
     introduceSpec :: GenOps -> A.Specification -> CGen (),
@@ -1668,11 +1669,11 @@ cgenCase ops m e s
 --{{{  while
 cgenWhile :: GenOps -> A.Expression -> A.Process -> CGen ()
 cgenWhile ops e p
-    =  do tell ["while ("]
+    =  do tell ["while("]
           call genExpression ops e
-          tell [") {\n"]
+          tell ["){"]
           call genProcess ops p
-          tell ["}\n"]
+          tell ["}"]
 --}}}
 --{{{  par
 cgenPar :: GenOps -> A.ParMode -> A.Structured -> CGen ()

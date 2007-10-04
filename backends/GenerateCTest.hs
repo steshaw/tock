@@ -582,6 +582,11 @@ testIf = TestList
    p = undefined 
    over ops = ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
+testWhile :: Test
+testWhile = testBothSame "testWhile 0" "while($){@}" ((tcall2 genWhile undefined undefined) . over)
+  where
+    over ops = ops {genExpression = override1 dollar, genProcess = override1 at}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -601,4 +606,5 @@ tests = TestList
    ,testReplicator
    ,testStop
    ,testWait
+   ,testWhile
  ]
