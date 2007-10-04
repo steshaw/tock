@@ -1224,10 +1224,10 @@ cgenArraySizesLiteral ops ds
 
 -- | Initialise an item being declared.
 cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareInit ops _ (A.Chan {}) var
-    = Just $ do tell ["ChanInit ("]
+cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var
+    = Just $ do tell ["ChanInit("]
                 call genVariable ops var
-                tell [");\n"]
+                tell [");"]
 cdeclareInit ops m t@(A.Array ds t') var
     = Just $ do init <- case t' of
                           A.Chan {} ->

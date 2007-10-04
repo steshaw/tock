@@ -45,6 +45,9 @@ at = tell ["@"]
 dollar :: CGen ()
 dollar = tell ["$"]
 
+caret :: CGen ()
+caret = tell ["^"]
+
 foo :: A.Name
 foo = simpleName "foo"
 
@@ -165,6 +168,12 @@ override1 ::
   b -- ^ The value to return for the overridden function
   -> (GenOps -> a -> b) -- ^ The resulting overriden function
 override1 val = (\_ _ -> val)
+
+override2 :: b -> (GenOps -> a0 -> a1 -> b)
+override2 val = (\_ _ _ -> val)
+
+override3 :: b -> (GenOps -> a0 -> a1 -> a2 -> b)
+override3 val = (\_ _ _ _ -> val)
 
 testGenType :: Test
 testGenType = TestList 
@@ -346,6 +355,34 @@ testDeclaration = TestList
     "csp::Chanout<int> foo_actual[8*9];tockArrayView<csp::Chanout<int>,2> foo(foo_actual,tockDims(8,9));"
     (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
  ]
+ 
+
+testDeclareInitFree :: Test
+testDeclareInitFree = TestList
+ [
+  testAllSame 0 ("","") A.Int
+  ,testAll 1 ("ChanInit((&foo));","") ("","") $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 2 ("","") $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
+ ]
+ where
+   testAll :: Int -> (String,String) -> (String,String) -> A.Type -> Test
+   testAll n (iC,fC) (iCPP,fCPP) t = TestList
+    [
+     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t)) . over) state
+     ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP ((fromMaybe (return ())) . (tcall3 declareInit emptyMeta t (A.Variable emptyMeta foo)) . over) state
+     ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP ((tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t)) . over) state
+     ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP ((fromMaybe (return ())) . (tcall3 declareFree emptyMeta t (A.Variable emptyMeta foo)) . over) state
+    ]
+     where
+       overArray _ _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
+         Just p -> caret >> p >> caret
+         Nothing -> return ()
+       over ops = ops {genDeclaration = override2 at, genOverArray = overArray}
+       state = defineName (simpleName "foo") $ simpleDefDecl "foo" t
+   testAllSame :: Int -> (String,String) -> A.Type -> Test
+   testAllSame n e t = testAll n e e t
+
 
 ---Returns the list of tests:
 tests :: Test
@@ -355,6 +392,7 @@ tests = TestList
    ,testArraySizes
    ,testArraySubscript
    ,testDeclaration
+   ,testDeclareInitFree
    ,testGenType
    ,testOverArray
    ,testReplicator
