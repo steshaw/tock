@@ -51,6 +51,9 @@ caret = tell ["^"]
 foo :: A.Name
 foo = simpleName "foo"
 
+bar:: A.Name
+bar = simpleName "bar"
+
 -- | Asserts that the given output of a CGen pass matches the expected value.
 assertGen :: String -> String -> IO (Either Errors.ErrorReport [String]) -> Assertion
 assertGen n exp act
@@ -388,6 +391,71 @@ testDeclareInitFree = TestList
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
 
+defRecord :: String -> String -> A.Type -> State CompState ()
+defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
+
+testGenVariable :: Test
+testGenVariable = TestList
+ [
+  -- Various types, unsubscripted:
+  testSameA 0 ("foo","(*foo)","foo") id A.Int
+  ,testSameA 10 ("(&foo)","foo","foo") id (A.Record bar)
+  ,testSameA2 20 ("(&foo)","foo") id (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testSameA2 30 ("foo","foo") id (A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  
+  -- Arrays of the previous types, unsubscripted:
+  ,testSameA 100 ("foo","foo","foo") id (A.Array [A.Dimension 8] A.Int)
+  ,testSameA 110 ("foo","foo","foo") id (A.Array [A.Dimension 8] $ A.Record bar)
+  ,testSameA2 120 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testSameA2 130 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  
+  -- Subscripted record:
+  ,testSameA 200 ("(&foo)->x","foo->x","foo->x") fieldX (A.Record bar)
+  
+  -- Fully subscripted array:
+  ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
+  ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int)
+  ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Record bar)
+  ,testAC 320 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  
+  -- Fully subscripted array, and record field reference:
+  ,testAC 400 ("(&foo@C4)->x","(&foo@U4)->x") (fieldX . (sub 4)) (A.Array [A.Dimension 8] $ A.Record bar)
+  -- As above, but then with an index too:
+  ,testAC 410 ("(&foo@C4)->x@C4","(&foo@U4)->x@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [A.Dimension 8] $ A.Record bar)
+  
+  --TODO come back to slices later
+ ]
+ where
+   fieldX = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "x")
+   sub n = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral n)
+ 
+   test :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
+   test n (eC,eUC) (eCPP,eUCPP) sub am t = TestList
+    [
+     testBothS ("testGenVariable/checked" ++ show n) eC eCPP ((tcall genVariable $ sub $ A.Variable emptyMeta foo) . over) state
+     ,testBothS ("testGenVariable/unchecked" ++ show n) eUC eUCPP ((tcall genVariableUnchecked $ sub $ A.Variable emptyMeta foo) . over) state
+    ]
+     where
+       state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t) am A.Unplaced
+                  defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
+       over ops = ops {genArraySubscript = (\_ b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression ops) subs))}
+   
+   testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
+   testA n eC eCPP sub t = TestList [test n eC eCPP sub A.Original t, test (n+1) eC eCPP sub A.Abbrev t, test (n+2) eC eCPP sub A.ValAbbrev t]
+   
+   testAC :: Int -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
+   testAC n e sub t = testA n e e sub t
+   
+   
+   testSame :: Int -> String -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
+   testSame n e sub am t = test n (e,e) (e,e) sub am t
+   
+   testSameA :: Int -> (String,String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
+   testSameA n (eO,eA,eVA) sub t = TestList [testSame n eO sub A.Original t,testSame (n+1) eA sub A.Abbrev t,testSame (n+2) eVA sub A.ValAbbrev t]
+
+   testSameA2 :: Int -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
+   testSameA2 n (eO,eA) sub t = TestList [testSame n eO sub A.Original t,testSame (n+1) eA sub A.Abbrev t]
 
 ---Returns the list of tests:
 tests :: Test
@@ -399,6 +467,7 @@ tests = TestList
    ,testDeclaration
    ,testDeclareInitFree
    ,testGenType
+   ,testGenVariable
    ,testOverArray
    ,testReplicator
    ,testStop
