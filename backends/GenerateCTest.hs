@@ -19,6 +19,16 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | Tests for the C and C++ backends
+--
+-- The testing strategy is as follows.  The way we have implemented the C and C++ backends is 
+-- to have a dictionary of functions 'GenerateC.GenOps' that is used for (mutually) recursive
+-- calls.  We can take advantage of this during testing.  For example, we have a test that
+-- tests genArraySubscript directly.  When we test genVariableChecked, we don't want to have
+-- to effectively check parts of genArraySubscript again.  So we can \"override\" the
+-- genArraySubscript to return a dummy value, and then we are effectively testing 
+-- that genVariableChecked calls genArraySubscript at the appropriate point.  This is similar
+-- to a testing technique in OOP where one might take a class and override some methods to
+-- do a similar trick.
 module GenerateCTest (tests) where
 
 import Control.Monad.Error
