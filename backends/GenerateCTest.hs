@@ -360,22 +360,53 @@ testDeclaration = TestList
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
     "csp::Chanout<int> foo_actual[8*9];tockArrayView<csp::Chanout<int>,2> foo(foo_actual,tockDims(8,9));"
     (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
+    
+    
+  --Records of simple:
+  ,testBothSameS "genDeclaration 300" "REC foo;" (tcall2 genDeclaration (A.Record $ simpleName "REC") foo) (stateR A.Int)
+  
+  --Records of arrays of int (the sizes are set by declareInit):
+  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall2 genDeclaration (A.Record $ simpleName "REC") foo) (stateR $ A.Array [A.Dimension 8] A.Int)
  ]
- 
+ where
+   stateR t = defRecord "REC" "bar" t
 
 testDeclareInitFree :: Test
 testDeclareInitFree = TestList
  [
+  -- Plain type:
   testAllSame 0 ("","") A.Int
+  
+  -- Channel types:
   ,testAll 1 ("ChanInit((&foo));","") ("","") $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllSame 2 ("","") $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  
+  -- Plain arrays:
   ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
+  
+  -- Channel arrays:
   ,testAll 4 ("^ChanInit((&foo[0]));^","") ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllSame 5 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  
+  -- Plain records:
+  ,testAllR 100 ("","") ("","") A.Int
+  -- Records containing an array:
+  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;","") ("","") $ A.Array [A.Dimension 4] A.Int
+  -- Arrays of records containing an array:
+  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;^","") ("","") $ A.Array [A.Dimension 4] A.Int
  ]
  where
    testAll :: Int -> (String,String) -> (String,String) -> A.Type -> Test
-   testAll n (iC,fC) (iCPP,fCPP) t = TestList
+   testAll n eC eCPP t = testAll' n eC eCPP t (defineName (simpleName "foo") $ simpleDefDecl "foo" t)
+   
+   testAllR :: Int -> (String,String) -> (String,String) -> A.Type -> Test
+   testAllR n eC eCPP t = testAll' n eC eCPP (A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC"))
+
+   testAllRA :: Int -> (String,String) -> (String,String) -> A.Type -> Test
+   testAllRA n eC eCPP t = testAll' n eC eCPP (A.Array [A.Dimension 5] $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC"))
+
+   testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
+   testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
     [
      testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t)) . over) state
      ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP ((fromMaybe (return ())) . (tcall3 declareInit emptyMeta t (A.Variable emptyMeta foo)) . over) state
@@ -387,7 +418,7 @@ testDeclareInitFree = TestList
          Just p -> caret >> p >> caret
          Nothing -> return ()
        over ops = ops {genDeclaration = override2 at, genOverArray = overArray}
-       state = defineName (simpleName "foo") $ simpleDefDecl "foo" t
+
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
 
