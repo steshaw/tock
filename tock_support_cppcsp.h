@@ -335,11 +335,6 @@ public:
 		return tockArrayView<const T,DIMS>((const T*)realArray,std::make_pair(dims,totalSubDim));
 	}
 	
-	inline void updateFromVector(std::vector<typename boost::remove_const<T>::type>& v)
-	{
-		realArray = v.empty() ? NULL : &(v.at(0));
-	}
-		
 	inline tockArrayView<typename boost::remove_const<T>::type,DIMS> versionToSend()
 	{
 		return tockArrayView<typename boost::remove_const<T>::type,DIMS>(const_cast<typename boost::remove_const<T>::type*>(realArray),std::make_pair(dims,totalSubDim));
