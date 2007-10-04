@@ -147,8 +147,10 @@ data GenOps = GenOps {
     genTypeSymbol :: GenOps -> String -> A.Type -> CGen (),
     genUnfoldedExpression :: GenOps -> A.Expression -> CGen (),
     genUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen (),
+    -- | Generates a variable, with indexing checks if needed
     genVariable :: GenOps -> A.Variable -> CGen (),
     genVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen (),
+    -- | Generates a variable, with no indexing checks anywhere
     genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
     genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
     genWhile :: GenOps -> A.Expression -> A.Process -> CGen (),
@@ -734,10 +736,10 @@ cgenVariable' ops checkValid v
     inner (A.DirectedVariable _ dir v) = call genDirectedVariable ops (inner v) dir
     inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         =  do let (es, v) = collectSubs sv
-              call genVariable ops v
+              recurse v
               call genArraySubscript ops checkValid v es
     inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
-        =  do call genVariable ops v
+        =  do recurse v
               tell ["->"]
               genName n
     inner (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v)
@@ -746,6 +748,9 @@ cgenVariable' ops checkValid v
         = inner (A.SubscriptedVariable m (A.Subscript m' start) v)
     inner (A.SubscriptedVariable m (A.SubscriptFor m' _) v)
         = inner (A.SubscriptedVariable m (A.Subscript m' (makeConstant m' 0)) v)
+    
+    recurse :: A.Variable -> CGen()
+    recurse = if checkValid then call genVariable ops else call genVariableUnchecked ops
 
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> ([A.Expression], A.Variable)
