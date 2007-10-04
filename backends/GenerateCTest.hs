@@ -557,6 +557,15 @@ testGetTime = testBoth "testGetTime 0" "ProcTime(&@);" "csp::CurrentTime(&@);" (
   where
     over ops = ops {genVariable = override1 at}
 
+testWait :: Test
+testWait = TestList
+ [
+  testBoth "testWait 0" "ProcTimeAfter($);" "csp::SleepUntil($);" ((tcall2 genWait A.WaitUntil undefined) . over)
+  ,testBoth "testWait 1" "ProcAfter($);" "csp::SleepFor($);" ((tcall2 genWait A.WaitFor undefined) . over)
+ ]
+ where
+   over ops = ops {genExpression = override1 dollar}
+
 testIf :: Test
 testIf = TestList
  [
@@ -591,4 +600,5 @@ tests = TestList
    ,testOverArray
    ,testReplicator
    ,testStop
+   ,testWait
  ]

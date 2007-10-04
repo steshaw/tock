@@ -158,6 +158,7 @@ data GenOps = GenOps {
     genVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
     genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
+    -- | Performs a wait for\/until (depending on the 'A.WaitMode') a specified time
     genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
     genWhile :: GenOps -> A.Expression -> A.Process -> CGen (),
     getScalarType :: GenOps -> A.Type -> Maybe String,
@@ -1562,9 +1563,9 @@ cgenTimerRead ops c v
 
 cgenTimerWait :: GenOps -> A.Expression -> CGen ()
 cgenTimerWait ops e
-    =  do tell ["ProcTimeAfter ("]
+    =  do tell ["ProcTimeAfter("]
           call genExpression ops e
-          tell [");\n"]
+          tell [");"]
 
 cgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
 cgenGetTime ops m v
@@ -1575,9 +1576,9 @@ cgenGetTime ops m v
 cgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
 cgenWait ops A.WaitUntil e = call genTimerWait ops e
 cgenWait ops A.WaitFor e
-    =  do tell ["ProcAfter ("]
+    =  do tell ["ProcAfter("]
           call genExpression ops e
-          tell [");\n"]
+          tell [");"]
 
 --}}}
 --{{{  output
