@@ -124,28 +124,6 @@ tie10(T1& t1, T2& t2, T3& t3, T4& t4, T5& t5, T6& t6, T7& t7, T8& t8,
            (t1, t2, t3, t4, t5, t6, t7, t8, t9, t10);
 }
 
-
-class tockAny : public boost::any
-{
-public:
-	inline tockAny() {}
-	
-	inline tockAny(const tockAny& t)
-		:	boost::any(*(boost::any*)&t)
-	{
-	}
-
-	template <typename T>
-	inline tockAny(T t) : boost::any(t) {}
-	
-	template <typename T>
-	inline operator T () const
-	{
-		return boost::any_cast<T>(*this);
-	}
-};
-
-
 //Let's assume bool is an unsigned byte:
 #define occam_mostneg_tockBool 0
 #define occam_mostpos_tockBool 255
@@ -384,5 +362,35 @@ public:
 	inline T& access() const
 	{
 		return *realArray;
+	}
+};
+
+class tockSendableArrayOfBytes
+{
+private:
+	unsigned n;
+	///This is not as horrific as it looks - it is never used as a way to get rid of the const tag on the same pointer, only one field is used at a time.
+	union
+	{
+		const void* sp;
+		void* dp;
+	};
+public:
+	///For the sender:
+	inline explicit tockSendableArrayOfBytes(const void* p)
+		:	n(0),sp(p)
+	{
+	}
+	
+	///For the receiver:
+	inline tockSendableArrayOfBytes(unsigned _n,void* p)
+		:	n(_n),sp(p)
+	{
+	}
+	
+	inline void operator=(const tockSendableArrayOfBytes& _src)
+	{
+		//We use the receiver's byte count:
+		memcpy(dp,sp,n);
 	}
 };

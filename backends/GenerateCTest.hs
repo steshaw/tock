@@ -228,12 +228,22 @@ testGenType = TestList
   ,testBoth "GenType 402" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) 
   ,testBoth "GenType 403" "Channel*" "csp::Chanout<int>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) 
   
-  --ANY and protocols can occur outside channels in C++ (e.g. temporaries for reading from channels), so they are tested here:
-  ,testCPPF "GenType 500" "tockAny" (tcall genType $ A.Any) 
-  ,testCPPF "GenType 600" "protocol_foo" (tcall genType $ A.UserProtocol (simpleName "foo")) 
-  
+  --ANY and protocols cannot occur outside channels in C++ or C, they are tested here:
+  ,testBothFail "GenType 500" (tcall genType $ A.Any) 
+  ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
+  ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int A.Int) 
+   
   ,testBoth "GenType 700" "Channel*" "tockArrayView<csp::One2OneChannel<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testBoth "GenType 701" "Channel**" "tockArrayView<csp::Chanin<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  
+  --Test types that can only occur inside channels:
+  --ANY:
+  ,testBoth "GenType 800" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any)
+  --Protocol:
+  ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
+  --Counted:
+  ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Counted A.Int A.Int)
+
  ]
 
 testStop :: Test
