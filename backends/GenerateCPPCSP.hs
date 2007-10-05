@@ -847,12 +847,6 @@ cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
 
 -- FIXME: We could just fall through to cintroduceSpec as the last clause...
 --This clause is unchanged from GenerateC:
-cppintroduceSpec ops (A.Specification m n (A.Declaration _ t))
-    = do call genDeclaration ops t n
-         case call declareInit ops m t (A.Variable m n) of
-           Just p -> p
-           Nothing -> return ()
---This clause is unchanged from GenerateC:
 cppintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
     =  do let rhs = cppabbrevVariable ops am t v
           call genDecl ops am t n
@@ -908,9 +902,7 @@ cppintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
                    tell ["[",show index,"].access() = "] --Use the .access() function to cast a 0-dimension array into a T& for access
                    call genVariable ops var
                    tell [";"]
---This clause is unchanged from GenerateC:
-cppintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
---This clause was simplified, because the array handling could be removed:
+--This clause was simplified, because we don't need separate array sizes in C++:
 cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct {\n"]
           sequence_ [call genDeclaration ops t n
@@ -971,8 +963,8 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
                    _ -> return ()
                  tell [");\n"]
 
---This clause is unchanged from GenerateC:
-cppintroduceSpec ops n = call genMissing ops $ "introduceSpec " ++ show n
+--For all other cases, use the C implementation:
+cppintroduceSpec ops n = cintroduceSpec ops n
 
 cppgenSizeSuffix :: GenOps -> String -> CGen ()
 cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
