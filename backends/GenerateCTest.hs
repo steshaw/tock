@@ -351,49 +351,57 @@ testDeclaration :: Test
 testDeclaration = TestList
  [
   --Simple: 
-  testBothSame "genDeclaration 0" "int foo;" (tcall2 genDeclaration A.Int foo)
+  testBothSame "genDeclaration 0" "int foo;" (tcall3 genDeclaration A.Int foo False)
   
   --Channels and channel-ends:
-  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
-  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) foo)
-  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) foo)
-  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int> foo;" (tcall2 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) foo)
-  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int> foo;" (tcall2 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo)
-  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int> foo;" (tcall2 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False True) A.Int) foo)
-  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int> foo;" (tcall2 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
-  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int> foo;" (tcall2 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) foo)  
+  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
+  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) foo False)
+  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) foo False)
+  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) foo False)
+  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int> foo;" (tcall3 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
+  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int> foo;" (tcall3 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False True) A.Int) foo False)
+  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
+  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) foo False)  
   
   --Arrays (of simple):
   ,testBoth "genDeclaration 100" "int foo[8];const int foo_sizes[]={8};" "int foo_actual[8];tockArrayView<int,1> foo(foo_actual,tockDims(8));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8] A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo False)
   ,testBoth "genDeclaration 101" "int foo[8*9];const int foo_sizes[]={8,9};" "int foo_actual[8*9];tockArrayView<int,2> foo(foo_actual,tockDims(8,9));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo False)
   ,testBoth "genDeclaration 102" "int foo[8*9*10];const int foo_sizes[]={8,9,10};" "int foo_actual[8*9*10];tockArrayView<int,3> foo(foo_actual,tockDims(8,9,10));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo False)
+
+  --Arrays (of simple) inside records:
+  ,testBoth "genDeclaration 110" "int foo[8];int foo_sizes[1];" "int foo_actual[8];tockArrayView<int,1> foo;"
+    (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo True)
+  ,testBoth "genDeclaration 111" "int foo[8*9];int foo_sizes[2];" "int foo_actual[8*9];tockArrayView<int,2> foo;"
+    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo True)
+  ,testBoth "genDeclaration 112" "int foo[8*9*10];int foo_sizes[3];" "int foo_actual[8*9*10];tockArrayView<int,3> foo;"
+    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo True)
   
   --Arrays of channels and channel-ends:
   ,testBoth "genDeclaration 200" "Channel foo[8];const int foo_sizes[]={8};"
     "csp::One2OneChannel<int> foo_actual[8];tockArrayView<csp::One2OneChannel<int>,1> foo(foo_actual,tockDims(8));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 201" "Channel foo[8*9];const int foo_sizes[]={8,9};"
     "csp::One2OneChannel<int> foo_actual[8*9];tockArrayView<csp::One2OneChannel<int>,2> foo(foo_actual,tockDims(8,9));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
     "csp::Chanin<int> foo_actual[8];tockArrayView<csp::Chanin<int>,1> foo(foo_actual,tockDims(8));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
     "csp::Chanout<int> foo_actual[8*9];tockArrayView<csp::Chanout<int>,2> foo(foo_actual,tockDims(8,9));"
-    (tcall2 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo)
+    (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
     
     
   --Records of simple:
-  ,testBothSameS "genDeclaration 300" "REC foo;" (tcall2 genDeclaration (A.Record $ simpleName "REC") foo) (stateR A.Int)
+  ,testBothSameS "genDeclaration 300" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR A.Int)
   
   --Records of arrays of int (the sizes are set by declareInit):
-  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall2 genDeclaration (A.Record $ simpleName "REC") foo) (stateR $ A.Array [A.Dimension 8] A.Int)
+  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [A.Dimension 8] A.Int)
  ]
  where
    stateR t = defRecord "REC" "bar" t
@@ -444,7 +452,7 @@ testDeclareInitFree = TestList
        overArray _ _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
          Just p -> caret >> p >> caret
          Nothing -> return ()
-       over ops = ops {genDeclaration = override2 at, genOverArray = overArray}
+       over ops = ops {genDeclaration = override3 at, genOverArray = overArray}
 
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
@@ -480,7 +488,7 @@ testSpec = TestList
       ,testBoth ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over)
      ]
     testAllSame n e s = testAll n e e s
-    over ops = ops {genDeclaration = override2 (tell ["#ATION"]), genDecl = override3 (tell ["#DECL"]) 
+    over ops = ops {genDeclaration = override3 (tell ["#ATION"]), genDecl = override3 (tell ["#DECL"]) 
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    }
 

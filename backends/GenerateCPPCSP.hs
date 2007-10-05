@@ -648,8 +648,8 @@ cppgenProcCall ops n as
 --The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
 --I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
 --but I will worry about that later
-cppgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
-cppgenDeclaration ops arrType@(A.Array ds t) n
+cppgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
+cppgenDeclaration ops arrType@(A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
           genName n
@@ -664,7 +664,18 @@ cppgenDeclaration ops arrType@(A.Array ds t) n
           tell ["_actual,tockDims("]
           genDims ds
           tell ["));"]
-cppgenDeclaration ops t n
+cppgenDeclaration ops arrType@(A.Array ds t) n True
+    =  do call genType ops t
+          tell [" "]
+          genName n
+          tell ["_actual["]
+          call genFlatArraySize ops ds
+          tell ["];"]
+          call genType ops arrType
+          tell [" "]
+          genName n;
+          tell [";"]
+cppgenDeclaration ops t n _
     =  do call genType ops t
           tell [" "]
           genName n
@@ -914,7 +925,7 @@ cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
 
 -- We must create the channel array then fill it:
 cppintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
-    =  do call genDeclaration ops t n
+    =  do call genDeclaration ops t n False
           sequence_ $ map genChanArrayElemInit (zip [0 .. ((length cs) - 1)] cs)
           where
             genChanArrayElemInit (index,var)
@@ -924,8 +935,8 @@ cppintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
                    tell [";"]
 --This clause was simplified, because we don't need separate array sizes in C++:
 cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
-    =  do tell ["typedef struct {\n"]
-          sequence_ [call genDeclaration ops t n
+    =  do tell ["typedef struct{"]
+          sequence_ [call genDeclaration ops t n True
                      | (n, t) <- fs]
           tell ["} "]
           when b $ tell ["occam_struct_packed "]

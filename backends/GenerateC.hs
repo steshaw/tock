@@ -95,8 +95,9 @@ data GenOps = GenOps {
     genConversionSymbol :: GenOps -> A.Type -> A.Type -> A.ConversionMode -> CGen (),
     genDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),
     genDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen (),
-    -- | Generates a declaration of a variable of the specified type and name
-    genDeclaration :: GenOps -> A.Type -> A.Name -> CGen (),
+    -- | Generates a declaration of a variable of the specified type and name.  
+    -- The Bool indicates whether the declaration is inside a record (True) or not (False).
+    genDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen (),
     genDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen (),
     genDyadic :: GenOps -> Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: GenOps -> A.Expression -> CGen (),
@@ -1176,15 +1177,26 @@ cgenSpec ops spec body
           call removeSpec ops spec
 
 -- | Generate a declaration of a new variable.
-cgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
-cgenDeclaration ops (A.Array ds t) n
+cgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
+cgenDeclaration ops (A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
           genName n
           call genFlatArraySize ops ds
           tell [";"]
           call declareArraySizes ops ds n
-cgenDeclaration ops t n
+cgenDeclaration ops (A.Array ds t) n True
+    =  do call genType ops t
+          tell [" "]
+          genName n
+          call genFlatArraySize ops ds
+          tell [";"]
+          tell ["int "]
+          genName n
+          tell ["_sizes"]
+          call genArraySizesSize ops ds
+          tell [";"]
+cgenDeclaration ops t n _
     =  do call genType ops t
           tell [" "]
           genName n
@@ -1269,7 +1281,7 @@ CHAN OF INT c IS d:       Channel *c = d;
 -}
 cintroduceSpec :: GenOps -> A.Specification -> CGen ()
 cintroduceSpec ops (A.Specification m n (A.Declaration _ t))
-    = do call genDeclaration ops t n
+    = do call genDeclaration ops t n False
          case call declareInit ops m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
@@ -1334,8 +1346,8 @@ cintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
                             genName n
                             tell ["_sizes"]
                             call genArraySizesSize ops ds
-                            tell [";\n"]
-                       _ -> call genDeclaration ops t n
+                            tell [";"]
+                       _ -> call genDeclaration ops t n True
                      | (n, t) <- fs]
           tell ["} "]
           when b $ tell ["occam_struct_packed "]
