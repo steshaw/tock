@@ -461,21 +461,25 @@ testSpec :: Test
 testSpec = TestList
  [
   --Declaration:
-  testAllSame 0 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta A.Int
-  ,testAllSame 1 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 2 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] A.Int
-  ,testAllSame 3 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  testAllSame 0 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta A.Int
+  ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] A.Int
+  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
 
   --Empty/failure cases:
   ,testAllSame 100 ("","") $ A.DataType undefined undefined
   ,testBothFail "testAllSame 200" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
   ,testBothFail "testAllSame 300" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
 
+  --Record types:
+  ,testAllSame 400 ("typedef struct{#ATION_True}foo;","") $ A.RecordType emptyMeta False [(bar,A.Int)] 
+  ,testAllSame 401 ("typedef struct{#ATION_True#ATION_True} occam_struct_packed foo;","") $ A.RecordType emptyMeta True [(bar,A.Int),(bar,A.Int)] 
+  ,testAll 402 ("typedef struct{#ATION_True}foo;","") ("typedef struct{#ATION_True}foo;","")$ A.RecordType emptyMeta False [(bar,A.Array [A.Dimension 6, A.Dimension 7] A.Int)]
+
   --TODO Is
   --TODO IsExpr
   --TODO IsChannelArray
   --TODO Protocol
-  --TODO RecordType
   --TODO ProtocolCase
   --TODO Proc
   --TODO Retypes
@@ -488,7 +492,7 @@ testSpec = TestList
       ,testBoth ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over)
      ]
     testAllSame n e s = testAll n e e s
-    over ops = ops {genDeclaration = override3 (tell ["#ATION"]), genDecl = override3 (tell ["#DECL"]) 
+    over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x])), genDecl = override3 (tell ["#DECL"]) 
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    }
 

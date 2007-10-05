@@ -938,10 +938,10 @@ cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct{"]
           sequence_ [call genDeclaration ops t n True
                      | (n, t) <- fs]
-          tell ["} "]
-          when b $ tell ["occam_struct_packed "]
+          tell ["}"]
+          when b $ tell [" occam_struct_packed "]
           genName n
-          tell [";\n"]
+          tell [";"]
 --We do sequential protocols by introducing a new tuple:
 cppintroduceSpec ops (A.Specification _ n (A.Protocol _ typeList))
     =  do createChainedType "boost::tuple" (genProtocolName n) $ map (call genType ops) typeList

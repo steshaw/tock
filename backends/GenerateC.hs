@@ -1333,26 +1333,12 @@ cintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
           call declareArraySizes ops [A.Dimension $ length cs] n
 cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
-    =  do tell ["typedef struct {\n"]
-          sequence_ [case t of
-                       -- Arrays need the corresponding _sizes array.
-                       A.Array ds t' ->
-                         do call genType ops t'
-                            tell [" "]
-                            genName n
-                            call genFlatArraySize ops ds
-                            tell [";\n"]
-                            tell ["int "]
-                            genName n
-                            tell ["_sizes"]
-                            call genArraySizesSize ops ds
-                            tell [";"]
-                       _ -> call genDeclaration ops t n True
-                     | (n, t) <- fs]
-          tell ["} "]
-          when b $ tell ["occam_struct_packed "]
+    =  do tell ["typedef struct{"]
+          sequence_ [call genDeclaration ops t n True | (n, t) <- fs]
+          tell ["}"]
+          when b $ tell [" occam_struct_packed "]
           genName n
-          tell [";\n"]
+          tell [";"]
 cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
 cintroduceSpec ops (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum {\n"]
