@@ -93,7 +93,6 @@ cppgenOps :: GenOps
 cppgenOps = cgenOps {
     declareFree = cppdeclareFree,
     declareInit = cppdeclareInit,
-    declareType = cppdeclareType,
     genActual = cppgenActual,
     genActuals = cppgenActuals,
     genAlt = cppgenAlt,
@@ -643,31 +642,6 @@ cppgenProcCall ops n as
          tell [");"]
 
 
--- | Changed from CIF's untyped channels to C++CSP's typed (templated) channels, and changed the declaration type of an array to be a vector.
-cppdeclareType :: GenOps -> A.Type -> CGen ()
-cppdeclareType ops (A.Counted countType valueType)
-    = do tell ["std::vector<"]
-         case valueType of
-           --Don't nest when it's a counted array of arrays:
-           (A.Array _ t) -> call genType ops t
-           _ -> call genType ops valueType
-         tell ["/**/>/**/"]
-    
-cppdeclareType ops (A.Chan dir attr t)
-    = do let chanType = case dir of
-                          A.DirInput -> "csp::Chanin"
-                          A.DirOutput -> "csp::Chanout"
-                          A.DirUnknown ->
-                            case (A.caWritingShared attr,A.caReadingShared attr) of
-                              (False,False) -> "csp::One2OneChannel"
-                              (False,True)  -> "csp::One2AnyChannel"
-                              (True,False)  -> "csp::Any2OneChannel"
-                              (True,True)   -> "csp::Any2AnyChannel"
-         tell [chanType,"<"]
-         call genType ops t
-         tell [">/**/"]
-cppdeclareType ops t = call genType ops t
-
 -- | Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays.
 --An array is actually stored as a std::vector, but an array-view object is automatically created with the array
 --The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
@@ -675,7 +649,7 @@ cppdeclareType ops t = call genType ops t
 --but I will worry about that later
 cppgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
 cppgenDeclaration ops arrType@(A.Array ds t) n
-    =  do call declareType ops t
+    =  do call genType ops t
           tell [" "]
           genName n
           tell ["_actual["]
@@ -690,7 +664,7 @@ cppgenDeclaration ops arrType@(A.Array ds t) n
           genDims ds
           tell ["));"]
 cppgenDeclaration ops t n
-    =  do call declareType ops t
+    =  do call genType ops t
           tell [" "]
           genName n
           tell [";"]
@@ -1033,7 +1007,7 @@ cppgenArrayType ops const (A.Array dims t) rank
 cppgenArrayType ops const t rank
     =  do tell ["tockArrayView<"]
           when (const) (tell ["const "])
-          call declareType ops t
+          call genType ops t
           tell [",",show rank, ">/**/"]
     
 -- | Changed from GenerateC to change the arrays and the channels
@@ -1042,15 +1016,25 @@ cppgenType :: GenOps -> A.Type -> CGen ()
 cppgenType ops arr@(A.Array _ _)
     =  cppgenArrayType ops False arr 0    
 cppgenType _ (A.Record n) = genName n
-cppgenType _ (A.UserProtocol n) = genProtocolName n
-cppgenType ops ch@(A.Chan {})
-    = do call declareType ops ch
-cppgenType ops (A.Counted countType valueType)
-    = call genType ops (A.Array [A.UnknownDimension] valueType)
-cppgenType _ (A.Any)
-    = tell ["tockAny"]
--- Any -- not used
---cppgenType (A.Port t) =
+cppgenType ops (A.Chan dir attr t)
+    = do let chanType = case dir of
+                          A.DirInput -> "csp::Chanin"
+                          A.DirOutput -> "csp::Chanout"
+                          A.DirUnknown ->
+                            case (A.caWritingShared attr,A.caReadingShared attr) of
+                              (False,False) -> "csp::One2OneChannel"
+                              (False,True)  -> "csp::One2AnyChannel"
+                              (True,False)  -> "csp::Any2OneChannel"
+                              (True,True)   -> "csp::Any2AnyChannel"
+         tell [chanType,"<"]
+         cppTypeInsideChannel ops t
+         tell [">/**/"]
+  where
+    cppTypeInsideChannel :: GenOps -> A.Type -> CGen ()
+    cppTypeInsideChannel ops A.Any = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel ops (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel ops (A.UserProtocol _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel ops t = call genType ops t
 cppgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]

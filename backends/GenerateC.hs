@@ -68,7 +68,6 @@ data GenOps = GenOps {
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
     declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
-    declareType :: GenOps -> A.Type -> CGen (),
     -- | Generates an individual parameter to a function\/proc.
     genActual :: GenOps -> A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
@@ -177,7 +176,6 @@ cgenOps = GenOps {
     declareArraySizes = cdeclareArraySizes,
     declareFree = cdeclareFree,
     declareInit = cdeclareInit,
-    declareType = cdeclareType,
     genActual = cgenActual,
     genActuals = cgenActuals,
     genAlt = cgenAlt,
@@ -377,6 +375,8 @@ cgetScalarType _ A.Timer = Just "Time"
 cgetScalarType _ A.Time = Just "Time"
 cgetScalarType _ _ = Nothing
 
+-- | Generate the C type corresponding to a variable being declared.
+-- It must be possible to use this in arrays.
 cgenType :: GenOps -> A.Type -> CGen ()
 cgenType ops (A.Array _ t)
     =  do call genType ops t
@@ -1175,22 +1175,17 @@ cgenSpec ops spec body
           body
           call removeSpec ops spec
 
--- | Generate the C type corresponding to a variable being declared.
--- It must be possible to use this in arrays.
-cdeclareType :: GenOps -> A.Type -> CGen ()
-cdeclareType ops t = call genType ops t
-
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: GenOps -> A.Type -> A.Name -> CGen ()
 cgenDeclaration ops (A.Array ds t) n
-    =  do call declareType ops t
+    =  do call genType ops t
           tell [" "]
           genName n
           call genFlatArraySize ops ds
           tell [";"]
           call declareArraySizes ops ds n
 cgenDeclaration ops t n
-    =  do call declareType ops t
+    =  do call genType ops t
           tell [" "]
           genName n
           tell [";"]
