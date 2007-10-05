@@ -439,6 +439,42 @@ testDeclareInitFree = TestList
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
 
+testSpec :: Test
+testSpec = TestList
+ [
+  --Declaration:
+  testAllSame 0 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta A.Int
+  ,testAllSame 1 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 2 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] A.Int
+  ,testAllSame 3 ("#ATION#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+
+  --Empty/failure cases:
+  ,testAllSame 100 ("","") $ A.DataType undefined undefined
+  ,testBothFail "testAllSame 200" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
+  ,testBothFail "testAllSame 300" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
+
+  --TODO Is
+  --TODO IsExpr
+  --TODO IsChannelArray
+  --TODO Protocol
+  --TODO RecordType
+  --TODO ProtocolCase
+  --TODO Proc
+  --TODO Retypes
+ ]
+  where
+    testAll :: Int -> (String,String) -> (String,String) -> A.SpecType -> Test
+    testAll n (eCI,eCR) (eCPPI,eCPPR) spec = TestList
+     [
+      testBoth ("testSpec " ++ show n) eCI eCPPI ((tcall introduceSpec $ A.Specification emptyMeta foo spec) . over)
+      ,testBoth ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over)
+     ]
+    testAllSame n e s = testAll n e e s
+    over ops = ops {genDeclaration = override2 (tell ["#ATION"]), genDecl = override3 (tell ["#DECL"]) 
+                   ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
+                   }
+
+
 defRecord :: String -> String -> A.Type -> State CompState ()
 defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
 
@@ -604,6 +640,7 @@ tests = TestList
    ,testIf
    ,testOverArray
    ,testReplicator
+   ,testSpec
    ,testStop
    ,testWait
    ,testWhile

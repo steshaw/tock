@@ -1401,12 +1401,9 @@ cgenForwardDeclaration _ _ = return ()
 
 cremoveSpec :: GenOps -> A.Specification -> CGen ()
 cremoveSpec ops (A.Specification m n (A.Declaration _ t))
-    = case t of
-        A.Array _ t' -> call genOverArray ops m var (\sub -> call declareFree ops m t' (sub var))
-        _ ->
-          do case call declareFree ops m t var of
-               Just p -> p
-               Nothing -> return ()
+    = case call declareFree ops m t var of
+        Just p -> p
+        Nothing -> return ()
   where
     var = A.Variable m n
 cremoveSpec _ _ = return ()
