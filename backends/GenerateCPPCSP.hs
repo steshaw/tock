@@ -85,6 +85,7 @@ import Pass
 import ShowCode
 import TLP
 import Types
+import Utils
 
 --{{{  generator ops
 -- | Operations for the C++CSP backend.
@@ -671,6 +672,25 @@ cppgenDeclaration ops t n
 
 -- | Changed because we don't need any initialisation in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cppdeclareInit ops m t@(A.Array ds t') var
+    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var))
+                call genOverArray ops m var init
+cppdeclareInit ops m rt@(A.Record _) var
+    = Just $ do fs <- recordFields m rt
+                sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                           | (n, t) <- fs]
+  where
+    initField :: A.Type -> A.Variable -> CGen ()
+    -- An array as a record field; we must initialise the sizes.
+    initField t@(A.Array ds _) v
+        =  do call genVariableUnchecked ops v
+              tell ["=tockArrayView("]
+              call genVariableUnchecked ops v
+              tell ["_actual,tockDims("]
+              infixComma [tell [show n] | (A.Dimension n) <- ds]
+              tell ["));"]
+              doMaybe $ call declareInit ops m t v
+    initField t v = doMaybe $ call declareInit ops m t v
 cppdeclareInit _ _ _ _ = Nothing
 
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
