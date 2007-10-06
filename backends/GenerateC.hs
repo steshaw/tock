@@ -63,7 +63,7 @@ instance Die CGen where
 -- backends without breaking the mutual recursion.
 data GenOps = GenOps {
     -- | Declares the C array of sizes for an occam array.
-    declareArraySizes :: GenOps -> [A.Dimension] -> A.Name -> CGen (),
+    declareArraySizes :: GenOps -> A.Type -> A.Name -> CGen (),
     -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
@@ -1166,7 +1166,7 @@ abbrevExpression :: GenOps -> A.AbbrevMode -> A.Type -> A.Expression -> (CGen ()
 abbrevExpression ops am t@(A.Array _ _) e
     = case e of
         A.ExprVariable _ v -> abbrevVariable ops am t v
-        A.Literal _ (A.Array ds _) r -> (call genExpression ops e, call declareArraySizes ops ds)
+        A.Literal _ t@(A.Array _ _) r -> (call genExpression ops e, call declareArraySizes ops t)
         _ -> bad
   where
     bad = (call genMissing ops "array expression abbreviation", noSize)
@@ -1183,13 +1183,13 @@ cgenSpec ops spec body
 
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
-cgenDeclaration ops (A.Array ds t) n False
+cgenDeclaration ops at@(A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
           call genArrayStoreName ops n
           call genFlatArraySize ops ds
           tell [";"]
-          call declareArraySizes ops ds n
+          call declareArraySizes ops at n
 cgenDeclaration ops (A.Array ds t) n True
     =  do call genType ops t
           tell [" "]
@@ -1224,8 +1224,8 @@ cgenArraySizesSize ops ds
           tell ["]"]
 
 -- | Declare an _sizes array for a variable.
-cdeclareArraySizes :: GenOps -> [A.Dimension] -> A.Name -> CGen ()
-cdeclareArraySizes ops ds name
+cdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
+cdeclareArraySizes ops (A.Array ds _) name
     = call genArraySize ops False (call genArraySizesLiteral ops ds) name
 
 -- | Generate a C literal to initialise an _sizes array with, where all the
@@ -1335,8 +1335,8 @@ cintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
           call genArrayStoreName ops n
           tell ["[]={"]
           seqComma (map (call genVariable ops) cs)
-          tell ["};\n"]
-          call declareArraySizes ops [A.Dimension $ length cs] n
+          tell ["};"]
+          call declareArraySizes ops (A.Array [A.Dimension $ length cs] c) n
 cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct{"]

@@ -92,6 +92,7 @@ import Utils
 -- Most of this is inherited directly from the C backend in the "GenerateC" module.
 cppgenOps :: GenOps
 cppgenOps = cgenOps {
+    declareArraySizes = cppdeclareArraySizes,
     declareFree = cppdeclareFree,
     declareInit = cppdeclareInit,
     genActual = cppgenActual,
@@ -671,6 +672,17 @@ cppgenDeclaration ops t n _
           tell [" "]
           genName n
           tell [";"]
+
+cppdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
+cppdeclareArraySizes ops arrType@(A.Array ds _) n = do
+          call genType ops arrType
+          tell [" "]
+          genName n
+          tell ["("]
+          genName n
+          tell ["_actual,tockDims("]
+          genDims ds
+          tell ["));"]
 
 -- | Changed because we don't need any initialisation in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
