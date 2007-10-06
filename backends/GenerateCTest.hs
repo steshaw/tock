@@ -469,6 +469,7 @@ testSpec = TestList
   ,testAllSame 100 ("","") $ A.DataType undefined undefined
   ,testBothFail "testAllSame 200" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
   ,testBothFail "testAllSame 300" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
+  ,testAllSame 350 ("","") $ A.Protocol emptyMeta undefined
 
   --Record types:
   ,testAllSame 400 ("typedef struct{#ATION_True}foo;","") $ A.RecordType emptyMeta False [(bar,A.Int)] 
