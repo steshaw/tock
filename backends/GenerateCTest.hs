@@ -522,7 +522,8 @@ testGenVariable = TestList
   ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
   ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int)
   ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Record bar)
-  ,testAC 320 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  -- Original channel arrays are Channel[], but abbreviated channel arrays are Channel*[]:
+  ,testAC2 320 ("(&foo@C4)","(&foo@U4)") ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Fully subscripted array, and record field reference:
@@ -550,9 +551,13 @@ testGenVariable = TestList
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testA n eC eCPP sub t = TestList [test n eC eCPP sub A.Original t, test (n+1) eC eCPP sub A.Abbrev t, test (n+2) eC eCPP sub A.ValAbbrev t]
    
+   -- | Tests that the given (checked,unchecked) expected values occur in both C and C++
    testAC :: Int -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testAC n e sub t = testA n e e sub t
-   
+
+   -- | Tests that the given (checked,unchecked) expected values (for Original and Abbrev modes) occur in both C and C++
+   testAC2 :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
+   testAC2 n e e' sub t = TestList [test n e e sub A.Original t, test (n+1) e' e' sub A.Abbrev t]
    
    testSame :: Int -> String -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
    testSame n e sub am t = test n (e,e) (e,e) sub am t

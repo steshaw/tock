@@ -689,9 +689,9 @@ MYREC r:                MYREC r;        MYREC *r;   MYREC *r;
 CHAN OF INT c:          Channel c;                  Channel *c;
   c                     &c                          c
 
-[10]CHAN OF INT cs:     Channel *cs;                Channel *cs;
+[10]CHAN OF INT cs:     Channel cs[10];             Channel *cs[10];
   cs                    cs                          cs
-  cs[i]                 &cs[i]                      &cs[i]
+  cs[i]                 &cs[i]                      cs[i]
 
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
@@ -729,15 +729,18 @@ cgenVariable' ops checkValid v
     -- | Find the effective abbreviation mode for the variable we're looking at.
     -- This differs from abbrevModeOfVariable in that it will return Original
     -- for array and record elements (because when we're generating C, we can
-    -- treat c->x as if it's just x).
+    -- treat c->x as if it's just x).  Abbreviated channel arrays are a special 
+    -- case, however.
     accessAbbrevMode :: A.Variable -> CGen A.AbbrevMode
     accessAbbrevMode (A.Variable _ n) = abbrevModeOfName n
     accessAbbrevMode (A.DirectedVariable _ _ v) = accessAbbrevMode v
     accessAbbrevMode (A.SubscriptedVariable _ sub v)
         =  do am <- accessAbbrevMode v
-              return $ case (am, sub) of
-                         (_, A.Subscript _ _) -> A.Original
-                         (_, A.SubscriptField _ _) -> A.Original
+              t <- typeOfVariable v
+              return $ case (sub, t) of
+                         (A.Subscript _ _, A.Array _ (A.Chan A.DirUnknown _ _)) -> am
+                         (A.Subscript _ _, _) -> A.Original
+                         (A.SubscriptField _ _, _) -> A.Original
                          _ -> am
 
     inner :: A.Variable -> CGen ()
