@@ -98,6 +98,7 @@ cppgenOps = cgenOps {
     genActual = cppgenActual,
     genActuals = cppgenActuals,
     genAlt = cppgenAlt,
+    genArraySizesLiteral = cppgenArraySizesLiteral,
     genArrayStoreName = cppgenArrayStoreName,
     genArraySubscript = cppgenArraySubscript,
     genDeclType = cppgenDeclType,
@@ -683,6 +684,21 @@ cppdeclareArraySizes ops arrType@(A.Array ds _) n = do
           tell ["_actual,tockDims("]
           genDims ds
           tell ["));"]
+
+cppgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
+cppgenArraySizesLiteral ops n t@(A.Array ds _) = 
+  do call genType ops t
+     tell ["("]
+     genName n
+     tell ["_actual,tockDims("]
+     seqComma dims
+     tell ["))"]
+  where
+    dims :: [CGen ()]
+    dims = [case d of
+              A.Dimension n -> tell [show n]
+              _ -> die "unknown dimension in array type"
+            | d <- ds]
 
 -- | Changed because we don't need any initialisation in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())

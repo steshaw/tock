@@ -253,9 +253,9 @@ testStop =
 testArraySizes :: Test
 testArraySizes = TestList
  [
-  testBothSame "genArraySizesLiteral 0" "{3}" (tcall genArraySizesLiteral [A.Dimension 3]) 
-  ,testBothSame "genArraySizesLiteral 1" "{3,6,8}" (tcall genArraySizesLiteral [A.Dimension 3, A.Dimension 6, A.Dimension 8]) 
-  ,testBothFail "genArraySizesLiteral 2" (tcall genArraySizesLiteral [A.Dimension 6, A.UnknownDimension]) 
+  testBoth "genArraySizesLiteral 0" "{3}" "tockArrayView<int,1>(foo_actual,tockDims(3))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3] A.Int) 
+  ,testBoth "genArraySizesLiteral 1" "{3,6,8}" "tockArrayView<int,3>(foo_actual,tockDims(3,6,8))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3, A.Dimension 6, A.Dimension 8] A.Int) 
+  ,testBothFail "genArraySizesLiteral 2" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 6, A.UnknownDimension] A.Int) 
   ,testBothSame "genArraySizesSize 0" "[1]" (tcall genArraySizesSize [A.Dimension 7])
   ,testBothSame "genArraySize 0" "const int*foo_sizes=@;" (tcall3 genArraySize True at foo)
   ,testBothSame "genArraySize 1" "const int foo_sizes[]=@;" (tcall3 genArraySize False at foo)

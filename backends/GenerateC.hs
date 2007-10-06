@@ -77,8 +77,8 @@ data GenOps = GenOps {
     genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
     -- | Declares a constant array for the sizes (dimensions) of a C array.
     genArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen (),
-    -- | Writes out the dimensions of an array, separated by commas.  Fails if there is an 'A.UnknownDimension' present.
-    genArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen (),
+    -- | Writes out the dimensions of an array, that can be used to initialise the sizes of an array.  Fails if there is an 'A.UnknownDimension' present.
+    genArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen (),
     -- | Writes out the size of the _sizes array, in square brackets.
     genArraySizesSize :: GenOps -> [A.Dimension] -> CGen (),
     -- | Writes out the actual data storage array name.
@@ -581,7 +581,7 @@ cgenUnfoldedExpression ops (A.Literal _ t lr)
           case t of
             A.Array ds _ ->
               do genComma
-                 call genArraySizesLiteral ops ds
+                 call genArraySizesLiteral ops undefined t --TODO work this out for C++
             _ -> return ()
 cgenUnfoldedExpression ops (A.ExprVariable m var) = call genUnfoldedVariable ops m var
 cgenUnfoldedExpression ops e = call genExpression ops e
@@ -596,7 +596,7 @@ cgenUnfoldedVariable ops m var
                  unfoldArray ds var
                  genRightB
                  genComma
-                 call genArraySizesLiteral ops ds
+                 call genArraySizesLiteral ops undefined t --TODO work this out for C++
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
@@ -1225,13 +1225,13 @@ cgenArraySizesSize ops ds
 
 -- | Declare an _sizes array for a variable.
 cdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
-cdeclareArraySizes ops (A.Array ds _) name
-    = call genArraySize ops False (call genArraySizesLiteral ops ds) name
+cdeclareArraySizes ops t name
+    = call genArraySize ops False (call genArraySizesLiteral ops name t) name
 
 -- | Generate a C literal to initialise an _sizes array with, where all the
 -- dimensions are fixed.
-cgenArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen ()
-cgenArraySizesLiteral ops ds
+cgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
+cgenArraySizesLiteral ops _ (A.Array ds _)
     = genLeftB >> seqComma dims >> genRightB
   where
     dims :: [CGen ()]
