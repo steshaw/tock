@@ -927,16 +927,6 @@ cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
 
--- We must create the channel array then fill it:
-cppintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
-    =  do call genDeclaration ops t n False
-          sequence_ $ map genChanArrayElemInit (zip [0 .. ((length cs) - 1)] cs)
-          where
-            genChanArrayElemInit (index,var)
-              = do genName n
-                   tell ["[",show index,"].access() = "] --Use the .access() function to cast a 0-dimension array into a T& for access
-                   call genVariable ops var
-                   tell [";"]
 --This clause was simplified, because we don't need separate array sizes in C++:
 cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct{"]
