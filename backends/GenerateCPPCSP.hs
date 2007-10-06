@@ -102,7 +102,6 @@ cppgenOps = cgenOps {
     genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
     genDirectedVariable = cppgenDirectedVariable,
-    genFlatArraySize = cppgenFlatArraySize,
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
@@ -653,25 +652,16 @@ cppgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
 cppgenDeclaration ops arrType@(A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
-          genName n
-          tell ["_actual["]
+          call genArrayStoreName ops n
           call genFlatArraySize ops ds
-          tell ["];"]
-          call genType ops arrType
-          tell [" "]
-          genName n;
-          tell ["("]
-          genName n
-          tell ["_actual,tockDims("]
-          genDims ds
-          tell ["));"]
+          tell [";"]
+          call declareArraySizes ops arrType n
 cppgenDeclaration ops arrType@(A.Array ds t) n True
     =  do call genType ops t
           tell [" "]
-          genName n
-          tell ["_actual["]
+          call genArrayStoreName ops n
           call genFlatArraySize ops ds
-          tell ["];"]
+          tell [";"]
           call genType ops arrType
           tell [" "]
           genName n;
@@ -777,15 +767,6 @@ genDims dims = infixComma $ map genDim dims
     genDim :: A.Dimension -> CGen()
     genDim (A.Dimension n) = tell [show n]
     genDim (A.UnknownDimension) = tell ["0"]
-
--- | Generates an expression that yields the number of total elements in a declared multi-dimensional array
---Using it on arrays with unknown dimensions will cause an error (they should only be abbreviations, not declared as actual variables)
-cppgenFlatArraySize:: GenOps -> [A.Dimension] -> CGen()
-cppgenFlatArraySize ops dims = sequence_ $ intersperse (tell ["*"]) $ map genDim dims
-  where
-    genDim :: A.Dimension -> CGen()
-    genDim (A.Dimension n) = tell [show n]
-    genDim dim = call genMissing ops ("No support for dimension: " ++ show dim)
 
 --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
 --and also changed to use infixComma.

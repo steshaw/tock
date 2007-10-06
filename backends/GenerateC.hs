@@ -1186,14 +1186,14 @@ cgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
 cgenDeclaration ops (A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
-          genName n
+          call genArrayStoreName ops n
           call genFlatArraySize ops ds
           tell [";"]
           call declareArraySizes ops ds n
 cgenDeclaration ops (A.Array ds t) n True
     =  do call genType ops t
           tell [" "]
-          genName n
+          call genArrayStoreName ops n
           call genFlatArraySize ops ds
           tell [";"]
           tell ["int "]
