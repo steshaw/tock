@@ -253,12 +253,12 @@ testStop =
 testArraySizes :: Test
 testArraySizes = TestList
  [
-  testBothSame "genArraySizesLiteral 0" "3" (tcall genArraySizesLiteral [A.Dimension 3]) 
-  ,testBothSame "genArraySizesLiteral 1" "3,6,8" (tcall genArraySizesLiteral [A.Dimension 3, A.Dimension 6, A.Dimension 8]) 
+  testBothSame "genArraySizesLiteral 0" "{3}" (tcall genArraySizesLiteral [A.Dimension 3]) 
+  ,testBothSame "genArraySizesLiteral 1" "{3,6,8}" (tcall genArraySizesLiteral [A.Dimension 3, A.Dimension 6, A.Dimension 8]) 
   ,testBothFail "genArraySizesLiteral 2" (tcall genArraySizesLiteral [A.Dimension 6, A.UnknownDimension]) 
   ,testBothSame "genArraySizesSize 0" "[1]" (tcall genArraySizesSize [A.Dimension 7])
   ,testBothSame "genArraySize 0" "const int*foo_sizes=@;" (tcall3 genArraySize True at foo)
-  ,testBothSame "genArraySize 1" "const int foo_sizes[]={@};" (tcall3 genArraySize False at foo)
+  ,testBothSame "genArraySize 1" "const int foo_sizes[]=@;" (tcall3 genArraySize False at foo)
   ,testBothSame "genArrayLiteralElems 0" "$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined]) . unfolded
   ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]) . unfolded
   ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]]) . unfolded

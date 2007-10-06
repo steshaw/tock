@@ -301,10 +301,10 @@ seqComma :: [CGen ()] -> CGen ()
 seqComma ps = sequence_ $ intersperse genComma ps
 
 genLeftB :: CGen ()
-genLeftB = tell ["{ "]
+genLeftB = tell ["{"]
 
 genRightB :: CGen ()
-genRightB = tell [" }"]
+genRightB = tell ["}"]
 --}}}
 
 -- | A function that applies a subscript to a variable.
@@ -581,9 +581,7 @@ cgenUnfoldedExpression ops (A.Literal _ t lr)
           case t of
             A.Array ds _ ->
               do genComma
-                 genLeftB
                  call genArraySizesLiteral ops ds
-                 genRightB
             _ -> return ()
 cgenUnfoldedExpression ops (A.ExprVariable m var) = call genUnfoldedVariable ops m var
 cgenUnfoldedExpression ops e = call genExpression ops e
@@ -598,9 +596,7 @@ cgenUnfoldedVariable ops m var
                  unfoldArray ds var
                  genRightB
                  genComma
-                 genLeftB
                  call genArraySizesLiteral ops ds
-                 genRightB
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
@@ -1057,7 +1053,8 @@ cgenSlice ops v (A.Variable _ on) start count ds
        -- element 0 of a 0-length array -- which is valid.
     = (tell ["&"] >> call genVariableUnchecked ops v,
        call genArraySize ops False
-                    (do tell ["occam_check_slice ("]
+                    (do genLeftB
+                        tell ["occam_check_slice ("]
                         call genExpression ops start
                         tell [", "]
                         call genExpression ops count
@@ -1069,7 +1066,9 @@ cgenSlice ops v (A.Variable _ on) start count ds
                         sequence_ [do tell [", "]
                                       genName on
                                       tell ["_sizes[", show i, "]"]
-                                   | i <- [1..(length ds - 1)]]))
+                                   | i <- [1..(length ds - 1)]]
+                        genRightB
+                    ))
 
 cgenArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen ()
 cgenArraySize ops isPtr size n
@@ -1081,9 +1080,9 @@ cgenArraySize ops isPtr size n
                 tell [";"]
         else do tell ["const int "]
                 genName n
-                tell ["_sizes[]={"]
+                tell ["_sizes[]="]
                 size
-                tell ["};"]
+                tell [";"]
 
 noSize :: A.Name -> CGen ()
 noSize n = return ()
@@ -1154,7 +1153,7 @@ cgenRetypeSizes ops m am destT destN srcT srcV
                                      die "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
-                 call genArraySize ops False (seqComma dims) destN
+                 call genArraySize ops False (genLeftB >> seqComma dims >> genRightB) destN
 
             -- Not array; just check the size is 1.
             _ ->
@@ -1233,7 +1232,7 @@ cdeclareArraySizes ops ds name
 -- dimensions are fixed.
 cgenArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen ()
 cgenArraySizesLiteral ops ds
-    = seqComma dims
+    = genLeftB >> seqComma dims >> genRightB
   where
     dims :: [CGen ()]
     dims = [case d of
