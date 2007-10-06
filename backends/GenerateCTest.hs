@@ -476,24 +476,35 @@ testSpec = TestList
   ,testAllSame 401 ("typedef struct{#ATION_True#ATION_True} occam_struct_packed foo;","") $ A.RecordType emptyMeta True [(bar,A.Int),(bar,A.Int)] 
   ,testAll 402 ("typedef struct{#ATION_True}foo;","") ("typedef struct{#ATION_True}foo;","")$ A.RecordType emptyMeta False [(bar,A.Array [A.Dimension 6, A.Dimension 7] A.Int)]
 
+  --IsChannelArray:
+  ,testAll 500 
+    ("$(" ++ show chanInt ++ ")*foo[]={(&c),(&c)};const int foo_sizes[]={2};","")
+    ("$(" ++ show chanInt ++ ")*foo_actual[]={(&c),(&c)};$(" ++ show (A.Array [A.Dimension 2] $ chanInt) ++ ") foo(foo_actual,tockDims(2));","")
+    $ A.IsChannelArray emptyMeta (A.Array [A.Dimension 2] $ chanInt) 
+    [A.Variable emptyMeta $ simpleName "c",A.Variable emptyMeta $ simpleName "c"]
+
+
   --TODO Is
   --TODO IsExpr
-  --TODO IsChannelArray
   --TODO Protocol
   --TODO ProtocolCase
   --TODO Proc
   --TODO Retypes
  ]
   where
+    chanInt = A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  
     testAll :: Int -> (String,String) -> (String,String) -> A.SpecType -> Test
     testAll n (eCI,eCR) (eCPPI,eCPPR) spec = TestList
      [
-      testBoth ("testSpec " ++ show n) eCI eCPPI ((tcall introduceSpec $ A.Specification emptyMeta foo spec) . over)
-      ,testBoth ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over)
+      testBothS ("testSpec " ++ show n) eCI eCPPI ((tcall introduceSpec $ A.Specification emptyMeta foo spec) . over) state
+      ,testBothS ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over) state
      ]
     testAllSame n e s = testAll n e e s
+    state = defineName (simpleName "c") $ simpleDefDecl "c" $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x])), genDecl = override3 (tell ["#DECL"]) 
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
+                   ,genType = (\_ x -> tell ["$(",show x,")"])
                    }
 
 
