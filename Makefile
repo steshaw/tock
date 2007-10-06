@@ -57,7 +57,7 @@ cgtests = $(wildcard cgtests/cgtest??.occ)
 cgtests_targets = $(patsubst %.occ,%,$(cgtests))
 
 get-cgtests:
-	svn co https://subversion.frmb.org/svn/cgtests/branches/tock cgtests
+	svn co https://subversion.frmb.org/pubsvn/cgtests/branches/tock cgtests
 
 all-cgtests: $(cgtests_targets)
 
