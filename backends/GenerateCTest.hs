@@ -715,8 +715,11 @@ testOutput = TestList
   --A counted array:
   ,testOutputItem 206 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
-  ,testOutputItem 206 "ChanOutInt(@,$);ChanOut(@,@,$*^);" ("tockSendInt(@->writer(),$);@->writer()<<$;", "tockSendInt(@,$);@<<$;")
-    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 8] A.Int))
+  --A counted array of arrays:
+  ,testOutputItem 207 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
+  ,testOutputItem 208 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
   
   --TODO add a pass that makes sure all outputs are variables.  Including count for counted items
   
@@ -728,7 +731,10 @@ testOutput = TestList
   ,testOutputItemProt 305 "ChanOut(#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
   ,testOutputItemProt 306 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
-
+  ,testOutputItemProt 307 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
+  ,testOutputItemProt 308 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
  ]
  where
    testOutputItem :: Int -> String -> String -> A.OutputItem -> A.Type -> Test
@@ -749,8 +755,10 @@ testOutput = TestList
        state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) ct)
                       case t of
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
-                                             defineName (simpleName "xs") $ simpleDefDecl "xs" (A.Array [A.Dimension 6] t')
+                                             defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
                         _ -> defineName (simpleName "x") $ simpleDefDecl "x" t
+       mkArray (A.Array ds t) = A.Array (A.Dimension 6:ds) t
+       mkArray t = A.Array [A.Dimension 6] t
  
    chan = simpleName "c"
    chanOut = simpleName "cOut"
