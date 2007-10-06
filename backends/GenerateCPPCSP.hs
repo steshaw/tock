@@ -423,26 +423,56 @@ cppgenInputItem ops c (A.InVariable m v)
              call genVariable ops v
              tell [";\n"]
 
--- | If we are sending an array, we use the versionToSend function to coerce away any annoying const tags on the array data:
-genJustOutputItem :: GenOps -> A.OutputItem -> CGen()
-genJustOutputItem ops (A.OutCounted m ce ae)
-    =  do call genExpression ops ae
-          tell[" .sliceFor("] 
-          call genExpression ops ce 
-          tell[") .versionToSend() "]
-genJustOutputItem ops (A.OutExpression m e)
-    =  do t <- typeOfExpression e
-          call genExpression ops e
-          case t of
-            (A.Array _ _) -> tell [" .versionToSend() "]
-            _ -> return ()
-
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
-cppgenOutputItem ops chan item 
-    =  do genCPPCSPChannelOutput ops chan
-          tell ["<<"]
-          genJustOutputItem ops item
-          tell [";"]
+cppgenOutputItem ops chan item
+  = case item of
+      (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) ->
+       do chan'
+          tell ["<<tockSendableArrayOfBytes("]
+          genPoint cv
+          tell [");"]
+          chan'
+          tell ["<<tockSendableArrayOfBytes("]
+          genPoint av
+          tell [");"]
+      (A.OutExpression _ (A.ExprVariable _ sv)) ->
+       do t <- typeOfVariable chan
+          tsv <- typeOfVariable sv
+          case (byteArrayChan t,tsv) of
+            (True,_) -> do chan'
+                           tell ["<<tockSendableArrayOfBytes("]
+                           genPoint sv
+                           tell [");"]
+            (False,A.Array {}) -> do tell ["tockSendArray("]
+                                     chan'
+                                     tell [","]
+                                     call genVariable ops sv
+                                     tell [");"]
+            (False,_) -> do chan'
+                            tell ["<<"]
+                            genNonPoint sv
+                            tell [";"]
+  where
+    chan' = genCPPCSPChannelOutput ops chan   
+    
+    byteArrayChan :: A.Type -> Bool
+    byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
+    byteArrayChan (A.Chan _ _ A.Any) = True
+    byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
+    byteArrayChan _ = False
+    
+    genPoint :: A.Variable -> CGen()
+    genPoint v = do t <- typeOfVariable v
+                    when (not $ isPoint t) $ tell ["&"]
+                    call genVariable ops v
+    genNonPoint :: A.Variable -> CGen()
+    genNonPoint v = do t <- typeOfVariable v
+                       when (isPoint t) $ tell ["*"]
+                       call genVariable ops v                    
+    isPoint :: A.Type -> Bool
+    isPoint (A.Record _) = True
+    isPoint (A.Array _ _) = True
+    isPoint _ = False
 
 -- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
 -- | Helper function to place a comma between items, but not before or after
@@ -1028,6 +1058,12 @@ cppgenType ops (A.Chan dir attr t)
     cppTypeInsideChannel ops A.Any = tell ["tockSendableArrayOfBytes"]
     cppTypeInsideChannel ops (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
     cppTypeInsideChannel ops (A.UserProtocol _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel ops (A.Array ds t)
+      = do tell ["tockSendableArray<"]
+           call genType ops t
+           tell [","]
+           tell $ intersperse "*" [case d of A.Dimension n -> show n | d <- ds]
+           tell [">/**/"]
     cppTypeInsideChannel ops t = call genType ops t
 cppgenType ops t
     = case call getScalarType ops t of

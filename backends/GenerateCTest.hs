@@ -243,6 +243,13 @@ testGenType = TestList
   ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
   --Counted:
   ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Counted A.Int A.Int)
+  
+  --Channels of arrays are special in C++:
+  ,testBoth "GenType 1100" "Channel" "csp::One2OneChannel<tockSendableArray<int,6>>" 
+    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [A.Dimension 6] A.Int)
+  ,testBoth "GenType 1101" "Channel" "csp::One2OneChannel<tockSendableArray<int,6*7*8>>" 
+    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [A.Dimension 6,A.Dimension 7,A.Dimension 8] A.Int)
+
 
  ]
 
@@ -692,39 +699,54 @@ testOutput = TestList
   ,testBothSame "testOutput 1" "^" ((tcall2 genOutput undefined [undefined]) . overOutputItem)
   ,testBothSame "testOutput 2" "^^^" ((tcall2 genOutput undefined [undefined,undefined,undefined]) . overOutputItem)
  
-  ,testBothS "testOutput 100" "ChanOutInt(@,bar_foo);^" "tockSendInt(@->writer(),bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chan) bar []) . overOutput) state
-  ,testBothS "testOutput 101" "ChanOutInt(@,bar_foo);^" "tockSendInt(@,bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar []) . overOutput) state
+  ,testBothS "testOutput 100" "ChanOutInt((&c),bar_foo);^" "tockSendInt((&c)->writer(),bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chan) bar []) . overOutput) state
+  ,testBothS "testOutput 101" "ChanOutInt(cOut,bar_foo);^" "tockSendInt(cOut,bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar []) . overOutput) state
   
   --Integers are a special case in the C backend:
-  ,testOutputItem 200 "ChanOutInt(@,$);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ intLiteral 0) A.Int
-  ,testOutputItem 201 "ChanOutInt(@,$);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") A.Int
+  ,testOutputItem 201 "ChanOutInt(#,x);" "#<<x;" (A.OutExpression emptyMeta $ exprVariable "x") A.Int
   --A plain type on the channel of the right type:
-  ,testOutputItem 202 "ChanOut(@,&@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
-  --A record type on the channel of the right type (because records are pointed to, so they shouldn't need the address-of operator):
-  ,testOutputItem 202 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
+  ,testOutputItem 202 "ChanOut(#,&x,^);" "#<<x;" (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
+  --A record type on the channel of the right type (because records are always referenced by pointer):
+  ,testOutputItem 203 "ChanOut(#,(&x),^);" "#<<*(&x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
   --A fixed size array on the channel of the right type:
-  ,testOutputItem 203 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
-  ,testOutputItem 204 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
+  ,testOutputItem 204 "ChanOut(#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
+  ,testOutputItem 205 "ChanOut(#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
 
   --A counted array:
-  ,testOutputItem 205 "ChanOutInt(@,$);ChanOut(@,@,$*^);" ("tockSendInt(@->writer(),$);@->writer()<<$;", "tockSendInt(@,$);@<<$;")
+  ,testOutputItem 206 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
   ,testOutputItem 206 "ChanOutInt(@,$);ChanOut(@,@,$*^);" ("tockSendInt(@->writer(),$);@->writer()<<$;", "tockSendInt(@,$);@<<$;")
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 8] A.Int))
   
-  --TODO add a pass that makes sure all outputs are either of type Int or are variables.  Including count for counted items
+  --TODO add a pass that makes sure all outputs are variables.  Including count for counted items
   
-  --TODO test sending things that are part of protocols (this will require different code in the C++ backend)
+  --Test sending things that are part of protocols (this will require different code in the C++ backend)
+  ,testOutputItemProt 301 "ChanOutInt(#,x);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int
+  ,testOutputItemProt 302 "ChanOut(#,&x,^);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
+  ,testOutputItemProt 303 "ChanOut(#,(&x),^);" "#<<tockSendableArrayOfBytes((&x));" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
+  ,testOutputItemProt 304 "ChanOut(#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
+  ,testOutputItemProt 305 "ChanOut(#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
+  ,testOutputItemProt 306 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
+
  ]
  where
-   testOutputItem :: Int -> String -> (String,String) -> A.OutputItem -> A.Type -> Test
-   testOutputItem n eC (eCPP,eCPP_Out) oi t = TestList
+   testOutputItem :: Int -> String -> String -> A.OutputItem -> A.Type -> Test
+   testOutputItem n eC eCPP oi t = testOutputItem' n eC eCPP oi t t
+   -- Tests sending things over channels of protocol or ANY
+   testOutputItemProt :: Int -> String -> String -> A.OutputItem -> A.Type -> Test
+   testOutputItemProt n eC eCPP oi t = TestList [testOutputItem' n eC eCPP oi t (A.UserProtocol foo),testOutputItem' n eC eCPP oi t A.Any]
+
+   testOutputItem' :: Int -> String -> String -> A.OutputItem -> A.Type -> A.Type -> Test
+   testOutputItem' n eC eCPP oi t ct = TestList
      [
-       testBothS ("testOutput " ++ show n) eC eCPP ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirUnknown)
-       ,testBothS ("testOutput [out] " ++ show n) eC eCPP_Out ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirOutput)
+       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP) ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirUnknown)
+       ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirOutput)
      ]
      where
-       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) t)
+       hashIs x y = subRegex (mkRegex "#") y x
+     
+       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) ct)
                       case t of
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (A.Array [A.Dimension 6] t')
@@ -734,9 +756,9 @@ testOutput = TestList
    chanOut = simpleName "cOut"
    state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
-   overOutput ops = ops {genVariable = override1 at, genOutput = override2 caret}
+   overOutput ops = ops {genOutput = override2 caret}
    overOutputItem ops = ops {genOutputItem = override2 caret}
-   over ops = ops {genVariable = override1 at, genExpression = override1 dollar, genBytesIn = override2 caret}
+   over ops = ops {genBytesIn = override2 caret}
 
 ---Returns the list of tests:
 tests :: Test

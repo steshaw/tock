@@ -313,35 +313,6 @@ public:
 		return tockArrayView<const T,DIMS>((const T*)realArray,std::make_pair(dims,totalSubDim));
 	}
 	
-	inline tockArrayView<typename boost::remove_const<T>::type,DIMS> versionToSend()
-	{
-		return tockArrayView<typename boost::remove_const<T>::type,DIMS>(const_cast<typename boost::remove_const<T>::type*>(realArray),std::make_pair(dims,totalSubDim));
-	}
-	
-	inline const tockArrayView<typename boost::remove_const<T>::type,DIMS> versionToSend() const
-	{
-		return tockArrayView<typename boost::remove_const<T>::type,DIMS>(const_cast<typename boost::remove_const<T>::type*>(realArray),std::make_pair(dims,totalSubDim));
-	}	
-	
-	inline tockArrayView& operator=(const tockArrayView& tav)
-	{
-		//TODO investigate speeding up when T is primitive (maybe there's a boost class for that?)
-		
-		unsigned n = tav.size();
-		for (unsigned i = 0;i < n;i++)
-		{
-			realArray[i] = tav.realArray[i];
-		}
-		
-		dims = tav.dims;
-		totalSubDim = tav.totalSubDim;
-		return *this;
-	}
-	
-	inline tockArrayView& operator=(const tockAny&)
-	{
-		//TODO later on
-	}
 };
 
 template <typename T>
@@ -404,4 +375,30 @@ void tockRecvInt(const csp::Chanin<tockSendableArrayOfBytes>& c, unsigned int* p
 {
     tockSendableArrayOfBytes d(sizeof(unsigned int),p);
 	c >> d;
+}
+
+template <typename T, unsigned N>
+class tockSendableArray
+{
+private:
+	tockSendableArrayOfBytes aob;
+public:
+	template <unsigned D>
+	inline explicit tockSendableArray(const tockArrayView<T,D>& arr)
+		:	aob(N*sizeof(T),arr.data())
+	{
+	}
+};
+
+template <typename T, unsigned N, unsigned D>
+void tockSendArray(const csp::Chanout< tockSendableArray<T,N> >& out,const tockArrayView<T,D>& arr)
+{
+	out << tockSendableArray<T,N>(arr);
+}
+
+template <typename T, unsigned N, unsigned D>
+void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const tockArrayView<T,D>& arr)
+{
+	tockSendableArray<T,N> tsa(arr);
+	in >> tsa;
 }
