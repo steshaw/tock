@@ -943,20 +943,6 @@ cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
           when b $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
---We do variant protocols by introducing a new variant:
-cppintroduceSpec _ (A.Specification _ n (A.ProtocolCase _ []))
-    =  do tell ["typedef class {} "] 
-          genName n
-          tell [";"]
-cppintroduceSpec ops (A.Specification _ n (A.ProtocolCase _ caseList))
-    =  do sequence_ [tell ["class "] >> genProtocolTagName n tag >> tell [" {}; "] | (tag , _) <- caseList]    
-          cgmap (typedef_genCaseType n) caseList          
-          createChainedType "boost::variant" (genProtocolName n) $ map ((genTupleProtocolTagName n) . fst) caseList
-          where 
-            typedef_genCaseType :: A.Name -> (A.Name, [A.Type]) -> CGen()
-            typedef_genCaseType n (tag, typeList) 
-              =  createChainedType "boost::tuple" (genTupleProtocolTagName n tag) ((genProtocolTagName n tag) : (map (call genType ops) typeList))
-          
 --Clause changed to handle array retyping
 cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v

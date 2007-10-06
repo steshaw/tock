@@ -1336,15 +1336,14 @@ cintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
           tell [";"]
 cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
 cintroduceSpec ops (A.Specification _ n (A.ProtocolCase _ ts))
-    =  do tell ["typedef enum {\n"]
+    =  do tell ["typedef enum{"]
           seqComma [genName tag >> tell ["_"] >> genName n | (tag, _) <- ts]
           -- You aren't allowed to have an empty enum.
           when (ts == []) $
             tell ["empty_protocol_"] >> genName n
-          tell ["\n"]
-          tell ["} "]
+          tell ["}"]
           genName n
-          tell [";\n"]
+          tell [";"]
 cintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
     =  do call genSpecMode ops sm
           tell ["void "]

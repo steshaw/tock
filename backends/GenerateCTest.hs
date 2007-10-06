@@ -499,11 +499,14 @@ testSpec = TestList
   -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
   
   --TODO test Is more (involving subscripts, arrays and slices)
+
+  --ProtocolCase:
+  ,testAllSame 800 ("typedef enum{empty_protocol_foo}foo;","") $ A.ProtocolCase emptyMeta []
+  ,testAllSame 801 ("typedef enum{bar_foo}foo;","") $ A.ProtocolCase emptyMeta [(bar,[])]
+  ,testAllSame 802 ("typedef enum{bar_foo,wibble_foo}foo;","") $ A.ProtocolCase emptyMeta [(bar,[]),(simpleName "wibble",[])]
   
   
   --TODO IsExpr
-  --TODO Protocol
-  --TODO ProtocolCase
   --TODO Proc
   --TODO Retypes
  ]
