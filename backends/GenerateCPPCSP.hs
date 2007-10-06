@@ -440,9 +440,9 @@ genJustOutputItem ops (A.OutExpression m e)
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cppgenOutputItem ops chan item 
     =  do genCPPCSPChannelOutput ops chan
-          tell [" << "]
+          tell ["<<"]
           genJustOutputItem ops item
-          tell [" ; "]
+          tell [";"]
 
 -- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
 -- | Helper function to place a comma between items, but not before or after

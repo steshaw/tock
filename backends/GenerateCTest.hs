@@ -694,14 +694,49 @@ testOutput = TestList
  
   ,testBothS "testOutput 100" "ChanOutInt(@,bar_foo);^" "tockSendInt(@->writer(),bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chan) bar []) . overOutput) state
   ,testBothS "testOutput 101" "ChanOutInt(@,bar_foo);^" "tockSendInt(@,bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar []) . overOutput) state
+  
+  --Integers are a special case in the C backend:
+  ,testOutputItem 200 "ChanOutInt(@,$);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ intLiteral 0) A.Int
+  ,testOutputItem 201 "ChanOutInt(@,$);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") A.Int
+  --A plain type on the channel of the right type:
+  ,testOutputItem 202 "ChanOut(@,&@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
+  --A record type on the channel of the right type (because records are pointed to, so they shouldn't need the address-of operator):
+  ,testOutputItem 202 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
+  --A fixed size array on the channel of the right type:
+  ,testOutputItem 203 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
+  ,testOutputItem 204 "ChanOut(@,@,^);" ("@->writer()<<$;", "@<<$;") (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
+
+  --A counted array:
+  ,testOutputItem 205 "ChanOutInt(@,$);ChanOut(@,@,$*^);" ("tockSendInt(@->writer(),$);@->writer()<<$;", "tockSendInt(@,$);@<<$;")
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
+  ,testOutputItem 206 "ChanOutInt(@,$);ChanOut(@,@,$*^);" ("tockSendInt(@->writer(),$);@->writer()<<$;", "tockSendInt(@,$);@<<$;")
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 8] A.Int))
+  
+  --TODO add a pass that makes sure all outputs are either of type Int or are variables.  Including count for counted items
+  
+  --TODO test sending things that are part of protocols (this will require different code in the C++ backend)
  ]
  where
+   testOutputItem :: Int -> String -> (String,String) -> A.OutputItem -> A.Type -> Test
+   testOutputItem n eC (eCPP,eCPP_Out) oi t = TestList
+     [
+       testBothS ("testOutput " ++ show n) eC eCPP ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirUnknown)
+       ,testBothS ("testOutput [out] " ++ show n) eC eCPP_Out ((tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi) . over) (state A.DirOutput)
+     ]
+     where
+       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) t)
+                      case t of
+                        A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
+                                             defineName (simpleName "xs") $ simpleDefDecl "xs" (A.Array [A.Dimension 6] t')
+                        _ -> defineName (simpleName "x") $ simpleDefDecl "x" t
+ 
    chan = simpleName "c"
    chanOut = simpleName "cOut"
    state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
    overOutput ops = ops {genVariable = override1 at, genOutput = override2 caret}
    overOutputItem ops = ops {genOutputItem = override2 caret}
+   over ops = ops {genVariable = override1 at, genExpression = override1 dollar, genBytesIn = override2 caret}
 
 ---Returns the list of tests:
 tests :: Test

@@ -955,33 +955,33 @@ cgenOutputItem ops c (A.OutCounted m ce ae)
           t <- typeOfExpression ae
           case ae of
             A.ExprVariable m v ->
-              do tell ["ChanOut ("]
+              do tell ["ChanOut("]
                  call genVariable ops c
-                 tell [", "]
+                 tell [","]
                  fst $ abbrevVariable ops A.Abbrev t v
-                 tell [", "]
+                 tell [","]
                  subT <- trivialSubscriptType t
                  call genExpression ops ce
-                 tell [" * "]
+                 tell ["*"]
                  call genBytesIn ops subT (Just v)
-                 tell [");\n"]
+                 tell [");"]
 cgenOutputItem ops c (A.OutExpression m e)
     =  do t <- typeOfExpression e
           case (t, e) of
             (A.Int, _) ->
-              do tell ["ChanOutInt ("]
+              do tell ["ChanOutInt("]
                  call genVariable ops c
-                 tell [", "]
+                 tell [","]
                  call genExpression ops e
-                 tell [");\n"]
+                 tell [");"]
             (_, A.ExprVariable _ v) ->
-              do tell ["ChanOut ("]
+              do tell ["ChanOut("]
                  call genVariable ops c
-                 tell [", "]
+                 tell [","]
                  fst $ abbrevVariable ops A.Abbrev t v
-                 tell [", "]
+                 tell [","]
                  call genBytesIn ops t (Just v)
-                 tell [");\n"]
+                 tell [");"]
             _ ->
               do n <- makeNonce "output_item"
                  tell ["const "]
