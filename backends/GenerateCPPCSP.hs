@@ -888,15 +888,14 @@ cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
     genParamList :: [A.Formal] -> CGen()
     genParamList fs = infixComma $ map genParam fs
 
--- FIXME: We could just fall through to cintroduceSpec as the last clause...
---This clause is unchanged from GenerateC:
+-- Changed because we use cppabbrevVariable instead of abbrevVariable:
 cppintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
     =  do let rhs = cppabbrevVariable ops am t v
           call genDecl ops am t n
-          tell [" = "]
+          tell ["="]
           rhs
-          tell [";\n"]
---Clause only changed to use Blitz++ rather than C arrays:
+          tell [";"]
+--Clause only changed to use C++ rather than C arrays:
 cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
     =  do let rhs = cppabbrevExpression ops am t e
           case (am, t, e) of
@@ -1210,9 +1209,10 @@ cppgenDeclType ops am t
               do when (am == A.ValAbbrev) $ tell ["const "]
                  call genType ops t
                  case t of
-                   A.Chan {} -> return ()
-                   A.Record _ -> tell [" *"]
-                   _ -> when (am == A.Abbrev) $ tell [" *"]
+                   A.Chan A.DirInput _ _ -> return ()
+                   A.Chan A.DirOutput _ _ -> return ()
+                   A.Record _ -> tell ["*const"]
+                   _ -> when (am == A.Abbrev) $ tell ["*const"]
 
 -- | Changed because C++CSP has channel-ends as concepts (whereas CCSP does not)
 cppgenDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen ()

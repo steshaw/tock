@@ -450,9 +450,10 @@ cgenDeclType ops am t
           call genType ops t
           case t of
             A.Array _ _ -> return ()
-            A.Chan {} -> return ()
-            A.Record _ -> tell [" *"]
-            _ -> when (am == A.Abbrev) $ tell [" *"]
+            A.Chan A.DirInput _ _ -> return ()
+            A.Chan A.DirOutput _ _ -> return ()
+            A.Record _ -> tell ["*const"]
+            _ -> when (am == A.Abbrev) $ tell ["*const"]
 
 cgenDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen ()
 cgenDecl ops am t n
@@ -1281,9 +1282,9 @@ cintroduceSpec ops (A.Specification m n (A.Declaration _ t))
 cintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
     =  do let (rhs, rhsSizes) = abbrevVariable ops am t v
           call genDecl ops am t n
-          tell [" = "]
+          tell ["="]
           rhs
-          tell [";\n"]
+          tell [";"]
           rhsSizes n
 cintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
     =  do let (rhs, rhsSizes) = abbrevExpression ops am t e

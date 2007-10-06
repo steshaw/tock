@@ -483,8 +483,23 @@ testSpec = TestList
     $ A.IsChannelArray emptyMeta (A.Array [A.Dimension 2] $ chanInt) 
     [A.Variable undefined undefined,A.Variable undefined undefined]
 
-
-  --TODO Is
+  --Is:
+  
+  -- Plain types require you to take an address to get the pointer:
+  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [A.Int,A.Time]
+  -- Arrays and records are already pointers, so no need to take the address:
+  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [chanInt,A.Record foo]
+  --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
+  --C abbreviations will be of type Channel*, so they can just copy the channel address.
+  ,testAllSameForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [chanIntIn,chanIntOut]
+  
+  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (A.Variable undefined undefined)) [A.Int,A.Time]
+  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (A.Variable undefined undefined)) [A.Record foo]
+  -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
+  
+  --TODO test Is more (involving subscripts, arrays and slices)
+  
+  
   --TODO IsExpr
   --TODO Protocol
   --TODO ProtocolCase
@@ -492,7 +507,12 @@ testSpec = TestList
   --TODO Retypes
  ]
   where
+    testAllSameForTypes :: Int -> (A.Type -> (String, String)) -> (A.Type -> A.SpecType) -> [A.Type] -> Test
+    testAllSameForTypes n te spec ts = TestList [testAllSame (n+i) (te t) (spec t) | (i,t) <- zip [0..] ts]
+  
     chanInt = A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+    chanIntIn = A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+    chanIntOut = A.Chan A.DirOutput (A.ChanAttributes False False) A.Int
   
     testAll :: Int -> (String,String) -> (String,String) -> A.SpecType -> Test
     testAll n (eCI,eCR) (eCPPI,eCPPR) spec = TestList
