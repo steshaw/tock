@@ -79,8 +79,6 @@ data GenOps = GenOps {
     genArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen (),
     -- | Writes out the dimensions of an array, that can be used to initialise the sizes of an array.  Fails if there is an 'A.UnknownDimension' present.
     genArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen (),
-    -- | Writes out the size of the _sizes array, in square brackets.
-    genArraySizesSize :: GenOps -> [A.Dimension] -> CGen (),
     -- | Writes out the actual data storage array name.
     genArrayStoreName :: GenOps -> A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
@@ -185,7 +183,6 @@ cgenOps = GenOps {
     genArrayLiteralElems = cgenArrayLiteralElems,
     genArraySize = cgenArraySize,
     genArraySizesLiteral = cgenArraySizesLiteral,
-    genArraySizesSize = cgenArraySizesSize,
     genArrayStoreName = const genName,
     genArraySubscript = cgenArraySubscript,
     genAssert = cgenAssert,
@@ -1198,9 +1195,7 @@ cgenDeclaration ops (A.Array ds t) n True
           tell [";"]
           tell ["int "]
           genName n
-          tell ["_sizes"]
-          call genArraySizesSize ops ds
-          tell [";"]
+          tell ["_sizes[",show $ length ds,"];"]
 cgenDeclaration ops t n _
     =  do call genType ops t
           tell [" "]
@@ -1214,13 +1209,6 @@ cgenFlatArraySize ops ds
     =  do tell ["["]
           sequence $ intersperse (tell ["*"])
                                  [case d of A.Dimension n -> tell [show n] | d <- ds]
-          tell ["]"]
-
--- | Generate the size of the _sizes C array for an occam array.
-cgenArraySizesSize :: GenOps -> [A.Dimension] -> CGen ()
-cgenArraySizesSize ops ds
-    =  do tell ["["]
-          tell [show $ length ds]
           tell ["]"]
 
 -- | Declare an _sizes array for a variable.
