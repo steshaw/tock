@@ -1574,13 +1574,13 @@ cgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase ops c tag ois
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          tell ["ChanOutInt ("]
+          tell ["ChanOutInt("]
           call genVariable ops c
-          tell [", "]
+          tell [","]
           genName tag
           tell ["_"]
           genName proto
-          tell [");\n"]
+          tell [");"]
           call genOutput ops c ois
 --}}}
 --{{{  stop

@@ -685,6 +685,24 @@ testWhile = testBothSame "testWhile 0" "while($){@}" ((tcall2 genWhile undefined
   where
     over ops = ops {genExpression = override1 dollar, genProcess = override1 at}
 
+testOutput :: Test
+testOutput = TestList
+ [
+  testBothSame "testOutput 0" "" ((tcall2 genOutput undefined []) . overOutputItem)
+  ,testBothSame "testOutput 1" "^" ((tcall2 genOutput undefined [undefined]) . overOutputItem)
+  ,testBothSame "testOutput 2" "^^^" ((tcall2 genOutput undefined [undefined,undefined,undefined]) . overOutputItem)
+ 
+  ,testBothS "testOutput 100" "ChanOutInt(@,bar_foo);^" "tockSendInt(@->writer(),bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chan) bar []) . overOutput) state
+  ,testBothS "testOutput 101" "ChanOutInt(@,bar_foo);^" "tockSendInt(@,bar_foo);^" ((tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar []) . overOutput) state
+ ]
+ where
+   chan = simpleName "c"
+   chanOut = simpleName "cOut"
+   state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
+              defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
+   overOutput ops = ops {genVariable = override1 at, genOutput = override2 caret}
+   overOutputItem ops = ops {genOutputItem = override2 caret}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -700,6 +718,7 @@ tests = TestList
    ,testGenVariable
    ,testGetTime
    ,testIf
+   ,testOutput
    ,testOverArray
    ,testReplicator
    ,testSpec

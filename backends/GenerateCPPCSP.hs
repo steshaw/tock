@@ -110,7 +110,6 @@ cppgenOps = cgenOps {
     genInput = cppgenInput,
     genInputCase = cppgenInputCase,
     genInputItem = cppgenInputItem,
-    genOutput = cppgenOutput,
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
@@ -180,7 +179,7 @@ genCPPCSPChannelInput ops var
        case t of
          (A.Chan A.DirInput _ _) -> call genVariable ops var
          (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
-                                         tell [" ->reader() "]
+                                         tell ["->reader()"]
          _ -> call genMissing ops $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
@@ -190,7 +189,7 @@ genCPPCSPChannelOutput ops var
        case t of
          (A.Chan A.DirOutput _ _) -> call genVariable ops var
          (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
-                                         tell [" ->writer() "]
+                                         tell ["->writer()"]
          _ -> call genMissing ops $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
 --}}}
 
@@ -445,20 +444,6 @@ cppgenOutputItem ops chan item
           genJustOutputItem ops item
           tell [" ; "]
 
-cppgenOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen ()
-cppgenOutput ops c ois 
-    = do t <- typeOfVariable c
-         case t of 
-           --If it's a protocol, we have to build the appropriate tuple to send down the channel:
-           A.Chan _ _ (A.UserProtocol innerType) -> 
-             do genCPPCSPChannelOutput ops c
-                tell [" << "]
-                genProtocolName innerType
-                tell [" ( "]
-                infixComma $ map (genJustOutputItem ops) ois
-                tell [" ); "]
-           _ -> sequence_ $ map (call genOutputItem ops c) ois
-
 -- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
 -- | Helper function to place a comma between items, but not before or after
 infixComma :: [CGen ()] -> CGen ()
@@ -526,12 +511,14 @@ cppgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase ops c tag ois 
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          genCPPCSPChannelInput ops c
-          tell [" << "]
-          genSubTypes proto tag (middle proto)
-          tell [" ; "]        
-          where
-            middle proto = tupleExpression True (genTupleProtocolTagName proto tag)  (((genProtocolTagName proto tag) >> tell ["()"]) : map (genJustOutputItem ops) ois)
+          tell ["tockSendInt("]
+          genCPPCSPChannelOutput ops c
+          tell [","]
+          genName tag
+          tell ["_"]
+          genName proto
+          tell [");"]
+          call genOutput ops c ois
 
 
 -- | We use the process wrappers here, in order to execute the functions in parallel.

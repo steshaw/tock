@@ -394,3 +394,14 @@ public:
 		memcpy(dp,sp,n);
 	}
 };
+
+void tockSendInt(const csp::Chanout<tockSendableArrayOfBytes>& c, unsigned int n)
+{
+	c << tockSendableArrayOfBytes(&n);
+}
+
+void tockRecvInt(const csp::Chanin<tockSendableArrayOfBytes>& c, unsigned int* p)
+{
+    tockSendableArrayOfBytes d(sizeof(unsigned int),p);
+	c >> d;
+}
