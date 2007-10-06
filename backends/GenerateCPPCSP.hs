@@ -676,14 +676,13 @@ cppgenDeclaration ops t n _
 
 cppdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
 cppdeclareArraySizes ops arrType@(A.Array ds _) n = do
+          tell ["const "]
           call genType ops arrType
           tell [" "]
           genName n
-          tell ["("]
-          genName n
-          tell ["_actual,tockDims("]
-          genDims ds
-          tell ["));"]
+          tell ["="]
+          call genArraySizesLiteral ops n arrType
+          tell [";"]
 
 cppgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
 cppgenArraySizesLiteral ops n t@(A.Array ds _) = 

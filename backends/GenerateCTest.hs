@@ -364,11 +364,11 @@ testDeclaration = TestList
   ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) foo False)  
   
   --Arrays (of simple):
-  ,testBoth "genDeclaration 100" "int foo[8];const int foo_sizes[]={8};" "int foo_actual[8];tockArrayView<int,1> foo(foo_actual,tockDims(8));"
+  ,testBoth "genDeclaration 100" "int foo[8];const int foo_sizes[]={8};" "int foo_actual[8];const tockArrayView<int,1> foo=tockArrayView<int,1>(foo_actual,tockDims(8));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo False)
-  ,testBoth "genDeclaration 101" "int foo[8*9];const int foo_sizes[]={8,9};" "int foo_actual[8*9];tockArrayView<int,2> foo(foo_actual,tockDims(8,9));"
+  ,testBoth "genDeclaration 101" "int foo[8*9];const int foo_sizes[]={8,9};" "int foo_actual[8*9];const tockArrayView<int,2> foo=tockArrayView<int,2>(foo_actual,tockDims(8,9));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo False)
-  ,testBoth "genDeclaration 102" "int foo[8*9*10];const int foo_sizes[]={8,9,10};" "int foo_actual[8*9*10];tockArrayView<int,3> foo(foo_actual,tockDims(8,9,10));"
+  ,testBoth "genDeclaration 102" "int foo[8*9*10];const int foo_sizes[]={8,9,10};" "int foo_actual[8*9*10];const tockArrayView<int,3> foo=tockArrayView<int,3>(foo_actual,tockDims(8,9,10));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo False)
 
   --Arrays (of simple) inside records:
@@ -381,19 +381,19 @@ testDeclaration = TestList
   
   --Arrays of channels and channel-ends:
   ,testBoth "genDeclaration 200" "Channel foo[8];const int foo_sizes[]={8};"
-    "csp::One2OneChannel<int> foo_actual[8];tockArrayView<csp::One2OneChannel<int>,1> foo(foo_actual,tockDims(8));"
+    "csp::One2OneChannel<int> foo_actual[8];const tockArrayView<csp::One2OneChannel<int>,1> foo=tockArrayView<csp::One2OneChannel<int>,1>(foo_actual,tockDims(8));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 201" "Channel foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::One2OneChannel<int> foo_actual[8*9];tockArrayView<csp::One2OneChannel<int>,2> foo(foo_actual,tockDims(8,9));"
+    "csp::One2OneChannel<int> foo_actual[8*9];const tockArrayView<csp::One2OneChannel<int>,2> foo=tockArrayView<csp::One2OneChannel<int>,2>(foo_actual,tockDims(8,9));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
-    "csp::Chanin<int> foo_actual[8];tockArrayView<csp::Chanin<int>,1> foo(foo_actual,tockDims(8));"
+    "csp::Chanin<int> foo_actual[8];const tockArrayView<csp::Chanin<int>,1> foo=tockArrayView<csp::Chanin<int>,1>(foo_actual,tockDims(8));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::Chanout<int> foo_actual[8*9];tockArrayView<csp::Chanout<int>,2> foo(foo_actual,tockDims(8,9));"
+    "csp::Chanout<int> foo_actual[8*9];const tockArrayView<csp::Chanout<int>,2> foo=tockArrayView<csp::Chanout<int>,2>(foo_actual,tockDims(8,9));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
     
     
@@ -479,7 +479,8 @@ testSpec = TestList
   --IsChannelArray:
   ,testAll 500 
     ("$(" ++ show chanInt ++ ")*foo[]={(&c),(&c)};const int foo_sizes[]={2};","")
-    ("$(" ++ show chanInt ++ ")*foo_actual[]={(&c),(&c)};$(" ++ show (A.Array [A.Dimension 2] $ chanInt) ++ ") foo(foo_actual,tockDims(2));","")
+    ("$(" ++ show chanInt ++ ")*foo_actual[]={(&c),(&c)};const $(" ++ show (A.Array [A.Dimension 2] $ chanInt) ++ ") foo=$("
+      ++  show (A.Array [A.Dimension 2] $ chanInt) ++ ")(foo_actual,tockDims(2));","")
     $ A.IsChannelArray emptyMeta (A.Array [A.Dimension 2] $ chanInt) 
     [A.Variable emptyMeta $ simpleName "c",A.Variable emptyMeta $ simpleName "c"]
 
