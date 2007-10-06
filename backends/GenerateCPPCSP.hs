@@ -97,6 +97,7 @@ cppgenOps = cgenOps {
     genActual = cppgenActual,
     genActuals = cppgenActuals,
     genAlt = cppgenAlt,
+    genArrayStoreName = cppgenArrayStoreName,
     genArraySubscript = cppgenArraySubscript,
     genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
@@ -718,6 +719,9 @@ cppremoveSpec ops (A.Specification m n (A.Declaration _ t))
     var = A.Variable m n
 cppremoveSpec _ _ = return ()
 
+
+cppgenArrayStoreName :: GenOps -> A.Name -> CGen()
+cppgenArrayStoreName ops n = genName n >> tell ["_actual"]
 
 -- FIXME: This could be used elsewhere (and work in any monad)
 -- | A helper function that maps a function and calls sequence on the resulting [CGen()]

@@ -81,6 +81,8 @@ data GenOps = GenOps {
     genArraySizesLiteral :: GenOps -> [A.Dimension] -> CGen (),
     -- | Writes out the size of the _sizes array, in square brackets.
     genArraySizesSize :: GenOps -> [A.Dimension] -> CGen (),
+    -- | Writes out the actual data storage array name.
+    genArrayStoreName :: GenOps -> A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
     genArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen (),
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
@@ -184,6 +186,7 @@ cgenOps = GenOps {
     genArraySize = cgenArraySize,
     genArraySizesLiteral = cgenArraySizesLiteral,
     genArraySizesSize = cgenArraySizesSize,
+    genArrayStoreName = const genName,
     genArraySubscript = cgenArraySubscript,
     genAssert = cgenAssert,
     genAssign = cgenAssign,
@@ -1327,10 +1330,11 @@ cintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
                  rhsSizes n
-cintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ t cs))
-    =  do tell ["Channel *"]
-          genName n
-          tell ["[] = {"]
+cintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
+    =  do call genType ops c        
+          tell ["*"]
+          call genArrayStoreName ops n
+          tell ["[]={"]
           seqComma (map (call genVariable ops) cs)
           tell ["};\n"]
           call declareArraySizes ops [A.Dimension $ length cs] n
