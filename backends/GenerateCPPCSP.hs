@@ -426,23 +426,12 @@ cppgenInputItem ops c (A.InVariable m v)
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cppgenOutputItem ops chan item
   = case item of
-      (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) ->
-       do chan'
-          tell ["<<tockSendableArrayOfBytes("]
-          genPoint cv
-          tell [");"]
-          chan'
-          tell ["<<tockSendableArrayOfBytes("]
-          genPoint av
-          tell [");"]
+      (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) -> (sendBytes cv) >> (sendBytes av)
       (A.OutExpression _ (A.ExprVariable _ sv)) ->
        do t <- typeOfVariable chan
           tsv <- typeOfVariable sv
           case (byteArrayChan t,tsv) of
-            (True,_) -> do chan'
-                           tell ["<<tockSendableArrayOfBytes("]
-                           genPoint sv
-                           tell [");"]
+            (True,_) -> sendBytes sv
             (False,A.Array {}) -> do tell ["tockSendArray("]
                                      chan'
                                      tell [","]
@@ -453,7 +442,12 @@ cppgenOutputItem ops chan item
                             genNonPoint sv
                             tell [";"]
   where
-    chan' = genCPPCSPChannelOutput ops chan   
+    chan' = genCPPCSPChannelOutput ops chan
+    
+    sendBytes v = do chan'
+                     tell ["<<tockSendableArrayOfBytes("]
+                     genPoint v
+                     tell [");"]   
     
     byteArrayChan :: A.Type -> Bool
     byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
