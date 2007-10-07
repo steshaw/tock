@@ -402,3 +402,10 @@ void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const tockArr
 	tockSendableArray<T,N> tsa(arr);
 	in >> tsa;
 }
+
+template <typename T>
+inline void tockInitChanArray(T* pointTo,T** pointFrom,int count)
+{
+	for (int i = 0;i < count;i++)
+		pointFrom[count] = &(pointTo[i]);
+}

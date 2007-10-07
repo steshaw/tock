@@ -665,6 +665,15 @@ cppgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
 cppgenDeclaration ops arrType@(A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
+          case t of
+            A.Chan A.DirUnknown _ _ ->
+              do genName n
+                 tell ["_storage"]
+                 call genFlatArraySize ops ds
+                 tell [";"]
+                 call genType ops t
+                 tell ["* "]
+            _ -> return ()
           call genArrayStoreName ops n
           call genFlatArraySize ops ds
           tell [";"]
@@ -710,11 +719,21 @@ cppgenArraySizesLiteral ops n t@(A.Array ds _) =
               _ -> die "unknown dimension in array type"
             | d <- ds]
 
--- | Changed because we don't need any initialisation in C++
+-- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareInit ops m t@(A.Array ds t') var
     = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var))
                 call genOverArray ops m var init
+                case t' of
+                  A.Chan A.DirUnknown _ _ ->
+                    do tell ["tockInitChanArray("]
+                       call genVariableUnchecked ops var
+                       tell ["_storage,"]
+                       call genVariableUnchecked ops var
+                       tell [","]
+                       sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
+                       tell [");"]
+                  _ -> return ()
 cppdeclareInit ops m rt@(A.Record _) var
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
@@ -1026,6 +1045,9 @@ cppgenArrayType ops const t rank
     =  do tell ["tockArrayView<"]
           when (const) (tell ["const "])
           call genType ops t
+          case t of
+            A.Chan A.DirUnknown _ _ -> tell ["*"]
+            _ -> return ()
           tell [",",show rank, ">/**/"]
     
 -- | Changed from GenerateC to change the arrays and the channels

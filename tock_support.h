@@ -66,6 +66,16 @@
 #endif
 //}}}
 
+//{{{ helper functions to simplify the code generation
+static inline void tock_init_chan_array(Channel*, Channel**, int) occam_unused;
+static inline void tock_init_chan_array(Channel* pointTo, Channel** pointFrom, int count) {
+	for (int i = 0; i < count; i++) {
+		pointFrom[i] = &(pointTo[i]);
+	}	
+}
+
+//}}}
+
 //{{{ runtime check functions
 
 //C++CSP may have defined this function already:

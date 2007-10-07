@@ -233,7 +233,7 @@ testGenType = TestList
   ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
   ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int A.Int) 
    
-  ,testBoth "GenType 700" "Channel*" "tockArrayView<csp::One2OneChannel<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 700" "Channel**" "tockArrayView<csp::One2OneChannel<int>*,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testBoth "GenType 701" "Channel**" "tockArrayView<csp::Chanin<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   --Test types that can only occur inside channels:
@@ -386,12 +386,12 @@ testDeclaration = TestList
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo True)
   
   --Arrays of channels and channel-ends:
-  ,testBoth "genDeclaration 200" "Channel foo[8];const int foo_sizes[]={8};"
-    "csp::One2OneChannel<int> foo_actual[8];const tockArrayView<csp::One2OneChannel<int>,1> foo=tockArrayView<csp::One2OneChannel<int>,1>(foo_actual,tockDims(8));"
+  ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];const int foo_sizes[]={8};"
+    "csp::One2OneChannel<int> foo_storage[8];csp::One2OneChannel<int>* foo_actual[8];const tockArrayView<csp::One2OneChannel<int>*,1> foo=tockArrayView<csp::One2OneChannel<int>*,1>(foo_actual,tockDims(8));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
 
-  ,testBoth "genDeclaration 201" "Channel foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::One2OneChannel<int> foo_actual[8*9];const tockArrayView<csp::One2OneChannel<int>,2> foo=tockArrayView<csp::One2OneChannel<int>,2>(foo_actual,tockDims(8,9));"
+  ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];const int foo_sizes[]={8,9};"
+    "csp::One2OneChannel<int> foo_storage[8*9];csp::One2OneChannel<int>* foo_actual[8*9];const tockArrayView<csp::One2OneChannel<int>*,2> foo=tockArrayView<csp::One2OneChannel<int>*,2>(foo_actual,tockDims(8,9));"
     (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
@@ -426,8 +426,11 @@ testDeclareInitFree = TestList
   ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("^ChanInit((&foo[0]));^","") ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 5 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  -- The subscripting on this test is incomplete; it should probably be fixed at some point:
+  ,testAll 5 ("tock_init_chan_array(foo_storage,foo,4*5*6);^ChanInit(foo[0*foo_sizes[1]*foo_sizes[2]]);^","") ("tockInitChanArray(foo_storage,foo,4*5*6);","") $ 
+    A.Array [A.Dimension 4,A.Dimension 5,A.Dimension 6] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 6 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain records:
   ,testAllR 100 ("","") ("","") A.Int
@@ -564,8 +567,8 @@ testGenVariable = TestList
   ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
   ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int)
   ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Record bar)
-  -- Original channel arrays are Channel[], but abbreviated channel arrays are Channel*[]:
-  ,testAC2 320 ("(&foo@C4)","(&foo@U4)") ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  -- Original channel arrays are Channel*[], abbreviated channel arrays are Channel*[]:
+  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Fully subscripted array, and record field reference:

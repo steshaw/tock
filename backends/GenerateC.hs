@@ -386,6 +386,9 @@ cgetScalarType _ _ = Nothing
 cgenType :: GenOps -> A.Type -> CGen ()
 cgenType ops (A.Array _ t)
     =  do call genType ops t
+          case t of
+            A.Chan A.DirUnknown _ _ -> tell ["*"]
+            _ -> return ()
           tell ["*"]
 cgenType _ (A.Record n) = genName n
 -- UserProtocol -- not used
@@ -694,9 +697,9 @@ MYREC r:                MYREC r;        MYREC *r;   MYREC *r;
 CHAN OF INT c:          Channel c;                  Channel *c;
   c                     &c                          c
 
-[10]CHAN OF INT cs:     Channel cs[10];             Channel *cs[10];
+[10]CHAN OF INT cs:     Channel* cs[10];            Channel **cs;
   cs                    cs                          cs
-  cs[i]                 &cs[i]                      cs[i]
+  cs[i]                 cs[i]                       cs[i]
 
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
@@ -743,7 +746,8 @@ cgenVariable' ops checkValid v
         =  do am <- accessAbbrevMode v
               t <- typeOfVariable v
               return $ case (sub, t) of
-                         (A.Subscript _ _, A.Array _ (A.Chan A.DirUnknown _ _)) -> am
+                         --Channel arrays are of pointers to channels; i.e. channels in arrays are always abbreviated:
+                         (A.Subscript _ _, A.Array _ (A.Chan A.DirUnknown _ _)) -> A.Abbrev 
                          (A.Subscript _ _, _) -> A.Original
                          (A.SubscriptField _ _, _) -> A.Original
                          _ -> am
@@ -1192,6 +1196,15 @@ cgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
 cgenDeclaration ops at@(A.Array ds t) n False
     =  do call genType ops t
           tell [" "]
+          case t of
+            A.Chan A.DirUnknown _ _ ->
+              do genName n
+                 tell ["_storage"]
+                 call genFlatArraySize ops ds
+                 tell [";"]
+                 call genType ops t
+                 tell ["* "]
+            _ -> return ()
           call genArrayStoreName ops n
           call genFlatArraySize ops ds
           tell [";"]
@@ -1244,7 +1257,17 @@ cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var
                 call genVariableUnchecked ops var
                 tell [");"]
 cdeclareInit ops m t@(A.Array ds t') var
-    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var))
+    = Just $ do case t' of
+                  A.Chan A.DirUnknown _ _ ->
+                    do tell ["tock_init_chan_array("]
+                       call genVariableUnchecked ops var
+                       tell ["_storage,"]
+                       call genVariableUnchecked ops var
+                       tell [","]
+                       sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
+                       tell [");"]
+                  _ -> return ()
+                init <- return (\sub -> call declareInit ops m t' (sub var))
                 call genOverArray ops m var init
 cdeclareInit ops m rt@(A.Record _) var
     = Just $ do fs <- recordFields m rt
