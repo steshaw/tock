@@ -78,6 +78,11 @@ parseAsmLine s
         incdecRE = mkRegex "^subl (.*), %esp$"
 
         parseVal :: String -> Int
+        -- The numbers can be negative:
+        parseVal ('$':'-':s)
+            = case readDec s of
+                [(v, "")] -> -v
+                _ -> error $ "Don't know how to parse assembly literal: -" ++ s
         parseVal ('$':s)
             = case readDec s of
                 [(v, "")] -> v
