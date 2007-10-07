@@ -136,6 +136,11 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} \
 		return a / b; \
 	}
+#define MAKE_NEGATE(type) \
+	static inline type occam_negate_##type (type, const char *) occam_unused; \
+	static inline type occam_negate_##type (type a, const char *pos) { \
+		return - a; \
+	}
 // occam's \ doesn't behave like C's %; it handles negative arguments.
 // (Effectively it ignores signs coming in, and the output sign is the sign of
 // the first argument.)
@@ -164,6 +169,15 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a - (i * b); \
 	}
 
+#define MAKE_ALL_SIGNED(type,flag) \
+	MAKE_RANGE_CHECK(type,flag) \
+	MAKE_ADD(type) \
+	MAKE_SUBTR(type) \
+	MAKE_MUL(type) \
+	MAKE_DIV(type) \
+	MAKE_REM(type) \
+	MAKE_NEGATE(type)
+
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
 MAKE_ADD(uint8_t)
@@ -179,38 +193,21 @@ static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) 
 	}
 	return a % b;
 }
+
+// we don't define negate for unsigned types 
+
 //}}}
 //{{{ int16_t
-MAKE_RANGE_CHECK(int16_t, "%d")
-MAKE_ADD(int16_t)
-MAKE_SUBTR(int16_t)
-MAKE_MUL(int16_t)
-MAKE_DIV(int16_t)
-MAKE_REM(int16_t)
+MAKE_ALL_SIGNED(int16_t, "%d")
 //}}}
 //{{{ int
-MAKE_RANGE_CHECK(int, "%d")
-MAKE_ADD(int)
-MAKE_SUBTR(int)
-MAKE_MUL(int)
-MAKE_DIV(int)
-MAKE_REM(int)
+MAKE_ALL_SIGNED(int, "%d")
 //}}}
 //{{{ int32_t
-MAKE_RANGE_CHECK(int32_t, "%d")
-MAKE_ADD(int32_t)
-MAKE_SUBTR(int32_t)
-MAKE_MUL(int32_t)
-MAKE_DIV(int32_t)
-MAKE_REM(int32_t)
+MAKE_ALL_SIGNED(int32_t, "%d")
 //}}}
 //{{{ int64_t
-MAKE_RANGE_CHECK(int64_t, "%lld")
-MAKE_ADD(int64_t)
-MAKE_SUBTR(int64_t)
-MAKE_MUL(int64_t)
-MAKE_DIV(int64_t)
-MAKE_REM(int64_t)
+MAKE_ALL_SIGNED(int64_t, "%lld")
 //}}}
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
@@ -219,6 +216,7 @@ MAKE_ADD(float)
 MAKE_SUBTR(float)
 MAKE_MUL(float)
 MAKE_DIV(float)
+MAKE_NEGATE(float)
 MAKE_DUMB_REM(float)
 //}}}
 //{{{ double
@@ -227,6 +225,7 @@ MAKE_ADD(double)
 MAKE_SUBTR(double)
 MAKE_MUL(double)
 MAKE_DIV(double)
+MAKE_NEGATE(double)
 MAKE_DUMB_REM(double)
 //}}}
 
