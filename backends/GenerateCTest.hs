@@ -768,6 +768,32 @@ testOutput = TestList
    overOutputItem ops = ops {genOutputItem = override2 caret}
    over ops = ops {genBytesIn = override2 caret}
 
+testBytesIn :: Test
+testBytesIn = TestList
+ [
+  testBothSame "testBytesIn 0" "sizeof(int)" (tcall2 genBytesIn A.Int undefined)
+  ,testBothSame "testBytesIn 1" "sizeof(foo)" (tcall2 genBytesIn (A.Record foo) undefined)
+  ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int>)" (tcall2 genBytesIn (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) undefined)
+  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int>)" (tcall2 genBytesIn (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) undefined)
+  
+  --Array with a single known dimension:
+  ,testBothSame "testBytesIn 100" "5*sizeof(int)" (tcall2 genBytesIn (A.Array [A.Dimension 5] A.Int) undefined)
+  --single unknown dimension, no variable:
+  ,testBothFail "testBytesIn 101" (tcall2 genBytesIn (A.Array [A.UnknownDimension] A.Int) Nothing)
+  --single unknown dimension, with variable:
+  ,testBothSame "testBytesIn 102" "$(@0)*sizeof(int)" ((tcall2 genBytesIn (A.Array [A.UnknownDimension] A.Int) (Just undefined)) . over)
+  
+  --Array with all known dimensions:
+  ,testBothSame "testBytesIn 200" "7*6*5*sizeof(int)" (tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6, A.Dimension 7] A.Int) undefined)
+  --single unknown dimension, no variable:
+  ,testBothFail "testBytesIn 201" (tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) Nothing)
+  --single unknown dimension, with variable:
+  ,testBothSame "testBytesIn 202" "$(@2)*6*5*sizeof(int)" ((tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Just undefined)) . over)  
+  
+ ]
+ where
+   over ops = ops {genVariable = override1 dollar, genSizeSuffix = (\_ n -> tell["(@",n,")"])}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -776,6 +802,7 @@ tests = TestList
    ,testArraySizes
    ,testArraySubscript
    ,testAssign
+   ,testBytesIn
    ,testCase
    ,testDeclaration
    ,testDeclareInitFree

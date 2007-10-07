@@ -86,7 +86,9 @@ data GenOps = GenOps {
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
     -- | Generates an assignment statement with a single destination and single source.
     genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
+    -- | Generates the number of bytes in a fixed size type
     genBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen (),
+    -- | Generates the number of bytes in a type that may have one free dimension
     genBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int),
     -- | Generates a case statement over the given expression with the structured as the body.
     genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
@@ -121,8 +123,11 @@ data GenOps = GenOps {
     genMissing :: GenOps -> String -> CGen (),
     genMissingC :: GenOps -> CGen String -> CGen (),
     genMonadic :: GenOps -> Meta -> A.MonadicOp -> A.Expression -> CGen (),
+    -- | Generates an output statement.
     genOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen (),
+    -- | Generates an output statement for a tagged protocol.
     genOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
+    -- | Generates an output for an individual item.
     genOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen (),
     -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
     genOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
@@ -413,14 +418,15 @@ cgenBytesIn' ops (A.Array ds t) v
     genBytesInArray [] _ = return Nothing
     genBytesInArray ((A.Dimension n):ds) i
         = do free <- genBytesInArray ds (i + 1)
-             tell [show n, " * "]
+             tell [show n, "*"]
              return free
     genBytesInArray (A.UnknownDimension:ds) i
         = case v of
             Just rv ->
               do free <- genBytesInArray ds (i + 1)
                  call genVariable ops rv
-                 tell ["_sizes[", show i, "] * "]
+                 call genSizeSuffix ops (show i)
+                 tell ["*"]
                  return free
             Nothing ->
               do free <- genBytesInArray ds (i + 1)
@@ -428,18 +434,20 @@ cgenBytesIn' ops (A.Array ds t) v
                    Nothing -> return $ Just i
                    Just _ -> die "genBytesIn' type with more than one free dimension"
 cgenBytesIn' _ (A.Record n) _
-    =  do tell ["sizeof ("]
+    =  do tell ["sizeof("]
           genName n
           tell [")"]
           return Nothing
 -- This is so that we can do RETYPES checks on channels; we don't actually
 -- allow retyping between channels and other things.
-cgenBytesIn' _ (A.Chan {}) _
-    =  do tell ["sizeof (Channel *)"]
+cgenBytesIn' ops t@(A.Chan {}) _
+    =  do tell ["sizeof("]
+          call genType ops t
+          tell [")"]
           return Nothing
 cgenBytesIn' ops t _
     = case call getScalarType ops t of
-        Just s -> tell ["sizeof (", s, ")"] >> return Nothing
+        Just s -> tell ["sizeof(", s, ")"] >> return Nothing
         Nothing -> dieC $ formatCode "genBytesIn' %" t
 --}}}
 
