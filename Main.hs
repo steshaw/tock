@@ -102,6 +102,21 @@ getOpts argv =
     (_,_,errs) -> error (concat errs ++ usageInfo header options)
   where header = "Usage: tock [OPTION...] SOURCEFILE"
 
+writeOccamWrapper :: Handle -> IO ()
+writeOccamWrapper h = do
+  write "#INCLUDE \"cifccsp.inc\"\n"
+  write "#PRAGMA EXTERNAL \"PROC C.tock.main.init (INT raddr, CHAN BYTE in?, out!, err!) = 0\"\n"
+  write "#PRAGMA EXTERNAL \"PROC C.tock.main.free (VAL INT raddr) = 0\"\n"
+  write "PROC kroc.main (CHAN BYTE in?, out!, err!)\n"
+  write "  INT addr:\n"
+  write "  SEQ\n"
+  write "    C.tock.main.init (addr, in?, out!, err!)\n"
+  write "    cifccsp.startprocess (addr)\n"
+  write "    C.tock.main.free (addr)\n"
+  write ":\n"
+  where
+    write = hPutStr h
+
 main :: IO ()
 main = do
   argv <- getArgs
@@ -138,7 +153,10 @@ main = do
                                             postCAnalyse (tempPath ++ ".s") tempHandlePost
                                             liftIO $ hClose tempHandlePost
                                             exec $ cCommand tempPathPost (tempPathPost ++  ".o")
-                                            exec $ krocLinkCommand (tempPath ++ ".o") (tempPathPost ++ ".o") destBin
+                                            (tempPathOcc, tempHandleOcc) <- liftIO $ openTempFile "." "tock-temp.occ"
+                                            liftIO $ writeOccamWrapper tempHandleOcc
+                                            liftIO $ hClose tempHandleOcc
+                                            exec $ krocLinkCommand tempPathOcc [(tempPath ++ ".o"),(tempPathPost ++ ".o")] destBin
                              BackendCPPCSP -> exec $ cxxCommand tempPath destBin
                            
 
