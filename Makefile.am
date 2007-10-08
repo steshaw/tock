@@ -1,0 +1,59 @@
+
+AM_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
+
+AM_CXXFLAGS = -O2 -g -Wall -ggdb3 -I.
+
+GHC_OPTS = \
+	-fglasgow-exts \
+	-fallow-undecidable-instances \
+	-fwarn-unused-binds \
+	-fwarn-unused-imports \
+	-fwarn-type-defaults \
+	-icommon -itransformations -ifrontends -ibackends
+
+tock:
+	@MKDIR_P@ obj
+	ghc $(GHC_OPTS) -o tock --make Main -odir obj -hidir obj
+
+#The order of the -main-is and --make flags is important here:
+tocktest:
+	@MKDIR_P@ obj
+	ghc $(GHC_OPTS) -o tocktest -main-is TestMain --make TestMain -odir obj -hidir obj
+
+frontends/LexOccam.hs: frontends/LexOccam.x
+	alex frontends/LexOccam.x
+
+frontends/LexRain.hs: frontends/LexRain.x
+	alex frontends/LexRain.x
+
+BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs
+CLEANFILES = $(BUILT_SOURCES)
+
+tock_SOURCES = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
+tock_SOURCES += transformations/Unnest.hs transformations/UsageCheck.hs transformations/SimplifyProcs.hs
+tock_SOURCES += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
+tock_SOURCES += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
+tock_SOURCES += frontends/LexOccam.x frontends/LexRain.x
+tock_SOURCES += common/Pass.hs common/TreeUtil.hs common/Intrinsics.hs common/EvalLiterals.hs
+tock_SOURCES += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
+tock_SOURCES += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
+tock_SOURCES += common/Metadata.hs common/AST.hs
+tock_SOURCES += backends/TLP.hs backends/BackendPasses.hs backends/AnalyseAsm.hs
+tock_SOURCES += backends/GenerateC.hs backends/GenerateCPPCSP.hs
+tock_SOURCES += Main.hs
+
+tocktest_SOURCES = $(tock_SOURCES)
+tocktest_SOURCES += transformations/PassTest.hs transformations/UsageCheckTest.hs
+tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
+tocktest_SOURCES += common/TestUtil.hs common/CommonTest.hs 
+tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
+tocktest_SOURCES += TestMain.hs
+
+#The programs to actually build:	
+bin_PROGRAMS = tock
+noinst_PROGRAMS = tocktest
+
+
+clean-local:
+	rm -f obj/*.o obj/*.hi
+	rmdir obj
