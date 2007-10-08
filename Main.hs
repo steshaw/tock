@@ -137,7 +137,8 @@ main = do
                                             (tempPathPost, tempHandlePost) <- liftIO $ openTempFile "." "tock-temp-post"
                                             postCAnalyse (tempPath ++ ".s") tempHandlePost
                                             liftIO $ hClose tempHandlePost
-                                            exec $ krocLinkCommand tempPath tempPathPost destBin
+                                            exec $ cCommand tempPathPost (tempPathPost ++  ".o")
+                                            exec $ krocLinkCommand (tempPath ++ ".o") (tempPathPost ++ ".o") destBin
                              BackendCPPCSP -> exec $ cxxCommand tempPath destBin
                            
 
