@@ -29,7 +29,7 @@ CompilerCommands.hs: Makefile
 	echo -e 'cAsmCommand :: String -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'cAsmCommand inp out = "$(CC) $(TOCK_CFLAGS) -x c -S -o " ++ out ++ " " ++ inp\n' >> CompilerCommands.hs
 	echo -e 'krocLinkCommand :: String -> String -> String -> String\n'
-	echo -e 'krocLinkCommand fileA fileB out = "kroc -o " ++ out ++ " kroc-wrapper.occ " ++ fileA ++ " " ++ fileB ++ " kroc-wrapper-c.o -lcif"\n' >> CompilerCommands.hs
+	echo -e 'krocLinkCommand fileA fileB out = "kroc -o " ++ out ++ " kroc-wrapper.occ " ++ fileA ++ " " ++ fileB ++ " -lcif"\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand :: String -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand inp out = "$(CXX) $(TOCK_CXXFLAGS) -x c++ -o " ++ out ++ " " ++ inp\n' >> CompilerCommands.hs
 

@@ -289,6 +289,13 @@ cgenTopLevel ops p
           sequence_ [tell [", "] >> call genTLPChannel ops c | (_,c) <- chans]
           tell [");\n"]
           tell ["}\n"]
+          
+          tell ["void _tock_main_init (int *ws) {"]
+          tell ["Process *p = ProcAlloc (tock_main, 65536, 3,"]
+          tell ["(Channel *) ws[1], (Channel *) ws[2], (Channel *) ws[3]);"]
+          tell ["*((int *) ws[0]) = (int) p;"]
+          tell ["}"]
+          tell ["void _tock_main_free (int *ws) {ProcAllocClean ((Process *) ws[0]);}"]
 --}}}
 
 --{{{  utilities
