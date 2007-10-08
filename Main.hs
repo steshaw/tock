@@ -136,7 +136,7 @@ main = do
                            -- TODO Delete the temporary files when we're done
                            -- TODO make sure the temporary files are deleted if, for some reason, the C/C++ compiler should fail:
                            -- First, compile the file into C/C++:
-            ModeFull -> do (tempPath,tempHandle) <- liftIO $ openTempFile "." "tock-temp"
+            ModeFull -> do (tempPath,tempHandle) <- liftIO $ openTempFile "." "tock-temp-c"
                            compile ModeCompile fn tempHandle
                            liftIO $ hClose tempHandle
 
@@ -149,11 +149,11 @@ main = do
                            case csBackend optsPS of
                              BackendC -> do exec $ cCommand tempPath (tempPath ++ ".o")
                                             exec $ cAsmCommand tempPath (tempPath ++ ".s")
-                                            (tempPathPost, tempHandlePost) <- liftIO $ openTempFile "." "tock-temp-post"
+                                            (tempPathPost, tempHandlePost) <- liftIO $ openTempFile "." "tock-temp-post-c"
                                             postCAnalyse (tempPath ++ ".s") tempHandlePost
                                             liftIO $ hClose tempHandlePost
                                             exec $ cCommand tempPathPost (tempPathPost ++  ".o")
-                                            (tempPathOcc, tempHandleOcc) <- liftIO $ openTempFile "." "tock-temp.occ"
+                                            (tempPathOcc, tempHandleOcc) <- liftIO $ openTempFile "." "tock-temp-occ.occ"
                                             liftIO $ writeOccamWrapper tempHandleOcc
                                             liftIO $ hClose tempHandleOcc
                                             exec $ krocLinkCommand tempPathOcc [(tempPath ++ ".o"),(tempPathPost ++ ".o")] destBin
