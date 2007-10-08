@@ -32,7 +32,7 @@ import Errors
 import Metadata
 
 -- | Modes that Tock can run in.
-data CompMode = ModeParse | ModeCompile | ModePostC
+data CompMode = ModeParse | ModeCompile | ModePostC | ModeFull
   deriving (Show, Data, Typeable, Eq)
 
 -- | Backends that Tock can use.

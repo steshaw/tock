@@ -24,9 +24,12 @@ import Control.Monad.State
 import List
 import System
 import System.Console.GetOpt
+import System.Exit
 import System.IO
+import System.Process
 
 import AnalyseAsm
+import CompilerCommands
 import CompState
 import Errors
 import GenerateC
@@ -53,7 +56,7 @@ type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c)"
+  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c, full)"
   , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
@@ -66,6 +69,7 @@ optMode s ps
             "parse" -> return ModeParse
             "compile" -> return ModeCompile
             "post-c" -> return ModePostC
+            "full" -> return ModeFull
             _ -> dieIO (Nothing, "Unknown mode: " ++ s)
           return $ ps { csMode = mode }
 
@@ -111,33 +115,65 @@ main = do
 
   let operation
         = case csMode initState of
-            ModeParse -> compile fn
-            ModeCompile -> compile fn
-            ModePostC -> postCAnalyse fn
+            ModeParse -> useOutputOptions (compile ModeParse fn)
+            ModeCompile -> useOutputOptions (compile ModeCompile fn)
+            ModePostC -> useOutputOptions (postCAnalyse fn)
+                           -- TODO Delete the temporary files when we're done
+                           -- TODO make sure the temporary files are deleted if, for some reason, the C/C++ compiler should fail:
+                           -- First, compile the file into C/C++:
+            ModeFull -> do (tempPath,tempHandle) <- liftIO $ openTempFile "." "tock-temp"
+                           compile ModeCompile fn tempHandle
+                           liftIO $ hClose tempHandle
+
+                           optsPS <- get
+                           destBin <- case csOutputFile optsPS of
+                                        "-" -> error "Must specify an output file when using full-compile mode"
+                                        file -> return file
+
+                           -- Then, compile the C/C++:
+                           case csBackend optsPS of
+                             BackendC -> do exec $ cCommand tempPath (tempPath ++ ".o")
+                                            exec $ cAsmCommand tempPath (tempPath ++ ".s")
+                                            (tempPathPost, tempHandlePost) <- liftIO $ openTempFile "." "tock-temp-post"
+                                            postCAnalyse (tempPath ++ ".s") tempHandlePost
+                                            liftIO $ hClose tempHandlePost
+                                            exec $ krocLinkCommand tempPath tempPathPost destBin
+                             BackendCPPCSP -> exec $ cxxCommand tempPath destBin
+                           
 
   -- Run the compiler.
   v <- evalStateT (runErrorT operation) initState
   case v of
     Left e -> dieIO e
     Right r -> return ()
+  
+  where
+    exec :: String -> PassM ()
+    exec cmd = do progress $ "Executing command: " ++ cmd
+                  p <- liftIO $ runCommand cmd
+                  exitCode <- liftIO $ waitForProcess p
+                  case exitCode of
+                    ExitSuccess -> return ()
+                    ExitFailure n -> error $ "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n
 
--- | Write the output to the file the user wanted.
-writeOutput :: String -> PassM ()
-writeOutput output
+
+-- | Picks out the handle from the options and passes it to the function:
+useOutputOptions :: (Handle -> PassM ()) -> PassM ()
+useOutputOptions func
   =  do optsPS <- get
         case csOutputFile optsPS of
-          "-" -> liftIO $ putStr output
+          "-" -> func stdout
           file ->
             do progress $ "Writing output file " ++ file
                f <- liftIO $ openFile file WriteMode
-               liftIO $ hPutStr f output
+               func f
                liftIO $ hClose f
 
 -- | Compile a file.
 -- This is written in the PassM monad -- as are most of the things it calls --
 -- because then it's very easy to pass the state around.
-compile :: String -> PassM ()
-compile fn
+compile :: CompMode -> String -> Handle -> PassM ()
+compile mode fn outHandle
   =  do optsPS <- get
 
         debug "{{{ Parse"
@@ -151,7 +187,7 @@ compile fn
         showWarnings
 
         output <-
-          case csMode optsPS of
+          case mode of
             ModeParse -> return $ show ast1
             ModeCompile ->
               do progress "Passes:"
@@ -179,13 +215,13 @@ compile fn
 
         showWarnings
 
-        writeOutput output
+        liftIO $ hPutStr outHandle output
 
         progress "Done"
 
 -- | Analyse an assembly file.
-postCAnalyse :: String -> PassM ()
-postCAnalyse fn
+postCAnalyse :: String -> Handle -> PassM ()
+postCAnalyse fn outHandle
     =  do asm <- liftIO $ readFile fn
 
           progress "Analysing assembly"
@@ -193,5 +229,5 @@ postCAnalyse fn
 
           showWarnings
 
-          writeOutput output
+          liftIO $ hPutStr outHandle output
 
