@@ -21,7 +21,7 @@ if test "x$ac_cv_prog_cc_c99" = "xno"; then
   ccsp_kroc_available=false
 fi
 
-#Check that they have alex, GHC, kroc, and the CCSP headers:
+#Check that they have alex, GHC, kroc, svn and the CCSP headers:
 AC_CHECK_PROG([HAVE_GHC],[ghc],[true],[false])
 if test "x$HAVE_GHC" = "xfalse"; then
   AC_MSG_ERROR([ghc not found])
@@ -37,6 +37,13 @@ if test "x$HAVE_KROC" = "xfalse"; then
   AC_MSG_WARN([kroc not found; you will not be able to compile output from the C backend on this machine])
   ccsp_kroc_available=false
 fi
+
+AC_CHECK_PROG([HAVE_SVN],[svn],[true],[false])
+if test "x$HAVE_SVN" = "xfalse"; then
+  AC_MSG_WARN([svn (Subversion) not found; you will not be able to fetch the occam cgtests from the public repository])
+fi
+
+#TODO test that they have the right GHC libraries installed (such as hunit, mtl)
 
 AC_LANG(C)
 AC_CHECK_HEADER([cifccsp.h],[HAVE_CIFCCSP=true],[HAVE_CIFCCSP=false])

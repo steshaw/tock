@@ -1,0 +1,7 @@
+#! /bin/sh
+
+for t in cgtests/cgtest??.occ
+do
+	echo "Compiling " $t
+	./tock --output=${t%%.occ} $@ $t
+done

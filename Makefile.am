@@ -72,3 +72,12 @@ noinst_PROGRAMS = tocktest
 clean-local:
 	rm -f obj/*.o obj/*.hi
 	rmdir obj
+
+get-cgtests:
+	svn co https://subversion.frmb.org/pubsvn/cgtests/branches/tock cgtests
+
+make-cgtests-c: get-cgtests
+	./compile-cgtests --backend=c
+
+make-cgtests-cpp: get-cgtests
+	./compile-cgtests --backend=cppcsp
