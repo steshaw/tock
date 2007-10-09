@@ -84,7 +84,7 @@ instance Show (A.Structured -> A.Structured) where
 
 emptyState :: CompState
 emptyState = CompState {
-    csMode = ModeCompile,
+    csMode = ModeFull,
     csBackend = BackendC,
     csFrontend = FrontendOccam,
     csVerboseLevel = 0,
