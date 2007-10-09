@@ -24,6 +24,7 @@ import Control.Monad.State
 import List
 import System
 import System.Console.GetOpt
+import System.Directory
 import System.Exit
 import System.IO
 import System.Process
@@ -133,48 +134,88 @@ main = do
             ModeParse -> useOutputOptions (compile ModeParse fn)
             ModeCompile -> useOutputOptions (compile ModeCompile fn)
             ModePostC -> useOutputOptions (postCAnalyse fn)
-                           -- TODO Delete the temporary files when we're done
-                           -- TODO make sure the temporary files are deleted if, for some reason, the C/C++ compiler should fail:
-                           -- First, compile the file into C/C++:
-            ModeFull -> do (tempPath,tempHandle) <- liftIO $ openTempFile "." "tock-temp-c"
-                           compile ModeCompile fn tempHandle
-                           liftIO $ hClose tempHandle
-
-                           optsPS <- get
-                           destBin <- case csOutputFile optsPS of
-                                        "-" -> error "Must specify an output file when using full-compile mode"
-                                        file -> return file
-
-                           -- Then, compile the C/C++:
-                           case csBackend optsPS of
-                             BackendC -> do exec $ cCommand tempPath (tempPath ++ ".o")
-                                            exec $ cAsmCommand tempPath (tempPath ++ ".s")
-                                            (tempPathPost, tempHandlePost) <- liftIO $ openTempFile "." "tock-temp-post-c"
-                                            postCAnalyse (tempPath ++ ".s") tempHandlePost
-                                            liftIO $ hClose tempHandlePost
-                                            exec $ cCommand tempPathPost (tempPathPost ++  ".o")
-                                            (tempPathOcc, tempHandleOcc) <- liftIO $ openTempFile "." "tock-temp-occ.occ"
-                                            liftIO $ writeOccamWrapper tempHandleOcc
-                                            liftIO $ hClose tempHandleOcc
-                                            exec $ krocLinkCommand tempPathOcc [(tempPath ++ ".o"),(tempPathPost ++ ".o")] destBin
-                             BackendCPPCSP -> exec $ cxxCommand tempPath destBin
-                           
+            ModeFull -> evalStateT (compileFull fn) []
 
   -- Run the compiler.
   v <- evalStateT (runErrorT operation) initState
   case v of
     Left e -> dieIO e
     Right r -> return ()
-  
+
+removeFiles :: [FilePath] -> IO ()
+removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)
   where
-    exec :: String -> PassM ()
-    exec cmd = do progress $ "Executing command: " ++ cmd
+    doNothing :: IOError -> IO ()
+    doNothing _ = return ()
+
+-- When we die inside the StateT [FilePath] monad, we should delete all the temporary files listed in the state, then die in the PassM monad:
+-- TODO Not totally sure this technique works if functions inside the PassM monad die, but there will only be temp files to clean up if postCAnalyse dies
+instance Die (StateT [FilePath] PassM) where
+  dieReport err = do files <- get
+                     -- If removing the files fails, we don't want to die with that error; we want the user to see the original error,
+                     -- so ignore errors arising from removing the files:
+                     liftIO $ removeFiles files
+                     lift $ dieReport err
+
+compileFull :: String -> StateT [FilePath] PassM ()
+compileFull fn        = do optsPS <- lift get
+                           destBin <- case csOutputFile optsPS of
+                                        "-" -> die "Must specify an output file when using full-compile mode"
+                                        file -> return file
+
+                           -- First, compile the code into C/C++:
+                           tempCPath <- execWithTempFile "tock-temp-c" (compile ModeCompile fn)
+
+                           -- Then, compile the C/C++:
+                           case csBackend optsPS of
+                                            -- Compile the C into an object file:
+                             BackendC -> do exec $ cCommand tempCPath (tempCPath ++ ".o")
+                                            noteFile (tempCPath ++ ".o")
+                                            -- Compile the same C into assembly:
+                                            exec $ cAsmCommand tempCPath (tempCPath ++ ".s")
+                                            noteFile (tempCPath ++ ".s")
+                                            -- Analyse the assembly for stack sizes, and output a "post" C file:
+                                            tempCPathPost <- execWithTempFile "tock-temp-post-c" (postCAnalyse (tempCPath ++ ".s"))
+                                            -- Compile this new "post" C file into an object file:
+                                            exec $ cCommand tempCPathPost (tempCPathPost ++  ".o")
+                                            noteFile (tempCPathPost ++  ".o")
+                                            -- Create a temporary occam file, and write the standard occam wrapper into it:
+                                            tempPathOcc <- execWithTempFile "tock-temp-occ.occ" (liftIO . writeOccamWrapper)
+                                            -- Use kroc to compile and link the occam file with the two object files from the C compilation:
+                                            exec $ krocLinkCommand tempPathOcc [(tempCPath ++ ".o"),(tempCPathPost ++ ".o")] destBin
+                                            
+                                            -- For C++, just compile the source file directly into a binary:
+                             BackendCPPCSP -> exec $ cxxCommand tempCPath destBin
+                           
+                           -- Finally, remove the temporary files:
+                           tempFiles <- get
+                           liftIO $ removeFiles tempFiles
+    
+  where
+    noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
+    noteFile fp = modify (\fps -> (fp:fps))
+  
+    -- Takes a temporary file pattern, a function to do something with that file, and returns the path of the now-closed temporary file
+    execWithTempFile' :: String -> (Handle -> PassM ()) -> PassM FilePath
+    execWithTempFile' pat func
+      = do (path,handle) <- liftIO $ openTempFile "." pat
+           func handle
+           liftIO $ hClose handle
+           return path
+    
+    execWithTempFile :: String -> (Handle -> PassM ()) -> StateT [FilePath] PassM FilePath
+    execWithTempFile pat func
+      = do file <- lift $ execWithTempFile' pat func
+           noteFile file
+           return file
+             
+    exec :: String -> StateT [FilePath] PassM ()
+    exec cmd = do lift $ progress $ "Executing command: " ++ cmd
                   p <- liftIO $ runCommand cmd
                   exitCode <- liftIO $ waitForProcess p
                   case exitCode of
                     ExitSuccess -> return ()
-                    ExitFailure n -> error $ "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n
-
+                    ExitFailure n -> die $ "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n
 
 -- | Picks out the handle from the options and passes it to the function:
 useOutputOptions :: (Handle -> PassM ()) -> PassM ()
