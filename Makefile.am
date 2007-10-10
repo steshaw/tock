@@ -46,6 +46,7 @@ CLEANFILES = $(BUILT_SOURCES)
 
 tock_SOURCES = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
 tock_SOURCES += transformations/Unnest.hs transformations/UsageCheck.hs transformations/SimplifyProcs.hs
+tock_SOURCES += transformations/SimplifyComms.hs
 tock_SOURCES += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
 tock_SOURCES += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
 tock_SOURCES += frontends/LexOccam.x frontends/LexRain.x
