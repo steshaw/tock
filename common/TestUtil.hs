@@ -52,6 +52,7 @@ import Pass
 import Pattern
 import PrettyShow
 import TreeUtil
+import Types
 import Utils
 
 -- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
@@ -385,3 +386,31 @@ simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Un
 
 markRainTest :: State CompState ()
 markRainTest = modify (\cs -> cs { csFrontend = FrontendRain })
+
+castOrFail :: (Typeable b) => String -> String -> Items -> IO b
+castOrFail testName key items = 
+  case castADI (Map.lookup key items) of
+    Just y -> return y
+    Nothing -> do assertFailure (testName ++ ": could not find item")
+                  -- Need this line so the types match:
+                  fail ""
+
+instance Die (StateT CompState IO) where
+  dieReport (_,s) = liftIO $ do assertFailure s 
+                                fail s
+
+checkTempVarTypes :: String -> [(String, A.Type)] -> (Items, CompState) -> Assertion
+checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
+  where
+    checkTempVarType :: String -> (Items, CompState) -> (String, A.Type) -> Assertion
+    checkTempVarType testName (items, state) (key, t)
+      = do (A.Name _ _ nm) <- castOrFail testName key items
+           case Map.lookup nm (csNames state) of
+             Nothing -> assertFailure (testName ++ ": item with key \"" ++ key ++ "\" was not recorded in the state")
+             Just nd -> evalStateT (
+                          do mtSpec <- typeOfSpec (A.ndType nd)
+                             case mtSpec of
+                               Just tSpec -> liftIO $ assertEqual (testName ++ ": type not as expected for key \"" ++ key ++ "\"") t tSpec
+                               Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndType nd))
+                          ) state
+
