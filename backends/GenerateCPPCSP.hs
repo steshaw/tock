@@ -107,7 +107,6 @@ cppgenOps = cgenOps {
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
-    genInput = cppgenInput,
     genInputCase = cppgenInputCase,
     genInputItem = cppgenInputItem,
     genOutputCase = cppgenOutputCase,
@@ -410,18 +409,40 @@ cppgenTimerWait ops e
           tell ["csp::SleepUntil(",time,");"]
 
 cppgenInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen ()
-cppgenInputItem ops c (A.InCounted m cv av)
-    =  do call genInputItem ops c (A.InVariable m av)
-          --The size is held by the array; we just assign it to the right variable afterwards:
-          call genVariable ops cv 
-          tell [" = "]
-          call genVariable ops av
-          tell [" .extent(0); "]
-cppgenInputItem ops c (A.InVariable m v)
-    =  do    genCPPCSPChannelInput ops c
-             tell [" >> "]
-             call genVariable ops v
-             tell [";\n"]
+cppgenInputItem ops c dest
+  = case dest of
+      (A.InCounted m cv av) -> 
+        do call genInputItem ops c (A.InVariable m cv)
+           recvBytes av (
+             do call genVariable ops cv
+                tell ["*"]
+                t <- typeOfVariable av
+                subT <- trivialSubscriptType t
+                call genBytesIn ops t (Just av)
+             )
+      (A.InVariable m v) ->
+        do ct <- typeOfVariable c
+           t <- typeOfVariable v
+           case (byteArrayChan ct,t) of
+             (True,_)-> recvBytes v (call genBytesIn ops t (Just v))
+             (False,A.Array {}) -> do tell ["tockRecvArray("]
+                                      chan'
+                                      tell [","]
+                                      call genVariable ops v
+                                      tell [");"]
+             (False,_) -> do chan'
+                             tell [">>"]
+                             genNonPoint ops v
+                             tell [";"]
+  where
+    chan' = genCPPCSPChannelInput ops c
+    recvBytes :: A.Variable -> CGen () -> CGen ()
+    recvBytes v b = do chan'
+                       tell [">>tockSendableArrayOfBytes("]
+                       b
+                       tell [","]
+                       genPoint ops v
+                       tell [");"]
 
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cppgenOutputItem ops chan item
@@ -439,34 +460,34 @@ cppgenOutputItem ops chan item
                                      tell [");"]
             (False,_) -> do chan'
                             tell ["<<"]
-                            genNonPoint sv
+                            genNonPoint ops sv
                             tell [";"]
   where
     chan' = genCPPCSPChannelOutput ops chan
     
     sendBytes v = do chan'
                      tell ["<<tockSendableArrayOfBytes("]
-                     genPoint v
-                     tell [");"]   
-    
-    byteArrayChan :: A.Type -> Bool
-    byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
-    byteArrayChan (A.Chan _ _ A.Any) = True
-    byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
-    byteArrayChan _ = False
-    
-    genPoint :: A.Variable -> CGen()
-    genPoint v = do t <- typeOfVariable v
+                     genPoint ops v
+                     tell [");"]
+
+byteArrayChan :: A.Type -> Bool
+byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
+byteArrayChan (A.Chan _ _ A.Any) = True
+byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
+byteArrayChan _ = False
+
+genPoint :: GenOps -> A.Variable -> CGen()
+genPoint ops v = do t <- typeOfVariable v
                     when (not $ isPoint t) $ tell ["&"]
                     call genVariable ops v
-    genNonPoint :: A.Variable -> CGen()
-    genNonPoint v = do t <- typeOfVariable v
+genNonPoint :: GenOps -> A.Variable -> CGen()
+genNonPoint ops v = do t <- typeOfVariable v
                        when (isPoint t) $ tell ["*"]
                        call genVariable ops v                    
-    isPoint :: A.Type -> Bool
-    isPoint (A.Record _) = True
-    isPoint (A.Array _ _) = True
-    isPoint _ = False
+isPoint :: A.Type -> Bool
+isPoint (A.Record _) = True
+isPoint (A.Array _ _) = True
+isPoint _ = False
 
 -- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
 -- | Helper function to place a comma between items, but not before or after

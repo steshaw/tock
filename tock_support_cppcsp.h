@@ -353,12 +353,26 @@ public:
 	{
 	}
 	
+	///Also for the sender:
+	template <typename T, typename N>
+	inline explicit tockSendableArrayOfBytes(const tockArrayView<T,N>& arr)
+		:	n(0),sp(arr.data())
+	{
+	}
+	
 	///For the receiver:
 	inline tockSendableArrayOfBytes(unsigned _n,void* p)
 		:	n(_n),sp(p)
 	{
 	}
 	
+	//Also for the receiver:
+	template <typename T, typename N>
+	inline explicit tockSendableArrayOfBytes(unsigned _n, const tockArrayView<T,N>& arr)
+		:	n(_n),p(arr.data())
+	{
+	}
+		
 	inline void operator=(const tockSendableArrayOfBytes& _src)
 	{
 		//We use the receiver's byte count:

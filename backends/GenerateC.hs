@@ -939,34 +939,34 @@ cgenInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen ()
 cgenInputItem ops c (A.InCounted m cv av)
     =  do call genInputItem ops c (A.InVariable m cv)
           t <- typeOfVariable av
-          tell ["ChanIn ("]
+          tell ["ChanIn("]
           call genVariable ops c
-          tell [", "]
+          tell [","]
           fst $ abbrevVariable ops A.Abbrev t av
-          tell [", "]
+          tell [","]
           subT <- trivialSubscriptType t
           call genVariable ops cv
-          tell [" * "]
+          tell ["*"]
           call genBytesIn ops subT (Just av)
-          tell [");\n"]
+          tell [");"]
 cgenInputItem ops c (A.InVariable m v)
     =  do t <- typeOfVariable v
           let rhs = fst $ abbrevVariable ops A.Abbrev t v
           case t of
             A.Int ->
-              do tell ["ChanInInt ("]
+              do tell ["ChanInInt("]
                  call genVariable ops c
-                 tell [", "]
+                 tell [","]
                  rhs
-                 tell [");\n"]
+                 tell [");"]
             _ ->
-              do tell ["ChanIn ("]
+              do tell ["ChanIn("]
                  call genVariable ops c
-                 tell [", "]
+                 tell [","]
                  rhs
-                 tell [", "]
+                 tell [","]
                  call genBytesIn ops t (Just v)
-                 tell [");\n"]
+                 tell [");"]
 
 cgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cgenOutputItem ops c (A.OutCounted m ce ae)
