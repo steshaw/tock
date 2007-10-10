@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Type inference and checking.
 module Types
   (
-    specTypeOfName, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
+    specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, sizeOfReplicator, sizeOfStructured
@@ -62,14 +62,21 @@ abbrevModeOfName n
 typeOfName :: (CSM m, Die m) => A.Name -> m A.Type
 typeOfName n
     =  do st <- specTypeOfName n
-          case st of
-            A.Declaration _ t -> return t
-            A.Is _ _ _ v -> typeOfVariable v
-            A.IsExpr _ _ _ e -> typeOfExpression e
-            A.IsChannelArray _ _ (c:_) -> liftM (A.Array [A.UnknownDimension]) $ typeOfVariable c
-            A.Retypes _ _ t _ -> return t
-            A.RetypesExpr _ _ t _ -> return t
-            _ -> die $ "cannot type name " ++ show st
+          t <- typeOfSpec st
+          case t of
+            Just t' -> return t'
+            Nothing -> die $ "cannot type name " ++ show st
+
+typeOfSpec :: (CSM m, Die m) => A.SpecType -> m (Maybe A.Type)
+typeOfSpec st
+        = case st of
+            A.Declaration _ t -> return $ Just t
+            A.Is _ _ _ v -> (liftM Just) (typeOfVariable v)
+            A.IsExpr _ _ _ e -> (liftM Just) (typeOfExpression e)
+            A.IsChannelArray _ _ (c:_) -> liftM (Just . (A.Array [A.UnknownDimension])) $ typeOfVariable c
+            A.Retypes _ _ t _ -> return $ Just t
+            A.RetypesExpr _ _ t _ -> return $ Just t
+            _ -> return Nothing
 
 --{{{  identifying types
 -- | Apply a slice to a type.
