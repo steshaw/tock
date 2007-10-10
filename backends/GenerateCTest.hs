@@ -695,6 +695,87 @@ testWhile = testBothSame "testWhile 0" "while($){@}" ((tcall2 genWhile undefined
   where
     over ops = ops {genExpression = override1 dollar, genProcess = override1 at}
 
+testInput :: Test
+testInput = TestList
+ [
+  -- Test that genInput passes on the calls properly:
+  testBothSame "testInput 0" "" ((tcall2 genInput undefined $ A.InputSimple undefined []) . overInputItemCase)
+  ,testBothSame "testInput 1" "^" ((tcall2 genInput undefined $ A.InputSimple undefined [undefined]) . overInputItemCase)
+  ,testBothSame "testInput 2" "^^^" ((tcall2 genInput undefined $ A.InputSimple undefined [undefined, undefined, undefined]) . overInputItemCase)
+  ,testBothSame "testInput 3" "$" ((tcall2 genInput undefined $ A.InputCase undefined undefined) . overInputItemCase)
+  
+  -- Reading an integer (special case in the C backend):
+  ,testInputItem 100 "ChanInInt(#,&x);" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int
+  -- Reading a other plain types:
+  ,testInputItem 101 "ChanIn(#,&x,^);" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int8
+  ,testInputItem 102 "ChanIn(#,(&x),^);" "#>>*(&x);" (A.InVariable emptyMeta $ variable "x") (A.Record foo)
+  -- Reading into a fixed size array:
+  ,testInputItem 103 "ChanIn(#,x,^);" "tockRecvArray(#,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
+    
+  -- Reading into subscripted variables:
+  ,testInputItem 110 "ChanInInt(#,&xs$);" "#>>xs$;" (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int
+  -- Reading a other plain types:
+  ,testInputItem 111 "ChanIn(#,&xs$,^);" "#>>xs$;" (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int8  
+  ,testInputItem 112 "ChanIn(#,(&xs$),^);" "#>>*(&xs$);" (A.InVariable emptyMeta $ sub0 $ variable "xs") (A.Record foo)
+  
+  -- A counted array of Int:
+  ,testInputItem 200 "ChanInInt(#,&x);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+    (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int A.Int)
+  -- A counted array of Int8:
+  ,testInputItem 201 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+    (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int8 A.Int8)
+  -- TODO reading in a counted/fixed-size array into an array of arrays
+
+  -- inputs as part of protocols/any:
+  ,testInputItemProt 300 "ChanInInt(#,&x);" "#>>tockSendableArrayOfBytes(^,&x);" (A.InVariable emptyMeta $ variable "x") A.Int
+  ,testInputItemProt 301 "ChanIn(#,&x,^);" "#>>tockSendableArrayOfBytes(^,&x);" (A.InVariable emptyMeta $ variable "x") A.Int8
+  ,testInputItemProt 302 "ChanIn(#,(&x),^);" "#>>tockSendableArrayOfBytes(^,(&x));" (A.InVariable emptyMeta $ variable "x") (A.Record foo)
+  ,testInputItemProt 303 "ChanIn(#,x,^);" "#>>tockSendableArrayOfBytes(^,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
+  ,testInputItemProt 400 "ChanInInt(#,&x);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+    (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int A.Int)
+  ,testInputItemProt 401 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+    (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int8 A.Int8)
+
+
+  -- TODO write tests for genInputCase
+
+
+ ]
+ where
+   sub0 = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta (intLiteral 0))
+ 
+   testInputItem :: Int -> String -> String -> A.InputItem -> A.Type -> Test
+   testInputItem n eC eCPP oi t = testInputItem' n eC eCPP oi t t
+   -- Tests sending things over channels of protocol or ANY
+   testInputItemProt :: Int -> String -> String -> A.InputItem -> A.Type -> Test
+   testInputItemProt n eC eCPP oi t = TestList [testInputItem' n eC eCPP oi t (A.UserProtocol foo),testInputItem' n eC eCPP oi t A.Any]
+
+   testInputItem' :: Int -> String -> String -> A.InputItem -> A.Type -> A.Type -> Test
+   testInputItem' n eC eCPP ii t ct = TestList
+     [
+       testBothS ("testInput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->reader()" eCPP) ((tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii) . over) (state A.DirUnknown)
+       ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) ((tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii) . over) (state A.DirInput)
+     ]
+     where
+       hashIs x y = subRegex (mkRegex "#") y x
+     
+       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) ct)
+                      case t of
+                        A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
+                                             defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
+                        _ -> do defineName (simpleName "x") $ simpleDefDecl "x" t
+                                defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t)
+       mkArray (A.Array ds t) = A.Array (A.Dimension 6:ds) t
+       mkArray t = A.Array [A.Dimension 6] t
+ 
+--   chan = simpleName "c"
+--   chanIn = simpleName "cIn"
+--   state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
+--              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
+
+   overInputItemCase ops = ops {genInputItem = override2 caret, genInputCase = override3 dollar}
+   over ops = ops {genBytesIn = override2 caret, genArraySubscript = override3 dollar}
+
 testOutput :: Test
 testOutput = TestList
  [
@@ -723,6 +804,11 @@ testOutput = TestList
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
   ,testOutputItem 208 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
+
+  -- Test counted arrays that do not have Int as the count type:
+  ,testOutputItem 209 "ChanOut(#,&x,^);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int8 A.Int8)
+  
   
   --TODO add a pass that makes sure all outputs are variables.  Including count for counted items
   
@@ -738,6 +824,9 @@ testOutput = TestList
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
   ,testOutputItemProt 308 "ChanOutInt(#,x);ChanOut(#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
+    
+    
+  --TODO add tests for sending on channels that are part of (normal, and abbreviated) channel arrays.
  ]
  where
    testOutputItem :: Int -> String -> String -> A.OutputItem -> A.Type -> Test
@@ -797,6 +886,8 @@ testBytesIn = TestList
  where
    over ops = ops {genVariable = override1 dollar, genSizeSuffix = (\_ n -> tell["(@",n,")"])}
 
+--TODO test array slicing.
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -813,6 +904,7 @@ tests = TestList
    ,testGenVariable
    ,testGetTime
    ,testIf
+   ,testInput
    ,testOutput
    ,testOverArray
    ,testReplicator
