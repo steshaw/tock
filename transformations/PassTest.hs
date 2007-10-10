@@ -25,7 +25,9 @@ import Test.HUnit hiding (State)
 
 import qualified AST as A
 import CompState
+import Metadata
 import Pattern
+import SimplifyComms
 import SimplifyExprs
 import TestUtil
 import TreeUtil
@@ -158,6 +160,27 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
       )
       skipP
 
+
+testOutExprs :: Test
+testOutExprs = TestList
+ [
+  TestCase $ testPassWithItemsStateCheck "testOutExprs 0" 
+    (tag2 A.Seq DontCare $ tag3 A.Spec DontCare
+      (tag3 A.Specification DontCare (Named "temp_var" DontCare) $ tag4 A.IsExpr DontCare A.ValAbbrev A.Int $ 
+        buildExprPattern $ Mon A.MonadicMinus (Var "x")
+      )
+      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
+    )
+    (outExprs $ 
+      A.Output emptyMeta chan [A.OutExpression emptyMeta $ buildExpr $ Mon A.MonadicMinus (Var "x")]
+    )
+    (defineName (xName) $ simpleDefDecl "x" A.Int)
+    (checkTempVarTypes "testOutExprs 0" [("temp_var", A.Int)])
+ ]
+ where
+   chan = variable "c"
+   xName = simpleName "x"
+   
                              
 --Returns the list of tests:
 tests :: Test
@@ -167,6 +190,7 @@ tests = TestList
    ,testFunctionsToProcs1
    ,testFunctionsToProcs2
    ,testTransformConstr0
+   ,testOutExprs
  ]
 
 
