@@ -19,6 +19,7 @@ tocktest: $(BUILT_SOURCES) $(tocktest_SOURCES)
 TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
 
 TOCK_CXXFLAGS = -O2 -g -Wall -ggdb3 -I.
+TOCK_CXXLDFLAGS = -lcppcsp2 -pthread
 
 
 CompilerCommands.hs: Makefile
@@ -32,7 +33,7 @@ CompilerCommands.hs: Makefile
 	echo -e 'krocLinkCommand :: String -> [String] -> String -> String\n'
 	echo -e 'krocLinkCommand wrapper files out = "kroc -o " ++ out ++ " " ++ wrapper ++ " " ++ (concat (intersperse " " files))  ++ " -lcif"\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand :: String -> String -> String\n' >> CompilerCommands.hs
-	echo -e 'cxxCommand inp out = "$(CXX) $(TOCK_CXXFLAGS) -x c++ -o " ++ out ++ " " ++ inp\n' >> CompilerCommands.hs
+	echo -e 'cxxCommand inp out = "$(CXX) $(TOCK_CXXFLAGS) -x c++ -o " ++ out ++ " " ++ inp ++ " $(TOCK_CXXLDFLAGS)"\n' >> CompilerCommands.hs
 
 
 frontends/LexOccam.hs: frontends/LexOccam.x
