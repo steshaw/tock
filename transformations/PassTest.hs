@@ -164,20 +164,70 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
 testOutExprs :: Test
 testOutExprs = TestList
  [
+  -- Test outputting from an expression:
   TestCase $ testPassWithItemsStateCheck "testOutExprs 0" 
-    (tag2 A.Seq DontCare $ tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (Named "temp_var" DontCare) $ tag4 A.IsExpr DontCare A.ValAbbrev A.Int $ 
-        buildExprPattern $ Mon A.MonadicMinus (Var "x")
-      )
-      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
+      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+        [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
     (outExprs $ 
-      A.Output emptyMeta chan [A.OutExpression emptyMeta $ buildExpr $ Mon A.MonadicMinus (Var "x")]
+      A.Output emptyMeta chan [outXM 1]
     )
     (defineName (xName) $ simpleDefDecl "x" A.Int)
     (checkTempVarTypes "testOutExprs 0" [("temp_var", A.Int)])
+
+  -- Test outputting from a variable already:
+  ,TestCase $ testPass "testOutExprs 1" 
+    (tag2 A.Seq DontCare $
+      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+        [outX])
+    )
+    (outExprs $ 
+      A.Output emptyMeta chan [outX]
+    )
+    (return ())
+    
+  -- Test outputting from multiple output items:
+  ,TestCase $ testPassWithItemsStateCheck "testOutExprs 2"
+    (tag2 A.Seq DontCare $ (abbr "temp_var0" A.Byte (eXM 1)) $ (abbr "temp_var1" A.Int (intLiteral 2))
+      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+        [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
+        ,mkPattern outX
+        ,tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var1" DontCare)))
+        ]
+      )
+    )
+    (outExprs $
+      A.Output emptyMeta chan [outXM 1,outX,A.OutExpression emptyMeta $ intLiteral 2]
+    )
+    (defineName (xName) $ simpleDefDecl "x" A.Byte)
+    (checkTempVarTypes "testOutExprs 2" [("temp_var0", A.Byte),("temp_var1", A.Int)])
+    
+  -- Test an OutCounted
+  ,TestCase $ testPassWithItemsStateCheck "testOutExprs 3"
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Byte (eXM 1))
+      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+        [tag3 A.OutCounted emptyMeta 
+          (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
+          (exprVariable "x")
+        ]
+      )
+    )
+    (outExprs $
+      A.Output emptyMeta chan [A.OutCounted emptyMeta (eXM 1) (exprVariable "x")]
+    )
+    (defineName (xName) $ simpleDefDecl "x" A.Byte)
+    (checkTempVarTypes "testOutExprs 3" [("temp_var", A.Byte)])
+
  ]
  where
+   outX = A.OutExpression emptyMeta $ exprVariable "x"
+   outXM n = A.OutExpression emptyMeta $ eXM n
+   eXM n = buildExpr $ Dy (Var "x") A.Minus (Lit $ intLiteral n)
+  
+   abbr key t e = tag3 A.Spec DontCare
+     (tag3 A.Specification DontCare (Named key DontCare) $ tag4 A.IsExpr DontCare A.ValAbbrev t e)
+ 
    chan = variable "c"
    xName = simpleName "x"
    
