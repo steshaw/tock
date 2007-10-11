@@ -74,11 +74,17 @@ clean-local:
 	rm -f obj/*.o obj/*.hi
 	rmdir obj
 
-get-cgtests:
+cgtests/cgtest00.occ:
 	svn co https://subversion.frmb.org/pubsvn/cgtests/branches/tock cgtests
 
-make-cgtests-c: get-cgtests
+# We must clean the cgtests every time at the moment, because if someone makes make-cgtests-c then make-cgtests-cpp, they'll need a clean inbetween:
+# In future we should give the version compiled using the C++ backend a different extension:
+
+make-cgtests-c: tock cgtests/cgtest00.occ clean-cgtests
 	./compile-cgtests --backend=c
 
-make-cgtests-cpp: get-cgtests
+make-cgtests-cpp: tock cgtests/cgtest00.occ clean-cgtests
 	./compile-cgtests --backend=cppcsp
+
+clean-cgtests:
+	rm -f cgtests/cgtest??
