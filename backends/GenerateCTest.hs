@@ -719,21 +719,29 @@ testInput = TestList
   ,testInputItem 112 "ChanIn(#,(&xs$),^);" "#>>*(&xs$);" (A.InVariable emptyMeta $ sub0 $ variable "xs") (A.Record foo)
   
   -- A counted array of Int:
-  ,testInputItem 200 "ChanInInt(#,&x);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+  ,testInputItem 200 "ChanInInt(#,&x);ChanIn(#,xs,x*^);"
+    "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^,xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int A.Int)
   -- A counted array of Int8:
-  ,testInputItem 201 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+  ,testInputItem 201 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);"
+    "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^,xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int8 A.Int8)
   -- TODO reading in a counted/fixed-size array into an array of arrays
 
   -- inputs as part of protocols/any:
-  ,testInputItemProt 300 "ChanInInt(#,&x);" "#>>tockSendableArrayOfBytes(^,&x);" (A.InVariable emptyMeta $ variable "x") A.Int
-  ,testInputItemProt 301 "ChanIn(#,&x,^);" "#>>tockSendableArrayOfBytes(^,&x);" (A.InVariable emptyMeta $ variable "x") A.Int8
-  ,testInputItemProt 302 "ChanIn(#,(&x),^);" "#>>tockSendableArrayOfBytes(^,(&x));" (A.InVariable emptyMeta $ variable "x") (A.Record foo)
-  ,testInputItemProt 303 "ChanIn(#,x,^);" "#>>tockSendableArrayOfBytes(^,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
-  ,testInputItemProt 400 "ChanInInt(#,&x);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+  ,testInputItemProt 300 "ChanInInt(#,&x);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));"
+    (A.InVariable emptyMeta $ variable "x") A.Int
+  ,testInputItemProt 301 "ChanIn(#,&x,^);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));"
+    (A.InVariable emptyMeta $ variable "x") A.Int8
+  ,testInputItemProt 302 "ChanIn(#,(&x),^);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,(&x)));"
+    (A.InVariable emptyMeta $ variable "x") (A.Record foo)
+  ,testInputItemProt 303 "ChanIn(#,x,^);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,x));"
+    (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
+  ,testInputItemProt 400 "ChanInInt(#,&x);ChanIn(#,xs,x*^);"
+    "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^,xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int A.Int)
-  ,testInputItemProt 401 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);" "#>>tockSendableArrayOfBytes(^,&x);#>>tockSendableArrayOfBytes(x*^,xs);"
+  ,testInputItemProt 401 "ChanIn(#,&x,^);ChanIn(#,xs,x*^);"
+    "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^,xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int8 A.Int8)
 
 

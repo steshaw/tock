@@ -437,12 +437,13 @@ cppgenInputItem ops c dest
   where
     chan' = genCPPCSPChannelInput ops c
     recvBytes :: A.Variable -> CGen () -> CGen ()
-    recvBytes v b = do chan'
-                       tell [">>tockSendableArrayOfBytes("]
+    recvBytes v b = do tell ["tockRecvArrayOfBytes("]
+                       chan'
+                       tell [",tockSendableArrayOfBytes("]
                        b
                        tell [","]
                        genPoint ops v
-                       tell [");"]
+                       tell ["));"]
 
 cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
 cppgenOutputItem ops chan item

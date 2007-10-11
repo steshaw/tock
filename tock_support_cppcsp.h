@@ -417,6 +417,19 @@ void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const tockArr
 	in >> tsa;
 }
 
+inline void tockSendArrayOfBytes(const csp::Chanout<tockSendableArrayOfBytes>& c, const tockSendableArrayOfBytes& b)
+{
+	c << b;
+}
+
+inline void tockRecvArrayOfBytes(const csp::Chanin<tockSendableArrayOfBytes>& c, const tockSendableArrayOfBytes& _b)
+{
+	//We can't read into the const parameter, so we copy it into a non-const version and read into that.
+	//The copying will preserve the pointer inside, so it doesn't cause any problems:
+    tockSendableArrayOfBytes b(_b);
+	c >> b;
+}
+
 template <typename T>
 inline void tockInitChanArray(T* pointTo,T** pointFrom,int count)
 {
