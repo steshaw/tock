@@ -354,7 +354,7 @@ public:
 	}
 	
 	///Also for the sender:
-	template <typename T, typename N>
+	template <typename T, unsigned N>
 	inline explicit tockSendableArrayOfBytes(const tockArrayView<T,N>& arr)
 		:	n(0),sp(arr.data())
 	{
@@ -362,14 +362,14 @@ public:
 	
 	///For the receiver:
 	inline tockSendableArrayOfBytes(unsigned _n,void* p)
-		:	n(_n),sp(p)
+		:	n(_n),dp(p)
 	{
 	}
 	
 	//Also for the receiver:
-	template <typename T, typename N>
+	template <typename T, unsigned N>
 	inline explicit tockSendableArrayOfBytes(unsigned _n, const tockArrayView<T,N>& arr)
-		:	n(_n),p(arr.data())
+		:	n(_n),dp(arr.data())
 	{
 	}
 		
