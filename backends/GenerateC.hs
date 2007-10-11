@@ -1001,18 +1001,6 @@ cgenOutputItem ops c (A.OutExpression m e)
                  tell [","]
                  call genBytesIn ops t (Just v)
                  tell [");"]
-            _ ->
-              do n <- makeNonce "output_item"
-                 tell ["const "]
-                 call genType ops t
-                 tell [" ", n, " = "]
-                 call genExpression ops e
-                 tell [";\n"]
-                 tell ["ChanOut ("]
-                 call genVariable ops c
-                 tell [", &", n, ", "]
-                 call genBytesIn ops t Nothing
-                 tell [");\n"]
 --}}}
 
 --{{{  replicators

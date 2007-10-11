@@ -40,6 +40,7 @@ import ParseRain
 import Pass
 import PreprocessOccam
 import RainPasses
+import SimplifyComms
 import SimplifyExprs
 import SimplifyProcs
 import SimplifyTypes
@@ -51,6 +52,7 @@ commonPasses =
   , ("Simplify expressions", simplifyExprs)
   , ("Simplify processes", simplifyProcs)
   , ("Flatten nested declarations", unnest)
+  , ("Simplify communications", simplifyComms)
   ]
 
 type OptFunc = CompState -> IO CompState
