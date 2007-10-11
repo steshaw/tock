@@ -36,4 +36,32 @@ simplifyComms = runPasses passes
       ]
 
 outExprs :: Data t => t -> PassM t
-outExprs = return
+outExprs = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric outExprs
+
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.Output m c ois)
+        =  do (ois', specs) <- mapAndUnzipM changeItem ois
+              let foldedSpec = foldl1 (.) specs
+              return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.Output m c ois')
+    doProcess p = doGeneric p
+  
+    changeItem :: A.OutputItem -> PassM (A.OutputItem, A.Structured -> A.Structured)
+    changeItem (A.OutExpression m e) = do (e', spec) <- transExpr m e
+                                          return (A.OutExpression m e', spec)
+    changeItem (A.OutCounted m ce ae) = do (ce', ceSpec) <- transExpr m ce
+                                           (ae', aeSpec) <- transExpr m ae
+                                           return (A.OutCounted m ce' ae', ceSpec . aeSpec)
+
+    transExpr :: Meta -> A.Expression -> PassM (A.Expression, A.Structured -> A.Structured)
+    -- If it's already an output direct from a variable, no need to change it:
+    transExpr _ e@(A.ExprVariable {}) = return (e, id)
+    transExpr m e = do (nm, spec) <- abbrevExpr m e
+                       return (A.ExprVariable m $ A.Variable m nm, spec)
+    
+    abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured -> A.Structured)
+    abbrevExpr m e = do t <- typeOfExpression e
+                        specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+                        return (nm, A.Spec m specification)
