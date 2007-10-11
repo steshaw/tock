@@ -380,12 +380,12 @@ public:
 	}
 };
 
-void tockSendInt(const csp::Chanout<tockSendableArrayOfBytes>& c, unsigned int n)
+inline void tockSendInt(const csp::Chanout<tockSendableArrayOfBytes>& c, unsigned int n)
 {
 	c << tockSendableArrayOfBytes(&n);
 }
 
-void tockRecvInt(const csp::Chanin<tockSendableArrayOfBytes>& c, unsigned int* p)
+inline void tockRecvInt(const csp::Chanin<tockSendableArrayOfBytes>& c, unsigned int* p)
 {
     tockSendableArrayOfBytes d(sizeof(unsigned int),p);
 	c >> d;
@@ -405,13 +405,13 @@ public:
 };
 
 template <typename T, unsigned N, unsigned D>
-void tockSendArray(const csp::Chanout< tockSendableArray<T,N> >& out,const tockArrayView<T,D>& arr)
+inline void tockSendArray(const csp::Chanout< tockSendableArray<T,N> >& out,const tockArrayView<T,D>& arr)
 {
 	out << tockSendableArray<T,N>(arr);
 }
 
 template <typename T, unsigned N, unsigned D>
-void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const tockArrayView<T,D>& arr)
+inline void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const tockArrayView<T,D>& arr)
 {
 	tockSendableArray<T,N> tsa(arr);
 	in >> tsa;
