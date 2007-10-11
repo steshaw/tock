@@ -426,9 +426,9 @@ testDeclareInitFree = TestList
   ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(foo[0]);^","") ("tockInitChanArray(foo_storage,foo_actual,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   -- The subscripting on this test is incomplete; it should probably be fixed at some point:
-  ,testAll 5 ("tock_init_chan_array(foo_storage,foo,4*5*6);^ChanInit(foo[0*foo_sizes[1]*foo_sizes[2]]);^","") ("tockInitChanArray(foo_storage,foo,4*5*6);","") $ 
+  ,testAll 5 ("tock_init_chan_array(foo_storage,foo,4*5*6);^ChanInit(foo[0*foo_sizes[1]*foo_sizes[2]]);^","") ("tockInitChanArray(foo_storage,foo_actual,4*5*6);","") $ 
     A.Array [A.Dimension 4,A.Dimension 5,A.Dimension 6] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllSame 6 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   

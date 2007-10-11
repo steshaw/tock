@@ -752,7 +752,7 @@ cppdeclareInit ops m t@(A.Array ds t') var
                        call genVariableUnchecked ops var
                        tell ["_storage,"]
                        call genVariableUnchecked ops var
-                       tell [","]
+                       tell ["_actual,"]
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
