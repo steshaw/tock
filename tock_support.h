@@ -34,6 +34,7 @@
 #define EXTERNAL_CALLN(F,I,args...)     (F)((I),##args)
 #define EXTERNAL_CALL(F)                (F)()
 #define SetErr()                        
+#define Channel int
 #endif
 
 //{{{ mostneg/mostpos

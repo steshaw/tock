@@ -242,7 +242,9 @@ public:
 	}	
 	
 	//Retyping:
-	
+	// Removed for now because it is causing ambiguity problems with the standard constructor (to do with const-ness)
+	// and because I'm not actually sure if it is used (I think retyping uses the constructor below with tockArrayView)
+	/*
 	template <typename U>
 	inline tockArrayView(U* _realArray,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)	
 		:	realArray(reinterpret_cast<T*>(_realArray)),dims(_dims.first),totalSubDim(_dims.second)
@@ -250,6 +252,7 @@ public:
 		//Assume it's a single U item:
 		correctDimsRetype(sizeof(U));
 	}
+	*/
 	
 	
 	//Retyping, same number of dims:
@@ -402,6 +405,12 @@ public:
 		:	aob(N*sizeof(T),arr.data())
 	{
 	}
+
+	template <unsigned D>
+	inline explicit tockSendableArray(const tockArrayView<const T,D>& arr)
+		:	aob(arr.data())
+	{
+	}	
 };
 
 template <typename T, unsigned N, unsigned D>
@@ -415,6 +424,12 @@ inline void tockRecvArray(const csp::Chanin< tockSendableArray<T,N> >& in,const 
 {
 	tockSendableArray<T,N> tsa(arr);
 	in >> tsa;
+}
+
+template <typename T, unsigned N, unsigned D>
+inline void tockSendArray(const csp::Chanout< tockSendableArray<T,N> >& out,const tockArrayView<const T,D>& arr)
+{
+	out << tockSendableArray<T,N>(arr);
 }
 
 inline void tockSendArrayOfBytes(const csp::Chanout<tockSendableArrayOfBytes>& c, const tockSendableArrayOfBytes& b)
@@ -434,5 +449,5 @@ template <typename T>
 inline void tockInitChanArray(T* pointTo,T** pointFrom,int count)
 {
 	for (int i = 0;i < count;i++)
-		pointFrom[count] = &(pointTo[i]);
+		pointFrom[i] = &(pointTo[i]);
 }
