@@ -216,7 +216,7 @@ testGenType = TestList
   ,testBothSame "GenType 6" "int32_t" (tcall genType A.Int32) 
   ,testBothSame "GenType 7" "int64_t" (tcall genType A.Int64) 
   ,testBothSame "GenType 8" "int" (tcall genType A.Int) 
-  ,testBoth "GenType 9" "bool" "tockBool" (tcall genType A.Bool) 
+  ,testBothSame "GenType 9" "bool" (tcall genType A.Bool) 
   ,testBothSame "GenType 10" "float" (tcall genType A.Real32) 
   ,testBothSame "GenType 11" "double" (tcall genType A.Real64) 
   ,testBoth "GenType 100" "int*" "tockArrayView<int,1>" (tcall genType $ A.Array [A.Dimension 5] A.Int) 

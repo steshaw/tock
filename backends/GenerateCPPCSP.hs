@@ -1043,7 +1043,7 @@ cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
 --Changed from GenerateC to change the A.Timer type to use C++CSP time.
 --Also changed the bool type, because vector<bool> in C++ is odd, so we hide it from the compiler.
 cppgetScalarType :: GenOps -> A.Type -> Maybe String
-cppgetScalarType _ A.Bool = Just "tockBool"
+cppgetScalarType _ A.Bool = Just "bool"
 cppgetScalarType _ A.Byte = Just "uint8_t"
 cppgetScalarType _ A.UInt16 = Just "uint16_t"
 cppgetScalarType _ A.UInt32 = Just "uint32_t"
