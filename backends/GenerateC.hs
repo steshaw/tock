@@ -418,8 +418,7 @@ indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
 -- | Generate the number of bytes in a type that must have a fixed size.
 cgenBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> Bool -> CGen ()
 cgenBytesIn ops t v freeDimensionAllowed
-    = do  cgenBytesIn' ops t v
-          case (t, v) of          
+    = do  case (t, v) of
             (A.Array ds _, Nothing) ->
               case (length (indexOfFreeDimensions ds),freeDimensionAllowed) of
                 (0,_) -> return ()
@@ -427,48 +426,38 @@ cgenBytesIn ops t v freeDimensionAllowed
                 (1,True) -> return ()
                 (_,_) -> die "genBytesIn type with more than one free dimension"
             _ -> return ()
-
--- | Generate the number of bytes in a type that may have one free dimension.
-cgenBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int)
-cgenBytesIn' ops (A.Array ds t) v
-    =  do free <- genBytesInArray ds 0
-          cgenBytesIn' ops t v
-          return free
+          genBytesIn' ops t
   where
-    genBytesInArray [] _ = return Nothing
-    genBytesInArray ((A.Dimension n):ds) i
-        = do free <- genBytesInArray ds (i + 1)
-             tell [show n, "*"]
-             return free
-    genBytesInArray (A.UnknownDimension:ds) i
+    genBytesIn' :: GenOps -> A.Type -> CGen ()
+    genBytesIn' ops (A.Array ds t)
+      = do mapM_ genBytesInArrayDim (reverse $ zip ds [0..]) --The reverse is simply to match the existing tests
+           genBytesIn' ops t
+
+    genBytesIn' _ (A.Record n)
+      = do tell ["sizeof("]
+           genName n
+           tell [")"]
+    -- This is so that we can do RETYPES checks on channels; we don't actually
+    -- allow retyping between channels and other things.
+    genBytesIn' ops t@(A.Chan {})
+      = do tell ["sizeof("]
+           call genType ops t
+           tell [")"]
+    genBytesIn' ops t
+      = case call getScalarType ops t of
+          Just s -> tell ["sizeof(", s, ")"]
+          Nothing -> dieC $ formatCode "genBytesIn' %" t
+
+    genBytesInArrayDim :: (A.Dimension,Int) -> CGen ()
+    genBytesInArrayDim (A.Dimension n, _) = tell [show n, "*"]
+    genBytesInArrayDim (A.UnknownDimension, i)
         = case v of
             Just rv ->
-              do free <- genBytesInArray ds (i + 1)
-                 call genVariable ops rv
+              do call genVariable ops rv
                  call genSizeSuffix ops (show i)
                  tell ["*"]
-                 return free
-            Nothing ->
-              do free <- genBytesInArray ds (i + 1)
-                 case free of
-                   Nothing -> return $ Just i
-                   Just _ -> die "genBytesIn' type with more than one free dimension"
-cgenBytesIn' _ (A.Record n) _
-    =  do tell ["sizeof("]
-          genName n
-          tell [")"]
-          return Nothing
--- This is so that we can do RETYPES checks on channels; we don't actually
--- allow retyping between channels and other things.
-cgenBytesIn' ops t@(A.Chan {}) _
-    =  do tell ["sizeof("]
-          call genType ops t
-          tell [")"]
-          return Nothing
-cgenBytesIn' ops t _
-    = case call getScalarType ops t of
-        Just s -> tell ["sizeof(", s, ")"] >> return Nothing
-        Nothing -> dieC $ formatCode "genBytesIn' %" t
+            Nothing -> return ()
+
 --}}}
 
 --{{{  declarations
