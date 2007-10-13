@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (call, CGen, cgenOps, cintroduceSpec, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), seqComma, SubscripterFunction, withIf ) where
+module GenerateC (call, CGen, cgenOps, cintroduceSpec, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, SubscripterFunction, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -1131,15 +1131,13 @@ abbrevVariable ops am t v
 cgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
 cgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
 cgenRetypeSizes ops m destT destN srcT srcV
-    =  do size <- makeNonce "retype_size"
-          tell ["int ", size, " = occam_check_retype ("]
-          call genBytesIn ops srcT (Right srcV)
-          tell [", "]
-          call genBytesIn ops destT (Left True)
-          tell [", "]
-          genMeta m
-          tell [");\n"]
-
+    =     let size = do tell ["occam_check_retype("]
+                        call genBytesIn ops srcT (Right srcV)
+                        tell [","]
+                        call genBytesIn ops destT (Left True)
+                        tell [","]
+                        genMeta m
+                        tell [")"] in
           case destT of
             -- An array -- figure out the genMissing dimension, if there is one.
             A.Array destDS _ ->
@@ -1147,16 +1145,18 @@ cgenRetypeSizes ops m destT destN srcT srcV
                  case free of
                    -- No free dimensions; check the complete array matches in size.
                    Nothing ->
-                     do tell ["if (", size, " != 1) {\n"]
+                     do tell ["if("]
+                        size
+                        tell ["!=1){"]
                         call genStop ops m "array size mismatch in RETYPES"
-                        tell ["}\n"]
+                        tell ["}"]
                    _ -> return ()
 
                  let dims = [case d of
                                A.UnknownDimension ->
                                  -- Unknown dimension -- insert it.
                                  case free of
-                                   Just _ -> tell [size]
+                                   Just _ -> size
                                    Nothing ->
                                      die "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
@@ -1165,9 +1165,11 @@ cgenRetypeSizes ops m destT destN srcT srcV
 
             -- Not array; just check the size is 1.
             _ ->
-              do tell ["if (", size, " != 1) {\n"]
+              do tell ["if("]
+                 size
+                 tell ["!=1){"]
                  call genStop ops m "size mismatch in RETYPES"
-                 tell ["}\n"]
+                 tell ["}"]
 
 -- | Generate the right-hand side of an abbreviation of an expression.
 abbrevExpression :: GenOps -> A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
