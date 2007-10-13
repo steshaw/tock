@@ -67,6 +67,9 @@ foo = simpleName "foo"
 bar:: A.Name
 bar = simpleName "bar"
 
+bar2 :: A.Name
+bar2 = simpleName "bar2"
+
 -- | Asserts that the given output of a CGen pass matches the expected value.
 assertGen :: String -> String -> IO (Either Errors.ErrorReport [String]) -> Assertion
 assertGen n exp act
@@ -194,6 +197,9 @@ override2 val = (\_ _ _ -> val)
 
 override3 :: b -> (GenOps -> a0 -> a1 -> a2 -> b)
 override3 val = (\_ _ _ _ -> val)
+
+override6 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> b)
+override6 val = (\_ _ _ _ _ _ _ -> val)
 
 testGenType :: Test
 testGenType = TestList 
@@ -515,10 +521,56 @@ testSpec = TestList
   ,testAllSame 801 ("typedef enum{bar_foo}foo;","") $ A.ProtocolCase emptyMeta [(bar,[])]
   ,testAllSame 802 ("typedef enum{bar_foo,wibble_foo}foo;","") $ A.ProtocolCase emptyMeta [(bar,[]),(simpleName "wibble",[])]
   
+  --Retypes:
+  -- Normal abbreviation:
+  ,testAllSameS 900 ("int*const foo=(int*const)&y;@","") (A.Retypes emptyMeta A.Abbrev A.Int (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  -- Val abbreviation:
+  ,testAllSameS 901 ("const int foo=*(const int*)&y;@","") (A.Retypes emptyMeta A.ValAbbrev A.Int (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  --Abbreviations of records as records:
+  ,testAllSameS 910 ("bar*const foo=(bar*const)(&y);@","") (A.Retypes emptyMeta A.Abbrev (A.Record bar) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override6 at})
+  -- Val abbreviation of records as records:
+  ,testAllSameS 911 ("const bar*const foo=(const bar*const)(&y);@","") (A.Retypes emptyMeta A.ValAbbrev (A.Record bar) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override6 at})
+     
+  -- Channel retyping doesn't require size checking:
+  ,testAllS 1000 ("Channel*const foo=(Channel*const)(&y);","") ("csp::One2OneChannel<tockSendableArrayOfBytes>*const foo=(csp::One2OneChannel<tockSendableArrayOfBytes>*const)(&y);","")
+    (A.Retypes emptyMeta A.Abbrev (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any))) id
+      
+  -- Plain-to-array retyping:
+  -- single (unknown) dimension:
+  ,testAllS 1100 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(0),&y);@","")
+    (A.Retypes emptyMeta A.Abbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  -- single (known) dimension:
+  ,testAllS 1101 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(4),&y);@","")
+    (A.Retypes emptyMeta A.Abbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  -- single (unknown) dimension, VAL:
+  ,testAllS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(0),&y);@","")
+    (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  -- single (known) dimension, VAL:
+  ,testAllS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(4),&y);@","")
+    (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+  -- TODO test multiple dimensions plain-to-array (mainly for C++)
+    
+  -- Array-to-plain retyping:
+  ,testAllS 1200 ("int32_t*const foo=(int32_t*const)y;@","") ("int32_t*const foo=(int32_t*const)(y.data());@","")
+    (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override6 at})
+  ,testAllS 1201 ("const int32_t foo=*(const int32_t*)y;@","") ("const int32_t foo=*(const int32_t*)(y.data());@","")
+    (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override6 at})
+  
+  --TODO test array-to-array retyping  
   
   --TODO IsExpr
   --TODO Proc
-  --TODO Retypes
  ]
   where
     testAllSameForTypes :: Int -> (A.Type -> (String, String)) -> (A.Type -> A.SpecType) -> [A.Type] -> Test
@@ -529,18 +581,23 @@ testSpec = TestList
     chanIntOut = A.Chan A.DirOutput (A.ChanAttributes False False) A.Int
   
     testAll :: Int -> (String,String) -> (String,String) -> A.SpecType -> Test
-    testAll n (eCI,eCR) (eCPPI,eCPPR) spec = TestList
+    testAll a b c d = testAllS a b c d (return ()) over
+    
+    testAllS :: Int -> (String,String) -> (String,String) -> A.SpecType -> State CompState () -> (GenOps -> GenOps) -> Test
+    testAllS n (eCI,eCR) (eCPPI,eCPPR) spec st overFunc = TestList
      [
-      testBoth ("testSpec " ++ show n) eCI eCPPI ((tcall introduceSpec $ A.Specification emptyMeta foo spec) . over)
-      ,testBoth ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . over)
+      testBothS ("testSpec " ++ show n) eCI eCPPI ((tcall introduceSpec $ A.Specification emptyMeta foo spec) . overFunc) st
+      ,testBothS ("testSpec " ++ show n) eCR eCPPR ((tcall removeSpec $ A.Specification emptyMeta foo spec) . overFunc) st
      ]
     testAllSame n e s = testAll n e e s
+    testAllSameS n e s st o = testAllS n e e s st o
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,genType = (\_ x -> tell ["$(",show x,")"])
                    ,genVariable = override1 at
                    }
 
+--TODO test genRetypeSizes (remember that channels don't need checks)
 
 defRecord :: String -> String -> A.Type -> State CompState ()
 defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
