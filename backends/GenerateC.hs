@@ -1708,9 +1708,12 @@ cgenPar ops pm s
           tell ["int ", index, " = 0;\n"]
           call genStructured ops s (createP pids pris index)
           tell [pids, "[", index, "] = NULL;\n"]
+          tell ["if(",pids,"[0] != NULL){"] -- CIF seems to deadlock when you give ProcParList a list 
+                                            -- beginning with NULL (i.e. with no processes)
           case pm of
             A.PriPar -> tell ["ProcPriParList (", pids, ", ", pris, ");\n"]
             _ -> tell ["ProcParList (", pids, ");\n"]
+          tell ["}"]
           tell [index, " = 0;\n"]
           call genStructured ops s (freeP pids index)
   where
