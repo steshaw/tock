@@ -175,6 +175,7 @@ class tockArrayView
 	}
 	friend class tockArrayView<T,DIMS + 1>;
 
+	//TODO change the other methods so we can feed a string in here (the Meta) to report to occam_stop
 	inline void correctDimsRetype(const unsigned totalSourceBytes)
 	{
 		if (totalSubDim == 0)
@@ -191,6 +192,13 @@ class tockArrayView
 				else
 					totalDim *= dims[i];				
 			}
+			
+			//Check it fits exactly:
+			if ((totalSourceBytes / totalDim) % sizeof(T) != 0)
+			{
+				occam_stop ("","invalid size for RETYPES/RESHAPES (%d does not divide into %d)", (totalSourceBytes / totalDim), sizeof(T));
+			}
+			
 			//Set the size of the unknown dimension:
 			dims[zeroDim] = (totalSourceBytes / totalDim) / sizeof(T);
 			
