@@ -113,6 +113,7 @@ cppgenOps = cgenOps {
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
+    genRetypeSizes = cppgenRetypeSizes,
     genSizeSuffix = cppgenSizeSuffix,
     genSlice = cppgenSlice,
     genStop = cppgenStop,
@@ -1274,3 +1275,29 @@ cppgenDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen ()
 cppgenDirectedVariable ops v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
 cppgenDirectedVariable ops v A.DirOutput = tell ["(("] >> v >> tell [")->writer())"]
 cppgenDirectedVariable ops v dir = call genMissing ops $ "Cannot direct variable to direction: " ++ show dir
+
+-- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
+cppgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+cppgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
+cppgenRetypeSizes ops m destT destN srcT srcV
+    =     let checkSize 
+                   = do tell ["if(occam_check_retype("]
+                        call genBytesIn ops srcT (Right srcV)
+                        tell [","]
+                        call genBytesIn ops destT (Left True)
+                        tell [","]
+                        genMeta m
+                        tell [")!=1){"] 
+                        call genStop ops m "size mismatch in RETYPES"
+                        tell ["}"] in
+          case destT of
+            -- An array -- figure out the genMissing dimension, if there is one.
+            A.Array destDS _ ->
+                case (indexOfFreeDimensions destDS) of
+                   -- No free dimensions; check the complete array matches in size.
+                   [] -> checkSize
+                   -- Free dimensions; tockArrayView will check at run-time instead
+                   _ -> return ()
+            -- Not array; just check the size is 1.
+            _ -> checkSize
+              
