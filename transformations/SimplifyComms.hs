@@ -144,9 +144,13 @@ transformInputCase = doGeneric `extM` doProcess
            return $ A.Seq m $ A.Spec m' spec $ A.Several m'
              [A.OnlyP m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
              ,A.OnlyP m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
+    doProcess (A.Alt m pri s)
+      = do s' <- doStructured undefined s
+           return (A.Alt m pri s')
     doProcess p = doGeneric p
     
     doStructured :: A.Variable -> A.Structured -> PassM A.Structured
+    -- These entries all just burrow deeper into the structured:
     doStructured v (A.ProcThen m p s)
       = do s' <- doStructured v s
            p' <- doProcess p
@@ -157,6 +161,11 @@ transformInputCase = doGeneric `extM` doProcess
     doStructured v (A.Several m ss)
       = do ss' <- mapM (doStructured v) ss
            return (A.Several m ss')
+    doStructured v (A.Rep m rep s)
+      = do s' <- doStructured v s
+           return (A.Rep m rep s')
+           
+    -- Transform variant options:
     doStructured chanVar (A.OnlyV m (A.Variant m' n iis p))
       = do (Right items) <- protocolItems chanVar
            let (Just idx) = elemIndex n (fst $ unzip items)
@@ -167,3 +176,20 @@ transformInputCase = doGeneric `extM` doProcess
                else A.Seq m' $ A.Several m'
                       [A.OnlyP m' $ A.Input m' chanVar (A.InputSimple m' iis)
                       ,A.OnlyP (findMeta p') p']
+                      
+    -- Transform alt guards:
+    -- The processes that are the body of input-case guards are always skip, so we can discard them:
+    doStructured _ (A.OnlyA m (A.Alternative m' v (A.InputCase m'' s) _))
+      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+           s' <- doStructured v s
+           return $ A.Spec m' spec $ A.OnlyA m $ 
+             A.Alternative m' v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
+             A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
+    doStructured _ (A.OnlyA m (A.AlternativeCond m' e v (A.InputCase m'' s) _))
+      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+           s' <- doStructured v s
+           return $ A.Spec m' spec $ A.OnlyA m $ 
+             A.AlternativeCond m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
+             A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
+    -- Leave other guards untouched:
+    doStructured _ a@(A.OnlyA {}) = return a

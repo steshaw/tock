@@ -398,6 +398,37 @@ testInputCase = TestList
      (defineMyProtocol >> defineC)
      
      --TODO test alt guards
+
+   -- Input that only involves tags:
+   {-
+   The idea is to transform:
+     ALT
+       c ? CASE
+         a0
+           --Process p0
+   into:
+     ALT
+       INT tag:
+       c ? tag
+         CASE tag
+           a0
+             --Process p0
+   -}
+   ,TestCase $ testPass "testInputCase 100"
+       (tag3 A.Alt DontCare False $ 
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag2 A.OnlyA DontCare $ tag4 A.Alternative DontCare c
+            (tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]) $
+          tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
+           tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+     )
+     (transformInputCase $ 
+       A.Alt emptyMeta False $ A.OnlyA emptyMeta $ A.Alternative emptyMeta c 
+        (A.InputCase emptyMeta $ A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0)
+        (A.Skip emptyMeta)
+     )
+     (defineMyProtocol >> defineC)
+
   ]
   where
     -- Various distinct simple processes:
