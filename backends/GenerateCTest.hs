@@ -189,6 +189,9 @@ tcall3 f x y z = (\o -> f o o x y z)
 tcall4 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> a3 -> b) -> a0 -> a1 -> a2 -> a3 -> (GenOps -> b)
 tcall4 f a b c d = (\o -> f o o a b c d)
 
+tcall5 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> b) -> a0 -> a1 -> a2 -> a3 -> a4 -> (GenOps -> b)
+tcall5 func a b c d e = (\o -> func o o a b c d e)
+
 -- | Overrides a specified function in GenOps to return the given value
 override1 ::
   b -- ^ The value to return for the overridden function
@@ -630,7 +633,47 @@ testSpec = TestList
                    ,genVariable = override1 at
                    }
 
---TODO test genRetypeSizes (remember that channels don't need checks)
+testRetypeSizes :: Test
+testRetypeSizes = TestList
+ [
+  -- Channel retyping doesn't need size check:
+  test 0 "" "" (A.Chan undefined undefined undefined) (A.Chan undefined undefined undefined)
+  
+  -- Plain types just need to check the return of occam_check_retype:
+  ,test 1 "if(occam_check_retype(#S,#D,#M)!=1){@}" "if(occam_check_retype(#S,#D,#M)!=1){@}"
+    A.Int A.Int32
+  ,test 2 "if(occam_check_retype(#S,#D,#M)!=1){@}" "if(occam_check_retype(#S,#D,#M)!=1){@}"
+    (A.Record foo) (A.Record bar)
+    
+  -- Array types where both sizes are fixed should act like the plain types:
+  ,test 3 "if(occam_check_retype(#S,#D,#M)!=1){@}^({2})"
+          "if(occam_check_retype(#S,#D,#M)!=1){@}"
+          (A.Array [A.Dimension 2] A.Int) (A.Array [A.Dimension 8] A.Byte)
+  ,test 4 "if(occam_check_retype(#S,#D,#M)!=1){@}^({2,3,4})"
+          "if(occam_check_retype(#S,#D,#M)!=1){@}"
+          (A.Array [A.Dimension 2,A.Dimension 3,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
+    
+  -- Array types with a free dimension in the destination type must calculate it and used it:
+  ,test 100 "^({occam_check_retype(#S,#D,#M)})" ""
+    (A.Array [A.UnknownDimension] A.Int) (A.Array [A.Dimension 8] A.Byte)
+  ,test 101 "^({2,occam_check_retype(#S,#D,#M),4})" ""
+    (A.Array [A.Dimension 2,A.UnknownDimension,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
+ ]
+ where
+   test :: Int -> String -> String -> A.Type -> A.Type -> Test
+   test n eC eCPP destT srcT = testBoth ("testRetypeSizes " ++ show n) (repAll eC) (repAll eCPP) 
+     ((tcall5 genRetypeSizes emptyMeta destT undefined srcT undefined) . over)
+     where
+       repAll = (rep "#S" ("$(" ++ show srcT ++ " Right)")) .
+                (rep "#D" ("$(" ++ show destT ++ " Left True)")) .
+                (rep "#M" ("\"" ++ show emptyMeta ++ "\""))
+  
+   rep search replace str = subRegex (mkRegex search) str replace
+ 
+   showBytesInParams _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
+   showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
+   showArrSize _ _ sz _ = tell ["^("] >> sz >> tell [")"]
+   over ops = ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySize = showArrSize}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
 defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
@@ -1009,6 +1052,7 @@ tests = TestList
    ,testOutput
    ,testOverArray
    ,testReplicator
+   ,testRetypeSizes
    ,testSpec
    ,testStop
    ,testWait
