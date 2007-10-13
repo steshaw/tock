@@ -86,10 +86,8 @@ data GenOps = GenOps {
     genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
     -- | Generates an assignment statement with a single destination and single source.
     genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
-    -- | Generates the number of bytes in a fixed size type
-    genBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen (),
-    -- | Generates the number of bytes in a type that may have one free dimension
-    genBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int),
+    -- | Generates the number of bytes in a fixed size type, fails if a free dimension is present and is not allowed
+    genBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> Bool -> CGen (),
     -- | Generates a case statement over the given expression with the structured as the body.
     genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
     genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
@@ -193,7 +191,6 @@ cgenOps = GenOps {
     genAssert = cgenAssert,
     genAssign = cgenAssign,
     genBytesIn = cgenBytesIn,
-    genBytesIn' = cgenBytesIn',
     genCase = cgenCase,
     genCheckedConversion = cgenCheckedConversion,
     genConversion = cgenConversion,
@@ -410,19 +407,32 @@ cgenType ops t
         Just s -> tell [s]
         Nothing -> call genMissingC ops $ formatCode "genType %" t
 
+indexOfFreeDimensions :: [A.Dimension] -> [Int]
+indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
+  where
+    indexOfFreeDimensions' :: (Int,A.Dimension) -> Maybe Int
+    indexOfFreeDimensions' (_, A.Dimension _) = Nothing
+    indexOfFreeDimensions' (n, A.UnknownDimension) = Just n
+
+
 -- | Generate the number of bytes in a type that must have a fixed size.
-cgenBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> CGen ()
-cgenBytesIn ops t v
-    =  do free <- call genBytesIn' ops t v
-          case free of
-            Nothing -> return ()
-            Just _ -> die "genBytesIn type with unknown dimension"
+cgenBytesIn :: GenOps -> A.Type -> Maybe A.Variable -> Bool -> CGen ()
+cgenBytesIn ops t v freeDimensionAllowed
+    = do  cgenBytesIn' ops t v
+          case (t, v) of          
+            (A.Array ds _, Nothing) ->
+              case (length (indexOfFreeDimensions ds),freeDimensionAllowed) of
+                (0,_) -> return ()
+                (1,False) -> die "genBytesIn type with unknown dimension, when unknown dimensions are not allowed"
+                (1,True) -> return ()
+                (_,_) -> die "genBytesIn type with more than one free dimension"
+            _ -> return ()
 
 -- | Generate the number of bytes in a type that may have one free dimension.
 cgenBytesIn' :: GenOps -> A.Type -> Maybe A.Variable -> CGen (Maybe Int)
 cgenBytesIn' ops (A.Array ds t) v
     =  do free <- genBytesInArray ds 0
-          call genBytesIn' ops t v
+          cgenBytesIn' ops t v
           return free
   where
     genBytesInArray [] _ = return Nothing
@@ -846,7 +856,7 @@ cgenExpression _ (A.False m) = tell ["false"]
 cgenExpression ops (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction ops m s es
 --cgenExpression ops (A.SubscriptedExpr m s e)
 --cgenExpression ops (A.BytesInExpr m e)
-cgenExpression ops (A.BytesInType m t) = call genBytesIn ops t Nothing
+cgenExpression ops (A.BytesInType m t) = call genBytesIn ops t Nothing False
 --cgenExpression ops (A.OffsetOf m t n)
 cgenExpression ops t = call genMissing ops $ "genExpression " ++ show t
 
@@ -947,7 +957,7 @@ cgenInputItem ops c (A.InCounted m cv av)
           subT <- trivialSubscriptType t
           call genVariable ops cv
           tell ["*"]
-          call genBytesIn ops subT (Just av)
+          call genBytesIn ops subT (Just av) False
           tell [");"]
 cgenInputItem ops c (A.InVariable m v)
     =  do t <- typeOfVariable v
@@ -965,7 +975,7 @@ cgenInputItem ops c (A.InVariable m v)
                  tell [","]
                  rhs
                  tell [","]
-                 call genBytesIn ops t (Just v)
+                 call genBytesIn ops t (Just v) False
                  tell [");"]
 
 cgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
@@ -982,7 +992,7 @@ cgenOutputItem ops c (A.OutCounted m ce ae)
                  subT <- trivialSubscriptType t
                  call genExpression ops ce
                  tell ["*"]
-                 call genBytesIn ops subT (Just v)
+                 call genBytesIn ops subT (Just v) False
                  tell [");"]
 cgenOutputItem ops c (A.OutExpression m e)
     =  do t <- typeOfExpression e
@@ -999,7 +1009,7 @@ cgenOutputItem ops c (A.OutExpression m e)
                  tell [","]
                  fst $ abbrevVariable ops A.Abbrev t v
                  tell [","]
-                 call genBytesIn ops t (Just v)
+                 call genBytesIn ops t (Just v) False
                  tell [");"]
 --}}}
 
@@ -1132,9 +1142,9 @@ cgenRetypeSizes _ _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
 cgenRetypeSizes ops m am destT destN srcT srcV
     =  do size <- makeNonce "retype_size"
           tell ["int ", size, " = occam_check_retype ("]
-          call genBytesIn ops srcT (Just srcV)
+          call genBytesIn ops srcT (Just srcV) False
           tell [", "]
-          free <- call genBytesIn' ops destT Nothing
+          call genBytesIn ops destT Nothing True
           tell [", "]
           genMeta m
           tell [");\n"]
@@ -1142,7 +1152,8 @@ cgenRetypeSizes ops m am destT destN srcT srcV
           case destT of
             -- An array -- figure out the genMissing dimension, if there is one.
             A.Array destDS _ ->
-              do case free of
+              do let free = listToMaybe (indexOfFreeDimensions destDS)
+                 case free of
                    -- No free dimensions; check the complete array matches in size.
                    Nothing ->
                      do tell ["if (", size, " != 1) {\n"]

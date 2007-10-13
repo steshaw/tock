@@ -419,13 +419,13 @@ cppgenInputItem ops c dest
                 tell ["*"]
                 t <- typeOfVariable av
                 subT <- trivialSubscriptType t
-                call genBytesIn ops t (Just av)
+                call genBytesIn ops t (Just av) False
              )
       (A.InVariable m v) ->
         do ct <- typeOfVariable c
            t <- typeOfVariable v
            case (byteArrayChan ct,t) of
-             (True,_)-> recvBytes v (call genBytesIn ops t (Just v))
+             (True,_)-> recvBytes v (call genBytesIn ops t (Just v) False)
              (False,A.Array {}) -> do tell ["tockRecvArray("]
                                       chan'
                                       tell [","]
