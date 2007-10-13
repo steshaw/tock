@@ -1000,36 +1000,35 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
           let rhs = cppabbrevVariable ops A.Abbrev origT v
           call genDecl ops am t n
-          tell [" = "]
+          tell ["="]
           case t of 
             (A.Array dims _) ->
               --Arrays need to be handled differently because we need to feed the sizes in, not just perform a straight cast
               do call genDeclType ops am t
-                 tell ["("]
-                 rhs
-                 tell [",tockDims("]
+                 tell ["(tockDims("]
                  genDims dims
-                 tell ["));"]            
+                 tell ["),"]
+                 rhs
+                 tell [");"]
             _ ->      
               -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
               -- we need to dereference the pointer that cppabbrevVariable gives us.
               do let deref = case (am, t) of
-                               (_, A.Array _ _) -> False
                                (_, A.Chan A.DirUnknown _ _) -> False
+                               (_, A.Record {}) -> False
                                (A.ValAbbrev, _) -> True
                                _ -> False
                  when deref $ tell ["*"]
                  tell ["("]
                  call genDeclType ops am t
-                 when deref $ tell [" *"]
-                 tell [") ("]
-                 rhs                 
+                 when deref $ tell ["*"]
+                 tell [")"]
                  case origT of 
                      --We must be retyping from an array, but not to an array (so to a primitive type or something):
-                   (A.Array _ _) -> tell [".data()"]
-                   _ -> return ()
-                 tell [");\n"]
-
+                   (A.Array _ _) -> tell ["("] >> rhs >> tell [".data())"]
+                   _ -> rhs
+                 tell [";"]
+          call genRetypeSizes ops m am t n origT v
 --For all other cases, use the C implementation:
 cppintroduceSpec ops n = cintroduceSpec ops n
 
