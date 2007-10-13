@@ -254,6 +254,170 @@ testOutExprs = TestList
    chan = variable "c"
    xName = simpleName "x"
    
+
+testInputCase :: Test
+testInputCase = TestList
+  [
+   -- Input that only involves tags:
+   {-
+   The idea is to transform:
+     c ? CASE
+       a0
+         --Process p0
+   into:
+     SEQ
+       INT tag:
+       SEQ
+         c ? tag
+         CASE tag
+           a0
+             --Process p0
+   -}
+   TestCase $ testPass "testInputCase 0"     
+       (tag2 A.Seq DontCare $ 
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag2 A.Several DontCare
+         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
+           tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+         ]
+     )
+     (transformInputCase $ 
+       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
+     )
+     (defineMyProtocol >> defineC)
+     
+   -- Input that involves multiple tags and multiple inputs:
+   {-
+   The idea is to transform:
+     c ? CASE
+       a0
+         --Process p0
+       c1 ; z
+         --Process p1
+       b2 ; x ; y
+         --Process p2
+   into:
+     SEQ
+       INT tag:
+       SEQ
+         c ? tag
+         CASE tag
+           a0
+             --Process p0
+           c1
+             SEQ
+               c ? z
+               --Process p1
+           b2
+             SEQ
+               c ? x ; y
+               --Process p2
+   -}
+   ,TestCase $ testPass "testInputCase 1"
+       (tag2 A.Seq DontCare $ 
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag2 A.Several DontCare
+         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
+          [tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+          ,tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 2] $
+            tag2 A.Seq DontCare $ tag2 A.Several DontCare
+              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],tag2 A.OnlyP DontCare p1]
+          ,tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 1] $
+            tag2 A.Seq DontCare $ tag2 A.Several DontCare
+              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],tag2 A.OnlyP DontCare p2]
+          ]
+         ]
+     )
+     (transformInputCase $ 
+       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
+         [A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
+         ,A.OnlyV emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
+         ,A.OnlyV emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
+         ]
+     )
+     (defineMyProtocol >> defineC)
+
+   -- Input that involves multiple tags and multiple inputs and specs (sheesh!):
+   {-
+   The idea is to transform:
+     c ? CASE
+       a0
+         --Process p0
+       INT z:
+       c1 ; z
+         --Process p1
+       INT x:
+       INT y:
+       b2 ; x ; y
+         --Process p2
+   into:
+     SEQ
+       INT tag:
+       SEQ
+         c ? tag
+         CASE tag
+           a0
+             --Process p0
+           INT z:
+           c1
+             SEQ
+               c ? z
+               --Process p1
+           INT x:
+           INT y:
+           b2
+             SEQ
+               c ? x ; y
+               --Process p2
+   -}
+   ,TestCase $ testPass "testInputCase 2"
+       (tag2 A.Seq DontCare $ 
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag2 A.Several DontCare
+         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
+          [tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+          ,specIntPatt "z" $ tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 2] $
+            tag2 A.Seq DontCare $ tag2 A.Several DontCare
+              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],tag2 A.OnlyP DontCare p1]
+          ,specIntPatt "x" $ specIntPatt "y" $ tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 1] $
+            tag2 A.Seq DontCare $ tag2 A.Several DontCare
+              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],tag2 A.OnlyP DontCare p2]
+          ]
+         ]
+     )
+     (transformInputCase $ 
+       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
+         [A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
+         ,specInt "z" $ A.OnlyV emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
+         ,specInt "x" $ specInt "y" $ A.OnlyV emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
+         ]
+     )
+     (defineMyProtocol >> defineC)
+     
+     --TODO test alt guards
+  ]
+  where
+    -- Various distinct simple processes:
+    p0 = A.Skip emptyMeta
+    p1 = A.Main emptyMeta
+    p2 = A.Stop emptyMeta
+    c = variable "c"
+    x = variable "x"
+    y = variable "y"
+    z = variable "z"
+    a0 = simpleName "a0"
+    b2 = simpleName "b2"
+    c1 = simpleName "c1"
+    defineMyProtocol = defineName (simpleName "prot") $ A.NameDef emptyMeta "prot" "prot" A.ProtocolName
+      (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
+      A.Original A.Unplaced
+    defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
+    
+    specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
+    specIntPatt s = tag3 A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
                              
 --Returns the list of tests:
 tests :: Test
@@ -262,8 +426,9 @@ tests = TestList
    testFunctionsToProcs0
    ,testFunctionsToProcs1
    ,testFunctionsToProcs2
-   ,testTransformConstr0
+   ,testInputCase
    ,testOutExprs
+   ,testTransformConstr0
  ]
 
 

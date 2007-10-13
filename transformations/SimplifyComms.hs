@@ -21,6 +21,7 @@ module SimplifyComms where
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 
 import qualified AST as A
 import CompState
@@ -69,3 +70,100 @@ outExprs = doGeneric `extM` doProcess
     abbrevExpr m e = do t <- typeOfExpression e
                         specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
                         return (nm, A.Spec m specification)
+
+{- The explanation for this pass is taken from my (Neil's) mailing list post "Case protocols" on tock-discuss, dated 10th October 2007:
+
+Currently in Tock (from occam) we have CASE statements, and inputs for variant 
+protocols.  They are parsed into separate AST entries, which is sensible.  But 
+then in the backend there is some duplicate code because both things get turned 
+into some form of switch statement.  It would be straightforward to unify the 
+code in the C/C++ backends, but I was wondering about doing something which 
+would be a bit cleaner; unifying them in an earlier pass (everything should be 
+a pass in nanopass :).  The idea would be to turn (example is from the occam 2 
+manual):
+
+from.dfs ? CASE
+ record; rnumber; rlen::buffer
+   -- process A
+ error ; enumber; elen::buffer
+   -- process B
+
+into:
+
+INT temp.var:
+SEQ
+ from.dfs ? temp.var
+ CASE temp.var
+   3
+     SEQ
+       from.dfs ? rnumber ; rlen::buffer
+       -- process A
+   4
+     SEQ
+       from.dfs ? enumber ; elen::buffer
+       -- process B
+
+Note that the tags are turned into integer literals, which is what happens in 
+Tock already anyway.  Note that in Tock each protocol item is already a 
+separate communication, so splitting out the sequential inputs is fine.  ALTs 
+would have to be split as follows, by turning:
+
+ALT
+ from.dfs ? CASE
+   request ; query
+     -- process C
+   error ; enumber; elen::buffer
+     -- process D
+
+into:
+
+ALT
+ INT temp.var:
+ from.dfs ? temp.var
+   CASE temp.var
+     0
+       SEQ
+         from.dfs ? query
+         -- process C
+     1
+       SEQ
+         from.dfs ? enumber ; elen::buffer
+         -- process D
+-}
+
+transformInputCase :: Data t => t -> PassM t
+transformInputCase = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformInputCase
+
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.Input m v (A.InputCase m' s))
+      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+           s' <- doStructured v s
+           return $ A.Seq m $ A.Spec m' spec $ A.Several m'
+             [A.OnlyP m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
+             ,A.OnlyP m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
+    doProcess p = doGeneric p
+    
+    doStructured :: A.Variable -> A.Structured -> PassM A.Structured
+    doStructured v (A.ProcThen m p s)
+      = do s' <- doStructured v s
+           p' <- doProcess p
+           return (A.ProcThen m p' s')
+    doStructured v (A.Spec m sp st)
+      = do st' <- doStructured v st
+           return (A.Spec m sp st')
+    doStructured v (A.Several m ss)
+      = do ss' <- mapM (doStructured v) ss
+           return (A.Several m ss')
+    doStructured chanVar (A.OnlyV m (A.Variant m' n iis p))
+      = do (Right items) <- protocolItems chanVar
+           let (Just idx) = elemIndex n (fst $ unzip items)
+           p' <- doProcess p
+           return $ A.OnlyO m $ A.Option m' [makeConstant m' idx] $
+             if (length iis == 0)
+               then p'
+               else A.Seq m' $ A.Several m'
+                      [A.OnlyP m' $ A.Input m' chanVar (A.InputSimple m' iis)
+                      ,A.OnlyP (findMeta p') p']
