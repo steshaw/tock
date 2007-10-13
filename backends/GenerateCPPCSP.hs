@@ -114,6 +114,7 @@ cppgenOps = cgenOps {
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
     genSizeSuffix = cppgenSizeSuffix,
+    genSlice = cppgenSlice,
     genStop = cppgenStop,
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
@@ -1119,12 +1120,12 @@ prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 cppabbrevVariable :: GenOps -> A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
 cppabbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
     = call genVariable ops v
-cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) v')
-    = cppgenSlice ops v v' ty start count ds
+cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
+    = fst (cppgenSlice ops v start count ds)
 cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = cppgenSlice ops v v' ty start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
-cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) v')
-    = cppgenSlice ops v v' ty (makeConstant m 0) count ds
+    = fst (cppgenSlice ops v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
+cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
+    = fst (cppgenSlice ops v (makeConstant m 0) count ds)
 cppabbrevVariable ops am (A.Array _ _) v
     = call genVariable ops v
 cppabbrevVariable ops am (A.Chan {}) v
@@ -1137,16 +1138,27 @@ cppabbrevVariable ops am t v
 
 -- | Use C++ array slices:
 --TODO put index checking back:
-cppgenSlice :: GenOps -> A.Variable -> A.Variable -> A.Type -> A.Expression -> A.Expression -> [A.Dimension] -> CGen ()
-cppgenSlice ops _ v ty start count ds
+cppgenSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
+cppgenSlice ops (A.SubscriptedVariable _ _ v) start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
-    = do  call genVariableUnchecked ops v
-          tell [".sliceFromFor("]        
-          call genExpression ops start
-          tell [" , "]
+    = (do call genVariableUnchecked ops v
+          tell [".sliceFromFor("]
+          genStart
+          tell [",occam_check_slice("]
+          genStart
+          tell [","]
           call genExpression ops count
-          tell [")"]          
+          tell [","]
+          call genVariableUnchecked ops v
+          call genSizeSuffix ops "0"
+          tell [","]
+          genMeta (findMeta count)
+          tell ["))"]
+      , const (return ())
+      )
+  where
+    genStart = call genExpression ops start
          
 -- | Changed from GenerateC to use multiple subscripting (e.g. [1][2][3]) rather than the combined indexing of the C method (e.g. [1*x*y+2*y+3])
 cppgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()

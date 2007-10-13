@@ -186,6 +186,9 @@ tcall2 f x y = (\o -> f o o x y)
 tcall3 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> b) -> a0 -> a1 -> a2 -> (GenOps -> b)
 tcall3 f x y z = (\o -> f o o x y z)
 
+tcall4 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> a3 -> b) -> a0 -> a1 -> a2 -> a3 -> (GenOps -> b)
+tcall4 f a b c d = (\o -> f o o a b c d)
+
 -- | Overrides a specified function in GenOps to return the given value
 override1 ::
   b -- ^ The value to return for the overridden function
@@ -320,6 +323,36 @@ testArraySubscript = TestList
  where
    stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
+
+testArraySlice :: Test
+testArraySlice = TestList
+ [
+  -- Slice from a one-dimensional array:
+  testSlice 0 ("&arr[4]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ "};") 
+    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12]
+    
+  -- Slice from a two-dimensional array:
+  ,testSlice 1 ("&arr[4*arr_sizes[1]]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ ",arr_sizes[1]};")
+    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
+    
+  -- Slice from a three-dimensional array:
+  ,testSlice 2 ("&arr[4*arr_sizes[1]*arr_sizes[2]]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ ",arr_sizes[1],arr_sizes[2]};")
+    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
+ ]
+ where
+   testSlice :: Int -> (String,String) -> String -> String -> Integer -> Integer -> [A.Dimension] -> Test
+   testSlice index eC eCPP nm start count ds
+     = testBothS ("genSlice " ++ show index) (smerge eC) (smerge (eCPP,""))
+      (merge . tcall4 genSlice 
+        (A.SubscriptedVariable undefined (A.SubscriptFromFor undefined (intLiteral start) (intLiteral count)) (variable nm))
+       (intLiteral start) (intLiteral count) ds)
+      (defineName (simpleName nm) $ simpleDefDecl nm (A.Array ds A.Int))
+
+   merge (arr,sizes) = arr >> tell ["|"] >> sizes (simpleName "foo")
+   smerge (arr,sizes) = arr ++ "|" ++ sizes
+   m = "\"" ++ show emptyMeta ++ "\""
+   
+   checkSlice s e sub = "occam_check_slice(" ++ s ++ "," ++ e ++ "," ++ sub ++ "," ++ m ++ ")"
 
 testOverArray :: Test
 testOverArray = TestList $ map testOverArray'
@@ -951,14 +984,13 @@ testBytesIn = TestList
  where
    over ops = ops {genVariable = override1 dollar, genSizeSuffix = (\_ n -> tell["(@",n,")"])}
 
---TODO test array slicing.
-
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
  [
    testActuals
    ,testArraySizes
+   ,testArraySlice
    ,testArraySubscript
    ,testAssign
    ,testBytesIn

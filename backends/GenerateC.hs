@@ -143,7 +143,7 @@ data GenOps = GenOps {
     genSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: GenOps -> String -> A.Expression -> CGen (),
     genSizeSuffix :: GenOps -> String -> CGen (),
-    genSlice :: GenOps -> A.Variable -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ()),
+    genSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ()),
     genSpec :: GenOps -> A.Specification -> CGen () -> CGen (),
     genSpecMode :: GenOps -> A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
@@ -1052,23 +1052,23 @@ cgenReplicatorLoop ops (A.For m index base count)
 --{{{  abbreviations
 -- FIXME: This code is horrible, and I can't easily convince myself that it's correct.
 
-cgenSlice :: GenOps -> A.Variable -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
-cgenSlice ops v (A.Variable _ on) start count ds
+cgenSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
+cgenSlice ops v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
     = (tell ["&"] >> call genVariableUnchecked ops v,
        call genArraySize ops False
                     (do genLeftB
-                        tell ["occam_check_slice ("]
+                        tell ["occam_check_slice("]
                         call genExpression ops start
-                        tell [", "]
+                        tell [","]
                         call genExpression ops count
-                        tell [", "]
+                        tell [","]
                         genName on
-                        tell ["_sizes[0], "]
+                        tell ["_sizes[0],"]
                         genMeta (findMeta count)
                         tell [")"]
-                        sequence_ [do tell [", "]
+                        sequence_ [do tell [","]
                                       genName on
                                       tell ["_sizes[", show i, "]"]
                                    | i <- [1..(length ds - 1)]]
@@ -1111,12 +1111,12 @@ abbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _)
         genAASize (A.DirectedVariable _ _ v)  arg
             = const $ call genMissing ops "Cannot abbreviate a directed variable as an array"
                 
-abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) v')
-    = call genSlice ops v v' start count ds
+abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
+    = call genSlice ops v start count ds
 abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = call genSlice ops v v' start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
-abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) v')
-    = call genSlice ops v v' (makeConstant m 0) count ds
+    = call genSlice ops v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
+abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
+    = call genSlice ops v (makeConstant m 0) count ds
 abbrevVariable ops am (A.Array _ _) v
     = (call genVariable ops v, call genArraySize ops True (call genVariable ops v >> tell ["_sizes"]))
 abbrevVariable ops am (A.Chan {}) v
