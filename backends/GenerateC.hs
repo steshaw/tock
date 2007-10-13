@@ -1128,6 +1128,7 @@ abbrevVariable ops am t v
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 cgenRetypeSizes :: GenOps -> Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+cgenRetypeSizes _ _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
 cgenRetypeSizes ops m am destT destN srcT srcV
     =  do size <- makeNonce "retype_size"
           tell ["int ", size, " = occam_check_retype ("]
@@ -1383,21 +1384,22 @@ cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
           let (rhs, _) = abbrevVariable ops A.Abbrev origT v
           call genDecl ops am t n
-          tell [" = "]
+          tell ["="]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
           -- we need to dereference the pointer that abbrevVariable gives us.
           let deref = case (am, t) of
                         (_, A.Array _ _) -> False
                         (_, A.Chan {}) -> False
+                        (_, A.Record {}) -> False
                         (A.ValAbbrev, _) -> True
                         _ -> False
           when deref $ tell ["*"]
           tell ["("]
           call genDeclType ops am t
-          when deref $ tell [" *"]
-          tell [") "]
+          when deref $ tell ["*"]
+          tell [")"]
           rhs
-          tell [";\n"]
+          tell [";"]
           call genRetypeSizes ops m am t n origT v
 --cintroduceSpec ops (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec ops n = call genMissing ops $ "introduceSpec " ++ show n
