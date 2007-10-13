@@ -219,6 +219,29 @@ testOutExprs = TestList
     (defineName (xName) $ simpleDefDecl "x" A.Byte)
     (checkTempVarTypes "testOutExprs 3" [("temp_var", A.Byte)])
 
+  -- Test that OutputCase is also processed:
+  ,TestCase $ testPassWithItemsStateCheck "testOutExprs 4" 
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
+      (tag2 A.OnlyP DontCare $ tag4 A.OutputCase emptyMeta chan (simpleName "foo")
+        [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
+    )
+    (outExprs $ 
+      A.OutputCase emptyMeta chan (simpleName "foo") [outXM 1]
+    )
+    (defineName (xName) $ simpleDefDecl "x" A.Int)
+    (checkTempVarTypes "testOutExprs 3" [("temp_var", A.Int)])
+
+  -- Test that an empty outputcase works okay:
+
+  ,TestCase $ testPass "testOutExprs 5" 
+    (tag2 A.Seq DontCare $
+      (tag2 A.OnlyP DontCare $ A.OutputCase emptyMeta chan (simpleName "foo") [])
+    )
+    (outExprs $ 
+      A.OutputCase emptyMeta chan (simpleName "foo") []
+    )
+    (return ())
+
  ]
  where
    outX = A.OutExpression emptyMeta $ exprVariable "x"

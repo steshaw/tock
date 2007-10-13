@@ -44,8 +44,12 @@ outExprs = doGeneric `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
-              let foldedSpec = foldl1 (.) specs
+              let foldedSpec = foldl (.) id specs
               return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.Output m c ois')
+    doProcess (A.OutputCase m c tag ois)
+        =  do (ois', specs) <- mapAndUnzipM changeItem ois
+              let foldedSpec = foldl (.) id specs
+              return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.OutputCase m c tag ois')
     doProcess p = doGeneric p
   
     changeItem :: A.OutputItem -> PassM (A.OutputItem, A.Structured -> A.Structured)
