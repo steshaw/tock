@@ -201,8 +201,8 @@ override2 val = (\_ _ _ -> val)
 override3 :: b -> (GenOps -> a0 -> a1 -> a2 -> b)
 override3 val = (\_ _ _ _ -> val)
 
-override6 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> b)
-override6 val = (\_ _ _ _ _ _ _ -> val)
+override5 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> b)
+override5 val = (\_ _ _ _ _ _ -> val)
 
 testGenType :: Test
 testGenType = TestList 
@@ -557,16 +557,16 @@ testSpec = TestList
   --Retypes:
   -- Normal abbreviation:
   ,testAllSameS 900 ("int*const foo=(int*const)&y;@","") (A.Retypes emptyMeta A.Abbrev A.Int (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- Val abbreviation:
   ,testAllSameS 901 ("const int foo=*(const int*)&y;@","") (A.Retypes emptyMeta A.ValAbbrev A.Int (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   --Abbreviations of records as records:
   ,testAllSameS 910 ("bar*const foo=(bar*const)(&y);@","") (A.Retypes emptyMeta A.Abbrev (A.Record bar) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override5 at})
   -- Val abbreviation of records as records:
   ,testAllSameS 911 ("const bar*const foo=(const bar*const)(&y);@","") (A.Retypes emptyMeta A.ValAbbrev (A.Record bar) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override5 at})
      
   -- Channel retyping doesn't require size checking:
   ,testAllS 1000 ("Channel*const foo=(Channel*const)(&y);","") ("csp::One2OneChannel<tockSendableArrayOfBytes>*const foo=(csp::One2OneChannel<tockSendableArrayOfBytes>*const)(&y);","")
@@ -577,28 +577,28 @@ testSpec = TestList
   -- single (unknown) dimension:
   ,testAllS 1100 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(0),&y);@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension:
   ,testAllS 1101 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(4),&y);@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (unknown) dimension, VAL:
   ,testAllS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(0),&y);@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension, VAL:
   ,testAllS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(4),&y);@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- TODO test multiple dimensions plain-to-array (mainly for C++)
     
   -- Array-to-plain retyping:
   ,testAllS 1200 ("int32_t*const foo=(int32_t*const)y;@","") ("int32_t*const foo=(int32_t*const)(y.data());@","")
     (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
   ,testAllS 1201 ("const int32_t foo=*(const int32_t*)y;@","") ("const int32_t foo=*(const int32_t*)(y.data());@","")
     (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override6 at})
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
   
   --TODO test array-to-array retyping  
   

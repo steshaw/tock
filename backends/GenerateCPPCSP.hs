@@ -1029,7 +1029,7 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
                    (A.Array _ _) -> tell ["("] >> rhs >> tell [".data())"]
                    _ -> rhs
                  tell [";"]
-          call genRetypeSizes ops m am t n origT v
+          call genRetypeSizes ops m t n origT v
 --For all other cases, use the C implementation:
 cppintroduceSpec ops n = cintroduceSpec ops n
 

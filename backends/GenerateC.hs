@@ -136,7 +136,7 @@ data GenOps = GenOps {
     genReplicator :: GenOps -> A.Replicator -> CGen () -> CGen (),
     -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
     genReplicatorLoop :: GenOps -> A.Replicator -> CGen (),
-    genRetypeSizes :: GenOps -> Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
+    genRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: GenOps -> A.Structured -> CGen (),
     genSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: GenOps -> String -> A.Expression -> CGen (),
@@ -1126,9 +1126,9 @@ abbrevVariable ops am t v
     = (call genVariableAM ops v am, noSize)
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
-cgenRetypeSizes :: GenOps -> Meta -> A.AbbrevMode -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
-cgenRetypeSizes _ _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
-cgenRetypeSizes ops m am destT destN srcT srcV
+cgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+cgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
+cgenRetypeSizes ops m destT destN srcT srcV
     =  do size <- makeNonce "retype_size"
           tell ["int ", size, " = occam_check_retype ("]
           call genBytesIn ops srcT (Just srcV) False
@@ -1400,7 +1400,7 @@ cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
           tell [")"]
           rhs
           tell [";"]
-          call genRetypeSizes ops m am t n origT v
+          call genRetypeSizes ops m t n origT v
 --cintroduceSpec ops (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec ops n = call genMissing ops $ "introduceSpec " ++ show n
 
