@@ -241,23 +241,21 @@ public:
 	{
 	}	
 	
-	//Retyping:
-	// Removed for now because it is causing ambiguity problems with the standard constructor (to do with const-ness)
-	// and because I'm not actually sure if it is used (I think retyping uses the constructor below with tockArrayView)
-	/*
+	//The retyping constructors have their parameters in the other order to the same-type functions above,
+	//to avoid ambiguities between retyping and same types (especially when const is involved):
+
 	template <typename U>
-	inline tockArrayView(U* _realArray,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)	
+	inline tockArrayView(const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims,U* _realArray)
 		:	realArray(reinterpret_cast<T*>(_realArray)),dims(_dims.first),totalSubDim(_dims.second)
 	{
 		//Assume it's a single U item:
 		correctDimsRetype(sizeof(U));
 	}
-	*/
 	
 	
 	//Retyping, same number of dims:
 	template <typename U,unsigned FROMDIMS>
-	inline tockArrayView(const tockArrayView<U,FROMDIMS>& tav,const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims)
+	inline tockArrayView(const std::pair< boost::array<unsigned,DIMS> , unsigned >& _dims,const tockArrayView<U,FROMDIMS>& tav)
 		:	realArray(reinterpret_cast<T*>(tav.data())),dims(_dims.first),totalSubDim(_dims.second)
 	{
 		correctDimsRetype(tav.size() * sizeof(U));
