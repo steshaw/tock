@@ -178,7 +178,7 @@ class tockArrayView
 	//TODO change the other methods so we can feed a string in here (the Meta) to report to occam_stop
 	inline void correctDimsRetype(const unsigned totalSourceBytes)
 	{
-		if (totalSubDim == 0)
+		if (totalSubDim == 0 || dims[0] == 0)
 		{
 			//Can only happen if one of the dimensions is zero, i.e. unknown
 			//We must find this dimension and calculate it:
