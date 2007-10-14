@@ -34,6 +34,7 @@ simplifyComms = runPasses passes
   where
     passes =
       [ ("Define temporary variables for outputting expressions", outExprs)
+       ,("Transform ? CASE statements/guards into plain CASE", transformInputCase)
       ]
 
 outExprs :: Data t => t -> PassM t

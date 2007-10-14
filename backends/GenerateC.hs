@@ -114,7 +114,6 @@ data GenOps = GenOps {
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
     genIf :: GenOps -> Meta -> A.Structured -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
-    genInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen (),
     genInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen (),
     genIntrinsicFunction :: GenOps -> Meta -> String -> [A.Expression] -> CGen (),
     genIntrinsicProc :: GenOps -> Meta -> String -> [A.Actual] -> CGen (),
@@ -212,7 +211,6 @@ cgenOps = GenOps {
     genGetTime = cgenGetTime,
     genIf = cgenIf,
     genInput = cgenInput,
-    genInputCase = cgenInputCase,
     genInputItem = cgenInputItem,
     genIntrinsicFunction = cgenIntrinsicFunction,
     genIntrinsicProc = cgenIntrinsicProc,
@@ -1530,43 +1528,7 @@ cgenInput ops c im
             A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead ops c v
             A.InputTimerAfter m e -> call genTimerWait ops e
             A.InputSimple m is -> sequence_ $ map (call genInputItem ops c) is
-            A.InputCase m s -> call genInputCase ops m c s
             _ -> call genMissing ops $ "genInput " ++ show im
-
-cgenInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen ()
-cgenInputCase ops m c s
-    =  do t <- typeOfVariable c
-          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          tag <- makeNonce "case_tag"
-          genName proto
-          tell [" ", tag, ";\n"]
-          tell ["ChanInInt ("]
-          call genVariable ops c
-          tell [", &", tag, ");\n"]
-          tell ["switch (", tag, ") {\n"]
-          genInputCaseBody proto c (return ()) s
-          tell ["default:\n"]
-          call genStop ops m "unhandled variant in CASE input"
-          tell ["}\n"]
-  where
-    -- This handles specs in a slightly odd way, because we can't insert specs into
-    -- the body of a switch.
-    genInputCaseBody :: A.Name -> A.Variable -> CGen () -> A.Structured -> CGen ()
-    genInputCaseBody proto c coll (A.Spec _ spec s)
-        = genInputCaseBody proto c (call genSpec ops spec coll) s
-    genInputCaseBody proto c coll (A.OnlyV _ (A.Variant _ n iis p))
-        = do tell ["case "]
-             genName n
-             tell ["_"]
-             genName proto
-             tell [": {\n"]
-             coll
-             sequence_ $ map (call genInputItem ops c) iis
-             call genProcess ops p
-             tell ["break;\n"]
-             tell ["}\n"]
-    genInputCaseBody proto c coll (A.Several _ ss)
-        = sequence_ $ map (genInputCaseBody proto c coll) ss
 
 cgenTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen ()
 cgenTimerRead ops c v
@@ -1660,7 +1622,6 @@ cgenCase ops m e s
                call genStop ops m "no option matched in CASE process"
           tell ["}"]
   where
-    -- FIXME -- can this be made common with genInputCaseBody above?
     genCaseBody :: CGen () -> A.Structured -> CGen Bool
     genCaseBody coll (A.Spec _ spec s)
         = genCaseBody (call genSpec ops spec coll) s

@@ -835,7 +835,6 @@ testInput = TestList
   testBothSame "testInput 0" "" ((tcall2 genInput undefined $ A.InputSimple undefined []) . overInputItemCase)
   ,testBothSame "testInput 1" "^" ((tcall2 genInput undefined $ A.InputSimple undefined [undefined]) . overInputItemCase)
   ,testBothSame "testInput 2" "^^^" ((tcall2 genInput undefined $ A.InputSimple undefined [undefined, undefined, undefined]) . overInputItemCase)
-  ,testBothSame "testInput 3" "$" ((tcall2 genInput undefined $ A.InputCase undefined undefined) . overInputItemCase)
   
   -- Reading an integer (special case in the C backend):
   ,testInputItem 100 "ChanInInt(#,&x);" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int
@@ -877,10 +876,6 @@ testInput = TestList
     "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^,&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^,xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int8 A.Int8)
 
-
-  -- TODO write tests for genInputCase
-
-
  ]
  where
    sub0 = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta (intLiteral 0))
@@ -914,7 +909,7 @@ testInput = TestList
 --   state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
 --              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
 
-   overInputItemCase ops = ops {genInputItem = override2 caret, genInputCase = override3 dollar}
+   overInputItemCase ops = ops {genInputItem = override2 caret}
    over ops = ops {genBytesIn = override2 caret, genArraySubscript = override3 dollar}
 
 testOutput :: Test

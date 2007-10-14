@@ -107,7 +107,6 @@ cppgenOps = cgenOps {
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
-    genInputCase = cppgenInputCase,
     genInputItem = cppgenInputItem,
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
@@ -199,64 +198,8 @@ cppgenInput ops c im
     =  do case im of
             A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead ops c v
             A.InputTimerAfter m e -> call genTimerWait ops e
-            A.InputSimple m is -> 
-              do t <- typeOfVariable c
-                 case t of 
-                   A.Chan _ _ (A.UserProtocol innerType) ->
-                     --We read from the channel into a temporary var, then deal with the var afterwards
-                     do inputVar <- makeNonce "proto_var"
-                        genProtocolName innerType 
-                        tell [" ",inputVar, " ; "]
-                        genCPPCSPChannelInput ops c
-                        tell [" >> ",inputVar," ; "]
-                        cases <- casesOfProtocol innerType
-                        genInputTupleAssign ops ((length cases) /= 0) inputVar is
-                   _ -> sequence_ $ map (call genInputItem ops c) is
-            A.InputCase m s -> call genInputCase ops m c s
+            A.InputSimple m is -> mapM_ (call genInputItem ops c) is
             _ -> call genMissing ops $ "genInput " ++ show im
-
-cppgenInputCase :: GenOps -> Meta -> A.Variable -> A.Structured -> CGen ()
-cppgenInputCase ops m c s 
-    = do  t <- typeOfVariable c
-          --We have to do complex things with the which() function of the variant (which may be a chained variant)
-          --to actually get the real index of the item we have received.
-          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          tag <- makeNonce "case_tag"          
-          which <- makeNonce "which_val"
-          genProtocolName proto
-          tell [" ", tag, " ; "]
-          tell ["unsigned ", which, " ; "]
-          genCPPCSPChannelInput ops c
-          tell [" >> ", tag, " ; "]
-          whichExpr proto which tag 0 (genProtocolName proto)
-          tell [" switch ( ", which, " ) { "]
-          genInputCaseBody proto tag (return ()) s
-          tell ["default:"]
-          call genStop ops m "unhandled variant in CASE input"
-          tell ["  } "]
-  where
-    -- This handles specs in a slightly odd way, because we can't insert specs into
-    -- the body of a switch.
-    genInputCaseBody :: A.Name -> String -> CGen () -> A.Structured -> CGen ()
-    genInputCaseBody proto var coll (A.Spec _ spec s)
-        = genInputCaseBody proto var (call genSpec ops spec coll) s
-    genInputCaseBody proto var coll (A.OnlyV _ (A.Variant _ n iis p))
-        = do protoType <- specTypeOfName proto
-             tell ["case ",show (index protoType)," : {"]
-             coll
-             case iis of
-               [] -> return()
-               _ ->
-                 do caseVar <- genVariantGet proto n var (genProtocolName proto)
-                    genInputTupleAssign ops True caseVar iis
-             call genProcess ops p
-             tell ["break;\n"]
-             tell ["}\n"]
-             where
-               typeList protoType = case protoType of A.ProtocolCase _ types -> types
-               index protoType = indexOfTag (typeList protoType) n
-    genInputCaseBody proto var coll (A.Several _ ss)
-        = sequence_ $ map (genInputCaseBody proto var coll) ss
 
 -- | This function processes (potentially chained) variants to get the real index of the data item inside the variant
 whichExpr :: A.Name -> String -> String -> Int -> CGen() -> CGen()
