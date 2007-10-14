@@ -68,8 +68,9 @@ as well.  May be worth changing in future.
 Channels of direction 'A.DirUnknown' are passed around as pointers to a One2OneChannel\<\> object.  To read I use the reader() function and to write I use the writer() function.
 For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chanin\<\> and Chanout\<\> objects as you would expect.
 -}
-module GenerateCPPCSP (generateCPPCSP, cppgenOps) where
+module GenerateCPPCSP (generateCPPCSP, cppgenOps, genCPPCSPPasses) where
 
+import Control.Monad.State
 import Control.Monad.Writer
 import Data.Char
 import Data.Generics
@@ -129,6 +130,30 @@ cppgenOps = cgenOps {
   }
 --}}}
 
+genCPPCSPPasses :: [(String, Pass)]
+genCPPCSPPasses =
+  [ ("Transform channels to ANY", chansToAny)
+  ]
+
+chansToAny :: Data t => t -> PassM t
+chansToAny x = do st <- get
+                  case csFrontend st of
+                    FrontendOccam ->
+                      do chansToAnyInCompState
+                         everywhereM (mkM $ return . chansToAny') x
+                    _ -> return x
+  where
+    chansToAny' :: A.Type -> A.Type
+    chansToAny' c@(A.Chan _ _ (A.UserProtocol {})) = c
+    chansToAny' (A.Chan a b _) = A.Chan a b A.Any
+    chansToAny' t = t
+    
+    chansToAnyInCompState :: CSM m => m ()
+    chansToAnyInCompState = do st <- get
+                               let st' = st {csNames = everywhere (mkT chansToAny') (csNames st)}
+                               put st'
+                               return ()
+
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
 generateCPPCSP :: A.Process -> PassM String
@@ -143,12 +168,18 @@ cppgenTopLevel ops p
           call genProcess ops p
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
-          tell ["csp::One2OneChannel<uint8_t> in,out,err;"] --TODO add streamreader
-          tell [" csp::Run( csp::InParallel (new StreamWriter(std::cout,out.reader())) (new StreamWriter(std::cerr,err.reader())) (csp::InSequenceOneThread ( new proc_"]
+          (chanType,writer) <- 
+                      do st <- get
+                         case csFrontend st of
+                           FrontendOccam -> return ("tockSendableArrayOfBytes","StreamWriterByteArray")
+                           _ -> return ("uint8_t","StreamWriter")
+          
+          tell ["csp::One2OneChannel<",chanType,"> in,out,err;"] --TODO add streamreader          
+          tell [" csp::Run( csp::InParallel (new ",writer,"(std::cout,out.reader())) (new ",writer,"(std::cerr,err.reader())) (csp::InSequenceOneThread ( new proc_"]
           genName name 
           tell ["("]
           infixComma $ map (tlpChannel ops) chans
-          tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<uint8_t>/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<uint8_t>/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}"]
+          tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}"]
   where
     tlpChannel :: GenOps -> (A.Direction,TLPChannel) -> CGen()
     tlpChannel ops (dir,c) = case dir of

@@ -442,3 +442,34 @@ inline void tockInitChanArray(T* pointTo,T** pointFrom,int count)
 	for (int i = 0;i < count;i++)
 		pointFrom[i] = &(pointTo[i]);
 }
+
+class StreamWriterByteArray : public csp::CSProcess
+{
+private:
+	std::ostream& out; 	
+	csp::Chanin<tockSendableArrayOfBytes> in;
+protected:
+	virtual void run()
+	{
+		try
+		{
+			uint8_t c;
+			while (true)
+			{
+				tockSendableArrayOfBytes aob(1,&c);
+				in >> aob;
+				out << c;
+			}
+			out.flush();
+		}
+		catch (csp::PoisonException& e)
+		{
+			in.poison();
+		}
+	}
+public:
+	inline StreamWriterByteArray(std::ostream& _out,const csp::Chanin<tockSendableArrayOfBytes>& _in)
+		:	out(_out),in(_in)
+	{
+	}
+};

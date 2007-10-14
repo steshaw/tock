@@ -259,9 +259,9 @@ compile mode fn outHandle
                                     then rainPasses
                                     else []
                                 , commonPasses
-                                , if csBackend optsPS == BackendC
-                                    then genCPasses
-                                    else []
+                                , case csBackend optsPS of
+                                    BackendC -> genCPasses
+                                    BackendCPPCSP -> genCPPCSPPasses
                                 ]
                  ast2 <- runPasses passes ast1
 
