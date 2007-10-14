@@ -370,7 +370,7 @@ public:
 	inline void operator=(const tockSendableArrayOfBytes& _src)
 	{
 		//We use the receiver's byte count:
-		memcpy(dp,sp,n);
+		memcpy(dp,_src.sp,n);
 	}
 };
 
