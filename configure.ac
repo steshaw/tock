@@ -41,6 +41,9 @@ AC_CHECK_PROG([HAVE_KROC],[kroc],[true],[false])
 if test "x$HAVE_KROC" = "xfalse"; then
   AC_MSG_WARN([kroc not found; you will not be able to compile output from the C backend on this machine])
   ccsp_kroc_available=false
+  kroc_incpath=
+else
+  kroc_incpath=`kroc --ccincpath`
 fi
 
 AC_CHECK_PROG([HAVE_SVN],[svn],[true],[false])
@@ -68,17 +71,21 @@ AC_NEED_HASKELL_LIB([fgl],LIB_fgl)
 
 
 AC_LANG(C)
+CFLAGS=$kroc_incpath
+CPPFLAGS=$kroc_incpath
 AC_CHECK_HEADER([cifccsp.h],[HAVE_CIFCCSP=true],[HAVE_CIFCCSP=false])
 
-if test "x$HAVE_CIFCCSP_H" = "xfalse"; then
+if test "x$HAVE_CIFCCSP" = "xfalse"; then
   AC_MSG_WARN([cifccsp.h not found; you will not be able to compile output from the C backend on this machine])
   ccsp_kroc_available=false
 fi
+CFLAGS=
+CPPFLAGS=
 
 #Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
 AC_CHECK_HEADERS([cppcsp/cppcsp.h],[HAVE_CPPCSP=true],[HAVE_CPPCSP=false])
-if test "x$HAVE_CPPCSP_H" = "xfalse"; then
+if test "x$HAVE_CPPCSP" = "xfalse"; then
   AC_MSG_WARN([cppcsp/cppcsp.h not found; you will not be able to compile output from the C++ backend on this machine])
   cppcsp_available=false
 fi
@@ -101,6 +108,7 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   AC_MSG_RESULT([no])
   gnu89_inline=
 )
+CFLAGS=
 
 AC_SUBST(gnu89_inline)
 AC_SUBST(ccsp_kroc_available)
