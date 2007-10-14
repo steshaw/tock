@@ -680,7 +680,9 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
           name
           tell ["("]
           cppgenFormals ops prefixUnderscore fs
-          tell [") : csp::CSProcess(262144)"]
+          -- One of the cgtests declares an array of 200*100*sizeof(csp::Time).  
+          -- Assuming csp::Time could be up to 16 bytes, we need half a meg stack: 
+          tell [") : csp::CSProcess(524288)"]
           genConstructorList fs
           tell ["{} protected: virtual void run(); };"]
   where
