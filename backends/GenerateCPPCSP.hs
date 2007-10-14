@@ -313,7 +313,7 @@ cppgenInputItem ops c dest
                 tell ["*"]
                 t <- typeOfVariable av
                 subT <- trivialSubscriptType t
-                call genBytesIn ops t (Right av)
+                call genBytesIn ops subT (Right av)
              )
       (A.InVariable m v) ->
         do ct <- typeOfVariable c
