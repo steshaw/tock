@@ -599,11 +599,6 @@ cppremoveSpec _ _ = return ()
 cppgenArrayStoreName :: GenOps -> A.Name -> CGen()
 cppgenArrayStoreName ops n = genName n >> tell ["_actual"]
 
--- FIXME: This could be used elsewhere (and work in any monad)
--- | A helper function that maps a function and calls sequence on the resulting [CGen()]
-cgmap :: (t -> CGen()) -> [t] -> CGen()
-cgmap func list = sequence_ $ map func list
-
 --Changed from GenerateC because we don't need the extra code for array sizes
 cppabbrevExpression :: GenOps -> A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
 cppabbrevExpression ops am t@(A.Array _ _) e
@@ -668,7 +663,7 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
 
     --Generates the given list of class variables
     genClassVars :: [A.Formal] -> CGen ()
-    genClassVars fs = cgmap genClassVar fs
+    genClassVars fs = mapM_ genClassVar fs
 
     --A helper function for generating the initialiser list in a process wrapper constructor
     genConsItem :: A.Formal -> CGen()
@@ -681,7 +676,7 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
 
     --A function for generating the initialiser list in a process wrapper constructor
     genConstructorList :: [A.Formal] -> CGen ()
-    genConstructorList fs = cgmap genConsItem fs
+    genConstructorList fs = mapM_ genConsItem fs
 
 cppgenForwardDeclaration _ _ = return ()
 
