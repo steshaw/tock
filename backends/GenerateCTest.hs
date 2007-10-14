@@ -45,9 +45,7 @@ import Errors
 import GenerateC
 import GenerateCPPCSP
 import Metadata
-import Pattern
 import TestUtil
-import TreeUtil
 
 at :: CGen ()
 at = tell ["@"]
@@ -127,22 +125,6 @@ testRS testName exp act startState = assertGenR testName exp (evalStateT (runErr
   where
     state = execState startState emptyState
 
--- Tests C output, expects C++ to fail
-testCFS :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
-testCFS testName expC act startState = TestCase $
-  do assertGen (testName ++ "/C") expC $ (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
-     assertGenFail (testName ++ "/C++") (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
-  where
-    state = execState startState emptyState
-    
--- Tests C++ output, expects C to fail
-testCPPFS :: String -> String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
-testCPPFS testName expCPP act startState = TestCase $
-  do assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
-     assertGen (testName ++ "/C++") expCPP $ (evalStateT (runErrorT (execWriterT $ act cppgenOps)) state)
-  where
-    state = execState startState emptyState    
-
 testBothSameS :: 
   String    -- ^ Test Name
   -> String -- ^ C and C++ expected
@@ -170,12 +152,6 @@ testBoth a b c d = testBothS a b c d (return ())
 
 testBothSame :: String -> String -> (GenOps -> CGen ()) -> Test
 testBothSame a b c = testBothSameS a b c (return ())
-  
-testCF :: String -> String -> (GenOps -> CGen ()) -> Test
-testCF a b c = testCFS a b c (return ())
-
-testCPPF :: String -> String -> (GenOps -> CGen ()) -> Test
-testCPPF a b c = testCPPFS a b c (return ())
   
 tcall :: (GenOps -> GenOps -> a -> b) -> a -> (GenOps -> b)
 tcall f x = (\o -> f o o x)
