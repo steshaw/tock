@@ -120,6 +120,7 @@ directives :: [(Regex, DirectiveFunc)]
 directives =
   [ (mkRegex "^INCLUDE \"(.*)\"$", handleInclude)
   , (mkRegex "^USE \"(.*)\"$", handleUse)
+  , (mkRegex "^COMMENT .*$", (\_ _ -> return id))
   ]
 
 -- | Handle the @#INCLUDE@ directive.
