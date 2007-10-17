@@ -42,7 +42,7 @@ instance Die PassM where
 type Pass = A.Process -> PassM A.Process
 
 -- | Compose a list of passes into a single pass.
-runPasses :: [(String, Pass)] -> A.Process -> PassM A.Process
+runPasses :: [(String, Pass)] -> Pass
 runPasses [] ast = return ast
 runPasses ((s, p):ps) ast
     =  do debug $ "{{{ " ++ s
@@ -83,7 +83,7 @@ veryDebug :: (CSM m, MonadIO m) => String -> m ()
 veryDebug = verboseMessage 3
 
 -- | Dump the AST and parse state.
-debugAST :: (CSM m, MonadIO m) => A.Process -> m ()
+debugAST :: (CSM m, MonadIO m, Data t) => t -> m ()
 debugAST p
     =  do veryDebug $ "{{{ AST"
           veryDebug $ pshow p

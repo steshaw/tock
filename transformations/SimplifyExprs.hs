@@ -30,7 +30,7 @@ import Metadata
 import Pass
 import Types
 
-simplifyExprs :: A.Process -> PassM A.Process
+simplifyExprs :: Pass
 simplifyExprs = runPasses passes
   where
     passes =

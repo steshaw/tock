@@ -29,7 +29,7 @@ import Metadata
 import Types
 import Pass
 
-simplifyComms :: A.Process -> PassM A.Process
+simplifyComms :: Pass
 simplifyComms = runPasses passes
   where
     passes =

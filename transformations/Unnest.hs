@@ -32,7 +32,7 @@ import Metadata
 import Pass
 import Types
 
-unnest :: A.Process -> PassM A.Process
+unnest :: Pass
 unnest = runPasses passes
   where
     passes =

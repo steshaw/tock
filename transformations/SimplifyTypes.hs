@@ -26,7 +26,7 @@ import qualified AST as A
 import Pass
 import Types
 
-simplifyTypes :: A.Process -> PassM A.Process
+simplifyTypes :: Pass
 simplifyTypes = runPasses passes
   where
     passes =
@@ -46,10 +46,6 @@ resolveNamedTypes = doGeneric `extM` doType
     doType t = doGeneric t
 
 -- | Resolve named types in CompState.
-rntState :: A.Process -> PassM A.Process
-rntState p
-    =  do st <- get
-          st' <- resolveNamedTypes st
-          put st'
-          return p
+rntState :: Data t => t -> PassM t
+rntState p = (get >>= resolveNamedTypes >>= put) >> return p
 
