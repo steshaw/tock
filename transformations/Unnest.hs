@@ -171,13 +171,13 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doProcess p = doGeneric p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: A.Process -> PassM A.Process
+removeNesting :: A.Structured -> PassM A.Structured
 removeNesting p
     =  do pushPullContext
           p' <- pullSpecs p
-          s <- applyPulled $ A.OnlyP emptyMeta p'
+          s <- applyPulled p'
           popPullContext
-          return $ A.Seq emptyMeta s
+          return s
   where
     pullSpecs :: Data t => t -> PassM t
     pullSpecs = doGeneric `extM` doStructured

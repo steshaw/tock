@@ -39,7 +39,7 @@ instance Die PassM where
   dieReport = throwError
 
 -- | The type of an AST-mangling pass.
-type Pass = A.Process -> PassM A.Process
+type Pass = A.Structured -> PassM A.Structured
 
 -- | Compose a list of passes into a single pass.
 runPasses :: [(String, Pass)] -> Pass
