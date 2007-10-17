@@ -1532,7 +1532,6 @@ process
     <|> altProcess
     <|> procInstance
     <|> intrinsicProc
-    <|> mainProcess
     <|> handleSpecs (allocation <|> specification) process
                     (\m s p -> A.Seq m (A.Spec m s (A.OnlyP m p)))
     <?> "process"
@@ -1938,24 +1937,19 @@ intrinsicProc
           return $ A.IntrinsicProcCall m s as
     <?> "intrinsic PROC instance"
 --}}}
---{{{ main process
-mainProcess :: OccParser A.Process
-mainProcess
-    =  do m <- md
-          eof
-          -- Stash the current locals so that we can either restore them
-          -- when we get back to the file we included this one from, or
-          -- pull the TLP name from them at the end.
-          updateState $ (\ps -> ps { csMainLocals = csLocalNames ps })
-          return $ A.Main m
---}}}
 --}}}
 --{{{ top-level forms
 
 topLevelItem :: OccParser A.Structured
 topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
                         (\m s inner -> A.Spec m s inner)
-               <|> (mainProcess >>= (\(A.Main m) -> return $ A.Several m []))
+               <|> do m <- md
+                      eof
+                      -- Stash the current locals so that we can either restore them
+                      -- when we get back to the file we included this one from, or
+                      -- pull the TLP name from them at the end.
+                      updateState $ (\ps -> ps { csMainLocals = csLocalNames ps })
+                      return $ A.Several m []
                       
 
 -- | A source file consists of a structured.
