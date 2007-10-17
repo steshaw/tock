@@ -397,7 +397,7 @@ declaration = try $ do {t <- dataType; sColon ; ns <- name `sepBy1` sComma ; sSe
     foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t
 
 terminator :: A.Structured
-terminator = (A.OnlyP emptyMeta $ A.Main emptyMeta)
+terminator = A.Several emptyMeta []
 
 processDecl :: RainParser A.Structured
 processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;

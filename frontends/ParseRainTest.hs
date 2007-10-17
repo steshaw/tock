@@ -385,32 +385,32 @@ testTopLevelDecl =
       (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
         (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
       )
-      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)]
+      (tag2 A.Several DontCare ([] :: [A.Structured]))]
   )
   , pass ("process noargs() par {}", RP.topLevelDecl,
     assertPatternMatch "testTopLevelDecl 0b" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
       (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
         (tag3 A.Par DontCare A.PlainPar $ tag2 A.Several DontCare ([] :: [A.Structured]))
       )
-      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)]
+      (tag2 A.Several DontCare ([] :: [A.Structured]))]
   )
   
   , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
     assertPatternMatch "testTopLevelDecl 1" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
       (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleNamePattern "x")]
         (tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssignPattern (variablePattern "x") (intLiteralPattern 0)]) )
-      (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)]
+      (tag2 A.Several DontCare ([] :: [A.Structured]))]
   )
   ,pass ("process noargs0() {} process noargs1 () {}", RP.topLevelDecl,
     assertPatternMatch "testTopLevelDecl 2" $ tag2 A.Several DontCare [
       tag3 A.Spec DontCare 
         (tag3 A.Specification DontCare (simpleNamePattern "noargs0") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
           (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-        ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+        ) (tag2 A.Several DontCare ([] :: [A.Structured]))
       ,tag3 A.Spec DontCare 
         (tag3 A.Specification DontCare (simpleNamePattern "noargs1") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
           (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-        ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+        ) (tag2 A.Several DontCare ([] :: [A.Structured]))
       ]
   )  
   , fail ("process", RP.topLevelDecl)
@@ -428,7 +428,7 @@ testTopLevelDecl =
       (tag3 A.Specification DontCare (simpleNamePattern "cons") $
         tag5 A.Function DontCare A.PlainSpec [A.Byte] ([] :: [A.Formal]) $
           (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
     ]
    )
    
@@ -437,7 +437,7 @@ testTopLevelDecl =
       (tag3 A.Specification DontCare (simpleNamePattern "f") $
         tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
           (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
     ]	
    )   
 
@@ -446,7 +446,7 @@ testTopLevelDecl =
       (tag3 A.Specification DontCare (simpleNamePattern "id") $
         tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
           (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyEL DontCare $ tag2 A.ExpressionList DontCare [exprVariablePattern "x"]])
-      ) (tag2 A.OnlyP DontCare $ tag1 A.Main DontCare)
+      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
     ]
    )
  ]
