@@ -156,16 +156,16 @@ chansToAny x = do st <- get
 
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
-generateCPPCSP :: A.Process -> PassM String
+generateCPPCSP :: A.Structured -> PassM String
 generateCPPCSP = generate cppgenOps
 
 -- | Generates the top-level code for an AST.
-cppgenTopLevel :: GenOps -> A.Process -> CGen ()
-cppgenTopLevel ops p
+cppgenTopLevel :: GenOps -> A.Structured -> CGen ()
+cppgenTopLevel ops s
     =  do tell ["#include <tock_support_cppcsp.h>\n"]
           --In future, these declarations could be moved to a header file:
-          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) p)
-          call genProcess ops p
+          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
+          call genStructured ops s (\s -> tell ["\n#error Invalid top-level item: ",show s])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           (chanType,writer) <- 

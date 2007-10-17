@@ -151,7 +151,7 @@ data GenOps = GenOps {
     genTLPChannel :: GenOps -> TLPChannel -> CGen (),
     genTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen (),
     genTimerWait :: GenOps -> A.Expression -> CGen (),
-    genTopLevel :: GenOps -> A.Process -> CGen (),
+    genTopLevel :: GenOps -> A.Structured -> CGen (),
     -- | Generates the type as it might be used in a cast expression
     genType :: GenOps -> A.Type -> CGen (),
     genTypeSymbol :: GenOps -> String -> A.Type -> CGen (),
@@ -258,12 +258,12 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generate :: GenOps -> A.Process -> PassM String
+generate :: GenOps -> A.Structured -> PassM String
 generate ops ast
     =  do (a, out) <- runWriterT (call genTopLevel ops ast)
           return $ concat out
 
-generateC :: A.Process -> PassM String
+generateC :: A.Structured -> PassM String
 generateC = generate cgenOps
 
 cgenTLPChannel :: GenOps -> TLPChannel -> CGen ()
@@ -271,14 +271,14 @@ cgenTLPChannel _ TLPIn = tell ["in"]
 cgenTLPChannel _ TLPOut = tell ["out"]
 cgenTLPChannel _ TLPError = tell ["err"]
 
-cgenTopLevel :: GenOps -> A.Process -> CGen ()
-cgenTopLevel ops p
+cgenTopLevel :: GenOps -> A.Structured -> CGen ()
+cgenTopLevel ops s
     =  do tell ["#include <tock_support.h>\n"]
           cs <- get
           tell ["extern int " ++ nameString n ++ "_stack_size;\n"
                 | n <- Set.toList $ csParProcs cs]
-          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) p)
-          call genProcess ops p
+          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
+          call genStructured ops s (\s -> tell ["\n#error Invalid top-level item: ",show s])
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
