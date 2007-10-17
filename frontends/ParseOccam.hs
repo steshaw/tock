@@ -1951,13 +1951,20 @@ mainProcess
 --}}}
 --}}}
 --{{{ top-level forms
--- | A source file consists of a process.
--- This is only really true once we've tacked a process onto the bottom; a
--- source file is really a series of specifications, but the later ones need to
+
+topLevelItem :: OccParser A.Structured
+topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
+                        (\m s inner -> A.Spec m s inner)
+               <|> (mainProcess >>= (\(A.Main m) -> return $ A.Several m []))
+                      
+
+-- | A source file consists of a structured.
+-- A source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
-sourceFile :: OccParser (A.Process, CompState)
+-- Instead, we nest the specifications
+sourceFile :: OccParser (A.Structured, CompState)
 sourceFile
-    =   do p <- process
+    =   do p <- topLevelItem
            s <- getState
            return (p, s)
 --}}}
@@ -1972,7 +1979,7 @@ runTockParser toks prod cs
             Right r -> return r
 
 -- | Parse an occam program.
-parseOccamProgram :: [Token] -> PassM A.Process
+parseOccamProgram :: [Token] -> PassM A.Structured
 parseOccamProgram toks
     =  do cs <- get
           (p, cs') <- runTockParser toks sourceFile cs

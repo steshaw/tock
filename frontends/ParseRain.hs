@@ -416,14 +416,14 @@ topLevelDecl = do decls <- many (processDecl <|> functionDecl <?> "process or fu
                   eof
                   return $ A.Several emptyMeta decls
 
-rainSourceFile :: RainParser (A.Process, CompState)
+rainSourceFile :: RainParser (A.Structured, CompState)
 rainSourceFile
     =   do p <- topLevelDecl
            s <- getState
-           return (A.Seq emptyMeta p, s)
+           return (p, s)
 
 -- | Load and parse a Rain source file.
-parseRainProgram :: String -> PassM A.Process
+parseRainProgram :: String -> PassM A.Structured
 parseRainProgram filename
     =  do source <- liftIO $ readFile filename
           lexOut <- liftIO $ L.runLexer filename source          
