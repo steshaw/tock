@@ -1488,7 +1488,6 @@ cgenProcess ops p = case p of
   A.Wait m wm e -> call genWait ops wm e
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop ops m "STOP process"
-  A.Main m -> tell ["/* main */\n"]
   A.Seq _ s -> call genSeq ops s
   A.If m s -> call genIf ops m s
   A.Case m e s -> call genCase ops m e s

@@ -478,13 +478,6 @@ data Process =
   | Wait Meta WaitMode Expression
   | Skip Meta
   | Stop Meta
-  -- | The main process.
-  -- This is an artefact of how occam is structured. An occam program consists
-  -- of a series of scoped definitions; the last @PROC@ defined is run.
-  -- However, this means that a program as parsed must consist of a series of
-  -- 'Spec's with a magic value at the end to indicate where the program starts
-  -- -- and that's what this is for.
-  | Main Meta
   | Seq Meta Structured
   | If Meta Structured
   | Case Meta Expression Structured

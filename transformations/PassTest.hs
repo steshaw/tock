@@ -433,7 +433,7 @@ testInputCase = TestList
   where
     -- Various distinct simple processes:
     p0 = A.Skip emptyMeta
-    p1 = A.Main emptyMeta
+    p1 = A.Seq emptyMeta (A.Several emptyMeta [])
     p2 = A.Stop emptyMeta
     c = variable "c"
     x = variable "x"
