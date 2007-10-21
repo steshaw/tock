@@ -198,17 +198,31 @@ testGenType = TestList
   ,testBothSame "GenType 9" "bool" (tcall genType A.Bool) 
   ,testBothSame "GenType 10" "float" (tcall genType A.Real32) 
   ,testBothSame "GenType 11" "double" (tcall genType A.Real64) 
+  
+  ,testBothSame "GenType 20" "uint8_t*" (tcall genType $ A.Mobile A.Byte)
+  ,testBothSame "GenType 21" "bool*" (tcall genType $ A.Mobile A.Bool)
+  ,testBothSame "GenType 22" "float*" (tcall genType $ A.Mobile A.Real32)
+  
+  
   ,testBoth "GenType 100" "int*" "tockArrayView<int,1>" (tcall genType $ A.Array [A.Dimension 5] A.Int) 
   ,testBoth "GenType 101" "int*" "tockArrayView<int,3>" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
   ,testBoth "GenType 102" "int*" "tockArrayView<int,2>" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
   ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
+  
+  ,testBoth "GenType 250" "int*" "tockArrayView<int,3>" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
+  ,testBoth "GenType 251" "int*" "tockArrayView<int,2>" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBoth "GenType 251" "int*" "tockArrayView<int,1>" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
+  ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
 
   ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) 
   ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int) 
   ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int) 
   ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int) 
+
+  ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int*>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) (A.Mobile A.Int))
   
   ,testBoth "GenType 400" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) 
   ,testBoth "GenType 401" "Channel*" "csp::Chanin<int>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False True) A.Int) 
@@ -451,21 +465,32 @@ testDeclareInitFree = TestList
   ,testAllSame 6 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain records:
-  ,testAllR 100 ("","") ("","") A.Int
+  ,testAllR 100 ("","") ("","") A.Int id
   -- Records containing an array:
-  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;(&foo)->bar_sizes[1]=5;","") ("(&foo)->bar=tockArrayView((&foo)->bar_actual,tockDims(4,5));","") $ A.Array [A.Dimension 4,A.Dimension 5] A.Int
+  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;(&foo)->bar_sizes[1]=5;","") ("(&foo)->bar=tockArrayView((&foo)->bar_actual,tockDims(4,5));","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
   -- Arrays of records containing an array:
-  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;(&foo[0])->bar_sizes[1]=5;^","") ("^(&foo[0].access())->bar=tockArrayView((&foo[0].access())->bar_actual,tockDims(4,5));^","") $ A.Array [A.Dimension 4,A.Dimension 5] A.Int
+  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;(&foo[0])->bar_sizes[1]=5;^","") ("^(&foo[0].access())->bar=tockArrayView((&foo[0].access())->bar_actual,tockDims(4,5));^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+
+  -- Mobile versions
+  ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [A.Dimension 4] A.Int
+  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllR 1100 ("","") ("","") A.Int A.Mobile
+  -- Records containing an array:
+  ,testAllR 1101 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) A.Mobile
+  -- Arrays of records containing an array:
+  ,testAllRA 1200 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) A.Mobile
+  
+
  ]
  where
    testAll :: Int -> (String,String) -> (String,String) -> A.Type -> Test
    testAll n eC eCPP t = testAll' n eC eCPP t (defineName (simpleName "foo") $ simpleDefDecl "foo" t)
    
-   testAllR :: Int -> (String,String) -> (String,String) -> A.Type -> Test
-   testAllR n eC eCPP t = testAll' n eC eCPP (A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC"))
+   testAllR :: Int -> (String,String) -> (String,String) -> A.Type -> (A.Type -> A.Type) -> Test
+   testAllR n eC eCPP t f = testAll' n eC eCPP (f $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC"))
 
-   testAllRA :: Int -> (String,String) -> (String,String) -> A.Type -> Test
-   testAllRA n eC eCPP t = testAll' n eC eCPP (A.Array [A.Dimension 5] $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC"))
+   testAllRA :: Int -> (String,String) -> (String,String) -> A.Type -> (A.Type -> A.Type) -> Test
+   testAllRA n eC eCPP t f = testAll' n eC eCPP (A.Array [A.Dimension 5] $ f $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC"))
 
    testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
    testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
