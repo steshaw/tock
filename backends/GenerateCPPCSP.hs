@@ -907,6 +907,8 @@ cppgenType ops (A.Chan dir attr t)
            tell $ intersperse "*" [case d of A.Dimension n -> show n | d <- ds]
            tell [">/**/"]
     cppTypeInsideChannel ops t = call genType ops t
+cppgenType ops (A.Mobile t@(A.Array {})) = call genType ops t
+cppgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
 cppgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]

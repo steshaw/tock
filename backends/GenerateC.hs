@@ -395,6 +395,9 @@ cgenType ops (A.Array _ t)
             _ -> return ()
           tell ["*"]
 cgenType _ (A.Record n) = genName n
+cgenType ops (A.Mobile t@(A.Array {})) = call genType ops t
+cgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
+
 -- UserProtocol -- not used
 -- Channels are of type "Channel", but channel-ends are of type "Channel*"
 cgenType _ (A.Chan A.DirUnknown _ t) = tell ["Channel"]
