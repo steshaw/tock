@@ -128,6 +128,7 @@ data Type =
   | Timer
   | Time
   | Port Type
+  | Mobile Type
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.
