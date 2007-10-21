@@ -199,6 +199,7 @@ instance ShowOccam A.Type where
   showOccamM A.Timer = return "TIMER"
   showOccamM A.Time = return "TIME"
 
+  showOccamM (A.Mobile t) = return "MOBILE " +>> showOccamM t
   showOccamM (A.Array ds t)
       = (return $ concat [case d of
                   A.Dimension n -> "[" ++ show n ++ "]"
@@ -232,6 +233,8 @@ instance ShowRain A.Type where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  
   showRain A.Time = "time"
+  -- Mobility is not explicit in Rain:
+  showRain (A.Mobile t) = showRain t
   showRain x = "<invalid Rain type: " ++ show x ++ ">"
 
 instance ShowOccam A.DyadicOp where
