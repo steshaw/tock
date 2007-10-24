@@ -721,66 +721,84 @@ cgenVariable ops = cgenVariable' ops True
 cgenVariableUnchecked :: GenOps -> A.Variable -> CGen ()
 cgenVariableUnchecked ops = cgenVariable' ops False
 
--- FIXME This needs to detect when we've "gone through" a record and revert to
--- the Original prefixing behaviour. (Can do the same for arrays?)
--- Best way to do this is probably to make inner return a reference and a prefix,
--- so that we can pass prefixes upwards...
 cgenVariable' :: GenOps -> Bool -> A.Variable -> CGen ()
 cgenVariable' ops checkValid v
-    =  do am <- accessAbbrevMode v
-          t <- typeOfVariable v
-          let prefix = case (am, t) of
-                         (_, A.Array _ _) -> ""
-                         (A.Original, A.Chan A.DirUnknown _ _) -> "&"
-                         (A.Original, A.Chan _ _ _) -> ""
-                         (A.Abbrev, A.Chan {}) -> ""
-                         (A.Original, A.Record _) -> "&"
-                         (A.Abbrev, A.Record _) -> ""
-                         (A.Abbrev, _) -> "*"
-                         _ -> ""
-
-          when (prefix /= "") $ tell ["(", prefix]
-          inner v
-          when (prefix /= "") $ tell [")"]
+  = do (cg, n) <- inner 0 v Nothing
+       addPrefix cg n
   where
-    -- | Find the effective abbreviation mode for the variable we're looking at.
-    -- This differs from abbrevModeOfVariable in that it will return Original
-    -- for array and record elements (because when we're generating C, we can
-    -- treat c->x as if it's just x).  Abbreviated channel arrays are a special 
-    -- case, however.
-    accessAbbrevMode :: A.Variable -> CGen A.AbbrevMode
-    accessAbbrevMode (A.Variable _ n) = abbrevModeOfName n
-    accessAbbrevMode (A.DirectedVariable _ _ v) = accessAbbrevMode v
-    accessAbbrevMode (A.SubscriptedVariable _ sub v)
-        =  do am <- accessAbbrevMode v
-              t <- typeOfVariable v
-              return $ case (sub, t) of
-                         --Channel arrays are of pointers to channels; i.e. channels in arrays are always abbreviated:
-                         (A.Subscript _ _, A.Array _ (A.Chan A.DirUnknown _ _)) -> A.Abbrev 
-                         (A.Subscript _ _, _) -> A.Original
-                         (A.SubscriptField _ _, _) -> A.Original
-                         _ -> am
-
-    inner :: A.Variable -> CGen ()
-    inner (A.Variable _ n) = genName n
-    inner (A.DirectedVariable _ dir v) = call genDirectedVariable ops (inner v) dir
-    inner sv@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-        =  do let (es, v) = collectSubs sv
-              recurse v
-              call genArraySubscript ops checkValid v es
-    inner (A.SubscriptedVariable _ (A.SubscriptField m n) v)
-        =  do recurse v
-              tell ["->"]
-              genName n
-    inner (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v)
-        = inner (A.SubscriptedVariable m (A.Subscript m' start) v)
-    inner (A.SubscriptedVariable m (A.SubscriptFrom m' start) v)
-        = inner (A.SubscriptedVariable m (A.Subscript m' start) v)
-    inner (A.SubscriptedVariable m (A.SubscriptFor m' _) v)
-        = inner (A.SubscriptedVariable m (A.Subscript m' (makeConstant m' 0)) v)
+    -- The general plan here is to generate the variable, while also
+    -- putting in the right prefixes (&/*/**/***/etc).
+    -- We use an "indirection level" to record the prefix needed.
+    -- 0 means no prefix, -1 means &, 1 means *, 2 means **, etc
     
-    recurse :: A.Variable -> CGen()
-    recurse = if checkValid then call genVariable ops else call genVariableUnchecked ops
+    -- For arrays, we must pass through the inner type of the array
+    -- so that we can add the appropriate prefixes before the array
+    -- name.  That is, we make sure we write (&foo[0]), not
+    -- (&foo)[0]
+  
+    inner :: Int -> A.Variable -> Maybe A.Type -> CGen (CGen (), Int)
+    inner ind (A.Variable _ n) mt
+      = do amN <- abbrevModeOfName n
+           (am,t) <- case (amN,mt) of 
+                       -- Channel arrays are special, because they are arrays of abbreviations:
+                       (_, Just t'@(A.Chan {})) -> return (A.Abbrev, t')
+                       -- If we are dealing with an array element, treat it as if it had the original abbreviation mode,
+                       -- regardless of the abbreviation mode of the array:
+                       (_, Just t') -> return (A.Original, t')
+                       (am,Nothing) -> do t <- typeOfName n
+                                          return (am, t)
+           let ind' = case (am, t, indirectedType t) of
+                        -- For types that are referred to by pointer (such as records)
+                        -- we need to take the address:
+                        (A.Original, _, True) -> ind - 1
+                        -- If the type is referred to by pointer but is already abbreviated,
+                        -- no need to change the indirection:
+                        (_, _, True) -> ind                        
+                        -- Undirected channels will already have been handled, so this is for directed:
+                        (A.Abbrev, A.Chan {}, _) -> ind
+                        -- Abbreviations of arrays are pointers, just like arrays, so no
+                        -- need for a * operator:
+                        (A.Abbrev, A.Array {}, _) -> ind
+                        (A.Abbrev, _, _) -> ind + 1
+                        _ -> ind
+           return (genName n, ind')
+    inner ind (A.DerefVariable _ v) mt
+      = do (A.Mobile t) <- typeOfVariable v
+           case t of
+             A.Array {} -> inner ind v mt
+             A.Record {} -> inner ind v mt
+             _ -> inner (ind+1) v mt
+    inner ind (A.DirectedVariable _ dir v) mt
+      = do (cg,n) <- (inner ind v mt)           
+           return (call genDirectedVariable ops (addPrefix cg n) dir, 0)
+    inner ind sv@(A.SubscriptedVariable _ (A.Subscript _ _) _) mt
+      = do let (es, v) = collectSubs sv
+           t <- typeOfVariable sv
+           (cg, n) <- inner ind v (Just t)
+           return (cg >> call genArraySubscript ops checkValid v es, n)
+    inner ind (A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
+        =  do (cg, ind') <- inner ind v mt
+              return (addPrefix cg ind' >> tell ["->"] >> genName n, 0)
+    inner ind (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
+        = inner ind (A.SubscriptedVariable m (A.Subscript m' start) v) mt
+    inner ind (A.SubscriptedVariable m (A.SubscriptFrom m' start) v) mt
+        = inner ind (A.SubscriptedVariable m (A.Subscript m' start) v) mt
+    inner ind (A.SubscriptedVariable m (A.SubscriptFor m' _) v) mt
+        = inner ind (A.SubscriptedVariable m (A.Subscript m' (makeConstant m' 0)) v) mt
+   
+    indirectedType :: A.Type -> Bool
+    indirectedType (A.Record {}) = True
+    indirectedType (A.Chan A.DirUnknown _ _) = True
+    indirectedType _ = False
+
+    addPrefix :: CGen () -> Int -> CGen ()
+    addPrefix cg 0 = cg
+    addPrefix cg n = tell ["(", getPrefix n] >> cg >> tell [")"]
+
+    getPrefix :: Int -> String
+    getPrefix 0 = ""
+    getPrefix (-1) = "&"
+    getPrefix n = if n > 0 then replicate n '*' else "#error Negative prefix lower than -1"
 
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> ([A.Expression], A.Variable)
