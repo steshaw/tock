@@ -210,6 +210,8 @@ data Variable =
   | SubscriptedVariable Meta Subscript Variable
   -- | A channel-end variable (e.g. @c?@)
   | DirectedVariable Meta Direction Variable
+  -- | A dereferenced mobile variable (e.g. using MOBILE INT as INT)
+  | DerefVariable Meta Variable
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array constructor expression.
