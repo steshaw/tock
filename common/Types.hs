@@ -249,6 +249,7 @@ typeOfExpression e
           do t <- typeOfExpression e 
              count <- evalIntExpression $ sizeOfReplicator rep
              return $ A.Array [A.Dimension count] t
+        A.AllocMobile _ t _ -> return t
 --}}}
 
 -- | Gets the return type(s) of a function call from the 'CompState'.
