@@ -72,6 +72,7 @@ data GenOps = GenOps {
     genActual :: GenOps -> A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
     genActuals :: GenOps -> [A.Actual] -> CGen (),
+    genAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen(),
     genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
     genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
@@ -869,6 +870,8 @@ cgenExpression ops (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction 
 --cgenExpression ops (A.BytesInExpr m e)
 cgenExpression ops (A.BytesInType m t) = call genBytesIn ops t (Left False)
 --cgenExpression ops (A.OffsetOf m t n)
+--cgenExpression ops (A.ExprConstr {})
+cgenExpression ops (A.AllocMobile m t me) = call genAllocMobile ops m t me
 cgenExpression ops t = call genMissing ops $ "genExpression " ++ show t
 
 cgenSizeSuffix :: GenOps -> String -> CGen ()

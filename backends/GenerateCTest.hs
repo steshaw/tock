@@ -1050,6 +1050,17 @@ testBytesIn = TestList
  where
    over ops = ops {genVariable = override1 dollar, genSizeSuffix = (\_ n -> tell["(@",n,")"])}
 
+testMobile :: Test
+testMobile = TestList
+ [
+  testBoth "testMobile 0" "malloc(#(Int Left False))" "new Int" ((tcall3 genAllocMobile emptyMeta (A.Mobile A.Int) Nothing) . over)
+  ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalStateT (runErrorT (execWriterT $ call genAllocMobile (over cppgenOps) emptyMeta (A.Mobile A.Int) (Just undefined))) emptyState)
+ ]
+  where
+    showBytesInParams _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
+    showBytesInParams _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
+    over ops = ops {genBytesIn = showBytesInParams, genType = (\_ t -> tell [show t]), genExpression = override1 dollar}
+
 ---Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -1068,6 +1079,7 @@ tests = TestList
    ,testGetTime
    ,testIf
    ,testInput
+   ,testMobile
    ,testOutput
    ,testOverArray
    ,testReplicator
