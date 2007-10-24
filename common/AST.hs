@@ -481,6 +481,9 @@ data Process =
   | OutputCase Meta Variable Name [OutputItem]
   | GetTime Meta Variable
   | Wait Meta WaitMode Expression
+  -- | Clears the given mobile variable; if the variable is currently NULL,
+  -- destroy the contents and make it NULL.  If it is already NULL, do nothing.
+  | ClearMobile Meta Variable
   | Skip Meta
   | Stop Meta
   | Seq Meta Structured
