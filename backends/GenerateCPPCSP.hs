@@ -98,6 +98,7 @@ cppgenOps = cgenOps {
     declareInit = cppdeclareInit,
     genActual = cppgenActual,
     genActuals = cppgenActuals,
+    genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
     genArraySizesLiteral = cppgenArraySizesLiteral,
     genArrayStoreName = cppgenArrayStoreName,
@@ -1106,3 +1107,11 @@ cppgenRetypeSizes ops m destT destN srcT srcV
             -- Not array; just check the size is 1.
             _ -> checkSize
               
+
+cppgenAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen ()
+cppgenAllocMobile ops m (A.Mobile t) me
+  = do tell ["new "]
+       call genType ops t 
+       case me of
+         Just e -> tell ["("] >> call genExpression ops e >> tell [")"]
+         Nothing -> return ()

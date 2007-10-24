@@ -184,6 +184,7 @@ cgenOps = GenOps {
     genActual = cgenActual,
     genActuals = cgenActuals,
     genAlt = cgenAlt,
+    genAllocMobile = cgenAllocMobile,
     genArrayLiteralElems = cgenArrayLiteralElems,
     genArraySize = cgenArraySize,
     genArraySizesLiteral = cgenArraySizesLiteral,
@@ -1843,3 +1844,11 @@ cgenAssert ops m e
 --}}}
 --}}}
 
+--{{{ mobiles
+cgenAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen()
+cgenAllocMobile ops m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn ops t (Left False) >> tell [")"]
+--TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
+-- into a subsequent assignment
+cgenAllocMobile ops _ _ _ = call genMissing ops "Mobile allocation with initialising-expression"
+
+--}}}
