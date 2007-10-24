@@ -94,6 +94,7 @@ data GenOps = GenOps {
     -- | Generates a case statement over the given expression with the structured as the body.
     genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
     genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
+    genClearMobile :: GenOps -> Meta -> A.Variable -> CGen (),
     genConversion :: GenOps -> Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
     genConversionSymbol :: GenOps -> A.Type -> A.Type -> A.ConversionMode -> CGen (),
     genDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),

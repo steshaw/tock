@@ -1055,11 +1055,14 @@ testMobile = TestList
  [
   testBoth "testMobile 0" "malloc(#(Int Left False))" "new Int" ((tcall3 genAllocMobile emptyMeta (A.Mobile A.Int) Nothing) . over)
   ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalStateT (runErrorT (execWriterT $ call genAllocMobile (over cppgenOps) emptyMeta (A.Mobile A.Int) (Just undefined))) emptyState)
+  
+  ,testBoth "testMobile 100" "if(@!=NULL){free(@);@=NULL;}" "if(@!=NULL){delete @;@=NULL;}"
+    ((tcall2 genClearMobile emptyMeta undefined) . over)
  ]
   where
     showBytesInParams _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
     showBytesInParams _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
-    over ops = ops {genBytesIn = showBytesInParams, genType = (\_ t -> tell [show t]), genExpression = override1 dollar}
+    over ops = ops {genBytesIn = showBytesInParams, genType = (\_ t -> tell [show t]), genExpression = override1 dollar, genVariable = override1 at}
 
 ---Returns the list of tests:
 tests :: Test
