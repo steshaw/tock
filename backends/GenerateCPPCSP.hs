@@ -103,6 +103,7 @@ cppgenOps = cgenOps {
     genArraySizesLiteral = cppgenArraySizesLiteral,
     genArrayStoreName = cppgenArrayStoreName,
     genArraySubscript = cppgenArraySubscript,
+    genClearMobile = cppgenClearMobile,
     genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
     genDirectedVariable = cppgenDirectedVariable,
@@ -1115,3 +1116,15 @@ cppgenAllocMobile ops m (A.Mobile t) me
        case me of
          Just e -> tell ["("] >> call genExpression ops e >> tell [")"]
          Nothing -> return ()
+
+cppgenClearMobile :: GenOps -> Meta -> A.Variable -> CGen ()
+cppgenClearMobile ops _ v
+  = do tell ["if("]
+       genVar
+       tell ["!=NULL){delete "]
+       genVar
+       tell [";"]
+       genVar
+       tell ["=NULL;}"]
+  where
+    genVar = call genVariable ops v

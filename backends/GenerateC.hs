@@ -197,6 +197,7 @@ cgenOps = GenOps {
     genBytesIn = cgenBytesIn,
     genCase = cgenCase,
     genCheckedConversion = cgenCheckedConversion,
+    genClearMobile = cgenClearMobile,
     genConversion = cgenConversion,
     genConversionSymbol = cgenConversionSymbol,
     genDecl = cgenDecl,
@@ -1854,5 +1855,17 @@ cgenAllocMobile ops m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn
 --TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
 -- into a subsequent assignment
 cgenAllocMobile ops _ _ _ = call genMissing ops "Mobile allocation with initialising-expression"
+
+cgenClearMobile :: GenOps -> Meta -> A.Variable -> CGen ()
+cgenClearMobile ops _ v
+  = do tell ["if("]
+       genVar
+       tell ["!=NULL){free("]
+       genVar
+       tell [");"]
+       genVar
+       tell ["=NULL;}"]
+  where
+    genVar = call genVariable ops v
 
 --}}}
