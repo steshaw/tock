@@ -255,6 +255,8 @@ data Expression =
   | BytesInType Meta Type
   | OffsetOf Meta Type Name
   | ExprConstr Meta ArrayConstr
+  -- | The type should always be Mobile t, and the Expression should be of type t:
+  | AllocMobile Meta Type (Maybe Expression)
   deriving (Show, Eq, Typeable, Data)
 
 -- | A list of expressions.
