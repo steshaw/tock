@@ -688,14 +688,27 @@ testGenVariable = TestList
   ,testSameA2 20 ("(&foo)","foo") id (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testSameA2 30 ("foo","foo") id (A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
+  -- Mobile versions of the above:
+  ,testSameA2 40 ("foo","(*foo)") id (A.Mobile A.Int)
+  ,testSameA2 45 ("(*foo)","(**foo)") deref (A.Mobile A.Int)
+  ,testSameA2 50 ("foo","(*foo)") id (A.Mobile $ A.Record bar)
+  ,testSameA2 55 ("foo","(*foo)") deref (A.Mobile $ A.Record bar)
+  
   -- Arrays of the previous types, unsubscripted:
   ,testSameA 100 ("foo","foo","foo") id (A.Array [A.Dimension 8] A.Int)
   ,testSameA 110 ("foo","foo","foo") id (A.Array [A.Dimension 8] $ A.Record bar)
   ,testSameA2 120 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   ,testSameA2 130 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
+  -- Mobile arrays of the previous types:
+  ,testSameA2 140 ("foo","(*foo)") id (A.Mobile $ A.Array [A.Dimension 8] A.Int)
+  ,testSameA2 145 ("foo","(*foo)") deref (A.Mobile $ A.Array [A.Dimension 8] A.Int)
+  ,testSameA2 150 ("foo","(*foo)") id (A.Mobile $ A.Array [A.Dimension 8] $ A.Record bar)  
+  ,testSameA2 155 ("foo","(*foo)") deref (A.Mobile $ A.Array [A.Dimension 8] $ A.Record bar)  
+  
   -- Subscripted record:
   ,testSameA 200 ("(&foo)->x","foo->x","foo->x") fieldX (A.Record bar)
+  ,testSameA2 210 ("foo->x","(*foo)->x") (fieldX . deref) (A.Mobile $ A.Record bar)
   
   -- Fully subscripted array:
   ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
@@ -711,8 +724,16 @@ testGenVariable = TestList
   ,testAC 410 ("(&foo@C4)->x@C4","(&foo@U4)->x@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [A.Dimension 8] $ A.Record bar)
   
   --TODO come back to slices later
+  
+  -- Directed variables (incl. members of arrays, deref mobiles):
+  ,testSameA2 500 ("$(&foo)$","$foo$") dir (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  -- Test for mobile channels (in future)
+  --,testSameA2 510 ("$foo$","$(*foo)$") (dir . deref) (A.Mobile $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAC2 520 ("$foo@C4$","$foo@U4$") ("$foo@C4$","$foo@U4$") (dir . (sub 4)) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
  ]
  where
+   deref = A.DerefVariable emptyMeta
+   dir = A.DirectedVariable emptyMeta A.DirInput
    fieldX = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "x")
    sub n = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral n)
  
@@ -725,7 +746,8 @@ testGenVariable = TestList
      where
        state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t) am A.Unplaced
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
-       over ops = ops {genArraySubscript = (\_ b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression ops) subs))}
+       over ops = ops {genArraySubscript = (\_ b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression ops) subs))
+                      ,genDirectedVariable = (\_ cg _ -> dollar >> cg >> dollar)}
    
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testA n eC eCPP sub t = TestList [test n eC eCPP sub A.Original t, test (n+1) eC eCPP sub A.Abbrev t, test (n+2) eC eCPP sub A.ValAbbrev t]
