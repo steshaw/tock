@@ -63,7 +63,7 @@ transformWaitFor = everywhereM (mkM doAlt)
            id <- lift $ makeNonce "waitFor"
            let n = (A.Name m A.VariableName id)
            let var = A.Variable m n
-           put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time))], 
+           put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time Nothing))], 
                 init ++ [A.OnlyP m $ A.GetTime m var, A.OnlyP m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
            return $ A.AlternativeWait m A.WaitUntil (A.ExprVariable m var) p
                

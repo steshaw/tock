@@ -367,8 +367,10 @@ instance ShowOccam A.Specification where
          params' <- showAll (intersperse (return ",") $ map showOccamM params)
          --TODO use the occamdoc setting
          showOccamLine (return $ "PROC " ++ n' ++ "(" ++ params' ++ ")") +>> occamIndent +>> showOccamM body +>> occamOutdent +>> showOccamLine (return ":")
-  showOccamM (A.Specification _ n (A.Declaration _ t))
+  showOccamM (A.Specification _ n (A.Declaration _ t Nothing))
     = showOccamLine $ showOccamM t +>> space +>> showName n +>> colon
+  showOccamM (A.Specification _ n (A.Declaration _ t (Just e)))
+    = showOccamLine $ return "INITIAL " +>> showOccamM t +>> space +>> showName n +>> return " IS " +>> showOccamM e +>> colon
   showOccamM (A.Specification _ n (A.Is _ am t v))
     = showOccamLine $ (maybeVal am) +>> showOccamM t +>> space +>> showName n +>> return " IS " +>> showOccamM v +>> colon
   showOccamM (A.Specification _ n (A.IsExpr _ am t e))

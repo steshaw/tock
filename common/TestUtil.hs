@@ -378,7 +378,7 @@ simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNa
 
 -- | A simple definition of a declared variable
 simpleDefDecl :: String -> A.Type -> A.NameDef
-simpleDefDecl n t = simpleDef n (A.Declaration m t)
+simpleDefDecl n t = simpleDef n (A.Declaration m t Nothing)
 
 -- | A pattern that will match simpleDef, with a different abbreviation mode
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern

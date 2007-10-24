@@ -228,7 +228,7 @@ makeNonceProc m p
 -- | Generate and define a counter for a replicator.
 makeNonceCounter :: CSM m => String -> Meta -> m A.Name
 makeNonceCounter s m
-    =  do (A.Specification _ n _) <- defineNonce m s (A.Declaration m A.Int) A.VariableName A.ValAbbrev
+    =  do (A.Specification _ n _) <- defineNonce m s (A.Declaration m A.Int Nothing) A.VariableName A.ValAbbrev
           return n
 
 -- | Generate and define a variable abbreviation.
@@ -244,7 +244,7 @@ makeNonceIsExpr s m t e
 -- | Generate and define a variable.
 makeNonceVariable :: CSM m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
 makeNonceVariable s m t nt am
-    = defineNonce m s (A.Declaration m t) nt am
+    = defineNonce m s (A.Declaration m t Nothing) nt am
 --}}}
 
 diePC :: (CSM m, Die m) => Meta -> m String -> m a

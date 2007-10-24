@@ -70,7 +70,7 @@ typeOfName n
 typeOfSpec :: (CSM m, Die m) => A.SpecType -> m (Maybe A.Type)
 typeOfSpec st
         = case st of
-            A.Declaration _ t -> return $ Just t
+            A.Declaration _ t _ -> return $ Just t
             A.Is _ _ _ v -> (liftM Just) (typeOfVariable v)
             A.IsExpr _ _ _ e -> (liftM Just) (typeOfExpression e)
             A.IsChannelArray _ _ (c:_) -> liftM (Just . (A.Array [A.UnknownDimension])) $ typeOfVariable c

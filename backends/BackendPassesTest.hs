@@ -40,7 +40,7 @@ testTransformWaitFor1 :: Test
 testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ tag2 A.Declaration DontCare A.Time) $
+    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
             tag2 A.Several DontCare
               [
                 tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
@@ -57,8 +57,8 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transfo
   where
     orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t0") (A.Skip m),
                                        A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t1") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ tag2 A.Declaration DontCare A.Time) $     
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ tag2 A.Declaration DontCare A.Time) $
+    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
             tag2 A.Several DontCare
               [
                 tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var0
@@ -81,7 +81,7 @@ testTransformWaitFor3 :: Test
 testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.OnlyA m $ A.AlternativeWait m A.WaitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ tag2 A.Declaration DontCare A.Time) $
+    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
             tag2 A.Several DontCare
               [
                 tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
@@ -98,7 +98,7 @@ testTransformWaitFor4 :: Test
 testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ tag2 A.Declaration DontCare A.Time) $
+    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
             tag2 A.Several DontCare
               [
                 tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
@@ -116,8 +116,8 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
   where
     orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m),
                                        A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ tag2 A.Declaration DontCare A.Time) $     
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ tag2 A.Declaration DontCare A.Time) $
+    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
             tag2 A.Several DontCare
               [
                 tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var0

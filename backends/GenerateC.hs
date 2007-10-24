@@ -1330,7 +1330,7 @@ CHAN OF INT c IS d:       Channel *c = d;
                           const int *ds_sizes = cs_sizes;
 -}
 cintroduceSpec :: GenOps -> A.Specification -> CGen ()
-cintroduceSpec ops (A.Specification m n (A.Declaration _ t))
+cintroduceSpec ops (A.Specification m n (A.Declaration _ t _))
     = do call genDeclaration ops t n False
          case call declareInit ops m t (A.Variable m n) of
            Just p -> p
@@ -1444,7 +1444,7 @@ cgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
 cgenForwardDeclaration _ _ = return ()
 
 cremoveSpec :: GenOps -> A.Specification -> CGen ()
-cremoveSpec ops (A.Specification m n (A.Declaration _ t))
+cremoveSpec ops (A.Specification m n (A.Declaration _ t _))
     = case call declareFree ops m t var of
         Just p -> p
         Nothing -> return ()

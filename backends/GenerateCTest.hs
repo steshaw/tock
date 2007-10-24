@@ -495,9 +495,9 @@ testDeclareInitFree = TestList
    testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
    testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
     [
-     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t)) . over) state
+     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t Nothing)) . over) state
      ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP ((fromMaybe (return ())) . (tcall3 declareInit emptyMeta t (A.Variable emptyMeta foo)) . over) state
-     ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP ((tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t)) . over) state
+     ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP ((tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t Nothing)) . over) state
      ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP ((fromMaybe (return ())) . (tcall3 declareFree emptyMeta t (A.Variable emptyMeta foo)) . over) state
     ]
      where
@@ -513,10 +513,12 @@ testSpec :: Test
 testSpec = TestList
  [
   --Declaration:
-  testAllSame 0 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta A.Int
-  ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] A.Int
-  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta $ A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  testAllSame 0 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta A.Int Nothing
+  ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) Nothing
+  ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [A.Dimension 3] A.Int) Nothing
+  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) Nothing
+
+  -- TODO test declarations with initialisers
 
   --Empty/failure cases:
   ,testAllSame 100 ("","") $ A.DataType undefined undefined
@@ -744,7 +746,7 @@ testGenVariable = TestList
      ,testBothS ("testGenVariable/unchecked" ++ show n) eUC eUCPP ((tcall genVariableUnchecked $ sub $ A.Variable emptyMeta foo) . over) state
     ]
      where
-       state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t) am A.Unplaced
+       state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t Nothing) am A.Unplaced
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
        over ops = ops {genArraySubscript = (\_ b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression ops) subs))
                       ,genDirectedVariable = (\_ cg _ -> dollar >> cg >> dollar)}

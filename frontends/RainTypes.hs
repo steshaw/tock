@@ -45,7 +45,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
                  _ -> A.Array innerDims t               
              _ -> dieP m "Cannot do a foreach loop over a non-array type (or array with zero dimensions)"
            defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
+                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT Nothing), 
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return input
     recordInfNameTypes' r = return r

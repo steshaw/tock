@@ -47,7 +47,7 @@ testEachPass0 :: Test
 testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte Nothing)
     
     orig = A.Seq m 
              (A.Rep m 
@@ -84,7 +84,7 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
     check (items,st) = 
       do case castADI (Map.lookup "indexVar" items) of
            Just indexVarName -> assertVarDef "testEachPass0" st (A.nameName indexVarName) 
-             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration DontCare A.Int64)) 
+             (simpleDefPattern (A.nameName indexVarName) A.Original (tag3 A.Declaration m A.Int64 (Nothing :: Maybe A.Expression))) 
            Nothing -> assertFailure "testEachPass0: Internal error, indexVar not found"
          case castADI (Map.lookup "listVarName" items) of
            Just listVarName -> assertVarDef "testEachPass0" st (A.nameName listVarName)
@@ -95,8 +95,8 @@ testEachPass1 :: Test
 testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
-                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte Nothing)
+                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte) Nothing)
 
     orig = A.Par m A.PlainPar
              (A.Rep m
@@ -124,7 +124,7 @@ testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
     check (items,st) = 
       do case castADI (Map.lookup "indexVar" items) of
            Just indexVarName -> assertVarDef "testEachPass1" st (A.nameName indexVarName) 
-             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration DontCare A.Int64)) 
+             (simpleDefPattern (A.nameName indexVarName) A.Original (tag3 A.Declaration m A.Int64 (Nothing :: Maybe A.Expression)))
            Nothing -> assertFailure "testEachPass1: Internal error, indexVar not found"
 
 testEachRangePass0 :: Test
@@ -172,22 +172,22 @@ testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp (transformEach
 testUnique0 :: Test
 testUnique0 = TestCase $ testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) skipP
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) skipP
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing) skipP
     check (items,state) 
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique0: Variable was not made unique" "c" (A.nameName newcName)
            assertVarDef "testUnique0: Variable was not recorded" state (A.nameName newcName)
-             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
 testUnique1 :: Test
 testUnique1 = TestCase $ testPassWithItemsStateCheck "testUnique1" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) skipP,
-                        A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Int64) skipP]
-    exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m $ A.Byte) skipP,
-                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m $ A.Int64) skipP]
+    orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) skipP,
+                        A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Int64 Nothing) skipP]
+    exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m A.Byte Nothing) skipP,
+                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m A.Int64 Nothing) skipP]
     check (items,state) 
                 = do newc0Name <- castAssertADI (Map.lookup "newc0" items)
                      newc1Name <- castAssertADI (Map.lookup "newc1" items)
@@ -195,16 +195,16 @@ testUnique1 = TestCase $ testPassWithItemsStateCheck "testUnique1" exp (uniquify
                      assertNotEqual "testUnique1: Variable was not made unique" "c" (A.nameName newc1Name)
                      assertNotEqual "testUnique1: Variables were not made unique" (A.nameName newc0Name) (A.nameName newc1Name)
                      assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc0Name)
-                       (tag7 A.NameDef DontCare (A.nameName newc0Name) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+                       (tag7 A.NameDef DontCare (A.nameName newc0Name) "c" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)
                      assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc1Name)
-                       (tag7 A.NameDef DontCare (A.nameName newc1Name) "c" A.VariableName (A.Declaration m A.Int64) A.Original A.Unplaced)
+                       (tag7 A.NameDef DontCare (A.nameName newc1Name) "c" A.VariableName (A.Declaration m A.Int64 Nothing) A.Original A.Unplaced)
 
 -- | Tests that the unique pass does resolve the variables that are in scope
 testUnique2 :: Test
 testUnique2 = TestCase $ testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) (A.OnlyP m $ makeSimpleAssign "c" "d")
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) 
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) (A.OnlyP m $ makeSimpleAssign "c" "d")
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing)
       (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
     check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
                              assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
@@ -213,9 +213,9 @@ testUnique2 = TestCase $ testPassWithItemsStateCheck "testUnique2" exp (uniquify
 testUnique2b :: Test
 testUnique2b = TestCase $ testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolveVars orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m $ A.Byte) $
+    orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) $
     	A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m $ A.Byte) $
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing) $
       tag2 A.Several DontCare [
         (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
         ,(tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "e")]))
@@ -254,7 +254,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquify
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique4: Variable was not made unique" "c" (A.nameName newcName)
            assertVarDef "testUnique4: Variable was not recorded" state (A.nameName newcName)
-             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.ValAbbrev A.Unplaced)
+             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte Nothing) A.ValAbbrev A.Unplaced)
            assertVarDef "testUnique4: Variable was not recorded" state "foo"
              (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (tag4 A.Proc DontCare A.PlainSpec 
                [tag3 A.Formal A.ValAbbrev A.Byte newcName] (bodyPattern newcName)) A.Original A.Unplaced)
@@ -269,32 +269,32 @@ testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "hello")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames0" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)
       
 -- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
 testRecordInfNames1 :: Test
 testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
+    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte) Nothing)
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)      
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)      
 
 -- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
 testRecordInfNames2 :: Test
 testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte))
+    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte) Nothing)
     orig =  A.Rep m (A.ForEach m (simpleName "c") (exprVariable "multi")) $
       A.OnlyP m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte)) A.Original A.Unplaced)
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte) Nothing) A.Original A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
-                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)                          
+                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)                          
 
 -- | checks that doing a foreach over a non-array type is barred:
 testRecordInfNames3 :: Test
@@ -491,18 +491,18 @@ testPullUpParDecl1 :: Test
 testPullUpParDecl1 = TestCase $ testPass "testPullUpParDecl1" exp (pullUpParDeclarations orig) (return ())
   where
     orig = A.Par m A.PlainPar $
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.Several m [])
-    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) (A.Several m [])
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
 
 testPullUpParDecl2 :: Test
 testPullUpParDecl2 = TestCase $ testPass "testPullUpParDecl2" exp (pullUpParDeclarations orig) (return ())
   where
     orig = A.Par m A.PlainPar $
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $
-      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte) $
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) $
+      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte Nothing) $
       (A.Several m [])
-    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) 
-                  $ A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte)
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) 
+                  $ A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.Byte Nothing)
                     (A.OnlyP m $ A.Par m A.PlainPar $ A.Several m [])
 
 ---Returns the list of tests:

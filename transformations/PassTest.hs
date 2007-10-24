@@ -32,6 +32,9 @@ import SimplifyExprs
 import TestUtil
 import TreeUtil
 
+noInit :: Maybe A.Expression
+noInit = Nothing
+
 valof0 :: A.Structured 
 valof0 = A.OnlyEL m $ A.ExpressionList m [intLiteral 0]
 
@@ -70,7 +73,7 @@ testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                              --check return parameters were defined:
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)                        
                              assertVarDef "testFunctionsToProcs0" state (A.nameName ret0) $
-                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs0" state "foo" $
                                tag7 A.NameDef DontCare ("foo") ("foo") A.ProcName procSpec A.Original A.Unplaced
@@ -96,9 +99,9 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
                              ret1 <- ((assertGetItemCast "ret1" items) :: IO A.Name)
                              assertVarDef "testFunctionsToProcs1 B" state (A.nameName ret0) $
-                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
                              assertVarDef "testFunctionsToProcs1 C" state (A.nameName ret1) $
-                               tag7 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1) A.VariableName (A.Declaration m A.Real32) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1) A.VariableName (A.Declaration m A.Real32 Nothing) A.Abbrev A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs1 D" state "foo" $
                                tag7 A.NameDef DontCare ("foo") ("foo") A.ProcName procBody A.Original A.Unplaced
@@ -126,9 +129,9 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     check (items,state) = do retOuter0 <- ((assertGetItemCast "retOuter0" items) :: IO A.Name)
                              ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
                              assertVarDef "testFunctionsToProcs2 B" state (A.nameName ret0) $
-                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
                              assertVarDef "testFunctionsToProcs2 C" state (A.nameName retOuter0) $
-                               tag7 A.NameDef DontCare (A.nameName retOuter0) (A.nameName retOuter0) A.VariableName (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName retOuter0) (A.nameName retOuter0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs2 D" state "foo" $
                                tag7 A.NameDef DontCare ("foo") ("foo") A.ProcName (singleParamSpecExp DontCare) A.Original A.Unplaced
@@ -149,9 +152,9 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
       A.RepConstr m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
       ) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
-    exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Array [A.Dimension 10] A.Int))) $ 
+    exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Array [A.Dimension 10] A.Int) Nothing)) $ 
       A.ProcThen m 
-      (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int)) $
+      (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int Nothing)) $
           A.Several m [A.OnlyP m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
             A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.OnlyP m $ A.Seq m $ A.Several m
             [A.OnlyP m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
@@ -275,7 +278,7 @@ testInputCase = TestList
    -}
    TestCase $ testPass "testInputCase 0"     
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
           tag2 A.Several DontCare
          [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
          ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
@@ -316,7 +319,7 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 1"
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
           tag2 A.Several DontCare
          [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
          ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
@@ -374,7 +377,7 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 2"
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
           tag2 A.Several DontCare
          [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
          ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
@@ -416,7 +419,7 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 100"
        (tag3 A.Alt DontCare False $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag2 A.Declaration DontCare A.Int) $
+          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
           tag2 A.OnlyA DontCare $ tag4 A.Alternative DontCare c
             (tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]) $
           tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
@@ -447,8 +450,8 @@ testInputCase = TestList
       A.Original A.Unplaced
     defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
     
-    specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
-    specIntPatt s = tag3 A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
+    specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
+    specIntPatt s = tag3 A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
                              
 --Returns the list of tests:
 tests :: Test

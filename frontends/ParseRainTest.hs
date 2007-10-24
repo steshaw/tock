@@ -67,6 +67,8 @@ testParseFail (text,prod)
 emptyBlock :: A.Process
 emptyBlock = A.Seq m $ A.Several m []
 
+noInit :: Maybe A.Expression
+noInit = Nothing
 
 --You are allowed to chain arithmetic operators without brackets, but not comparison operators
 -- (the meaning of "b == c == d" is obscure enough to be dangerous, even if it passes the type checker)
@@ -330,14 +332,14 @@ testPar =
   --Rain only allows declarations at the beginning of a par block:
 
   ,pass ("par {int:x; {} }",RP.statement,
-    assertEqual "Par Decl Test 0" $ A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $ A.Several m 
+    assertEqual "Par Decl Test 0" $ A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) $ A.Several m 
       [A.OnlyP m $ A.Seq m $ A.Several m []] )
       
 
   ,pass ("par {uint16:x; uint32:y; {} }",RP.statement,
     assertEqual "Par Decl Test 1" $ A.Par m A.PlainPar $ 
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16) $ 
-      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32) $ 
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16 Nothing) $ 
+      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32 Nothing) $ 
       A.Several m [A.OnlyP m $ A.Seq m $ A.Several m []] )
       
   ,fail ("par { {} int: x; }",RP.statement)
@@ -351,16 +353,16 @@ testBlock =
   ,pass("{ a = b; b = c; }",RP.innerBlock False,assertPatternMatch "testBlock 1" (tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]) )
   ,pass("{ uint8: x; a = b; }",RP.innerBlock False,assertPatternMatch "testBlock 2" $ tag3 A.Spec DontCare 
-    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
    )
   ,pass("{ uint8: x; a = b; b = c; }",RP.innerBlock False,assertPatternMatch "testBlock 3" $ tag3 A.Spec DontCare 
-    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]
    )   
   ,pass("{ b = c; uint8: x; a = b; }",RP.innerBlock False,assertPatternMatch "testBlock 4" $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c",
     tag3 A.Spec DontCare 
-      (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte) $ tag2 A.Several DontCare 
+      (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
     [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
    ])
   ,fail("{b}",RP.innerBlock False)
@@ -496,13 +498,13 @@ testDataType =
 testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
 testDecl =
  [
-  passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare A.Bool)
-  ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag2 A.Declaration DontCare A.Byte)
-  ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag2 A.Declaration DontCare $ A.Chan A.DirInput nonShared A.Bool)
-  ,passd ("a: b;",3,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag2 A.Declaration DontCare (tag1 A.UserDataType $ tag3 A.Name DontCare A.DataTypeName "a"))
+  passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag3 A.Declaration DontCare A.Bool noInit)
+  ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit)
+  ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag3 A.Declaration DontCare (A.Chan A.DirInput nonShared A.Bool) noInit)
+  ,passd ("a: b;",3,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag3 A.Declaration DontCare (tag1 A.UserDataType $ tag3 A.Name DontCare A.DataTypeName "a") noInit)
 
-  ,passd2 ("bool: b0,b1;",100,tag3 A.Specification DontCare (simpleNamePattern "b0") $ tag2 A.Declaration DontCare A.Bool,
-                                tag3 A.Specification DontCare (simpleNamePattern "b1") $ tag2 A.Declaration DontCare A.Bool)
+  ,passd2 ("bool: b0,b1;",100,tag3 A.Specification DontCare (simpleNamePattern "b0") $ tag3 A.Declaration DontCare A.Bool noInit,
+                                tag3 A.Specification DontCare (simpleNamePattern "b1") $ tag3 A.Declaration DontCare A.Bool noInit)
   
   
   ,fail ("bool:;",RP.declaration)

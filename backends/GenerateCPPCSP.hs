@@ -620,7 +620,7 @@ cppdeclareFree _ _ _ _ = Nothing
 
 -- | Changed to work properly with declareFree to free channel arrays.
 cppremoveSpec :: GenOps -> A.Specification -> CGen ()
-cppremoveSpec ops (A.Specification m n (A.Declaration _ t))
+cppremoveSpec ops (A.Specification m n (A.Declaration _ t _))
     = do case call declareFree ops m t var of
                Just p -> p
                Nothing -> return ()
