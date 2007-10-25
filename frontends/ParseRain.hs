@@ -200,7 +200,7 @@ integerLiteral :: RainParser A.Expression
 integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
 
 literal :: RainParser A.Expression
-literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.Array [dim] A.Byte) lr }
+literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.List A.Byte) lr }
           <|> do {c <- literalCharacter ; return $ A.Literal (findMeta c) A.Byte c}
           <|> integerLiteral
           <|> do {m <- reserved "true" ; return $ A.True m}

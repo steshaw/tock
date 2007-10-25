@@ -195,10 +195,10 @@ testLiteral =
   ,fail ("FALSE",RP.literal)
     
   --Strings:
-  ,pass ("\"\"", RP.literal, assertPatternMatch "testLiteral 201" $ makeLiteralStringPattern "")
-  ,pass ("\"abc\"", RP.literal, assertPatternMatch "testLiteral 202" $ makeLiteralStringPattern "abc")
-  ,pass ("\"abc\\n\"", RP.literal, assertPatternMatch "testLiteral 203" $ makeLiteralStringPattern "abc\n")
-  ,pass ("\"a\\\"bc\"", RP.literal, assertPatternMatch "testLiteral 204" $ makeLiteralStringPattern "a\"bc")
+  ,pass ("\"\"", RP.literal, assertPatternMatch "testLiteral 201" $ makeLiteralStringRainPattern "")
+  ,pass ("\"abc\"", RP.literal, assertPatternMatch "testLiteral 202" $ makeLiteralStringRainPattern "abc")
+  ,pass ("\"abc\\n\"", RP.literal, assertPatternMatch "testLiteral 203" $ makeLiteralStringRainPattern "abc\n")
+  ,pass ("\"a\\\"bc\"", RP.literal, assertPatternMatch "testLiteral 204" $ makeLiteralStringRainPattern "a\"bc")
   ,fail ("\"",RP.literal)
   ,fail ("\"\"\"",RP.literal)
   ,fail ("a\"\"",RP.literal)
@@ -372,10 +372,10 @@ testEach :: [ParseTest A.Process]
 testEach =
  [
   pass ("seqeach (c : \"1\") par {c = 7;}", RP.statement,
-    assertPatternMatch  "Each Test 0" (stopCaringPattern m $ mkPattern $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "1")) $    
+    assertPatternMatch  "Each Test 0" (stopCaringPattern m $ mkPattern $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) $    
       A.OnlyP m $ makePar [(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7")))] ))
   ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
-    assertEqual "Each Test 1" $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "345")) $ 
+    assertEqual "Each Test 1" $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "345")) $ 
       A.OnlyP m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
  ]
 

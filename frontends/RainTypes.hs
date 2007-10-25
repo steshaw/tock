@@ -39,11 +39,8 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
     recordInfNameTypes' input@(A.ForEach m n e)
       = do arrType <- typeOfExpression e
            innerT <- case arrType of 
-             A.Array (_:innerDims) t ->
-               return $ case innerDims of 
-                 [] -> t
-                 _ -> A.Array innerDims t               
-             _ -> dieP m "Cannot do a foreach loop over a non-array type (or array with zero dimensions)"
+             A.List t -> return t
+             _ -> diePC m $ formatCode "Cannot do a foreach loop over a non-list type: %" arrType
            defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
                                    A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT Nothing), 
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}

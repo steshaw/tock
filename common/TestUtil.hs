@@ -169,8 +169,8 @@ makeAssignPattern :: Pattern -> Pattern -> Pattern
 makeAssignPattern v e = tag3 A.Assign DontCare [v] $ tag2 A.ExpressionList DontCare [e]
  
 -- | Creates a literal string expression from the given 'String'.
-makeLiteralString :: String -> A.Expression
-makeLiteralString str = A.Literal emptyMeta (A.Array [A.Dimension (length str)] A.Byte) (A.ArrayLiteral emptyMeta (map makeLiteralChar str))
+makeLiteralStringRain :: String -> A.Expression
+makeLiteralStringRain str = A.Literal emptyMeta (A.List A.Byte) (A.ArrayLiteral emptyMeta (map makeLiteralChar str))
   where
     makeLiteralChar :: Char -> A.ArrayElem
     makeLiteralChar c = A.ArrayElemExpr $ A.Literal emptyMeta A.Byte (A.ByteLiteral emptyMeta [c] {-(show (fromEnum c))-})
@@ -178,8 +178,8 @@ makeLiteralString str = A.Literal emptyMeta (A.Array [A.Dimension (length str)] 
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- @'assertPatternMatch' ('makeLiteralStringPattern' x) ('makeLiteralString' x)@ will always succeed.
 -- All meta tags are ignored
-makeLiteralStringPattern :: String -> Pattern
-makeLiteralStringPattern = (stopCaringPattern emptyMeta) . mkPattern . makeLiteralString
+makeLiteralStringRainPattern :: String -> Pattern
+makeLiteralStringRainPattern = (stopCaringPattern emptyMeta) . mkPattern . makeLiteralStringRain
 
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- All meta tags are ignored

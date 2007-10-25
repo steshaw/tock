@@ -235,7 +235,7 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
         transformRangeRep'' :: Meta -> Integer -> Integer -> PassM A.Expression
         transformRangeRep'' m begin end 
           = if (end < begin)
-              then return $ A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
+              then dieP m $ "End of range is before beginning: " ++ show begin ++ " > " ++ show end
               else do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
                       let count = end - begin + 1
                       return $ A.ExprConstr m $ A.RepConstr m 

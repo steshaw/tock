@@ -51,13 +51,13 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
     
     orig = A.Seq m 
              (A.Rep m 
-               (A.ForEach m (simpleName "c") (makeLiteralString "1")) 
+               (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) 
                (A.OnlyP m (makeAssign (variable "c") (intLiteral 7)))              
              )
     exp = tag2 A.Seq DontCare
              (tag3 A.Spec DontCare
                (tag3 A.Specification DontCare listVarName
-                 (tag4 A.IsExpr DontCare A.ValAbbrev (A.Array [A.Dimension 1] A.Byte) (makeLiteralString "1"))
+                 (tag4 A.IsExpr DontCare A.ValAbbrev (A.List A.Byte) (makeLiteralStringRain "1"))
                )
                (tag3 A.Rep DontCare
                  (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
@@ -88,15 +88,15 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
            Nothing -> assertFailure "testEachPass0: Internal error, indexVar not found"
          case castADI (Map.lookup "listVarName" items) of
            Just listVarName -> assertVarDef "testEachPass0" st (A.nameName listVarName)
-             (simpleDefPattern (A.nameName listVarName) A.ValAbbrev (tag4 A.IsExpr DontCare A.ValAbbrev (A.Array [A.Dimension 1] A.Byte) (makeLiteralStringPattern "1") ))
+             (simpleDefPattern (A.nameName listVarName) A.ValAbbrev (tag4 A.IsExpr DontCare A.ValAbbrev (A.List A.Byte) (makeLiteralStringRainPattern "1") ))
            Nothing -> assertFailure "testEachPass0: Internal error, listVarName not found"
 
 testEachPass1 :: Test
 testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte Nothing)
-                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte) Nothing)
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
+                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
 
     orig = A.Par m A.PlainPar
              (A.Rep m
@@ -266,7 +266,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquify
 testRecordInfNames0 :: Test
 testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" exp (recordInfNameTypes orig) (return ()) check
   where
-    orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralString "hello")) skipP)
+    orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "hello")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames0" state "c" 
       (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)
@@ -276,7 +276,7 @@ testRecordInfNames1 :: Test
 testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte) Nothing)
+    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
@@ -287,12 +287,12 @@ testRecordInfNames2 :: Test
 testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte) Nothing)
+    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte))
     orig =  A.Rep m (A.ForEach m (simpleName "c") (exprVariable "multi")) $
       A.OnlyP m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte) Nothing) A.Original A.Unplaced)
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte)) A.Original A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
                       (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)                          
 
@@ -453,12 +453,11 @@ testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp (transformRangeR
     exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare (Named "repIndex" DontCare) (intLiteral 0) (intLiteral 2)) 
       (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ Named "repIndex" DontCare)
 
--- | Lists with negative counts should be turned into an empty literal list
+-- | Lists with negative counts should give an error
 testRangeRepPass1 :: Test
-testRangeRepPass1 = TestCase $ testPass "testRangeRepPass1" exp (transformRangeRep orig) (return())
+testRangeRepPass1 = TestCase $ testPassShouldFail "testRangeRepPass1" (transformRangeRep orig) (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 1) (intLiteral 0)
-    exp = A.Literal m (A.Array [A.Dimension 0] A.Int) $ A.ArrayLiteral m []
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
 
