@@ -208,6 +208,16 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
+-- | In occam, things that are arrays/lists (literals, constructors, etc) are arrays.  However, in Rain they are lists.
+-- This function chooses between the two types accordingly.  The dimensions are only relevant in occam.
+typeOfArrayList :: CSM m => [A.Dimension] -> A.Type -> m A.Type
+typeOfArrayList dims innerType
+  = do st <- get 
+       case csFrontend st of
+         FrontendOccam -> return $ A.Array dims innerType
+         FrontendRain -> return $ A.List innerType
+
+
 -- | Gets the 'A.Type' of an 'A.Expression'.  This function assumes that the expression has already been type-checked.
 typeOfExpression :: (CSM m, Die m) => A.Expression -> m A.Type
 typeOfExpression e
@@ -244,11 +254,14 @@ typeOfExpression e
         A.ExprConstr m (A.RangeConstr _ b e) -> 
           do bt <- typeOfExpression b
              et <- typeOfExpression e
-             if bt == et then return (A.Array [A.UnknownDimension] bt) else dieP m "Types did not match for beginning and end of range"
+             st <- get
+             if bt /= et
+               then dieP m "Types did not match for beginning and end of range"
+               else typeOfArrayList [A.UnknownDimension] bt
         A.ExprConstr m (A.RepConstr _ rep e) -> 
           do t <- typeOfExpression e 
              count <- evalIntExpression $ sizeOfReplicator rep
-             return $ A.Array [A.Dimension count] t
+             typeOfArrayList [A.Dimension count] t
         A.AllocMobile _ t _ -> return t
 --}}}
 
