@@ -582,9 +582,9 @@ cppgenArraySizesLiteral ops n t@(A.Array ds _) =
             | d <- ds]
 
 -- | Changed because we initialise channels and arrays differently in C++
-cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cppdeclareInit ops m t@(A.Array ds t') var
-    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var))
+cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
+cppdeclareInit ops m t@(A.Array ds t') var _
+    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var) Nothing)
                 call genOverArray ops m var init
                 case t' of
                   A.Chan A.DirUnknown _ _ ->
@@ -596,7 +596,7 @@ cppdeclareInit ops m t@(A.Array ds t') var
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-cppdeclareInit ops m rt@(A.Record _) var
+cppdeclareInit ops m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
@@ -610,9 +610,11 @@ cppdeclareInit ops m rt@(A.Record _) var
               tell ["_actual,tockDims("]
               infixComma [tell [show n] | (A.Dimension n) <- ds]
               tell ["));"]
-              doMaybe $ call declareInit ops m t v
-    initField t v = doMaybe $ call declareInit ops m t v
-cppdeclareInit _ _ _ _ = Nothing
+              doMaybe $ call declareInit ops m t v Nothing
+    initField t v = doMaybe $ call declareInit ops m t v Nothing
+cppdeclareInit ops m _ v (Just e)
+    = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
+cppdeclareInit _ _ _ _ _ = Nothing
 
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
 cppdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())

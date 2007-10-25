@@ -67,7 +67,7 @@ data GenOps = GenOps {
     -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
     declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
-    declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
+    declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ()),
     -- | Generates an individual parameter to a function\/proc.
     genActual :: GenOps -> A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
@@ -1276,12 +1276,12 @@ cgenArraySizesLiteral ops _ (A.Array ds _)
             | d <- ds]
 
 -- | Initialise an item being declared.
-cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var
+cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
+cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var _
     = Just $ do tell ["ChanInit("]
                 call genVariableUnchecked ops var
                 tell [");"]
-cdeclareInit ops m t@(A.Array ds t') var
+cdeclareInit ops m t@(A.Array ds t') var _
     = Just $ do case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tock_init_chan_array("]
@@ -1292,9 +1292,9 @@ cdeclareInit ops m t@(A.Array ds t') var
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-                init <- return (\sub -> call declareInit ops m t' (sub var))
+                init <- return (\sub -> call declareInit ops m t' (sub var) Nothing)
                 call genOverArray ops m var init
-cdeclareInit ops m rt@(A.Record _) var
+cdeclareInit ops m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
@@ -1306,9 +1306,11 @@ cdeclareInit ops m rt@(A.Record _) var
                             call genSizeSuffix ops (show i) 
                             tell ["=", show n, ";"]
                          | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
-              doMaybe $ call declareInit ops m t v
-    initField t v = doMaybe $ call declareInit ops m t v
-cdeclareInit _ _ _ _ = Nothing
+              doMaybe $ call declareInit ops m t v Nothing
+    initField t v = doMaybe $ call declareInit ops m t v Nothing
+cdeclareInit ops m _ v (Just e)
+    = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
+cdeclareInit _ _ _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
 cdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
@@ -1330,9 +1332,9 @@ CHAN OF INT c IS d:       Channel *c = d;
                           const int *ds_sizes = cs_sizes;
 -}
 cintroduceSpec :: GenOps -> A.Specification -> CGen ()
-cintroduceSpec ops (A.Specification m n (A.Declaration _ t _))
+cintroduceSpec ops (A.Specification m n (A.Declaration _ t init))
     = do call genDeclaration ops t n False
-         case call declareInit ops m t (A.Variable m n) of
+         case call declareInit ops m t (A.Variable m n) init of
            Just p -> p
            Nothing -> return ()
 cintroduceSpec ops (A.Specification _ n (A.Is _ am t v))

@@ -180,6 +180,9 @@ override2 val = (\_ _ _ -> val)
 override3 :: b -> (GenOps -> a0 -> a1 -> a2 -> b)
 override3 val = (\_ _ _ _ -> val)
 
+override4 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> b)
+override4 val = (\_ _ _ _ _ -> val)
+
 override5 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> b)
 override5 val = (\_ _ _ _ _ _ -> val)
 
@@ -449,6 +452,7 @@ testDeclareInitFree = TestList
  [
   -- Plain type:
   testAllSame 0 ("","") A.Int
+  ,testAllSameInit 10 ("foo=3;","") A.Int (intLiteral 3)
   
   -- Channel types:
   ,testAll 1 ("ChanInit((&foo));","") ("","") $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
@@ -484,19 +488,22 @@ testDeclareInitFree = TestList
  ]
  where
    testAll :: Int -> (String,String) -> (String,String) -> A.Type -> Test
-   testAll n eC eCPP t = testAll' n eC eCPP t (defineName (simpleName "foo") $ simpleDefDecl "foo" t)
+   testAll n eC eCPP t = testAll' n eC eCPP t (defineName (simpleName "foo") $ simpleDefDecl "foo" t) Nothing
+
+   testAllInit :: Int -> (String,String) -> (String,String) -> A.Type -> Maybe A.Expression -> Test
+   testAllInit n eC eCPP t init = testAll' n eC eCPP t (defineName (simpleName "foo") $ simpleDefDeclInit "foo" t init) init
    
    testAllR :: Int -> (String,String) -> (String,String) -> A.Type -> (A.Type -> A.Type) -> Test
-   testAllR n eC eCPP t f = testAll' n eC eCPP (f $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC"))
+   testAllR n eC eCPP t f = testAll' n eC eCPP (f $ A.Record $ simpleName "REC") ((defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC"))) Nothing
 
    testAllRA :: Int -> (String,String) -> (String,String) -> A.Type -> (A.Type -> A.Type) -> Test
-   testAllRA n eC eCPP t f = testAll' n eC eCPP (A.Array [A.Dimension 5] $ f $ A.Record $ simpleName "REC") $ (defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC"))
+   testAllRA n eC eCPP t f = testAll' n eC eCPP (A.Array [A.Dimension 5] $ f $ A.Record $ simpleName "REC") ((defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC"))) Nothing
 
-   testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
-   testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
+   testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Maybe A.Expression -> Test
+   testAll' n (iC,fC) (iCPP,fCPP) t state init = TestList
     [
-     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t Nothing)) . over) state
-     ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP ((fromMaybe (return ())) . (tcall3 declareInit emptyMeta t (A.Variable emptyMeta foo)) . over) state
+     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) ((tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t init)) . over) state
+     ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP ((fromMaybe (return ())) . (tcall4 declareInit emptyMeta t (A.Variable emptyMeta foo) init) . over) state
      ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP ((tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t Nothing)) . over) state
      ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP ((fromMaybe (return ())) . (tcall3 declareFree emptyMeta t (A.Variable emptyMeta foo)) . over) state
     ]
@@ -508,6 +515,9 @@ testDeclareInitFree = TestList
 
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
+
+   testAllSameInit :: Int -> (String,String) -> A.Type -> A.Expression -> Test
+   testAllSameInit n e t init = testAllInit n e e t (Just init)
 
 testSpec :: Test
 testSpec = TestList
@@ -631,7 +641,7 @@ testSpec = TestList
     testAllSame n e s = testAll n e e s
     testAllSameS n e s st o = testAllS n e e s st o
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
-                   ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
+                   ,declareInit = (override4 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,genType = (\_ x -> tell ["$(",show x,")"])
                    ,genVariable = override1 at
                    }
