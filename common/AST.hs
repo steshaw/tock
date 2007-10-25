@@ -114,6 +114,8 @@ data Type =
   -- | An array.
   -- For N-dimensional arrays, the [Dimension] list will be of length N.
   | Array [Dimension] Type
+  -- | A (linked) list that allows element-wise removal, and easy concatentation.  Has dynamic size.
+  | List Type
   -- | A user-defined data type.
   | UserDataType Name
   -- | A record type.
