@@ -75,3 +75,22 @@ maybeIO op = catch (op >>= (return . Just)) (\e -> return Nothing)
 chop :: Int -> Int -> [a] -> [a]
 chop start end s = drop start (take (length s - end) s)
 
+-- | Transform two Maybe items into a Maybe tuple, which is only Just if both inputs are Just.
+mergeMaybe :: Maybe x -> Maybe y -> Maybe (x,y)
+mergeMaybe Nothing _ = Nothing
+mergeMaybe _ Nothing = Nothing
+mergeMaybe (Just x) (Just y) = Just (x,y)
+
+-- | Reverses a pair.
+revPair :: (x,y) -> (y,x)
+revPair (a,b) = (b,a)
+
+-- | Turn one item into a (duplicate) pair.
+mkPair :: a -> (a,a)
+mkPair x = (x,x)
+
+-- | Maps a function onto all inner pairs in a list.
+mapPairs :: (a -> a -> b) -> [a] -> [b]
+mapPairs _ [] = []
+mapPairs _ [x] = []
+mapPairs f (x0:(x1:xs)) = (f x0 x1) : (mapPairs f (x1:xs))
