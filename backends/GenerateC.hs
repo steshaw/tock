@@ -28,6 +28,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Writer
 import Text.Printf
+import Text.Regex
 
 import qualified AST as A
 import BackendPasses
@@ -409,6 +410,10 @@ cgenType _ (A.Chan _ _ t) = tell ["Channel*"]
 -- Counted -- not used
 -- Any -- not used
 --cgenType ops (A.Port t) =
+
+--TODO have a pass that declares these list types:
+cgenType ops t@(A.List {}) = tell [subRegex (mkRegex "[^A-Za-z0-9]") (show t) ""]
+
 cgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]

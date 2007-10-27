@@ -45,10 +45,8 @@ public:
 #include <cppcsp/cppcsp.h>
 #include <cppcsp/common/basic.h>
 #include <iostream>
-#include <boost/tuple/tuple.hpp>
-#include <boost/variant.hpp>
-#include <boost/any.hpp>
 #include <vector>
+#include <list>
 #include <boost/type_traits/remove_const.hpp>
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/preprocessor/repetition/repeat_from_to.hpp>
@@ -472,4 +470,80 @@ public:
 		:	out(_out),in(_in)
 	{
 	}
+};
+
+template <typename T>
+class tockList
+{
+private:
+	mutable std::list<T> data;
+public:
+	inline tockList()
+	{
+	}
+	
+	inline explicit tockList(const T& t)
+	{
+		data.push_back(t);
+	}
+	
+	inline tockList& operator()(const T& t)
+	{
+		data.push_back(t);
+		return *this;
+	}
+	
+	typedef std::list<T>::iterator iterator;
+	
+	inline iterator beginSeqEach()
+	{
+		return data.begin();
+	}
+	
+	inline iterator limitIterator()
+	{
+		return data.end();
+	}
+	
+	inline void endSeqEach()
+	{
+	}
+	
+	inline void remove(const iterator& _it)
+	{
+		data.erase(_it);
+	}
+	
+	//TODO add beginParEach
+	//TODO add functions for concatenation
+	
+	//By default the class acts like a mobile thing:
+	inline void operator=(const tockList<T>& _rhs)
+	{
+		data.clear();
+		data.swap(_rhs.data);
+	}
+	
+	class derefTockList
+	{
+	private:
+		tockList<T>* ref;
+	public:
+		inline explicit derefTockList(tockList<T>* _ref)
+			:	ref(_ref)
+		{
+		}
+
+		//If you dereference both sides, you get a proper copy-assignment:
+		void operator=(const derefTockList& _rhs)
+		{
+			ref->data = _rhs.ref->data;
+		}
+	};
+	
+	derefTockList operator*()
+	{
+		return derefTockList(this);
+	}
+	
 };

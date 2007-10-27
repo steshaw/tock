@@ -912,7 +912,9 @@ cppgenType ops (A.Chan dir attr t)
            tell [">/**/"]
     cppTypeInsideChannel ops t = call genType ops t
 cppgenType ops (A.Mobile t@(A.Array {})) = call genType ops t
+cppgenType ops (A.Mobile t@(A.List {})) = call genType ops t
 cppgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
+cppgenType ops (A.List t) = tell ["tockList<"] >> call genType ops t >> tell [">/**/"]
 cppgenType ops t
     = case call getScalarType ops t of
         Just s -> tell [s]

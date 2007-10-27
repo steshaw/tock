@@ -211,7 +211,7 @@ instance ShowOccam A.Type where
   showOccamM (A.UserDataType n) = showName n +>> helper "{data type}"
   showOccamM (A.Record n) = showName n +>> helper "{record}"
   showOccamM (A.UserProtocol n) = showName n +>> helper "{protocol}"
-
+  showOccamM (A.List t) = return "LIST " +>> showOccamM t
 
 instance ShowRain A.Type where
   showRain A.Bool = "bool"
@@ -235,6 +235,7 @@ instance ShowRain A.Type where
   showRain A.Time = "time"
   -- Mobility is not explicit in Rain:
   showRain (A.Mobile t) = showRain t
+  showRain (A.List t) = "[" ++ showRain t ++ "]"
   showRain x = "<invalid Rain type: " ++ show x ++ ">"
 
 instance ShowOccam A.DyadicOp where

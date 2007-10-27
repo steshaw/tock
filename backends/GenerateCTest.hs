@@ -256,6 +256,12 @@ testGenType = TestList
     (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [A.Dimension 6,A.Dimension 7,A.Dimension 8] A.Int)
 
 
+  -- List types:
+  ,testBothS "GenType 2000" "ListInt16" "tockList<int16_t>" (tcall genType $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2001" "ListListInt16" "tockList<tockList<int16_t>>" (tcall genType $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2010" "ListInt16*" "tockList<int16_t>" (tcall genType $ A.Mobile $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2011" "ListListInt16*" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2012" "ListMobileListInt16*" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.Mobile $ A.List A.Int16) markRainTest
  ]
 
 testStop :: Test
