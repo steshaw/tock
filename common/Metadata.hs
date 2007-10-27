@@ -30,7 +30,7 @@ data Meta = Meta {
     metaLine :: Int,
     metaColumn :: Int
   }
-  deriving (Typeable, Data)
+  deriving (Typeable, Data, Ord)
 
 emptyMeta :: Meta
 emptyMeta = Meta {

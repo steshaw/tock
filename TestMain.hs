@@ -22,6 +22,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "CommonTest"
 --
+-- * "FlowGraphTest"
+--
+-- * "GenerateCTest"
+--
 -- * "PassTest"
 --
 -- * "RainParseTest"
@@ -35,6 +39,7 @@ import Test.HUnit
 
 import qualified BackendPassesTest (tests)
 import qualified CommonTest (tests)
+import qualified FlowGraphTest (tests)
 import qualified GenerateCTest (tests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
@@ -47,6 +52,7 @@ main = do runTestTT $ TestList
             [
               BackendPassesTest.tests
               ,CommonTest.tests
+              ,FlowGraphTest.tests
               ,GenerateCTest.tests
               ,ParseRainTest.tests
               ,PassTest.tests
