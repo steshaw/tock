@@ -18,6 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module FlowGraphTest (tests) where
 
+import Control.Monad.State
+
 import Data.Generics
 import Data.Graph.Inductive
 import Data.List
@@ -31,7 +33,7 @@ import Metadata
 import Utils
 
 makeMeta :: Int -> Meta
-makeMeta n = Meta (Just "FlowGraphTest") n n
+makeMeta n = Meta (Just "FlowGraphTest") n 0
 
 -- To make typing the tests as short as possible:
 m0 = makeMeta 0
@@ -39,20 +41,38 @@ m1 = makeMeta 1
 m2 = makeMeta 2
 m3 = makeMeta 3
 m4 = makeMeta 4
+m5 = makeMeta 5
+m6 = makeMeta 6
+m7 = makeMeta 7
+
+sub :: Meta -> Int -> Meta
+sub m n = m {metaColumn = n}
 
 sm0 = A.Skip m0
 sm1 = A.Skip m1
 sm2 = A.Skip m2
 sm3 = A.Skip m3
 sm4 = A.Skip m4
+sm5 = A.Skip m5
+sm6 = A.Skip m6
+sm7 = A.Skip m7
 
-showGraph :: Graph g => g a b -> String
-showGraph g = " Nodes: " ++ show (nodes g) ++ " Edges: " ++ show (edges g)
+showGraph :: (Graph g, Show a, Show b) => g a b -> String
+showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
+
+nextId :: Data t => t -> State (Map.Map Meta Int) Int
+nextId t = do mp <- get
+              case Map.lookup m mp of
+                Just n -> do put $ Map.adjust ((+) 1) m mp
+                             return n
+                Nothing -> do put $ Map.insert m 1 mp
+                              return 0
+              where m = findMeta t
 
 testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
 testGraph testName nodes edges proc
   = TestCase $ 
-      case buildFlowGraph () (const ()) (A.OnlyP emptyMeta proc) of
+      case evalState (buildFlowGraph nextId nextId (A.OnlyP emptyMeta proc)) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
         Right g -> checkGraphEquality (nodes, edges) g
   where  
