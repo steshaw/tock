@@ -55,21 +55,21 @@ testGraph testName nodes edges proc
       case buildFlowGraph () (const ()) (A.OnlyP emptyMeta proc) of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
         Right g -> checkGraphEquality (nodes, edges) g
-  where
-    checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (Meta, a) b -> Assertion
---    checkGraphEquality ([],[]) g = assertBool (testName ++ " Graph had nodes or edges remaining: " ++ showGraph g) (isEmpty g)
-    checkGraphEquality (nodes, edges) g
-      = do let (remainingNodes, nodeLookup, ass) = ufold checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) g
-           ass
-           assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes) (Map.null remainingNodes)
-           edges' <- mapM (transformEdge nodeLookup) edges
-           let (remainingEdges, ass') = ufold checkEdgeEquality (makeEdgeMap edges',return ()) g
-           ass'
-           assertBool (testName ++ " Test graph had edges not found in the real graph: " ++ show remainingEdges) (Map.null remainingEdges)
+  where  
+    -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
+    -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
     
-    checkNodeEquality :: Show b => Context (Meta, a) b -> (Map.Map Meta Int, Map.Map Int Int, Assertion) -> (Map.Map Meta Int, Map.Map Int Int, Assertion)
-    checkNodeEquality (_linksTo, nodeId, (metaTag,_), _linksFrom) (metaToTestId, realToTestId, ass)
-      = case Map.lookup metaTag metaToTestId of
+    checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (Meta, Int) b -> Assertion
+    checkGraphEquality (nodes, edges) g
+      = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (labNodes g)
+           ass
+           assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
+           edges' <- mapM (transformEdge nodeLookup) edges
+           assertEqual (testName ++ " Edge lists not equal") (sort $ edges') (sort $ labEdges g)
+    
+    checkNodeEquality :: (Map.Map Meta Int, Map.Map Int Int, Assertion) -> (Node, (Meta, Int)) -> (Map.Map Meta Int, Map.Map Int Int, Assertion)
+    checkNodeEquality (metaToTestId, realToTestId, ass) (nodeId, (metaTag,metaSub))
+      = case Map.lookup (sub metaTag metaSub) metaToTestId of
           Nothing -> (metaToTestId, realToTestId, ass >> assertFailure ("Node with meta tag " ++ show metaTag ++ " not found in expected test data"))
           Just testId -> let realToTestId' = Map.insert nodeId testId realToTestId in
                          let metaToTestId' = Map.delete metaTag metaToTestId in
@@ -80,28 +80,7 @@ testGraph testName nodes edges proc
           Nothing -> do assertFailure ("Could not map test edge to real edge: " ++ show e)
                         return e
           Just (start', end') -> return (start', end', label)
-    
-    checkEdgeEquality :: (Show b, Ord b) => Context (Meta, a) b -> (Map.Map Int [(Int, Int, b)], Assertion) -> (Map.Map Int [(Int, Int, b)], Assertion) 
-    checkEdgeEquality (linksTo, nodeId, _metaTagPair, linksFrom) (nodeToEdges, ass)
-      = (
-          Map.delete nodeId nodeToEdges
-          ,ass >> (assertEqual (testName ++ " Edge lists not equal")
-            ((sort . concat . maybeToList) $ Map.lookup nodeId nodeToEdges)
-            (sort $ (map (addSrc nodeId) linksFrom) ++ (map (addDest nodeId) linksTo)))
-         )
-           
-    addSrc :: Int -> (b, Node) -> (Int, Int, b)
-    addSrc src (x, dest) = (src, dest, x)
-    
-    addDest :: Int -> (b, Node) -> (Int, Int, b)
-    addDest dest (x, src) = (src, dest, x)
-    
-    makeEdgeMap :: [(Int, Int, b)] -> Map.Map Int [(Int, Int, b)]
-    makeEdgeMap = foldl makeEdgeMap' Map.empty
-      where
-        makeEdgeMap' :: Map.Map Int [(Int, Int, b)] -> (Int,Int,b) -> Map.Map Int [(Int, Int, b)]
-        makeEdgeMap' mp edge@(start, end, label) = Map.insertWith (++) start [edge] (Map.insertWith (++) end [edge] mp)
-
+               
 testSeq :: Test
 testSeq = TestList
  [
