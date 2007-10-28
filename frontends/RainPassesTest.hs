@@ -95,8 +95,8 @@ testEachPass1 :: Test
 testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
-                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
+    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte Nothing)
+                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.List A.Byte) Nothing)
 
     orig = A.Par m A.PlainPar
              (A.Rep m
@@ -276,7 +276,7 @@ testRecordInfNames1 :: Test
 testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.Array [A.Dimension 10] A.Byte))
+    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.List A.Byte) Nothing)
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
@@ -287,12 +287,12 @@ testRecordInfNames2 :: Test
 testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" exp (recordInfNameTypes orig) (startState') check
   where
     startState' :: State CompState ()
-    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.Array [A.Dimension 10, A.Dimension 20] A.Byte))
+    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.List $ A.List A.Byte) Nothing)
     orig =  A.Rep m (A.ForEach m (simpleName "c") (exprVariable "multi")) $
       A.OnlyP m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.Array [A.Dimension 20] A.Byte)) A.Original A.Unplaced)
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.List A.Byte) Nothing) A.Original A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
                       (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte Nothing) A.Original A.Unplaced)                          
 
