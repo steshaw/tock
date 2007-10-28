@@ -21,16 +21,20 @@ if test "x$ac_cv_prog_cc_c99" = "xno"; then
   ccsp_kroc_available=false
 fi
 
-#Check that they have alex, GHC, kroc, svn and the CCSP headers:
-AC_CHECK_PROG([HAVE_GHC],[ghc],[true],[false])
-if test "x$HAVE_GHC" = "xfalse"; then
-  AC_MSG_ERROR([ghc not found])
-fi
+#AC_NEED_PROG(progname,progvar)
+AC_DEFUN([AC_NEED_PROG],
+[
+  AC_CHECK_PROG($2,$1,[true],[false])
+  if test x$$2 = "xfalse"; then
+    AC_MSG_ERROR([$1 not found])
+  fi
+])
 
-AC_CHECK_PROG([HAVE_ALEX],[alex],[true],[false])
-if test "x$HAVE_ALEX" = "xfalse"; then
-  AC_MSG_ERROR([alex not found])
-fi
+#Check that they have alex, GHC, kroc, svn and the CCSP headers:
+
+AC_NEED_PROG(ghc,HAVE_ghc)
+AC_NEED_PROG(ghc-pkg,HAVE_ghcpkg)
+AC_NEED_PROG(alex,HAVE_alex)
 
 AC_CHECK_PROG([HAVE_KROC],[kroc],[true],[false])
 if test "x$HAVE_KROC" = "xfalse"; then
