@@ -13,6 +13,7 @@ AC_PROG_CC
 AC_PROG_CXX
 
 ccsp_kroc_available=true
+cppcsp_available=true
 
 #Sets "ac_cv_prog_cc_c99" to "no" if C99 is not supported
 AC_PROG_CC_C99
@@ -74,9 +75,7 @@ if test "x$HAVE_CIFCCSP_H" = "xfalse"; then
   ccsp_kroc_available=false
 fi
 
-#Using AC_CHECK_HEADER for the C++CSP file dies because autoconf attempts to compile it in a C program, which doesn't like the C++.
-#Therefore I just test it using the preprocessor:
-
+#Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
 AC_CHECK_HEADERS([cppcsp/cppcsp.h],[HAVE_CPPCSP=true],[HAVE_CPPCSP=false])
 if test "x$HAVE_CPPCSP_H" = "xfalse"; then
@@ -91,6 +90,7 @@ fi
 
 
 #Check whether their compiler supports the -fgnu89-inline flag:
+#Must use the C language for this:
 AC_LANG(C)
 AC_MSG_CHECKING([whether -fgnu89-inline flag is accepted])
 CFLAGS="-fgnu89-inline"
