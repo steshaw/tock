@@ -30,12 +30,13 @@ import Test.HUnit hiding (Node, State)
 import qualified AST as A
 import FlowGraph
 import Metadata
+import TestUtil
 import Utils
 
 makeMeta :: Int -> Meta
 makeMeta n = Meta (Just "FlowGraphTest") n 0
 
--- To make typing the tests as short as possible:
+-- To make typing the tests as short as possible (typing a function call means bracketing is needed, which is a pain):
 m0 = makeMeta 0
 m1 = makeMeta 1
 m2 = makeMeta 2
@@ -84,9 +85,15 @@ testGraph testName nodes edges proc
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
     
-    checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (Meta, Int) b -> Assertion
+    deNode :: FNode a -> (Meta, a)
+    deNode (Node x) = x
+    
+    mapPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
+    mapPair f g (x,y) = (f x, g y)
+    
+    checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode Int) b -> Assertion
     checkGraphEquality (nodes, edges) g
-      = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (labNodes g)
+      = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (mapPair id deNode) $ labNodes g)
            ass
            assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
            edges' <- mapM (transformEdge nodeLookup) edges
