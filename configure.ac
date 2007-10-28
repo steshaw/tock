@@ -49,6 +49,23 @@ fi
 
 #TODO test that they have the right GHC libraries installed (such as hunit, mtl)
 
+AC_DEFUN([AC_NEED_HASKELL_LIB],
+[
+  AC_MSG_CHECKING([for Haskell library $1])
+  $2=`ghc-pkg list $1 | grep $1`
+  if test "x$$2" = "x"; then
+    AC_MSG_ERROR([Haskell library $1 not found])
+  else
+    AC_MSG_RESULT([$$2])
+  fi
+])
+
+AC_NEED_HASKELL_LIB([mtl],LIB_mtl)
+AC_NEED_HASKELL_LIB([HUnit],LIB_hunit)
+AC_NEED_HASKELL_LIB([parsec],LIB_parsec)
+AC_NEED_HASKELL_LIB([fgl],LIB_fgl)
+
+
 AC_LANG(C)
 AC_CHECK_HEADER([cifccsp.h],[HAVE_CIFCCSP=true],[HAVE_CIFCCSP=false])
 
