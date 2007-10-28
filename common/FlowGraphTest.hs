@@ -146,21 +146,24 @@ testPar = TestList
    testPar' 0 [(0,m1)] [] (A.Several m1 [])
   ,testPar' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
   ,testPar' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
-  ,testPar' 3 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)] [(0,1,EPar),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+  ,testPar' 3 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)]
+              [(0,1,EStartPar 0),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+              (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
   ,testPar' 4 [(0,m1), (1,sub m1 1), (3,m3),(5,m5),(7,m7)]
-              [(0,3,EPar),(3,1,ESeq),(0,5,EPar),(5,1,ESeq),(0,7,EPar),(7,1,ESeq)] 
+              [(0,3,EStartPar 0),(3,1,EEndPar 0),(0,5,EStartPar 0),(5,1,EEndPar 0),(0,7,EStartPar 0),(7,1,EEndPar 0)] 
               (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
   ,testPar' 5 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)]
-              [(0,1,EPar),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)]
+              [(0,1,EStartPar 0),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
               (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
   ,testPar' 6 [(0,m1), (1,sub m1 1),(3,m3),(5,m5),(7,m7),(9,m9),(10,m10),(11,sub m10 1)]
-              [(10,3,EPar),(10,5,EPar),(10,7,EPar),(3,11,ESeq),(5,11,ESeq),(7,11,ESeq)
-              ,(0,10,EPar),(11,1,ESeq),(0,9,EPar),(9,1,ESeq)] 
+              [(10,3,EStartPar 0),(10,5,EStartPar 0),(10,7,EStartPar 0),(3,11,EEndPar 0),(5,11,EEndPar 0),(7,11,EEndPar 0)
+              ,(0,10,EStartPar 1),(11,1,EEndPar 1),(0,9,EStartPar 1),(9,1,EEndPar 1)] 
               (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
 
-  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (4, m6)] [(0,4,EPar),(4,1,ESeq),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)]
-    (A.Several m1 [A.Spec m6 (someSpec m7) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
-
+  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (4, m6)]
+               [(0,4,EStartPar 0),(4,1,ESeq),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+               (A.Several m1 [A.Spec m6 (someSpec m7) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+  --TODO test nested pars
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test

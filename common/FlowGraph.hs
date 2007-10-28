@@ -31,8 +31,9 @@ import Utils
 -- Zero links means it is a terminal node.
 -- One Seq link means a normal sequential progression.
 -- Multiple Seq links means choice.
--- Multiple Par links means a parallel branch.
-data EdgeLabel = ESeq | EPar deriving (Show, Eq, Ord)
+-- Multiple Par links means a parallel branch.  All outgoing par links should have the same identifier,
+-- and this identifier is unique and matches a later endpar link
+data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
 data OuterType = None | Seq | Par
 
@@ -46,7 +47,7 @@ type FlowGraph a = Gr (FNode a) EdgeLabel
 
 type NodesEdges a = ([LNode (FNode a)],[LEdge EdgeLabel])
     
-type GraphMaker m a b = ErrorT String (StateT (Node, NodesEdges a) m) b
+type GraphMaker m a b = ErrorT String (StateT (Node, Int, NodesEdges a) m) b
 
 -- | Builds the instructions to send to GraphViz
 makeFlowGraphInstr :: Show a => FlowGraph a -> String
@@ -55,21 +56,21 @@ makeFlowGraphInstr = graphviz'
 -- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
 buildFlowGraph :: Monad m => (Meta -> m a) -> (forall t. Data t => t -> m a) -> A.Structured -> m (Either String (FlowGraph a))
 buildFlowGraph blank f s
-  = do res <- runStateT (runErrorT $ buildStructured None s) (0, ([],[]) )
+  = do res <- runStateT (runErrorT $ buildStructured None s) (0, 0, ([],[]) )
        return $ case res of
                   (Left err,_) -> Left err
-                  (_,(_,(nodes, edges))) -> Right (mkGraph nodes edges)
+                  (_,(_,_,(nodes, edges))) -> Right (mkGraph nodes edges)
   where
     -- All the functions return the new graph, and the identifier of the node just added
         
     addNode :: Monad m => (Meta, a) -> GraphMaker m a Node
-    addNode x = do (n,(nodes, edges)) <- get
-                   put (n+1, ((n, Node x):nodes, edges))
+    addNode x = do (n,pi,(nodes, edges)) <- get
+                   put (n+1, pi,((n, Node x):nodes, edges))
                    return n
     
     addEdge :: Monad m => EdgeLabel -> Node -> Node -> GraphMaker m a ()
-    addEdge label start end = do (n, (nodes, edges)) <- get
-                                 put (n + 1, (nodes,(start, end, label):edges))
+    addEdge label start end = do (n, pi, (nodes, edges)) <- get
+                                 put (n + 1, pi, (nodes,(start, end, label):edges))
     
 -- Type commented out because it's not technically correct, but looks right to me:
 --    addNode' :: (Monad m, Data t) => Meta -> t -> GraphMaker m a Node
@@ -80,6 +81,13 @@ buildFlowGraph blank f s
 --    addDummyNode :: Meta -> GraphMaker m a Node
     addDummyNode m = do val <- (lift . lift) (blank m)
                         addNode (m, val)
+    
+    addParEdges :: Monad m => Node -> Node -> [(Node,Node)] -> GraphMaker m a ()
+    addParEdges s e pairs = do (n,pi,(nodes,edges)) <- get
+                               put (n,pi+1,(nodes,edges ++ (concatMap (parEdge pi) pairs)))
+      where
+        parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
+        parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
     
     -- Returns a pair of beginning-node, end-node
 -- Type commented out because it's not technically correct, but looks right to me:
@@ -102,7 +110,7 @@ buildFlowGraph blank f s
                          _ -> do
                            nStart <- addDummyNode m
                            nEnd <- addDummyNode m
-                           mapM (\(a,z) -> addEdge EPar nStart a >> addEdge ESeq z nEnd) nodes
+                           addParEdges nStart nEnd nodes
                            return (nStart, nEnd)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
     buildStructured outer (A.Spec m spec str)
@@ -133,3 +141,4 @@ buildFlowGraph blank f s
 -- Types definitely applied to:
 -- A.Specification, A.Process, A.Expression
 
+--TODO have scopeIn and scopeOut functions for Specification, and accordingly have two nodes produced by Structured
