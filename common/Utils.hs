@@ -21,6 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Utils where
 
 import Control.Monad
+import Data.Ord
 import System.IO
 import System.IO.Error
 import Text.Regex
@@ -94,3 +95,10 @@ mapPairs :: (a -> a -> b) -> [a] -> [b]
 mapPairs _ [] = []
 mapPairs _ [x] = []
 mapPairs f (x0:(x1:xs)) = (f x0 x1) : (mapPairs f (x1:xs))
+
+-- | Given a list of comparisons in order major->minor, returns the resultant ordering
+combineCompare :: [Ordering] -> Ordering
+combineCompare [] = EQ
+combineCompare (LT:_) = LT
+combineCompare (GT:_) = GT
+combineCompare (EQ:os) = combineCompare os
