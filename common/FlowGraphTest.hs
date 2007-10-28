@@ -48,6 +48,7 @@ m7 = makeMeta 7
 m8 = makeMeta 8
 m9 = makeMeta 9
 m10 = makeMeta 10
+m11 = makeMeta 11
 
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
@@ -62,6 +63,7 @@ sm6 = A.Skip m6
 sm7 = A.Skip m7
 sm8 = A.Skip m8
 sm9 = A.Skip m9
+sm10 = A.Skip m10
 
 showGraph :: (Graph g, Show a, Show b) => g a b -> String
 showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
@@ -112,6 +114,9 @@ testGraph testName nodes edges proc
           Nothing -> do assertFailure ("Could not map test edge to real edge: " ++ show e)
                         return e
           Just (start', end') -> return (start', end', label)
+
+someSpec :: Meta -> A.Specification
+someSpec m = A.Specification m (simpleName $ show m) undefined
                
 testSeq :: Test
 testSeq = TestList
@@ -124,6 +129,10 @@ testSeq = TestList
   ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
   ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
     (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
+    
+  ,testSeq' 10 [(0,m1),(1,m4)] [(0,1,ESeq)] (A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4)
+  ,testSeq' 11 [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10)] [(1,3,ESeq),(3,5,ESeq),(5,7,ESeq),(7,9,ESeq)] 
+    (A.Several m11 [A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4,A.Spec m5 (someSpec m6) $ A.Spec m7 (someSpec m8) $ A.OnlyP m9 sm10])
  ]
   where
     testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
@@ -146,10 +155,19 @@ testPar = TestList
               [(10,3,EPar),(10,5,EPar),(10,7,EPar),(3,11,ESeq),(5,11,ESeq),(7,11,ESeq)
               ,(0,10,EPar),(11,1,ESeq),(0,9,EPar),(9,1,ESeq)] 
               (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
+
+  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (4, m6)] [(0,4,EPar),(4,1,ESeq),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)]
+    (A.Several m1 [A.Spec m6 (someSpec m7) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
     testPar' n a b s = testGraph ("testPar " ++ show n) a b (A.Par m0 A.PlainPar s)
+
+--TODO test while loops
+--TODO test replicated seq/par
+--TODO test ifs and cases
+--TODO test alts
 
 --Returns the list of tests:
 tests :: Test

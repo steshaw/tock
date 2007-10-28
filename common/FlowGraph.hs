@@ -67,6 +67,11 @@ buildFlowGraph blank f s
                                  put (n + 1, (nodes,(start, end, label):edges))
     
 -- Type commented out because it's not technically correct, but looks right to me:
+--    addNode' :: (Monad m, Data t) => Meta -> t -> GraphMaker m a Node
+    addNode' m t = do val <- (lift . lift) (f t)
+                      addNode (m, val)
+    
+-- Type commented out because it's not technically correct, but looks right to me:
 --    addDummyNode :: Meta -> GraphMaker m a Node
     addDummyNode m = do val <- (lift . lift) (blank m)
                         addNode (m, val)
@@ -95,10 +100,25 @@ buildFlowGraph blank f s
                            mapM (\(a,z) -> addEdge EPar nStart a >> addEdge ESeq z nEnd) nodes
                            return (nStart, nEnd)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
+    buildStructured outer (A.Spec m spec str)
+      = do n <- addNode' m spec
+           (s,e) <- buildStructured outer str
+           addEdge ESeq n s
+           return (n,e)
+    buildStructured _ s = do n <- addDummyNode (findMeta s)
+                             return (n,n)
     
 -- Type commented out because it's not technically correct, but looks right to me:
 --    buildProcess :: A.Process -> GraphMaker m a (Node, Node)
     buildProcess (A.Seq _ s) = buildStructured Seq s
     buildProcess (A.Par _ _ s) = buildStructured Par s
-    buildProcess p@(A.Skip m) = do val <- (lift . lift) (f p)
-                                   (liftM mkPair) $ addNode (m, val)
+    buildProcess p = do val <- (lift . lift) (f p)
+                        (liftM mkPair) $ addNode (findMeta p, val)
+                        
+-- TODO keep record of all the types that f is applied to.
+-- I think it will end up being Process, Specification, Expression, Variant, Alternative, ExpressionList.
+-- So rather than using generics, we could have a small function dictionary instead.
+
+-- Types definitely applied to:
+-- A.Specification, A.Process
+
