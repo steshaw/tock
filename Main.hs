@@ -21,6 +21,8 @@ module Main (main) where
 
 import Control.Monad.Error
 import Control.Monad.State
+import Data.Either
+import Data.Maybe
 import List
 import System
 import System.Console.GetOpt
@@ -30,15 +32,19 @@ import System.IO
 import System.Process
 
 import AnalyseAsm
+import qualified AST as A
 import CompilerCommands
 import CompState
 import Errors
+import FlowGraph
 import GenerateC
 import GenerateCPPCSP
+import Metadata
 import ParseOccam
 import ParseRain
 import Pass
 import PreprocessOccam
+import PrettyShow
 import RainPasses
 import SimplifyComms
 import SimplifyExprs
@@ -59,7 +65,7 @@ type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: parse, compile, post-c, full)"
+  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
   , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
@@ -69,6 +75,7 @@ options =
 optMode :: String -> OptFunc
 optMode s ps
     =  do mode <- case s of
+            "flowgraph" -> return ModeFlowGraph
             "parse" -> return ModeParse
             "compile" -> return ModeCompile
             "post-c" -> return ModePostC
@@ -134,6 +141,7 @@ main = do
   let operation
         = case csMode initState of
             ModeParse -> useOutputOptions (compile ModeParse fn)
+            ModeFlowGraph -> useOutputOptions (compile ModeFlowGraph fn)
             ModeCompile -> useOutputOptions (compile ModeCompile fn)
             ModePostC -> useOutputOptions (postCAnalyse fn)
             ModeFull -> evalStateT (compileFull fn) []
@@ -251,6 +259,14 @@ compile mode fn outHandle
         output <-
           case mode of
             ModeParse -> return $ show ast1
+            ModeFlowGraph ->
+              do procs <- findAllProcesses
+                 graphs <- mapM
+                      ((liftM $ either (const Nothing) Just) . (buildFlowGraph (const (return "")) ((liftM $ (take 20) . (filter ((/=) '\"'))) . pshowCode)) )
+                      (map (A.OnlyP emptyMeta) (snd $ unzip $ procs))
+                 --TODO output each process to a separate file, rather than just taking the first:
+                 return $ head $ map makeFlowGraphInstr (catMaybes graphs)
+
             ModeCompile ->
               do progress "Passes:"
 

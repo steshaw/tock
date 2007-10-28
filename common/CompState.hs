@@ -24,6 +24,7 @@ import Control.Monad.State
 import Data.Generics
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -32,7 +33,7 @@ import Errors
 import Metadata
 
 -- | Modes that Tock can run in.
-data CompMode = ModeParse | ModeCompile | ModePostC | ModeFull
+data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull
   deriving (Show, Data, Typeable, Eq)
 
 -- | Backends that Tock can use.
@@ -255,3 +256,14 @@ dieC str = str >>= die
 
 throwErrorC :: (CSM m,MonadError ErrorReport m) => (Maybe Meta,m String) -> m a
 throwErrorC (m,str) = str >>= ((curry throwError) m)
+
+findAllProcesses :: CSM m => m [(String,A.Process)]
+findAllProcesses
+  = do st <- get
+       return $ mapMaybe findAllProcesses' (Map.assocs $ csNames st)
+  where
+    findAllProcesses' :: (String, A.NameDef) -> Maybe (String, A.Process)
+    findAllProcesses' (n, nd)
+      = case A.ndType nd of
+          A.Proc _ _ _ p -> Just (n, p)
+          _ -> Nothing
