@@ -76,7 +76,9 @@ unpackMeta s = (Nothing, s)
 
 -- | Find the first Meta value in some part of the AST.
 findMeta :: (Data t, Typeable t) => t -> Meta
-findMeta e = if null metaList then emptyMeta else head metaList
+findMeta e = case cast e of
+               Just m -> m
+               Nothing -> if null metaList then emptyMeta else head metaList
   where
     metaList = gmapQ (mkQ emptyMeta findMeta') e
     findMeta' :: Meta -> Meta
