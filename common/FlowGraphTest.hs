@@ -49,6 +49,8 @@ m8 = makeMeta 8
 m9 = makeMeta 9
 m10 = makeMeta 10
 m11 = makeMeta 11
+-- For meta tags that shouldn't be used in the graph:
+mU = makeMeta (-1)
 
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
@@ -164,7 +166,18 @@ testPar = TestList
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
     testPar' n a b s = testGraph ("testPar " ++ show n) a b (A.Par m0 A.PlainPar s)
 
---TODO test while loops
+testWhile :: Test
+testWhile = TestList
+ [
+    testGraph "testWhile 0" [(0,m0), (1,m1)] [(0,1,ESeq), (1,0,ESeq)] (A.While m0 (A.True m10) sm1)
+   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m9 $ A.While m2 (A.True m10) sm3,A.OnlyP m4 sm5])
+   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP m9 $ A.While m2 (A.True m10) sm3,A.OnlyP m4 sm5])
+   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While m2 (A.True mU) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
+ ]
+
 --TODO test replicated seq/par
 --TODO test ifs and cases
 --TODO test alts
@@ -175,4 +188,5 @@ tests = TestList
  [
   testSeq
   ,testPar
+  ,testWhile
  ]

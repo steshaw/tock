@@ -27,7 +27,12 @@ import qualified AST as A
 import Metadata
 import Utils
 
-data EdgeLabel = EChoice | ESeq | EPar deriving (Show, Eq, Ord)
+-- | A node will either have zero links out, one or more Seq links, or one or more Par links.
+-- Zero links means it is a terminal node.
+-- One Seq link means a normal sequential progression.
+-- Multiple Seq links means choice.
+-- Multiple Par links means a parallel branch.
+data EdgeLabel = ESeq | EPar deriving (Show, Eq, Ord)
 
 data OuterType = None | Seq | Par
 
@@ -112,6 +117,12 @@ buildFlowGraph blank f s
 --    buildProcess :: A.Process -> GraphMaker m a (Node, Node)
     buildProcess (A.Seq _ s) = buildStructured Seq s
     buildProcess (A.Par _ _ s) = buildStructured Par s
+    buildProcess (A.While m e p)
+      = do n <- addNode' m e
+           (start, end) <- buildProcess p
+           addEdge ESeq n start
+           addEdge ESeq end n
+           return (n, n)
     buildProcess p = do val <- (lift . lift) (f p)
                         (liftM mkPair) $ addNode (findMeta p, val)
                         
@@ -120,5 +131,5 @@ buildFlowGraph blank f s
 -- So rather than using generics, we could have a small function dictionary instead.
 
 -- Types definitely applied to:
--- A.Specification, A.Process
+-- A.Specification, A.Process, A.Expression
 
