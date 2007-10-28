@@ -135,24 +135,21 @@ buildFlowGraph blank f s
                            return (nStart, nEnd)
              _ -> return (-1,-1)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
-    buildStructured outer (A.OnlyO _ (A.Option m es p))
-      = do nexp <- addNode' m (A.ExpressionList m es)
-           (nbodys, nbodye) <- buildProcess p
-           addEdge ESeq nexp nbodys
+    buildStructured outer (A.OnlyO _ opt)
+      = do (s,e) <-
+             case opt of
+               (A.Option m es p) -> do
+                 nexp <- addNode' m (A.ExpressionList m es)
+                 (nbodys, nbodye) <- buildProcess p
+                 addEdge ESeq nexp nbodys
+                 return (nexp,nbodye)
+               (A.Else _ p) -> buildProcess p
            case outer of
              Case (cStart, cEnd) ->
-               do addEdge ESeq cStart nexp
-                  addEdge ESeq nbodye cEnd
-             _ -> throwError "Option found inside CASE statement"
-           return (nexp,nbodye)
-    buildStructured outer (A.OnlyO _ (A.Else m p))
-      = do (nbodys, nbodye) <- buildProcess p
-           case outer of
-             Case (cStart, cEnd) ->
-               do addEdge ESeq cStart nbodys
-                  addEdge ESeq nbodye cEnd
-             _ -> throwError "Option found inside CASE statement"
-           return (nbodys,nbodye)
+               do addEdge ESeq cStart s
+                  addEdge ESeq e cEnd
+             _ -> throwError "Option found outside CASE statement"
+           return (s,e)
     buildStructured outer (A.Spec m spec str)
       = do n <- addNode' m spec
            (s,e) <- buildStructured outer str
