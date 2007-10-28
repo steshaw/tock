@@ -44,6 +44,9 @@ m4 = makeMeta 4
 m5 = makeMeta 5
 m6 = makeMeta 6
 m7 = makeMeta 7
+m8 = makeMeta 8
+m9 = makeMeta 9
+m10 = makeMeta 10
 
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
@@ -56,6 +59,8 @@ sm4 = A.Skip m4
 sm5 = A.Skip m5
 sm6 = A.Skip m6
 sm7 = A.Skip m7
+sm8 = A.Skip m8
+sm9 = A.Skip m9
 
 showGraph :: (Graph g, Show a, Show b) => g a b -> String
 showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
@@ -109,6 +114,9 @@ testSeq = TestList
   ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
   ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
   ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq),(1,2,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
+  ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
+  ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
+    (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
  ]
   where
     testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
@@ -121,6 +129,16 @@ testPar = TestList
   ,testPar' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
   ,testPar' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
   ,testPar' 3 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)] [(0,1,EPar),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+  ,testPar' 4 [(0,m1), (1,sub m1 1), (3,m3),(5,m5),(7,m7)]
+              [(0,3,EPar),(3,1,ESeq),(0,5,EPar),(5,1,ESeq),(0,7,EPar),(7,1,ESeq)] 
+              (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
+  ,testPar' 5 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)]
+              [(0,1,EPar),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)]
+              (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
+  ,testPar' 6 [(0,m1), (1,sub m1 1),(3,m3),(5,m5),(7,m7),(9,m9),(10,m10),(11,sub m10 1)]
+              [(10,3,EPar),(10,5,EPar),(10,7,EPar),(3,11,ESeq),(5,11,ESeq),(7,11,ESeq)
+              ,(0,10,EPar),(11,1,ESeq),(0,9,EPar),(9,1,ESeq)] 
+              (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
