@@ -106,16 +106,30 @@ testSeq = TestList
  [
    testSeq' 0 [(0,m1)] [] (A.Several m1 [])
   ,testSeq' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
-  --TODO need some sort of primary key for nodes?
-  --,testSeq' 2 [(0,m1), (1,m2)] [(0,1,ESeq),(1,
+  ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
+  ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+  ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq),(1,2,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
  ]
   where
     testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
     testSeq' n a b s = testGraph ("testSeq " ++ show n) a b (A.Seq m0 s)
+    
+testPar :: Test
+testPar = TestList
+ [
+   testPar' 0 [(0,m1)] [] (A.Several m1 [])
+  ,testPar' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
+  ,testPar' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
+  ,testPar' 3 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)] [(0,1,EPar),(1,3,ESeq), (0,2,EPar), (2,3,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+ ]
+  where
+    testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+    testPar' n a b s = testGraph ("testPar " ++ show n) a b (A.Par m0 A.PlainPar s)
 
 --Returns the list of tests:
 tests :: Test
 tests = TestList
  [
   testSeq
+  ,testPar
  ]
