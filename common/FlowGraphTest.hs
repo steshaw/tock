@@ -71,18 +71,22 @@ showGraph :: (Graph g, Show a, Show b) => g a b -> String
 showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
 
 nextId :: Data t => t -> State (Map.Map Meta Int) Int
-nextId t = do mp <- get
-              case Map.lookup m mp of
-                Just n -> do put $ Map.adjust ((+) 1) m mp
-                             return n
-                Nothing -> do put $ Map.insert m 1 mp
-                              return 0
-              where m = findMeta t
+nextId = nextId' 1
+
+nextId' :: Data t => Int -> t -> State (Map.Map Meta Int) Int
+nextId' inc t
+  = do mp <- get
+       case Map.lookup m mp of
+         Just n -> do put $ Map.adjust ((+) inc) m mp
+                      return n
+         Nothing -> do put $ Map.insert m inc mp
+                       return 0
+       where m = findMeta t
 
 testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
 testGraph testName nodes edges proc
   = TestCase $ 
-      case evalState (buildFlowGraph nextId nextId (A.OnlyP emptyMeta proc)) Map.empty of
+      case evalState (buildFlowGraph testOps (A.OnlyP emptyMeta proc)) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
         Right g -> checkGraphEquality (nodes, edges) g
   where  
@@ -94,6 +98,9 @@ testGraph testName nodes edges proc
     
     mapPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
     mapPair f g (x,y) = (f x, g y)
+    
+    testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
+    testOps = GLF nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
     checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode Int) b -> Assertion
     checkGraphEquality (nodes, edges) g
@@ -132,8 +139,10 @@ testSeq = TestList
   ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
     (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
     
-  ,testSeq' 10 [(0,m1),(1,m4)] [(0,1,ESeq)] (A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4)
-  ,testSeq' 11 [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10)] [(1,3,ESeq),(3,5,ESeq),(5,7,ESeq),(7,9,ESeq)] 
+  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4)
+  ,testSeq' 11
+    [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)]
+    [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
     (A.Several m11 [A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4,A.Spec m5 (someSpec m6) $ A.Spec m7 (someSpec m8) $ A.OnlyP m9 sm10])
  ]
   where
@@ -160,8 +169,8 @@ testPar = TestList
               ,(0,10,EStartPar 1),(11,1,EEndPar 1),(0,9,EStartPar 1),(9,1,EEndPar 1)] 
               (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
 
-  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (4, m6)]
-               [(0,4,EStartPar 0),(4,1,ESeq),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (6, m6),(106,sub m6 100)]
+               [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
                (A.Several m1 [A.Spec m6 (someSpec m7) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
   --TODO test nested pars
  ]

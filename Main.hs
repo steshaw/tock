@@ -22,6 +22,7 @@ module Main (main) where
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Either
+import Data.Generics
 import Data.Maybe
 import List
 import System
@@ -261,8 +262,11 @@ compile mode fn outHandle
             ModeParse -> return $ show ast1
             ModeFlowGraph ->
               do procs <- findAllProcesses
+                 let fs :: Data t => t -> PassM String
+                     fs = ((liftM $ (take 20) . (filter ((/=) '\"'))) . pshowCode)
+                 let labelFuncs = GLF fs fs fs fs fs fs
                  graphs <- mapM
-                      ((liftM $ either (const Nothing) Just) . (buildFlowGraph (const (return "")) ((liftM $ (take 20) . (filter ((/=) '\"'))) . pshowCode)) )
+                      ((liftM $ either (const Nothing) Just) . (buildFlowGraph labelFuncs) )
                       (map (A.OnlyP emptyMeta) (snd $ unzip $ procs))
                  --TODO output each process to a separate file, rather than just taking the first:
                  return $ head $ map makeFlowGraphInstr (catMaybes graphs)

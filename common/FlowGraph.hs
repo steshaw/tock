@@ -41,11 +41,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * If statements, on the other hand, have to be chained together.  Each expression is connected
 -- to its body, but also to the next expression.  There is no link between the last expression
 -- and the end of the if; if statements behave like STOP if nothing is matched.
-module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, buildFlowGraph, makeFlowGraphInstr) where
+module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, makeFlowGraphInstr) where
 
 import Control.Monad.Error
 import Control.Monad.State
-import Data.Generics
 import Data.Graph.Inductive
 
 import qualified AST as A
@@ -75,19 +74,32 @@ type NodesEdges a = ([LNode (FNode a)],[LEdge EdgeLabel])
     
 type GraphMaker m a b = ErrorT String (StateT (Node, Int, NodesEdges a) m) b
 
+data Monad m => GraphLabelFuncs m label = GLF {
+     labelDummy :: Meta -> m label
+    ,labelProcess :: A.Process -> m label
+    ,labelExpression :: A.Expression -> m label
+    ,labelExpressionList :: A.ExpressionList -> m label
+    ,labelScopeIn :: A.Specification -> m label
+    ,labelScopeOut :: A.Specification -> m label
+  }
+
 -- | Builds the instructions to send to GraphViz
 makeFlowGraphInstr :: Show a => FlowGraph a -> String
 makeFlowGraphInstr = graphviz'
 
 -- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
-buildFlowGraph :: Monad m => (Meta -> m a) -> (forall t. Data t => t -> m a) -> A.Structured -> m (Either String (FlowGraph a))
-buildFlowGraph blank f s
+buildFlowGraph :: Monad m => GraphLabelFuncs m a -> A.Structured -> m (Either String (FlowGraph a))
+buildFlowGraph funcs s
   = do res <- runStateT (runErrorT $ buildStructured None s) (0, 0, ([],[]) )
        return $ case res of
                   (Left err,_) -> Left err
                   (_,(_,_,(nodes, edges))) -> Right (mkGraph nodes edges)
   where
     -- All the functions return the new graph, and the identifier of the node just added
+    
+-- Type commented out because it's not technically correct, but looks right to me:
+--    run :: Monad m => (GraphLabelFuncs m a -> (b -> m a)) -> b -> m a
+    run func = func funcs
         
     addNode :: Monad m => (Meta, a) -> GraphMaker m a Node
     addNode x = do (n,pi,(nodes, edges)) <- get
@@ -99,14 +111,13 @@ buildFlowGraph blank f s
                                  put (n + 1, pi, (nodes,(start, end, label):edges))
     
 -- Type commented out because it's not technically correct, but looks right to me:
---    addNode' :: (Monad m, Data t) => Meta -> t -> GraphMaker m a Node
-    addNode' m t = do val <- (lift . lift) (f t)
-                      addNode (m, val)
+--    addNode' :: Monad m => Meta -> (GraphLabelFuncs m a -> (b -> m a)) -> b -> GraphMaker m a Node
+    addNode' m f t = do val <- (lift . lift) (run f t)
+                        addNode (m, val)
     
 -- Type commented out because it's not technically correct, but looks right to me:
 --    addDummyNode :: Meta -> GraphMaker m a Node
-    addDummyNode m = do val <- (lift . lift) (blank m)
-                        addNode (m, val)
+    addDummyNode m = addNode' m labelDummy m
     
     addParEdges :: Monad m => Node -> Node -> [(Node,Node)] -> GraphMaker m a ()
     addParEdges s e pairs = do (n,pi,(nodes,edges)) <- get
@@ -152,7 +163,7 @@ buildFlowGraph blank f s
                      return (-1,-1)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
     buildStructured outer (A.OnlyC _ (A.Choice m exp p))
-      = do nexp <- addNode' m exp
+      = do nexp <- addNode' m labelExpression exp
            (nbodys, nbodye) <- buildProcess p
            addEdge ESeq nexp nbodys
            case outer of
@@ -165,7 +176,7 @@ buildFlowGraph blank f s
       = do (s,e) <-
              case opt of
                (A.Option m es p) -> do
-                 nexp <- addNode' m (A.ExpressionList m es)
+                 nexp <- addNode' m labelExpressionList (A.ExpressionList m es)
                  (nbodys, nbodye) <- buildProcess p
                  addEdge ESeq nexp nbodys
                  return (nexp,nbodye)
@@ -177,10 +188,12 @@ buildFlowGraph blank f s
              _ -> throwError "Option found outside CASE statement"
            return (s,e)
     buildStructured outer (A.Spec m spec str)
-      = do n <- addNode' m spec
+      = do n <- addNode' m labelScopeIn spec
+           n' <- addNode' m labelScopeOut spec
            (s,e) <- buildStructured outer str
            addEdge ESeq n s
-           return (n,e)
+           addEdge ESeq e n'
+           return (n,n')
     buildStructured _ s = do n <- addDummyNode (findMeta s)
                              return (n,n)
     
@@ -189,13 +202,13 @@ buildFlowGraph blank f s
     buildProcess (A.Seq _ s) = buildStructured Seq s
     buildProcess (A.Par _ _ s) = buildStructured Par s
     buildProcess (A.While m e p)
-      = do n <- addNode' m e
+      = do n <- addNode' m labelExpression e
            (start, end) <- buildProcess p
            addEdge ESeq n start
            addEdge ESeq end n
            return (n, n)
     buildProcess (A.Case m e s)
-      = do nStart <- addNode' (findMeta e) e
+      = do nStart <- addNode' (findMeta e) labelExpression e
            nEnd <- addDummyNode m
            buildStructured (Case (nStart,nEnd)) s
            return (nStart, nEnd)
@@ -204,14 +217,5 @@ buildFlowGraph blank f s
            nEnd <- addDummyNode m
            buildStructured (If nStart nEnd) s
            return (nStart, nEnd)
-    buildProcess p = do val <- (lift . lift) (f p)
-                        (liftM mkPair) $ addNode (findMeta p, val)
-                        
--- TODO keep record of all the types that f is applied to.
--- I think it will end up being Process, Specification, Expression, Variant, Alternative, ExpressionList.
--- So rather than using generics, we could have a small function dictionary instead.
+    buildProcess p = do (liftM mkPair) $ addNode' (findMeta p) labelProcess p
 
--- Types definitely applied to:
--- A.Specification, A.Process, A.Expression, A.ExpressionList
-
---TODO have scopeIn and scopeOut functions for Specification, and accordingly have two nodes produced by Structured
