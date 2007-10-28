@@ -90,9 +90,9 @@ testGraph testName nodes edges proc
     checkNodeEquality :: (Map.Map Meta Int, Map.Map Int Int, Assertion) -> (Node, (Meta, Int)) -> (Map.Map Meta Int, Map.Map Int Int, Assertion)
     checkNodeEquality (metaToTestId, realToTestId, ass) (nodeId, (metaTag,metaSub))
       = case Map.lookup (sub metaTag metaSub) metaToTestId of
-          Nothing -> (metaToTestId, realToTestId, ass >> assertFailure ("Node with meta tag " ++ show metaTag ++ " not found in expected test data"))
-          Just testId -> let realToTestId' = Map.insert nodeId testId realToTestId in
-                         let metaToTestId' = Map.delete metaTag metaToTestId in
+          Nothing -> (metaToTestId, realToTestId, ass >> assertFailure (testName ++ " Node with meta tag " ++ show (sub metaTag metaSub) ++ " not found in expected test data"))
+          Just testId -> let realToTestId' = Map.insert testId nodeId realToTestId in
+                         let metaToTestId' = Map.delete (sub metaTag metaSub) metaToTestId in
                          (metaToTestId', realToTestId', ass)
     transformEdge :: Show b => Map.Map Int Int -> (Int, Int, b) -> IO (Int, Int, b)
     transformEdge nodeMap e@(start, end, label)
