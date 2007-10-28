@@ -181,15 +181,34 @@ testWhile = TestList
       (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While m2 (A.True mU) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
  ]
 
+testCase :: Test
+testCase = TestList
+ [
+   testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
+  ,testGraph "testCase 1"
+     [(0,m10),(1,m0),(2,m2),(3,m3)]
+     [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+     (A.Case m0 (A.True m10) $ cases m1 [A.Option m2 [A.True mU] sm3])
+  ,testGraph "testCase 2"
+     [(0,m10),(1,m0),(2,m2),(3,m3),(4,m4),(5,m5)]
+     [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (0,4,ESeq),(4,5,ESeq),(5,1,ESeq)]
+     (A.Case m0 (A.True m10) $ cases m1 [A.Option m2 [A.True mU] sm3, A.Option m4 [A.True mU] sm5])
+  --TODO test case statements that have specs
+ ]
+ where
+   cases :: Meta -> [A.Option] -> A.Structured
+   cases m = (A.Several m) . (map (A.OnlyO mU))
+
 --TODO test replicated seq/par
---TODO test ifs and cases
+--TODO test ifs
 --TODO test alts
 
 --Returns the list of tests:
 tests :: Test
 tests = TestList
  [
-  testSeq
+  testCase
   ,testPar
+  ,testSeq
   ,testWhile
  ]

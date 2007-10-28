@@ -16,6 +16,27 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+
+-- | The module for building control-flow graphs.  Most statements are merely processed as-is (one statement becomes one node).
+-- The only cases of interest are the control structures.
+--
+-- * Seq blocks are merely strung together with ESeq edges.
+--
+-- * Par blocks have a dummy begin and end node.  The begin node has outgoing links
+-- to all the members (EStartPar n), and the end nodes of each of the members has
+-- a link (EEndPar n) back to the the dummy end node.  Thus all the par members thread
+-- back through the same common node at the end.
+--
+-- * While loops have a condition node representing the test-expression.  This condition node
+-- has an ESeq link out to the body of the while loop, and there is an ESeq link back from the
+-- end of the while loop to the condition node.  It is the condition node that is linked
+-- to nodes before and after it.
+--
+-- * Case statements have a slight optimisation.  Technically, the cases are examined in some
+-- (probably undefined) order, with an Else option coming last.  But since the expressions
+-- to check against are constant, I have chosen to represent case statements as follows:
+-- There is a dummy begin node with the test-expression.  This has ESeq links to all possible options.
+-- The end of each option links back to a dummy end node.
 module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, buildFlowGraph, makeFlowGraphInstr) where
 
 import Control.Monad.Error
@@ -35,7 +56,7 @@ import Utils
 -- and this identifier is unique and matches a later endpar link
 data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
-data OuterType = None | Seq | Par
+data OuterType = None | Seq | Par | Case (Node,Node)
 
 newtype FNode a = Node (Meta, a)
 --type FEdge = (Node, EdgeLabel, Node)
@@ -112,7 +133,26 @@ buildFlowGraph blank f s
                            nEnd <- addDummyNode m
                            addParEdges nStart nEnd nodes
                            return (nStart, nEnd)
+             _ -> return (-1,-1)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
+    buildStructured outer (A.OnlyO _ (A.Option m es p))
+      = do nexp <- addNode' m (A.ExpressionList m es)
+           (nbodys, nbodye) <- buildProcess p
+           addEdge ESeq nexp nbodys
+           case outer of
+             Case (cStart, cEnd) ->
+               do addEdge ESeq cStart nexp
+                  addEdge ESeq nbodye cEnd
+             _ -> throwError "Option found inside CASE statement"
+           return (nexp,nbodye)
+    buildStructured outer (A.OnlyO _ (A.Else m p))
+      = do (nbodys, nbodye) <- buildProcess p
+           case outer of
+             Case (cStart, cEnd) ->
+               do addEdge ESeq cStart nbodys
+                  addEdge ESeq nbodye cEnd
+             _ -> throwError "Option found inside CASE statement"
+           return (nbodys,nbodye)
     buildStructured outer (A.Spec m spec str)
       = do n <- addNode' m spec
            (s,e) <- buildStructured outer str
@@ -131,6 +171,11 @@ buildFlowGraph blank f s
            addEdge ESeq n start
            addEdge ESeq end n
            return (n, n)
+    buildProcess (A.Case m e s)
+      = do nStart <- addNode' (findMeta e) e
+           nEnd <- addDummyNode m
+           buildStructured (Case (nStart,nEnd)) s
+           return (nStart, nEnd)
     buildProcess p = do val <- (lift . lift) (f p)
                         (liftM mkPair) $ addNode (findMeta p, val)
                         
@@ -139,6 +184,6 @@ buildFlowGraph blank f s
 -- So rather than using generics, we could have a small function dictionary instead.
 
 -- Types definitely applied to:
--- A.Specification, A.Process, A.Expression
+-- A.Specification, A.Process, A.Expression, A.ExpressionList
 
 --TODO have scopeIn and scopeOut functions for Specification, and accordingly have two nodes produced by Structured
