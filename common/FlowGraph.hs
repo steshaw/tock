@@ -37,6 +37,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- to check against are constant, I have chosen to represent case statements as follows:
 -- There is a dummy begin node with the test-expression.  This has ESeq links to all possible options.
 -- The end of each option links back to a dummy end node.
+--
+-- * If statements, on the other hand, have to be chained together.  Each expression is connected
+-- to its body, but also to the next expression.  There is no link between the last expression
+-- and the end of the if; if statements behave like STOP if nothing is matched.
 module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, buildFlowGraph, makeFlowGraphInstr) where
 
 import Control.Monad.Error
@@ -56,7 +60,8 @@ import Utils
 -- and this identifier is unique and matches a later endpar link
 data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
-data OuterType = None | Seq | Par | Case (Node,Node)
+--If is (previous condition) (final node)
+data OuterType = None | Seq | Par | Case (Node,Node) | If Node Node
 
 newtype FNode a = Node (Meta, a)
 --type FEdge = (Node, EdgeLabel, Node)
@@ -114,17 +119,19 @@ buildFlowGraph blank f s
 -- Type commented out because it's not technically correct, but looks right to me:
 --    buildStructured :: OuterType -> A.Structured -> GraphMaker m a (Node, Node)
     buildStructured outer (A.Several m ss) 
-      = do nodes <- mapM (buildStructured outer) ss
-           case outer of
+      = do case outer of
              None -> -- If there is no context, they should be left as disconnected graphs.
-                     do n <- addDummyNode m
+                     do nodes <- mapM (buildStructured outer) ss
+                        n <- addDummyNode m
                         return (n, n)
-             Seq -> do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
+             Seq -> do nodes <- mapM (buildStructured outer) ss
+                       sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
                        case nodes of
                          [] -> do n <- addDummyNode m
                                   return (n,n)
                          _ -> return (fst (head nodes), snd (last nodes))
-             Par -> do case nodes of
+             Par -> do nodes <- mapM (buildStructured outer) ss
+                       case nodes of
                          [] -> do n <- addDummyNode m
                                   return (n,n)
                          [(s,e)] -> return (s,e)
@@ -133,8 +140,27 @@ buildFlowGraph blank f s
                            nEnd <- addDummyNode m
                            addParEdges nStart nEnd nodes
                            return (nStart, nEnd)
-             _ -> return (-1,-1)
+             --Because the conditions in If statements are chained together, we
+             --must fold the specs, not map them independently
+             If prev end -> foldM foldIf (prev,end) ss 
+               where
+                 -- Type commented out because it's not technically correct, but looks right to me:
+                 -- foldIf :: (Node,Node) -> A.Structured -> GraphMaker m a (Node, Node)
+                 foldIf (prev,end) s = do (prev',_) <- buildStructured (If prev end) s
+                                          return (prev', end)
+             _ -> do nodes <- mapM (buildStructured outer) ss
+                     return (-1,-1)
     buildStructured _ (A.OnlyP _ p) = buildProcess p
+    buildStructured outer (A.OnlyC _ (A.Choice m exp p))
+      = do nexp <- addNode' m exp
+           (nbodys, nbodye) <- buildProcess p
+           addEdge ESeq nexp nbodys
+           case outer of
+             If cPrev cEnd ->
+               do addEdge ESeq cPrev nexp
+                  addEdge ESeq nbodye cEnd
+             _ -> throwError "Choice found outside IF statement"
+           return (nexp,nbodye)
     buildStructured outer (A.OnlyO _ opt)
       = do (s,e) <-
              case opt of
@@ -172,6 +198,11 @@ buildFlowGraph blank f s
       = do nStart <- addNode' (findMeta e) e
            nEnd <- addDummyNode m
            buildStructured (Case (nStart,nEnd)) s
+           return (nStart, nEnd)
+    buildProcess (A.If m s)
+      = do nStart <- addDummyNode m
+           nEnd <- addDummyNode m
+           buildStructured (If nStart nEnd) s
            return (nStart, nEnd)
     buildProcess p = do val <- (lift . lift) (f p)
                         (liftM mkPair) $ addNode (findMeta p, val)

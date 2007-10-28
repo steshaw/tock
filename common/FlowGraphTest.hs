@@ -199,15 +199,35 @@ testCase = TestList
    cases :: Meta -> [A.Option] -> A.Structured
    cases m = (A.Several m) . (map (A.OnlyO mU))
 
+testIf :: Test
+testIf = TestList
+ [
+   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+     (A.If m0 $ ifs mU [(A.True m2, sm3)])
+  ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] 
+                        [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq)]
+                        (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5)])
+  ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] 
+                        [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq), (4,6,ESeq),(6,7,ESeq),(7,1,ESeq)]
+                        (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
+ ]
+ where
+   ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured
+   ifs m = (A.Several m) . (map (\(e,p) -> A.OnlyC mU $ A.Choice (findMeta e) e p))
+
 --TODO test replicated seq/par
---TODO test ifs
 --TODO test alts
+
+--TODO occam stuff:
+--TODO test input-case statements
+--TODO test replicated ifs
 
 --Returns the list of tests:
 tests :: Test
 tests = TestList
  [
   testCase
+  ,testIf
   ,testPar
   ,testSeq
   ,testWhile
