@@ -23,13 +23,14 @@ import Test.HUnit
 
 
 import qualified AST as A
+import Metadata
 import TestUtil
 import RainUsageCheck
 
 
 --Shorthands for some variables to simplify the list of tests in this file
 vA = variable "a"
-vB = variable "b"
+vB = A.DerefVariable emptyMeta $ variable "b"
 vC = variable "c"
 vD = variable "d"
 vL = variable "l"
@@ -37,7 +38,7 @@ l0 = intLiteral 0
 l1 = intLiteral 1
 
 tvA = Plain "a"
-tvB = Plain "b"
+tvB = Deref "b"
 tvC = Plain "c"
 tvD = Plain "d"
 tvL = Plain "l"
@@ -46,12 +47,7 @@ tvL = Plain "l"
 --The syntax is roughly: <variable list>_eq_<variable list>
 --where a variable may be <letter> or <letter'subscript>
 a_eq_0 = A.Assign m [vA] $ A.ExpressionList m [l0]
-a_eq_b = makeSimpleAssign "a" "b"
-a_eq_c = makeSimpleAssign "a" "c"
-b_eq_c = makeSimpleAssign "b" "c"
-c_eq_a = makeSimpleAssign "c" "a"
-c_eq_b = makeSimpleAssign "c" "b"
-c_eq_d = makeSimpleAssign "c" "d"
+a_eq_b = A.Assign emptyMeta [vA] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vB]
 ab_eq_cd = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vC,A.ExprVariable m vD]
 ab_eq_ba = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vA,A.ExprVariable m vB]
 ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,l0]
@@ -61,15 +57,14 @@ a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.E
 
 
 
-testGetVar :: Test
-testGetVar = TestList (map doTest tests)
+testGetVarProc :: Test
+testGetVarProc = TestList (map doTest tests)
  where
    tests =
     [
 --TODO test channel reads and writes (incl. reads in alts)
 --TODO test process calls
 --TODO test function calls
---TODO test if/case/while
 
      --Test assignments on non-sub variables:
       (0,[],[tvA],[tvA],[],a_eq_0)
@@ -84,7 +79,7 @@ testGetVar = TestList (map doTest tests)
 
     ]
    doTest :: (Int,[Var],[Var],[Var],[Var],A.Process) -> Test
-   doTest (index,mr,mw,dw,u,proc) = TestCase $ assertEqual ("testGetVar-" ++ (show index)) (vars mr mw dw u) (getVarProc proc)
+   doTest (index,mr,mw,dw,u,proc) = TestCase $ assertEqual ("testGetVarProc-" ++ (show index)) (vars mr mw dw u) (getVarProc proc)
   
 {- 
 testParUsageCheck :: Test
@@ -119,7 +114,7 @@ testParUsageCheck = TestList (map doTest tests)
 tests :: Test
 tests = TestList
  [
-  testGetVar
+  testGetVarProc
 --  ,testParUsageCheck
  ]
 
