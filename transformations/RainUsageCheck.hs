@@ -56,6 +56,9 @@ readVars ss = Vars (Set.fromList ss) Set.empty Set.empty Set.empty
 writtenVars :: [Var] -> Vars
 writtenVars ss = Vars Set.empty (Set.fromList ss) (Set.fromList ss) Set.empty
 
+usedVars :: [Var] -> Vars
+usedVars vs = Vars Set.empty Set.empty Set.empty (Set.fromList vs)
+
 vars :: [Var] -> [Var] -> [Var] -> [Var] -> Vars
 vars mr mw dw u = Vars (Set.fromList mr) (Set.fromList mw) (Set.fromList dw) (Set.fromList u)
 
@@ -97,16 +100,19 @@ getVarProc _ = emptyVars
     
     --Pull out all the subscripts into the read category, but leave the given var in the written category:
 processVarW :: A.Variable -> Vars
-processVarW (A.Variable _ n) = writtenVars [Plain $ nameToString n]
-processVarW (A.DerefVariable _ (A.Variable _ n)) = writtenVars [Deref $ nameToString n]
---DirectedVariable illegal on the LHS of an assignment/RHS of an input:
-processVarW _ = emptyVars
+processVarW v = writtenVars [variableToVar v]
     
 processVarR :: A.Variable -> Vars
-processVarR (A.Variable _ n) = readVars [Plain $ nameToString n]
-processVarR (A.DirectedVariable _ dir (A.Variable _ n)) = readVars [Dir dir $ nameToString n]
-processVarR (A.DerefVariable _ (A.Variable _ n)) = readVars [Deref $ nameToString n]
-processVarR _ = emptyVars
+processVarR v = readVars [variableToVar v]
+
+processVarUsed :: A.Variable -> Vars
+processVarUsed v = usedVars [variableToVar v]
+
+variableToVar :: A.Variable -> Var
+variableToVar (A.Variable _ n) = Plain $ nameToString n
+variableToVar (A.DirectedVariable _ dir (A.Variable _ n)) = Dir dir $ nameToString n
+variableToVar (A.DerefVariable _ (A.Variable _ n)) = Deref $ nameToString n
+variableToVar v = error ("Unprocessable variable: " ++ show v) --TODO come up with a better solution than this
 
 getVarExpList :: A.ExpressionList -> Vars
 getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
