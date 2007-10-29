@@ -85,7 +85,7 @@ data Direction =
   | DirOutput      -- ^ The output end.
   | DirUnknown     -- ^ Either direction; either this is a whole channel,
                    -- or its direction is to be figured out later.
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | Attributes of the type of a channel.
 data ChanAttributes = ChanAttributes {

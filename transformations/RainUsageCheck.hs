@@ -22,71 +22,117 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
 module RainUsageCheck where
 
+import Control.Monad.Identity
 import Data.Generics
 import Data.List
 import Data.Maybe
+import qualified Data.Set as Set
 
 import qualified AST as A
+import FlowGraph
 
---An obvious thing to do would be to hold these lists (of written/read variables respectively) instead as sets
---However, this would involve defining an ordering over A.Variable.  This would be do-able for plain A.Variables,
---but in order to define a proper ordering for subscripted variables, we would end up needing to provide an
---ordering for A.Expression (and all its subtypes)!  Therefore, they are kept simply as lists:
+-- In Rain, Deref can't nest with Dir in either way, so this doesn't need to be a recursive type:
+data Var =
+  Plain String
+  | Deref String
+  | Dir A.Direction String
+  deriving (Eq, Show, Ord)
+  
+data Vars = Vars {
+  maybeRead :: Set.Set Var,
+  maybeWritten :: Set.Set Var,
+  defWritten :: Set.Set Var,
+  used :: Set.Set Var -- e.g. channels, barriers
+--  passed :: Set.Set String
+}
+  deriving (Eq, Show)
 
-type WrittenRead = ([A.Variable],[A.Variable])
+emptyVars :: Vars
+emptyVars = Vars Set.empty Set.empty Set.empty Set.empty
 
-concatWR :: WrittenRead -> WrittenRead -> WrittenRead
-concatWR (w0,r0) (w1,r1) = (w0 ++ w1,r0 ++ r1)
+readVars :: [Var] -> Vars
+readVars ss = Vars (Set.fromList ss) Set.empty Set.empty Set.empty
 
-foldWR :: [WrittenRead] -> WrittenRead
-foldWR = foldl1 concatWR
+writtenVars :: [Var] -> Vars
+writtenVars ss = Vars Set.empty (Set.fromList ss) (Set.fromList ss) Set.empty
 
-removeDupWR :: WrittenRead -> WrittenRead
-removeDupWR (w,r) = (nub w,nub r)
+vars :: [Var] -> [Var] -> [Var] -> [Var] -> Vars
+vars mr mw dw u = Vars (Set.fromList mr) (Set.fromList mw) (Set.fromList dw) (Set.fromList u)
 
+unionVars :: Vars -> Vars -> Vars
+unionVars (Vars mr mw dw u) (Vars mr' mw' dw' u') = Vars (mr `Set.union` mr') (mw `Set.union` mw') (dw `Set.union` dw') (u `Set.union` u')
+
+foldUnionVars :: [Vars] -> Vars
+foldUnionVars = foldl unionVars emptyVars
+
+nameToString :: A.Name -> String
+nameToString = A.nameName
 
 --Gets the (written,read) variables of a piece of an occam program:
 
 --For subscripted variables used as Lvalues , e.g. a[b] it should return a[b] as written-to and b as read
 --For subscripted variables used as expressions, e.g. a[b] it should return a[b],b as read (with no written-to)
 
-getVars :: Data t => t -> WrittenRead
-getVars 
-  = removeDupWR . (everything concatWR (([],[]) 
-    `mkQ` getVarProc
-    ))
-  where
-    getVarProc :: A.Process -> WrittenRead   
-    getVarProc (A.Assign _ vars expList) 
+getVarProc :: A.Process -> Vars
+getVarProc (A.Assign _ vars expList) 
         --Join together:
-      = concatWR 
+      = unionVars
           --The written-to variables on the LHS:
-          (foldWR (map processVarW vars)) 
+          (foldUnionVars (map processVarW vars)) 
           --All variables read on the RHS:
-          (everything concatWR (([],[]) `mkQ` getVarExp) expList)
-    --TODO output input etc (all other processes that directly write to/read from variables)
-    getVarProc _ = ([],[])
+          (getVarExpList expList)
+--TODO output input etc (all other processes that directly write to/read from variables)
+getVarProc _ = emptyVars
     
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
       The problem with this is that given var@(A.SubscriptedVariable _ sub arrVar), the functions would be recursively
-      applied to sub and arrVar.  processVarW should return var, but never the subscripts in sub; those subscripts are not written to!
+      applied to sub and arrVar.  processVarW should return var as written to, but never the subscripts in sub; those subscripts are not written to!
       
       Therefore processVarW must *not* be applied using the generics library, and instead should always be applied
       directly to an A.Variable.  Internally it uses the generics library to process the subscripts (using getVarExp)
     -}    
     
     --Pull out all the subscripts into the read category, but leave the given var in the written category:
-    processVarW :: A.Variable -> WrittenRead
-    processVarW v@(A.Variable _ _) = ([v],[])
-    processVarW v@(A.SubscriptedVariable _ s _) = concatWR ([v],[]) (everything concatWR (([],[]) `mkQ` getVarExp) s) 
+processVarW :: A.Variable -> Vars
+processVarW (A.Variable _ n) = writtenVars [Plain $ nameToString n]
+processVarW (A.DerefVariable _ (A.Variable _ n)) = writtenVars [Deref $ nameToString n]
+--DirectedVariable illegal on the LHS of an assignment/RHS of an input:
+processVarW _ = emptyVars
     
---Only need to deal with the two cases where we can see an A.Variable directly;
---the generic recursion will take care of nested expressions, and even the expressions used as subscripts
-getVarExp :: A.Expression -> WrittenRead
-getVarExp (A.SizeVariable _ v) = ([],[v])
-getVarExp (A.ExprVariable _ v) = ([],[v])
-getVarExp _ = ([],[])
+processVarR :: A.Variable -> Vars
+processVarR (A.Variable _ n) = readVars [Plain $ nameToString n]
+processVarR (A.DirectedVariable _ dir (A.Variable _ n)) = readVars [Dir dir $ nameToString n]
+processVarR (A.DerefVariable _ (A.Variable _ n)) = readVars [Deref $ nameToString n]
+processVarR _ = emptyVars
+
+getVarExpList :: A.ExpressionList -> Vars
+getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
+getVarExpList (A.FunctionCallList _ _ es) = foldUnionVars $ map getVarExp es --TODO record stuff in passed as well?
+
+getVarExp :: A.Expression -> Vars
+getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
+  where
+    --Only need to deal with the two cases where we can see an A.Variable directly;
+    --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
+    getVarExp' :: A.Expression -> Vars
+    getVarExp' (A.SizeVariable _ v) = processVarR v
+    getVarExp' (A.ExprVariable _ v) = processVarR v
+    getVarExp' _ = emptyVars
+
+getVarLabelFuncs :: GraphLabelFuncs Identity Vars
+getVarLabelFuncs = GLF
+ {
+   labelExpression = return . getVarExp
+  ,labelExpressionList = return . getVarExpList
+  ,labelDummy = return . (const emptyVars)
+  ,labelProcess = return . getVarProc
+  --TODO don't forget about the variables used as initialisers in declarations!
+  ,labelScopeIn = return . (const emptyVars)
+  ,labelScopeOut = return . (const emptyVars)
+ }
+
+{-
 
 
 -- I am not sure how you could build this out of the standard functions, so I built it myself
@@ -165,3 +211,4 @@ parUsageCheck proc
           subscriptedArrays' :: A.Variable -> Maybe A.Variable
           subscriptedArrays' (A.SubscriptedVariable _ _ v) = Just v
           subscriptedArrays' _ = Nothing
+-}
