@@ -76,6 +76,12 @@ testGetVarProc = TestList (map doTest tests)
      --Test assignments and expressions:
      ,(200,[tvB],[tvA],[tvA],[],a_eq_not_b)
      ,(201,[tvC,tvD],[tvA],[tvA],[],a_eq_c_plus_d)
+     
+     -- Test time statements:
+     ,(300,[],[tvB],[tvB],[],A.GetTime emptyMeta vB)
+     ,(301,[tvA],[],[],[],A.Wait emptyMeta A.WaitFor $ A.ExprVariable emptyMeta vA)
+     
+     
 
     ]
    doTest :: (Int,[Var],[Var],[Var],[Var],A.Process) -> Test

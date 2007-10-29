@@ -81,6 +81,8 @@ getVarProc (A.Assign _ vars expList)
           (foldUnionVars (map processVarW vars)) 
           --All variables read on the RHS:
           (getVarExpList expList)
+getVarProc (A.GetTime _ v) = processVarW v
+getVarProc (A.Wait _ _ e) = getVarExp e
 --TODO output input etc (all other processes that directly write to/read from variables)
 getVarProc _ = emptyVars
     
