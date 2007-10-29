@@ -46,7 +46,7 @@ BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs
 CLEANFILES = $(BUILT_SOURCES)
 
 tock_SOURCES = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
-tock_SOURCES += transformations/Unnest.hs transformations/UsageCheck.hs transformations/SimplifyProcs.hs
+tock_SOURCES += transformations/Unnest.hs transformations/RainUsageCheck.hs transformations/SimplifyProcs.hs
 tock_SOURCES += transformations/SimplifyComms.hs
 tock_SOURCES += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
 tock_SOURCES += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
@@ -60,7 +60,7 @@ tock_SOURCES += backends/GenerateC.hs backends/GenerateCPPCSP.hs
 tock_SOURCES += Main.hs
 
 tocktest_SOURCES = $(tock_SOURCES)
-tocktest_SOURCES += transformations/PassTest.hs transformations/UsageCheckTest.hs
+tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
 tocktest_SOURCES += common/TestUtil.hs common/CommonTest.hs common/FlowGraphTest.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs

@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckTest (tests) where
+module RainUsageCheckTest (tests) where
 
 import Prelude hiding (fail)
 import Test.HUnit
@@ -24,7 +24,7 @@ import Test.HUnit
 
 import qualified AST as A
 import TestUtil
-import qualified UsageCheck as UC
+import RainUsageCheck
 
 
 --See note in UsageCheck about WrittenRead not using sets.  Therefore our equality function is inefficient

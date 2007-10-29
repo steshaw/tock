@@ -32,7 +32,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "RainPassTest"
 --
--- * "UsageCheckTest"
+-- * "RainUsageCheckTest"
 module TestMain () where
 
 import Test.HUnit
@@ -45,7 +45,7 @@ import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
-import qualified UsageCheckTest (tests)
+import qualified RainUsageCheckTest (tests)
 
 main :: IO ()
 main = do runTestTT $ TestList
@@ -58,6 +58,6 @@ main = do runTestTT $ TestList
               ,PassTest.tests
               ,RainPassesTest.tests
               ,RainTypesTest.tests
-              ,UsageCheckTest.tests
+              ,RainUsageCheckTest.tests
             ]
           return ()
