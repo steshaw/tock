@@ -68,6 +68,9 @@ unionVars (Vars mr mw dw u) (Vars mr' mw' dw' u') = Vars (mr `Set.union` mr') (m
 foldUnionVars :: [Vars] -> Vars
 foldUnionVars = foldl unionVars emptyVars
 
+mapUnionVars :: (a -> Vars) -> [a] -> Vars
+mapUnionVars f = foldUnionVars . (map f)
+
 nameToString :: A.Name -> String
 nameToString = A.nameName
 
@@ -86,7 +89,12 @@ getVarProc (A.Assign _ vars expList)
           (getVarExpList expList)
 getVarProc (A.GetTime _ v) = processVarW v
 getVarProc (A.Wait _ _ e) = getVarExp e
---TODO output input etc (all other processes that directly write to/read from variables)
+getVarProc (A.Output _ chanVar outItems) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarOutputItem outItems)
+  where
+    getVarOutputItem :: A.OutputItem -> Vars
+    getVarOutputItem (A.OutExpression _ e) = getVarExp e
+    getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
+--TODO input etc (all other processes that directly write to/read from variables)
 getVarProc _ = emptyVars
     
     {-

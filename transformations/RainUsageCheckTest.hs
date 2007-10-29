@@ -31,7 +31,7 @@ import RainUsageCheck
 --Shorthands for some variables to simplify the list of tests in this file
 vA = variable "a"
 vB = A.DerefVariable emptyMeta $ variable "b"
-vC = variable "c"
+vC = A.DirectedVariable emptyMeta A.DirInput $ variable "c"
 vD = variable "d"
 vL = variable "l"
 l0 = intLiteral 0
@@ -39,7 +39,7 @@ l1 = intLiteral 1
 
 tvA = Plain "a"
 tvB = Deref "b"
-tvC = Plain "c"
+tvC = Dir A.DirInput "c"
 tvD = Plain "d"
 tvL = Plain "l"
    
@@ -81,7 +81,11 @@ testGetVarProc = TestList (map doTest tests)
      ,(300,[],[tvB],[tvB],[],A.GetTime emptyMeta vB)
      ,(301,[tvA],[],[],[],A.Wait emptyMeta A.WaitFor $ A.ExprVariable emptyMeta vA)
      
-     
+     -- Test simple outputs:
+     ,(400,[tvA],[],[],[tvC],A.Output emptyMeta vC [A.OutExpression emptyMeta $ A.ExprVariable emptyMeta vA])
+     ,(401,[tvA,tvB],[],[],[tvC],A.Output emptyMeta vC $ map ((A.OutExpression emptyMeta) . (A.ExprVariable emptyMeta)) [vA,vB])
+     ,(402,[tvA,tvB],[],[],[tvC],A.Output emptyMeta vC
+       [A.OutCounted emptyMeta (A.ExprVariable emptyMeta vA) (A.ExprVariable emptyMeta vB)])
 
     ]
    doTest :: (Int,[Var],[Var],[Var],[Var],A.Process) -> Test
