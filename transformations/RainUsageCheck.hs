@@ -94,7 +94,12 @@ getVarProc (A.Output _ chanVar outItems) = (processVarUsed chanVar) `unionVars` 
     getVarOutputItem :: A.OutputItem -> Vars
     getVarOutputItem (A.OutExpression _ e) = getVarExp e
     getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
---TODO input etc (all other processes that directly write to/read from variables)
+getVarProc (A.Input _ chanVar (A.InputSimple _ iis)) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarInputItem iis)
+  where
+    getVarInputItem :: A.InputItem -> Vars
+    getVarInputItem (A.InCounted _ cv av) = writtenVars [variableToVar cv,variableToVar av]
+    getVarInputItem (A.InVariable _ v) = writtenVars [variableToVar v]
+--TODO process calls
 getVarProc _ = emptyVars
     
     {-

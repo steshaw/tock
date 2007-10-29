@@ -87,6 +87,12 @@ testGetVarProc = TestList (map doTest tests)
      ,(402,[tvA,tvB],[],[],[tvC],A.Output emptyMeta vC
        [A.OutCounted emptyMeta (A.ExprVariable emptyMeta vA) (A.ExprVariable emptyMeta vB)])
 
+     -- Test simple inputs:
+     ,(500,[],[tvB],[tvB],[tvC],A.Input emptyMeta vC (A.InputSimple emptyMeta [A.InVariable emptyMeta vB]))
+     ,(501,[],[tvA,tvB],[tvA,tvB],[tvC],A.Input emptyMeta vC
+       (A.InputSimple emptyMeta [A.InVariable emptyMeta vB,A.InVariable emptyMeta vA]))
+     ,(502,[],[tvA,tvB],[tvA,tvB],[tvC],A.Input emptyMeta vC 
+       (A.InputSimple emptyMeta [A.InCounted emptyMeta vA vB]))
     ]
    doTest :: (Int,[Var],[Var],[Var],[Var],A.Process) -> Test
    doTest (index,mr,mw,dw,u,proc) = TestCase $ assertEqual ("testGetVarProc-" ++ (show index)) (vars mr mw dw u) (getVarProc proc)
