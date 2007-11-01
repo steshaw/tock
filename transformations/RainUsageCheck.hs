@@ -24,11 +24,14 @@ module RainUsageCheck where
 
 import Control.Monad.Identity
 import Data.Generics
+import Data.Graph.Inductive
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
 import qualified AST as A
+import FlowAlgorithms
 import FlowGraph
 
 -- In Rain, Deref can't nest with Dir in either way, so this doesn't need to be a recursive type:
@@ -245,3 +248,41 @@ parUsageCheck proc
           subscriptedArrays' (A.SubscriptedVariable _ _ v) = Just v
           subscriptedArrays' _ = Nothing
 -}
+
+
+-- TODO have some sort of error-message return if the check fails or if the code fails
+checkInitVar :: FlowGraph (Maybe Decl, Vars) -> Node -> Bool
+checkInitVar graph startNode = and $ map (checkInitVar' varWrittenBefore) (map readNode (labNodes graph))
+  where
+    readNode :: (Node, FNode (Maybe Decl, Vars)) -> (Node, Set.Set Var)
+    readNode (n, Node (_,(_,Vars read _ _ _))) = (n,read)
+  
+    writeNode :: FNode (Maybe Decl, Vars) -> Set.Set Var
+    writeNode (Node (_,(_,Vars _ _ written _))) = written
+    
+    -- Nothing is treated as if were the set of all possible variables (easier than building that set):
+    nodeFunction :: (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set Var
+    nodeFunction (n,_) inputVal Nothing = Set.union inputVal (maybe Set.empty writeNode (lab graph n))    
+    nodeFunction (n, EEndPar _) inputVal (Just prevAgg) = Set.unions [inputVal,prevAgg,maybe Set.empty writeNode (lab graph n)]
+    nodeFunction (n, _) inputVal (Just prevAgg) = Set.intersection prevAgg $ Set.union inputVal (maybe Set.empty writeNode (lab graph n))
+  
+    graphFuncs :: GraphFuncs Node EdgeLabel (Set.Set Var)
+    graphFuncs = GF
+      {
+       nodeFunc = nodeFunction
+       ,prevNodes = lpre graph
+       ,nextNodes = lsuc graph
+       ,initVal = Set.empty
+       ,defVal = Set.empty
+      }
+  
+    varWrittenBefore :: Map.Map Node (Set.Set Var)
+    varWrittenBefore = flowAlgorithm graphFuncs (nodes graph) startNode
+
+    checkInitVar' :: Map.Map Node (Set.Set Var) -> (Node, Set.Set Var) -> Bool
+    checkInitVar' writtenMap (n,v)
+      = case Map.lookup n writtenMap of
+          Nothing -> False
+          -- All read vars should be in the previously-written set
+          Just vs -> v `Set.isSubsetOf` vs
+

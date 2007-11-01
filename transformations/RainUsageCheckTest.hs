@@ -18,11 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainUsageCheckTest (tests) where
 
+import Data.Graph.Inductive
 import Prelude hiding (fail)
 import Test.HUnit
 
 
 import qualified AST as A
+import FlowGraph
 import Metadata
 import RainUsageCheck
 import TestUtil
@@ -129,10 +131,62 @@ testParUsageCheck = TestList (map doTest tests)
 --TODO add tests for initialising a variable before use.
 --TODO especially test things like only initialising the variable in one part of an if
 
+buildTestFlowGraph :: [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph (Maybe Decl, Vars)
+buildTestFlowGraph ns es start end v
+  = mkGraph
+      ([(-1,Node (emptyMeta,(Just $ ScopeIn v, emptyVars))),(-2,Node (emptyMeta,(Just $ ScopeOut v,emptyVars)))] ++ (map transNode ns))
+      ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
+  where
+    transNode :: (Int, [Var], [Var], [Var]) -> (Int, FNode (Maybe Decl, Vars))
+    transNode (n,mr,mw,dw) = (n,Node (emptyMeta, (Nothing,vars mr mw dw [])))
+
+testInitVar :: Test
+testInitVar = TestList
+ [
+   testInitVarPass 0 [(0,[],[],[])] [] 0 0 "x"
+  ,testInitVarPass 1 [(0,[],[],[Plain "x"])] [] 0 0 "x"
+  ,testInitVarFail 2 [(0,[Plain "x"],[],[])] [] 0 0 "x"
+  ,testInitVarFail 3 [(0,[Plain "x"],[],[Plain "x"])] [] 0 0 "x"
+  
+  ,testInitVarPass 10 [(0,[],[],[Plain "x"]), (1,[Plain "x"],[],[])] [(0,1,ESeq)] 0 1 "x"
+  ,testInitVarFail 11 [(0,[],[],[Plain "x"]), (1,[Plain "x"],[],[])] [(1,0,ESeq)] 1 0 "x"
+  ,testInitVarFail 12 [(0,[],[Plain "x"],[]), (1,[Plain "x"],[],[])] [(0,1,ESeq)] 0 1 "x"
+  ,testInitVarPass 13 [(0,[],[],[Plain "x"]), (1,[Plain "x"],[],[])] [(0,1,EStartPar 0)] 0 1 "x"
+  ,testInitVarPass 14 [(0,[],[],[Plain "x"]), (1,[Plain "x"],[],[])] [(0,1,EEndPar 0)] 0 1 "x"
+
+  ,testInitVarPass 20 [(0,[],[],[]),(1,[],[],[Plain "x"]), (2,[],[],[Plain "x"]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+  ,testInitVarFail 21 [(0,[],[],[]),(1,[],[],[]), (2,[],[],[Plain "x"]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+  ,testInitVarFail 22 [(0,[],[],[]),(1,[],[Plain "x"],[]), (2,[],[],[Plain "x"]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+  ,testInitVarPass 23 [(0,[],[],[]),(1,[],[],[]), (2,[],[],[Plain "x"]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(2,3,ESeq)] 0 3 "x"
+  ,testInitVarPass 24 [(0,[],[],[Plain "x"]),(1,[],[],[]), (2,[],[],[]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+  ,testInitVarFail 25 [(0,[],[],[]),(1,[],[],[]), (2,[],[],[]), (3,[Plain "x"],[],[])] [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+
+-- This would fail CREW, but that's not what we're testing here:
+  ,testInitVarPass 30 [(0,[],[],[]),(1,[],[],[Plain "x"]), (2,[],[],[Plain "x"]), (3,[Plain "x"],[],[])]
+    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
+  ,testInitVarPass 31 [(0,[],[],[]),(1,[],[],[Plain "x"]), (2,[],[],[]), (3,[Plain "x"],[],[])]
+    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
+  ,testInitVarPass 32 [(0,[],[],[Plain "x"]),(1,[],[],[]), (2,[],[],[]), (3,[Plain "x"],[],[])]
+    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
+  ,testInitVarFail 33 [(0,[],[],[]),(1,[],[],[]), (2,[],[],[]), (3,[Plain "x"],[],[])]
+    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
+
+
+  -- TODO add tests with loops (and work out how to represent par loops)
+ ]
+ where
+   testInitVarPass :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
+   testInitVarPass testNum ns es start end v = TestCase $ assertBool ("testInitVar " ++ show testNum) $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
+   
+   testInitVarFail :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
+   testInitVarFail testNum ns es start end v = TestCase $ assertBool ("testInitVar " ++ show testNum) $ not $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
+
+
 tests :: Test
 tests = TestList
  [
   testGetVarProc
+  ,testInitVar
 --  ,testParUsageCheck
  ]
 
