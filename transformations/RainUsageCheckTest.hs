@@ -207,8 +207,29 @@ testInitVar = TestList
   ,testInitVarFail 35 [(0,[],[],[]),(1,[],[],[Plain "x"]), (2,[Plain "x"],[],[]), (3,[Plain "x"],[],[])]
     [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
 
-
-  -- TODO add tests with loops (and work out how to represent par loops)
+  
+  -- Test loops (0 -> 1, 1 -> 2 -> 3 -> 1, 1 -> 4)
+  -- Loop, nothing happens:
+  ,testInitVarPass 100 [(0,[],[],[]),(1,[],[],[]),(2,[],[],[]),(3,[],[],[]),(4,[],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+  -- Loop, written to before the loop, read afterwards:
+  ,testInitVarPass 101 [(0,[],[],[Plain "x"]),(1,[],[],[]),(2,[],[],[]),(3,[],[],[]),(4,[Plain "x"],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+  -- Loop, written to before the loop, read during the loop
+  ,testInitVarPass 102 [(0,[],[],[Plain "x"]),(1,[],[],[]),(2,[],[],[]),(3,[Plain "x"],[],[]),(4,[],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+  -- Loop, written to during the loop, read afterwards (FAIL - loop might not be executed)
+  ,testInitVarFail 103 [(0,[],[],[]),(1,[],[],[]),(2,[],[],[Plain "x"]),(3,[],[],[]),(4,[Plain "x"],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+  -- Loop, written to and then read during the loop:
+  ,testInitVarPass 104 [(0,[],[],[]),(1,[],[],[]),(2,[],[],[Plain "x"]),(3,[Plain "x"],[],[]),(4,[],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+  -- Loop, read then written to during the loop (FAIL):    
+  ,testInitVarFail 105 [(0,[],[],[]),(1,[],[],[]),(2,[Plain "x"],[],[]),(3,[],[],[Plain "x"]),(4,[],[],[])]
+    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    
+  -- TODO work out (and test) par loops
+  -- TODO test dereferenced variables
  ]
  where
    testInitVarPass :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
