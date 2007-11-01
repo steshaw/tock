@@ -141,17 +141,29 @@ getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
     getVarExp' (A.ExprVariable _ v) = processVarR v
     getVarExp' _ = emptyVars
 
-getVarLabelFuncs :: GraphLabelFuncs Identity Vars
+getVarSpec :: A.Specification -> Vars
+getVarSpec = const emptyVars -- TODO
+
+data Decl = ScopeIn String | ScopeOut String deriving (Show, Eq)
+
+getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
+getDecl _ _ = Nothing -- TODO
+
+
+getVarLabelFuncs :: GraphLabelFuncs Identity (Maybe Decl, Vars)
 getVarLabelFuncs = GLF
  {
-   labelExpression = return . getVarExp
-  ,labelExpressionList = return . getVarExpList
-  ,labelDummy = return . (const emptyVars)
-  ,labelProcess = return . getVarProc
-  --TODO don't forget about the variables used as initialisers in declarations!
-  ,labelScopeIn = return . (const emptyVars)
-  ,labelScopeOut = return . (const emptyVars)
+   labelExpression = pair (const Nothing) getVarExp
+  ,labelExpressionList = pair (const Nothing) getVarExpList
+  ,labelDummy = const (return (Nothing, emptyVars))
+  ,labelProcess = pair (const Nothing) getVarProc
+  --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
+  ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
+  ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
  }
+  where
+    pair :: (a -> b) -> (a -> c) -> (a -> Identity (b,c))
+    pair f0 f1 x = return (f0 x, f1 x)
 
 {-
 

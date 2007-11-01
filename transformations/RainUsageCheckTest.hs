@@ -96,7 +96,9 @@ testGetVarProc = TestList (map doTest tests)
     ]
    doTest :: (Int,[Var],[Var],[Var],[Var],A.Process) -> Test
    doTest (index,mr,mw,dw,u,proc) = TestCase $ assertEqual ("testGetVarProc-" ++ (show index)) (vars mr mw dw u) (getVarProc proc)
-  
+
+--TODO test declarations being recorded, when I've decided how to record them
+
 {- 
 testParUsageCheck :: Test
 testParUsageCheck = TestList (map doTest tests)
