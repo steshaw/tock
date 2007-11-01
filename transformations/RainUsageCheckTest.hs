@@ -24,8 +24,8 @@ import Test.HUnit
 
 import qualified AST as A
 import Metadata
-import TestUtil
 import RainUsageCheck
+import TestUtil
 
 
 --Shorthands for some variables to simplify the list of tests in this file
