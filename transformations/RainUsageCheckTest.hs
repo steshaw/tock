@@ -19,6 +19,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module RainUsageCheckTest (tests) where
 
 import Data.Graph.Inductive
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Prelude hiding (fail)
 import Test.HUnit
 
@@ -239,6 +241,26 @@ testInitVar = TestList
    testInitVarFail :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
    testInitVarFail testNum ns es start end v = TestCase $ assertEitherFail ("testInitVar " ++ show testNum) $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
 
+testReachDef :: Test
+testReachDef = TestList
+ [
+   test 0 [(0,[],[])] [] []
+ ]
+ where
+   latEdges :: [(Int,Int,EdgeLabel)]
+   latEdges = [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)]
+   
+   blankMW :: (Int,[Var],[Var]) -> (Int, [Var], [Var], [Var])
+   blankMW (n,mr,dw) = (n,mr,[],dw)
+ 
+   -- It is implied that 0 is the start, and the highest node number is the end, and the var is "x"
+   test :: Int -> [(Int,[Var],[Var])] -> [(Int,Int,EdgeLabel)] -> [(Int,[Int])] -> Test
+   test testNum ns es expMap = TestCase $ assertEither ("testReachDef " ++ show testNum) (Map.fromList $ map (transformPair id Set.fromList) expMap) $
+     findReachDef (buildTestFlowGraph (map blankMW ns) es 0 (maximum $ map fst3 ns) "x") (-1)
+  
+   fst3 :: (a,b,c) -> a
+   fst3(x,_,_) = x
+
 
 tests :: Test
 tests = TestList
@@ -246,6 +268,7 @@ tests = TestList
   testGetVarProc
   ,testInitVar
 --  ,testParUsageCheck
+  ,testReachDef
  ]
 
 

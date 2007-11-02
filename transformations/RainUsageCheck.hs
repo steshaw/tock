@@ -321,3 +321,7 @@ checkInitVar graph startNode
             throwError $ "Variable read from: " ++ show (lab graph n) ++ " is not written to before-hand, sets: " ++ show v ++ " and " ++ show vs
               ++ " writtenMap: " ++ show writtenMap
 
+-- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
+findReachDef :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Set.Set Node))
+findReachDef graph startNode = Left "Unimplemented"
+
