@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module RainUsageCheck where
+module RainUsageCheck (Var(..), Vars(..), vars, Decl(..), getVarLabelFuncs, emptyVars, getVarProc, checkInitVar, findReachDef) where
 
 import Control.Monad.Error
 import Control.Monad.Identity
