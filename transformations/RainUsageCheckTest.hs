@@ -244,18 +244,50 @@ testInitVar = TestList
 testReachDef :: Test
 testReachDef = TestList
  [
-   test 0 [(0,[],[])] [] []
+  -- Nothing written/read, blank results:
+   test 0 [(0,[],[])] [] []  
+  -- Written but not read, no results:
+  ,test 1 [(0,[],[Plain "x"])] [] []
+  -- Written then read, no branching
+  ,test 2 [(0,[],[Plain "x"]),(1,[Plain "x"],[])] [(0,1,ESeq)] [(1,[0])]
+  ,test 3 [(0,[],[Plain "x"]),(1,[],[]),(2,[Plain "x"],[])] [(0,1,ESeq),(1,2,ESeq)] [(2,[0])]
+  ,test 4 [(0,[],[Plain "x"]),(1,[],[Plain "x"]),(2,[Plain "x"],[])] [(0,1,ESeq),(1,2,ESeq)] [(2,[1])]
+  
+  -- Lattice, written in 0, read in 3:
+  ,test 100 [(0,[],[Plain "x"]),(1,[],[]),(2,[],[]),(3,[Plain "x"],[])] latEdges [(3,[0])]
+  -- Lattice, written in 0, read in 1,2 and 3:
+  ,test 101 [(0,[],[Plain "x"]),(1,[Plain "x"],[]),(2,[Plain "x"],[]),(3,[Plain "x"],[])] latEdges [(3,[0]),(1,[0]),(2,[0])]
+  -- Lattice, written 0, 1 and 2, read in 3:
+  ,test 102 [(0,[],[Plain "x"]),(1,[],[Plain "x"]),(2,[],[Plain "x"]),(3,[Plain "x"],[])] latEdges [(3,[1,2])]
+  -- Lattice written in 0 and 1, read in 2 and 3:
+  ,test 103 [(0,[],[Plain "x"]),(1,[],[Plain "x"]),(2,[Plain "x"],[]),(3,[Plain "x"],[])] latEdges [(3,[0,1]),(2,[0])]
+  
+  --Loops:
+  
+  -- Written before loop, read afterwards:
+  ,test 200 [(0,[],[Plain "x"]),(1,[],[]),(2,[],[]),(3,[],[]),(4,[Plain "x"],[])] loopEdges [(4,[0])]
+  -- Written before loop, read during:
+  ,test 201 [(0,[],[Plain "x"]),(1,[],[]),(2,[Plain "x"],[]),(3,[],[]),(4,[],[])] loopEdges [(2,[0])]
+  -- Written before loop, written then read during:
+  ,test 202 [(0,[],[Plain "x"]),(1,[],[]),(2,[],[Plain "x"]),(3,[Plain "x"],[]),(4,[],[])] loopEdges [(3,[2])]
+  -- Written before loop, written then read during, and read after:
+  ,test 203 [(0,[],[Plain "x"]),(1,[],[]),(2,[],[Plain "x"]),(3,[Plain "x"],[]),(4,[Plain "x"],[])] loopEdges [(3,[2]),(4,[0,2])]
+  
+  --TODO test derefenced variables
  ]
  where
    latEdges :: [(Int,Int,EdgeLabel)]
    latEdges = [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)]
+   
+   loopEdges :: [(Int,Int,EdgeLabel)]
+   loopEdges = [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq),(3,1,ESeq),(1,4,ESeq)]   
    
    blankMW :: (Int,[Var],[Var]) -> (Int, [Var], [Var], [Var])
    blankMW (n,mr,dw) = (n,mr,[],dw)
  
    -- It is implied that 0 is the start, and the highest node number is the end, and the var is "x"
    test :: Int -> [(Int,[Var],[Var])] -> [(Int,Int,EdgeLabel)] -> [(Int,[Int])] -> Test
-   test testNum ns es expMap = TestCase $ assertEither ("testReachDef " ++ show testNum) (Map.fromList $ map (transformPair id Set.fromList) expMap) $
+   test testNum ns es expMap = TestCase $ assertEither ("testReachDef " ++ show testNum) (Map.fromList $ map (transformPair id ((Map.singleton $ Plain "x") . Set.fromList)) expMap) $
      findReachDef (buildTestFlowGraph (map blankMW ns) es 0 (maximum $ map fst3 ns) "x") (-1)
   
    fst3 :: (a,b,c) -> a

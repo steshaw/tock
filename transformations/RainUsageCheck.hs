@@ -322,6 +322,61 @@ checkInitVar graph startNode
               ++ " writtenMap: " ++ show writtenMap
 
 -- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
-findReachDef :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Set.Set Node))
-findReachDef graph startNode = Left "Unimplemented"
 
+-- I considered having the return type be Map Var (Map Node x)) rather than Map (Var,Node) x, but the time for lookup
+-- will be identical (log N + log V in the former case, log (V*N) in the latter), and having a pair seemed simpler.
+findReachDef :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
+findReachDef graph startNode
+  = do r <- flowAlgorithm graphFuncs (nodes graph) startNode
+       -- These lines remove the maps where the variable is not read in that particular node:
+       let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
+       return $ Map.filter (not . Map.null) r'
+  where
+    graphFuncs :: GraphFuncs Node EdgeLabel (Map.Map Var (Set.Set Node))
+    graphFuncs = GF
+      {
+        nodeFunc = processNode
+        ,prevNodes = lpre graph
+        ,nextNodes = lsuc graph
+        ,initVal = Map.empty
+        ,defVal = Map.empty
+      }
+
+    readInNode' :: Node -> Var -> a -> Bool
+    readInNode' n v _ = readInNode v (lab graph n)
+
+    readInNode :: Var -> Maybe (FNode (Maybe Decl, Vars)) -> Bool
+    readInNode v (Just (Node (_,(_,Vars read _ _ _)))) = Set.member v read
+    
+    writeNode :: FNode (Maybe Decl, Vars) -> Set.Set Var
+    writeNode (Node (_,(_,Vars _ _ written _))) = written
+      
+    -- | A confusiing function used by processNode.   It takes a node and node label, and uses
+    -- these to form a multi-map modifier function that replaces all node-sources for variables
+    -- written to by the given with node with a singleton set containing the given node.
+    -- That is, nodeLabelToMapInsert N (Node (_,Vars _ written _ _)) is a function that replaces
+    -- the sets for each v (v in written) with a singleton set {N}.
+    nodeLabelToMapInsert :: Node -> FNode (Maybe Decl, Vars) -> Map.Map Var (Set.Set Node) -> Map.Map Var (Set.Set Node)
+    nodeLabelToMapInsert n = foldFuncs . (map (\v -> Map.insert v (Set.singleton n) )) . Set.toList . writeNode
+      
+    processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set Node) -> Maybe (Map.Map Var (Set.Set Node)) -> Map.Map Var (Set.Set Node)
+    processNode (n,_) inputVal mm = mergeMultiMaps modifiedInput prevAgg
+      where
+        -- Note that the two uses of maybe here use id in different senses.
+        -- In prevAgg, id is used on the value inside the Maybe.
+        -- Whereas, in modifiedInput, id is the default value (because a function is 
+        -- what comes out of maybe)
+      
+        prevAgg :: Map.Map Var (Set.Set Node)
+        prevAgg = maybe Map.empty id mm
+        
+        modifiedInput :: Map.Map Var (Set.Set Node)
+        modifiedInput = (maybe id (nodeLabelToMapInsert n) $ lab graph n) inputVal
+
+    -- | Folds a list of modifier functions into a single function
+    foldFuncs :: [a -> a] -> a -> a
+    foldFuncs = foldl (.) id
+    
+    -- | Merges two "multi-maps" (maps to sets) using union
+    mergeMultiMaps :: (Ord k, Ord a) => Map.Map k (Set.Set a) -> Map.Map k (Set.Set a) -> Map.Map k (Set.Set a)
+    mergeMultiMaps = Map.unionWith (Set.union)
