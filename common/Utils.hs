@@ -102,3 +102,7 @@ combineCompare [] = EQ
 combineCompare (LT:_) = LT
 combineCompare (GT:_) = GT
 combineCompare (EQ:os) = combineCompare os
+
+-- | Maps two functions over members of a pair
+transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
+transformPair f g (x,y) = (f x, g y)

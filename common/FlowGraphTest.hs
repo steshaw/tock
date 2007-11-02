@@ -96,15 +96,12 @@ testGraph testName nodes edges proc
     deNode :: FNode a -> (Meta, a)
     deNode (Node x) = x
     
-    mapPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
-    mapPair f g (x,y) = (f x, g y)
-    
     testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
     testOps = GLF nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
     checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode Int) b -> Assertion
     checkGraphEquality (nodes, edges) g
-      = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (mapPair id deNode) $ labNodes g)
+      = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
            assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
            edges' <- mapM (transformEdge nodeLookup) edges

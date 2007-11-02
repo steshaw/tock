@@ -28,6 +28,7 @@ import FlowGraph
 import Metadata
 import RainUsageCheck
 import TestUtil
+import Utils
 
 
 --Shorthands for some variables to simplify the list of tests in this file
