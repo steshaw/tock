@@ -22,6 +22,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
 module RainUsageCheck where
 
+import Control.Monad.Error
 import Control.Monad.Identity
 import Data.Generics
 import Data.Graph.Inductive
@@ -281,38 +282,42 @@ isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
 
 
 -- TODO have some sort of error-message return if the check fails or if the code fails
-checkInitVar :: FlowGraph (Maybe Decl, Vars) -> Node -> Bool
-checkInitVar graph startNode = and $ map (checkInitVar' varWrittenBefore) (map readNode (labNodes graph))
+checkInitVar :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String ()
+checkInitVar graph startNode
+  = do vwb <- varWrittenBefore
+       mapM_ (checkInitVar' vwb) (map readNode (labNodes graph))
   where
-    readNode :: (Node, FNode (Maybe Decl, Vars)) -> (Node, Set.Set Var)
-    readNode (n, Node (_,(_,Vars read _ _ _))) = (n,read)
+    readNode :: (Node, FNode (Maybe Decl, Vars)) -> (Node, ExSet Var)
+    readNode (n, Node (_,(_,Vars read _ _ _))) = (n,NormalSet read)
   
-    writeNode :: FNode (Maybe Decl, Vars) -> Set.Set Var
-    writeNode (Node (_,(_,Vars _ _ written _))) = written
+    writeNode :: FNode (Maybe Decl, Vars) -> ExSet Var
+    writeNode (Node (_,(_,Vars _ _ written _))) = NormalSet written
     
     -- Nothing is treated as if were the set of all possible variables (easier than building that set):
-    nodeFunction :: (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set Var
-    nodeFunction (n,_) inputVal Nothing = Set.union inputVal (maybe Set.empty writeNode (lab graph n))    
-    nodeFunction (n, EEndPar _) inputVal (Just prevAgg) = Set.unions [inputVal,prevAgg,maybe Set.empty writeNode (lab graph n)]
-    nodeFunction (n, _) inputVal (Just prevAgg) = Set.intersection prevAgg $ Set.union inputVal (maybe Set.empty writeNode (lab graph n))
+    nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
+    nodeFunction (n,_) inputVal Nothing = union inputVal (maybe emptySet writeNode (lab graph n))    
+    nodeFunction (n, EEndPar _) inputVal (Just prevAgg) = unions [inputVal,prevAgg,maybe emptySet writeNode (lab graph n)]
+    nodeFunction (n, _) inputVal (Just prevAgg) = intersection prevAgg $ union inputVal (maybe emptySet writeNode (lab graph n))
   
-    graphFuncs :: GraphFuncs Node EdgeLabel (Set.Set Var)
+    graphFuncs :: GraphFuncs Node EdgeLabel (ExSet Var)
     graphFuncs = GF
       {
        nodeFunc = nodeFunction
        ,prevNodes = lpre graph
        ,nextNodes = lsuc graph
-       ,initVal = Set.empty
-       ,defVal = Set.empty
+       ,initVal = emptySet
+       ,defVal = Everything
       }
   
-    varWrittenBefore :: Map.Map Node (Set.Set Var)
+    varWrittenBefore :: Either String (Map.Map Node (ExSet Var))
     varWrittenBefore = flowAlgorithm graphFuncs (nodes graph) startNode
 
-    checkInitVar' :: Map.Map Node (Set.Set Var) -> (Node, Set.Set Var) -> Bool
+    checkInitVar' :: Map.Map Node (ExSet Var) -> (Node, ExSet Var) -> Either String ()
     checkInitVar' writtenMap (n,v)
       = case Map.lookup n writtenMap of
-          Nothing -> False
+          Nothing -> throwError $ "Variable that is read from: " ++ show (lab graph n) ++ " is never written to"
           -- All read vars should be in the previously-written set
-          Just vs -> v `Set.isSubsetOf` vs
+          Just vs -> if v `isSubsetOf` vs then return () else 
+            throwError $ "Variable read from: " ++ show (lab graph n) ++ " is not written to before-hand, sets: " ++ show v ++ " and " ++ show vs
+              ++ " writtenMap: " ++ show writtenMap
 
