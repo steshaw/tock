@@ -418,3 +418,11 @@ checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
                                Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndType nd))
                           ) state
 
+assertEither :: (Eq a, Show a) => String -> a -> Either String a -> Assertion
+assertEither testName exp = assertEqual testName (Right exp)
+   
+assertEitherFail :: String -> Either String a -> Assertion
+assertEitherFail testName result
+     = case result of
+         Left _ -> return ()
+         Right _ -> assertFailure $ testName ++ "; test expected to fail but passed"

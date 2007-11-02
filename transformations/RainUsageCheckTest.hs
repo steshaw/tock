@@ -233,17 +233,8 @@ testInitVar = TestList
   -- TODO test dereferenced variables
  ]
  where
-   assertEither :: String -> Either String () -> Assertion
-   assertEither testName = assertEqual testName (Right ())
-   
-   assertEitherFail :: String -> Either String () -> Assertion
-   assertEitherFail testName result
-     = case result of
-         Left _ -> return ()
-         Right _ -> assertFailure $ testName ++ "; test expected to fail but passed"
-   
    testInitVarPass :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
-   testInitVarPass testNum ns es start end v = TestCase $ assertEither ("testInitVar " ++ show testNum) $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
+   testInitVarPass testNum ns es start end v = TestCase $ assertEither ("testInitVar " ++ show testNum) () $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
    
    testInitVarFail :: Int -> [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
    testInitVarFail testNum ns es start end v = TestCase $ assertEitherFail ("testInitVar " ++ show testNum) $ checkInitVar (buildTestFlowGraph ns es start end v) (-1)
