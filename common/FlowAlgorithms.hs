@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module FlowAlgorithms where
 
+import Control.Monad.Error
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -37,8 +38,7 @@ data GraphFuncs n e a = GF {
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.
--- TODO add an error return
-flowAlgorithm :: (Ord n, Eq a) => GraphFuncs n e a -> [n] -> n -> Map.Map n a
+flowAlgorithm :: (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> n -> Either String (Map.Map n a)
 flowAlgorithm funcs nodes startNode
   = iterate
       (Set.fromList nonStartNodes)
@@ -46,19 +46,26 @@ flowAlgorithm funcs nodes startNode
   where
     nonStartNodes = (filter ((/=) startNode) nodes)
     
-    foldWithMaybe :: (b -> Maybe a -> a) -> Maybe a -> [b] -> a
-    foldWithMaybe _ Nothing [] = error "empty list for previous nodes in flowAlgorithm" -- TODO use a better error return
-    foldWithMaybe _ (Just a) [] = a
-    foldWithMaybe f ma (b:bs) = foldWithMaybe f (Just $ f b ma) bs
-    
+    foldWithMaybe :: (b -> Maybe a -> Either String a) -> Maybe a -> [b] -> Either String a
+    foldWithMaybe _ Nothing [] = throwError "empty list for previous nodes in flowAlgorithm"
+    foldWithMaybe _ (Just a) [] = return a
+    foldWithMaybe f ma (b:bs)
+      = do b' <- f b ma
+           foldWithMaybe f (Just b') bs
+
+--    iterateNode :: Map.Map n a -> (n,e) -> Maybe a -> Either String a
+    iterateNode vals ne ma
+      = case Map.lookup (fst ne) vals of
+          Nothing -> throwError $ "Value not found for node edge: " ++ show (fst ne)
+          Just v -> return $ nodeFunc funcs ne v ma
   
-    -- TODO stop using fromJust, in favour of adding a more obvious error (even though fromJust should be safe here)
---    iterate :: Ord n => Set.Set n -> Map.Map n a -> Map.Map n a
+--    iterate :: Ord n => Set.Set n -> Map.Map n a -> Either String (Map.Map n a)
     iterate workList vals
-      | Set.null workList = vals
+      | Set.null workList = Right vals
       | otherwise
-          = let (node, workList') = Set.deleteFindMin workList in
-            let total = foldWithMaybe (\ne -> nodeFunc funcs ne (fromJust $ Map.lookup (fst ne) vals)) Nothing (prevNodes funcs node) in
-            if total /= fromJust (Map.lookup node vals)
-              then iterate (workList' `Set.union` (Set.fromList $ map fst $ nextNodes funcs node)) (Map.insert node total vals)
-              else iterate workList' vals
+          = do let (node, workList') = Set.deleteFindMin workList
+               total <- foldWithMaybe (iterateNode vals) Nothing (prevNodes funcs node)
+               nodeVal <- Map.lookup node vals
+               if total /= nodeVal
+                 then iterate (workList' `Set.union` (Set.fromList $ map fst $ nextNodes funcs node)) (Map.insert node total vals)
+                 else iterate workList' vals
