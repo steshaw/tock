@@ -25,7 +25,7 @@ module RainUsageCheck where
 import Control.Monad.Identity
 import Data.Generics
 import Data.Graph.Inductive
-import Data.List
+import Data.List hiding (union)
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -248,6 +248,36 @@ parUsageCheck proc
           subscriptedArrays' (A.SubscriptedVariable _ _ v) = Just v
           subscriptedArrays' _ = Nothing
 -}
+
+-- | A custom Set wrapper that allows for easy representation of the "everything" set.
+-- In most instances, we could actually build the everything set, but
+-- representing it this way is easier, more efficient, and more readable.
+-- As you would expect, Everything `intersection` x = x, and Everything `union` x = Everything.
+data Ord a => ExSet a = Everything | NormalSet (Set.Set a) deriving (Eq, Show)
+
+intersection :: Ord a => ExSet a -> ExSet a -> ExSet a
+intersection Everything x = x
+intersection x Everything = x
+intersection (NormalSet a) (NormalSet b) = NormalSet (Set.intersection a b)
+
+union :: Ord a => ExSet a -> ExSet a -> ExSet a
+union Everything _ = Everything
+union _ Everything = Everything
+union (NormalSet a) (NormalSet b) = NormalSet (Set.union a b)
+
+unions :: Ord a => [ExSet a] -> ExSet a
+unions [] = emptySet
+unions ss = foldl1 union ss
+
+emptySet :: Ord a => ExSet a
+emptySet = NormalSet (Set.empty)
+
+isSubsetOf :: Ord a => ExSet a -> ExSet a -> Bool
+-- Clause order is important here.  Everything is a subset of Everything so this must come first:
+isSubsetOf _ Everything = True
+isSubsetOf Everything _ = False
+isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
+
 
 
 -- TODO have some sort of error-message return if the check fails or if the code fails
