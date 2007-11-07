@@ -38,7 +38,7 @@ data GraphFuncs n e a = GF {
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.
-flowAlgorithm :: (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> n -> Either String (Map.Map n a)
+flowAlgorithm :: forall n e a. (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> n -> Either String (Map.Map n a)
 flowAlgorithm funcs nodes startNode
   = iterate
       (Set.fromList nonStartNodes)
@@ -53,13 +53,13 @@ flowAlgorithm funcs nodes startNode
       = do b' <- f b ma
            foldWithMaybe f (Just b') bs
 
---    iterateNode :: Map.Map n a -> (n,e) -> Maybe a -> Either String a
+    iterateNode :: Map.Map n a -> (n,e) -> Maybe a -> Either String a
     iterateNode vals ne ma
       = case Map.lookup (fst ne) vals of
           Nothing -> throwError $ "Value not found for node edge: " ++ show (fst ne)
           Just v -> return $ nodeFunc funcs ne v ma
   
---    iterate :: Ord n => Set.Set n -> Map.Map n a -> Either String (Map.Map n a)
+    iterate :: Set.Set n -> Map.Map n a -> Either String (Map.Map n a)
     iterate workList vals
       | Set.null workList = Right vals
       | otherwise
