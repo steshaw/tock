@@ -45,10 +45,12 @@ module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buil
 
 import Control.Monad.Error
 import Control.Monad.State
+import Data.Generics
 import Data.Graph.Inductive
 
 import qualified AST as A
 import Metadata
+import TreeUtil
 import Utils
 
 -- | A node will either have zero links out, one or more Seq links, or one or more Par links.
@@ -219,3 +221,11 @@ buildFlowGraph funcs s
            return (nStart, nEnd)
     buildProcess p = do (liftM mkPair) $ addNode' (findMeta p) labelProcess p
 
+decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp22 con f1 = decomp2 con return f1
+
+decomp23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp23 con f1 = decomp3 con return f1 return
+
+decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp33 con f2 = decomp3 con return return f2

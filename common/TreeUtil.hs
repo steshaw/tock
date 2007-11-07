@@ -24,6 +24,7 @@ module TreeUtil (
   mkPattern, stopCaringPattern, namePattern, nameAndStopCaringPattern, 
   checkTreeForConstr,
   con0, con1, con2, con3, con4, con5, con6, con7
+  , decomp1, decomp2, decomp3
   ) where
 
 import Control.Monad.State
@@ -380,4 +381,25 @@ con6 f = toConstr (f undefined undefined undefined undefined undefined undefined
 con7 :: Data a => (a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a) -> Constr
 con7 f = toConstr (f undefined undefined undefined undefined undefined undefined undefined)
 
+
+popFunc :: Monad m => GenericM (StateT [GenericM' m] m)
+popFunc x = do (f:fs) <- get
+               put fs
+               lift ((unGM f) x)
+
+mkM' :: (Monad m, Typeable a) => (a -> m a)-> GenericM' m
+mkM' f = GM {unGM = mkM f}
+
+gmapFuncs :: (Monad m, Data a) => [GenericM' m] -> a -> m a
+gmapFuncs funcs term = evalStateT (gmapM popFunc term) funcs
+
+--TODO check con against the constructor
+decomp1 :: (Monad m, Data a, Typeable a0) => (a0 -> a) -> (a0 -> m a0) -> (a -> m a)
+decomp1 con f0 = gmapFuncs [mkM' f0]
+
+decomp2 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a -> m a)
+decomp2 con f0 f1 = gmapFuncs [mkM' f0, mkM' f1]
+
+decomp3 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a -> m a)
+decomp3 con f0 f1 f2 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2]
 
