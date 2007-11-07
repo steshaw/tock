@@ -64,17 +64,35 @@ data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 --If is (previous condition) (final node)
 data OuterType = None | Seq | Par | Case (Node,Node) | If Node Node
 
-newtype FNode a = Node (Meta, a)
+-- | A type used to build up tree-modifying functions.  When given an inner modification function,
+-- it returns a modification function for the whole tree.  The functions are monadic, to
+-- provide flexibility; you can always use the Identity monad.
+type ASTModifier m inner = (inner -> m inner) -> (A.Structured -> m A.Structured)
+
+-- | An operator for combining ASTModifier functions as you walk the tree.
+-- While its implementation is simple, it adds clarity to the code.
+(@->) :: ASTModifier m outer -> ((inner -> m inner) -> (outer -> m outer)) -> ASTModifier m inner
+(@->) = (.)
+
+-- | A choice of AST altering functions built on ASTModifier.
+data AlterAST m = 
+  AlterProcess (ASTModifier m A.Process)
+ |AlterExpression (ASTModifier m A.Expression)
+ |AlterExpressionList (ASTModifier m A.ExpressionList)
+ |AlterSpec (ASTModifier m A.Specification)
+ |AlterNothing
+
+data Monad m => FNode m a = Node (Meta, a, AlterAST m)
 --type FEdge = (Node, EdgeLabel, Node)
 
-instance Show a => Show (FNode a) where
-  show (Node (m,x)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
+instance (Monad m, Show a) => Show (FNode m a) where
+  show (Node (m,x,_)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
 
-type FlowGraph a = Gr (FNode a) EdgeLabel
+type FlowGraph m a = Gr (FNode m a) EdgeLabel
 
-type NodesEdges a = ([LNode (FNode a)],[LEdge EdgeLabel])
-    
-type GraphMaker m a b = ErrorT String (StateT (Node, Int, NodesEdges a) m) b
+type NodesEdges m a = ([LNode (FNode m a)],[LEdge EdgeLabel])
+
+type GraphMaker m a b = ErrorT String (StateT (Node, Int, NodesEdges m a) m) b
 
 data Monad m => GraphLabelFuncs m label = GLF {
      labelDummy :: Meta -> m label
