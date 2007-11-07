@@ -282,16 +282,16 @@ isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
 
 
 -- TODO have some sort of error-message return if the check fails or if the code fails
-checkInitVar :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String ()
+checkInitVar :: forall m. Monad m => FlowGraph m (Maybe Decl, Vars) -> Node -> Either String ()
 checkInitVar graph startNode
   = do vwb <- varWrittenBefore
        mapM_ (checkInitVar' vwb) (map readNode (labNodes graph))
   where
-    readNode :: (Node, FNode (Maybe Decl, Vars)) -> (Node, ExSet Var)
-    readNode (n, Node (_,(_,Vars read _ _ _))) = (n,NormalSet read)
+    readNode :: (Node, FNode m (Maybe Decl, Vars)) -> (Node, ExSet Var)
+    readNode (n, Node (_,(_,Vars read _ _ _),_)) = (n,NormalSet read)
   
-    writeNode :: FNode (Maybe Decl, Vars) -> ExSet Var
-    writeNode (Node (_,(_,Vars _ _ written _))) = NormalSet written
+    writeNode :: FNode m (Maybe Decl, Vars) -> ExSet Var
+    writeNode (Node (_,(_,Vars _ _ written _),_)) = NormalSet written
     
     -- Nothing is treated as if were the set of all possible variables (easier than building that set):
     nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
@@ -325,7 +325,8 @@ checkInitVar graph startNode
 
 -- I considered having the return type be Map Var (Map Node x)) rather than Map (Var,Node) x, but the time for lookup
 -- will be identical (log N + log V in the former case, log (V*N) in the latter), and having a pair seemed simpler.
-findReachDef :: FlowGraph (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
+-- TODO correct that comment!
+findReachDef :: forall m. Monad m => FlowGraph m (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
 findReachDef graph startNode
   = do r <- flowAlgorithm graphFuncs (nodes graph) startNode
        -- These lines remove the maps where the variable is not read in that particular node:
@@ -345,18 +346,18 @@ findReachDef graph startNode
     readInNode' :: Node -> Var -> a -> Bool
     readInNode' n v _ = readInNode v (lab graph n)
 
-    readInNode :: Var -> Maybe (FNode (Maybe Decl, Vars)) -> Bool
-    readInNode v (Just (Node (_,(_,Vars read _ _ _)))) = Set.member v read
+    readInNode :: Var -> Maybe (FNode m (Maybe Decl, Vars)) -> Bool
+    readInNode v (Just (Node (_,(_,Vars read _ _ _),_))) = Set.member v read
     
-    writeNode :: FNode (Maybe Decl, Vars) -> Set.Set Var
-    writeNode (Node (_,(_,Vars _ _ written _))) = written
+    writeNode :: FNode m (Maybe Decl, Vars) -> Set.Set Var
+    writeNode (Node (_,(_,Vars _ _ written _),_)) = written
       
     -- | A confusiing function used by processNode.   It takes a node and node label, and uses
     -- these to form a multi-map modifier function that replaces all node-sources for variables
     -- written to by the given with node with a singleton set containing the given node.
     -- That is, nodeLabelToMapInsert N (Node (_,Vars _ written _ _)) is a function that replaces
     -- the sets for each v (v in written) with a singleton set {N}.
-    nodeLabelToMapInsert :: Node -> FNode (Maybe Decl, Vars) -> Map.Map Var (Set.Set Node) -> Map.Map Var (Set.Set Node)
+    nodeLabelToMapInsert :: Node -> FNode m (Maybe Decl, Vars) -> Map.Map Var (Set.Set Node) -> Map.Map Var (Set.Set Node)
     nodeLabelToMapInsert n = foldFuncs . (map (\v -> Map.insert v (Set.singleton n) )) . Set.toList . writeNode
       
     processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set Node) -> Maybe (Map.Map Var (Set.Set Node)) -> Map.Map Var (Set.Set Node)

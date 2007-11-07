@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module RainUsageCheckTest (tests) where
 
+import Control.Monad.Identity
 import Data.Graph.Inductive
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -134,14 +135,14 @@ testParUsageCheck = TestList (map doTest tests)
 --TODO add tests for initialising a variable before use.
 --TODO especially test things like only initialising the variable in one part of an if
 
-buildTestFlowGraph :: [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph (Maybe Decl, Vars)
+buildTestFlowGraph :: [(Int, [Var], [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph Identity (Maybe Decl, Vars)
 buildTestFlowGraph ns es start end v
   = mkGraph
-      ([(-1,Node (emptyMeta,(Just $ ScopeIn v, emptyVars))),(-2,Node (emptyMeta,(Just $ ScopeOut v,emptyVars)))] ++ (map transNode ns))
+      ([(-1,Node (emptyMeta,(Just $ ScopeIn v, emptyVars), undefined)),(-2,Node (emptyMeta,(Just $ ScopeOut v,emptyVars), undefined))] ++ (map transNode ns))
       ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
   where
-    transNode :: (Int, [Var], [Var], [Var]) -> (Int, FNode (Maybe Decl, Vars))
-    transNode (n,mr,mw,dw) = (n,Node (emptyMeta, (Nothing,vars mr mw dw [])))
+    transNode :: (Int, [Var], [Var], [Var]) -> (Int, FNode Identity (Maybe Decl, Vars))
+    transNode (n,mr,mw,dw) = (n,Node (emptyMeta, (Nothing,vars mr mw dw []), undefined))
 
 testInitVar :: Test
 testInitVar = TestList
