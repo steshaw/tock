@@ -103,65 +103,90 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelScopeOut :: A.Specification -> m label
   }
 
+(>>*) :: Monad m => m a -> (a -> b) -> m b
+(>>*) v f = v >>= (return . f)
+
 -- | Builds the instructions to send to GraphViz
-makeFlowGraphInstr :: Show a => FlowGraph a -> String
+makeFlowGraphInstr :: (Monad m, Show a) => FlowGraph m a -> String
 makeFlowGraphInstr = graphviz'
 
 -- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
-buildFlowGraph :: Monad m => GraphLabelFuncs m a -> A.Structured -> m (Either String (FlowGraph a))
+buildFlowGraph :: forall m label. Monad m => GraphLabelFuncs m label -> A.Structured -> m (Either String (FlowGraph m label))
 buildFlowGraph funcs s
-  = do res <- runStateT (runErrorT $ buildStructured None s) (0, 0, ([],[]) )
+  = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]) )
        return $ case res of
                   (Left err,_) -> Left err
                   (_,(_,_,(nodes, edges))) -> Right (mkGraph nodes edges)
   where
     -- All the functions return the new graph, and the identifier of the node just added
     
--- Type commented out because it's not technically correct, but looks right to me:
---    run :: Monad m => (GraphLabelFuncs m a -> (b -> m a)) -> b -> m a
+    run :: (GraphLabelFuncs m label -> (b -> m label)) -> b -> m label
     run func = func funcs
         
-    addNode :: Monad m => (Meta, a) -> GraphMaker m a Node
+    addNode :: (Meta, label, AlterAST m) -> GraphMaker m label Node
     addNode x = do (n,pi,(nodes, edges)) <- get
                    put (n+1, pi,((n, Node x):nodes, edges))
                    return n
     
-    addEdge :: Monad m => EdgeLabel -> Node -> Node -> GraphMaker m a ()
+    addEdge :: EdgeLabel -> Node -> Node -> GraphMaker m label ()
     addEdge label start end = do (n, pi, (nodes, edges)) <- get
                                  put (n + 1, pi, (nodes,(start, end, label):edges))
     
--- Type commented out because it's not technically correct, but looks right to me:
---    addNode' :: Monad m => Meta -> (GraphLabelFuncs m a -> (b -> m a)) -> b -> GraphMaker m a Node
-    addNode' m f t = do val <- (lift . lift) (run f t)
-                        addNode (m, val)
+    addNode' :: Meta -> (GraphLabelFuncs m label -> (b -> m label)) -> b -> AlterAST m -> GraphMaker m label Node
+    addNode' m f t r = do val <- (lift . lift) (run f t)
+                          addNode (m, val, r)
     
--- Type commented out because it's not technically correct, but looks right to me:
---    addDummyNode :: Meta -> GraphMaker m a Node
-    addDummyNode m = addNode' m labelDummy m
+    addNodeExpression :: Meta -> A.Expression -> (ASTModifier m A.Expression) -> GraphMaker m label Node
+    addNodeExpression m e r = addNode' m labelExpression e (AlterExpression r)
+
+    addNodeExpressionList :: Meta -> A.ExpressionList -> (ASTModifier m A.ExpressionList) -> GraphMaker m label Node
+    addNodeExpressionList m e r = addNode' m labelExpressionList e (AlterExpressionList r)
     
-    addParEdges :: Monad m => Node -> Node -> [(Node,Node)] -> GraphMaker m a ()
+    addDummyNode :: Meta -> GraphMaker m label Node
+    addDummyNode m = addNode' m labelDummy m AlterNothing
+    
+    addParEdges :: Node -> Node -> [(Node,Node)] -> GraphMaker m label ()
     addParEdges s e pairs = do (n,pi,(nodes,edges)) <- get
                                put (n,pi+1,(nodes,edges ++ (concatMap (parEdge pi) pairs)))
       where
         parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
         parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
     
+    -- The build-up functions are all of type (innerType -> m innerType) -> outerType -> m outerType
+    -- which has the synonym Route m innerType outerType
+
+    getN :: Int -> [a] -> ([a],a,[a])
+    getN n xs = let (f,(m:e)) = splitAt n xs in (f,m,e)
+
+    routeList :: Int -> (a -> m a) -> ([a] -> m [a])
+    routeList n f xs
+      = do let (pre,x,suf) = getN n xs
+           x' <- f x
+           return (pre ++ [x'] ++ suf)
+    
+    mapMR :: forall inner. ASTModifier m [inner] -> (inner -> ASTModifier m inner -> GraphMaker m label (Node,Node)) -> [inner] -> GraphMaker m label [(Node,Node)]
+    mapMR outerRoute func xs = mapM funcAndRoute (zip [0..] xs)
+      where
+        funcAndRoute :: (Int, inner) -> GraphMaker m label (Node,Node)
+        funcAndRoute (ind,x) = func x (outerRoute @-> routeList ind)
+        
+    joinPairs :: Meta -> [(Node, Node)] -> GraphMaker m label (Node, Node)
+    joinPairs m [] = addDummyNode m >>* mkPair
+    joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
+                           return (fst (head nodes), snd (last nodes))
+    
+    
     -- Returns a pair of beginning-node, end-node
--- Type commented out because it's not technically correct, but looks right to me:
---    buildStructured :: OuterType -> A.Structured -> GraphMaker m a (Node, Node)
-    buildStructured outer (A.Several m ss) 
+    buildStructured :: OuterType -> A.Structured -> ASTModifier m A.Structured -> GraphMaker m label (Node, Node)
+    buildStructured outer (A.Several m ss) route
       = do case outer of
              None -> -- If there is no context, they should be left as disconnected graphs.
-                     do nodes <- mapM (buildStructured outer) ss
+                     do nodes <- mapMR decompSeveral (buildStructured outer) ss
                         n <- addDummyNode m
                         return (n, n)
-             Seq -> do nodes <- mapM (buildStructured outer) ss
-                       sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
-                       case nodes of
-                         [] -> do n <- addDummyNode m
-                                  return (n,n)
-                         _ -> return (fst (head nodes), snd (last nodes))
-             Par -> do nodes <- mapM (buildStructured outer) ss
+             Seq -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
+                       joinPairs m nodes
+             Par -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
                        case nodes of
                          [] -> do n <- addDummyNode m
                                   return (n,n)
@@ -173,18 +198,22 @@ buildFlowGraph funcs s
                            return (nStart, nEnd)
              --Because the conditions in If statements are chained together, we
              --must fold the specs, not map them independently
-             If prev end -> foldM foldIf (prev,end) ss 
+             If prev end -> foldM foldIf (prev,end) (zip [0..] ss)
                where
                  -- Type commented out because it's not technically correct, but looks right to me:
-                 -- foldIf :: (Node,Node) -> A.Structured -> GraphMaker m a (Node, Node)
-                 foldIf (prev,end) s = do (prev',_) <- buildStructured (If prev end) s
-                                          return (prev', end)
-             _ -> do nodes <- mapM (buildStructured outer) ss
+                 foldIf :: (Node,Node) -> (Int,A.Structured) -> GraphMaker m label (Node, Node)
+                 foldIf (prev,end) (ind,s) = do (prev',_) <- buildStructured (If prev end) s $ decompSeveral @-> (routeList ind)
+                                                return (prev', end)
+             _ -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
                      return (-1,-1)
-    buildStructured _ (A.OnlyP _ p) = buildProcess p
-    buildStructured outer (A.OnlyC _ (A.Choice m exp p))
-      = do nexp <- addNode' m labelExpression exp
-           (nbodys, nbodye) <- buildProcess p
+      where
+        decompSeveral :: ASTModifier m [A.Structured]
+        decompSeveral = route22 route A.Several
+        
+    buildStructured _ (A.OnlyP _ p) route = buildProcess p (route22 route A.OnlyP)
+    buildStructured outer (A.OnlyC _ (A.Choice m exp p)) route
+      = do nexp <- addNodeExpression m exp $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> do {exp' <- f exp; return (A.OnlyC m (A.Choice m' exp' p))})
+           (nbodys, nbodye) <- buildProcess p $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> f p >>* ((A.OnlyC m) . (A.Choice m' exp)))
            addEdge ESeq nexp nbodys
            case outer of
              If cPrev cEnd ->
@@ -192,52 +221,52 @@ buildFlowGraph funcs s
                   addEdge ESeq nbodye cEnd
              _ -> throwError "Choice found outside IF statement"
            return (nexp,nbodye)
-    buildStructured outer (A.OnlyO _ opt)
+    buildStructured outer (A.OnlyO _ opt) route
       = do (s,e) <-
              case opt of
                (A.Option m es p) -> do
-                 nexp <- addNode' m labelExpressionList (A.ExpressionList m es)
-                 (nbodys, nbodye) <- buildProcess p
-                 addEdge ESeq nexp nbodys
-                 return (nexp,nbodye)
-               (A.Else _ p) -> buildProcess p
+                 nexpNodes <- mapMR (route @-> (\f (A.OnlyO m (A.Option m2 es p)) -> do {es' <- f es; return $ A.OnlyO m $ A.Option m2 es' p})) (\e r -> addNodeExpression (findMeta e) e r >>* mkPair) es
+                 (nexps, nexpe) <- joinPairs m nexpNodes
+                 (nbodys, nbodye) <- buildProcess p $ route @-> (\f (A.OnlyO m (A.Option m2 es p)) -> f p >>* ((A.OnlyO m) . (A.Option m2 es)))
+                 addEdge ESeq nexpe nbodys
+                 return (nexps,nbodye)
+               (A.Else _ p) -> buildProcess p $ route @-> (\f (A.OnlyO m (A.Else m2 p)) -> f p >>* ((A.OnlyO m) . (A.Else m2)))
            case outer of
              Case (cStart, cEnd) ->
                do addEdge ESeq cStart s
                   addEdge ESeq e cEnd
              _ -> throwError "Option found outside CASE statement"
            return (s,e)
-    buildStructured outer (A.Spec m spec str)
-      = do n <- addNode' m labelScopeIn spec
-           n' <- addNode' m labelScopeOut spec
-           (s,e) <- buildStructured outer str
+    buildStructured outer (A.Spec m spec str) route
+      = do n <- addNode' m labelScopeIn spec (AlterSpec $ route23 route A.Spec)
+           n' <- addNode' m labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+           (s,e) <- buildStructured outer str (route33 route A.Spec)
            addEdge ESeq n s
            addEdge ESeq e n'
            return (n,n')
-    buildStructured _ s = do n <- addDummyNode (findMeta s)
-                             return (n,n)
+    buildStructured _ s _ = do n <- addDummyNode (findMeta s)
+                               return (n,n)
     
--- Type commented out because it's not technically correct, but looks right to me:
---    buildProcess :: A.Process -> GraphMaker m a (Node, Node)
-    buildProcess (A.Seq _ s) = buildStructured Seq s
-    buildProcess (A.Par _ _ s) = buildStructured Par s
-    buildProcess (A.While m e p)
-      = do n <- addNode' m labelExpression e
-           (start, end) <- buildProcess p
+    buildProcess :: A.Process -> ASTModifier m A.Process -> GraphMaker m label (Node, Node)
+    buildProcess (A.Seq _ s) route = buildStructured Seq s (route22 route A.Seq)
+    buildProcess (A.Par _ _ s) route = buildStructured Par s (route33 route A.Par)
+    buildProcess (A.While m e p) route
+      = do n <- addNodeExpression m e (route23 route A.While)
+           (start, end) <- buildProcess p (route33 route A.While)
            addEdge ESeq n start
            addEdge ESeq end n
            return (n, n)
-    buildProcess (A.Case m e s)
-      = do nStart <- addNode' (findMeta e) labelExpression e
+    buildProcess (A.Case m e s) route
+      = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
            nEnd <- addDummyNode m
-           buildStructured (Case (nStart,nEnd)) s
+           buildStructured (Case (nStart,nEnd)) s (route33 route A.Case)
            return (nStart, nEnd)
-    buildProcess (A.If m s)
+    buildProcess (A.If m s) route
       = do nStart <- addDummyNode m
            nEnd <- addDummyNode m
-           buildStructured (If nStart nEnd) s
+           buildStructured (If nStart nEnd) s (route22 route A.If)
            return (nStart, nEnd)
-    buildProcess p = do (liftM mkPair) $ addNode' (findMeta p) labelProcess p
+    buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route) >>* mkPair
 
 decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
 decomp22 con f1 = decomp2 con return f1
@@ -247,3 +276,12 @@ decomp23 con f1 = decomp3 con return f1 return
 
 decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
 decomp33 con f2 = decomp3 con return return f2
+
+route22 :: (Monad m, Data a, Typeable a0, Typeable a1) => ASTModifier m a -> (a0 -> a1 -> a) -> ASTModifier m a1
+route22 route con = route @-> (decomp22 con)
+
+route23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a1
+route23 route con = route @-> (decomp23 con)
+
+route33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a2
+route33 route con = route @-> (decomp33 con)
