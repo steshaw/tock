@@ -93,13 +93,13 @@ testGraph testName nodes edges proc
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
     
-    deNode :: FNode a -> (Meta, a)
-    deNode (Node x) = x
+    deNode :: Monad m => FNode m a -> (Meta, a)
+    deNode (Node (x,y,_)) = (x,y)
     
     testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
     testOps = GLF nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
-    checkGraphEquality :: (Graph g, Show b, Ord b) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode Int) b -> Assertion
+    checkGraphEquality :: (Graph g, Show b, Ord b, Monad m) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode m Int) b -> Assertion
     checkGraphEquality (nodes, edges) g
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
