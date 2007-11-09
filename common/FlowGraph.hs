@@ -41,7 +41,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * If statements, on the other hand, have to be chained together.  Each expression is connected
 -- to its body, but also to the next expression.  There is no link between the last expression
 -- and the end of the if; if statements behave like STOP if nothing is matched.
-module FlowGraph (EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, makeFlowGraphInstr) where
+module FlowGraph (AlterAST(..), EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, makeFlowGraphInstr) where
 
 import Control.Monad.Error
 import Control.Monad.State
