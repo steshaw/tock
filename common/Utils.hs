@@ -123,3 +123,9 @@ applyAll x = map (\f -> f x)
 -- | Like concat applied after mapM (or the monadic version of concatMap).
 concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
 concatMapM f x = mapM f x >>* concat
+
+-- | Like the monadic sequence function, but for pairs instead of lists.
+seqPair :: Monad m => (m a, m b) -> m (a,b)
+seqPair (x,y) = do x' <- x
+                   y' <- y
+                   return (x',y')
