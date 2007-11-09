@@ -148,3 +148,24 @@ modify' :: MonadState s m => (s -> s) -> m s
 modify' f = do x <- get
                put (f x)
                return x
+
+-- | A size 3 version of the standard uncurry function.
+uncurry3 :: (a -> b -> c -> d) -> (a,b,c) -> d
+uncurry3 f (x,y,z) = f x y z
+
+-- | A size 4 version of the standard uncurry function.
+uncurry4 :: (a -> b -> c -> d -> e) -> (a,b,c,d) -> e
+uncurry4 f (x,y,z,a) = f x y z a
+
+-- | Given a pair of lists, produces a list of pairs that is the cartesian product of the two lists.
+product2 :: ([a],[b]) -> [(a,b)]
+product2 (l0,l1) = [(x0,x1) | x0 <- l0, x1 <- l1]
+
+-- | Given a triple of lists, produces a list of pairs that is the cartesian product of the three lists.
+product3 :: ([a],[b],[c]) -> [(a,b,c)]
+product3 (l0,l1,l2) = [(x0,x1,x2) | x0 <- l0, x1 <- l1, x2 <- l2]
+
+-- | Given a triple of lists, produces a list of pairs that is the cartesian product of the three lists.
+product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
+product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
+
