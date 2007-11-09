@@ -34,6 +34,7 @@ import qualified Data.Set as Set
 import qualified AST as A
 import FlowAlgorithms
 import FlowGraph
+import Utils
 
 -- In Rain, Deref can't nest with Dir in either way, so this doesn't need to be a recursive type:
 data Var =
@@ -373,10 +374,6 @@ findReachDef graph startNode
         
         modifiedInput :: Map.Map Var (Set.Set Node)
         modifiedInput = (maybe id (nodeLabelToMapInsert n) $ lab graph n) inputVal
-
-    -- | Folds a list of modifier functions into a single function
-    foldFuncs :: [a -> a] -> a -> a
-    foldFuncs = foldl (.) id
     
     -- | Merges two "multi-maps" (maps to sets) using union
     mergeMultiMaps :: (Ord k, Ord a) => Map.Map k (Set.Set a) -> Map.Map k (Set.Set a) -> Map.Map k (Set.Set a)

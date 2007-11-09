@@ -106,3 +106,20 @@ combineCompare (EQ:os) = combineCompare os
 -- | Maps two functions over members of a pair
 transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
 transformPair f g (x,y) = (f x, g y)
+
+-- | Pipes a monadic return through a non-monadic transformation function:
+(>>*) :: Monad m => m a -> (a -> b) -> m b
+(>>*) v f = v >>= (return . f)
+
+-- | Folds a list of modifier functions into a single function
+foldFuncs :: [a -> a] -> a -> a
+foldFuncs = foldl (.) id
+
+-- | Like the reflection of map.  Instead of one function and multiple data,
+-- we have multiple functions and one data.
+applyAll :: a -> [a -> b] -> [b]
+applyAll x = map (\f -> f x)
+
+-- | Like concat applied after mapM (or the monadic version of concatMap).
+concatMapM :: Monad m => (a -> m [b]) -> [a] -> m [b]
+concatMapM f x = mapM f x >>* concat

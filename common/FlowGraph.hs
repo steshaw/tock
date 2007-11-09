@@ -103,9 +103,6 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelScopeOut :: A.Specification -> m label
   }
 
-(>>*) :: Monad m => m a -> (a -> b) -> m b
-(>>*) v f = v >>= (return . f)
-
 -- | Builds the instructions to send to GraphViz
 makeFlowGraphInstr :: (Monad m, Show a) => FlowGraph m a -> String
 makeFlowGraphInstr = graphviz'
