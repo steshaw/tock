@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- that could be put into the standard library.
 module Utils where
 
-import Control.Monad
+import Control.Monad.State
 import Control.Monad.State.Class
 import Data.Ord
 import System.IO
@@ -118,9 +118,7 @@ foldFuncs = foldl (.) id
 
 -- | Folds a list of monadic modifier functions into a single function
 foldFuncsM :: Monad m => [a -> m a] -> a -> m a
-foldFuncsM = foldl chain return
-  where
-    chain f0 f1 x = f0 x >>= f1
+foldFuncsM = foldl (<.<) return
 
 -- | Like the reflection of map.  Instead of one function and multiple data,
 -- we have multiple functions and one data.
@@ -148,6 +146,18 @@ modify' :: MonadState s m => (s -> s) -> m s
 modify' f = do x <- get
                put (f x)
                return x
+
+-- | Similar to modify, but the modification function is monadic, and returns a value.
+modifyM :: Monad m => (s -> m (a,s)) -> StateT s m a
+modifyM f = do st <- get
+               (x, st') <- lift $ f st
+               put st'
+               return x
+
+-- | Like the (.) operator, but for monads.  
+(<.<) :: Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
+(<.<) f1 f0 x = f0 x >>= f1
+
 
 -- | A size 3 version of the standard uncurry function.
 uncurry3 :: (a -> b -> c -> d) -> (a,b,c) -> d
