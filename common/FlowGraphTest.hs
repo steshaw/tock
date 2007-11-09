@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module FlowGraphTest (tests) where
 
+import Control.Monad.Identity
 import Control.Monad.State
 
 import Data.Generics
@@ -26,6 +27,7 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import Test.HUnit hiding (Node, State)
+import Test.QuickCheck
 
 import qualified AST as A
 import FlowGraph
@@ -228,12 +230,175 @@ testIf = TestList
 --TODO test input-case statements
 --TODO test replicated ifs
 
+
+-- The idea here is that each type we generate an interesting node,
+-- we want to generate its replaced version too.  Then combine these as
+-- we go back up the tree to form a set of all possible trees (which is like the powerset of possible replacements, I think).
+-- We also want to ensure that the meta tags are unique (to label replacements), and I don't think
+-- QuickCheck easily supports that.
+
+-- So how to do this, given that QuickCheck expects something of type Gen a to come
+-- back out of Arbitrary?  We could generate Gen [a], with the understanding that the head
+-- is the source, all the others are possible replacements.  But then we need to label the replacements,
+-- which means we'd want Gen [([Meta],a)]
+
+-- However, in order to ensure we make unique meta tags, we have to add the StateT Int wrapper:
+      
+type GenL a = StateT Int Gen [([Meta], a)]
+
+replaceMeta :: Meta -> Meta
+replaceMeta m = sub m 8
+
+genMeta :: Meta -> GenL Meta
+genMeta m = return [([],m),([m],replaceMeta m)]
+
+-- Helper functions for dealing with the AST:
+
+genElem1 :: (Meta -> b) -> Meta -> GenL b
+genElem1 f m = comb1 f (genMeta m) --return [([],f m),([m],f $ replaceMeta m)]
+
+genElem2 :: (Meta -> a0 -> b) -> Meta -> GenL a0 -> GenL b
+genElem2 f m = comb2 f (genMeta m)
+
+genElem3 :: (Meta -> a0 -> a1 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL b
+genElem3 f m = comb3 f (genMeta m) 
+
+
+comb0 :: forall a. a -> GenL a
+comb0 x = return [([],x)]
+
+comb1 :: forall a0 b. (a0 -> b) -> GenL a0 -> GenL b
+comb1 func list0 = list0 >>* map process1
+  where
+    process1 :: ([Meta], a0) -> ([Meta],b)
+    process1 = transformPair id func
+
+comb2 :: forall a0 a1 b. (a0 -> a1 -> b) -> GenL a0 -> GenL a1 -> GenL b
+comb2 func list0 list1 = (liftM2 (,)) list0 list1 >>* product2 >>* map (uncurry process2)
+  where
+    process2 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],b)
+    process2 (keys0, val0) (keys1, val1) = (keys0++keys1, func val0 val1)
+    
+comb3 :: forall a0 a1 a2 b. (a0 -> a1 -> a2 -> b) -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
+comb3 func list0 list1 list2 = (liftM3 (,,)) list0 list1 list2 >>* product3 >>* map (uncurry3 process3)
+  where
+    process3 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],b)
+    process3 (keys0, val0) (keys1, val1) (keys2, val2) = (keys0++keys1++keys2, func val0 val1 val2)
+
+-- | Wrapper for Quickcheck.
+-- In order to stop conflict with Quickcheck's in-built rules for things such as pairs
+-- (which do not allow overlapping instances), we have to wrap such types ourself.
+data QC a = QC a deriving (Eq, Show)
+
+instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
+  arbitrary = evalStateT genStructured 0 >>* findEmpty >>* QC
+    where
+      -- Copies the value for the empty-list key into the first element of the tuple:
+      findEmpty :: [([Meta], a)] -> (a, Map.Map [Meta] a)
+      findEmpty xs = (fromJust $ Map.lookup [] m, m)
+        where m = Map.fromList xs
+
+  -- TODO define a method for coarbitrary?
+
+nextIdT :: Monad m => StateT Int m Int
+nextIdT = modify' ((+) 1)
+
+oneofL :: [GenL a] -> GenL a
+oneofL gs = do i <- lift $ choose (0,length gs-1)
+               gs !! i
+
+replaceM :: (Eq a, Monad m) => a -> a -> (a -> m a)
+replaceM find replace x | find == x = return replace
+                        | otherwise = return x
+
+
+genStructured :: GenL A.Structured
+genStructured = nextIdT >>* makeMeta >>= \m -> oneofL
+  [
+    genElem2 A.OnlyP m genProcess
+    -- TODO A.Several m []
+  ]
+
+
+genProcess :: GenL A.Process
+genProcess = nextIdT >>* makeMeta >>= \m -> oneofL
+  [
+    genElem1 A.Skip m
+   ,genElem1 A.Stop m
+  ]
+
+
+-- TODO put this in proper error monad
+genGraph :: A.Structured -> FlowGraph Identity ()
+genGraph s = either (const $ error "QuickCheck graph did not build properly") id $ runIdentity $ buildFlowGraph funcs s
+  where
+    empty = const (return ())
+    funcs = GLF empty empty empty empty empty empty 
+
+pickFuncId :: Monad m => FlowGraph m () -> [A.Structured -> m A.Structured]
+pickFuncId g = map (applyFunc . getFunc) (labNodes g)
+  where
+    getFunc (_,Node (_,_,f)) = f
+    
+    applyFunc (AlterProcess f) = f return
+    applyFunc (AlterExpression f) = f return
+    applyFunc (AlterExpressionList f) = f return
+    applyFunc (AlterSpec f) = f return
+    applyFunc (AlterNothing) = return
+
+pickFuncRep :: Monad m => FlowGraph m () -> Map.Map Meta (A.Structured -> m A.Structured)
+pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
+  where
+    getMetaFunc (_,Node (m,_,f)) = (m,f)
+    
+    helpApplyFunc (m,f) = (m, applyFunc (m,f))
+    
+    applyFunc (m,AlterProcess f) = f (g m)
+    applyFunc (m,AlterExpression f) = f (g m)
+    applyFunc (m,AlterExpressionList f) = f (g m)
+    applyFunc (m,AlterSpec f) = f (g m)
+    applyFunc (m,AlterNothing) = g m
+    
+    g m = everywhereM (mkM $ {-applyOnce $-} replaceM m (replaceMeta m))
+
+-- TODO don't let the tree grow too deep (suggest 10 as maximum number of nodes that could be changed, so 2^10 powersets)
+-- TODO alter the number of tests run
+
+deepCheck p = check (defaultConfig { configMaxTest = 1000}) p
+
+testModify :: Test
+testModify = TestList
+ [
+   TestCase $ deepCheck prop_Id
+  ,TestCase $ deepCheck prop_Rep
+ ]
+  where
+    prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
+    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g) $ \f -> runIdentity (f g) == g
+    prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
+    prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g) $ 
+        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) == Map.lookup ms rest
+
+    -- Repeatedly pairs the map with each element of the powerset of its keys
+    helper :: Monad m => Map.Map Meta (A.Structured -> m A.Structured) -> [(Map.Map Meta (A.Structured -> m A.Structured), [Meta])]
+    helper fs = zip (repeat fs) (powerset $ Map.keys fs)
+
+    -- Applies the functions associated with the given meta tags
+    applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured -> m A.Structured) -> (A.Structured -> m A.Structured)
+    applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
+
+
+    -- Collects multiple tests together:
+    collectAll = and
+--    collectAll = foldl collect (property ())
+
 --Returns the list of tests:
 tests :: Test
 tests = TestList
  [
   testCase
   ,testIf
+  ,testModify
   ,testPar
   ,testSeq
   ,testWhile
