@@ -26,6 +26,7 @@ import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import System.Random
 import Test.HUnit hiding (Node, State)
 import Test.QuickCheck
 
@@ -298,8 +299,13 @@ comb3 func list0 list1 list2 = (liftM3 (,,)) list0 list1 list2 >>* product3 >>* 
 -- (which do not allow overlapping instances), we have to wrap such types ourself.
 newtype QC a = QC a deriving (Eq, Show)
 
+-- | We don't allow size zero for generating trees.
+-- So we cheat by changing the size to 1, if it is 0.
+enforceSize1 :: Gen a -> Gen a
+enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
+
 instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
-  arbitrary = evalStateT genStructured (Id 0) >>* findEmpty >>* QC
+  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured n) (Id 0) >>* findEmpty >>* QC
     where
       -- Copies the value for the empty-list key into the first element of the tuple:
       findEmpty :: [([Meta], a)] -> (a, Map.Map [Meta] a)
@@ -320,24 +326,62 @@ oneofL :: [GenL a] -> GenL a
 oneofL gs = do i <- lift $ choose (0,length gs-1)
                gs !! i
 
+oneofLS :: [(Int, Int -> GenL a)] -> Int -> GenL a
+oneofLS fs n = oneofL $ applyAll n (filterFuncs n fs)
+  where
+    filterFuncs :: Int -> [(Int, Int -> GenL a)] -> [Int -> GenL a]
+    filterFuncs sz = map snd . filter ((>=) sz . fst)
+
 replaceM :: (Eq a, Monad m) => a -> a -> (a -> m a)
 replaceM find replace x | find == x = return replace
                         | otherwise = return x
 
 
-genStructured :: GenL A.Structured
-genStructured = nextIdT >>* makeMeta' >>= \m -> oneofL
+genNumsToTotal :: Int -> Gen [Int]
+genNumsToTotal 0 = return []
+genNumsToTotal n = do ch <- choose (1,n)
+                      chs <- genNumsToTotal (n-ch)
+                      return (ch:chs)
+
+-- | A function that takes a generator for an item, and generates a list of those,
+-- dividing up the size.  The list will be length 2-3 on average.
+genList :: (Int -> GenL a) -> Int -> GenL [a]
+genList _ 0 = return [([],[])]
+genList f n = (lift $ genNumsToTotal n) >>= mapM f >>= foldList
+  where
+    singleton x = [x]
+    foldList :: [[([Meta], a)]] -> StateT Id Gen [([Meta], [a])]
+    foldList [g] = comb1 singleton (return g)
+    foldList gs = return $ foldr foldX [] gs
+    
+    foldX :: [([Meta], a)] -> [([Meta], [a])] -> [([Meta], [a])]
+    foldX xs [] = map (uncurry mix) (zip xs $ repeat ([],[]))
+    foldX xs ys = map (uncurry mix) (product2 (xs,ys))
+    
+    mix :: ([Meta], a) -> ([Meta], [a]) -> ([Meta], [a])
+    mix (ms0,x) (ms1,xs) = (ms0++ms1,x:xs)
+
+sub1 :: Int -> Int
+sub1 x = x-1
+
+-- Be careful with the test generators; there should always be an option with value 1 (or 0)
+-- in every list.  Recursion should always decrease the test sized, and you
+-- should take the recursion into account in the required size (generally, recursive
+-- generators will have value 2 at least)
+
+genStructured :: Int -> GenL A.Structured
+genStructured n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
-    genElem2 A.OnlyP m genProcess
-    -- TODO A.Several m []
+    (2,genElem2 A.OnlyP m . genProcess . sub1 )
+   ,(1,genElem2 A.Several m . genList genStructured . sub1)
   ]
 
-
-genProcess :: GenL A.Process
-genProcess = nextIdT >>* makeMeta' >>= \m -> oneofL
+genProcess :: Int -> GenL A.Process
+genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
-    genElem1 A.Skip m
-   ,genElem1 A.Stop m
+    (1,const $ genElem1 A.Skip m)
+   ,(1,const $ genElem1 A.Stop m)
+   ,(2,genElem2 A.Seq m . genStructured . sub1)
   ]
 
 
@@ -372,18 +416,19 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
     applyFunc (m,AlterSpec f) = f (g m)
     applyFunc (m,AlterNothing) = g m
     
-    g m = everywhereM (mkM $ {-applyOnce $-} replaceM m (replaceMeta m))
+    g m = everywhereM (mkM $ replaceM m (replaceMeta m))
 
--- TODO don't let the tree grow too deep (suggest 10 as maximum number of nodes that could be changed, so 2^10 powersets)
--- TODO alter the number of tests run
-
-deepCheck p = check (defaultConfig { configMaxTest = 1000}) p
+-- It is important to have these functions in the right ratio.  The number of possible trees is
+-- 2^N, where N is the test size.  Therefore I suggest keeping N <= 10 as a sensible limit.
+-- Hence, if there are 1000 tests, we divide the test number by 100 to get the test size.
+deepCheck p = check (defaultConfig { configMaxTest = 1000, configSize = \x -> div x 100}) p
 
 testModify :: Test
 testModify = TestList
  [
    TestCase $ deepCheck prop_Id
   ,TestCase $ deepCheck prop_Rep
+  ,TestCase $ deepCheck prop_gennums
  ]
   where
     prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
@@ -391,6 +436,10 @@ testModify = TestList
     prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
     prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g) $ 
         \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) == Map.lookup ms rest
+  
+    -- This tests our genNumsToTotal function, which is itself a test generator; nasty!
+    prop_gennums :: Int -> Bool
+    prop_gennums n = (generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum)) == n
 
     -- Repeatedly pairs the map with each element of the powerset of its keys
     helper :: Monad m => Map.Map Meta (A.Structured -> m A.Structured) -> [(Map.Map Meta (A.Structured -> m A.Structured), [Meta])]
