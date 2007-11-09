@@ -26,8 +26,9 @@ import Data.List
 import qualified AST as A
 import CompState
 import Metadata
-import Types
 import Pass
+import Types
+import Utils
 
 simplifyComms :: Pass
 simplifyComms = runPasses passes
@@ -46,11 +47,11 @@ outExprs = doGeneric `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
-              let foldedSpec = foldl (.) id specs
+              let foldedSpec = foldFuncs specs
               return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.Output m c ois')
     doProcess (A.OutputCase m c tag ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
-              let foldedSpec = foldl (.) id specs
+              let foldedSpec = foldFuncs specs
               return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.OutputCase m c tag ois')
     doProcess p = doGeneric p
   
