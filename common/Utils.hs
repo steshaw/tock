@@ -21,6 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Utils where
 
 import Control.Monad
+import Control.Monad.State.Class
 import Data.Ord
 import System.IO
 import System.IO.Error
@@ -141,3 +142,9 @@ seqPair (x,y) = do x' <- x
 -- Taken from: http://www.haskell.org/haskellwiki/Blow_your_mind
 powerset :: [a] -> [[a]]
 powerset = filterM (const [True, False])
+
+-- | Alters a monadic state and returns the old value (from before the alteration).
+modify' :: MonadState s m => (s -> s) -> m s
+modify' f = do x <- get
+               put (f x)
+               return x
