@@ -115,6 +115,12 @@ transformPair f g (x,y) = (f x, g y)
 foldFuncs :: [a -> a] -> a -> a
 foldFuncs = foldl (.) id
 
+-- | Folds a list of monadic modifier functions into a single function
+foldFuncsM :: Monad m => [a -> m a] -> a -> m a
+foldFuncsM = foldl chain return
+  where
+    chain f0 f1 x = f0 x >>= f1
+
 -- | Like the reflection of map.  Instead of one function and multiple data,
 -- we have multiple functions and one data.
 applyAll :: a -> [a -> b] -> [b]
@@ -129,3 +135,9 @@ seqPair :: Monad m => (m a, m b) -> m (a,b)
 seqPair (x,y) = do x' <- x
                    y' <- y
                    return (x',y')
+
+-- | Forms the powerset of a given list.
+-- It uses the list monad cleverly, and it scares me.  But it works.
+-- Taken from: http://www.haskell.org/haskellwiki/Blow_your_mind
+powerset :: [a] -> [[a]]
+powerset = filterM (const [True, False])
