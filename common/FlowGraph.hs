@@ -92,7 +92,7 @@ type FlowGraph m a = Gr (FNode m a) EdgeLabel
 
 type NodesEdges m a = ([LNode (FNode m a)],[LEdge EdgeLabel])
 
-type GraphMaker m a b = ErrorT String (StateT (Node, Int, NodesEdges m a) m) b
+type GraphMaker mLabel mAlter a b = ErrorT String (StateT (Node, Int, NodesEdges mAlter a) mLabel) b
 
 data Monad m => GraphLabelFuncs m label = GLF {
      labelDummy :: Meta -> m label
@@ -108,7 +108,7 @@ makeFlowGraphInstr :: (Monad m, Show a) => FlowGraph m a -> String
 makeFlowGraphInstr = graphviz'
 
 -- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
-buildFlowGraph :: forall m label. Monad m => GraphLabelFuncs m label -> A.Structured -> m (Either String (FlowGraph m label))
+buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) => GraphLabelFuncs mLabel label -> A.Structured -> mLabel (Either String (FlowGraph mAlter label))
 buildFlowGraph funcs s
   = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]) )
        return $ case res of
@@ -117,32 +117,32 @@ buildFlowGraph funcs s
   where
     -- All the functions return the new graph, and the identifier of the node just added
     
-    run :: (GraphLabelFuncs m label -> (b -> m label)) -> b -> m label
+    run :: (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> mLabel label
     run func = func funcs
         
-    addNode :: (Meta, label, AlterAST m) -> GraphMaker m label Node
+    addNode :: (Meta, label, AlterAST mAlter) -> GraphMaker mLabel mAlter label Node
     addNode x = do (n,pi,(nodes, edges)) <- get
                    put (n+1, pi,((n, Node x):nodes, edges))
                    return n
     
-    addEdge :: EdgeLabel -> Node -> Node -> GraphMaker m label ()
+    addEdge :: EdgeLabel -> Node -> Node -> GraphMaker mLabel mAlter label ()
     addEdge label start end = do (n, pi, (nodes, edges)) <- get
                                  put (n + 1, pi, (nodes,(start, end, label):edges))
     
-    addNode' :: Meta -> (GraphLabelFuncs m label -> (b -> m label)) -> b -> AlterAST m -> GraphMaker m label Node
+    addNode' :: Meta -> (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> AlterAST mAlter -> GraphMaker mLabel mAlter label Node
     addNode' m f t r = do val <- (lift . lift) (run f t)
                           addNode (m, val, r)
     
-    addNodeExpression :: Meta -> A.Expression -> (ASTModifier m A.Expression) -> GraphMaker m label Node
+    addNodeExpression :: Meta -> A.Expression -> (ASTModifier mAlter A.Expression) -> GraphMaker mLabel mAlter label Node
     addNodeExpression m e r = addNode' m labelExpression e (AlterExpression r)
 
-    addNodeExpressionList :: Meta -> A.ExpressionList -> (ASTModifier m A.ExpressionList) -> GraphMaker m label Node
+    addNodeExpressionList :: Meta -> A.ExpressionList -> (ASTModifier mAlter A.ExpressionList) -> GraphMaker mLabel mAlter label Node
     addNodeExpressionList m e r = addNode' m labelExpressionList e (AlterExpressionList r)
     
-    addDummyNode :: Meta -> GraphMaker m label Node
+    addDummyNode :: Meta -> GraphMaker mLabel mAlter label Node
     addDummyNode m = addNode' m labelDummy m AlterNothing
     
-    addParEdges :: Node -> Node -> [(Node,Node)] -> GraphMaker m label ()
+    addParEdges :: Node -> Node -> [(Node,Node)] -> GraphMaker mLabel mAlter label ()
     addParEdges s e pairs = do (n,pi,(nodes,edges)) <- get
                                put (n,pi+1,(nodes,edges ++ (concatMap (parEdge pi) pairs)))
       where
@@ -155,26 +155,26 @@ buildFlowGraph funcs s
     getN :: Int -> [a] -> ([a],a,[a])
     getN n xs = let (f,(m:e)) = splitAt n xs in (f,m,e)
 
-    routeList :: Int -> (a -> m a) -> ([a] -> m [a])
+    routeList :: Monad m => Int -> (a -> m a) -> ([a] -> m [a])
     routeList n f xs
       = do let (pre,x,suf) = getN n xs
            x' <- f x
            return (pre ++ [x'] ++ suf)
     
-    mapMR :: forall inner. ASTModifier m [inner] -> (inner -> ASTModifier m inner -> GraphMaker m label (Node,Node)) -> [inner] -> GraphMaker m label [(Node,Node)]
+    mapMR :: forall inner. ASTModifier mAlter [inner] -> (inner -> ASTModifier mAlter inner -> GraphMaker mLabel mAlter label (Node,Node)) -> [inner] -> GraphMaker mLabel mAlter label [(Node,Node)]
     mapMR outerRoute func xs = mapM funcAndRoute (zip [0..] xs)
       where
-        funcAndRoute :: (Int, inner) -> GraphMaker m label (Node,Node)
+        funcAndRoute :: (Int, inner) -> GraphMaker mLabel mAlter label (Node,Node)
         funcAndRoute (ind,x) = func x (outerRoute @-> routeList ind)
         
-    joinPairs :: Meta -> [(Node, Node)] -> GraphMaker m label (Node, Node)
+    joinPairs :: Meta -> [(Node, Node)] -> GraphMaker mLabel mAlter label (Node, Node)
     joinPairs m [] = addDummyNode m >>* mkPair
     joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
                            return (fst (head nodes), snd (last nodes))
     
     
     -- Returns a pair of beginning-node, end-node
-    buildStructured :: OuterType -> A.Structured -> ASTModifier m A.Structured -> GraphMaker m label (Node, Node)
+    buildStructured :: OuterType -> A.Structured -> ASTModifier mAlter A.Structured -> GraphMaker mLabel mAlter label (Node, Node)
     buildStructured outer (A.Several m ss) route
       = do case outer of
              None -> -- If there is no context, they should be left as disconnected graphs.
@@ -197,14 +197,13 @@ buildFlowGraph funcs s
              --must fold the specs, not map them independently
              If prev end -> foldM foldIf (prev,end) (zip [0..] ss)
                where
-                 -- Type commented out because it's not technically correct, but looks right to me:
-                 foldIf :: (Node,Node) -> (Int,A.Structured) -> GraphMaker m label (Node, Node)
+                 foldIf :: (Node,Node) -> (Int,A.Structured) -> GraphMaker mLabel mAlter label (Node, Node)
                  foldIf (prev,end) (ind,s) = do (prev',_) <- buildStructured (If prev end) s $ decompSeveral @-> (routeList ind)
                                                 return (prev', end)
              _ -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
                      return (-1,-1)
       where
-        decompSeveral :: ASTModifier m [A.Structured]
+        decompSeveral :: ASTModifier mAlter [A.Structured]
         decompSeveral = route22 route A.Several
         
     buildStructured _ (A.OnlyP _ p) route = buildProcess p (route22 route A.OnlyP)
@@ -244,7 +243,7 @@ buildFlowGraph funcs s
     buildStructured _ s _ = do n <- addDummyNode (findMeta s)
                                return (n,n)
     
-    buildProcess :: A.Process -> ASTModifier m A.Process -> GraphMaker m label (Node, Node)
+    buildProcess :: A.Process -> ASTModifier mAlter A.Process -> GraphMaker mLabel mAlter label (Node, Node)
     buildProcess (A.Seq _ s) route = buildStructured Seq s (route22 route A.Seq)
     buildProcess (A.Par _ _ s) route = buildStructured Par s (route33 route A.Par)
     buildProcess (A.While m e p) route
