@@ -20,6 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Main (main) where
 
 import Control.Monad.Error
+import Control.Monad.Identity
 import Control.Monad.State
 import Data.Either
 import Data.Generics
@@ -268,8 +269,14 @@ compile mode fn outHandle
                  graphs <- mapM
                       ((liftM $ either (const Nothing) Just) . (buildFlowGraph labelFuncs) )
                       (map (A.OnlyP emptyMeta) (snd $ unzip $ procs))
+                      
+                 -- We need this line to enforce the type of the mAlter monad (Identity)
+                 -- since it is never used.  Then we used graphsTyped (rather than graphs)
+                 -- to prevent a compiler warning at graphsTyped being unused;
+                 -- graphs is of course identical to graphsTyped, as you can see here:
+                 let (graphsTyped :: [Maybe (FlowGraph Identity String)]) = graphs
                  --TODO output each process to a separate file, rather than just taking the first:
-                 return $ head $ map makeFlowGraphInstr (catMaybes graphs)
+                 return $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
 
             ModeCompile ->
               do progress "Passes:"
