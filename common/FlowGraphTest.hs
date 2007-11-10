@@ -305,7 +305,7 @@ enforceSize1 :: Gen a -> Gen a
 enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
 
 instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
-  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured n) (Id 0) >>* findEmpty >>* QC
+  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured justP n) (Id 0) >>* findEmpty >>* QC
     where
       -- Copies the value for the empty-list key into the first element of the tuple:
       findEmpty :: [([Meta], a)] -> (a, Map.Map [Meta] a)
@@ -364,16 +364,39 @@ genList f n = (lift $ genNumsToTotal n) >>= mapM f >>= foldList
 sub1 :: Int -> Int
 sub1 x = x-1
 
+sub2 :: Int -> Int
+sub2 x = x-2
+
 -- Be careful with the test generators; there should always be an option with value 1 (or 0)
 -- in every list.  Recursion should always decrease the test sized, and you
 -- should take the recursion into account in the required size (generally, recursive
 -- generators will have value 2 at least)
 
-genStructured :: Int -> GenL A.Structured
-genStructured n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
+data OnlyAllowed = OA {
+    onlyP :: Bool
+   ,onlyO :: Bool
+   ,onlyC :: Bool
+  }
+
+justP = OA {onlyP = True, onlyO = False, onlyC = False}
+justO = OA {onlyP = False, onlyO = True, onlyC = False}
+justC = OA {onlyP = False, onlyO = False, onlyC = True}
+
+-- | Slightly cheaty way of easily masking out items:
+cond :: Bool -> (Int, a) -> (Int, a)
+cond True = id
+cond False = const (1000000, undefined)
+
+genExpression :: GenL A.Expression
+genExpression = nextIdT >>* makeMeta' >>= genElem1 A.True
+
+genStructured :: OnlyAllowed -> Int -> GenL A.Structured
+genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
-    (2,genElem2 A.OnlyP m . genProcess . sub1 )
-   ,(1,genElem2 A.Several m . genList genStructured . sub1)
+    cond (onlyP allowed) (2,genElem2 A.OnlyP m . genProcess . sub1 )
+   ,cond (onlyO allowed) (2,comb1 (A.OnlyO emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
+   ,cond (onlyC allowed) (3,comb2 (\e p -> A.OnlyC emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
+   ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
   ]
 
 genProcess :: Int -> GenL A.Process
@@ -381,13 +404,15 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
     (1,const $ genElem1 A.Skip m)
    ,(1,const $ genElem1 A.Stop m)
-   ,(2,genElem2 A.Seq m . genStructured . sub1)
+   ,(2,genElem2 A.Seq m . genStructured justP . sub1)
+   ,(2,genElem3 A.Par m (comb0 A.PlainPar) . genStructured justP . sub1)
+   ,(2,genElem2 A.If m . genStructured justC . sub1)
   ]
 
 
 -- TODO put this in proper error monad
 genGraph :: A.Structured -> FlowGraph Identity ()
-genGraph s = either (const $ error "QuickCheck graph did not build properly") id $ runIdentity $ buildFlowGraph funcs s
+genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e) id $ runIdentity $ buildFlowGraph funcs s
   where
     empty = const (return ())
     funcs = GLF empty empty empty empty empty empty 
