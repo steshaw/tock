@@ -92,7 +92,7 @@ testGraph testName nodes edges proc
   = TestCase $ 
       case evalState (buildFlowGraph testOps (A.OnlyP emptyMeta proc)) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
-        Right g -> checkGraphEquality (nodes, edges) g
+        Right g -> checkGraphEquality (nodes, edges) (g :: FlowGraph Identity Int)
   where  
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
