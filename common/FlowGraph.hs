@@ -234,8 +234,8 @@ buildFlowGraph funcs s
              _ -> throwError "Option found outside CASE statement"
            return (s,e)
     buildStructured outer (A.Spec m spec str) route
-      = do n <- addNode' m labelScopeIn spec (AlterSpec $ route23 route A.Spec)
-           n' <- addNode' m labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+      = do n <- addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
+           n' <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
            (s,e) <- buildStructured outer str (route33 route A.Spec)
            addEdge ESeq n s
            addEdge ESeq e n'

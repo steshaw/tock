@@ -140,11 +140,11 @@ testSeq = TestList
   ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
     (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
     
-  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4)
+  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4)
   ,testSeq' 11
     [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)]
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
-    (A.Several m11 [A.Spec m1 (someSpec m2) $ A.OnlyP m3 sm4,A.Spec m5 (someSpec m6) $ A.Spec m7 (someSpec m8) $ A.OnlyP m9 sm10])
+    (A.Several m11 [A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.OnlyP m9 sm10])
  ]
   where
     testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
@@ -172,7 +172,7 @@ testPar = TestList
 
   ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (6, m6),(106,sub m6 100)]
                [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
-               (A.Several m1 [A.Spec m6 (someSpec m7) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+               (A.Several m1 [A.Spec mU (someSpec m6) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
   --TODO test nested pars
  ]
   where
