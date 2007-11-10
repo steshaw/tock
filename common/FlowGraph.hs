@@ -127,7 +127,11 @@ buildFlowGraph funcs s
     
     addEdge :: EdgeLabel -> Node -> Node -> GraphMaker mLabel mAlter label ()
     addEdge label start end = do (n, pi, (nodes, edges)) <- get
-                                 put (n + 1, pi, (nodes,(start, end, label):edges))
+                                 -- Edges should only be added after the nodes, so
+                                 -- for safety here we can check that the nodes exist:
+                                 if (notElem start $ map fst nodes) || (notElem end $ map fst nodes)
+                                   then throwError "Could not add edge between non-existent nodes"
+                                   else put (n + 1, pi, (nodes,(start, end, label):edges))
     
     addNode' :: Meta -> (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> AlterAST mAlter -> GraphMaker mLabel mAlter label Node
     addNode' m f t r = do val <- (lift . lift) (run f t)
