@@ -408,6 +408,7 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,(2,genElem2 A.Seq m . genStructured justP . sub1)
    ,(2,genElem3 A.Par m (comb0 A.PlainPar) . genStructured justP . sub1)
    ,(2,genElem2 A.If m . genStructured justC . sub1)
+   ,(3,genElem3 A.Case m genExpression . genStructured justO . sub2)
   ]
 
 
