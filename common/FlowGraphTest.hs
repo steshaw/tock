@@ -33,6 +33,7 @@ import Test.QuickCheck
 import qualified AST as A
 import FlowGraph
 import Metadata
+import PrettyShow
 import TestUtil
 import Utils
 
@@ -443,6 +444,11 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
     
     g m = everywhereM (mkM $ replaceM m (replaceMeta m))
 
+
+-- | A form of equality that yields a (QuickCheck) Result rather than a Bool, with the arguments pretty-printed
+(*==*) :: (Data a, Eq a) => a -> a -> Result
+(*==*) x y = Result {ok = Just (x == y), arguments = [pshow x, pshow y], stamp = []}
+
 -- It is important to have these functions in the right ratio.  The number of possible trees is
 -- 2^N, where N is the test size.  Therefore I suggest keeping N <= 10 as a sensible limit.
 -- Hence, if there are 1000 tests, we divide the test number by 100 to get the test size.
@@ -456,15 +462,15 @@ testModify = TestList
   ,TestCase $ deepCheck prop_gennums
  ]
   where
-    prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
-    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g) $ \f -> runIdentity (f g) == g
-    prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Bool
+    prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
+    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g) $ \f -> runIdentity (f g) *==* g
+    prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
     prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g) $ 
-        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) == Map.lookup ms rest
+        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) *==* Map.lookup ms rest
   
     -- This tests our genNumsToTotal function, which is itself a test generator; nasty!
-    prop_gennums :: Int -> Bool
-    prop_gennums n = (generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum)) == n
+    prop_gennums :: Int -> Result
+    prop_gennums n = generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum) *==* n
 
     -- Repeatedly pairs the map with each element of the powerset of its keys
     helper :: Monad m => Map.Map Meta (A.Structured -> m A.Structured) -> [(Map.Map Meta (A.Structured -> m A.Structured), [Meta])]
@@ -475,8 +481,16 @@ testModify = TestList
     applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
 
 
-    -- Collects multiple tests together:
-    collectAll = and
+    -- Collects multiple test results together, using the first failure as its result
+    --  (if there is one; otherwise the result will be a pass).
+    collectAll :: [Result] -> Result
+    collectAll = foldl collectAll'(Result {ok = Just True, arguments = [], stamp = []})
+      where
+        -- Only keep the first failure:
+        collectAll' :: Result -> Result -> Result
+        collectAll' r0 r1 | ok r0 == Just False = r0
+                          | otherwise = r1
+--    collectAll = and
 --    collectAll = foldl collect (property ())
 
 --Returns the list of tests:
