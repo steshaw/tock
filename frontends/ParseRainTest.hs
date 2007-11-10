@@ -16,8 +16,24 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- #ignore-exports
+
+-- | This module contains the tests for the Rain parser.  Some of the code
+-- being tested may be invalid at later stages, but we are only testing the
+-- parser.  So in fact, it's quite good to check that some invalid code at least
+-- makes it past the parser.
+--
+-- The testing strategy is to take in some text (Rain code), run the parser on it,
+-- and check whether the code returned matches a given AST fragment.  The only
+-- complication is the Meta tags.  The Meta tags will be generated according to the
+-- position of each part of the code.  We don't want to have to work out what the Meta
+-- tag will be (what if you inserted a space into the input; you'd have to change the expected
+-- result!), and we don't really care.  So we use the pattern stuff from the Pattern, TreeUtil
+-- and TestUtil modules to check everything except the meta tags.  See especially the "pat" function
+-- in this module.
 module ParseRainTest (tests) where
 
+import Data.Generics
 import Prelude hiding (fail)
 import Test.HUnit
 import Text.ParserCombinators.Parsec (runParser,eof)
@@ -33,14 +49,20 @@ import TreeUtil
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
 
+-- | Shorthand for ExpPass
 pass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> ParseTest a
 pass x = ExpPass x
 
+-- | Shorthand for ExpFail
 fail :: Show a => (String, RP.RainParser a) -> ParseTest a
 fail x = ExpFail x
 
+-- | Takes the given AST fragment and returns a Pattern that ignores all the Meta tags in it.
+pat :: Data a => a -> Pattern
+pat = (stopCaringPattern emptyMeta) . mkPattern
 
---Runs a parse test, given a tuple of: (source text, parser function, assert)
+-- | Runs a parse test, given a tuple of: (source text, parser function, assertion)
+-- There will be success if the parser succeeds, and the output succeeds against the given assertion.
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion
 testParsePass (text,prod,test)
   = do lexOut <- (L.runLexer "<unknown-parse-test>" text)
@@ -54,6 +76,8 @@ testParsePass (text,prod,test)
     --tests such as "seq {}}" would succeed, because the final character simply wouldn't be parsed -
     --which would ruin the point of the test
 
+-- | Checks that a given input fails when the given parser is applied to it.  The assertion
+-- will fail if the parser succeeds.
 testParseFail :: Show a => (String, RP.RainParser a) -> Assertion
 testParseFail (text,prod)
     = do lexOut <- (L.runLexer "<test>" text)
@@ -64,9 +88,11 @@ testParseFail (text,prod)
                            Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}
 
+-- | A handy synonym for the empty block
 emptyBlock :: A.Process
 emptyBlock = A.Seq m $ A.Several m []
 
+-- | A handy, properly typed, synonym for Nothing to use with Declarations.
 noInit :: Maybe A.Expression
 noInit = Nothing
 
@@ -167,16 +193,16 @@ testLiteral :: [ParseTest A.Expression]
 testLiteral =
  [
   --Int literals: 
-  pass ("0", RP.literal, assertEqual "testLiteral 0" (intLiteral 0))
+  pass ("0", RP.literal, assertPatternMatch "testLiteral 0" (intLiteralPattern 0))
   --2^32:
-  ,pass ("4294967296", RP.literal, assertEqual "testLiteral 1" (intLiteral 4294967296))
+  ,pass ("4294967296", RP.literal, assertPatternMatch "testLiteral 1" (intLiteralPattern 4294967296))
   --2^64:
-  ,pass ("18446744073709551616", RP.literal, assertEqual "testLiteral 2" (intLiteral 18446744073709551616))  
+  ,pass ("18446744073709551616", RP.literal, assertPatternMatch "testLiteral 2" (intLiteralPattern 18446744073709551616))  
   --2^100:  We should be able to parse this, but it will be rejected at a later stage:
-  ,pass ("1267650600228229401496703205376", RP.literal, assertEqual "testLiteral 3" (intLiteral 1267650600228229401496703205376))  
+  ,pass ("1267650600228229401496703205376", RP.literal, assertPatternMatch "testLiteral 3" (intLiteralPattern 1267650600228229401496703205376))  
   --Test that both literal and expression parse -3 the same way:
-  ,pass ("-3", RP.literal, assertEqual "testLiteral 4" (intLiteral (-3)))
-  ,pass ("-3", RP.expression, assertEqual "testLiteral 5" (intLiteral (-3)))
+  ,pass ("-3", RP.literal, assertPatternMatch "testLiteral 4" (intLiteralPattern (-3)))
+  ,pass ("-3", RP.expression, assertPatternMatch "testLiteral 5" (intLiteralPattern (-3)))
   
   --Non-integers currently unsupported:
   ,fail ("0.",RP.literal)
@@ -187,8 +213,8 @@ testLiteral =
   ,fail ("0a",RP.literal)
   
   --Identifiers are not literals (except true and false):
-  ,pass ("true", RP.literal, assertEqual "testLiteral 100" (A.True m))
-  ,pass ("false", RP.literal, assertEqual "testLiteral 101" (A.False m))
+  ,pass ("true", RP.literal, assertPatternMatch "testLiteral 100" (pat $ A.True m))
+  ,pass ("false", RP.literal, assertPatternMatch "testLiteral 101" (pat $ A.False m))
   ,fail ("x",RP.literal)
   ,fail ("x0",RP.literal)
   ,fail ("TRUE",RP.literal)
@@ -241,33 +267,32 @@ dyExp op v0 v1 = A.Dyadic m op (A.ExprVariable m v0) (A.ExprVariable m v1)
 testIf :: [ParseTest A.Process]
 testIf =
  [
-  pass ("if (a) {}",RP.statement,
-    assertEqual "If Test 0" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,A.Skip m)])
-  ,pass ("if (a) {} else {}",RP.statement,
-    assertEqual "If Test 1" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,emptyBlock)])
-  ,pass ("if (a) {} else {a = b;}",RP.statement,
-    assertEqual "If Test 2" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeSimpleAssign "a" "b"])])
-  ,pass ("if (a) {} else {if (b) {} }",RP.statement,
-    assertEqual "If Test 3" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,A.Skip m)]])])
-  ,pass ("if (a) {} else {if (b) {} else {} }",RP.statement,
-    assertEqual "If Test 4a" $ makeIf [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,emptyBlock)]])])
-  ,pass ("if (a) {c = d;} else {if (b) {e = f;} else par {g = h;}}",RP.statement,
-    assertEqual "If Test 5" $ makeIf [(exprVariable "a",makeSeq [makeSimpleAssign "c" "d"]),(A.True m,makeSeq [makeIf [(exprVariable "b",makeSeq [makeSimpleAssign "e" "f"]),(A.True m,makePar [makeSimpleAssign "g" "h"])]])])
+  passIf ("if (a) {}", 0, [(exprVariable "a",emptyBlock),(A.True m,A.Skip m)])
+  ,passIf ("if (a) {} else {}", 1, [(exprVariable "a",emptyBlock),(A.True m,emptyBlock)])
+  ,passIf ("if (a) {} else {a = b;}", 2, [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeSimpleAssign "a" "b"])])
+  ,passIf ("if (a) {} else {if (b) {} }", 3,
+    [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,A.Skip m)]])])
+  ,passIf ("if (a) {} else {if (b) {} else {} }", 4,
+    [(exprVariable "a",emptyBlock),(A.True m,makeSeq [makeIf [(exprVariable "b",emptyBlock),(A.True m,emptyBlock)]])])
+  ,passIf ("if (a) {c = d;} else {if (b) {e = f;} else par {g = h;}}", 5,
+    [(exprVariable "a",makeSeq [makeSimpleAssign "c" "d"]),(A.True m,makeSeq [makeIf [(exprVariable "b",makeSeq [makeSimpleAssign "e" "f"]),(A.True m,makePar [makeSimpleAssign "g" "h"])]])])
   ,fail ("if (a) c = d;",RP.statement)
   ,fail ("if (a) {c = d;} else e = f;",RP.statement)
   ,fail ("if (a) {c = d;} else if (b) {e = f;}",RP.statement)
   ,fail ("if (a) {} else { if (b) {} } else {} ",RP.statement)
-  --TODO add fail tests, maybe {} brackets
  ]
+ where
+  passIf :: (String, Int, [(A.Expression,A.Process)]) -> ParseTest A.Process
+  passIf (input,ind,exp) = pass (input, RP.statement, assertPatternMatch ("testIf " ++ show ind) (pat $ makeIf exp))
 
 testAssign :: [ParseTest A.Process]
 testAssign =
  [
   pass ("a = b;",RP.statement,
-    assertEqual "Assign Test 0" $ makeSimpleAssign "a" "b")
+    assertPatternMatch "Assign Test 0" $ makeSimpleAssignPattern "a" "b")
   ,fail ("a != b;",RP.statement)
   ,pass ("a += b;",RP.statement,
-    assertEqual "Assign Test 1" $ makeAssign (variable "a") (dyExp A.Plus (variable ("a")) (variable ("b")) ) )
+    assertPatternMatch "Assign Test 1" $ pat $ makeAssign (variable "a") (dyExp A.Plus (variable ("a")) (variable ("b")) ) )
   ,fail ("a + = b;",RP.statement)
  ]
 
@@ -275,7 +300,7 @@ testWhile :: [ParseTest A.Process]
 testWhile = 
  [
   pass ("while (a) {}",RP.statement, 
-        assertEqual "While Test" $ A.While emptyMeta (exprVariable "a") (emptyBlock) )
+        assertPatternMatch "While Test" $ pat $ A.While emptyMeta (exprVariable "a") (emptyBlock) )
   ,fail ("while (a)",RP.statement)
   ,fail ("while () ;",RP.statement)
   ,fail ("while () {}",RP.statement)
@@ -287,21 +312,16 @@ testWhile =
 testSeq :: [ParseTest A.Process]
 testSeq =
  [
-  pass ("seq { }",RP.statement,
-    assertEqual "Empty Seq Test" $ A.Seq m $ A.Several m [] )
+   passSeq (0, "seq { }", A.Seq m $ A.Several m [] )
   ,fail ("seq { ; ; }",RP.statement)
 
-  ,pass ("{ }",RP.statement,
-    assertEqual "Empty Unlabelled-Seq Test" $ A.Seq m $ A.Several m [] )
+  ,passSeq (1, "{ }", A.Seq m $ A.Several m [] )
 
   ,fail ("{ ; ; }",RP.statement)
 
-  ,pass ("{ { } }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 0" $ A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
-  ,pass ("seq { { } }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 1" $ A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
-  ,pass ("{ seq { } }",RP.statement,
-    assertEqual "Unlabelled-Seq Nest Test 2" $ A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )        
+  ,passSeq (2, "{ { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
+  ,passSeq (3, "seq { { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
+  ,passSeq (4, "{ seq { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )        
 
 
   ,fail ("seq",RP.statement)
@@ -319,31 +339,34 @@ testSeq =
   ,fail ("{};",RP.statement)
   
  ]
+ where
+   passSeq :: (Int, String, A.Process) -> ParseTest A.Process
+   passSeq (ind, input, exp) = pass (input,RP.statement, assertPatternMatch ("testSeq " ++ show ind) (pat exp))
 
 testPar :: [ParseTest A.Process]
 testPar =
  [
-  pass ("par { }",RP.statement,
-    assertEqual "Empty Par Test" $ A.Par m A.PlainPar $ A.Several m [] )
+   passPar (0, "par { }", A.Par m A.PlainPar $ A.Several m [] )
 
-  ,pass ("par { {} {} }",RP.statement,
-    assertEqual "Par Skip Test" $ A.Par m A.PlainPar $ A.Several m [A.OnlyP m emptyBlock, A.OnlyP m emptyBlock] )
+  ,passPar (1, "par { {} {} }", A.Par m A.PlainPar $ A.Several m [A.OnlyP m emptyBlock, A.OnlyP m emptyBlock] )
 
   --Rain only allows declarations at the beginning of a par block:
 
-  ,pass ("par {int:x; {} }",RP.statement,
-    assertEqual "Par Decl Test 0" $ A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) $ A.Several m 
-      [A.OnlyP m $ A.Seq m $ A.Several m []] )
+  ,passPar (2, "par {int:x; {} }", A.Par m A.PlainPar $ 
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) $
+    A.Several m [A.OnlyP m $ A.Seq m $ A.Several m []] )
       
 
-  ,pass ("par {uint16:x; uint32:y; {} }",RP.statement,
-    assertEqual "Par Decl Test 1" $ A.Par m A.PlainPar $ 
+  ,passPar (3, "par {uint16:x; uint32:y; {} }", A.Par m A.PlainPar $ 
       A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16 Nothing) $ 
       A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32 Nothing) $ 
       A.Several m [A.OnlyP m $ A.Seq m $ A.Several m []] )
       
   ,fail ("par { {} int: x; }",RP.statement)
  ]
+ where
+   passPar :: (Int, String, A.Process) -> ParseTest A.Process
+   passPar (ind, input, exp) = pass (input,RP.statement, assertPatternMatch ("testPar " ++ show ind) (pat exp))
 
 -- | Test innerBlock, particularly with declarations mixed with statements:
 testBlock :: [ParseTest A.Structured]
@@ -372,10 +395,10 @@ testEach :: [ParseTest A.Process]
 testEach =
  [
   pass ("seqeach (c : \"1\") par {c = 7;}", RP.statement,
-    assertPatternMatch  "Each Test 0" (stopCaringPattern m $ mkPattern $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) $    
+    assertPatternMatch  "Each Test 0" (pat $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) $    
       A.OnlyP m $ makePar [(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7")))] ))
   ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
-    assertEqual "Each Test 1" $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "345")) $ 
+    assertPatternMatch "Each Test 1" $ pat $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "345")) $ 
       A.OnlyP m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
  ]
 
@@ -532,10 +555,10 @@ testComm :: [ParseTest A.Process]
 testComm =
  [
   --Output:
-  pass ("c ! x;",RP.statement,assertEqual "testComm 0" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
-  ,pass ("c!x;",RP.statement,assertEqual "testComm 1" $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
-  ,pass ("c!0+x;",RP.statement,assertEqual "testComm 2" $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Plus (intLiteral 0) (exprVariable "x")])
-  ,pass ("c!!x;",RP.statement,assertEqual "testComm 3" $ A.Output m (variable "c") [A.OutExpression m $ (exprDirVariable A.DirOutput "x")])
+  pass ("c ! x;",RP.statement,assertPatternMatch "testComm 0" $ pat $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
+  ,pass ("c!x;",RP.statement,assertPatternMatch "testComm 1" $ pat $ A.Output m (variable "c") [A.OutExpression m (exprVariable "x")])
+  ,pass ("c!0+x;",RP.statement,assertPatternMatch "testComm 2" $ pat $ A.Output m (variable "c") [A.OutExpression m $ A.Dyadic m A.Plus (intLiteral 0) (exprVariable "x")])
+  ,pass ("c!!x;",RP.statement,assertPatternMatch "testComm 3" $ pat $ A.Output m (variable "c") [A.OutExpression m $ (exprDirVariable A.DirOutput "x")])
   ,fail ("c!x",RP.statement)
   ,fail ("c!x!y;",RP.statement)  
   ,fail ("c!x,y;",RP.statement)
@@ -543,10 +566,10 @@ testComm =
   ,fail ("!x;",RP.statement)
 
   --Input:
-  ,pass ("c ? x;",RP.statement, assertEqual "testComm 100" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
-  ,pass ("c?x;",RP.statement, assertEqual "testComm 101" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
+  ,pass ("c ? x;",RP.statement, assertPatternMatch "testComm 100" $ pat $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
+  ,pass ("c?x;",RP.statement, assertPatternMatch "testComm 101" $ pat $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (variable "x")])
   --Later will probably become the extended rendezvous syntax:
-  ,pass ("c??x;",RP.statement, assertEqual "testComm 101" $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (A.DirectedVariable m A.DirInput $ variable "x")])
+  ,pass ("c??x;",RP.statement, assertPatternMatch "testComm 101" $ pat $ A.Input m (variable "c") $ A.InputSimple m [A.InVariable m (A.DirectedVariable m A.DirInput $ variable "x")])
   ,fail ("c ? x + 0;",RP.statement)
   ,fail ("?x;",RP.statement)
   ,fail ("c ? x",RP.statement)
@@ -558,25 +581,25 @@ testComm =
 testAlt :: [ParseTest A.Process]
 testAlt =
  [
-  pass("pri alt {}", RP.statement, assertEqual "testAlt 0" $ A.Alt m True $ A.Several m [])
-  ,pass("pri alt { c ? x {} }", RP.statement, assertEqual "testAlt 1" $ A.Alt m True $ A.Several m [A.OnlyA m $ A.Alternative m 
+   passAlt (0, "pri alt {}", A.Alt m True $ A.Several m [])
+  ,passAlt (1, "pri alt { c ? x {} }", A.Alt m True $ A.Several m [A.OnlyA m $ A.Alternative m 
     (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock])
-  ,pass("pri alt { c ? x {} d ? y {} }", RP.statement, assertEqual "testAlt 2" $ A.Alt m True $ A.Several m [
+  ,passAlt (2, "pri alt { c ? x {} d ? y {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.OnlyA m $ A.Alternative m (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
   --Fairly nonsensical, but valid:
-  ,pass("pri alt { else {} }", RP.statement, assertEqual "testAlt 3" $ A.Alt m True $ A.Several m [
+  ,passAlt (3, "pri alt { else {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
-  ,pass("pri alt { c ? x {} else {} }", RP.statement, assertEqual "testAlt 4" $ A.Alt m True $ A.Several m [
+  ,passAlt (4, "pri alt { c ? x {} else {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
   
-  ,pass("pri alt { wait for t {} }", RP.statement, assertEqual "testAlt 100" $ A.Alt m True $ A.Several m [
+  ,passAlt (100, "pri alt { wait for t {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock])
-  ,pass("pri alt { wait for t {} wait until t {} }", RP.statement, assertEqual "testAlt 101" $ A.Alt m True $ A.Several m [
+  ,passAlt (101, "pri alt { wait for t {} wait until t {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock
     ,A.OnlyA m $ A.AlternativeWait m A.WaitUntil (exprVariable "t") emptyBlock])
-  ,pass("pri alt { wait until t + t {} else {} }", RP.statement, assertEqual "testAlt 102" $ A.Alt m True $ A.Several m [
+  ,passAlt (102, "pri alt { wait until t + t {} else {} }", A.Alt m True $ A.Several m [
     A.OnlyA m $ A.AlternativeWait m A.WaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) emptyBlock
     ,A.OnlyA m $ A.AlternativeSkip m (A.True m) emptyBlock])
 
@@ -603,6 +626,9 @@ testAlt =
   ,fail("pri alt { for t {} }",RP.statement)
   
  ]
+ where
+   passAlt :: (Int, String, A.Process) -> ParseTest A.Process
+   passAlt (ind, input, exp) = pass (input, RP.statement, assertPatternMatch ("testAlt " ++ show ind) (pat exp))
 
 testRun :: [ParseTest A.Process]
 testRun =
@@ -661,8 +687,6 @@ tests = TestList
  ]
 --TODO test:
 -- input (incl. ext input)
--- output
--- alting
 --TODO later on:
 -- types (lists, tuples, maps)
 -- functions
