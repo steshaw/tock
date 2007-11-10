@@ -423,7 +423,8 @@ genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,cond (onlyO allowed) (2,comb1 (A.OnlyO emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
    ,cond (onlyC allowed) (3,comb2 (\e p -> A.OnlyC emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
    ,cond (onlyA allowed) (4,genElem2 A.OnlyA m . genAlternative . sub1 )
-   ,(3,genElem3 A.Spec m genSpecification . genStructured allowed . sub2 )
+   -- Specs currently don't work with Case statements TODO
+   ,cond (not $ onlyO allowed) (3,genElem3 A.Spec m genSpecification . genStructured allowed . sub2 )
    ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
   ]
 
