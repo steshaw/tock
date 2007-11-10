@@ -209,7 +209,7 @@ buildFlowGraph funcs s
         
     buildStructured _ (A.OnlyP _ p) route = buildProcess p (route22 route A.OnlyP)
     buildStructured outer (A.OnlyC _ (A.Choice m exp p)) route
-      = do nexp <- addNodeExpression m exp $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> do {exp' <- f exp; return (A.OnlyC m (A.Choice m' exp' p))})
+      = do nexp <- addNodeExpression (findMeta exp) exp $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> do {exp' <- f exp; return (A.OnlyC m (A.Choice m' exp' p))})
            (nbodys, nbodye) <- buildProcess p $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> f p >>* ((A.OnlyC m) . (A.Choice m' exp)))
            addEdge ESeq nexp nbodys
            case outer of
