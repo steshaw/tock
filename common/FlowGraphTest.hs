@@ -377,11 +377,15 @@ data OnlyAllowed = OA {
     onlyP :: Bool
    ,onlyO :: Bool
    ,onlyC :: Bool
+   ,onlyA :: Bool
   }
 
-justP = OA {onlyP = True, onlyO = False, onlyC = False}
-justO = OA {onlyP = False, onlyO = True, onlyC = False}
-justC = OA {onlyP = False, onlyO = False, onlyC = True}
+nothing = OA False False False False
+
+justP = nothing {onlyP = True}
+justO = nothing {onlyO = True}
+justC = nothing {onlyC = True}
+justA = nothing {onlyA = True}
 
 -- | Slightly cheaty way of easily masking out items:
 cond :: Bool -> (Int, a) -> (Int, a)
@@ -391,12 +395,35 @@ cond False = const (1000000, undefined)
 genExpression :: GenL A.Expression
 genExpression = nextIdT >>* makeMeta' >>= genElem1 A.True
 
+genExpressionList :: GenL A.ExpressionList
+genExpressionList = nextIdT >>* makeMeta' >>= (flip $ genElem2 A.ExpressionList) (comb0 [])
+
+genAlternative :: Int -> GenL A.Alternative
+genAlternative n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
+  [
+    (3, genElem3 A.AlternativeSkip m genExpression . genProcess . sub2)
+  ]
+
+genSpecification :: GenL A.Specification
+genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (comb0 $ simpleName "x") genSpecType
+  where
+    genSpecType :: GenL A.SpecType
+    genSpecType = nextIdT >>* makeMeta' >>= \m -> oneofL
+      [
+        genElem3 A.Declaration m (comb0 A.Int) (comb0 Nothing)
+       ,genElem3 A.Declaration m (comb0 A.Int) (comb1 Just genExpression)
+       ,genElem2 (\m e -> A.IsExpr m A.ValAbbrev A.Int e) m genExpression
+       --TODO proc and function declaration
+      ]
+
 genStructured :: OnlyAllowed -> Int -> GenL A.Structured
 genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
     cond (onlyP allowed) (2,genElem2 A.OnlyP m . genProcess . sub1 )
    ,cond (onlyO allowed) (2,comb1 (A.OnlyO emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
    ,cond (onlyC allowed) (3,comb2 (\e p -> A.OnlyC emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
+   ,cond (onlyA allowed) (4,genElem2 A.OnlyA m . genAlternative . sub1 )
+   ,(3,genElem3 A.Spec m genSpecification . genStructured allowed . sub2 )
    ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
   ]
 
@@ -410,6 +437,10 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,(3,genElem3 A.While m genExpression . genProcess . sub2)
    ,(2,genElem2 A.If m . genStructured justC . sub1)
    ,(3,genElem3 A.Case m genExpression . genStructured justO . sub2)
+   ,(2,const $ genElem3 A.Assign m (comb0 [variable "x"]) genExpressionList)
+   ,(1,const $ genElem2 A.GetTime m (comb0 $ variable "x"))
+   ,(1,const $ genElem3 A.Wait m (comb0 A.WaitFor) genExpression)
+   ,(2,genElem3 A.Alt m (comb0 True) . genStructured justA . sub1)
   ]
 
 
