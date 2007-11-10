@@ -182,13 +182,13 @@ testPar = TestList
 testWhile :: Test
 testWhile = TestList
  [
-    testGraph "testWhile 0" [(0,m0), (1,m1)] [(0,1,ESeq), (1,0,ESeq)] (A.While m0 (A.True m10) sm1)
+    testGraph "testWhile 0" [(0,m0), (1,m1)] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
    ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m9 $ A.While m2 (A.True m10) sm3,A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
    ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP m9 $ A.While m2 (A.True m10) sm3,A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
    ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While m2 (A.True mU) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
  ]
 
 testCase :: Test
@@ -407,6 +407,7 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,(1,const $ genElem1 A.Stop m)
    ,(2,genElem2 A.Seq m . genStructured justP . sub1)
    ,(2,genElem3 A.Par m (comb0 A.PlainPar) . genStructured justP . sub1)
+   ,(3,genElem3 A.While m genExpression . genProcess . sub2)
    ,(2,genElem2 A.If m . genStructured justC . sub1)
    ,(3,genElem3 A.Case m genExpression . genStructured justO . sub2)
   ]

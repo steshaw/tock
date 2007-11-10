@@ -246,8 +246,8 @@ buildFlowGraph funcs s
     buildProcess :: A.Process -> ASTModifier mAlter A.Process -> GraphMaker mLabel mAlter label (Node, Node)
     buildProcess (A.Seq _ s) route = buildStructured Seq s (route22 route A.Seq)
     buildProcess (A.Par _ _ s) route = buildStructured Par s (route33 route A.Par)
-    buildProcess (A.While m e p) route
-      = do n <- addNodeExpression m e (route23 route A.While)
+    buildProcess (A.While _ e p) route
+      = do n <- addNodeExpression (findMeta e) e (route23 route A.While)
            (start, end) <- buildProcess p (route33 route A.While)
            addEdge ESeq n start
            addEdge ESeq end n
