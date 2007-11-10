@@ -30,7 +30,7 @@ data Meta = Meta {
     metaLine :: Int,
     metaColumn :: Int
   }
-  deriving (Typeable, Data, Ord)
+  deriving (Typeable, Data, Ord, Eq)
 
 emptyMeta :: Meta
 emptyMeta = Meta {
@@ -44,13 +44,6 @@ instance Show Meta where
       case metaFile m of
         Just s -> s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
         Nothing -> "no source position"
-
---emptyMeta is equal to any meta tag:
-instance Eq Meta where
-  (==) a b = 
-    if ((metaFile a == Nothing) && (metaLine a == 0) && (metaColumn a == 0)) then True else
-    if ((metaFile b == Nothing) && (metaLine b == 0) && (metaColumn b == 0)) then True else
-    ((metaFile a == metaFile b) && (metaLine a == metaLine b) && (metaColumn a == metaColumn b))
 
 -- | Encode a Meta as the prefix of a string.
 packMeta :: Meta -> String -> String
