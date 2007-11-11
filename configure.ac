@@ -68,7 +68,7 @@ AC_NEED_HASKELL_LIB([mtl],LIB_mtl)
 AC_NEED_HASKELL_LIB([HUnit],LIB_hunit)
 AC_NEED_HASKELL_LIB([parsec],LIB_parsec)
 AC_NEED_HASKELL_LIB([fgl],LIB_fgl)
-
+AC_NEED_HASKELL_LIB([QuickCheck],LIB_quickcheck)
 
 AC_LANG(C)
 CFLAGS=$kroc_incpath
