@@ -16,6 +16,9 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- #ignore-exports
+
+-- | A module for testing building a control flow-graph from an AST.
 module FlowGraphTest (tests) where
 
 import Control.Monad.Identity
@@ -37,6 +40,7 @@ import PrettyShow
 import TestUtil
 import Utils
 
+-- | Makes a distinctive metatag for testing.  The function is one-to-one.
 makeMeta :: Int -> Meta
 makeMeta n = Meta (Just "FlowGraphTest") n 0
 
@@ -53,12 +57,14 @@ m8 = makeMeta 8
 m9 = makeMeta 9
 m10 = makeMeta 10
 m11 = makeMeta 11
--- For meta tags that shouldn't be used in the graph:
+-- | For meta tags that shouldn't be used in the graph:
 mU = makeMeta (-1)
 
+-- | A subscripting function for meta-tags produced by makeMeta
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
 
+-- Various abbreviations for unique A.Process items
 sm0 = A.Skip m0
 sm1 = A.Skip m1
 sm2 = A.Skip m2
@@ -71,12 +77,17 @@ sm8 = A.Skip m8
 sm9 = A.Skip m9
 sm10 = A.Skip m10
 
+-- | Shows a graph as a node and edge list.
 showGraph :: (Graph g, Show a, Show b) => g a b -> String
 showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
 
+-- | A shortcut for nextId' 1.
 nextId :: Data t => t -> State (Map.Map Meta Int) Int
 nextId = nextId' 1
 
+-- | Given an AST fragment, returns a unique integer associated with that meta-tag.
+-- This is for when you may add nodes based on a certain meta-tag to the tree multiple times,
+-- and you want to be able to differentiate between each use.
 nextId' :: Data t => Int -> t -> State (Map.Map Meta Int) Int
 nextId' inc t
   = do mp <- get
@@ -87,6 +98,11 @@ nextId' inc t
                        return 0
        where m = findMeta t
 
+-- | Given a test name, a list of nodes, a list of edges and an AST fragment, tests that the
+-- CFG produced from the given AST matches the nodes and edges.  The nodes do not have to have
+-- the exact correct identifiers produced by the graph-building.  Instead, the graphs are checked
+-- for being isomorphic, based on the meta-tag node labels (node E in the expected list is 
+-- isomorphic to node A in the actual list if their meta tags are the same).
 testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
 testGraph testName nodes edges proc
   = TestCase $ 
@@ -125,6 +141,7 @@ testGraph testName nodes edges proc
                         return e
           Just (start', end') -> return (start', end', label)
 
+-- | A helper function for making simple A.Specification items.
 someSpec :: Meta -> A.Specification
 someSpec m = A.Specification m (simpleName $ show m) undefined
                
@@ -233,7 +250,7 @@ testIf = TestList
 --TODO test replicated ifs
 
 
--- The idea here is that each type we generate an interesting node,
+-- The idea here is that each time we generate an interesting node,
 -- we want to generate its replaced version too.  Then combine these as
 -- we go back up the tree to form a set of all possible trees (which is like the powerset of possible replacements, I think).
 -- We also want to ensure that the meta tags are unique (to label replacements), and I don't think
@@ -246,26 +263,37 @@ testIf = TestList
 
 -- However, in order to ensure we make unique meta tags, we have to add the StateT Int wrapper:
 
+-- | A newtype based on Int, to avoid confusion with other uses of Int.
 newtype Id = Id Int
 
+-- | Turns the Id newtype back into a plain Int
 fromId :: Id -> Int
 fromId (Id n) = n
 
+-- | Similar to makeMeta, but takes an Id as its argument.
 makeMeta' :: Id -> Meta
 makeMeta' = makeMeta . fromId
-      
+
+-- | The monad type for generating ASTs.  The StateT wrapped is needed for making
+-- the meta tags unique, and the reason for the strange generation type is explained in
+-- earlier comments.
 type GenL a = StateT Id Gen [([Meta], a)]
 
+-- | A helper function for making a simple meta-tag replacement operation.
 replaceMeta :: Meta -> Meta
 replaceMeta m = sub m 8
 
+-- | Given a meta tag, returns the standard and replaced versions of it.
 genMeta :: Meta -> GenL Meta
 genMeta m = return [([],m),([m],replaceMeta m)]
 
 -- Helper functions for dealing with the AST:
 
+-- | The genElemN functions take an AST constructor (that has Meta as its first item)
+-- then the appropriate Meta tag and optional further arguments, and returns the standard
+-- and replaced combinations across all of them using the combN functions.
 genElem1 :: (Meta -> b) -> Meta -> GenL b
-genElem1 f m = comb1 f (genMeta m) --return [([],f m),([m],f $ replaceMeta m)]
+genElem1 f m = comb1 f (genMeta m)
 
 genElem2 :: (Meta -> a0 -> b) -> Meta -> GenL a0 -> GenL b
 genElem2 f m = comb2 f (genMeta m)
@@ -273,10 +301,15 @@ genElem2 f m = comb2 f (genMeta m)
 genElem3 :: (Meta -> a0 -> a1 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL b
 genElem3 f m = comb3 f (genMeta m) 
 
-
+-- | A helper function for turning any item that can't be replaced into a GenL form (esp.
+-- for use as a parameter of genElemN).
 comb0 :: forall a. a -> GenL a
 comb0 x = return [([],x)]
 
+-- | The combN functions (N >= 1) take a constructor, then the appropriate number of GenL
+-- items, and works out all possible combinations of replacements and so on.  The number
+-- of replacements can get very large (2^K, where K is the number of GenL parameters that
+-- can be replaced).
 comb1 :: forall a0 b. (a0 -> b) -> GenL a0 -> GenL b
 comb1 func list0 = list0 >>* map process1
   where
@@ -305,6 +338,7 @@ newtype QC a = QC a deriving (Eq, Show)
 enforceSize1 :: Gen a -> Gen a
 enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
 
+-- | An instance of Arbitrary for A.Structured that wraps the "genStructured" function.
 instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
   arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured justP n) (Id 0) >>* findEmpty >>* QC
     where
@@ -317,27 +351,44 @@ instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
   -- For example, we could have the twiddle functions changing an expression
   -- in the tree.  I don't think this would be of use right now, given what we're testing
 
+-- | A function inside a StateT monad that returns the next unique Id.
 nextIdT :: Monad m => StateT Id m Id
 nextIdT = modify' incId
   where
     incId :: Id -> Id
     incId (Id n) = (Id $ n+1)
 
+-- | A function similar to the QuickCheck oneof function, that works on GenL stuff rather than Gen.
 oneofL :: [GenL a] -> GenL a
 oneofL gs = do i <- lift $ choose (0,length gs-1)
                gs !! i
 
+-- | A function that takes in a list of sized items.  The first thing in the pair is the minimum size
+-- of an item produced, and the second is a function that maps a size into a GenL.  One of these
+-- functions is chosen and returned, with the obvious constraint that only generators whose
+-- minimum size is satisfied will be called.
+--
+-- TODO at the moment I think I've generally estimated size.  Size should refer to the number of items
+-- that can potentially be replaced, but I'm not sure that is always strictly kept to.  Still, it's
+-- a close enough approximation.
 oneofLS :: [(Int, Int -> GenL a)] -> Int -> GenL a
 oneofLS fs n = oneofL $ applyAll n (filterFuncs n fs)
   where
     filterFuncs :: Int -> [(Int, Int -> GenL a)] -> [Int -> GenL a]
     filterFuncs sz = map snd . filter ((>=) sz . fst)
 
+-- | A function that takes a "find" parameter, a "replace" parameter, and returns a monadic function
+-- (for convenience) that performs the check/replacement.
 replaceM :: (Eq a, Monad m) => a -> a -> (a -> m a)
 replaceM find replace x | find == x = return replace
                         | otherwise = return x
 
-
+-- | A little helper function for generating random lists of numbers.  Given a total,
+-- this generates a list of random numbers that sum to that total.  The function is of course recursive,
+-- and each number is between 1 and the remaining total (evenly distributed).  This does mean
+-- that the earlier items in the list will tend to be larger than the later items, and I think
+-- there is a high chance of the last item in the list being 1.  But hopefully for our tests this
+-- isn't major limitation.
 genNumsToTotal :: Int -> Gen [Int]
 genNumsToTotal 0 = return []
 genNumsToTotal n = do ch <- choose (1,n)
@@ -345,7 +396,7 @@ genNumsToTotal n = do ch <- choose (1,n)
                       return (ch:chs)
 
 -- | A function that takes a generator for an item, and generates a list of those,
--- dividing up the size.  The list will be length 2-3 on average.
+-- dividing up the size at random.  The list will be length log_2(N) on average, I think.
 genList :: (Int -> GenL a) -> Int -> GenL [a]
 genList _ 0 = return [([],[])]
 genList f n = (lift $ genNumsToTotal n) >>= mapM f >>= foldList
@@ -362,6 +413,7 @@ genList f n = (lift $ genNumsToTotal n) >>= mapM f >>= foldList
     mix :: ([Meta], a) -> ([Meta], [a]) -> ([Meta], [a])
     mix (ms0,x) (ms1,xs) = (ms0++ms1,x:xs)
 
+-- Helper functions for subtraction.
 sub1 :: Int -> Int
 sub1 x = x-1
 
@@ -369,10 +421,14 @@ sub2 :: Int -> Int
 sub2 x = x-2
 
 -- Be careful with the test generators; there should always be an option with value 1 (or 0)
--- in every list.  Recursion should always decrease the test sized, and you
+-- in every list.  Recursion should always decrease the test size, and you
 -- should take the recursion into account in the required size (generally, recursive
--- generators will have value 2 at least)
+-- generators will have value 2 at least).  If you cannot have something of size 1 in the list,
+-- (such as for A.Alternative) you need to take account of this in its parent items, and bump
+-- up the required size for them accordingly.
 
+-- | A type that indicates which of the OnlyX items are allowed in a given A.Structured.
+-- This is to avoid generating, for example, A.If with A.OnlyA things inside them.
 data OnlyAllowed = OA {
     onlyP :: Bool
    ,onlyO :: Bool
@@ -392,18 +448,22 @@ cond :: Bool -> (Int, a) -> (Int, a)
 cond True = id
 cond False = const (1000000, undefined)
 
+-- | Generates a simple expression (A.True m).
 genExpression :: GenL A.Expression
 genExpression = nextIdT >>* makeMeta' >>= genElem1 A.True
 
+-- | Generates a simple, empty, expression list.
 genExpressionList :: GenL A.ExpressionList
 genExpressionList = nextIdT >>* makeMeta' >>= (flip $ genElem2 A.ExpressionList) (comb0 [])
 
+-- | Generates an A.Alternative.  Currently always A.AlternativeSkip.
 genAlternative :: Int -> GenL A.Alternative
 genAlternative n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
     (3, genElem3 A.AlternativeSkip m genExpression . genProcess . sub2)
   ]
 
+-- | Generates a A.Specification.
 genSpecification :: GenL A.Specification
 genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (comb0 $ simpleName "x") genSpecType
   where
@@ -416,6 +476,7 @@ genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (c
        --TODO proc and function declaration
       ]
 
+-- | Generates a A.Structured, obeying the given OnlyAllowed structure.
 genStructured :: OnlyAllowed -> Int -> GenL A.Structured
 genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
@@ -428,6 +489,7 @@ genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
   ]
 
+-- | Generates a A.Process.
 genProcess :: Int -> GenL A.Process
 genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
@@ -445,6 +507,7 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   ]
 
 
+-- | Generates a flow-graph from the given AST.
 -- TODO put this in proper error monad
 genGraph :: A.Structured -> FlowGraph Identity ()
 genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) id $ runIdentity $ buildFlowGraph funcs s
@@ -452,6 +515,9 @@ genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " +
     empty = const (return ())
     funcs = GLF empty empty empty empty empty empty 
 
+-- | Given a flow-graph, it returns a list of all the identity alteration functions,
+-- for each node.  Applying any, many or all of these functions to the source AST
+-- should leave it unchanged.
 pickFuncId :: Monad m => FlowGraph m () -> [A.Structured -> m A.Structured]
 pickFuncId g = map (applyFunc . getFunc) (labNodes g)
   where
@@ -463,6 +529,8 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
     applyFunc (AlterSpec f) = f return
     applyFunc (AlterNothing) = return
 
+-- | Given a flow-graph, it returns a list of the meta-tag replacement alteration functions,
+-- for each meta-tag (i.e. each node).
 pickFuncRep :: Monad m => FlowGraph m () -> Map.Map Meta (A.Structured -> m A.Structured)
 pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
   where
@@ -483,7 +551,7 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
 (*==*) :: (Data a, Eq a) => a -> a -> Result
 (*==*) x y = Result {ok = Just (x == y), arguments = [pshow x, pshow y], stamp = []}
 
--- It is important to have these functions in the right ratio.  The number of possible trees is
+-- | It is important to have these functions in the right ratio.  The number of possible trees is
 -- 2^N, where N is the test size.  Therefore I suggest keeping N <= 10 as a sensible limit.
 -- Hence, if there are 1000 tests, we divide the test number by 100 to get the test size.
 deepCheck p = check (defaultConfig { configMaxTest = 1000, configSize = \x -> div x 100}) p
@@ -496,27 +564,32 @@ testModify = TestList
   ,TestCase $ deepCheck prop_gennums
  ]
   where
+    -- | Checks that applying any set (from the powerset of identity functions) of identity functions
+    -- does not change the AST.
     prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
     prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g) $ \f -> runIdentity (f g) *==* g
+
+    -- | Checks that applying any set (from the powerset of replacement functions) of replacement functions
+    -- produces the expected result.
     prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
     prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g) $ 
         \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) *==* Map.lookup ms rest
   
-    -- This tests our genNumsToTotal function, which is itself a test generator; nasty!
+    -- | This tests our genNumsToTotal function, which is itself a test generator; nasty!
     prop_gennums :: Int -> Result
     prop_gennums n = generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum) *==* n
 
-    -- Repeatedly pairs the map with each element of the powerset of its keys
+    -- | Repeatedly pairs the map with each element of the powerset of its keys
     helper :: Monad m => Map.Map Meta (A.Structured -> m A.Structured) -> [(Map.Map Meta (A.Structured -> m A.Structured), [Meta])]
     helper fs = zip (repeat fs) (powerset $ Map.keys fs)
 
-    -- Applies the functions associated with the given meta tags
+    -- | Applies the functions associated with the given meta tags
     applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured -> m A.Structured) -> (A.Structured -> m A.Structured)
     applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
 
 
-    -- Collects multiple test results together, using the first failure as its result
-    --  (if there is one; otherwise the result will be a pass).
+    -- | Collects multiple test results together, using the first failure as its result
+    --  (if there is a failure; otherwise the result will be a pass).
     collectAll :: [Result] -> Result
     collectAll = foldl collectAll'(Result {ok = Just True, arguments = [], stamp = []})
       where
@@ -524,10 +597,7 @@ testModify = TestList
         collectAll' :: Result -> Result -> Result
         collectAll' r0 r1 | ok r0 == Just False = r0
                           | otherwise = r1
---    collectAll = and
---    collectAll = foldl collect (property ())
-
---Returns the list of tests:
+-- | Returns the list of tests:
 tests :: Test
 tests = TestList
  [

@@ -16,6 +16,9 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- #ignore-exports
+
+-- | A module with tests for various miscellaneous things in the common directory.
 module CommonTest (tests) where
 
 import Data.Generics
@@ -86,6 +89,9 @@ testIsSafeConversion = TestList $ map runTestRow resultsWithIndexes
        ,[t, t,t,t,f, t,t,t,t,t] --to Int64
       ]
 
+-- | Tests the pass that checks a certain constructor is not present in the tree.
+-- Here, we provide various small AST fragments, and check that the list of constructors returned
+-- is the same as we expected.
 testCheckTreeForConstr :: Test
 testCheckTreeForConstr = TestList
  [
