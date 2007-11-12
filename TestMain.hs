@@ -26,11 +26,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "GenerateCTest"
 --
+-- * "ParseRainTest"
+--
 -- * "PassTest"
 --
--- * "RainParseTest"
+-- * "RainPassesTest"
 --
--- * "RainPassTest"
+-- * "RainTypesTest"
 --
 -- * "RainUsageCheckTest"
 module TestMain () where
