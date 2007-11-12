@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- | Contains test for various shared passes.
 module PassTest (tests) where
 
 import Control.Monad.Identity
@@ -32,15 +33,20 @@ import SimplifyExprs
 import TestUtil
 import TreeUtil
 
+-- | A handy typed version of Nothing for use with A.Declaration
 noInit :: Maybe A.Expression
 noInit = Nothing
 
+-- | An expression list containing a single value of 0.
 valof0 :: A.Structured 
 valof0 = A.OnlyEL m $ A.ExpressionList m [intLiteral 0]
 
+-- | An expression list containing variables with the two given names.
 valofTwo :: String -> String -> A.Structured
 valofTwo a b = A.OnlyEL m $ A.ExpressionList m [exprVariable a,exprVariable b]
 
+-- | Looks up an item from the Items, and attempts to cast it.  Fails (via assertions) if
+-- either the item is not found, or if the cast is invalid.
 assertGetItemCast  :: Typeable t => String -> Items -> IO t
 assertGetItemCast k kv 
   = case (Map.lookup k kv) of
@@ -49,18 +55,18 @@ assertGetItemCast k kv
         Just v' -> return v'
         Nothing -> (assertFailure $ "Wrong type when casting in assertGetItemCast for key: " ++ k) >> return (undefined)
 
--- Given a body, returns a function spec:
+-- | Given a body, returns a function spec:
 singleParamFunc :: A.Structured-> A.Specification
 singleParamFunc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] body)
 
--- Returns the expected body of the single parameter process (when the function had valof0 as a body)
-singleParamBodyExp :: Pattern --to match: A.Process
+-- | Returns the expected body of the single parameter process (when the function had valof0 as a body)
+singleParamBodyExp :: Pattern -- ^ to match: A.Process
 singleParamBodyExp = tag2 A.Seq DontCare $
                        tag2 A.OnlyP DontCare $ 
                          tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare)] $ tag2 A.ExpressionList DontCare [intLiteral 0]
 
--- Returns the expected specification type of the single parameter process
-singleParamSpecExp :: Pattern -> Pattern --to match: A.SpecType
+-- | Returns the expected specification type of the single parameter process
+singleParamSpecExp :: Pattern -> Pattern -- ^ to match: A.SpecType
 singleParamSpecExp body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare)] body
 
 -- | Tests a function with a single return, and a single parameter.
