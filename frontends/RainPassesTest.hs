@@ -18,6 +18,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- #ignore-exports
 
+-- | This file has tests for various Rain passes.  The tests are quite nasty to look at.
+-- They usually consist of a hand-constructed AST fragment that is the input to the test.
+-- The expected output is either a resulting AST, or a check on the items matched in the pattern.
+-- This stuff is all built on top of the Pattern system, which you can find more about in the
+-- Pattern, TreeUtils and TestUtils module.  Briefly, it is an easy way to match an actual test
+-- result against an expected pattern, that may have special features in it.  See the other module
+-- documentation.
+--
+-- TODO document each test in this file.
 module RainPassesTest (tests) where
 
 import Control.Monad.State
@@ -35,9 +44,12 @@ import RainTypes
 import TestUtil
 import TreeUtil
 
+-- | A helper function that returns a simple A.Structured item (A.OnlyP m $ A.Skip m).
 skipP :: A.Structured
 skipP = A.OnlyP m (A.Skip m)
 
+-- | A function that tries to cast a given value into the return type, and dies (using "dieInternal")
+-- if the cast isn't valid.
 castAssertADI :: (Typeable b) => Maybe AnyDataItem -> IO b
 castAssertADI x = case (castADI x) of
   Just y -> return y

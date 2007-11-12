@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- | A module testing things from the RainTypes module.
 module RainTypesTest where
 
 import Control.Monad.State
@@ -33,6 +34,8 @@ import TestUtil
 import TreeUtil
 import Types
 
+-- | Tests that constants in expressions are folded properly.  TODO these tests could do with a lot of expanding.
+-- It may even be easiest to use QuickCheck for the testing.
 constantFoldTest :: Test
 constantFoldTest = TestList
  [
@@ -61,6 +64,9 @@ constantFoldTest = TestList
    lit :: Integer -> ExprHelper
    lit n = Lit $ int64Literal n
 
+-- | Tests that integer literals are correctly annotated with the smallest type that can hold them.
+-- We only test the boundaries between each integer type, but that should suffice.
+-- TODO was there a reason I didn't test unsigned numbers?
 annotateIntTest :: Test
 annotateIntTest = TestList
  [
@@ -89,6 +95,8 @@ annotateIntTest = TestList
   failSigned :: Integer -> Test
   failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
 
+-- | An amazing amount of tests for testing the Rain type-checker for all the different forms of statement,
+-- such as assignment, expressions, communications, etc etc.
 --TODO add typechecks for expressions involving channels
 checkExpressionTest :: Test
 checkExpressionTest = TestList
@@ -355,9 +363,8 @@ checkExpressionTest = TestList
   pass :: Int -> A.Type -> ExprHelper -> ExprHelper -> Test
   pass n t exp act = TestCase $ pass' n t (buildExprPattern exp) (buildExpr act)
 
-  --To easily get more tests, we take the result of every successful pass (which must be fine now), and feed it back through
-  --the type-checker to check that it is unchanged
-  
+  -- | To easily get more tests, we take the result of every successful pass (which must be fine now), and feed it back through
+  --the type-checker to check that it is unchanged  
   pass' :: Int -> A.Type -> Pattern -> A.Expression -> Assertion
   pass' n t exp act = testPassWithCheck ("checkExpressionTest " ++ show n) exp (checkExpressionTypes act) state (check t)   
     where
