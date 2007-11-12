@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- #ignore-exports
 
+-- | Currently contains tests just for the transformWaitFor pass that is run for the C backend.
 module BackendPassesTest (tests) where
 
 import Control.Monad.State

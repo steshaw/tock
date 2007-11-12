@@ -47,6 +47,8 @@ import GenerateCPPCSP
 import Metadata
 import TestUtil
 
+-- | A few helper functions for writing certain characters (that won't appear in our generated C/C++ source)
+-- to the WriterT monad.  Useful as simple placeholders/special values during testers.
 at :: CGen ()
 at = tell ["@"]
 
@@ -59,6 +61,7 @@ caret = tell ["^"]
 hash :: CGen ()
 hash = tell ["#"]
 
+-- | A few easy helpers for name variables for testing.
 foo :: A.Name
 foo = simpleName "foo"
 
@@ -76,7 +79,7 @@ assertGen n exp act
              Left (_,err) -> assertFailure $ n ++ " pass failed, error: " ++ err
              Right ss -> assertEqual n exp (subRegex (mkRegex "/\\*\\*/") (concat ss) "")
 
--- | Asserts that the given output of a CGen pass matches the expected regex
+-- | Asserts that the given output of a CGen pass matches the expected regex, and returns the matched groups.
 assertGenR :: String -> String -> IO (Either Errors.ErrorReport [String]) -> IO [String]
 assertGenR n exp act
       = do r <- act 
@@ -98,7 +101,7 @@ assertGenFail n act
                            then return ()
                            else assertFailure $ n ++ " pass succeeded when expected to fail, output: " ++ (subRegex (mkRegex "/\\*\\*/") (concat ss) "")
 
-
+-- | Checks that running the test for the C and C++ backends produces the right output for each.
 testBothS :: 
   String -- ^ Test Name
   -> String -- ^ C expected
@@ -113,6 +116,7 @@ testBothS testName expC expCPP act startState = TestList
   where
     state = execState startState emptyState
 
+-- | Checks that both the C and C++ backends fail on the given input.
 testBothFailS :: String -> (GenOps -> CGen ()) -> (State CompState ()) -> Test
 testBothFailS testName act startState = TestList
    [TestCase $ assertGenFail (testName ++ "/C") (evalStateT (runErrorT (execWriterT $ act cgenOps)) state)
@@ -120,11 +124,13 @@ testBothFailS testName act startState = TestList
   where
     state = execState startState emptyState
 
+-- | Checks that the given output of a backend satisfies the given regex, and returns the matched groups.
 testRS :: String -> String -> CGen () -> State CompState () -> IO [String]
 testRS testName exp act startState = assertGenR testName exp (evalStateT (runErrorT (execWriterT act)) state)
   where
     state = execState startState emptyState
 
+-- | Like testBothS, but with the output of the C and C++ backends the same.
 testBothSameS :: 
   String    -- ^ Test Name
   -> String -- ^ C and C++ expected
@@ -133,6 +139,7 @@ testBothSameS ::
   -> Test
 testBothSameS n e a s = testBothS n e e a s
 
+-- | Checks that the output of the test matches the given regexes for C and C++
 testBothR :: 
   String    -- ^ Test Name
   -> String -- ^ C expected
@@ -141,18 +148,25 @@ testBothR ::
   -> Test
 testBothR n eC eCPP a = TestList [TestCase $ (testRS n eC (a cgenOps) (return ())) >> return (), TestCase $ (testRS n eCPP (a cppgenOps) (return ())) >> (return ())]
 
+-- | Like testBothR, but where the output of the C and C++ passes is expected to be the same.
 testBothSameR :: String -> String -> (GenOps -> CGen ()) -> Test
 testBothSameR n e a = testBothR n e e a
 
+-- | Like testBothFailS, but with the default beginning state.
 testBothFail :: String -> (GenOps -> CGen ()) -> Test
 testBothFail a b = testBothFailS a b (return ())
-  
+
+-- | Like testBothS, but with the default beginning state.  
 testBoth :: String -> String -> String -> (GenOps -> CGen ()) -> Test
 testBoth a b c d = testBothS a b c d (return ())
 
+-- | Like testBothSameS, but with the default beginning state.
 testBothSame :: String -> String -> (GenOps -> CGen ()) -> Test
 testBothSame a b c = testBothSameS a b c (return ())
   
+-- | These functions are all helper functions that are like call, but turn the call
+-- into a function suitable to pass to all the test functions; i.e. a function
+-- parameterised solely by the GenOps.
 tcall :: (GenOps -> GenOps -> a -> b) -> a -> (GenOps -> b)
 tcall f x = (\o -> f o o x)
 
