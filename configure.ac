@@ -51,7 +51,12 @@ if test "x$HAVE_SVN" = "xfalse"; then
   AC_MSG_WARN([svn (Subversion) not found; you will not be able to fetch the occam cgtests from the public repository])
 fi
 
-#TODO test that they have the right GHC libraries installed (such as hunit, mtl)
+AC_CHECK_PROG([HAVE_HADDOCK],[haddock],[true],[false])
+if test "x$HAVE_HADDOCK" = "xfalse"; then
+  AC_MSG_WARN([haddock not found; you will not be able to generate the documentation from the Tock source code])
+fi
+
+#Test that they have the right GHC libraries installed (such as hunit, mtl)
 
 AC_DEFUN([AC_NEED_HASKELL_LIB],
 [
