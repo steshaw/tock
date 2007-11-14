@@ -260,7 +260,7 @@ compile mode fn outHandle
 
         output <-
           case mode of
-            ModeParse -> return $ show ast1
+            ModeParse -> return $ pshow ast1
             ModeFlowGraph ->
               do procs <- findAllProcesses
                  let fs :: Data t => t -> PassM String
