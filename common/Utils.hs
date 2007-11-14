@@ -136,7 +136,7 @@ seqPair (x,y) = do x' <- x
 
 -- | Forms the powerset of a given list.
 -- It uses the list monad cleverly, and it scares me.  But it works.
--- Taken from: http://www.haskell.org/haskellwiki/Blow_your_mind
+-- Taken from: http:\/\/www.haskell.org\/haskellwiki\/Blow_your_mind
 powerset :: [a] -> [[a]]
 powerset = filterM (const [True, False])
 

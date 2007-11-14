@@ -378,7 +378,7 @@ oneofLS fs n = oneofL $ applyAll n (filterFuncs n fs)
     filterFuncs sz = map snd . filter ((>=) sz . fst)
 
 -- | A function that takes a "find" parameter, a "replace" parameter, and returns a monadic function
--- (for convenience) that performs the check/replacement.
+-- (for convenience) that performs the check\/replacement.
 replaceM :: (Eq a, Monad m) => a -> a -> (a -> m a)
 replaceM find replace x | find == x = return replace
                         | otherwise = return x

@@ -208,7 +208,7 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
--- | In occam, things that are arrays/lists (literals, constructors, etc) are arrays.  However, in Rain they are lists.
+-- | In occam, things that are arrays\/lists (literals, constructors, etc) are arrays.  However, in Rain they are lists.
 -- This function chooses between the two types accordingly.  The dimensions are only relevant in occam.
 typeOfArrayList :: CSM m => [A.Dimension] -> A.Type -> m A.Type
 typeOfArrayList dims innerType
