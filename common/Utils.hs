@@ -21,7 +21,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Utils where
 
 import Control.Monad.State
-import Control.Monad.State.Class
 import Data.Ord
 import System.IO
 import System.IO.Error
@@ -142,7 +141,7 @@ powerset :: [a] -> [[a]]
 powerset = filterM (const [True, False])
 
 -- | Alters a monadic state and returns the old value (from before the alteration).
-modify' :: MonadState s m => (s -> s) -> m s
+modify' :: Monad m => (s -> s) -> StateT s m s
 modify' f = do x <- get
                put (f x)
                return x
