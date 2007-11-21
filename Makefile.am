@@ -8,12 +8,12 @@ GHC_OPTS = \
 
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES)
 	@MKDIR_P@ obj
-	ghc $(GHC_OPTS) -o tock --make Main -odir obj -hidir obj
+	ghc $(GHC_OPTS) -o tock$(EXEEXT) --make Main -odir obj -hidir obj
 
 #The order of the -main-is and --make flags is important here:
 tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES)
 	@MKDIR_P@ obj
-	ghc $(GHC_OPTS) -o tocktest -main-is TestMain --make TestMain -odir obj -hidir obj
+	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
 
 TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
