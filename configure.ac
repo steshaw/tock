@@ -120,4 +120,5 @@ AC_SUBST(ccsp_kroc_available)
 AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
 
-AC_OUTPUT(Makefile)
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT
