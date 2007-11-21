@@ -21,6 +21,7 @@ module TreeUtil (
   AnyDataItem(..), Items, castADI, 
   assertPatternMatch, getMatchedItems, 
   tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, 
+  (@@),
   mkPattern, stopCaringPattern, namePattern, nameAndStopCaringPattern, 
   checkTreeForConstr,
   con0, con1, con2, con3, con4, con5, con6, con7
@@ -239,6 +240,10 @@ namePattern name item = namePattern' name (mkPattern item)
 
 nameAndStopCaringPattern :: Data a => String -> a -> Pattern -> Pattern
 nameAndStopCaringPattern n item = (stopCaringPattern item) . (namePattern n item)
+
+
+(@@) :: Data a => String -> a -> Pattern
+(@@) label x = Named label (mkPattern x)
 
 --I'm not sure tag0 is ever needed, but just in case:
 tag0 :: (Data a) => a -> Pattern
