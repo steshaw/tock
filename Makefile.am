@@ -45,19 +45,21 @@ frontends/LexRain.hs: frontends/LexRain.x
 BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs
 CLEANFILES = $(BUILT_SOURCES)
 
-tock_SOURCES = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
-tock_SOURCES += transformations/Unnest.hs transformations/RainUsageCheck.hs transformations/SimplifyProcs.hs
-tock_SOURCES += transformations/SimplifyComms.hs
-tock_SOURCES += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
-tock_SOURCES += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
-tock_SOURCES += frontends/LexOccam.x frontends/LexRain.x
-tock_SOURCES += common/Pass.hs common/TreeUtil.hs common/Intrinsics.hs common/EvalLiterals.hs
-tock_SOURCES += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
-tock_SOURCES += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
-tock_SOURCES += common/Metadata.hs common/AST.hs common/FlowGraph.hs common/FlowAlgorithms.hs
-tock_SOURCES += backends/TLP.hs backends/BackendPasses.hs backends/AnalyseAsm.hs
-tock_SOURCES += backends/GenerateC.hs backends/GenerateCPPCSP.hs
-tock_SOURCES += Main.hs
+tock_SOURCES_hs = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
+tock_SOURCES_hs += transformations/Unnest.hs transformations/RainUsageCheck.hs transformations/SimplifyProcs.hs
+tock_SOURCES_hs += transformations/SimplifyComms.hs
+tock_SOURCES_hs += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
+tock_SOURCES_hs += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
+tock_SOURCES_hs += common/Pass.hs common/TreeUtil.hs common/Intrinsics.hs common/EvalLiterals.hs
+tock_SOURCES_hs += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
+tock_SOURCES_hs += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
+tock_SOURCES_hs += common/Metadata.hs common/AST.hs common/FlowGraph.hs common/FlowAlgorithms.hs
+tock_SOURCES_hs += backends/TLP.hs backends/BackendPasses.hs backends/AnalyseAsm.hs
+tock_SOURCES_hs += backends/GenerateC.hs backends/GenerateCPPCSP.hs
+tock_SOURCES_hs += Main.hs
+
+tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
+
 
 tocktest_SOURCES = $(tock_SOURCES)
 tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTest.hs
@@ -97,7 +99,7 @@ clean-cgtests:
 haddock:
 	@mkdir -p doc
 	@echo "putmycustomdocumentationhere" > .temp-haddock-file
-	haddock -o doc --html -p .temp-haddock-file -t Tock $(filter-out frontends/LexOccam.hs frontends/LexRain.hs,$(sources))
+	haddock -o doc --html -p .temp-haddock-file -t Tock $(tock_SOURCES_hs)
 	cp docextra/*.svg doc/
 	@rm .temp-haddock-file
 	@grep -B 10000 putmycustomdocumentationhere doc/index.html | sed "s/putmycustomdocumentationhere//" > doc/index.html-2
