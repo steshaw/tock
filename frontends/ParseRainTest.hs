@@ -29,8 +29,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- position of each part of the code.  We don't want to have to work out what the Meta
 -- tag will be (what if you inserted a space into the input; you'd have to change the expected
 -- result!), and we don't really care.  So we use the pattern stuff from the Pattern, TreeUtil
--- and TestUtil modules to check everything except the meta tags.  See especially the "pat" function
--- in this module.
+-- and TestUtil modules to check everything except the meta tags.  
+--
+-- The "pat" function in this module allows us to write normal AST fragments using "m" (an alias for "emptyMeta")
+-- and then turn these into Patterns where any Meta tag that is "m" is ignored during the comparison.
 module ParseRainTest (tests) where
 
 import Data.Generics
@@ -88,9 +90,12 @@ testParseFail (text,prod)
                            Right result -> assertFailure ("Test was expected to fail:\n***BEGIN CODE***\n" ++ text ++ "\n*** END CODE ***\n")
     where parser = do { p <- prod ; eof ; return p}
 
+emptySeveral :: A.Structured
+emptySeveral = A.Several m []
+
 -- | A handy synonym for the empty block
 emptyBlock :: A.Process
-emptyBlock = A.Seq m $ A.Several m []
+emptyBlock = A.Seq m emptySeveral
 
 -- | A handy, properly typed, synonym for Nothing to use with Declarations.
 noInit :: Maybe A.Expression
@@ -247,9 +252,12 @@ testLiteral =
 testRange :: [ParseTest A.Expression]
 testRange =
  [
-  pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern 0) (intLiteralPattern 1))
-  ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern 0) (intLiteralPattern 10000))
-  ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 0" $ tag2 A.ExprConstr DontCare $ tag3 A.RangeConstr DontCare (intLiteralPattern $ -3) (intLiteralPattern $ -1))
+  pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ pat $
+    A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 1))
+  ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 1" $ pat $
+    A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 10000))
+  ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 2" $ pat $
+    A.ExprConstr m $ A.RangeConstr m (intLiteral $ -3) (intLiteral $ -1))
   --For now, at least, this should fail:
   ,fail("[0..x]", RP.expression)
  ]
@@ -312,17 +320,16 @@ testWhile =
 testSeq :: [ParseTest A.Process]
 testSeq =
  [
-   passSeq (0, "seq { }", A.Seq m $ A.Several m [] )
+   passSeq (0, "seq { }", emptyBlock )
   ,fail ("seq { ; ; }",RP.statement)
 
-  ,passSeq (1, "{ }", A.Seq m $ A.Several m [] )
+  ,passSeq (1, "{ }", emptyBlock )
 
   ,fail ("{ ; ; }",RP.statement)
 
-  ,passSeq (2, "{ { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
-  ,passSeq (3, "seq { { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )
-  ,passSeq (4, "{ seq { } }", A.Seq m $ A.Several m [A.OnlyP m $ A.Seq m (A.Several m [])] )        
-
+  ,passSeq (2, "{ { } }", makeSeq [emptyBlock] )
+  ,passSeq (3, "seq { { } }", makeSeq [emptyBlock] )
+  ,passSeq (4, "{ seq { } }", makeSeq [emptyBlock] )
 
   ,fail ("seq",RP.statement)
   ,fail ("seq ;",RP.statement)
@@ -372,24 +379,33 @@ testPar =
 testBlock :: [ParseTest A.Structured]
 testBlock =
  [
-  pass("{ a = b; }",RP.innerBlock False,assertPatternMatch "testBlock 0" (tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]) )
-  ,pass("{ a = b; b = c; }",RP.innerBlock False,assertPatternMatch "testBlock 1" (tag2 A.Several DontCare 
-    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]) )
-  ,pass("{ uint8: x; a = b; }",RP.innerBlock False,assertPatternMatch "testBlock 2" $ tag3 A.Spec DontCare 
-    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
-    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
-   )
-  ,pass("{ uint8: x; a = b; b = c; }",RP.innerBlock False,assertPatternMatch "testBlock 3" $ tag3 A.Spec DontCare 
-    (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
-    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b",tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c"]
-   )   
-  ,pass("{ b = c; uint8: x; a = b; }",RP.innerBlock False,assertPatternMatch "testBlock 4" $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "b" "c",
-    tag3 A.Spec DontCare 
-      (tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit) $ tag2 A.Several DontCare 
-    [tag2 A.OnlyP DontCare $ makeSimpleAssignPattern "a" "b"]
-   ])
+   passBlock (0, "{ a = b; }", False, A.Several m [A.OnlyP m $ makeSimpleAssign "a" "b"])
+   
+  ,passBlock (1, "{ a = b; b = c; }", False,
+    A.Several m [A.OnlyP m $ makeSimpleAssign "a" "b",A.OnlyP m $ makeSimpleAssign "b" "c"])
+    
+  ,passBlock (2, "{ uint8: x; a = b; }", False,
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+      A.Several m [A.OnlyP m $ makeSimpleAssign "a" "b"])
+  
+  ,passBlock (3, "{ uint8: x; a = b; b = c; }", False,
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+      A.Several m [A.OnlyP m $ makeSimpleAssign "a" "b",A.OnlyP m $ makeSimpleAssign "b" "c"])
+
+  ,passBlock (4, "{ b = c; uint8: x; a = b; }", False,
+    A.Several m [A.OnlyP m $ makeSimpleAssign "b" "c",
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+        A.Several m [A.OnlyP m $ makeSimpleAssign "a" "b"]
+    ])
+
+  ,passBlock (5, "{ uint8: x; }", False,
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) emptySeveral)
+
   ,fail("{b}",RP.innerBlock False)
  ]
+ where
+   passBlock :: (Int, String, Bool, A.Structured) -> ParseTest A.Structured
+   passBlock (ind, input, b, exp) = pass (input, RP.innerBlock b, assertPatternMatch ("testBlock " ++ show ind) (pat exp))
         
 testEach :: [ParseTest A.Process]
 testEach =
@@ -405,39 +421,23 @@ testEach =
 testTopLevelDecl :: [ParseTest A.Structured]
 testTopLevelDecl =
  [
-  pass ("process noargs() {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 0" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
-        (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      )
-      (tag2 A.Several DontCare ([] :: [A.Structured]))]
-  )
-  , pass ("process noargs() par {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 0b" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "noargs") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
-        (tag3 A.Par DontCare A.PlainPar $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      )
-      (tag2 A.Several DontCare ([] :: [A.Structured]))]
-  )
+  passTop (0, "process noargs() {}", 
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral])
   
-  , pass ("process onearg(int: x) {x = 0;}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 1" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "onearg") $ tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Int (simpleNamePattern "x")]
-        (tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyP DontCare $ makeAssignPattern (variablePattern "x") (intLiteralPattern 0)]) )
-      (tag2 A.Several DontCare ([] :: [A.Structured]))]
-  )
-  ,pass ("process noargs0() {} process noargs1 () {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 2" $ tag2 A.Several DontCare [
-      tag3 A.Spec DontCare 
-        (tag3 A.Specification DontCare (simpleNamePattern "noargs0") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
-          (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-        ) (tag2 A.Several DontCare ([] :: [A.Structured]))
-      ,tag3 A.Spec DontCare 
-        (tag3 A.Specification DontCare (simpleNamePattern "noargs1") $ tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal])
-          (tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-        ) (tag2 A.Several DontCare ([] :: [A.Structured]))
-      ]
-  )  
+  ,passTop (1, "process onearg(int: x) {x = 0;}",
+    [A.Spec m (A.Specification m (simpleName "onearg") $ A.Proc m A.PlainSpec
+      [A.Formal A.ValAbbrev A.Int (simpleName "x")] $
+      makeSeq [makeAssign (variable "x") (intLiteral 0)])
+      emptySeveral
+    ])
+    
+  ,passTop (2, "process noargs0() {} process noargs1 () {}",
+    [A.Spec m (A.Specification m (simpleName "noargs0") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral 
+    ,A.Spec m (A.Specification m (simpleName "noargs1") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral])
+
+  ,passTop (4, "process noargs() par {}",
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m A.PlainSpec [] $ A.Par m A.PlainPar emptySeveral) emptySeveral])
+
   , fail ("process", RP.topLevelDecl)
   , fail ("process () {}", RP.topLevelDecl)
   , fail ("process foo", RP.topLevelDecl)
@@ -447,34 +447,23 @@ testTopLevelDecl =
   , fail ("process foo (int: x)", RP.topLevelDecl)
   , fail ("process foo (int x) {}", RP.topLevelDecl)
     
-    
-  ,pass ("function uint8: cons() {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 100" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "cons") $
-        tag5 A.Function DontCare A.PlainSpec [A.Byte] ([] :: [A.Formal]) $
-          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
-    ]
-   )
-   
-  ,pass ("function uint8: f(uint8: x) {}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 101" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "f") $
-        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
-          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare ([] :: [A.Structured]))
-      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
-    ]	
-   )   
+  ,passTop (100, "function uint8: cons() {}",
+    [A.Spec m (A.Specification m (simpleName "cons") $ A.Function m A.PlainSpec [A.Byte] [] $ A.OnlyP m emptyBlock) emptySeveral])
 
-  ,pass ("function uint8: id(uint8: x) {return x;}", RP.topLevelDecl,
-    assertPatternMatch "testTopLevelDecl 101" $ tag2 A.Several DontCare [tag3 A.Spec DontCare
-      (tag3 A.Specification DontCare (simpleNamePattern "id") $
-        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
-          (tag2 A.OnlyP DontCare $ tag2 A.Seq DontCare $ tag2 A.Several DontCare [tag2 A.OnlyEL DontCare $ tag2 A.ExpressionList DontCare [exprVariablePattern "x"]])
-      ) (tag2 A.Several DontCare ([] :: [A.Structured]))
-    ]
-   )
+  ,passTop (101, "function uint8: f(uint8: x) {}",
+    [A.Spec m (A.Specification m (simpleName "f") $
+      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ A.OnlyP m emptyBlock)
+      emptySeveral])
+
+  ,passTop (102, "function uint8: id(uint8: x) {return x;}",
+    [A.Spec m (A.Specification m (simpleName "id") $
+      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
+        A.OnlyP m $ A.Seq m $ A.Several m [A.OnlyEL m $ A.ExpressionList m [exprVariable "x"]])
+      emptySeveral])
  ]
+ where
+   passTop :: (Int, String, [A.Structured]) -> ParseTest A.Structured
+   passTop (ind, input, exp) = pass (input, RP.topLevelDecl, assertPatternMatch ("testTopLevelDecl " ++ show ind) $ pat $ A.Several m exp)
 
 nonShared :: A.ChanAttributes
 nonShared = A.ChanAttributes { A.caWritingShared = False, A.caReadingShared = False}
@@ -521,13 +510,13 @@ testDataType =
 testDecl :: [ParseTest (Meta, A.Structured -> A.Structured)]
 testDecl =
  [
-  passd ("bool: b;",0,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag3 A.Declaration DontCare A.Bool noInit)
-  ,passd ("uint8: x;",1,tag3 A.Specification DontCare (simpleNamePattern "x") $ tag3 A.Declaration DontCare A.Byte noInit)
-  ,passd ("?bool: bc;",2,tag3 A.Specification DontCare (simpleNamePattern "bc") $ tag3 A.Declaration DontCare (A.Chan A.DirInput nonShared A.Bool) noInit)
-  ,passd ("a: b;",3,tag3 A.Specification DontCare (simpleNamePattern "b") $ tag3 A.Declaration DontCare (tag1 A.UserDataType $ tag3 A.Name DontCare A.DataTypeName "a") noInit)
+  passd ("bool: b;",0,pat $ A.Specification m (simpleName "b") $ A.Declaration m A.Bool noInit)
+  ,passd ("uint8: x;",1,pat $ A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit)
+  ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.Chan A.DirInput nonShared A.Bool) noInit)
+  ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m A.DataTypeName "a") noInit)
 
-  ,passd2 ("bool: b0,b1;",100,tag3 A.Specification DontCare (simpleNamePattern "b0") $ tag3 A.Declaration DontCare A.Bool noInit,
-                                tag3 A.Specification DontCare (simpleNamePattern "b1") $ tag3 A.Declaration DontCare A.Bool noInit)
+  ,passd2 ("bool: b0,b1;",100,pat $ A.Specification m (simpleName "b0") $ A.Declaration m A.Bool noInit,
+                              pat $ A.Specification m (simpleName "b1") $ A.Declaration m A.Bool noInit)
   
   
   ,fail ("bool:;",RP.declaration)
@@ -544,7 +533,7 @@ testDecl =
    passd :: (String,Int,Pattern) -> ParseTest (Meta, A.Structured -> A.Structured)
    passd (code,index,exp) = pass(code,RP.declaration,check ("testDecl " ++ (show index)) exp)
    check :: String -> Pattern -> (Meta, A.Structured -> A.Structured) -> Assertion
-   check msg spec (_,act) = assertPatternMatch msg (tag3 A.Spec DontCare spec $ A.Several m []) (act $ A.Several m [])
+   check msg spec (_,act) = assertPatternMatch msg (tag3 A.Spec DontCare spec $ emptySeveral) (act $ emptySeveral)
 
    passd2 :: (String,Int,Pattern,Pattern) -> ParseTest (Meta, A.Structured -> A.Structured)
    passd2 (code,index,expOuter,expInner) = pass(code,RP.declaration,check2 ("testDecl " ++ (show index)) expOuter expInner)
