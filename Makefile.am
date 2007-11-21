@@ -15,6 +15,9 @@ tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
+GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
+	@MKDIR_P@ obj
+	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
 
 TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
 
@@ -42,7 +45,10 @@ frontends/LexOccam.hs: frontends/LexOccam.x
 frontends/LexRain.hs: frontends/LexRain.x
 	alex frontends/LexRain.x
 
-BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs
+common/TagAST.hs: GenTagAST$(EXEEXT)
+	./GenTagAST$(EXEEXT) > common/TagAST.hs
+
+BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs
 CLEANFILES = $(BUILT_SOURCES)
 
 tock_SOURCES_hs = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
@@ -54,6 +60,7 @@ tock_SOURCES_hs += common/Pass.hs common/TreeUtil.hs common/Intrinsics.hs common
 tock_SOURCES_hs += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
 tock_SOURCES_hs += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
 tock_SOURCES_hs += common/Metadata.hs common/AST.hs common/FlowGraph.hs common/FlowAlgorithms.hs
+tock_SOURCES_hs += common/TagAST.hs
 tock_SOURCES_hs += backends/TLP.hs backends/BackendPasses.hs backends/AnalyseAsm.hs
 tock_SOURCES_hs += backends/GenerateC.hs backends/GenerateCPPCSP.hs
 tock_SOURCES_hs += Main.hs
@@ -68,9 +75,11 @@ tocktest_SOURCES += common/TestUtil.hs common/CommonTest.hs common/FlowGraphTest
 tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
 tocktest_SOURCES += TestMain.hs
 
+GenTagAST_SOURCES = GenTagAST.hs
+
 #The programs to actually build:	
 bin_PROGRAMS = tock
-noinst_PROGRAMS = tocktest
+noinst_PROGRAMS = tocktest GenTagAST
 
 
 clean-local:
