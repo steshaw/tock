@@ -185,7 +185,7 @@ testUnique0 :: Test
 testUnique0 = TestCase $ testPassWithItemsStateCheck "testUnique0" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) skipP
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing) skipP
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc"@@DontCare) $ A.Declaration m A.Byte Nothing) skipP
     check (items,state) 
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique0: Variable was not made unique" "c" (A.nameName newcName)
@@ -198,8 +198,8 @@ testUnique1 = TestCase $ testPassWithItemsStateCheck "testUnique1" exp (uniquify
   where
     orig = A.Several m [A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) skipP,
                         A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Int64 Nothing) skipP]
-    exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc0" DontCare) $ A.Declaration m A.Byte Nothing) skipP,
-                            tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc1" DontCare) $ A.Declaration m A.Int64 Nothing) skipP]
+    exp = tag2 A.Several m [tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc0"@@DontCare) $ A.Declaration m A.Byte Nothing) skipP,
+                            tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc1"@@DontCare) $ A.Declaration m A.Int64 Nothing) skipP]
     check (items,state) 
                 = do newc0Name <- castAssertADI (Map.lookup "newc0" items)
                      newc1Name <- castAssertADI (Map.lookup "newc1" items)
@@ -216,8 +216,8 @@ testUnique2 :: Test
 testUnique2 = TestCase $ testPassWithItemsStateCheck "testUnique2" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) (A.OnlyP m $ makeSimpleAssign "c" "d")
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing)
-      (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc"@@DontCare) $ A.Declaration m A.Byte Nothing)
+      (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare ("newc"@@DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
     check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
                              assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
 
@@ -227,10 +227,10 @@ testUnique2b = TestCase $ testPassWithItemsStateCheck "testUnique2b" exp (uniqui
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) $
     	A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "newc" DontCare) $ A.Declaration m A.Byte Nothing) $
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc"@@DontCare) $ A.Declaration m A.Byte Nothing) $
       tag2 A.Several DontCare [
-        (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
-        ,(tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "newc" DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "e")]))
+        (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare ("newc"@@DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))
+        ,(tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare ("newc"@@DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "e")]))
       ]
     check (items,state) = do newcName <- castAssertADI (Map.lookup "newc" items)
                              assertNotEqual "testUnique2: Variable was not made unique" "c" (A.nameName newcName)
@@ -327,7 +327,7 @@ testFindMain0 :: Test
 testFindMain0 = TestCase $ testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m []
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName (Named "main" DontCare)) $
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName ("main"@@DontCare)) $
       tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) $ tag2 A.Several DontCare ([] :: [A.Structured])
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
@@ -349,7 +349,7 @@ testFindMain2 = TestCase $ testPassWithItemsStateCheck "testFindMain2" exp ((uni
                A.Several m []
     orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) inner
              
-    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName (Named "main" DontCare)) $
+    exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName ("main"@@DontCare)) $
       tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) (stopCaringPattern m $ mkPattern inner)
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
@@ -462,8 +462,8 @@ testRangeRepPass0 :: Test
 testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 1)
-    exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare (Named "repIndex" DontCare) (intLiteral 0) (intLiteral 2)) 
-      (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ Named "repIndex" DontCare)
+    exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare ("repIndex"@@DontCare) (intLiteral 0) (intLiteral 2)) 
+      (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ "repIndex"@@DontCare)
 
 -- | Lists with negative counts should give an error
 testRangeRepPass1 :: Test
