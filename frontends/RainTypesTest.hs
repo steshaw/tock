@@ -30,6 +30,7 @@ import Errors
 import Pass
 import Pattern
 import RainTypes
+import TagAST
 import TestUtil
 import TreeUtil
 import Types
@@ -286,11 +287,11 @@ checkExpressionTest = TestList
   passWhileIf n exp src = TestList
     [
       TestCase $ testPass ("checkExpressionTest/if " ++ show n) 
-        (tag2 A.If DontCare $ tag2 A.OnlyC DontCare $ tag3 A.Choice DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
+        (mIf $ tag2 A.OnlyC DontCare $ tag3 A.Choice DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
         (checkConditionalTypes $ A.If m $ A.OnlyC m $ A.Choice m (buildExpr src) (A.Skip m))
         state
       ,TestCase $ testPass ("checkExpressionTest/while " ++ show n)
-        (tag3 A.While DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
+        (mWhile (buildExprPattern exp) (tag1 A.Skip DontCare))
         (checkConditionalTypes $ A.While m (buildExpr src) (A.Skip m))
         state
     ]

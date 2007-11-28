@@ -41,6 +41,7 @@ import Errors
 import Pattern
 import RainPasses
 import RainTypes
+import TagAST
 import TestUtil
 import TreeUtil
 
@@ -66,19 +67,19 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
                (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) 
                (A.OnlyP m (makeAssign (variable "c") (intLiteral 7)))              
              )
-    exp = tag2 A.Seq DontCare
-             (tag3 A.Spec DontCare
-               (tag3 A.Specification DontCare listVarName
-                 (tag4 A.IsExpr DontCare A.ValAbbrev (A.List A.Byte) (makeLiteralStringRain "1"))
+    exp = mSeq
+             (mSpec
+               (mSpecification listVarName
+                 (mIsExpr A.ValAbbrev (A.List A.Byte) (makeLiteralStringRain "1"))
                )
-               (tag3 A.Rep DontCare
-                 (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
-                 (tag3 A.Spec DontCare 
-                   (tag3 A.Specification DontCare (simpleName "c") 
+               (mRep
+                 (mFor indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
+                 (mSpec 
+                   (mSpecification (simpleName "c") 
                      --ValAbbrev because we are abbreviating an expression:
-                     (tag4 A.Is DontCare A.ValAbbrev A.Byte 
-                       (tag3 A.SubscriptedVariable DontCare 
-                         (tag2 A.Subscript DontCare (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
+                     (mIs A.ValAbbrev A.Byte 
+                       (mSubscriptedVariable
+                         (mSubscript (mExprVariable (mVariable indexVar)))
                          listVar
                        )
                      )
@@ -89,7 +90,7 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
              )
     indexVar = Named "indexVar" DontCare
     listVarName = Named "listVarName" DontCare
-    listVar = tag2 A.Variable DontCare listVarName
+    listVar = mVariable listVarName
     
     --Need to also check the names were recorded properly in CompState, so that later passes will work properly:
     check :: (Items,CompState) -> Assertion
