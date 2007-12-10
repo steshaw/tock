@@ -41,7 +41,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * If statements, on the other hand, have to be chained together.  Each expression is connected
 -- to its body, but also to the next expression.  There is no link between the last expression
 -- and the end of the if; if statements behave like STOP if nothing is matched.
-module FlowGraph (AlterAST(..), EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, makeFlowGraphInstr) where
+module FlowGraph (AlterAST(..), EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, joinLabelFuncs, makeFlowGraphInstr) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -106,6 +106,26 @@ data Monad m => GraphLabelFuncs m label = GLF {
 -- | Builds the instructions to send to GraphViz
 makeFlowGraphInstr :: (Monad m, Show a) => FlowGraph m a -> String
 makeFlowGraphInstr = graphviz'
+
+-- | Joins two labelling functions together.  They must use the same monad.
+joinLabelFuncs :: forall a b m. Monad m => GraphLabelFuncs m a -> GraphLabelFuncs m b -> GraphLabelFuncs m (a,b)
+joinLabelFuncs fx fy = GLF
+ {
+  labelDummy = joinItem labelDummy,
+  labelProcess = joinItem labelProcess,
+  labelExpression = joinItem labelExpression,
+  labelExpressionList = joinItem labelExpressionList,
+  labelScopeIn = joinItem labelScopeIn,
+  labelScopeOut = joinItem labelScopeOut
+ }
+  where
+    joinItem :: (forall l. GraphLabelFuncs m l -> (k -> m l)) -> (k -> m (a,b))
+    joinItem item = joinTwo (item fx) (item fy)
+  
+    joinTwo :: (a' -> m b') -> (a' -> m c') -> (a' -> m (b',c'))
+    joinTwo f0 f1 x = do x0 <- f0 x
+                         x1 <- f1 x
+                         return (x0,x1)
 
 -- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
 buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) => GraphLabelFuncs mLabel label -> A.Structured -> mLabel (Either String (FlowGraph mAlter label))
