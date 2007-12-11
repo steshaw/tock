@@ -21,6 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Utils where
 
 import Control.Monad.State
+import Data.Array.IArray
 import Data.Ord
 import System.IO
 import System.IO.Error
@@ -178,3 +179,20 @@ product3 (l0,l1,l2) = [(x0,x1,x2) | x0 <- l0, x1 <- l1, x2 <- l2]
 product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
 product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
 
+-- | On the basis of a boolean check function, transforms x into Just x if the function returns True;
+-- otherwise Nothing is returned.
+boolToMaybe :: (a -> Bool) -> a -> Maybe a
+boolToMaybe f x = if f x then Just x else Nothing
+
+-- | Maps over an array, but feeds the function the index too.
+arrayMapWithIndex :: (IArray a e, IArray a e', Ix i) => (i -> e -> e') -> a i e -> a i e'
+arrayMapWithIndex f arr = simpleArray $ map (\(i,e) -> (i,f i e)) (assocs arr)
+
+-- | Creates an array out of an (index,value) list.  There should be no duplicate indices.
+simpleArray :: (IArray a e, Ix i) => [(i,e)] -> a i e
+simpleArray items = array (minimum (map fst items), maximum (map fst items)) items
+
+arrayZipWith :: (IArray a e, IArray a e', IArray a e'', Ix i) => (e -> e' -> e'') -> a i e -> a i e' -> a i e''
+arrayZipWith f a0 a1 = arrayMapWithIndex f' a0
+  where
+    f' i x = f x (a1 ! i)
