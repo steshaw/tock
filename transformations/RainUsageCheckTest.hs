@@ -26,6 +26,7 @@ import Prelude hiding (fail)
 import Test.HUnit
 
 
+import ArrayUsageCheck
 import qualified AST as A
 import FlowGraph
 import Metadata
@@ -294,6 +295,23 @@ testReachDef = TestList
    fst3 :: (a,b,c) -> a
    fst3(x,_,_) = x
 
+testArrayCheck :: Test
+testArrayCheck = TestList
+  [
+   -- x_1 = 0
+   TestCase $ assertEqual "testArrayCheck 0" (Just []) (solveConstraints [simpleArray [(0,0),(1,1)]] [])
+   -- x_1 = 0, 3x_1 >= 0
+  ,TestCase $ assertEqual "testArrayCheck 0a" (Just [simpleArray [(0,0),(1,0)]]) (solveConstraints [simpleArray [(0,0),(1,1)]] [simpleArray [(0,0),(1,3)]])
+   -- x_1 = 7
+  ,TestCase $ assertEqual "testArrayCheck 1" (Just []) (solveConstraints [simpleArray [(0,-7),(1,1)]] [])  
+   -- -7 = 0
+  ,TestCase $ assertEqual "testArrayCheck 2" (Nothing) (solveConstraints [simpleArray [(0,7),(1,0)]] [])
+   -- x_1 = 3, x_1 = 4
+  ,TestCase $ assertEqual "testArrayCheck 3" (Nothing) (solveConstraints [simpleArray [(0,-3),(1,1)], simpleArray [(0,-4),(1,1)]] [])  
+   -- x_1 + x_2 = 0, x_1 + x_2 = -3
+  ,TestCase $ assertEqual "testArrayCheck 4" (Nothing) (solveConstraints [simpleArray [(0,0),(1,1),(2,1)], simpleArray [(0,3),(1,1),(2,1)]] [])  
+  ]
+
 
 tests :: Test
 tests = TestList
@@ -302,6 +320,7 @@ tests = TestList
   ,testInitVar
 --  ,testParUsageCheck
   ,testReachDef
+  ,testArrayCheck
  ]
 
 
