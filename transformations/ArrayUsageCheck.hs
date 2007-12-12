@@ -67,15 +67,15 @@ type EqualityProblem = [EqualityConstraintEquation]
 type InequalityConstraintEquation = Array CoeffIndex Integer
 type InequalityProblem = [InequalityConstraintEquation]
 
-type StIneq = State InequalityProblem
+type StIneq = StateT InequalityProblem Maybe
 
 solveConstraints :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
 solveConstraints p ineq
   = case normalise p of
       Nothing -> Nothing
-      Just p' -> case (runState (solve p') ineq) of
-                   (Nothing,_) -> Nothing
-                   (_,s) -> Just s
+      Just p' -> case (runStateT (solve p') ineq) of
+                   Nothing -> Nothing
+                   Just (_,s) -> Just s
   where
     normalise :: EqualityProblem -> Maybe EqualityProblem
     normalise = mapM normalise' --Note the mapM; if any calls to normalise' fail, so will normalise
@@ -84,12 +84,9 @@ solveConstraints p ineq
         normalise' e = let g = foldl1 gcd (elems e) in
                        if (((e ! 0) `mod` g) /= 0) then Nothing else Just $ amap (\x -> x `div` g) e
     
-    solve :: EqualityProblem -> StIneq (Maybe EqualityProblem)
-    solve [] = return $ Just []
-    solve p = do mp <- solveUnits p >>* (checkFalsifiable . removeRedundant)
-                 case mp of 
-                   Nothing -> return Nothing
-                   Just p' -> solveNext p' >>= solve
+    solve :: EqualityProblem -> StIneq EqualityProblem
+    solve [] = return []
+    solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
     checkForUnit :: EqualityConstraintEquation -> Maybe CoeffIndex
 --    checkForUnit [_] = Nothing
@@ -127,7 +124,7 @@ solveConstraints p ineq
     negateOthers match (ind,val) = if match == ind then 0 else negate val
     
     findSmallestAbsCoeff :: EqualityConstraintEquation -> CoeffIndex
-    findSmallestAbsCoeff = fst. minimumBy (cmpAbsSnd) . tail . assocs
+    findSmallestAbsCoeff = fst. minimumBy (cmpAbsSnd) . filter ((/= 0) . snd) . tail . assocs
       where
         cmpAbsSnd :: (a,Integer) -> (a,Integer) -> Ordering
         cmpAbsSnd (_,x) (_,y) = compare (abs x) (abs y)
@@ -135,14 +132,20 @@ solveConstraints p ineq
     solveNext :: EqualityProblem -> StIneq EqualityProblem
     solveNext [] = return []
     solveNext (e:es) = -- We transform the kth variable into sigma, effectively
-                       -- So a_k becomes -|a_k|, and all other constraints are transformed appropriately
-                       modify (map change) >> return (map change (e:es))
+                       -- So once we have x_k = ... (in terms of sigma) we add a_k * RHS
+                       -- to all other equations, AFTER zeroing the a_k coefficient (so
+                       -- that the multiple of sigma is added on properly)
+                       modifyM_ (normalise . map alterEquation) >> (lift $ (normalise . map alterEquation) (e:es))
                          where
-                           change = changeAllButOneDifferent (k,-(abs a_k)) transform
+                           alterEquation :: EqualityConstraintEquation -> EqualityConstraintEquation
+                           alterEquation eq = arrayZipWith (+) (eq // [(k,0)]) (amap (\x -> x * (eq ! k)) x_k_eq)
+                           
                          
                            k = findSmallestAbsCoeff e
                            a_k = e ! k
                            m = (abs a_k) + 1
+                           sign_a_k = signum a_k
+                           x_k_eq = changeAllButOneDifferent (k,(- sign_a_k) * m) (\a_i -> sign_a_k * (a_i `mymod` m)) e
                          
                            transform :: Integer -> Integer
                            transform a_i = (floordivplushalf a_i m) + (mymod a_i m)
