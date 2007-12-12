@@ -152,7 +152,7 @@ solveConstraints p ineq
                            
                            -- This is floor (x/y + 1/2).  Probably a way to do it without reverting to float arithmetic:
                            floordivplushalf :: Integer -> Integer -> Integer
-                           floordivplushalf x y = floor ((fromInteger x / fromInteger y) + 0.5)
+                           floordivplushalf x y = floor ((fromInteger x / fromInteger y) + (0.5 :: Double))
 
     changeAllButOneDifferent :: (IArray a e, IArray a e', Ix i) => (i,e') -> (e -> e') -> a i e -> a i e'
     changeAllButOneDifferent (specialI,specialE) f = arrayMapWithIndex f'
