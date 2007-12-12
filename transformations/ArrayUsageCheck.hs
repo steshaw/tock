@@ -71,11 +71,7 @@ type StIneq = StateT InequalityProblem Maybe
 
 solveConstraints :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
 solveConstraints p ineq
-  = case normalise p of
-      Nothing -> Nothing
-      Just p' -> case (runStateT (solve p') ineq) of
-                   Nothing -> Nothing
-                   Just (_,s) -> Just s
+  = normalise p >>= (\p' -> execStateT (solve p') ineq)
   where
     normalise :: EqualityProblem -> Maybe EqualityProblem
     normalise = mapM normalise' --Note the mapM; if any calls to normalise' fail, so will normalise
