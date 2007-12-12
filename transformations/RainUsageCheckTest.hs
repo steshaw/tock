@@ -307,7 +307,10 @@ testArrayCheck = TestList
   ,pass (2, [], [[-7,1]], [])
    -- x_1 = 9, 3 + 2x_1 >= 0  -->  21 >= 0
   ,pass (3, [[21,0]], [[-9,1]], [[3,2]])
-  
+
+   -- From the Omega Test paper (x = x_1, y = x_2, z = x_3, sigma = x_1 (effectively)):
+  ,pass (4, [[11,13,0,0], [28,-13,0,0], [47,-5,0,0], [53,5,0,0]], [[-17,7,12,31], [-7,3,5,14]],
+    [[-1,1,0,0], [40,-1,0,0], [50,0,1,0], [50,0,-1,0]])
   
   -- Impossible/inconsistent equality constraints:
   
