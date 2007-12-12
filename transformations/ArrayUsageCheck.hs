@@ -85,8 +85,10 @@ solveConstraints p ineq
                                  else Just $ amap (\x -> x `div` g) e -- Divide all coefficients by g
                               )
     
-    solve :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
-    solve [] = return []
+    -- | Solves all equality problems in the given list.
+    -- Will either succeed (Just () in the Error/Maybe monad) or fail (Nothing)
+    solve :: EqualityProblem -> StateT InequalityProblem Maybe ()
+    solve [] = return ()
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
     checkForUnit :: EqualityConstraintEquation -> Maybe CoeffIndex
