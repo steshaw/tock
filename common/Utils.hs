@@ -154,6 +154,18 @@ modifyM f = do st <- get
                put st'
                return x
 
+-- | Applies a monadic modification to the state in a StateT wrapper.
+modifyM_ :: Monad m => (s -> m s) -> StateT s m ()
+modifyM_ f = do st <- get
+                st' <- lift $ f st
+                put st'
+                return ()
+
+-- | Like lift, but instead of applying to a monadic action (m b), applies to a function (a -> m b).
+liftF :: (MonadTrans t, Monad m) => (a -> m b) -> (a -> t m b)
+liftF f x = lift (f x)
+
+
 -- | Like the (.) operator, but for monads.  
 (<.<) :: Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
 (<.<) f1 f0 x = f0 x >>= f1
