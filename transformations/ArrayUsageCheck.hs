@@ -112,14 +112,26 @@ solveConstraints p ineq
             scaled_x_k_val = amap (* (eq ! k)) x_k_val
 
     solveUnits :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
-    solveUnits p = case findFirstUnit p of
-                      (Nothing,p') -> return p' -- p' should equal p anyway
-                      (Just (eq,ind),p') -> modify change >> solveUnits (change p')
-                        where
-                          change = substIn ind (arrayMapWithIndex (curry $ negateOthers ind) eq)
-    
-    negateOthers :: CoeffIndex -> (CoeffIndex,Integer) -> Integer
-    negateOthers match (ind,val) = if match == ind then 0 else negate val
+    solveUnits p
+      = case findFirstUnit p of
+          (Nothing,p') -> return p' -- p' should equal p anyway
+          (Just (eq,ind),p') -> modify change >> solveUnits (change p')
+            where
+              change = substIn ind (arrayMapWithIndex (modifyOthersZeroSpecific ind) eq)
+              origVal = eq ! ind
+
+              -- Zeroes a specific coefficient, modifies the others as follows:
+              -- If the coefficient of x_k is 1, we need to negate the other coefficients
+              -- to get its definition.  However, if the coefficient is -1, we don't need to
+              -- do this.  For example, consider 2 + 3x_1 + x_2 - 4x_3 = 0.  In this case
+              -- x_2 = -2 - 3x_1 + 4x_3; the negation of the original equation (ignoring x_2).
+              -- If however, it was 2 + 3x_1 - x_2 - 4x_3 = 0 then x_2 = 2 + 3x_1 - 4x_3;
+              -- that is, identical to the original equation if we ignore x_2.
+              modifyOthersZeroSpecific :: CoeffIndex -> (CoeffIndex -> Integer -> Integer)
+              modifyOthersZeroSpecific match ind
+                | match == ind  = const 0 -- The specific value to zero out
+                | origVal == 1  = negate  -- Original coeff was 1; negate
+                | otherwise     = id      -- Original coeff was -1; don't do anything
     
     findSmallestAbsCoeff :: EqualityConstraintEquation -> CoeffIndex
     findSmallestAbsCoeff = fst. minimumBy (cmpAbsSnd) . filter ((/= 0) . snd) . tail . assocs
