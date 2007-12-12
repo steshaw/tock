@@ -84,7 +84,7 @@ solveConstraints p ineq
         normalise' e = let g = foldl1 gcd (elems e) in
                        if (((e ! 0) `mod` g) /= 0) then Nothing else Just $ amap (\x -> x `div` g) e
     
-    solve :: EqualityProblem -> StIneq EqualityProblem
+    solve :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solve [] = return []
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
@@ -112,7 +112,7 @@ solveConstraints p ineq
       where
         substIn' eq = changeAllButOneDifferent (ind,0) id $ arrayZipWith (+) eq (amap (* (eq ! ind)) arr)
 
-    solveUnits :: EqualityProblem -> StIneq EqualityProblem
+    solveUnits :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solveUnits p = case findFirstUnit p of
                       (Nothing,p') -> return p' -- p' should equal p anyway
                       (Just (eq,ind),p') -> modify change >> solveUnits (change p')
@@ -128,7 +128,7 @@ solveConstraints p ineq
         cmpAbsSnd :: (a,Integer) -> (a,Integer) -> Ordering
         cmpAbsSnd (_,x) (_,y) = compare (abs x) (abs y)
 
-    solveNext :: EqualityProblem -> StIneq EqualityProblem
+    solveNext :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solveNext [] = return []
     solveNext (e:es) = -- We transform the kth variable into sigma, effectively
                        -- So once we have x_k = ... (in terms of sigma) we add a_k * RHS
