@@ -77,8 +77,13 @@ solveConstraints p ineq
     normalise = mapM normalise' --Note the mapM; if any calls to normalise' fail, so will normalise
       where
         normalise' :: EqualityConstraintEquation -> Maybe EqualityConstraintEquation
-        normalise' e = let g = foldl1 gcd (elems e) in
-                       if (((e ! 0) `mod` g) /= 0) then Nothing else Just $ amap (\x -> x `div` g) e
+        normalise' e = let g = foldl1 gcd (tail $ elems e) in -- g is the GCD of a_1 .. a_n (not a_0)
+                       if (g == 0)
+                         then Just e
+                         else (if (((e ! 0) `mod` g) /= 0) -- If g doesn't divide a_0
+                                 then Nothing
+                                 else Just $ amap (\x -> x `div` g) e -- Divide all coefficients by g
+                              )
     
     solve :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solve [] = return []
