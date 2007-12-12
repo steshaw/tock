@@ -105,9 +105,11 @@ solveConstraints p ineq
                              
 
     substIn :: CoeffIndex -> Array CoeffIndex Integer -> EqualityProblem -> EqualityProblem
-    substIn ind arr = map substIn'
+    substIn k x_k_val = map substIn'
       where
-        substIn' eq = changeAllButOneDifferent (ind,0) id $ arrayZipWith (+) eq (amap (* (eq ! ind)) arr)
+        substIn' eq = (arrayZipWith (+) eq scaled_x_k_val) // [(k,0)]
+          where
+            scaled_x_k_val = amap (* (eq ! k)) x_k_val
 
     solveUnits :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solveUnits p = case findFirstUnit p of
