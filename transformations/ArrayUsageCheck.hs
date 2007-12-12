@@ -71,16 +71,19 @@ type StIneq = StateT InequalityProblem Maybe
 
 solveConstraints :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
 solveConstraints p ineq
-  = normalise p >>= (\p' -> execStateT (solve p') ineq)
+  = normaliseEq p >>= (\p' -> execStateT (solve p') ineq)
   where
-    normalise :: EqualityProblem -> Maybe EqualityProblem
-    normalise = mapM normalise' --Note the mapM; if any calls to normalise' fail, so will normalise
+    -- | Normalises an equation by dividing all coefficients by their greatest common divisor.
+    -- If the unit coefficient (a_0) doesn't divide by this GCD, Nothing will be returned
+    -- (the constraints do not have an integer solution)
+    normaliseEq :: EqualityProblem -> Maybe EqualityProblem
+    normaliseEq = mapM normaliseEq' --Note the mapM; if any calls to normalise' fail, so will normalise
       where
-        normalise' :: EqualityConstraintEquation -> Maybe EqualityConstraintEquation
-        normalise' e | g == 0                  = Just e
-                     | ((e ! 0) `mod` g) /= 0  = Nothing
-                     | otherwise               = Just $ amap (\x -> x `div` g) e        
-                     where g = foldl1 mygcd (map abs $ tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
+        normaliseEq' :: EqualityConstraintEquation -> Maybe EqualityConstraintEquation
+        normaliseEq' e | g == 0                  = Just e
+                       | ((e ! 0) `mod` g) /= 0  = Nothing
+                       | otherwise               = Just $ amap (\x -> x `div` g) e
+                       where g = foldl1 mygcd (map abs $ tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
 
         mygcd :: Integer -> Integer -> Integer
         mygcd 0 0 = 0
@@ -116,7 +119,7 @@ solveConstraints p ineq
     solveUnits p
       = case findFirstUnit p of
           (Nothing,p') -> return p' -- p' should equal p anyway
-          (Just (eq,ind),p') -> modify change >> solveUnits (change p')
+          (Just (eq,ind),p') -> modify change >> ((lift $ normaliseEq $ change p') >>= solveUnits)
             where
               change = substIn ind (arrayMapWithIndex (modifyOthersZeroSpecific ind) eq)
               origVal = eq ! ind
