@@ -149,7 +149,7 @@ solveConstraints p ineq
                        -- So once we have x_k = ... (in terms of sigma) we add a_k * RHS
                        -- to all other equations, AFTER zeroing the a_k coefficient (so
                        -- that the multiple of sigma is added on properly)
-                       modifyM_ (normalise . map alterEquation) >> (lift $ (normalise . map alterEquation) (e:es))
+                       modify (map alterEquation) >> (lift $ (normaliseEq . map alterEquation) (e:es))
                          where
                            alterEquation :: EqualityConstraintEquation -> EqualityConstraintEquation
                            alterEquation eq = arrayZipWith (+) (eq // [(k,0)]) (amap (\x -> x * (eq ! k)) x_k_eq)
