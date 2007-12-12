@@ -118,7 +118,6 @@ solveConstraints p ineq
                       (Just (eq,ind),p') -> modify change >> solveUnits (change p')
                         where
                           change = substIn ind (arrayMapWithIndex (curry $ negateOthers ind) eq)
-                          -- ata x = addToAll x $ arrayMapWithIndex (curry $ negateOthers ind) eq
     
     negateOthers :: CoeffIndex -> (CoeffIndex,Integer) -> Integer
     negateOthers match (ind,val) = if match == ind then 0 else negate val
@@ -147,9 +146,6 @@ solveConstraints p ineq
                            sign_a_k = signum a_k
                            x_k_eq = changeAllButOneDifferent (k,(- sign_a_k) * m) (\a_i -> sign_a_k * (a_i `mymod` m)) e
                          
-                           transform :: Integer -> Integer
-                           transform a_i = (floordivplushalf a_i m) + (mymod a_i m)
-                           
                            -- I think this is probably equivalent to mod, but let's follow the maths:
                            mymod x y = x - (y * (floordivplushalf x y))
                            
