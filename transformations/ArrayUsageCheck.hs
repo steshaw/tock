@@ -77,13 +77,14 @@ solveConstraints p ineq
     normalise = mapM normalise' --Note the mapM; if any calls to normalise' fail, so will normalise
       where
         normalise' :: EqualityConstraintEquation -> Maybe EqualityConstraintEquation
-        normalise' e = let g = foldl1 gcd (tail $ elems e) in -- g is the GCD of a_1 .. a_n (not a_0)
-                       if (g == 0)
-                         then Just e
-                         else (if (((e ! 0) `mod` g) /= 0) -- If g doesn't divide a_0
-                                 then Nothing
-                                 else Just $ amap (\x -> x `div` g) e -- Divide all coefficients by g
-                              )
+        normalise' e | g == 0                  = Just e
+                     | ((e ! 0) `mod` g) /= 0  = Nothing
+                     | otherwise               = Just $ amap (\x -> x `div` g) e        
+                     where g = foldl1 mygcd (map abs $ tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
+
+        mygcd :: Integer -> Integer -> Integer
+        mygcd 0 0 = 0
+        mygcd x y = gcd x y
     
     -- | Solves all equality problems in the given list.
     -- Will either succeed (Just () in the Error/Maybe monad) or fail (Nothing)
