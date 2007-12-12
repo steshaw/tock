@@ -67,8 +67,11 @@ type EqualityProblem = [EqualityConstraintEquation]
 type InequalityConstraintEquation = Array CoeffIndex Integer
 type InequalityProblem = [InequalityConstraintEquation]
 
-type StIneq = StateT InequalityProblem Maybe
-
+-- | Solves all the constraints in the Equality Problem (taking them to be == 0),
+-- and transforms the InequalityProblems appropriately.
+-- TODO the function currently doesn't record the relation between the transformed variables
+-- (e.g. sigma for x_k) and the original variables (x_k).  In order to feed back useful
+-- information to the user, we should do this at some point in future.
 solveConstraints :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
 solveConstraints p ineq
   = normaliseEq p >>= (\p' -> execStateT (solve p') ineq)
@@ -95,12 +98,19 @@ solveConstraints p ineq
     solve [] = return ()
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
+    -- | Checks if any of the coefficients in the equation have an absolute value of 1.
+    -- Returns either Just <the first such coefficient> or Nothing (there are no such coefficients in the equation).
+    -- This function only looks at a_1 .. a_n.  That is, a_0 is ignored.
     checkForUnit :: EqualityConstraintEquation -> Maybe CoeffIndex
     checkForUnit = listToMaybe . map fst . filter coeffAbsVal1 . tail . assocs
       where
         coeffAbsVal1 :: (a, Integer) -> Bool
         coeffAbsVal1 (_,x) = (abs x) == 1
 
+    -- | Finds the first unit coefficient (|a_k| == 1) in a set of equality constraints.
+    -- Returns Nothing if there are no unit coefficients.  Otherwise it returns
+    -- (Just (equation, indexOfUnitCoeff), otherEquations); that is, the specified equation is not
+    -- present in the list of equations.
     findFirstUnit :: EqualityProblem -> (Maybe (EqualityConstraintEquation,CoeffIndex),EqualityProblem)
     findFirstUnit [] = (Nothing,[])
     findFirstUnit (e:es) = case checkForUnit e of
@@ -108,6 +118,11 @@ solveConstraints p ineq
                              Nothing -> let (me,es') = findFirstUnit es in (me,e:es')
                              
 
+    -- | Substitutes a value for x_k into an equation.  Given k, the value for x_k in terms
+    -- of coefficients of other variables (let's call it x_k_val), it subsitutes this into
+    -- all the equations in the list by adding x_k_val (scaled by a_k) to each equation and
+    -- then zeroing out the a_k value.  Note that the (x_k_val ! k) value will be ignored;
+    -- it should be zero, in any case (otherwise x_k would be defined in terms of itself!).
     substIn :: CoeffIndex -> Array CoeffIndex Integer -> EqualityProblem -> EqualityProblem
     substIn k x_k_val = map substIn'
       where
@@ -115,6 +130,7 @@ solveConstraints p ineq
           where
             scaled_x_k_val = amap (* (eq ! k)) x_k_val
 
+    -- | Solves (i.e. removes by substitution) all unit coefficients in the given list of equations.
     solveUnits :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solveUnits p
       = case findFirstUnit p of
@@ -137,12 +153,15 @@ solveConstraints p ineq
                 | origVal == 1  = negate  -- Original coeff was 1; negate
                 | otherwise     = id      -- Original coeff was -1; don't do anything
     
+    -- | Finds the coefficient with the smallest absolute value of a_1 .. a_n (i.e. not a_0)
+    -- that is non-zero (i.e. zero coefficients are ignored).
     findSmallestAbsCoeff :: EqualityConstraintEquation -> CoeffIndex
-    findSmallestAbsCoeff = fst. minimumBy (cmpAbsSnd) . filter ((/= 0) . snd) . tail . assocs
+    findSmallestAbsCoeff = fst . minimumBy cmpAbsSnd . filter ((/= 0) . snd) . tail . assocs
       where
         cmpAbsSnd :: (a,Integer) -> (a,Integer) -> Ordering
         cmpAbsSnd (_,x) (_,y) = compare (abs x) (abs y)
 
+    -- | Solves the next equality and returns the new set of equalities.
     solveNext :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
     solveNext [] = return []
     solveNext (e:es) = -- We transform the kth variable into sigma, effectively
@@ -151,19 +170,21 @@ solveConstraints p ineq
                        -- that the multiple of sigma is added on properly)
                        modify (map alterEquation) >> (lift $ (normaliseEq . map alterEquation) (e:es))
                          where
+                           -- | Adds a scaled version of x_k_eq onto the current equation, after zeroing out
+                           -- the a_k coefficient in the current equation.
                            alterEquation :: EqualityConstraintEquation -> EqualityConstraintEquation
                            alterEquation eq = arrayZipWith (+) (eq // [(k,0)]) (amap (\x -> x * (eq ! k)) x_k_eq)
-                           
-                         
+
                            k = findSmallestAbsCoeff e
                            a_k = e ! k
                            m = (abs a_k) + 1
                            sign_a_k = signum a_k
                            x_k_eq = amap (\a_i -> sign_a_k * (a_i `mymod` m)) e // [(k,(- sign_a_k) * m)]
-                         
+
                            -- I think this is probably equivalent to mod, but let's follow the maths:
+                           mymod :: Integer -> Integer -> Integer
                            mymod x y = x - (y * (floordivplushalf x y))
-                           
+
                            -- This is floor (x/y + 1/2).  Probably a way to do it without reverting to float arithmetic:
                            floordivplushalf :: Integer -> Integer -> Integer
                            floordivplushalf x y = floor ((fromInteger x / fromInteger y) + (0.5 :: Double))
