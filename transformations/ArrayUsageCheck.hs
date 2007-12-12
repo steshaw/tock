@@ -156,7 +156,7 @@ solveConstraints p ineq
                            a_k = e ! k
                            m = (abs a_k) + 1
                            sign_a_k = signum a_k
-                           x_k_eq = changeAllButOneDifferent (k,(- sign_a_k) * m) (\a_i -> sign_a_k * (a_i `mymod` m)) e
+                           x_k_eq = amap (\a_i -> sign_a_k * (a_i `mymod` m)) e // [(k,(- sign_a_k) * m)]
                          
                            -- I think this is probably equivalent to mod, but let's follow the maths:
                            mymod x y = x - (y * (floordivplushalf x y))
@@ -164,11 +164,6 @@ solveConstraints p ineq
                            -- This is floor (x/y + 1/2).  Probably a way to do it without reverting to float arithmetic:
                            floordivplushalf :: Integer -> Integer -> Integer
                            floordivplushalf x y = floor ((fromInteger x / fromInteger y) + (0.5 :: Double))
-
-    changeAllButOneDifferent :: (IArray a e, IArray a e', Ix i) => (i,e') -> (e -> e') -> a i e -> a i e'
-    changeAllButOneDifferent (specialI,specialE) f = arrayMapWithIndex f'
-      where
-        f' i e = if i == specialI then specialE else f e
 
     -- Removes all equations where the coefficients are all zero
     removeRedundant :: EqualityProblem -> EqualityProblem
