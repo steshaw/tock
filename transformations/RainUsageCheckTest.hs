@@ -307,9 +307,13 @@ testArrayCheck = TestList
   ,pass (2, [], [[-7,1]], [])
    -- x_1 = 9, 3 + 2x_1 >= 0  -->  21 >= 0
   ,pass (3, [[21,0]], [[-9,1]], [[3,2]])
+   -- x_1 + x_2 = 0, 4x_1 = 8, 2x_2 = -4
+  ,pass (4, [], [[0,1,1], [-8,4,0], [4,0,2]], [])
+   -- - x_1 + x_2 = 0, 4x_1 = 8, 2x_2 = 4
+  ,pass (5, [], [[0,-1,1], [-8,4,0], [-4,0,2]], [])
 
    -- From the Omega Test paper (x = x_1, y = x_2, z = x_3, sigma = x_1 (effectively)):
-  ,pass (4, [[11,13,0,0], [28,-13,0,0], [47,-5,0,0], [53,5,0,0]], [[-17,7,12,31], [-7,3,5,14]],
+  ,pass (100, [[11,13,0,0], [28,-13,0,0], [47,-5,0,0], [53,5,0,0]], [[-17,7,12,31], [-7,3,5,14]],
     [[-1,1,0,0], [40,-1,0,0], [50,0,1,0], [50,0,-1,0]])
   
   -- Impossible/inconsistent equality constraints:
@@ -320,6 +324,8 @@ testArrayCheck = TestList
   ,TestCase $ assertEqual "testArrayCheck 1003" (Nothing) (solveConstraints [simpleArray [(0,-3),(1,1)], simpleArray [(0,-4),(1,1)]] [])  
    -- x_1 + x_2 = 0, x_1 + x_2 = -3
   ,TestCase $ assertEqual "testArrayCheck 1004" (Nothing) (solveConstraints [simpleArray [(0,0),(1,1),(2,1)], simpleArray [(0,3),(1,1),(2,1)]] [])  
+   -- 4x_1 = 7
+  ,TestCase $ assertEqual "testArrayCheck 1005" (Nothing) (solveConstraints [simpleArray [(0,-7),(1,4)]] [])
   ]
   where
     pass :: (Int, [[Integer]], [[Integer]], [[Integer]]) -> Test
