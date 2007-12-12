@@ -92,16 +92,10 @@ solveConstraints p ineq
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
     checkForUnit :: EqualityConstraintEquation -> Maybe CoeffIndex
---    checkForUnit [_] = Nothing
---    checkForUnit is = listToMaybe $ map fst $ filter (absVal1 . snd) $ zip [1..] (tail is) -- Use [1..] because we've chopped off the 0-index value
-    checkForUnit = listToMaybe . map fst . filter (absVal1 . snd) . tail . assocs
-
-  
-    absVal1 :: Integer -> Bool
-    absVal1 1 = True
-    absVal1 (-1) = True
-    absVal1 _ = False
-
+    checkForUnit = listToMaybe . map fst . filter coeffAbsVal1 . tail . assocs
+      where
+        coeffAbsVal1 :: (a, Integer) -> Bool
+        coeffAbsVal1 (_,x) = (abs x) == 1
 
     findFirstUnit :: EqualityProblem -> (Maybe (EqualityConstraintEquation,CoeffIndex),EqualityProblem)
     findFirstUnit [] = (Nothing,[])
