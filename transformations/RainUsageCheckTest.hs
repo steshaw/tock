@@ -25,6 +25,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Prelude hiding (fail)
 import Test.HUnit
+import Test.QuickCheck
 
 
 import ArrayUsageCheck
@@ -338,6 +339,72 @@ testArrayCheck = TestList
 arrayise :: [Integer] -> Array Int Integer
 arrayise = simpleArray . zip [0..]
 
+-- QuickCheck tests for Omega Test:
+-- The idea is to begin with a random list of integers, representing transformed y_i variables.
+-- This will be the solution.  Feed this into a random list of inequalities.  The inequalities do
+-- not have to be true; they merely have to exist.  Then slowly transform 
+
+
+--TODO generate negative coeffs, and allow zero coefficients (but be careful we don't
+-- produce unsolveable equations, e.g. where one is all zeroes, or a_3 is zero in all of them)
+
+-- | Generates a list of random numbers of the given size, where the numbers are all co-prime.
+-- This is so they can be used as normalised coefficients in a linear equation
+coprimeList :: Int -> Gen [Integer]
+coprimeList size = do non_normal <- replicateM size $ choose (1,100)
+                      return $ map (\x -> x `div` (foldl mygcd 0 non_normal)) non_normal
+
+-- | Generates a list of lists of co-prime numbers, where each list is distinct.
+-- The returned list of lists will be square; N equations, each with N items
+distinctCoprimeLists :: Int -> Gen [[Integer]]
+distinctCoprimeLists size = distinctCoprimeLists' [] size
+  where
+    -- n is the number left to generate; size is still the "width" of the lists
+    distinctCoprimeLists' :: [[Integer]] -> Int -> Gen [[Integer]]
+    distinctCoprimeLists' result 0 = return result
+    distinctCoprimeLists' soFar n = do next <- coprimeList size
+                                       if (next `elem` soFar)
+                                         then distinctCoprimeLists' soFar n -- Try again
+                                         else distinctCoprimeLists' (soFar ++ [next]) (n - 1)
+
+-- | Given a solution, and the coefficients, work out the result.
+-- Effectively the dot-product of the two lists.
+calcUnits :: [Integer] -> [Integer] -> Integer
+calcUnits a b = foldl (+) 0 $ zipWith (*) a b
+
+-- | Given the solution for an equation (values of x_1 .. x_n), generates 
+-- equalities and inequalities.  The equalities will all be true and consistent,
+-- the inequalities will all turn out to be equal.  That is, when the inequalities
+-- are resolved, the LHS will equal 0.  Therefore we can generate the inequalities
+-- using the same method as equalities.  Also, the equalities are assured to be 
+-- distinct.  If they were not distinct (one could be transformed into another by scaling)
+-- then the equation set would be unsolveable.
+generateEqualities :: [Integer] -> Gen (EqualityProblem, InequalityProblem)
+generateEqualities solution = do eqCoeffs <- distinctCoprimeLists num_vars
+                                 ineqCoeffs <- distinctCoprimeLists num_vars
+                                 return (map mkCoeffArray eqCoeffs, map mkCoeffArray ineqCoeffs)
+  where
+    num_vars = length solution
+    mkCoeffArray coeffs = arrayise $ (negate $ calcUnits solution coeffs) : coeffs
+
+newtype OmegaTestInput = OMI (EqualityProblem, InequalityProblem) deriving (Show)
+
+-- | Generates an Omega test problem with between 1 and 10 variables (incl), where the solutions
+-- are numbers between -20 and + 20 (incl).
+generateProblem :: Gen OmegaTestInput
+generateProblem = (choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>= generateEqualities) >>* OMI
+
+instance Arbitrary OmegaTestInput where
+  arbitrary = generateProblem
+
+qcOmegaEquality :: Test
+qcOmegaEquality = TestCase $ check (defaultConfig { configMaxTest = 1000}) prop
+  where
+    prop (OMI (eq,ineq)) = omegaCheck actAnswer
+      where
+        actAnswer = solveConstraints eq ineq
+        omegaCheck (Just ineqs) = all (all (== 0) . elems) ineqs
+        omegaCheck Nothing = False
 
 tests :: Test
 tests = TestList
@@ -347,6 +414,7 @@ tests = TestList
 --  ,testParUsageCheck
   ,testReachDef
   ,testArrayCheck
+  ,qcOmegaEquality
  ]
 
 
