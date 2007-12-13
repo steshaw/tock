@@ -42,7 +42,8 @@ import Control.Monad.Error
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
-import Test.HUnit hiding (State)
+import Test.HUnit hiding (State,Testable)
+import Test.QuickCheck
 
 import qualified AST as A
 import CompState
@@ -54,6 +55,21 @@ import PrettyShow
 import TreeUtil
 import Types
 import Utils
+
+data QuickCheckLevel = QC_Low | QC_Medium | QC_High | QC_Extensive deriving (Show, Eq, Ord)
+
+type QuickCheckTest = QuickCheckLevel -> IO ()
+
+scaleQC :: Testable a => (Int,Int,Int,Int) -> a -> QuickCheckTest
+scaleQC (low,med,high,ext) test level
+  = case level of
+      QC_Low       -> run low test
+      QC_Medium    -> run med test
+      QC_High      -> run high test
+      QC_Extensive -> run ext test
+  where
+    run :: Testable a => Int -> a -> IO ()
+    run n = check (defaultConfig { configMaxTest = n })
 
 -- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
 m :: Meta
