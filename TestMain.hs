@@ -37,6 +37,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * "RainUsageCheckTest"
 module TestMain () where
 
+import System.Console.GetOpt
+import System.Environment
 import Test.HUnit
 
 import qualified BackendPassesTest (tests)
@@ -57,10 +59,31 @@ import Utils
 -- and we run HUnit first because these are typically the more
 -- interesting (and most worked on tests) so we see failures earlier.
 main :: IO ()
-main = do runTestTT hunitTests
-          sequence $ applyAll QC_Medium qcTests
-          return ()
+main = do opts <- getArgs >>* getOpt RequireOrder options
+          qcLevel <- case opts of
+                       ([Right level], [], []) -> return level
+                       ([Left unknownLevel], [], []) -> err ("Unknown level: " ++ unknownLevel)
+                       (_,_,errs) -> err (concat errs)
+
+          runTestTT hunitTests
+          case qcLevel of
+            Just level -> sequence_ $ applyAll level qcTests
+            Nothing -> return ()
   where
+    err msg = ioError (userError (msg ++ usageInfo header options))
+    header = "Usage: tocktest [OPTION..]"
+    options = [Option [] ["qc","quickcheck"]
+                 (ReqArg matchLevel "LEVEL (off, low, medium, high, extensive)") "QuickCheck level"]
+
+    matchLevel :: String -> Either String (Maybe QuickCheckLevel)
+    matchLevel s = case s of
+                     "off" -> Right Nothing
+                     "low" -> Right $ Just QC_Low
+                     "medium" -> Right $ Just QC_Medium
+                     "high" -> Right $ Just QC_High
+                     "extensive" -> Right $ Just QC_Extensive
+                     unknown -> Left unknown
+
     hunitTests = TestList $ map fst tests
     qcTests = concatMap snd tests
 
