@@ -64,6 +64,12 @@ transformEither funcLeft funcRight x = case x of
   Left l -> Left (funcLeft l)
   Right r -> Right (funcRight r)
 
+-- | Splits a list of Either values into two lists (the list of Lefts and the list of Rights)
+splitEither :: [Either a b] -> ([a],[b])
+splitEither []             = ([],[])
+splitEither ((Left x):es)  = let (ls,rs) = splitEither es in (x:ls,rs)
+splitEither ((Right y):es) = let (ls,rs) = splitEither es in (ls,y:rs)
+
 -- | Transforms between two 'Maybe' types using a function:
 transformMaybe :: (a -> b) -> Maybe a -> Maybe b
 transformMaybe _ Nothing = Nothing
@@ -134,6 +140,14 @@ seqPair :: Monad m => (m a, m b) -> m (a,b)
 seqPair (x,y) = do x' <- x
                    y' <- y
                    return (x',y')
+
+-- | Finds the first element that matches the given predicate, and returns
+-- (Just) it alongside the other elements of the list if it is found.  If no matching
+-- element is found, Nothing is returned with the original list
+findAndRemove :: (a -> Bool) -> [a] -> (Maybe a, [a])
+findAndRemove _ []     = (Nothing,[])
+findAndRemove f (x:xs) | f x       = (Just x,xs)
+                       | otherwise = let (r,xs') = findAndRemove f xs in (r,x:xs')
 
 -- | Forms the powerset of a given list.
 -- It uses the list monad cleverly, and it scares me.  But it works.
