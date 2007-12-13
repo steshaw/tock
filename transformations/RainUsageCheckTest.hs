@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module RainUsageCheckTest (tests) where
+module RainUsageCheckTest (qcTests) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
@@ -397,8 +397,8 @@ generateProblem = (choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>= 
 instance Arbitrary OmegaTestInput where
   arbitrary = generateProblem
 
-qcOmegaEquality :: Test
-qcOmegaEquality = TestCase $ check (defaultConfig { configMaxTest = 1000}) prop
+qcOmegaEquality :: [QuickCheckTest]
+qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
   where
     prop (OMI (eq,ineq)) = omegaCheck actAnswer
       where
@@ -406,16 +406,16 @@ qcOmegaEquality = TestCase $ check (defaultConfig { configMaxTest = 1000}) prop
         omegaCheck (Just ineqs) = all (all (== 0) . elems) ineqs
         omegaCheck Nothing = False
 
-tests :: Test
-tests = TestList
+qcTests :: (Test, [QuickCheckTest])
+qcTests = (TestList
  [
   testGetVarProc
   ,testInitVar
 --  ,testParUsageCheck
   ,testReachDef
   ,testArrayCheck
-  ,qcOmegaEquality
  ]
+ ,qcOmegaEquality)
 
 
 

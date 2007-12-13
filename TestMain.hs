@@ -41,25 +41,40 @@ import Test.HUnit
 
 import qualified BackendPassesTest (tests)
 import qualified CommonTest (tests)
-import qualified FlowGraphTest (tests)
+import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
-import qualified RainUsageCheckTest (tests)
+import qualified RainUsageCheckTest (qcTests)
+import TestUtil
+import Utils
 
+-- We run all the HUnit tests before all the QuickCheck tests.
+-- We run them apart so that the output from QuickCheck doesn't get
+-- confusing by being amongst the HUnit output,
+-- and we run HUnit first because these are typically the more
+-- interesting (and most worked on tests) so we see failures earlier.
 main :: IO ()
-main = do runTestTT $ TestList
-            [
-              BackendPassesTest.tests
-              ,CommonTest.tests
-              ,FlowGraphTest.tests
-              ,GenerateCTest.tests
-              ,ParseRainTest.tests
-              ,PassTest.tests
-              ,RainPassesTest.tests
-              ,RainTypesTest.tests
-              ,RainUsageCheckTest.tests
-            ]
+main = do runTestTT hunitTests
+          sequence $ applyAll QC_Medium qcTests
           return ()
+  where
+    hunitTests = TestList $ map fst tests
+    qcTests = concatMap snd tests
+
+    tests = [
+              noqc BackendPassesTest.tests
+              ,noqc CommonTest.tests
+              ,FlowGraphTest.qcTests
+              ,noqc GenerateCTest.tests
+              ,noqc ParseRainTest.tests
+              ,noqc PassTest.tests
+              ,noqc RainPassesTest.tests
+              ,noqc RainTypesTest.tests
+              ,RainUsageCheckTest.qcTests
+            ]
+
+    noqc :: Test -> (Test, [QuickCheckTest])
+    noqc t = (t,[])

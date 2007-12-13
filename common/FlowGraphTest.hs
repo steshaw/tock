@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | A module for testing building a control flow-graph from an AST.
-module FlowGraphTest (tests) where
+module FlowGraphTest (qcTests) where
 
 import Control.Monad.Identity
 import Control.Monad.State
@@ -30,7 +30,7 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import System.Random
-import Test.HUnit hiding (Node, State)
+import Test.HUnit hiding (Node, State, Testable)
 import Test.QuickCheck
 
 import qualified AST as A
@@ -554,14 +554,25 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
 -- | It is important to have these functions in the right ratio.  The number of possible trees is
 -- 2^N, where N is the test size.  Therefore I suggest keeping N <= 10 as a sensible limit.
 -- Hence, if there are 1000 tests, we divide the test number by 100 to get the test size.
-deepCheck p = check (defaultConfig { configMaxTest = 1000, configSize = \x -> div x 100}) p
+configForSize :: Int -> Config
+configForSize n = defaultConfig { configMaxTest = n, configSize = \x -> x `div` scale }
+  where
+    scale = n `div` 10
 
-testModify :: Test
-testModify = TestList
+deepCheck :: Testable a => a -> QuickCheckTest
+deepCheck test level = (flip check) test $ configForSize $
+  case level of 
+    QC_Low -> 100
+    QC_Medium -> 1000
+    QC_High -> 5000
+    QC_Extensive -> 10000
+
+testModify :: [QuickCheckTest]
+testModify =
  [
-   TestCase $ deepCheck prop_Id
-  ,TestCase $ deepCheck prop_Rep
-  ,TestCase $ deepCheck prop_gennums
+   deepCheck prop_Id
+  ,deepCheck prop_Rep
+  ,deepCheck prop_gennums
  ]
   where
     -- | Checks that applying any set (from the powerset of identity functions) of identity functions
@@ -598,13 +609,14 @@ testModify = TestList
         collectAll' r0 r1 | ok r0 == Just False = r0
                           | otherwise = r1
 -- | Returns the list of tests:
-tests :: Test
-tests = TestList
+qcTests :: (Test, [QuickCheckTest])
+qcTests = (TestList
  [
   testCase
   ,testIf
-  ,testModify
   ,testPar
   ,testSeq
   ,testWhile
  ]
+ ,testModify)
+
