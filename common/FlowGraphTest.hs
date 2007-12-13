@@ -547,10 +547,6 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
     g m = everywhereM (mkM $ replaceM m (replaceMeta m))
 
 
--- | A form of equality that yields a (QuickCheck) Result rather than a Bool, with the arguments pretty-printed
-(*==*) :: (Data a, Eq a) => a -> a -> Result
-(*==*) x y = Result {ok = Just (x == y), arguments = [pshow x, pshow y], stamp = []}
-
 -- | It is important to have these functions in the right ratio.  The number of possible trees is
 -- 2^N, where N is the test size.  Therefore I suggest keeping N <= 10 as a sensible limit.
 -- Hence, if there are 1000 tests, we divide the test number by 100 to get the test size.

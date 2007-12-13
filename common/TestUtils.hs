@@ -71,6 +71,21 @@ scaleQC (low,med,high,ext) test level
     run :: Testable a => Int -> a -> IO ()
     run n = check (defaultConfig { configMaxTest = n })
 
+-- | A form of equality that yields a (QuickCheck) Result rather than a Bool, with the arguments pretty-printed
+(*==*) :: (Data a, Eq a) => a -> a -> Result
+(*==*) x y = Result {ok = Just (x == y), arguments = [pshow x, pshow y], stamp = []}
+
+-- | Joins together two results from (*==*).  Not sure what to do with other Results (when will ok be Nothing?).
+(*&&*) :: Result -> Result -> Result
+(*&&*) x@(Result (Just False) _ _) _ = x
+(*&&*) _ y = y
+
+mkPassResult :: Result
+mkPassResult = Result (Just True) [] []
+
+mkFailResult :: String -> Result
+mkFailResult s = Result (Just False) [s] []
+
 -- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
 m :: Meta
 m = emptyMeta
