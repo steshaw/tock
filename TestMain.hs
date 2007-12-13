@@ -50,7 +50,7 @@ import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
 import qualified RainUsageCheckTest (qcTests)
-import TestUtil
+import TestUtils
 import Utils
 
 -- We run all the HUnit tests before all the QuickCheck tests.

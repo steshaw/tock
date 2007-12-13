@@ -42,8 +42,8 @@ import Pattern
 import RainPasses
 import RainTypes
 import TagAST
-import TestUtil
-import TreeUtil
+import TestUtils
+import TreeUtils
 
 -- | A helper function that returns a simple A.Structured item (A.OnlyP m $ A.Skip m).
 skipP :: A.Structured

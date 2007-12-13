@@ -45,7 +45,7 @@ import Errors
 import GenerateC
 import GenerateCPPCSP
 import Metadata
-import TestUtil
+import TestUtils
 
 -- | A few helper functions for writing certain characters (that won't appear in our generated C/C++ source)
 -- to the WriterT monad.  Useful as simple placeholders/special values during testers.

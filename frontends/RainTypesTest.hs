@@ -31,8 +31,8 @@ import Pass
 import Pattern
 import RainTypes
 import TagAST
-import TestUtil
-import TreeUtil
+import TestUtils
+import TreeUtils
 import Types
 
 -- | Tests that constants in expressions are folded properly.  TODO these tests could do with a lot of expanding.

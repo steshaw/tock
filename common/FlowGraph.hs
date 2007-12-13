@@ -50,7 +50,7 @@ import Data.Graph.Inductive
 
 import qualified AST as A
 import Metadata
-import TreeUtil
+import TreeUtils
 import Utils
 
 -- | A node will either have zero links out, one or more Seq links, or one or more Par links.

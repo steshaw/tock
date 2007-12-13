@@ -38,7 +38,7 @@ genHeader = [
  ,""
  ,"import qualified AST as A"
  ,"import Pattern"
- ,"import TreeUtil"
+ ,"import TreeUtils"
  -- Could probably auto-generate these, too:
  ,"type F0 = Pattern"
  ,"type F1 = (Data a0) => a0 -> Pattern"

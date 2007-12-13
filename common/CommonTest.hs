@@ -26,7 +26,7 @@ import Test.HUnit hiding (State)
 
 import qualified AST as A
 import Metadata
-import TreeUtil
+import TreeUtils
 import Types
 
 -- | Tests the isSafeConversion function:

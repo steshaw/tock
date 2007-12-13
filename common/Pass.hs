@@ -30,7 +30,7 @@ import CompState
 import Errors
 import Metadata
 import PrettyShow
-import TreeUtil
+import TreeUtils
 
 -- | The monad in which AST-mangling passes operate.
 type PassM = ErrorT ErrorReport (StateT CompState IO)

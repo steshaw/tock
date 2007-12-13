@@ -33,7 +33,7 @@ import qualified AST as A
 import FlowGraph
 import Metadata
 import RainUsageCheck
-import TestUtil
+import TestUtils
 import Utils
 
 

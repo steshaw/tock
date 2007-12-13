@@ -46,8 +46,8 @@ import qualified LexRain as L
 import Metadata (Meta,emptyMeta)
 import qualified ParseRain as RP
 import Pattern
-import TestUtil
-import TreeUtil
+import TestUtils
+import TreeUtils
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
 

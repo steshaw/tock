@@ -30,8 +30,8 @@ import Metadata
 import Pattern
 import SimplifyComms
 import SimplifyExprs
-import TestUtil
-import TreeUtil
+import TestUtils
+import TreeUtils
 
 -- | A handy typed version of Nothing for use with A.Declaration
 noInit :: Maybe A.Expression

@@ -56,7 +56,7 @@ tock_SOURCES_hs += transformations/Unnest.hs transformations/RainUsageCheck.hs t
 tock_SOURCES_hs += transformations/SimplifyComms.hs transformations/ArrayUsageCheck.hs
 tock_SOURCES_hs += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
 tock_SOURCES_hs += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
-tock_SOURCES_hs += common/Pass.hs common/TreeUtil.hs common/Intrinsics.hs common/EvalLiterals.hs
+tock_SOURCES_hs += common/Pass.hs common/TreeUtils.hs common/Intrinsics.hs common/EvalLiterals.hs
 tock_SOURCES_hs += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
 tock_SOURCES_hs += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
 tock_SOURCES_hs += common/Metadata.hs common/AST.hs common/FlowGraph.hs common/FlowAlgorithms.hs
@@ -71,7 +71,7 @@ tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
 tocktest_SOURCES = $(tock_SOURCES)
 tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
-tocktest_SOURCES += common/TestUtil.hs common/CommonTest.hs common/FlowGraphTest.hs
+tocktest_SOURCES += common/TestUtils.hs common/CommonTest.hs common/FlowGraphTest.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
 tocktest_SOURCES += TestMain.hs
 

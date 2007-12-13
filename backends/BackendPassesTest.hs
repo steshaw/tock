@@ -27,8 +27,8 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import BackendPasses
 import Pattern
-import TestUtil
-import TreeUtil
+import TestUtils
+import TreeUtils
 
 -- | Test WaitUntil guard (should be unchanged)
 testTransformWaitFor0 :: Test

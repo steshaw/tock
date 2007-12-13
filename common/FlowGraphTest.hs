@@ -37,7 +37,7 @@ import qualified AST as A
 import FlowGraph
 import Metadata
 import PrettyShow
-import TestUtil
+import TestUtils
 import Utils
 
 -- | Makes a distinctive metatag for testing.  The function is one-to-one.

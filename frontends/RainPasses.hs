@@ -31,7 +31,7 @@ import Metadata
 import Pass
 import Pattern
 import RainTypes
-import TreeUtil
+import TreeUtils
 import Types
 
 -- | An ordered list of the Rain-specific passes to be run.

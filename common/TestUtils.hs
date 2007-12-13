@@ -36,7 +36,7 @@ If they are not equal, it shows them (using 'show') with the given message prefi
 
 -}
 
-module TestUtil where
+module TestUtils where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -52,7 +52,7 @@ import Metadata (Meta,emptyMeta)
 import Pass
 import Pattern
 import PrettyShow
-import TreeUtil
+import TreeUtils
 import Types
 import Utils
 
