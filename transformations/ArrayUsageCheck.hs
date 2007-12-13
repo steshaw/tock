@@ -87,10 +87,6 @@ solveConstraints p ineq
                        | ((e ! 0) `mod` g) /= 0  = Nothing
                        | otherwise               = Just $ amap (\x -> x `div` g) e
                        where g = foldl1 mygcd (map abs $ tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
-
-        mygcd :: Integer -> Integer -> Integer
-        mygcd 0 0 = 0
-        mygcd x y = gcd x y
     
     -- | Solves all equality problems in the given list.
     -- Will either succeed (Just () in the Error/Maybe monad) or fail (Nothing)
@@ -205,3 +201,7 @@ solveConstraints p ineq
         checkFalsifiable' :: EqualityConstraintEquation -> Bool
         checkFalsifiable' e = (e ! 0 /= 0) && (all (== 0) . tail . elems) e
 
+
+mygcd :: Integer -> Integer -> Integer
+mygcd 0 0 = 0
+mygcd x y = gcd x y
