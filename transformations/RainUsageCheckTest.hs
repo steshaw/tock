@@ -333,10 +333,10 @@ testArrayCheck = TestList
   where
     pass :: (Int, [[Integer]], [[Integer]], [[Integer]]) -> Test
     pass (ind, expIneq, inpEq, inpIneq) = TestCase $ assertEqual ("testArrayCheck " ++ show ind)
-      (Just $ arrayise expIneq) (solveConstraints (arrayise inpEq) (arrayise inpIneq))
+      (Just $ map arrayise expIneq) (solveConstraints (map arrayise inpEq) (map arrayise inpIneq))
     
-    arrayise :: [[Integer]] -> [Array Int Integer]
-    arrayise = map (simpleArray . zip [0..])
+arrayise :: [Integer] -> Array Int Integer
+arrayise = simpleArray . zip [0..]
 
 
 tests :: Test
