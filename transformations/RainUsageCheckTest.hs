@@ -367,16 +367,17 @@ testIndexes = TestList
    -- TODO need to run the below exampls on a better test (they are not "easily" solved):
    
    -- Can (j + 1 % 10 == i + 1 % 10)?
-   ,notSolveable $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
+   ,neverSolveable $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
    -- Off by one (i + 1 % 9)
-   ,easilySolved $ withKIsMod (i ++ con 1) 9 $ withNIsMod (j ++ con 1) 9 $ (5, [k === n], i_j_constraint 0 9)
+   ,hardSolved $ withKIsMod (i ++ con 1) 9 $ withNIsMod (j ++ con 1) 9 $ (5, [k === n], i_j_constraint 0 9)
    
+   -- The "nightmare" example from the Omega Test paper:
+   ,neverSolveable (6,[],leq [con 27, 11 ** i ++ 13 ** j, con 45] &&& leq [con (-10), 7 ** i ++ (-9) ** j, con 4])
    
    ,safeParTest 100 True (0,10) [i]
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
    ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
    
-   --TODO deal with modulo in future
   ]
   where
     -- Given some indexes using "i", this function checks whether these can
@@ -406,6 +407,8 @@ testIndexes = TestList
     i_j_constraint :: Integer -> Integer -> [HandyIneq]
     i_j_constraint low high = [con low <== i, i ++ con 1 <== j, j <== con high]
     
+    --TODO clear up this mess of easilySolved/hardSolved helper functions
+    
     findSolveable :: [(Int, [HandyEq], [HandyIneq])] -> [(Int, [HandyEq], [HandyIneq])]
     findSolveable = filter isSolveable
     
@@ -424,9 +427,20 @@ testIndexes = TestList
             -- we can't give a useful test failure here:
             else assertFailure $ "testIndexes " ++ show ind ++ " more than one variable left after solving"
 
+    hardSolved :: (Int, [HandyEq], [HandyIneq]) -> Test
+    hardSolved (ind, eq, ineq) = TestCase $
+      assertBool ("testIndexes " ++ show ind) $ isJust $ 
+        (uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
+
     notSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
     notSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
       (uncurry solveAndPrune) (makeConsistent eq ineq) >>* ((<= 1) . numVariables)
+
+
+    neverSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
+    neverSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
+      (uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
+
 
     -- The easy way of writing equations is built on the following Haskell magic.
     -- Essentially, everything is a list of (index, coefficient).  You can scale

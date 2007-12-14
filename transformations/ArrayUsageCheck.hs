@@ -307,3 +307,73 @@ numVariables :: InequalityProblem -> Int
 numVariables ineq = length (nub $ concatMap findVars ineq)
   where
     findVars = map fst . filter ((/= 0) . snd) . tail . assocs
+
+-- | Eliminating the inequalities works as follows:
+--
+-- Rearrange (and normalise) equations for a particular variable x_k to eliminate so that 
+-- a_k is always positive and you have:
+--  A: a_Ak . x_k <= sum (i is 0 to n, without k) a_Ai . x_i
+--  B: a_Bk . x_k >= sum (i is 0 to n, without k) a_Bi . x_i
+--  C: equations where a_k is zero.
+--
+-- Determine if there is an integer solution for x_k:
+--
+-- TODO
+--
+-- Form lots of new equations:
+--  Given  a_Ak . x_k <= RHS(A)
+--         a_Bk . x_k >= RHS(B)
+--  We can get (since a_Ak and a_bk are positive):
+--         a_Ak . A_Bk . x_k <= A_Bk . RHS(A)
+--         a_Ak . A_Bk . x_k >= A_Ak . RHS(B)
+--  For every combination of the RHS(A) and RHS(B) generate an inequality: a_Bk . RHS(A) - a_Ak . RHS(B) >=0
+-- Add these new equations to the set C, and iterate
+
+fmElimination :: InequalityProblem -> InequalityProblem
+fmElimination ineq = fmElimination' (presentItems ineq) (map normaliseIneq ineq)
+  where
+    -- Finds all variables that have at least one non-zero coefficient in the equation set.
+    -- a_0 is ignored; 0 will never be in the returned list
+    presentItems :: InequalityProblem -> [Int]
+    presentItems = nub . map fst . filter ((/= 0) . snd) . concatMap (tail . assocs)
+
+    fmElimination' :: [Int] -> InequalityProblem -> InequalityProblem
+    fmElimination' [] ineq = ineq
+    fmElimination' (k:ks) ineq = fmElimination' ks (map normaliseIneq $ eliminate k ineq)
+    
+    --TODO should we still be checking for redundant equations in the new ones we generate?
+    
+    eliminate :: Int -> InequalityProblem -> InequalityProblem
+    eliminate k ineq = eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
+      where
+        (eqA,eqB,eqC) = partition ineq
+      
+        -- We need to partition the related equations into sets A,B and C.
+        -- C is straightforward (a_k is zero).
+        -- In set B, a_k > 0, and "RHS(B)" (as described above) is the negation of the other
+        -- coefficients.  Therefore "-RHS(B)" is the other coefficients as-is.
+        -- In set A, a_k < 0,  and "RHS(A)" (as described above) is the other coefficients, untouched
+        -- So we simply zero out a_k, and return the rest, associated with the absolute value of a_k.
+        partition :: InequalityProblem -> ([(Integer, InequalityConstraintEquation)], [(Integer,InequalityConstraintEquation)], [InequalityConstraintEquation])
+        partition = (\(x,y,z) -> (concat x, concat y, concat z)) . unzip3 . map partition'
+          where
+            partition' e | a_k == 0 = ([],[],[e])
+                         | a_k <  0 = ([(abs a_k, e // [(k,0)])],[],[])
+                         | a_k >  0 = ([],[(abs a_k, e // [(k,0)])],[])
+              where
+                a_k = e ! k
+        
+        pairIneqs :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
+        pairIneqs (x,ex) (y,ey) = arrayZipWith (+) (amap (* y) ex) (amap (* x) ey)
+
+    normaliseIneq :: InequalityConstraintEquation -> InequalityConstraintEquation
+    normaliseIneq ineq | g > 1     = arrayMapWithIndex norm ineq
+                       | otherwise = ineq
+      where
+        norm ind val | ind == 0  = normaliseUnits val
+                     | otherwise = val `div` g
+      
+        g = mygcdList $ tail $ elems ineq
+        -- I think div would do here, because g will always be positive, but
+        -- I feel safer using the mathematical description:
+        normaliseUnits a_0 = floor $ (fromInteger a_0 :: Double) / (fromInteger g)
