@@ -34,6 +34,7 @@ import ArrayUsageCheck
 import qualified AST as A
 import FlowGraph
 import Metadata
+import PrettyShow
 import RainUsageCheck
 import TestUtils
 import Utils
@@ -410,6 +411,12 @@ qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
 
 type MutatedEquation =
   (InequalityProblem
+  ,Maybe ([(EqualityConstraintEquation,EqualityConstraintEquation)],InequalityProblem))
+
+-- The type for inside the function; easier to work with since it can't be
+-- inconsistent until the end.
+type MutatedEquation' =
+  (InequalityProblem
   ,[(EqualityConstraintEquation,EqualityConstraintEquation)]
   ,InequalityProblem)
 
@@ -421,12 +428,26 @@ type MutatedEquation =
 -- The equations passed in do not have to be consistent, merely unique and normalised.
 -- Returns the input, and the expected output.
 mutateEquations :: InequalityProblem -> Gen MutatedEquation
-mutateEquations ineq = do ineq' <- mapM mutate ineq >>*
-                            foldl (\(a,b,c) (x,y,z) -> (a++x,b++y,c++z)) ([],[],[])
-                          return ineq'
-  --TODO add the inconsistent option in as described in the documentation (and test for it)
+mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
+                                       foldl (\(a,b,c) (x,y,z) -> (a++x,b++y,c++z)) ([],[],[])
+                          frequency
+                            [
+                              (80,return (a,Just (b,c)))
+                             ,(20,addInconsistent a >>* (\x -> (x,Nothing)))
+                            ]
   where
-    mutate :: InequalityConstraintEquation -> Gen MutatedEquation
+    -- We take an equation like 5 + 3x - y >=0 (i.e. 3x - y >= -5)
+    -- and add -6 -3x + y >= 0 (i.e. -6 >= 3x - y)
+    -- This works for all cases, even where the unit coeff is zero;
+    -- 3x - y >= 0 becomes -1 -3x + y >= 0 (i.e. -1 >= 3x - y)
+    addInconsistent :: InequalityProblem -> Gen InequalityProblem
+    addInconsistent inpIneq
+      = do randEq <- oneof (map return inpIneq)
+           let negEq = amap negate randEq
+           let modRandEq = (negEq) // [(0, (negEq ! 0) - 1)]
+           return (modRandEq : inpIneq)
+
+    mutate :: InequalityConstraintEquation -> Gen MutatedEquation'
     mutate ineq = oneof
                     [
                       return ([ineq],[],[ineq])
@@ -434,10 +455,10 @@ mutateEquations ineq = do ineq' <- mapM mutate ineq >>*
                      ,return $ addDual ineq
                     ]
 
-    addDual :: InequalityConstraintEquation -> MutatedEquation
+    addDual :: InequalityConstraintEquation -> MutatedEquation'
     addDual eq = ([eq,neg],[(eq,neg)],[]) where neg = amap negate eq
 
-    addRedundant :: InequalityConstraintEquation -> Gen MutatedEquation
+    addRedundant :: InequalityConstraintEquation -> Gen MutatedEquation'
     addRedundant ineq = do i <- choose (1,5) -- number of redundant equations to add
                            newIneqs <- replicateM i addRedundant'
                            return (ineq : newIneqs, [], [ineq])
@@ -452,15 +473,20 @@ instance Arbitrary OmegaPruneInput where
   arbitrary = (generateProblem  >>= (return . snd) >>= mutateEquations) >>* OPI
 
 qcOmegaPrune :: [QuickCheckTest]
-qcOmegaPrune = [scaleQC (10,100,1000,10000) prop]
+qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
   where
     --We perform the map assocs because we can't compare arrays using *==*
     -- (toConstr fails in the pretty-printing!).
-    prop (OPI (inp,outEq,outIneq)) =
-      (sort (map assocs (snd result)) *==* sort (map assocs outIneq))
-      *&&* (checkEq (fst result) outEq)
+    prop (OPI (inp,out)) =
+      case out of
+        Nothing -> Nothing *==* result
+        Just (outEq,outIneq) ->
+          case result of
+            Nothing -> mkFailResult $ "Expected success but got failure: " ++ pshow (inp,out)
+            Just (actEq,actIneq) ->
+              (sort (map assocs actIneq) *==* sort (map assocs outIneq)) *&&* (checkEq actEq outEq)
       where
-        Just result = pruneAndCheck inp
+        result = pruneAndCheck inp
 
     checkEq :: [EqualityConstraintEquation] ->
       [(EqualityConstraintEquation,EqualityConstraintEquation)] -> Result
