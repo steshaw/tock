@@ -86,7 +86,7 @@ solveConstraints p ineq
         normaliseEq' e | g == 0                  = Just e
                        | ((e ! 0) `mod` g) /= 0  = Nothing
                        | otherwise               = Just $ amap (\x -> x `div` g) e
-                       where g = foldl1 mygcd (map abs $ tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
+                       where g = mygcdList (tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
     
     -- | Solves all equality problems in the given list.
     -- Will either succeed (Just () in the Error/Maybe monad) or fail (Nothing)
@@ -206,6 +206,10 @@ mygcd :: Integer -> Integer -> Integer
 mygcd 0 0 = 0
 mygcd x y = gcd x y
 
+mygcdList :: [Integer] -> Integer
+mygcdList [] = 0
+mygcdList [x] = abs x
+mygcdList (x:xs) = foldl mygcd x xs
 
 -- | Prunes the inequalities.  It does what is described in section 2.3 of Pugh's ACM paper;
 -- it removes redundant inequalities, fails (evaluates to Nothing) if it finds a contradiction

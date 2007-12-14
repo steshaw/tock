@@ -502,7 +502,7 @@ testIndexes = TestList
 -- This is so they can be used as normalised coefficients in a linear equation
 coprimeList :: Int -> Gen [Integer]
 coprimeList size = do non_normal <- replicateM size $ choose (1,100)
-                      return $ map (\x -> x `div` (foldl mygcd 0 non_normal)) non_normal
+                      return $ map (\x -> x `div` (mygcdList non_normal)) non_normal
 
 -- | Generates a list of lists of co-prime numbers, where each list is distinct.
 -- The returned list of lists will be square; N equations, each with N items
