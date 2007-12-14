@@ -378,8 +378,20 @@ testIndexes = TestList
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
    ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
    
+   
+   ,TestCase $ assertStuff "testIndexes makeEq"
+     (Right (Map.empty,(uncurry makeConsistent) (doubleEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))) $
+     makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7)
+   ,TestCase $ assertStuff "testIndexes makeEq 2"
+     (Right (Map.singleton "i" 1,(uncurry makeConsistent) (doubleEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
+     makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7)
   ]
   where
+    doubleEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
+    assertStuff title x y = assertEqual title (munge x) (munge y)
+      where
+        munge = transformEither id (transformPair id (transformPair sort sort))
+    
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against
     -- the expected value; True for safe, False for unsafe.
