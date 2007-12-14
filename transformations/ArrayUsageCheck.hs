@@ -211,9 +211,11 @@ mygcd x y = gcd x y
 -- it removes redundant inequalities, fails (evaluates to Nothing) if it finds a contradiction
 -- and turns any 2x + y <= 4, 2x + y >= 4 pairs into equalities.  The list of such equalities
 -- (which may well be an empty list) and the remaining inequalities is returned.
+-- As an additional step not specified in the paper, equations with no variables in them are checked
+-- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to ensure c is indeed >= 0.
 pruneAndCheck :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
 pruneAndCheck ineq = let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq in
-                     mapM checkOpposite opps >>* (\x -> (x,others))
+                     seqPair (mapM checkOpposite opps, mapM checkConstantEq others)
   where
     groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort ineq
 
@@ -250,3 +252,20 @@ pruneAndCheck ineq = let (opps,others) = splitEither $ groupOpposites $ map prun
     checkOpposite :: (InequalityConstraintEquation,InequalityConstraintEquation) -> Maybe EqualityConstraintEquation
     checkOpposite (x,y) | (x ! 0) == negate (y ! 0) = Just x -- doesn't matter which we pick to become the equality
                         | otherwise = Nothing -- The inequalities can't hold
+
+    checkConstantEq :: InequalityConstraintEquation -> Maybe InequalityConstraintEquation
+    checkConstantEq eq | all (== 0) (tail $ elems eq) = if (eq ! 0) >= 0 then Just eq else Nothing
+                       | otherwise = Just eq
+
+-- | Returns Nothing if there is definitely no solution, or (Just ineq) if 
+-- further investigation is needed
+solveAndPrune :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
+solveAndPrune [] ineq = return ineq
+solveAndPrune eq ineq = solveConstraints eq ineq >>= pruneAndCheck >>= uncurry solveAndPrune
+
+-- | Returns the number of variables (of x_1 .. x_n; x_0 is not counted)
+-- that have non-zero coefficients in the given inequality problems.
+numVariables :: InequalityProblem -> Int
+numVariables ineq = length (nub $ concatMap findVars ineq)
+  where
+    findVars = map fst . filter ((/= 0) . snd) . tail . assocs
