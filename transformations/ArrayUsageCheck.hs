@@ -216,11 +216,12 @@ mygcdList (x:xs) = foldl mygcd x xs
 -- and turns any 2x + y <= 4, 2x + y >= 4 pairs into equalities.  The list of such equalities
 -- (which may well be an empty list) and the remaining inequalities is returned.
 -- As an additional step not specified in the paper, equations with no variables in them are checked
--- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to ensure c is indeed >= 0.
+-- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to 
+-- ensure c is indeed >= 0, and those equations are removed.
 pruneAndCheck :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
 pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq
                         (opps', eq) <- mapM checkOpposite opps >>* splitEither
-                        checked <- mapM checkConstantEq (concat opps' ++ others)
+                        checked <- mapM checkConstantEq (concat opps' ++ others) >>* catMaybes
                         return (eq, checked)
   where
     groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort ineq
@@ -283,9 +284,16 @@ pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map p
                         | (x ! 0) + (y ! 0) == 0  = Just $ Right x
                         | otherwise               = Just $ Left [x,y]
 
-    checkConstantEq :: InequalityConstraintEquation -> Maybe InequalityConstraintEquation
-    checkConstantEq eq | all (== 0) (tail $ elems eq) = if (eq ! 0) >= 0 then Just eq else Nothing
-                       | otherwise = Just eq
+    -- The type of this function is quite confusing.  We want to use in the Maybe monad, so 
+    -- the outer type indicates error; Nothing is an error.  Just x indicates non-failure,
+    -- but x may either be Just y (keep the equation) or Nothing (remove it).  So the three
+    -- possible returns are:
+    -- * Nothing: Equation inconsistent
+    -- * Just Nothing: Equation redundant
+    -- * Just (Just e) : Keep equation.
+    checkConstantEq :: InequalityConstraintEquation -> Maybe (Maybe InequalityConstraintEquation)
+    checkConstantEq eq | all (== 0) (tail $ elems eq) = if (eq ! 0) >= 0 then Just Nothing else Nothing
+                       | otherwise = Just $ Just eq
 
 -- | Returns Nothing if there is definitely no solution, or (Just ineq) if 
 -- further investigation is needed
