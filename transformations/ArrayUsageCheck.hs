@@ -89,7 +89,7 @@ solveConstraints p ineq
                        where g = mygcdList (tail $ elems e) -- g is the GCD of a_1 .. a_n (not a_0)
     
     -- | Solves all equality problems in the given list.
-    -- Will either succeed (Just () in the Error/Maybe monad) or fail (Nothing)
+    -- Will either succeed (Just () in the Error\/Maybe monad) or fail (Nothing)
     solve :: EqualityProblem -> StateT InequalityProblem Maybe ()
     solve [] = return ()
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
