@@ -29,38 +29,6 @@ import qualified AST as A
 import FlowGraph
 import Utils
 
---TODO fix this tangle of code to make it work with the code at the bottom of the file
-
-data Constraint = Equality [CoeffVar] Integer
-
-type Problem = [Constraint]
-
-data CoeffVar = CV { coeff :: Integer, var :: A.Variable }
-
-type CoeffExpr = [CoeffVar]
-
---type IndicesUsed = Map.Map Variable [[
-
-makeProblems :: [[CoeffExpr]] -> [Problem]
-makeProblems indexLists = map checkEq zippedPairs
-  where
-    allPairs :: [([CoeffExpr],[CoeffExpr])]
-    allPairs = [(a,b) | a <- indexLists, b <- indexLists]
-    zippedPairs :: [[(CoeffExpr,CoeffExpr)]]
-    zippedPairs = map (uncurry zip) allPairs
-    
-    checkEq :: [(CoeffExpr,CoeffExpr)] -> Problem
-    checkEq = map checkEq'
-    
-    checkEq' :: (CoeffExpr, CoeffExpr) -> Constraint
-    checkEq' (cv0,cv1) = Equality (cv0 ++ map negate cv1) 0
-    
-    negate :: CoeffVar -> CoeffVar
-    negate cv = cv {coeff = - (coeff cv)}
-
-makeProblem1Dim :: [CoeffExpr] -> [Problem]
-makeProblem1Dim ces = makeProblems [[c] | c <- ces]
-
 data FlattenedExp = Const Integer | Scale Integer A.Variable deriving (Eq,Show)
 
 -- TODO probably want to take this into the PassM monad at some point
