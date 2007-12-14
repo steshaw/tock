@@ -343,8 +343,8 @@ arrayise :: [Integer] -> Array Int Integer
 arrayise = simpleArray . zip [0..]
 
 -- Useful to make sure the equation types are not mixed up:
-newtype HandyEq = Eq [(Int, Integer)]
-newtype HandyIneq = Ineq [(Int, Integer)]
+newtype HandyEq = Eq [(Int, Integer)] deriving (Show, Eq)
+newtype HandyIneq = Ineq [(Int, Integer)] deriving (Show, Eq)
 
 testIndexes :: Test
 testIndexes = TestList
@@ -361,18 +361,53 @@ testIndexes = TestList
     --should fail:
    ,notSolveable (2, [i === con 7],[i <== con 5])
    
+   ,easilySolved (3, [i ++ con 1 === j], i_j_constraint 0 10)
+   
+   ,safeParTest 100 True (0,10) [i]
+   ,safeParTest 120 False (0,10) [i,i ++ con 1]
+   ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
+   
+   --TODO deal with modulo in future
   ]
   where
+    -- Given some indexes using "i", this function checks whether these can
+    -- ever overlap within the bounds given, and matches this against
+    -- the expected value; True for safe, False for unsafe.
+    safeParTest :: Int -> Bool -> (Integer,Integer) -> [[(Int,Integer)]] -> Test
+    safeParTest ind expSafe (low, high) usesI = TestCase $
+      (if expSafe
+        then assertEqual ("testIndexes " ++ show ind ++ " should be safe (unsolveable)") []
+        else assertNotEqual ("testIndexes " ++ show ind ++ " should be solveable") []
+      ) 
+        $ findSolveable $ zip3 [ind..] (equalityCombinations) (repeat constraint)
+      where
+        changeItoJ (1,n) = (2,n)
+        changeItoJ x = x
+      
+        usesJ = map (map changeItoJ) usesI
+        
+        constraint = i_j_constraint low high
+        
+        equalityCombinations :: [[HandyEq]]
+        equalityCombinations = map (\(lhs,rhs) -> [lhs === rhs]) $ product2 (usesI,usesJ)
+  
+  
     -- | The constraint for an arbitrary i,j that exist between low and high (inclusive)
     -- and where i and j are distinct and i is taken to be the lower index.
     i_j_constraint :: Integer -> Integer -> [HandyIneq]
     i_j_constraint low high = [con low <== i, i ++ con 1 <== j, j <== con high]
+    
+    findSolveable :: [(Int, [HandyEq], [HandyIneq])] -> [(Int, [HandyEq], [HandyIneq])]
+    findSolveable = filter isSolveable
+    
+    isSolveable :: (Int, [HandyEq], [HandyIneq]) -> Bool
+    isSolveable (ind, eq, ineq) = isJust $ (uncurry solveAndPrune) (makeConsistent eq ineq)
   
     easilySolved :: (Int, [HandyEq], [HandyIneq]) -> Test
     easilySolved (ind, eq, ineq) = TestCase $
       let ineq' = (uncurry solveAndPrune) (makeConsistent eq ineq) in
       case ineq' of
-        Nothing -> assertFailure $ "testIndexes " ++ show ind ++ " expected to pass (solving+pruning) but failed"
+        Nothing -> assertFailure $ "testIndexes " ++ show ind ++ " expected to pass (solving+pruning) but failed; problem: " ++ show (eq,ineq)
         Just ineq'' ->
           if numVariables ineq'' <= 1
             then return ()
@@ -427,14 +462,9 @@ testIndexes = TestList
         eqs' = map (\(Eq e) -> e) eqs
         ineqs' = map (\(Ineq e) -> e) ineqs
       
-        ensure = simpleArray . ensurePresent [0 .. largestIndex]
+        ensure = accumArray (+) 0 (0, largestIndex)
         largestIndex = maximum $ map (maximum . map fst) $ eqs' ++ ineqs'
         
-    ensurePresent :: [Int] -> [(Int,Integer)] -> [(Int,Integer)]
-    ensurePresent ns [] = map (\n -> (n,0)) ns
-    ensurePresent ns (p:ps) = case findAndRemove (== fst p) ns of
-                                (Just _,ns') -> p : (ensurePresent ns' ps)
-                                -- Should never be Nothing; let the test die with an error
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing transformed y_i variables.
 -- This will be the solution.  Feed this into a random list of inequalities.  The inequalities do
