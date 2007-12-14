@@ -342,6 +342,99 @@ testArrayCheck = TestList
 arrayise :: [Integer] -> Array Int Integer
 arrayise = simpleArray . zip [0..]
 
+-- Useful to make sure the equation types are not mixed up:
+newtype HandyEq = Eq [(Int, Integer)]
+newtype HandyIneq = Ineq [(Int, Integer)]
+
+testIndexes :: Test
+testIndexes = TestList
+  [
+    -- Rules for writing equations:
+    -- You must use the variables i, j, k in that order as you need them.
+    -- Never write an equation just involving i and k, or j and k.  Always
+    -- use (i), (i and j), or (i and j and k).
+    -- Constant scaling must always be on the left, and does not need the con
+    -- function.  con 1 ** i won't compile.
+  
+    easilySolved (0, [i === con 7], [])
+   ,easilySolved (1, [2 ** i === con 12], [])
+    --should fail:
+   ,notSolveable (2, [i === con 7],[i <== con 5])
+   
+  ]
+  where
+    -- | The constraint for an arbitrary i,j that exist between low and high (inclusive)
+    -- and where i and j are distinct and i is taken to be the lower index.
+    i_j_constraint :: Integer -> Integer -> [HandyIneq]
+    i_j_constraint low high = [con low <== i, i ++ con 1 <== j, j <== con high]
+  
+    easilySolved :: (Int, [HandyEq], [HandyIneq]) -> Test
+    easilySolved (ind, eq, ineq) = TestCase $
+      let ineq' = (uncurry solveAndPrune) (makeConsistent eq ineq) in
+      case ineq' of
+        Nothing -> assertFailure $ "testIndexes " ++ show ind ++ " expected to pass (solving+pruning) but failed"
+        Just ineq'' ->
+          if numVariables ineq'' <= 1
+            then return ()
+            -- Until we put in the route from original to mapped variables,
+            -- we can't give a useful test failure here:
+            else assertFailure $ "testIndexes " ++ show ind ++ " more than one variable left after solving"
+
+    notSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
+    notSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
+      (uncurry solveAndPrune) (makeConsistent eq ineq) >>* ((<= 1) . numVariables)
+
+    -- The easy way of writing equations is built on the following Haskell magic.
+    -- Essentially, everything is a list of (index, coefficient).  You can scale
+    -- with the ** operator, and you can form equalities and inequalities with
+    -- the ===, <== and >== operators.  The type system saves you from doing anything
+    -- nonsensical.
+
+    leq :: [[(Int,Integer)]] -> [HandyIneq]
+    leq [] = []
+    leq [_] = []
+    leq (x:y:zs) = (x <== y) : (leq (y:zs))
+
+    (&&&) = (++)
+  
+    infixr 4 ===
+    infixr 4 <==
+    infixr 4 >==
+    infix  6 **
+  
+    (===) :: [(Int,Integer)] -> [(Int,Integer)] -> HandyEq
+    lhs === rhs = Eq $ lhs ++ negateVars rhs
+    (<==) :: [(Int,Integer)] -> [(Int,Integer)] -> HandyIneq
+    lhs <== rhs = Ineq $ negateVars lhs ++ rhs
+    (>==) :: [(Int,Integer)] -> [(Int,Integer)] -> HandyIneq
+    lhs >== rhs = Ineq $ lhs ++ negateVars rhs
+    negateVars :: [(Int,Integer)] -> [(Int,Integer)]
+    negateVars = map (transformPair id negate)
+    (**) :: Integer -> [(Int,Integer)] -> [(Int,Integer)]
+    n ** var = map (transformPair id (* n)) var
+    con :: Integer -> [(Int,Integer)]
+    con c = [(0,c)]
+    i :: [(Int, Integer)]
+    i = [(1,1)]
+    j :: [(Int, Integer)]
+    j = [(2,1)]
+    k :: [(Int, Integer)]
+    k = [(3,1)]
+    
+    makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
+    makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
+      where
+        eqs' = map (\(Eq e) -> e) eqs
+        ineqs' = map (\(Ineq e) -> e) ineqs
+      
+        ensure = simpleArray . ensurePresent [0 .. largestIndex]
+        largestIndex = maximum $ map (maximum . map fst) $ eqs' ++ ineqs'
+        
+    ensurePresent :: [Int] -> [(Int,Integer)] -> [(Int,Integer)]
+    ensurePresent ns [] = map (\n -> (n,0)) ns
+    ensurePresent ns (p:ps) = case findAndRemove (== fst p) ns of
+                                (Just _,ns') -> p : (ensurePresent ns' ps)
+                                -- Should never be Nothing; let the test die with an error
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing transformed y_i variables.
 -- This will be the solution.  Feed this into a random list of inequalities.  The inequalities do
@@ -501,6 +594,7 @@ qcTests :: (Test, [QuickCheckTest])
 qcTests = (TestList
  [
   testGetVarProc
+  ,testIndexes
   ,testInitVar
 --  ,testParUsageCheck
   ,testReachDef
