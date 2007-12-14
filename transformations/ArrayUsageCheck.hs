@@ -205,3 +205,48 @@ solveConstraints p ineq
 mygcd :: Integer -> Integer -> Integer
 mygcd 0 0 = 0
 mygcd x y = gcd x y
+
+
+-- | Prunes the inequalities.  It does what is described in section 2.3 of Pugh's ACM paper;
+-- it removes redundant inequalities, fails (evaluates to Nothing) if it finds a contradiction
+-- and turns any 2x + y <= 4, 2x + y >= 4 pairs into equalities.  The list of such equalities
+-- (which may well be an empty list) and the remaining inequalities is returned.
+pruneAndCheck :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
+pruneAndCheck ineq = let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq in
+                     mapM checkOpposite opps >>* (\x -> (x,others))
+  where
+    groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort ineq
+
+    coeffSort :: InequalityConstraintEquation -> InequalityConstraintEquation -> Ordering
+    coeffSort x y = compare (tail $ elems x) (tail $ elems y)
+
+    -- | Takes in a group of inequalities with identical a_1 .. a_n coefficients
+    -- and returns the equation with the smallest unit coefficient.  Consider the standard equation:
+    -- a_1.x_1 + a_2.x_2 .. a_n.x_n >= -a_0.  We want one equation with the maximum value of -a_0
+    -- (this will be the strongest equation), which is therefore the minimum value of a_0.
+    -- This therefore automatically removes duplicate and redundant equations.
+    pruneGroup :: [InequalityConstraintEquation] -> InequalityConstraintEquation
+    pruneGroup = minimumBy (\x y -> compare (x ! 0) (y ! 0))
+
+    -- | Groups all equations with their opposites, if found.  Returns either a pair
+    -- or a singleton.  O(N^2), but there shouldn't be that many inequalities to process (<= 10, I expect).
+    -- Assumes equations have already been pruned, and that therefore for every unique a_1 .. a_n 
+    -- set, there is only one equation.
+    groupOpposites :: InequalityProblem -> [Either (InequalityConstraintEquation,InequalityConstraintEquation) InequalityConstraintEquation]
+    groupOpposites [] = []
+    groupOpposites (e:es) = case findOpposite e es of
+                              Just (opp,rest) -> (Left (e,opp)) : (groupOpposites rest)
+                              Nothing -> (Right e) : (groupOpposites es)
+
+    findOpposite :: InequalityConstraintEquation -> [InequalityConstraintEquation] -> Maybe (InequalityConstraintEquation,[InequalityConstraintEquation])
+    findOpposite _ [] = Nothing
+    findOpposite target (e:es) | negTarget == (tail $ elems e) = Just (e,es)
+                               | otherwise = case findOpposite target es of
+                                               Just (opp,rest) -> Just (opp,e:rest)
+                                               Nothing -> Nothing
+      where
+        negTarget = map negate $ tail $ elems target
+
+    checkOpposite :: (InequalityConstraintEquation,InequalityConstraintEquation) -> Maybe EqualityConstraintEquation
+    checkOpposite (x,y) | (x ! 0) == negate (y ! 0) = Just x -- doesn't matter which we pick to become the equality
+                        | otherwise = Nothing -- The inequalities can't hold

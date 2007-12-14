@@ -20,8 +20,10 @@ module RainUsageCheckTest (qcTests) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
-import Data.Array
+import Data.Array.IArray
+import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 import qualified Data.Set as Set
 import Prelude hiding (fail)
 import Test.HUnit
@@ -391,11 +393,11 @@ newtype OmegaTestInput = OMI (EqualityProblem, InequalityProblem) deriving (Show
 
 -- | Generates an Omega test problem with between 1 and 10 variables (incl), where the solutions
 -- are numbers between -20 and + 20 (incl).
-generateProblem :: Gen OmegaTestInput
-generateProblem = (choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>= generateEqualities) >>* OMI
+generateProblem :: Gen (EqualityProblem, InequalityProblem)
+generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>= generateEqualities
 
 instance Arbitrary OmegaTestInput where
-  arbitrary = generateProblem
+  arbitrary = generateProblem >>* OMI
 
 qcOmegaEquality :: [QuickCheckTest]
 qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
@@ -406,6 +408,69 @@ qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
         omegaCheck (Just ineqs) = all (all (== 0) . elems) ineqs
         omegaCheck Nothing = False
 
+type MutatedEquation =
+  (InequalityProblem
+  ,[(EqualityConstraintEquation,EqualityConstraintEquation)]
+  ,InequalityProblem)
+
+-- | Given a distinct equation list, mutates each one at random using one of these mutations:
+-- * Unchanged
+-- * Generates similar but redundant equations
+-- * Generates its dual (to be transformed into an equality equation)
+-- * Generates an inconsistent partner (rare - 20% chance of existing in the returned problem).
+-- The equations passed in do not have to be consistent, merely unique and normalised.
+-- Returns the input, and the expected output.
+mutateEquations :: InequalityProblem -> Gen MutatedEquation
+mutateEquations ineq = do ineq' <- mapM mutate ineq >>*
+                            foldl (\(a,b,c) (x,y,z) -> (a++x,b++y,c++z)) ([],[],[])
+                          return ineq'
+  --TODO add the inconsistent option in as described in the documentation (and test for it)
+  where
+    mutate :: InequalityConstraintEquation -> Gen MutatedEquation
+    mutate ineq = oneof
+                    [
+                      return ([ineq],[],[ineq])
+                     ,addRedundant ineq
+                     ,return $ addDual ineq
+                    ]
+
+    addDual :: InequalityConstraintEquation -> MutatedEquation
+    addDual eq = ([eq,neg],[(eq,neg)],[]) where neg = amap negate eq
+
+    addRedundant :: InequalityConstraintEquation -> Gen MutatedEquation
+    addRedundant ineq = do i <- choose (1,5) -- number of redundant equations to add
+                           newIneqs <- replicateM i addRedundant'
+                           return (ineq : newIneqs, [], [ineq])
+                             where
+                               -- A redundant equation is one with a bigger unit coefficient:
+                               addRedundant' = do n <- choose (1,100)
+                                                  return $ ineq // [(0,n + (ineq ! 0))]
+
+newtype OmegaPruneInput = OPI MutatedEquation deriving (Show)
+
+instance Arbitrary OmegaPruneInput where
+  arbitrary = (generateProblem  >>= (return . snd) >>= mutateEquations) >>* OPI
+
+qcOmegaPrune :: [QuickCheckTest]
+qcOmegaPrune = [scaleQC (10,100,1000,10000) prop]
+  where
+    --We perform the map assocs because we can't compare arrays using *==*
+    -- (toConstr fails in the pretty-printing!).
+    prop (OPI (inp,outEq,outIneq)) =
+      (sort (map assocs (snd result)) *==* sort (map assocs outIneq))
+      *&&* (checkEq (fst result) outEq)
+      where
+        Just result = pruneAndCheck inp
+
+    checkEq :: [EqualityConstraintEquation] ->
+      [(EqualityConstraintEquation,EqualityConstraintEquation)] -> Result
+    checkEq [] [] = mkPassResult
+    checkEq eqs [] = mkFailResult $ "checkEq: " ++ show eqs
+    checkEq eqs ((x,y):xys)
+      = case findAndRemove (\z -> z == x || z == y) eqs of
+          (Just _, eqs') -> checkEq eqs' xys
+          _ -> mkFailResult $ "checkEq: " ++ show eqs ++ " could not match: " ++ show (x,y)
+
 qcTests :: (Test, [QuickCheckTest])
 qcTests = (TestList
  [
@@ -415,7 +480,7 @@ qcTests = (TestList
   ,testReachDef
   ,testArrayCheck
  ]
- ,qcOmegaEquality)
+ ,qcOmegaEquality ++ qcOmegaPrune)
 
 
 
