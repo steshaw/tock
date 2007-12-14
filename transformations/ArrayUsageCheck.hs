@@ -214,8 +214,10 @@ mygcd x y = gcd x y
 -- As an additional step not specified in the paper, equations with no variables in them are checked
 -- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to ensure c is indeed >= 0.
 pruneAndCheck :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
-pruneAndCheck ineq = let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq in
-                     seqPair (mapM checkOpposite opps, mapM checkConstantEq others)
+pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq
+                        (opps', eq) <- mapM checkOpposite opps >>* splitEither
+                        checked <- mapM checkConstantEq (concat opps' ++ others)
+                        return (eq, checked)
   where
     groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort ineq
 
@@ -249,9 +251,33 @@ pruneAndCheck ineq = let (opps,others) = splitEither $ groupOpposites $ map prun
       where
         negTarget = map negate $ tail $ elems target
 
-    checkOpposite :: (InequalityConstraintEquation,InequalityConstraintEquation) -> Maybe EqualityConstraintEquation
-    checkOpposite (x,y) | (x ! 0) == negate (y ! 0) = Just x -- doesn't matter which we pick to become the equality
-                        | otherwise = Nothing -- The inequalities can't hold
+    -- Checks if two "opposite" constraints are inconsistent.  If they are inconsistent, Nothing is returned.
+    -- If they could be consistent, either the resulting equality or the inequalities are returned
+    --
+    -- If the equations are opposite, then setting z = sum (1 .. n) of a_n . x_n, the two equations must be:
+    -- b + z >= 0
+    -- c - z >= 0
+    -- The choice of which equation is which is arbitrary.
+    --
+    -- It is easily seen that adding the two equations gives:
+    --
+    -- (b + c) >= 0
+    -- 
+    -- Therefore if (b + c) < 0, the equations are inconsistent.
+    -- If (b + c) = 0, we can substitute into the original equations b = -c:
+    --   -c + z >= 0
+    --   c - z >= 0
+    --   Rearranging both gives:
+    --   z >= c
+    --   z <= c
+    --   This implies c = z.  Therefore we can take either of the original inequalities
+    --   and treat them directly as equality (c - z = 0, and b + z = 0)
+    -- If (b + c) > 0 then the equations are consistent but we cannot do anything new with them
+    checkOpposite :: (InequalityConstraintEquation,InequalityConstraintEquation) ->
+      Maybe (Either [InequalityConstraintEquation] EqualityConstraintEquation)
+    checkOpposite (x,y) | (x ! 0) + (y ! 0) < 0   = Nothing
+                        | (x ! 0) + (y ! 0) == 0  = Just $ Right x
+                        | otherwise               = Just $ Left [x,y]
 
     checkConstantEq :: InequalityConstraintEquation -> Maybe InequalityConstraintEquation
     checkConstantEq eq | all (== 0) (tail $ elems eq) = if (eq ! 0) >= 0 then Just eq else Nothing
