@@ -361,7 +361,16 @@ testIndexes = TestList
     --should fail:
    ,notSolveable (2, [i === con 7],[i <== con 5])
    
-   ,easilySolved (3, [i ++ con 1 === j], i_j_constraint 0 10)
+   -- Can i = j?
+   ,notSolveable (3, [i === j], i_j_constraint 0 9)
+
+   -- TODO need to run the below exampls on a better test (they are not "easily" solved):
+   
+   -- Can (j + 1 % 10 == i + 1 % 10)?
+   ,notSolveable $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
+   -- Off by one (i + 1 % 9)
+   ,easilySolved $ withKIsMod (i ++ con 1) 9 $ withNIsMod (j ++ con 1) 9 $ (5, [k === n], i_j_constraint 0 9)
+   
    
    ,safeParTest 100 True (0,10) [i]
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
@@ -449,12 +458,27 @@ testIndexes = TestList
     n ** var = map (transformPair id (* n)) var
     con :: Integer -> [(Int,Integer)]
     con c = [(0,c)]
-    i :: [(Int, Integer)]
+    i,j,k,m,n,p :: [(Int, Integer)]
     i = [(1,1)]
-    j :: [(Int, Integer)]
     j = [(2,1)]
-    k :: [(Int, Integer)]
     k = [(3,1)]
+    m = [(4,1)]
+    n = [(5,1)]
+    p = [(6,1)]
+    
+    isMod :: [(Int,Integer)] -> [(Int,Integer)] -> Integer -> ([HandyEq], [HandyIneq])
+    isMod var@[(ind,1)] alpha divisor = ([alpha_minus_div_sigma === var], leq [con 0, alpha_minus_div_sigma, con $ divisor - 1])
+      where
+        alpha_minus_div_sigma = alpha ++ (negate divisor) ** sigma
+        sigma = [(ind+1,1)]
+    
+    -- | Adds both k and m to the equation!
+    withKIsMod :: [(Int,Integer)] -> Integer -> (Int, [HandyEq], [HandyIneq]) -> (Int, [HandyEq], [HandyIneq])
+    withKIsMod alpha divisor (ind,eq,ineq) = let (eq',ineq') = isMod k alpha divisor in (ind,eq ++ eq',ineq ++ ineq')
+
+    -- | Adds both n and p to the equation!
+    withNIsMod :: [(Int,Integer)] -> Integer -> (Int, [HandyEq], [HandyIneq]) -> (Int, [HandyEq], [HandyIneq])
+    withNIsMod alpha divisor (ind,eq,ineq) = let (eq',ineq') = isMod n alpha divisor in (ind,eq ++ eq',ineq ++ ineq')
     
     makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
     makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
