@@ -348,6 +348,10 @@ arrayise = simpleArray . zip [0..]
 newtype HandyEq = Eq [(Int, Integer)] deriving (Show, Eq)
 newtype HandyIneq = Ineq [(Int, Integer)] deriving (Show, Eq)
 
+normaliseAnswers :: EqualityProblem -> EqualityProblem
+-- Put all the equalities such that the units are positive:       
+normaliseAnswers = sort . map (\eq -> amap (* signum (eq ! 0)) eq)
+
 testIndexes :: Test
 testIndexes = TestList
   [
@@ -401,12 +405,10 @@ testIndexes = TestList
     assertCounterExampleIs title counterEq (eq,ineq)
       = assertCompareCustom title equivEq (Just counterEq) ((solveAndPrune eq ineq) >>* (getCounterEqs . fst))
       where
-        equivEq (Just xs) (Just ys) = (sort $ map norm xs) == (sort $ map norm ys)
+        equivEq (Just xs) (Just ys) = (normaliseAnswers xs) == (normaliseAnswers ys)
         equivEq Nothing Nothing = True
         equivEq _ _ = False
-        
-        -- Put all the equalities such that the units are positive:       
-        norm eq = amap (* signum (eq ! 0)) eq
+
     
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against
