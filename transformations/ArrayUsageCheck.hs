@@ -97,7 +97,6 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,(pairEqs v, getIneqs
         getLH (sc, eq) = [eq `addEq` (scaleEq (-sc) low),(scaleEq sc high) `addEq` amap negate eq]
         
         addEq = arrayZipWith (+)
-        scaleEq n = amap (* n)
                 
     makeEquation :: (Integer,[FlattenedExp]) -> StateT (Map.Map String Int) (Either String) (Integer,EqualityConstraintEquation)
     makeEquation (divisor, summedItems)
@@ -125,14 +124,34 @@ type EqualityProblem = [EqualityConstraintEquation]
 type InequalityConstraintEquation = Array CoeffIndex Integer
 type InequalityProblem = [InequalityConstraintEquation]
 
+-- Maps the indexes of the current variables to an equation involving the original variables
+type VariableMapping = Map.Map CoeffIndex EqualityConstraintEquation
+
+-- | Given a maximum variable, produces a default mapping
+defaultMapping :: Int -> VariableMapping
+defaultMapping n = Map.fromList $ [ (i,array (0,n) [(j,if i == j then 1 else 0) | j <- [0 .. n]]) | i <- [0 .. n]]
+
+-- | Adds a new variable to a map
+addToMapping :: (CoeffIndex,EqualityConstraintEquation) -> VariableMapping -> VariableMapping
+addToMapping (k,eq) old = Map.insert k trans old
+  where
+    trans = foldl1 (arrayZipWith (+)) $ map (\(k,v) -> scaleEq v (forceLookup k old)) $ assocs eq    
+    forceLookup k m = fromJust $ Map.lookup k m
+    
+reverseEquality :: EqualityConstraintEquation -> VariableMapping -> EqualityConstraintEquation
+reverseEquality eq mp = foldl1 (arrayZipWith (+)) $ map (\(k,v) -> scaleEq v (forceLookup k mp)) $ assocs eq
+  where
+    forceLookup k m = fromJust $ Map.lookup k m
+
+scaleEq :: Integer -> EqualityConstraintEquation -> EqualityConstraintEquation
+scaleEq n = amap (* n)
+
 -- | Solves all the constraints in the Equality Problem (taking them to be == 0),
--- and transforms the InequalityProblems appropriately.
--- TODO the function currently doesn't record the relation between the transformed variables
--- (e.g. sigma for x_k) and the original variables (x_k).  In order to feed back useful
--- information to the user, we should do this at some point in future.
-solveConstraints :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
-solveConstraints p ineq
-  = normaliseEq p >>= (\p' -> execStateT (solve p') ineq)
+-- and transforms the InequalityProblems appropriately.  It also records
+-- a variable mapping so that we can feed back the final answer to the user
+solveConstraints :: VariableMapping -> EqualityProblem -> InequalityProblem -> Maybe (VariableMapping, InequalityProblem)
+solveConstraints vm p ineq
+  = normaliseEq p >>= (\p' -> execStateT (solve p') (vm,ineq))
   where
     -- | Normalises an equation by dividing all coefficients by their greatest common divisor.
     -- If the unit coefficient (a_0) doesn't divide by this GCD, Nothing will be returned
@@ -148,7 +167,7 @@ solveConstraints p ineq
     
     -- | Solves all equality problems in the given list.
     -- Will either succeed (Just () in the Error\/Maybe monad) or fail (Nothing)
-    solve :: EqualityProblem -> StateT InequalityProblem Maybe ()
+    solve :: EqualityProblem -> StateT (VariableMapping, InequalityProblem) Maybe ()
     solve [] = return ()
     solve p = (solveUnits p >>* removeRedundant) >>= liftF checkFalsifiable >>= solveNext >>= solve
   
@@ -177,21 +196,25 @@ solveConstraints p ineq
     -- all the equations in the list by adding x_k_val (scaled by a_k) to each equation and
     -- then zeroing out the a_k value.  Note that the (x_k_val ! k) value will be ignored;
     -- it should be zero, in any case (otherwise x_k would be defined in terms of itself!).
-    substIn :: CoeffIndex -> Array CoeffIndex Integer -> EqualityProblem -> EqualityProblem
-    substIn k x_k_val = map substIn'
+    substIn :: CoeffIndex -> Array CoeffIndex Integer -> (VariableMapping, EqualityProblem) -> (VariableMapping, EqualityProblem)
+    substIn k x_k_val = transformPair (addToMapping (k,x_k_val)) (map substIn')
       where
         substIn' eq = (arrayZipWith (+) eq scaled_x_k_val) // [(k,0)]
           where
             scaled_x_k_val = amap (* (eq ! k)) x_k_val
 
     -- | Solves (i.e. removes by substitution) all unit coefficients in the given list of equations.
-    solveUnits :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
+    solveUnits :: EqualityProblem -> StateT (VariableMapping, InequalityProblem) Maybe EqualityProblem
     solveUnits p
       = case findFirstUnit p of
           (Nothing,p') -> return p' -- p' should equal p anyway
-          (Just (eq,ind),p') -> modify change >> ((lift $ normaliseEq $ change p') >>= solveUnits)
+          (Just (eq,ind),p') -> modify change >> change' p' >>= liftF normaliseEq >>= solveUnits
             where
               change = substIn ind (arrayMapWithIndex (modifyOthersZeroSpecific ind) eq)
+              change' p = do (mp,ineq) <- get
+                             let (mp',p') = change (mp,p)
+                             put (mp',ineq)
+                             return p'
               origVal = eq ! ind
 
               -- Zeroes a specific coefficient, modifies the others as follows:
@@ -216,14 +239,20 @@ solveConstraints p ineq
         cmpAbsSnd (_,x) (_,y) = compare (abs x) (abs y)
 
     -- | Solves the next equality and returns the new set of equalities.
-    solveNext :: EqualityProblem -> StateT InequalityProblem Maybe EqualityProblem
+    solveNext :: EqualityProblem -> StateT (VariableMapping, InequalityProblem) Maybe EqualityProblem
     solveNext [] = return []
     solveNext (e:es) = -- We transform the kth variable into sigma, effectively
                        -- So once we have x_k = ... (in terms of sigma) we add a_k * RHS
                        -- to all other equations, AFTER zeroing the a_k coefficient (so
                        -- that the multiple of sigma is added on properly)
-                       modify (map alterEquation) >> (lift $ (normaliseEq . map alterEquation) (e:es))
+                       modify change >> change' (e:es) >>= liftF normaliseEq
                          where
+                           change' p = do (mp,ineq) <- get
+                                          let (mp',p') = change (mp,p)
+                                          put (mp',ineq)
+                                          return p'
+                           change = transformPair (addToMapping (k,x_k_eq)) (map alterEquation)
+                         
                            -- | Adds a scaled version of x_k_eq onto the current equation, after zeroing out
                            -- the a_k coefficient in the current equation.
                            alterEquation :: EqualityConstraintEquation -> EqualityConstraintEquation
@@ -355,9 +384,12 @@ pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map p
 
 -- | Returns Nothing if there is definitely no solution, or (Just ineq) if 
 -- further investigation is needed
-solveAndPrune :: EqualityProblem -> InequalityProblem -> Maybe InequalityProblem
-solveAndPrune [] ineq = return ineq
-solveAndPrune eq ineq = solveConstraints eq ineq >>= pruneAndCheck >>= uncurry solveAndPrune
+solveAndPrune' :: VariableMapping -> EqualityProblem -> InequalityProblem -> Maybe (VariableMapping,InequalityProblem)
+solveAndPrune' vm [] ineq = return (vm,ineq)
+solveAndPrune' vm eq ineq = solveConstraints vm eq ineq >>= (seqPair . transformPair return pruneAndCheck) >>= (\(x,(y,z)) -> solveAndPrune' x y z)
+
+solveAndPrune :: EqualityProblem -> InequalityProblem -> Maybe (VariableMapping,InequalityProblem)
+solveAndPrune eq = solveAndPrune' (defaultMapping $ snd $ bounds $ head eq) eq
 
 -- | Returns the number of variables (of x_1 .. x_n; x_0 is not counted)
 -- that have non-zero coefficients in the given inequality problems.

@@ -326,18 +326,20 @@ testArrayCheck = TestList
   -- Impossible/inconsistent equality constraints:
   
    -- -7 = 0
-  ,TestCase $ assertEqual "testArrayCheck 1002" (Nothing) (solveConstraints [simpleArray [(0,7),(1,0)]] [])
+  ,TestCase $ assertEqual "testArrayCheck 1002" (Nothing) (solveConstraints' [simpleArray [(0,7),(1,0)]] [])
    -- x_1 = 3, x_1 = 4
-  ,TestCase $ assertEqual "testArrayCheck 1003" (Nothing) (solveConstraints [simpleArray [(0,-3),(1,1)], simpleArray [(0,-4),(1,1)]] [])  
+  ,TestCase $ assertEqual "testArrayCheck 1003" (Nothing) (solveConstraints' [simpleArray [(0,-3),(1,1)], simpleArray [(0,-4),(1,1)]] [])  
    -- x_1 + x_2 = 0, x_1 + x_2 = -3
-  ,TestCase $ assertEqual "testArrayCheck 1004" (Nothing) (solveConstraints [simpleArray [(0,0),(1,1),(2,1)], simpleArray [(0,3),(1,1),(2,1)]] [])  
+  ,TestCase $ assertEqual "testArrayCheck 1004" (Nothing) (solveConstraints' [simpleArray [(0,0),(1,1),(2,1)], simpleArray [(0,3),(1,1),(2,1)]] [])  
    -- 4x_1 = 7
-  ,TestCase $ assertEqual "testArrayCheck 1005" (Nothing) (solveConstraints [simpleArray [(0,-7),(1,4)]] [])
+  ,TestCase $ assertEqual "testArrayCheck 1005" (Nothing) (solveConstraints' [simpleArray [(0,-7),(1,4)]] [])
   ]
   where
+    solveConstraints' = solveConstraints undefined
+  
     pass :: (Int, [[Integer]], [[Integer]], [[Integer]]) -> Test
     pass (ind, expIneq, inpEq, inpIneq) = TestCase $ assertEqual ("testArrayCheck " ++ show ind)
-      (Just $ map arrayise expIneq) (solveConstraints (map arrayise inpEq) (map arrayise inpIneq))
+      (Just $ map arrayise expIneq) (transformMaybe snd $ solveConstraints' (map arrayise inpEq) (map arrayise inpIneq))
     
 arrayise :: [Integer] -> Array Int Integer
 arrayise = simpleArray . zip [0..]
@@ -432,7 +434,7 @@ testIndexes = TestList
       let ineq' = (uncurry solveAndPrune) (makeConsistent eq ineq) in
       case ineq' of
         Nothing -> assertFailure $ "testIndexes " ++ show ind ++ " expected to pass (solving+pruning) but failed; problem: " ++ show (eq,ineq)
-        Just ineq'' ->
+        Just (_,ineq'') ->
           if numVariables ineq'' <= 1
             then return ()
             -- Until we put in the route from original to mapped variables,
@@ -442,16 +444,16 @@ testIndexes = TestList
     hardSolved :: (Int, [HandyEq], [HandyIneq]) -> Test
     hardSolved (ind, eq, ineq) = TestCase $
       assertBool ("testIndexes " ++ show ind) $ isJust $ 
-        (uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
+        (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
 
     notSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
     notSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
-      (uncurry solveAndPrune) (makeConsistent eq ineq) >>* ((<= 1) . numVariables)
+      (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>* ((<= 1) . numVariables)
 
 
     neverSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
     neverSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
-      (uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
+      (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
 
 
     -- The easy way of writing equations is built on the following Haskell magic.
@@ -578,8 +580,8 @@ qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
   where
     prop (OMI (eq,ineq)) = omegaCheck actAnswer
       where
-        actAnswer = solveConstraints eq ineq
-        omegaCheck (Just ineqs) = all (all (== 0) . elems) ineqs
+        actAnswer = solveConstraints undefined eq ineq
+        omegaCheck (Just (_,ineqs)) = all (all (== 0) . elems) ineqs
         omegaCheck Nothing = False
 
 type MutatedEquation =
