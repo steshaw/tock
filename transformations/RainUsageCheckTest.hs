@@ -387,12 +387,26 @@ testIndexes = TestList
    ,TestCase $ assertStuff "testIndexes makeEq 2"
      (Right (Map.singleton "i" 1,(uncurry makeConsistent) (doubleEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
      makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7)
+     
+   ,TestCase $ assertCounterExampleIs "testIndexes testVarMapping" (fst $ makeConsistent [i === con 7] [])
+     $ makeConsistent [i === con 7] []
   ]
   where
+    -- TODO comment these functions and rename the latter one
     doubleEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
     assertStuff title x y = assertEqual title (munge x) (munge y)
       where
         munge = transformEither id (transformPair id (transformPair sort sort))
+    
+    assertCounterExampleIs title counterEq (eq,ineq)
+      = assertCompareCustom title equivEq (Just counterEq) ((solveAndPrune eq ineq) >>* (getCounterEqs . fst))
+      where
+        equivEq (Just xs) (Just ys) = (sort $ map norm xs) == (sort $ map norm ys)
+        equivEq Nothing Nothing = True
+        equivEq _ _ = False
+        
+        -- Put all the equalities such that the units are positive:       
+        norm eq = amap (* signum (eq ! 0)) eq
     
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against

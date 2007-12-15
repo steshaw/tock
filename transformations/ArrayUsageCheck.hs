@@ -124,26 +124,137 @@ type EqualityProblem = [EqualityConstraintEquation]
 type InequalityConstraintEquation = Array CoeffIndex Integer
 type InequalityProblem = [InequalityConstraintEquation]
 
--- Maps the indexes of the current variables to an equation involving the original variables
-type VariableMapping = Map.Map CoeffIndex EqualityConstraintEquation
+-- | As we proceed with eliminating variables from equations (with the possible
+-- addition of one new variable), we perform substitutions like:
+-- x_k = a_k'.x_k' + sum (i = 0 .. n without k) of a_i . x_i
+-- where a_k' can be zero (no new variable is introduced).
+--
+-- We want to keep a record of these substitutions, for two eventualities:
+-- * When we end up with a list of inequalities, we can express these inequalities
+--   in terms of the original variables (even if that may be slightly messy)
+-- * If we end up with no remaining inequalities, we know the exact results
+--   assigned to each of our variables
+-- 
+-- The first item in that list requires that we can map from the transformed variables
+-- back to the original; that is we can map from x_k' back to x_k.
+-- The second item in that list requires us to know the substitution for x_k; that is,
+-- we can map from x_k to the RHS of its substitution (including the resolved value for x_k').
+--
+-- To achieve this, we keep track of two things.
+-- * The first is a map from all the current variables back to the original variables.
+--   Because of the way the subsitutions are performed, the coefficients must be fractions.
+-- * The second is a map from the original variables into the current variables.
+--   This does not require fractional coefficients.
+-- To get the final value for an original variable, you map "through" the second item,
+-- and then back through the first item.  This may seem odd, but that's the way it is!
+type VariableMapping = (Map.Map CoeffIndex (Array CoeffIndex Rational),Map.Map CoeffIndex EqualityConstraintEquation)
 
 -- | Given a maximum variable, produces a default mapping
 defaultMapping :: Int -> VariableMapping
-defaultMapping n = Map.fromList $ [ (i,array (0,n) [(j,if i == j then 1 else 0) | j <- [0 .. n]]) | i <- [0 .. n]]
+defaultMapping n = (Map.fromList $ [ (i,array (0,n) [(j,toRational $ if i == j then 1 else 0) | j <- [0 .. n]]) | i <- [0 .. n]],
+                    Map.fromList $ [ (i,array (0,n) [(j,if i == j then 1 else 0) | j <- [0 .. n]]) | i <- [0 .. n]])
 
--- | Adds a new variable to a map
+-- | Adds a new variable to a map.  The first parameter is (k,value of old x_k)
 addToMapping :: (CoeffIndex,EqualityConstraintEquation) -> VariableMapping -> VariableMapping
-addToMapping (k,eq) old = Map.insert k trans old
+addToMapping (k, subst) = transformPair addNewToOld addOldToNew
   where
-    trans = foldl1 (arrayZipWith (+)) $ map (\(k,v) -> scaleEq v (forceLookup k old)) $ assocs eq    
-    forceLookup k m = fromJust $ Map.lookup k m
+    -- We want to update all the existing entries to be scaled according to the new substitution.
+    -- Additionally, iff there was no previous entry for k, we should add the new substitution.
+    --
+    -- In terms of maths, we want to replace cur_a_k . x_k with a value in terms of x_k':
+    -- cur_a_k . x_k = cur_a_k . (a_k'.x_k' + sum (i = 0 .. n without k) of a_i . x_i)
+    --
+    -- So we just add the substitution for x_k, scaled by cur_a_k.
+    --
+    -- As a more readable example, you currently have:
+    --
+    -- y = sigma + 3tau
+    --
+    -- You have a new subsitution:
+    -- 
+    -- tau = -2sigma - 1
+    --
+    -- Therefore you must update your reference for y by adding 3*tau:
+    --
+    -- y = sigma + (-6sigma - 3) = -5sigma - 3
+    addOldToNew :: Map.Map CoeffIndex EqualityConstraintEquation -> Map.Map CoeffIndex EqualityConstraintEquation
+    addOldToNew = (Map.insertWith ignoreNewVal k subst) . (Map.map updateSub)
+      where
+        ignoreNewVal = flip const
     
-reverseEquality :: EqualityConstraintEquation -> VariableMapping -> EqualityConstraintEquation
-reverseEquality eq mp = foldl1 (arrayZipWith (+)) $ map (\(k,v) -> scaleEq v (forceLookup k mp)) $ assocs eq
-  where
+    updateSub eq = arrayZipWith (+) (eq // [(k,0)]) $ scaleEq eq_k subst
+      where
+        eq_k = eq ! k
+  
+    -- We want to record the new mapping for x_k'.  This only need be done if a_k' is not zero
+    -- (i.e. a new variable is being introduced).  If no new variable is being introduced, the existing mapping
+    -- can remain untouched.
+    -- From the comment on VariableMapping we have:
+    -- x_k = a_k'.x_k' + sum (i = 0 .. n without k) of a_i . x_i
+    -- Therefore:
+    -- x_k' = (x_k - sum (i = 0 .. n without k) of a_i . x_i) / a_k'
+    --
+    -- So we must take the current mapping for x_k (Remember, x_k here may not be the totally-original x_k),
+    -- scale it by (1/a_k') and
+    -- then for each i (i != k) we must multiply the current mapping of x_i by (-a_i / a_k')
+    -- and add the whole lot together to get the new substitution.
+    --
+    -- As a readable example, you currently have a plain map:
+    --
+    -- x = x
+    --
+    -- You get a new substitution:
+    --
+    -- x = -8sigma - 4y - z - 1
+    --
+    -- The sigma variable will effectively replace x.  Therefore you need to set a new mapping:
+    --
+    -- sigma = (x - 4y - z - 1) / (-8)
+    --
+    -- Later when you want to record a mapping for y:
+    --
+    -- y = sigma + 3 * tau
+    --
+    -- You will try to get a tau mapping (tau replaces y):
+    --
+    -- tau = (y - sigma) / 3
+    --
+    -- At which point you must substitute in the sigma mapping:
+    --
+    -- tau = (y - ((x - 4y - z - 1) / (-8))) / 3
+    -- 
+    -- Which gives:
+    --
+    -- tau = ((-1/8)x + (1/2)y + (-1/8)z + (-1/8)) / 3
+    -- tau = (-1/24)x + (1/6)y + (-1/24)z + (-1/24)
+    
+    addNewToOld :: Map.Map CoeffIndex (Array CoeffIndex Rational) -> Map.Map CoeffIndex (Array CoeffIndex Rational)
+    addNewToOld before | a_k' == 0 = before
+                       | otherwise = (flip $ Map.insert k) before $ foldl1 (arrayZipWith (+)) $ map (uncurry change) $ Map.assocs before
+      where
+        change :: CoeffIndex -> Array CoeffIndex Rational -> Array CoeffIndex Rational
+        change ind val | ind == 0  = val -- shortcut
+                       | ind == k  = scaleEq ((1 :: Integer) `over` a_k') (forceLookup k before)
+                       | otherwise = scaleEq ((negate (val ! ind)) `over` a_k') (forceLookup ind before)
+
+        over x y = (toRational x) / (toRational y)
+        
+        a_k' = subst ! k
+                
+  
+    -- TODO could maybe use a proper error monad instead
     forceLookup k m = fromJust $ Map.lookup k m
 
-scaleEq :: Integer -> EqualityConstraintEquation -> EqualityConstraintEquation
+-- | Returns a set of equalities that represent the mappings for the variables.
+-- TODO in future get clever and phrase each one as x_k = some constant.
+-- If they can't be phrased like that, you shouldn't be calling getCounterEqs!
+getCounterEqs :: VariableMapping -> EqualityProblem
+-- TODO map both ways properly
+getCounterEqs (lastToOrig, origToLast) = tail $ Map.elems $ Map.mapWithKey process origToLast
+  where
+    process ind rhs = rhs // [(ind,-1)]
+    
+scaleEq :: (IArray a e, Ix i, Num e) => e -> a i e -> a i e
 scaleEq n = amap (* n)
 
 -- | Solves all the constraints in the Equality Problem (taking them to be == 0),
