@@ -36,7 +36,7 @@ import Types
 import Utils
 
 
--- TODO we should probably calculate this from the AST
+-- TODO we should probably calculate this from the CFG
 checkArrayUsage :: Data a => a -> PassM a
 checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tree
   where
