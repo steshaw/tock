@@ -25,7 +25,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Prelude hiding ((**),fail)
 import Test.HUnit
-import Test.QuickCheck
+import Test.QuickCheck hiding (check)
 
 
 import ArrayUsageCheck
@@ -134,28 +134,64 @@ m = [(4,1)]
 n = [(5,1)]
 p = [(6,1)]
 
+makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
+makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
+  where
+    eqs' = map (\(Eq e) -> e) eqs
+    ineqs' = map (\(Ineq e) -> e) ineqs
+      
+    ensure = accumArray (+) 0 (0, largestIndex)
+    largestIndex = maximum $ map (maximum . map fst) $ eqs' ++ ineqs'
+
+
+-- | A problem's "solveability"; essentially how much of the Omega Test do you have to
+-- run before the result is known, and which result is it
+data Solveability = 
+  SolveEq     -- ^ Solveable just by solving equalities and pruning.
+              -- In other words, solveAndPrune will give (Just [])
+  | ImpossibleEq -- ^ Definitely not solveable just from the equalities.
+                 -- In other words, solveAndPrune will give Nothing
+  | SolveIneq -- ^ Reduceable to inequalities, where the inequalities (therefore) have a solution.
+              -- In other words, solveAndPrune will give (Just a) (a /= []),
+              -- and then feeding a through fmElimination will give back an inequality set
+              -- that can be fed into <SOME FUNCTION TODO> to give a possible solution
+  | ImpossibleIneq -- ^ The inequalities are impossible to solve.
+                   -- In other words, solveAndPrune will give (Just a) (a /= []),
+                   -- but feeding this through fmElimination will give Nothing.
+  -- TODO do we need an option where one variable is left in the inequalities?
+  deriving (Eq,Show)
+
+check :: Solveability -> (Int,[HandyEq], [HandyIneq]) -> Test
+check s (ind, eq, ineq)
+  | s == ImpossibleEq   = TestCase $ assertEqual testName Nothing sapped
+  | s == SolveEq        = TestCase $ assertEqual testName (Just []) (transformMaybe snd sapped)
+  | s == ImpossibleIneq = TestCase $ assertEqual testName Nothing elimed
+  | s == SolveIneq      = TestCase $ assertBool  testName (isJust elimed) -- TODO check for a solution to the inequality
+    where problem = makeConsistent eq ineq
+          sapped = uncurry solveAndPrune problem
+          elimed = sapped >>= (return . snd) >>= (pruneAndCheck . fmElimination)
+          testName = "check " ++ show s ++ " " ++ show ind
 
 testIndexes :: Test
 testIndexes = TestList
   [
   
-    easilySolved (0, [i === con 7], [])
-   ,easilySolved (1, [2 ** i === con 12], [])
-    --should fail:
-   ,notSolveable (2, [i === con 7],[i <== con 5])
-   
+    check SolveEq (0, [i === con 7], [])
+   ,check SolveEq (1, [2 ** i === con 12], [])
+   ,check ImpossibleEq (2, [i === con 7],[i <== con 5])
+    
    -- Can i = j?
-   ,notSolveable (3, [i === j], i_j_constraint 0 9)
+   ,check ImpossibleEq (3, [i === j], i_j_constraint 0 9)
 
    -- TODO need to run the below exampls on a better test (they are not "easily" solved):
    
    -- Can (j + 1 % 10 == i + 1 % 10)?
-   ,neverSolveable $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
+   ,check ImpossibleIneq $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
    -- Off by one (i + 1 % 9)
-   ,hardSolved $ withKIsMod (i ++ con 1) 9 $ withNIsMod (j ++ con 1) 9 $ (5, [k === n], i_j_constraint 0 9)
+   ,check SolveIneq $ withKIsMod (i ++ con 1) 9 $ withNIsMod (j ++ con 1) 9 $ (5, [k === n], i_j_constraint 0 9)
    
    -- The "nightmare" example from the Omega Test paper:
-   ,neverSolveable (6,[],leq [con 27, 11 ** i ++ 13 ** j, con 45] &&& leq [con (-10), 7 ** i ++ (-9) ** j, con 4])
+   ,check SolveIneq (6,[],leq [con 27, 11 ** i ++ 13 ** j, con 45] &&& leq [con (-10), 7 ** i ++ (-9) ** j, con 4])
    
    ,safeParTest 100 True (0,10) [i]
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
@@ -220,33 +256,6 @@ testIndexes = TestList
     
     isSolveable :: (Int, [HandyEq], [HandyIneq]) -> Bool
     isSolveable (ind, eq, ineq) = isJust $ (uncurry solveAndPrune) (makeConsistent eq ineq)
-  
-    easilySolved :: (Int, [HandyEq], [HandyIneq]) -> Test
-    easilySolved (ind, eq, ineq) = TestCase $
-      let ineq' = (uncurry solveAndPrune) (makeConsistent eq ineq) in
-      case ineq' of
-        Nothing -> assertFailure $ "testIndexes " ++ show ind ++ " expected to pass (solving+pruning) but failed; problem: " ++ show (eq,ineq)
-        Just (_,ineq'') ->
-          if numVariables ineq'' <= 1
-            then return ()
-            -- Until we put in the route from original to mapped variables,
-            -- we can't give a useful test failure here:
-            else assertFailure $ "testIndexes " ++ show ind ++ " more than one variable left after solving"
-
-    hardSolved :: (Int, [HandyEq], [HandyIneq]) -> Test
-    hardSolved (ind, eq, ineq) = TestCase $
-      assertBool ("testIndexes " ++ show ind) $ isJust $ 
-        (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
-
-    notSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
-    notSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
-      (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>* ((<= 1) . numVariables)
-
-
-    neverSolveable :: (Int, [HandyEq], [HandyIneq]) -> Test
-    neverSolveable (ind, eq, ineq) = TestCase $ assertEqual ("testIndexes " ++ show ind) Nothing $
-      (transformMaybe snd . uncurry solveAndPrune) (makeConsistent eq ineq) >>= (pruneAndCheck . fmElimination)
-
     
     isMod :: [(Int,Integer)] -> [(Int,Integer)] -> Integer -> ([HandyEq], [HandyIneq])
     isMod var@[(ind,1)] alpha divisor = ([alpha_minus_div_sigma === var], leq [con 0, alpha_minus_div_sigma, con $ divisor - 1])
@@ -261,16 +270,7 @@ testIndexes = TestList
     -- | Adds both n and p to the equation!
     withNIsMod :: [(Int,Integer)] -> Integer -> (Int, [HandyEq], [HandyIneq]) -> (Int, [HandyEq], [HandyIneq])
     withNIsMod alpha divisor (ind,eq,ineq) = let (eq',ineq') = isMod n alpha divisor in (ind,eq ++ eq',ineq ++ ineq')
-    
-    makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
-    makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
-      where
-        eqs' = map (\(Eq e) -> e) eqs
-        ineqs' = map (\(Ineq e) -> e) ineqs
-      
-        ensure = accumArray (+) 0 (0, largestIndex)
-        largestIndex = maximum $ map (maximum . map fst) $ eqs' ++ ineqs'
-        
+
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing transformed y_i variables.
 -- This will be the solution.  Feed this into a random list of inequalities.  The inequalities do
