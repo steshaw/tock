@@ -560,7 +560,7 @@ distinctCoprimeLists size = distinctCoprimeLists' [] size
 -- | Given a solution, and the coefficients, work out the result.
 -- Effectively the dot-product of the two lists.
 calcUnits :: [Integer] -> [Integer] -> Integer
-calcUnits a b = foldl (+) 0 $ zipWith (*) a b
+calcUnits a b = sum $ zipWith (*) a b
 
 -- | Given the solution for an equation (values of x_1 .. x_n), generates 
 -- equalities and inequalities.  The equalities will all be true and consistent,
@@ -577,6 +577,9 @@ generateEqualities solution = do eqCoeffs <- distinctCoprimeLists num_vars
     num_vars = length solution
     mkCoeffArray coeffs = arrayise $ (negate $ calcUnits solution coeffs) : coeffs
 
+-- | The input to a test that will have an exact solution after the equality problems have been
+-- solved.  All the inequalities will be simplified to 0 = 0.  The answers to the equation are
+-- in the map.
 newtype OmegaTestInput = OMI (Map.Map CoeffIndex Integer,(EqualityProblem, InequalityProblem)) deriving (Show)
 
 -- | Generates an Omega test problem with between 1 and 10 variables (incl), where the solutions
@@ -602,25 +605,28 @@ qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
           *&&* ((Map.assocs ans) *==* (Map.assocs $ getCounterEqs vm))
         omegaCheck Nothing = mkFailResult ("Found Nothing while expecting answer: " ++ show (eq,ineq))
 
-type MutatedEquation =
+-- | A randomly mutated problem ready for testing the inequality pruning.
+-- The first part is the input to the pruning, and the second part is the expected result;
+-- the remaining inequalities, preceding by a list of equalities.
+type MutatedProblem =
   (InequalityProblem
-  ,Maybe ([(EqualityConstraintEquation,EqualityConstraintEquation)],InequalityProblem))
+  ,Maybe ([EqualityConstraintEquation],InequalityProblem))
 
--- The type for inside the function; easier to work with since it can't be
+-- | The type for inside the function; easier to work with since it can't be
 -- inconsistent until the end.
-type MutatedEquation' =
+type MutatedProblem' =
   (InequalityProblem
-  ,[(EqualityConstraintEquation,EqualityConstraintEquation)]
+  ,[EqualityConstraintEquation]
   ,InequalityProblem)
 
--- | Given a distinct equation list, mutates each one at random using one of these mutations:
+-- | Given a distinct inequality list, mutates each one at random using one of these mutations:
 -- * Unchanged
 -- * Generates similar but redundant equations
 -- * Generates its dual (to be transformed into an equality equation)
 -- * Generates an inconsistent partner (rare - 20% chance of existing in the returned problem).
 -- The equations passed in do not have to be consistent, merely unique and normalised.
 -- Returns the input, and the expected output.
-mutateEquations :: InequalityProblem -> Gen MutatedEquation
+mutateEquations :: InequalityProblem -> Gen MutatedProblem
 mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
                                        foldl (\(a,b,c) (x,y,z) -> (a++x,b++y,c++z)) ([],[],[])
                           frequency
@@ -640,7 +646,7 @@ mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
            let modRandEq = (negEq) // [(0, (negEq ! 0) - 1)]
            return (modRandEq : inpIneq)
 
-    mutate :: InequalityConstraintEquation -> Gen MutatedEquation'
+    mutate :: InequalityConstraintEquation -> Gen MutatedProblem'
     mutate ineq = oneof
                     [
                       return ([ineq],[],[ineq])
@@ -648,10 +654,10 @@ mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
                      ,return $ addDual ineq
                     ]
 
-    addDual :: InequalityConstraintEquation -> MutatedEquation'
-    addDual eq = ([eq,neg],[(eq,neg)],[]) where neg = amap negate eq
+    addDual :: InequalityConstraintEquation -> MutatedProblem'
+    addDual eq = ([eq,neg],[eq],[]) where neg = amap negate eq
 
-    addRedundant :: InequalityConstraintEquation -> Gen MutatedEquation'
+    addRedundant :: InequalityConstraintEquation -> Gen MutatedProblem'
     addRedundant ineq = do i <- choose (1,5) -- number of redundant equations to add
                            newIneqs <- replicateM i addRedundant'
                            return (ineq : newIneqs, [], [ineq])
@@ -660,7 +666,14 @@ mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
                                addRedundant' = do n <- choose (1,100)
                                                   return $ ineq // [(0,n + (ineq ! 0))]
 
-newtype OmegaPruneInput = OPI MutatedEquation deriving (Show)
+-- | Puts an equality into normal form.  This is where the first non-zero coefficient is positive.
+-- If all coefficients are zero, it doesn't matter (it will be equal to its negation)
+normaliseEquality :: EqualityConstraintEquation -> EqualityConstraintEquation
+normaliseEquality eq = case listToMaybe $ filter (/= 0) $ elems eq of
+                         Nothing -> eq -- all zeroes
+                         Just x -> amap (* (signum x)) eq
+
+newtype OmegaPruneInput = OPI MutatedProblem deriving (Show)
 
 instance Arbitrary OmegaPruneInput where
   arbitrary = ((generateProblem >>* snd)  >>= (return . snd) >>= mutateEquations) >>* OPI
@@ -673,22 +686,14 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
     prop (OPI (inp,out)) =
       case out of
         Nothing -> Nothing *==* result
-        Just (outEq,outIneq) ->
+        Just (expEq,expIneq) ->
           case result of
             Nothing -> mkFailResult $ "Expected success but got failure: " ++ pshow (inp,out)
             Just (actEq,actIneq) ->
-              (sort (map assocs actIneq) *==* sort (map assocs outIneq)) *&&* (checkEq actEq outEq)
+              (sort (map assocs expIneq) *==* sort (map assocs actIneq))
+              *&&* ((sort $ map normaliseEquality expEq) *==* (sort $ map normaliseEquality actEq))
       where
         result = pruneAndCheck inp
-
-    checkEq :: [EqualityConstraintEquation] ->
-      [(EqualityConstraintEquation,EqualityConstraintEquation)] -> Result
-    checkEq [] [] = mkPassResult
-    checkEq eqs [] = mkFailResult $ "checkEq: " ++ show eqs
-    checkEq eqs ((x,y):xys)
-      = case findAndRemove (\z -> z == x || z == y) eqs of
-          (Just _, eqs') -> checkEq eqs' xys
-          _ -> mkFailResult $ "checkEq: " ++ show eqs ++ " could not match: " ++ show (x,y)
 
 qcTests :: (Test, [QuickCheckTest])
 qcTests = (TestList
