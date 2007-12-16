@@ -299,7 +299,7 @@ addToMapping (k, subst) = transformPair addNewToOld addOldToNew
 -- | Returns a mapping from i to constant values of x_i for the solutions of the equations.
 -- This function should only be called if the VariableMapping comes from a problem that
 -- definitely has constant solutions after all equalities have been eliminated.
--- If variables remain in the inequalities, you will get invalid/odd answers from this function.
+-- If variables remain in the inequalities, you will get invalid\/odd answers from this function.
 getCounterEqs :: VariableMapping -> Map.Map CoeffIndex Integer
 getCounterEqs (_, origToLast) = Map.delete 0 $ Map.map expressAsConst origToLast
   where
