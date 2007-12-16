@@ -18,6 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | A module containing the 'main' function for the Tock test suite.  It currently runs tests from the following modules:
 --
+-- * "ArrayUsageCheckTest"
+--
 -- * "BackendPassesTest"
 --
 -- * "CommonTest"
@@ -41,6 +43,7 @@ import System.Console.GetOpt
 import System.Environment
 import Test.HUnit
 
+import qualified ArrayUsageCheckTest (qcTests)
 import qualified BackendPassesTest (tests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
@@ -49,7 +52,7 @@ import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
-import qualified RainUsageCheckTest (qcTests)
+import qualified RainUsageCheckTest (tests)
 import TestUtils
 import Utils
 
@@ -88,7 +91,8 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
     qcTests = concatMap snd tests
 
     tests = [
-              noqc BackendPassesTest.tests
+              ArrayUsageCheckTest.qcTests
+              ,noqc BackendPassesTest.tests
               ,noqc CommonTest.tests
               ,FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
@@ -96,7 +100,7 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
               ,noqc PassTest.tests
               ,noqc RainPassesTest.tests
               ,noqc RainTypesTest.tests
-              ,RainUsageCheckTest.qcTests
+              ,noqc RainUsageCheckTest.tests
             ]
 
     noqc :: Test -> (Test, [QuickCheckTest])

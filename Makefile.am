@@ -70,6 +70,7 @@ tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
 
 tocktest_SOURCES = $(tock_SOURCES)
 tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTest.hs
+tocktest_SOURCES += transformations/ArrayUsageCheckTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
 tocktest_SOURCES += common/TestUtils.hs common/CommonTest.hs common/FlowGraphTest.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
