@@ -280,8 +280,8 @@ testIndexes = TestList
 --TODO Allow zero coefficients (but be careful we don't
 -- produce unsolveable equations, e.g. where an equation is all zeroes, or a_3 is zero in all of them)
 
--- | Generates a list of random numbers of the given size, where the numbers are all co-prime.
--- This is so they can be used as normalised coefficients in a linear equation
+-- | Generates a list of random numbers of the given size, where the numbers are all co-prime
+-- (their GCD is one).  This is so they can be used as normalised coefficients in a linear equation.
 coprimeList :: Int -> Gen [Integer]
 coprimeList size = do non_normal <- replicateM size $ oneof [choose (-100,-1), choose (1,100)]
                       return $ map (\x -> x `div` (mygcdList non_normal)) non_normal
@@ -291,11 +291,13 @@ coprimeList size = do non_normal <- replicateM size $ oneof [choose (-100,-1), c
 distinctCoprimeLists :: Int -> Gen [[Integer]]
 distinctCoprimeLists size = distinctCoprimeLists' [] size
   where
+    -- Since we generate positive and negative coefficients, we must check both that
+    -- our generated list [3,-5,8,8] and its negation [-3,5,-8,-8] are not in the list.
     -- n is the number left to generate; size is still the "width" of the lists
     distinctCoprimeLists' :: [[Integer]] -> Int -> Gen [[Integer]]
     distinctCoprimeLists' result 0 = return result
     distinctCoprimeLists' soFar n = do next <- coprimeList size
-                                       if (next `elem` soFar)
+                                       if (next `elem` soFar) || ((map negate next) `elem` soFar)
                                          then distinctCoprimeLists' soFar n -- Try again
                                          else distinctCoprimeLists' (soFar ++ [next]) (n - 1)
 
