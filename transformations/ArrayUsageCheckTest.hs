@@ -183,8 +183,6 @@ testIndexes = TestList
    -- Can i = j?
    ,check ImpossibleEq (3, [i === j], i_j_constraint 0 9)
 
-   -- TODO need to run the below exampls on a better test (they are not "easily" solved):
-   
    -- Can (j + 1 % 10 == i + 1 % 10)?
    ,check ImpossibleIneq $ withKIsMod (i ++ con 1) 10 $ withNIsMod (j ++ con 1) 10 $ (4, [k === n], i_j_constraint 0 9)
    -- Off by one (i + 1 % 9)
@@ -192,16 +190,37 @@ testIndexes = TestList
    
    -- The "nightmare" example from the Omega Test paper:
    ,check SolveIneq (6,[],leq [con 27, 11 ** i ++ 13 ** j, con 45] &&& leq [con (-10), 7 ** i ++ (-9) ** j, con 4])
-   
+
+   -- Solution is: i = 0, j = 0, k = 0
+   ,check SolveEq (7, [con 0 === i ++ j ++ k,
+                       con 0 === 5 ** i ++ 4 ** j ++ 3 ** k,
+                       con 0 === i ++ 6 ** j ++ 2 ** k]
+                    , [con 1 >== i ++ 3 ** j ++ k,
+                       con (-4) <== (-5) ** i ++ 2 ** j ++ k,
+                       con 0 >== 4 ** i ++ (-7) ** j ++ (-13) ** k])
+
+   -- Solution is i = 0, j = 0, k = 4
+   ,check SolveEq (8, [con 4 === i ++ j ++ k,
+                       con 12 === 5 ** i ++ 4 ** j ++ 3 ** k,
+                       con 8 === i ++ 6 ** j ++ 2 ** k]
+                    , [con 5 >== i ++ 3 ** j ++ k,
+                       con 3 <== (-5) ** i ++ 2 ** j ++ k,
+                       con (-52) >== 4 ** i ++ (-7) ** j ++ (-13) ** k])
+
+   -- Solution is: i = 0, j = 5, k = 4, but
+   -- this can't be determined from the equalities alone.
+   ,check SolveIneq (9, [con 32 === 4 ** i ++ 4 ** j ++ 3 ** k,
+                       con 17 === i ++ j ++ 3 ** k,
+                       con 54 === 10 ** i ++ 10 ** j ++ k]
+                    , [3 ** i ++ 8 ** j ++ 5 ** k >== con 60,
+                       i ++ j ++ 3 ** k >== con 17,
+                       5 ** i ++ j ++ 5 ** k >== con 25])
+
    ,safeParTest 100 True (0,10) [i]
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
    ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
    
    
-   --TODO tidy up the tests and add this example that once failed the QuickCheck tests:
-   
-   --OMI ([array (0,3) [(0,0),(1,-1),(2,0),(3,0)],array (0,3) [(0,5),(1,0),(2,-1),(3,0)],array (0,3) [(0,4),(1,0),(2,0),(3,-1)]],([array (0,3) [(0,-32),(1,4),(2,4),(3,3)],array (0,3) [(0,-17),(1,1),(2,1),(3,3)],array (0,3) [(0,-54),(1,10),(2,10),(3,1)]],[array (0,3) [(0,-60),(1,3),(2,8),(3,5)],array (0,3) [(0,-60),(1,9),(2,4),(3,10)],array (0,3) [(0,-25),(1,5),(2,1),(3,5)]]))
-      
    ,TestCase $ assertStuff "testIndexes makeEq"
      (Right (Map.empty,(uncurry makeConsistent) (doubleEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))) $
      makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7)
