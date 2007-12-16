@@ -249,7 +249,6 @@ addToMapping (k, subst) = transformPair addNewToOld addOldToNew
 -- TODO in future get clever and phrase each one as x_k = some constant.
 -- If they can't be phrased like that, you shouldn't be calling getCounterEqs!
 getCounterEqs :: VariableMapping -> EqualityProblem
--- TODO map both ways properly
 getCounterEqs (lastToOrig, origToLast) = tail $ Map.elems $ Map.mapWithKey process origToLast
   where
     process ind rhs = rhs // [(ind,-1)]
@@ -323,8 +322,8 @@ solveConstraints vm p ineq
             where
               change = substIn ind (arrayMapWithIndex (modifyOthersZeroSpecific ind) eq)
               change' p = do (mp,ineq) <- get
-                             let (mp',p') = change (mp,p)
-                             put (mp',ineq)
+                             let (_,p') = change (undefined,p)
+                             put (mp,ineq)
                              return p'
               origVal = eq ! ind
 
@@ -359,8 +358,8 @@ solveConstraints vm p ineq
                        modify change >> change' (e:es) >>= liftF normaliseEq
                          where
                            change' p = do (mp,ineq) <- get
-                                          let (mp',p') = change (mp,p)
-                                          put (mp',ineq)
+                                          let (_,p') = change (undefined,p)
+                                          put (mp,ineq)
                                           return p'
                            change = transformPair (addToMapping (k,x_k_eq)) (map alterEquation)
                          

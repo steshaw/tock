@@ -581,12 +581,17 @@ generateEqualities solution = do eqCoeffs <- distinctCoprimeLists num_vars
     num_vars = length solution
     mkCoeffArray coeffs = arrayise $ (negate $ calcUnits solution coeffs) : coeffs
 
-newtype OmegaTestInput = OMI (EqualityProblem, InequalityProblem) deriving (Show)
+newtype OmegaTestInput = OMI (EqualityProblem,(EqualityProblem, InequalityProblem)) deriving (Show)
 
 -- | Generates an Omega test problem with between 1 and 10 variables (incl), where the solutions
 -- are numbers between -20 and + 20 (incl).
-generateProblem :: Gen (EqualityProblem, InequalityProblem)
-generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>= generateEqualities
+generateProblem :: Gen (EqualityProblem,(EqualityProblem, InequalityProblem))
+generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>=
+                    (\ans -> seqPair (return $ makeAns (zip [1..] ans),generateEqualities ans))
+  where
+    makeAns :: [(Int, Integer)] -> EqualityProblem
+    makeAns ans = map (\(i,e) -> simpleArray $ (0,e) : [ (x,if i == x then -1 else 0) | x <- [1 .. n]]) ans
+      where n = maximum $ map fst ans
 
 instance Arbitrary OmegaTestInput where
   arbitrary = generateProblem >>* OMI
@@ -594,11 +599,13 @@ instance Arbitrary OmegaTestInput where
 qcOmegaEquality :: [QuickCheckTest]
 qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
   where
-    prop (OMI (eq,ineq)) = omegaCheck actAnswer
+    prop (OMI (ans,(eq,ineq))) = omegaCheck actAnswer
       where
-        actAnswer = solveConstraints undefined eq ineq
-        omegaCheck (Just (_,ineqs)) = all (all (== 0) . elems) ineqs
-        omegaCheck Nothing = False
+        actAnswer = solveConstraints (defaultMapping $ length ans) eq ineq
+        -- We use map assocs because pshow doesn't work on Arrays
+        omegaCheck (Just (vm,ineqs)) = (True *==* all (all (== 0) . elems) ineqs)
+          *&&* ((map assocs $ normaliseAnswers ans) *==* (map assocs $ normaliseAnswers $ getCounterEqs vm))
+        omegaCheck Nothing = mkFailResult ("Found Nothing while expecting answer: " ++ show (eq,ineq))
 
 type MutatedEquation =
   (InequalityProblem
@@ -661,7 +668,7 @@ mutateEquations ineq = do (a,b,c) <- mapM mutate ineq >>*
 newtype OmegaPruneInput = OPI MutatedEquation deriving (Show)
 
 instance Arbitrary OmegaPruneInput where
-  arbitrary = (generateProblem  >>= (return . snd) >>= mutateEquations) >>* OPI
+  arbitrary = ((generateProblem >>* snd)  >>= (return . snd) >>= mutateEquations) >>* OPI
 
 qcOmegaPrune :: [QuickCheckTest]
 qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
