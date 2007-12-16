@@ -21,13 +21,64 @@ module ArrayUsageCheck where
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Array.IArray
+import Data.Generics
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
+import CompState
+import Errors
 import FlowGraph
+import Metadata
+import Pass
+import Types
 import Utils
+
+
+-- TODO we should probably calculate this from the AST
+checkArrayUsage :: Data a => a -> PassM a
+checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tree
+  where
+    -- TODO this doesn't actually check that the uses are in parallel;
+    -- they might be in sequence within the parallel!
+    checkPar :: A.Process -> PassM ()
+    checkPar (A.Par m _ p) = mapM_ (checkIndexes m) $ Map.toList $ Map.fromListWith (++) $ mapMaybe groupArrayIndexes $ listify (const True) p
+    checkPar _ = return ()
+    
+    groupArrayIndexes :: A.Variable -> Maybe (String,[A.Expression])
+    -- TODO this is quite hacky:
+    groupArrayIndexes (A.SubscriptedVariable _ (A.Subscript _ e) (A.Variable _ n))
+      = Just (A.nameName n, [e])
+    groupArrayIndexes _ = Nothing
+    
+    checkIndexes :: Meta -> (String,[A.Expression]) -> PassM ()
+    checkIndexes m (arrName, indexes)
+      = -- liftIO (putStr $ "Checking: " ++ show (arrName, indexes)) >> 
+        case makeEquations indexes (makeConstant emptyMeta 1000000) of
+          Left err -> die $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
+          Right (varMapping, problem) ->
+            case uncurry solveAndPrune problem of
+              -- No solutions; no worries!
+              Nothing -> return ()
+              Just (vm, []) -> do sol <- formatSolution varMapping (getCounterEqs vm)
+                                  arrName' <- getRealName arrName
+                                  dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
+              _ -> die $ "TODO process inequalities"
+    
+    formatSolution :: Map.Map String CoeffIndex -> Map.Map CoeffIndex Integer -> PassM String
+    formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
+                                                return $ concat $ intersperse " , " $ catMaybes names
+      where
+        valOfVar (varName,k) = case Map.lookup k indexToConst of 
+                                 Nothing -> return Nothing
+                                 Just val -> do varName' <- getRealName varName
+                                                return $ Just $ varName' ++ " = " ++ show val
+
+    -- TODO this is surely defined elsewhere already?
+    getRealName :: String -> PassM String
+    getRealName s = lookupName (A.Name undefined undefined s) >>* A.ndOrigName
+                       
 
 data FlattenedExp = Const Integer | Scale Integer A.Variable deriving (Eq,Show)
 
