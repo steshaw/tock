@@ -535,13 +535,13 @@ testIndexes = TestList
 -- not have to be true; they merely have to exist.  Then slowly transform 
 
 
---TODO generate negative coeffs, and allow zero coefficients (but be careful we don't
--- produce unsolveable equations, e.g. where one is all zeroes, or a_3 is zero in all of them)
+--TODO Allow zero coefficients (but be careful we don't
+-- produce unsolveable equations, e.g. where an equation is all zeroes, or a_3 is zero in all of them)
 
 -- | Generates a list of random numbers of the given size, where the numbers are all co-prime.
 -- This is so they can be used as normalised coefficients in a linear equation
 coprimeList :: Int -> Gen [Integer]
-coprimeList size = do non_normal <- replicateM size $ choose (1,100)
+coprimeList size = do non_normal <- replicateM size $ oneof [choose (-100,-1), choose (1,100)]
                       return $ map (\x -> x `div` (mygcdList non_normal)) non_normal
 
 -- | Generates a list of lists of co-prime numbers, where each list is distinct.
