@@ -348,10 +348,6 @@ arrayise = simpleArray . zip [0..]
 newtype HandyEq = Eq [(Int, Integer)] deriving (Show, Eq)
 newtype HandyIneq = Ineq [(Int, Integer)] deriving (Show, Eq)
 
-normaliseAnswers :: EqualityProblem -> EqualityProblem
--- Put all the equalities such that the units are positive:       
-normaliseAnswers = sort . map (\eq -> amap (* signum (eq ! 0)) eq)
-
 testIndexes :: Test
 testIndexes = TestList
   [
@@ -392,7 +388,7 @@ testIndexes = TestList
      (Right (Map.singleton "i" 1,(uncurry makeConsistent) (doubleEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
      makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7)
      
-   ,TestCase $ assertCounterExampleIs "testIndexes testVarMapping" (fst $ makeConsistent [i === con 7] [])
+   ,TestCase $ assertCounterExampleIs "testIndexes testVarMapping" (Map.fromList [(1,7)])
      $ makeConsistent [i === con 7] []
   ]
   where
@@ -405,7 +401,7 @@ testIndexes = TestList
     assertCounterExampleIs title counterEq (eq,ineq)
       = assertCompareCustom title equivEq (Just counterEq) ((solveAndPrune eq ineq) >>* (getCounterEqs . fst))
       where
-        equivEq (Just xs) (Just ys) = (normaliseAnswers xs) == (normaliseAnswers ys)
+        equivEq (Just xs) (Just ys) = xs == ys
         equivEq Nothing Nothing = True
         equivEq _ _ = False
 
@@ -581,17 +577,16 @@ generateEqualities solution = do eqCoeffs <- distinctCoprimeLists num_vars
     num_vars = length solution
     mkCoeffArray coeffs = arrayise $ (negate $ calcUnits solution coeffs) : coeffs
 
-newtype OmegaTestInput = OMI (EqualityProblem,(EqualityProblem, InequalityProblem)) deriving (Show)
+newtype OmegaTestInput = OMI (Map.Map CoeffIndex Integer,(EqualityProblem, InequalityProblem)) deriving (Show)
 
 -- | Generates an Omega test problem with between 1 and 10 variables (incl), where the solutions
 -- are numbers between -20 and + 20 (incl).
-generateProblem :: Gen (EqualityProblem,(EqualityProblem, InequalityProblem))
+generateProblem :: Gen (Map.Map CoeffIndex Integer,(EqualityProblem, InequalityProblem))
 generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>=
                     (\ans -> seqPair (return $ makeAns (zip [1..] ans),generateEqualities ans))
   where
-    makeAns :: [(Int, Integer)] -> EqualityProblem
-    makeAns ans = map (\(i,e) -> simpleArray $ (0,e) : [ (x,if i == x then -1 else 0) | x <- [1 .. n]]) ans
-      where n = maximum $ map fst ans
+    makeAns :: [(Int, Integer)] -> Map.Map CoeffIndex Integer
+    makeAns = Map.fromList
 
 instance Arbitrary OmegaTestInput where
   arbitrary = generateProblem >>* OMI
@@ -601,10 +596,10 @@ qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
   where
     prop (OMI (ans,(eq,ineq))) = omegaCheck actAnswer
       where
-        actAnswer = solveConstraints (defaultMapping $ length ans) eq ineq
-        -- We use map assocs because pshow doesn't work on Arrays
+        actAnswer = solveConstraints (defaultMapping $ Map.size ans) eq ineq
+        -- We use Map.assocs because pshow doesn't work on Maps
         omegaCheck (Just (vm,ineqs)) = (True *==* all (all (== 0) . elems) ineqs)
-          *&&* ((map assocs $ normaliseAnswers ans) *==* (map assocs $ normaliseAnswers $ getCounterEqs vm))
+          *&&* ((Map.assocs ans) *==* (Map.assocs $ getCounterEqs vm))
         omegaCheck Nothing = mkFailResult ("Found Nothing while expecting answer: " ++ show (eq,ineq))
 
 type MutatedEquation =

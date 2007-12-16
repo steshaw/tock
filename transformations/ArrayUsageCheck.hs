@@ -245,13 +245,14 @@ addToMapping (k, subst) = transformPair addNewToOld addOldToNew
     -- TODO could maybe use a proper error monad instead
     forceLookup k m = fromJust $ Map.lookup k m
 
--- | Returns a set of equalities that represent the mappings for the variables.
--- TODO in future get clever and phrase each one as x_k = some constant.
--- If they can't be phrased like that, you shouldn't be calling getCounterEqs!
-getCounterEqs :: VariableMapping -> EqualityProblem
-getCounterEqs (lastToOrig, origToLast) = tail $ Map.elems $ Map.mapWithKey process origToLast
+-- | Returns a mapping from i to constant values of x_i for the solutions of the equations.
+-- This function should only be called if the VariableMapping comes from a problem that
+-- definitely has constant solutions after all equalities have been eliminated.
+-- If variables remain in the inequalities, you will get invalid/odd answers from this function.
+getCounterEqs :: VariableMapping -> Map.Map CoeffIndex Integer
+getCounterEqs (_, origToLast) = Map.delete 0 $ Map.map expressAsConst origToLast
   where
-    process ind rhs = rhs // [(ind,-1)]
+    expressAsConst rhs = rhs ! 0
     
 scaleEq :: (IArray a e, Ix i, Num e) => e -> a i e -> a i e
 scaleEq n = amap (* n)
