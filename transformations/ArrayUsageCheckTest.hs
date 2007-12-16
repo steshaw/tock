@@ -291,34 +291,65 @@ testIndexes = TestList
     withNIsMod alpha divisor (ind,eq,ineq) = let (eq',ineq') = isMod n alpha divisor in (ind,eq ++ eq',ineq ++ ineq')
 
 -- QuickCheck tests for Omega Test:
--- The idea is to begin with a random list of integers, representing transformed y_i variables.
--- This will be the solution.  Feed this into a random list of inequalities.  The inequalities do
--- not have to be true; they merely have to exist.  Then slowly transform 
+-- The idea is to begin with a random list of integers, representing answers.
+-- Combine this with a randomly generated matrix of coefficients for equalities
+-- and the similar for inequalities.  Correct all the unit coefficients such that 
+-- the equalities are true, and the inequalities should all resolve such that
+-- LHS = RHS (and therefore they will be pruned out)
 
-
---TODO Allow zero coefficients (but be careful we don't
--- produce unsolveable equations, e.g. where an equation is all zeroes, or a_3 is zero in all of them)
-
--- | Generates a list of random numbers of the given size, where the numbers are all co-prime
--- (their GCD is one).  This is so they can be used as normalised coefficients in a linear equation.
-coprimeList :: Int -> Gen [Integer]
-coprimeList size = do non_normal <- replicateM size $ oneof [choose (-100,-1), choose (1,100)]
-                      return $ map (\x -> x `div` (mygcdList non_normal)) non_normal
-
--- | Generates a list of lists of co-prime numbers, where each list is distinct.
--- The returned list of lists will be square; N equations, each with N items
-distinctCoprimeLists :: Int -> Gen [[Integer]]
-distinctCoprimeLists size = distinctCoprimeLists' [] size
+-- | We want to generate a solveable equation.  Expressing our N equations as a matrix A (size: NxN),
+-- we get: A . x = b, where b is our solution.  The equations are solveable iff x = inv(A) . b
+-- Or expressed another way, the equations are solveable iff A is nonsingular;
+-- see http://mathworld.wolfram.com/LinearSystemofEquations.html  A is singular if it
+-- has determinant zero, therefore A is non-singular if the determinant is non-zero.
+-- See http://mathworld.wolfram.com/Determinant.html for this.
+--
+-- At first I tried to simply check the determinant of a randomly generated matrix.
+-- I implemented the standard naive algorithm, which is O(N!).  Eeek!  Reading the maths
+-- more, a quicker way to do the determinant of a matrix M is to decompose it into
+-- M = LU (where L is lower triangular, and U is upper triangular).  Once you have
+-- done this, you can use det M = det (LU) = (det L) . (det U) (from the Determinant page)
+-- This is easier because det (A) where A is triangular, is simply the product
+-- of its diagonal elements (see http://planetmath.org/encyclopedia/TriangularMatrix.html).
+--
+-- However, we don't need to do this the hard way.  We just want to generate a matrix M
+-- where its determinant is non-zero.  If we imagine M = LU, then (det M) is non-zero
+-- as long as (det L) is non-zero AND (det U) is non-zero.  In turn, det L and det U are
+-- non-zero as long as all their diagonal elements are non-zero.  Therefore we just
+-- need to randomly generate L and U (such that the diagonal elements are all non-zero)
+-- and do M = LU.
+--
+-- Note that we should not take the shortcut of using just L or just U.  This would
+-- lead to trivially solveable linear equations, which would not test our algorithm well!
+generateInvertibleMatrix :: Int -> Gen [[Integer]]
+generateInvertibleMatrix size
+  = do u <- genUpper
+       l <- genLower
+       return $ l `multMatrix` u
   where
-    -- Since we generate positive and negative coefficients, we must check both that
-    -- our generated list [3,-5,8,8] and its negation [-3,5,-8,-8] are not in the list.
-    -- n is the number left to generate; size is still the "width" of the lists
-    distinctCoprimeLists' :: [[Integer]] -> Int -> Gen [[Integer]]
-    distinctCoprimeLists' result 0 = return result
-    distinctCoprimeLists' soFar n = do next <- coprimeList size
-                                       if (next `elem` soFar) || ((map negate next) `elem` soFar)
-                                         then distinctCoprimeLists' soFar n -- Try again
-                                         else distinctCoprimeLists' (soFar ++ [next]) (n - 1)
+    ns = [0 .. size - 1]
+
+    -- | From http://mathworld.wolfram.com/MatrixMultiplication.html:
+    -- To multiply two square matrices of size N:
+    -- c_ik = sum (j in 0 .. N-1) (a_ij . b_jk)
+    -- Note that we begin our indexing at zero, because that's how !! works.
+    multMatrix a b = [[sum [((a !! i) !! j) * ((b !! j) !! k) | j <- ns] | k <- ns] | i <- ns]
+
+    genUpper :: Gen [[Integer]]
+    genUpper = mapM sequence [[
+      case i `compare` j of
+        EQ -> oneof [choose (-10,-1),choose (1,10)]
+        LT -> return 0
+        GT -> choose (-10,10)
+       | i <- ns] |j <- ns]
+
+    genLower :: Gen [[Integer]]
+    genLower = mapM sequence [[
+      case i `compare` j of
+        EQ -> oneof [choose (-10,-1),choose (1,10)]
+        GT -> return 0
+        LT -> choose (-10,10)
+       | i <- ns] |j <- ns]       
 
 -- | Given a solution, and the coefficients, work out the result.
 -- Effectively the dot-product of the two lists.
@@ -333,8 +364,8 @@ calcUnits a b = sum $ zipWith (*) a b
 -- distinct.  If they were not distinct (one could be transformed into another by scaling)
 -- then the equation set would be unsolveable.
 generateEqualities :: [Integer] -> Gen (EqualityProblem, InequalityProblem)
-generateEqualities solution = do eqCoeffs <- distinctCoprimeLists num_vars
-                                 ineqCoeffs <- distinctCoprimeLists num_vars
+generateEqualities solution = do eqCoeffs <- generateInvertibleMatrix num_vars
+                                 ineqCoeffs <- generateInvertibleMatrix num_vars
                                  return (map mkCoeffArray eqCoeffs, map mkCoeffArray ineqCoeffs)
   where
     num_vars = length solution
