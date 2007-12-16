@@ -134,6 +134,11 @@ m = [(4,1)]
 n = [(5,1)]
 p = [(6,1)]
 
+-- Turns a list like [(i,3),(j,4)] into proper answers
+answers :: [([(Int, Integer)],Integer)] -> Map.Map CoeffIndex Integer
+answers = Map.fromList . map (transformPair (fst . head) id)
+
+
 makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
 makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
   where
@@ -147,7 +152,8 @@ makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
 -- | A problem's "solveability"; essentially how much of the Omega Test do you have to
 -- run before the result is known, and which result is it
 data Solveability = 
-  SolveEq     -- ^ Solveable just by solving equalities and pruning.
+  SolveEq (Map.Map CoeffIndex Integer)
+              -- ^ Solveable just by solving equalities and pruning.
               -- In other words, solveAndPrune will give (Just [])
   | ImpossibleEq -- ^ Definitely not solveable just from the equalities.
                  -- In other words, solveAndPrune will give Nothing
@@ -162,11 +168,13 @@ data Solveability =
   deriving (Eq,Show)
 
 check :: Solveability -> (Int,[HandyEq], [HandyIneq]) -> Test
-check s (ind, eq, ineq)
-  | s == ImpossibleEq   = TestCase $ assertEqual testName Nothing sapped
-  | s == SolveEq        = TestCase $ assertEqual testName (Just []) (transformMaybe snd sapped)
-  | s == ImpossibleIneq = TestCase $ assertEqual testName Nothing elimed
-  | s == SolveIneq      = TestCase $ assertBool  testName (isJust elimed) -- TODO check for a solution to the inequality
+check s (ind, eq, ineq) =
+  case s of
+    ImpossibleEq   -> TestCase $ assertEqual testName Nothing sapped
+    SolveEq ans    -> TestCase $ assertEqual testName (Just (ans,[]))
+                                   	(transformMaybe (transformPair getCounterEqs id) sapped)
+    ImpossibleIneq -> TestCase $ assertEqual testName Nothing elimed
+    SolveIneq      -> TestCase $ assertBool  testName (isJust elimed) -- TODO check for a solution to the inequality
     where problem = makeConsistent eq ineq
           sapped = uncurry solveAndPrune problem
           elimed = sapped >>= (return . snd) >>= (pruneAndCheck . fmElimination)
@@ -176,8 +184,8 @@ testIndexes :: Test
 testIndexes = TestList
   [
   
-    check SolveEq (0, [i === con 7], [])
-   ,check SolveEq (1, [2 ** i === con 12], [])
+    check (SolveEq $ answers [(i,7)]) (0, [i === con 7], [])
+   ,check (SolveEq $ answers [(i,6)]) (1, [2 ** i === con 12], [])   
    ,check ImpossibleEq (2, [i === con 7],[i <== con 5])
     
    -- Can i = j?
@@ -192,7 +200,8 @@ testIndexes = TestList
    ,check SolveIneq (6,[],leq [con 27, 11 ** i ++ 13 ** j, con 45] &&& leq [con (-10), 7 ** i ++ (-9) ** j, con 4])
 
    -- Solution is: i = 0, j = 0, k = 0
-   ,check SolveEq (7, [con 0 === i ++ j ++ k,
+   ,check (SolveEq $ answers [(i,0),(j,0),(k,0)])
+                  (7, [con 0 === i ++ j ++ k,
                        con 0 === 5 ** i ++ 4 ** j ++ 3 ** k,
                        con 0 === i ++ 6 ** j ++ 2 ** k]
                     , [con 1 >== i ++ 3 ** j ++ k,
@@ -200,7 +209,8 @@ testIndexes = TestList
                        con 0 >== 4 ** i ++ (-7) ** j ++ (-13) ** k])
 
    -- Solution is i = 0, j = 0, k = 4
-   ,check SolveEq (8, [con 4 === i ++ j ++ k,
+   ,check (SolveEq $ answers [(i,0),(j,0),(k,4)])
+                  (8, [con 4 === i ++ j ++ k,
                        con 12 === 5 ** i ++ 4 ** j ++ 3 ** k,
                        con 8 === i ++ 6 ** j ++ 2 ** k]
                     , [con 5 >== i ++ 3 ** j ++ k,
@@ -222,30 +232,23 @@ testIndexes = TestList
    
    
    ,TestCase $ assertStuff "testIndexes makeEq"
-     (Right (Map.empty,(uncurry makeConsistent) (doubleEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))) $
+     (Right (Map.empty,(uncurry makeConsistent) (dupeEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))) $
      makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7)
    ,TestCase $ assertStuff "testIndexes makeEq 2"
-     (Right (Map.singleton "i" 1,(uncurry makeConsistent) (doubleEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
+     (Right (Map.singleton "i" 1,(uncurry makeConsistent) (dupeEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
      makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7)
      
-   ,TestCase $ assertCounterExampleIs "testIndexes testVarMapping" (Map.fromList [(1,7)])
-     $ makeConsistent [i === con 7] []
   ]
   where
-    -- TODO comment these functions and rename the latter one
-    doubleEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
+    -- Duplicates each equation by adding its negation to the list
+    dupeEq :: [HandyEq] -> [HandyEq]
+    dupeEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
+    
+    --TODO remove this - bundle it with makeEquations and dupeEq into a decent function
     assertStuff title x y = assertEqual title (munge x) (munge y)
       where
         munge = transformEither id (transformPair id (transformPair sort sort))
-    
-    assertCounterExampleIs title counterEq (eq,ineq)
-      = assertCompareCustom title equivEq (Just counterEq) ((solveAndPrune eq ineq) >>* (getCounterEqs . fst))
-      where
-        equivEq (Just xs) (Just ys) = xs == ys
-        equivEq Nothing Nothing = True
-        equivEq _ _ = False
 
-    
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against
     -- the expected value; True for safe, False for unsafe.
@@ -268,8 +271,6 @@ testIndexes = TestList
         equalityCombinations = map (\(lhs,rhs) -> [lhs === rhs]) $ product2 (usesI,usesJ)
   
       
-    --TODO clear up this mess of easilySolved/hardSolved helper functions
-    
     findSolveable :: [(Int, [HandyEq], [HandyIneq])] -> [(Int, [HandyEq], [HandyIneq])]
     findSolveable = filter isSolveable
     
