@@ -205,9 +205,17 @@ product2 (l0,l1) = [(x0,x1) | x0 <- l0, x1 <- l1]
 product3 :: ([a],[b],[c]) -> [(a,b,c)]
 product3 (l0,l1,l2) = [(x0,x1,x2) | x0 <- l0, x1 <- l1, x2 <- l2]
 
--- | Given a triple of lists, produces a list of pairs that is the cartesian product of the three lists.
+-- | Given a quadruple of lists, produces a list of pairs that is the cartesian product of the four lists.
 product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
 product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
+
+-- | Given a list, produces all possible distinct pairings of the elements.
+-- That is, for each pair returned, (A,B), B will not be the same element as A, and the pair (B,A) 
+-- will not be in the list.  Note that this is not the same as B /= A; if the source list contains
+-- two equal items, the returned pairs will feature a pair such that B /= A.
+allPairs :: [a] -> [(a,a)]
+allPairs [] = []
+allPairs (x:xs) = map (\y -> (x,y)) xs ++ allPairs xs
 
 -- | On the basis of a boolean check function, transforms x into Just x if the function returns True;
 -- otherwise Nothing is returned.

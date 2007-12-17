@@ -134,7 +134,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
 
     -- Pairs all possible combinations
     pairEqs :: [(Integer,EqualityConstraintEquation)] -> [EqualityConstraintEquation]
-    pairEqs = filter (any (/= 0) . elems) . map (uncurry pairEqs') . product2 . mkPair
+    pairEqs = filter (any (/= 0) . elems) . map (uncurry pairEqs') . allPairs
       where
         pairEqs' (nx,ex) (ny,ey) = arrayZipWith' 0 (-) (amap (* ny) ex) (amap (* nx) ey)
     

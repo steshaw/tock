@@ -232,26 +232,22 @@ testIndexes = TestList
    
    
    ,TestCase $ assertEquivalentProblems "testIndexes makeEq"
-     (Map.empty,(uncurry makeConsistent) (dupeEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))
+     (Map.empty,(uncurry makeConsistent) ([con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))
      =<< (checkRight $ makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7))
      
    ,TestCase $ assertEquivalentProblems "testIndexes makeEq 3"
-     (Map.singleton "i" 1,(uncurry makeConsistent) (dupeEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))
+     (Map.singleton "i" 1,(uncurry makeConsistent) ([i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))
      =<< (checkRight $ makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7))
      
    ,TestCase $ assertEquivalentProblems "testIndexes makeEq 4"
-     (Map.fromList [("i",1),("j",2)],(uncurry makeConsistent) (dupeEq [i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
+     (Map.fromList [("i",1),("j",2)],(uncurry makeConsistent) ([i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
      =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))     
 
    ,TestCase $ assertEquivalentProblems "testIndexes makeEq 5"
-     (Map.fromList [("i",2),("j",1)],(uncurry makeConsistent) (dupeEq [i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
+     (Map.fromList [("i",2),("j",1)],(uncurry makeConsistent) ([i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
      =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))
   ]
   where
-    -- Duplicates each equation by adding its negation to the list
-    dupeEq :: [HandyEq] -> [HandyEq]
-    dupeEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
-    
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against
     -- the expected value; True for safe, False for unsafe.
