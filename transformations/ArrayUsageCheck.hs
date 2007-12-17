@@ -84,7 +84,7 @@ data FlattenedExp = Const Integer | Scale Integer A.Variable deriving (Eq,Show)
 
 -- TODO probably want to take this into the PassM monad at some point
 makeEquations :: [A.Expression] -> A.Expression -> Either String (Map.Map String Int, (EqualityProblem, InequalityProblem))
-makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,(pairEqs v, getIneqs lh v)))
+makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pairEqs v, getIneqs lh v)))
   where
     makeEquations' :: Either String (Map.Map String Int, [(Integer,EqualityConstraintEquation)], (EqualityConstraintEquation, EqualityConstraintEquation))
     makeEquations' = do ((v,h),s) <- (flip runStateT) Map.empty $
@@ -136,7 +136,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,(pairEqs v, getIneqs
     pairEqs :: [(Integer,EqualityConstraintEquation)] -> [EqualityConstraintEquation]
     pairEqs = filter (any (/= 0) . elems) . map (uncurry pairEqs') . product2 . mkPair
       where
-        pairEqs' (nx,ex) (ny,ey) = arrayZipWith (-) (amap (* ny) ex) (amap (* nx) ey)
+        pairEqs' (nx,ex) (ny,ey) = arrayZipWith' 0 (-) (amap (* ny) ex) (amap (* nx) ey)
     
     getIneqs :: (EqualityConstraintEquation, EqualityConstraintEquation) -> [(Integer,EqualityConstraintEquation)] -> [InequalityConstraintEquation]
     getIneqs (low, high) = concatMap getLH
@@ -147,7 +147,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,(pairEqs v, getIneqs
         getLH :: (Integer,EqualityConstraintEquation) -> [InequalityConstraintEquation]
         getLH (sc, eq) = [eq `addEq` (scaleEq (-sc) low),(scaleEq sc high) `addEq` amap negate eq]
         
-        addEq = arrayZipWith (+)
+        addEq = arrayZipWith' 0 (+)
                 
     makeEquation :: (Integer,[FlattenedExp]) -> StateT (Map.Map String Int) (Either String) (Integer,EqualityConstraintEquation)
     makeEquation (divisor, summedItems)
@@ -165,7 +165,18 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,(pairEqs v, getIneqs
         maxVar = get >>* (maximum . (0 :) . Map.elems)
     
     mapToArray :: (IArray a v, Num v, Num k, Ord k, Ix k) => k -> Map.Map k v -> a k v
-    mapToArray highest = (\arr -> accumArray (+) 0 (0, highest) arr) . Map.assocs
+    mapToArray highest m = accumArray (+) 0 (0, highest') . Map.assocs $ m
+      where
+        highest' = maximum $ Map.keys m
+    
+    squareEquations :: ([Array CoeffIndex Integer],[Array CoeffIndex Integer]) -> ([Array CoeffIndex Integer],[Array CoeffIndex Integer])
+    squareEquations (eqs,ineqs) = uncurry transformPair (mkPair $ map $ makeSize (0,highest) 0) (eqs,ineqs)
+    
+      where
+        makeSize :: (Show i, Show e,IArray a e, Ix i, Enum i) => (i,i) -> e -> a i e -> a i e
+        makeSize size def arr = array size [(i,arrayLookupWithDefault def arr i) | i <- [fst size .. snd size]]
+      
+        highest = maximum $ concatMap indices $ eqs ++ ineqs
     
 type CoeffIndex = Int
 type EqualityConstraintEquation = Array CoeffIndex Integer
