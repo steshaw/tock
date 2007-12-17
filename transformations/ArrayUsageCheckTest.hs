@@ -231,24 +231,27 @@ testIndexes = TestList
    ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
    
    
-   ,TestCase $ assertStuff "testIndexes makeEq"
-     (Right (Map.empty,(uncurry makeConsistent) (dupeEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))) $
-     makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7)
-   ,TestCase $ assertStuff "testIndexes makeEq 2"
-     (Right (Map.singleton "i" 1,(uncurry makeConsistent) (dupeEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))) $
-     makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7)
+   ,TestCase $ assertEquivalentProblems "testIndexes makeEq"
+     (Map.empty,(uncurry makeConsistent) (dupeEq [con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))
+     =<< (checkRight $ makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7))
      
+   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 3"
+     (Map.singleton "i" 1,(uncurry makeConsistent) (dupeEq [i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))
+     =<< (checkRight $ makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7))
+     
+   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 4"
+     (Map.fromList [("i",1),("j",2)],(uncurry makeConsistent) (dupeEq [i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
+     =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))     
+
+   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 5"
+     (Map.fromList [("i",2),("j",1)],(uncurry makeConsistent) (dupeEq [i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
+     =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))
   ]
   where
     -- Duplicates each equation by adding its negation to the list
     dupeEq :: [HandyEq] -> [HandyEq]
     dupeEq = concatMap (\(Eq e) -> [Eq e,Eq $ negateVars e])
     
-    --TODO remove this - bundle it with makeEquations and dupeEq into a decent function
-    assertStuff title x y = assertEqual title (munge x) (munge y)
-      where
-        munge = transformEither id (transformPair id (transformPair sort sort))
-
     -- Given some indexes using "i", this function checks whether these can
     -- ever overlap within the bounds given, and matches this against
     -- the expected value; True for safe, False for unsafe.
@@ -290,6 +293,39 @@ testIndexes = TestList
     -- | Adds both n and p to the equation!
     withNIsMod :: [(Int,Integer)] -> Integer -> (Int, [HandyEq], [HandyIneq]) -> (Int, [HandyEq], [HandyIneq])
     withNIsMod alpha divisor (ind,eq,ineq) = let (eq',ineq') = isMod n alpha divisor in (ind,eq ++ eq',ineq ++ ineq')
+
+-- | Given one mapping and a second mapping, gives a function that converts the indexes
+-- from one to the indexes of the next.  If any of the keys in the map don't match
+-- (i.e. if (keys m0 /= keys m1)) Nothing will be returned
+generateMapping :: Map.Map String CoeffIndex -> Map.Map String CoeffIndex -> Maybe [(CoeffIndex,CoeffIndex)]
+generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap f m0 m1)
+  where
+    f (Just x) (Just y) = Just (x,y)
+    f _ _ = Nothing
+    -- More readable than liftM (,)  !
+
+-- | Given a forward mapping list, translates equations across
+translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> Maybe (EqualityProblem, InequalityProblem)
+translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapColumns)
+  where
+    swapColumns :: Array CoeffIndex Integer -> Maybe (Array CoeffIndex Integer)
+    swapColumns arr = liftM simpleArray $ mapM swapColumns' $ assocs arr
+      where
+        swapColumns' :: (CoeffIndex,Integer) -> Maybe (CoeffIndex,Integer)
+        swapColumns' (0,v) = Just (0,v) -- Never swap the units column
+        swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
+
+-- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
+assertEquivalentProblems :: String -> (Map.Map String CoeffIndex, (EqualityProblem, InequalityProblem)) -> (Map.Map String CoeffIndex, (EqualityProblem, InequalityProblem)) -> Assertion
+assertEquivalentProblems title exp act = assertEqual title translatedExp (Just $ sortP $ snd act)
+  where
+    sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
+  
+    translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
+
+checkRight :: Show a => Either a b -> IO b
+checkRight (Left err) = assertFailure ("Not Right: " ++ show err) >> return undefined
+checkRight (Right x) = return x
 
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing answers.
