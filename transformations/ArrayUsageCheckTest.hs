@@ -29,6 +29,7 @@ import Test.QuickCheck hiding (check)
 
 
 import ArrayUsageCheck
+import qualified AST as A
 import PrettyShow
 import TestUtils hiding (m)
 import Utils
@@ -179,6 +180,34 @@ check s (ind, eq, ineq) =
           sapped = uncurry solveAndPrune problem
           elimed = sapped >>= (return . snd) >>= (pruneAndCheck . fmElimination)
           testName = "check " ++ show s ++ " " ++ show ind
+            ++ "(VM was: " ++ show (transformMaybe snd sapped) ++ ")"
+
+testMakeEquations :: Test
+testMakeEquations = TestList
+  [
+    test (0,Map.empty,[con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7],
+      [intLiteral 0, intLiteral 1],intLiteral 7)
+     
+   ,test (1,i_mapping,[i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7],
+      [exprVariable "i",intLiteral 3],intLiteral 7)
+   
+   ,test (2,ij_mapping,[i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7],
+      [exprVariable "i",exprVariable "j"],intLiteral 7)
+
+   ,test (3,ij_mapping,[i ++ con 3 === j],leq [con 0,i ++ con 3,con 7] &&& leq [con 0,j,con 7],
+      [buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 3),exprVariable "j"],intLiteral 7)
+     
+   ,test (4,ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7],
+      [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 7)
+  ]
+  where
+    test :: (Integer,Map.Map String CoeffIndex,[HandyEq],[HandyIneq],[A.Expression],A.Expression) -> Test
+    test (ind, mpping, eqs, ineqs, exprs, upperBound) = 
+      TestCase $ assertEquivalentProblems ("testMakeEquations" ++ show ind)
+        (mpping,makeConsistent eqs ineqs) =<< (checkRight $ makeEquations exprs upperBound)
+  
+    i_mapping = Map.singleton "i" 1
+    ij_mapping = Map.fromList [("i",1),("j",2)]
 
 testIndexes :: Test
 testIndexes = TestList
@@ -229,23 +258,6 @@ testIndexes = TestList
    ,safeParTest 100 True (0,10) [i]
    ,safeParTest 120 False (0,10) [i,i ++ con 1]
    ,safeParTest 140 True (0,10) [2 ** i, 2 ** i ++ con 1]
-   
-   
-   ,TestCase $ assertEquivalentProblems "testIndexes makeEq"
-     (Map.empty,(uncurry makeConsistent) ([con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7]))
-     =<< (checkRight $ makeEquations [intLiteral 0, intLiteral 1] (intLiteral 7))
-     
-   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 3"
-     (Map.singleton "i" 1,(uncurry makeConsistent) ([i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7]))
-     =<< (checkRight $ makeEquations [exprVariable "i",intLiteral 3] (intLiteral 7))
-     
-   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 4"
-     (Map.fromList [("i",1),("j",2)],(uncurry makeConsistent) ([i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
-     =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))     
-
-   ,TestCase $ assertEquivalentProblems "testIndexes makeEq 5"
-     (Map.fromList [("i",2),("j",1)],(uncurry makeConsistent) ([i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7]))
-     =<< (checkRight $ makeEquations [exprVariable "i",exprVariable "j"] (intLiteral 7))
   ]
   where
     -- Given some indexes using "i", this function checks whether these can
@@ -527,6 +539,7 @@ qcTests = (TestList
  [
    testArrayCheck
   ,testIndexes
+  ,testMakeEquations
  ]
  ,qcOmegaEquality ++ qcOmegaPrune)
 
