@@ -110,12 +110,30 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
     flatten (A.Literal _ _ (A.IntLiteral _ n)) = return (1,[Const (read n)])
     flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
                                     | op == A.Subtr = combine' (flatten lhs) (liftM (transformPair id (scale (-1))) $ flatten rhs)
-                                    -- TODO Mul and Div
+                                    | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
+                                    -- TODO Div (either constant on bottom, or common (variable) factor(s) with top)
                                     | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
     flatten (A.ExprVariable _ v) = return (1,[Scale 1 v])
     flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
 
     --TODO we need to handle lots more different expression types in future.
+    
+    multiplyOut' :: Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
+    multiplyOut' x y = do {x' <- x; y' <- y; multiplyOut x' y'}
+    
+    multiplyOut :: (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
+    multiplyOut (lx,lhs) (rx,rhs) = do exps <- mapM (uncurry mult) pairs 
+                                       return (lx * rx, exps)
+      where
+        pairs = product2 (lhs,rhs)
+
+        mult :: FlattenedExp -> FlattenedExp -> Either String FlattenedExp
+        mult (Const x) (Const y) = return $ Const (x*y)
+        mult (Scale n v) (Const x) = return $ Scale (n*x) v
+        mult (Const x) (Scale n v) = return $ Scale (n*x) v
+        mult (Scale _ v) (Scale _ v')
+          = throwError $ "Cannot deal with non-linear equations; during flattening found: "
+              ++ show v ++ " * " ++ show v'
     
     -- | Scales a flattened expression by the given integer scaling.
     scale :: Integer -> [FlattenedExp] -> [FlattenedExp]
@@ -126,13 +144,13 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
 
     -- | An easy way of applying combine to two monadic returns
     combine' :: Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
-    combine' x y = do {x' <- x; y' <- y; combine x' y'}
+    combine' = liftM2 combine
     
     -- | Combines (adds) two flattened expressions with a divisor.
     -- Given (nx,ex) and (ny,ey), representing ex/nx and ey/ny, this becomes
     -- ((ny*ex)+(nx*ey)/nx*ny (i.e. standard mathematics!).
-    combine :: (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
-    combine (nx, ex) (ny, ey) = return $ (nx * ny, scale ny ex ++ scale nx ey)
+    combine :: (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp])
+    combine (nx, ex) (ny, ey) = (nx * ny, scale ny ex ++ scale nx ey)
  
   
     -- | Finds the index associated with a particular variable; either by finding an existing index
