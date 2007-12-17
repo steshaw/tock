@@ -22,7 +22,11 @@ module Utils where
 
 import Control.Monad.State
 import Data.Array.IArray
+import Data.List
+import qualified Data.Map as Map
+import Data.Maybe
 import Data.Ord
+import qualified Data.Set as Set
 import System.IO
 import System.IO.Error
 import Text.Regex
@@ -218,7 +222,33 @@ arrayMapWithIndex f arr = simpleArray $ map (\(i,e) -> (i,f i e)) (assocs arr)
 simpleArray :: (IArray a e, Ix i) => [(i,e)] -> a i e
 simpleArray items = array (minimum (map fst items), maximum (map fst items)) items
 
+-- | Zips two arrays that must have the same dimensions
 arrayZipWith :: (IArray a e, IArray a e', IArray a e'', Ix i) => (e -> e' -> e'') -> a i e -> a i e' -> a i e''
 arrayZipWith f a0 a1 = arrayMapWithIndex f' a0
   where
     f' i x = f x (a1 ! i)
+
+-- | Like the (!) operator, but uses a default value when the access would be out of bounds
+arrayLookupWithDefault :: (IArray a e, Ix i) => e -> a i e -> i -> e
+arrayLookupWithDefault def arr ind | ind >= low && ind <= high = arr ! ind
+                                   | otherwise = def
+                                       where (low,high) = bounds arr
+
+-- | Zips two arrays that can have different dimensions, using a default element
+-- (for either the LHS or RHS) when needed
+arrayZipWith' :: (IArray a e, Ix i) => e -> (e -> e -> e) -> a i e -> a i e -> a i e
+arrayZipWith' def f a0 a1 = simpleArray $ map (\i -> (i,f' i)) allIndexes
+  where
+    allIndexes = nub $ indices a0 ++ indices a1
+  
+    f' i = f (arrayLookupWithDefault def a0 i) (arrayLookupWithDefault def a1 i)
+
+-- | Zips two maps using the given function.
+-- It is guaranteed that the arguments to the function will never both be Nothing; i.e. at least
+-- one will be Just
+zipMap :: Ord k => (Maybe v -> Maybe v' -> Maybe v'') -> Map.Map k v -> Map.Map k v' -> Map.Map k v''
+zipMap f xs ys = Map.fromList $ mapMaybe f' (Set.elems allKeys)
+  where
+    allKeys = Map.keysSet xs `Set.union` Map.keysSet ys
+    
+    f' k = transformMaybe ((,) k) $ f (Map.lookup k xs) (Map.lookup k ys)
