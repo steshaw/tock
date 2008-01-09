@@ -586,6 +586,7 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
     presentItems :: InequalityProblem -> [Int]
     presentItems = nub . map fst . filter ((/= 0) . snd) . concatMap (tail . assocs)
 
+    -- The real body of the function:
     fmElimination' :: VariableMapping -> [Int] -> InequalityProblem -> Maybe VariableMapping
     fmElimination' vm [] ineqs = pruneAndHandleIneq (vm,ineqs) >>* fst
                                  -- We have to prune the ineqs when they have no variables to
@@ -593,14 +594,25 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
     fmElimination' vm indexes@(ix:ixs) ineqs
       = do (vm',ineqsPruned) <- pruneAndHandleIneq (vm,ineqs)
            case listToMaybe $ filter (flip isExactProjection ineqsPruned) indexes of
+             -- If there is an exact projection (real shadow = dark shadow), eliminate that
+             -- variable, and therefore just recurse to process this shadow:
              Just ex -> fmElimination' vm' (indexes \\ [ex]) (getRealShadow ex ineqs)
              Nothing ->
+               -- Otherwise, check the real shadow first:
                case fmElimination' vm' ixs (getRealShadow ix ineqs) of
+                 -- No solution to the real shadow means no solution to the problem:
                  Nothing -> Nothing
+                 -- Check the dark shadow:
                  Just vm'' -> case fmElimination' vm'' ixs (getDarkShadow ix ineqs) of
+                   -- Solution to the dark shadow means there is a solution to the problem:
                    Just vm''' -> return vm'''
+                   -- Solution to real but not to dark; we must brute force the problem.
+                   -- If we find any solutions during the brute-forcing, we have our solution.
+                   -- Otherwise there is no solution
                    Nothing -> listToMaybe $ mapMaybe (uncurry $ solveProblem' vm'') $ getBruteForceProblems ix ineqs
     
+    -- Prunes the inequalities.  If any equalities arise, those are processed, so
+    -- that the return is only inequalities
     pruneAndHandleIneq :: (VariableMapping, InequalityProblem) -> Maybe (VariableMapping, InequalityProblem)
     pruneAndHandleIneq (vm,ineq)
       = do (eq,ineq') <- pruneIneq ineq
@@ -639,9 +651,11 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
         pairIneqsDark :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
         pairIneqsDark (x,ex) (y,ey) = addConstant (-1*(y-1)*(x-1)) (arrayZipWith (+) (amap (* y) ex) (amap (* x) ey))
 
+    -- Adds a constant value to an equation:
     addConstant :: Integer -> InequalityConstraintEquation -> InequalityConstraintEquation
     addConstant x e = e // [(0,(e ! 0) + x)]
 
+    -- Checks if eliminating the specified variable would yield an exact projection (real shadow = dark shadow):
     isExactProjection :: Int -> InequalityProblem -> Bool
     isExactProjection n ineqs = (all (== 1) $ pos n ineqs) || (all (== (-1)) $ neg n ineqs)
       where
