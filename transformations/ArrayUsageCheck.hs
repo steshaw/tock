@@ -596,20 +596,20 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
            case listToMaybe $ filter (flip isExactProjection ineqsPruned) indexes of
              -- If there is an exact projection (real shadow = dark shadow), eliminate that
              -- variable, and therefore just recurse to process this shadow:
-             Just ex -> fmElimination' vm' (indexes \\ [ex]) (getRealShadow ex ineqs)
+             Just ex -> fmElimination' vm' (indexes \\ [ex]) (getRealShadow ex ineqsPruned)
              Nothing ->
                -- Otherwise, check the real shadow first:
-               case fmElimination' vm' ixs (getRealShadow ix ineqs) of
+               case fmElimination' vm' ixs (getRealShadow ix ineqsPruned) of
                  -- No solution to the real shadow means no solution to the problem:
                  Nothing -> Nothing
                  -- Check the dark shadow:
-                 Just vm'' -> case fmElimination' vm'' ixs (getDarkShadow ix ineqs) of
+                 Just vm'' -> case fmElimination' vm'' ixs (getDarkShadow ix ineqsPruned) of
                    -- Solution to the dark shadow means there is a solution to the problem:
                    Just vm''' -> return vm'''
                    -- Solution to real but not to dark; we must brute force the problem.
                    -- If we find any solutions during the brute-forcing, we have our solution.
                    -- Otherwise there is no solution
-                   Nothing -> listToMaybe $ mapMaybe (uncurry $ solveProblem' vm'') $ getBruteForceProblems ix ineqs
+                   Nothing -> listToMaybe $ mapMaybe (uncurry $ solveProblem' vm'') $ getBruteForceProblems ix ineqsPruned
     
     -- Prunes the inequalities.  If any equalities arise, those are processed, so
     -- that the return is only inequalities
