@@ -446,7 +446,8 @@ mygcdList (x:xs) = foldl mygcd x xs
 -- (which may well be an empty list) and the remaining inequalities is returned.
 -- As an additional step not specified in the paper, equations with no variables in them are checked
 -- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to 
--- ensure c is indeed >= 0, and those equations are removed.
+-- ensure c is indeed >= 0, and those equations are removed.  Also, all equations are normalised
+-- according to the procedure outlined in the slides.
 pruneIneq :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
 pruneIneq ineq = do let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq
                     (opps', eq) <- mapM checkOpposite opps >>* splitEither
@@ -634,7 +635,9 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
               where
                 a_k = e ! k
 
-    
+    -- Gets the real shadow of a given variable.  The real shadow, for all possible
+    -- upper bounds (ax <= alpha) and lower bounds (beta <= bx) is the inequality
+    -- (a beta <= b alpha), or (a beta - b alpha >= 0).
     getRealShadow :: Int -> InequalityProblem -> InequalityProblem
     getRealShadow k ineqs = eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
       where
@@ -643,6 +646,9 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
         pairIneqs :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
         pairIneqs (x,ex) (y,ey) = arrayZipWith (+) (amap (* y) ex) (amap (* x) ey)
 
+    -- Gets the dark shadow of a given variable.  The dark shadow, for possible
+    -- upper bounds (ax <= alpha) and lower bounds (beta <= bx) is the inequality
+    -- (a beta - b alpha - (a - 1)(b - 1) )
     getDarkShadow :: Int -> InequalityProblem -> InequalityProblem
     getDarkShadow k ineqs = eqC ++ map (uncurry pairIneqsDark) (product2 (eqA,eqB))
       where
@@ -656,6 +662,9 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
     addConstant x e = e // [(0,(e ! 0) + x)]
 
     -- Checks if eliminating the specified variable would yield an exact projection (real shadow = dark shadow):
+    -- This will be the case if the coefficient on all lower bounds or on all upper bounds is 1.  We check
+    -- this by making sure either all the positive coefficients (lower bounds) are 1 or all the negative
+    -- coefficients (upper bounds) are -1.
     isExactProjection :: Int -> InequalityProblem -> Bool
     isExactProjection n ineqs = (all (== 1) $ pos n ineqs) || (all (== (-1)) $ neg n ineqs)
       where
@@ -664,6 +673,7 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
         neg :: Int -> InequalityProblem -> [Integer]
         neg n ineqs = filter (< 0) $ map (! n) ineqs
     
+    -- Gets the brute force equality/inequality sets as described in the paper and the slides.
     getBruteForceProblems :: Int -> InequalityProblem -> [(EqualityProblem,InequalityProblem)]
     getBruteForceProblems k ineqs = concatMap setLowerBound eqB
       where
@@ -674,10 +684,12 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
         setLowerBound (b,beta) = map (\i -> ([addConstant (-i) (beta // [(k,b)])],ineqs)) [0 .. max]
           where
             max = ((largestUpperA * b) - largestUpperA - b) `div` largestUpperA
-    
+
+-- | Like solveProblem but allows a custom variable mapping to be used.    
 solveProblem' :: VariableMapping -> EqualityProblem -> InequalityProblem -> Maybe VariableMapping
 solveProblem' vm eq ineq = solveConstraints vm eq ineq >>= uncurry fmElimination
 
+-- | Solves a problem using the full Omega Test, and a default variable mapping
 solveProblem :: EqualityProblem -> InequalityProblem -> Maybe VariableMapping
 solveProblem eq ineq = solveProblem' (defaultMapping maxVar) eq ineq
   where
