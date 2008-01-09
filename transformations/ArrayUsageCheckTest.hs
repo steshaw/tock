@@ -159,7 +159,10 @@ solveAndPrune' vm [] ineq = return (vm,ineq)
 solveAndPrune' vm eq ineq = solveConstraints vm eq ineq >>= (seqPair . transformPair return pruneIneq) >>= (\(x,(y,z)) -> solveAndPrune' x y z)
 
 solveAndPrune :: EqualityProblem -> InequalityProblem -> Maybe (VariableMapping,InequalityProblem)
-solveAndPrune eq = solveAndPrune' (defaultMapping $ snd $ bounds $ head eq) eq
+solveAndPrune eq ineq = solveAndPrune' (defaultMapping maxVar) eq ineq
+  where
+    maxVar = if null eq && null ineq then 0 else
+                if null eq then snd $ bounds $ head ineq else snd $ bounds $ head eq
 
 
 -- | A problem's "solveability"; essentially how much of the Omega Test do you have to
@@ -192,7 +195,7 @@ check s (ind, eq, ineq) =
           sapped = uncurry solveAndPrune problem
           elimed = uncurry solveProblem problem
           testName = "check " ++ show s ++ " " ++ show ind
-            ++ "(VM was: " ++ show (transformMaybe snd sapped) ++ ")"
+            ++ "(VM after pruning was: " ++ show (transformMaybe fst sapped) ++ ")"
 
 testMakeEquations :: Test
 testMakeEquations = TestList
