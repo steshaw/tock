@@ -57,13 +57,12 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
         case makeEquations indexes (makeConstant emptyMeta 1000000) of
           Left err -> die $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
           Right (varMapping, problem) ->
-            case uncurry solveAndPrune problem of
+            case uncurry solveProblem problem of
               -- No solutions; no worries!
               Nothing -> return ()
-              Just (vm, []) -> do sol <- formatSolution varMapping (getCounterEqs vm)
-                                  arrName' <- getRealName arrName
-                                  dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
-              _ -> die $ "TODO process inequalities"
+              Just vm -> do sol <- formatSolution varMapping (getCounterEqs vm)
+                            arrName' <- getRealName arrName
+                            dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
     
     formatSolution :: Map.Map String CoeffIndex -> Map.Map CoeffIndex Integer -> PassM String
     formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
@@ -518,13 +517,25 @@ mygcdList (x:xs) = foldl mygcd x xs
 -- As an additional step not specified in the paper, equations with no variables in them are checked
 -- for consistency.  That is, all equations c >= 0 (where c is constant) are checked to 
 -- ensure c is indeed >= 0, and those equations are removed.
-pruneAndCheck :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
-pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq
-                        (opps', eq) <- mapM checkOpposite opps >>* splitEither
-                        checked <- mapM checkConstantEq (concat opps' ++ others) >>* catMaybes
-                        return (eq, checked)
+pruneIneq :: InequalityProblem -> Maybe (EqualityProblem, InequalityProblem)
+pruneIneq ineq = do let (opps,others) = splitEither $ groupOpposites $ map pruneGroup groupedIneq
+                    (opps', eq) <- mapM checkOpposite opps >>* splitEither
+                    checked <- mapM checkConstantEq (concat opps' ++ others) >>* catMaybes
+                    return (eq, checked)
   where
-    groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort ineq
+    groupedIneq = groupBy (\x y -> EQ == coeffSort x y) $ sortBy coeffSort $ map normaliseIneq ineq
+
+    normaliseIneq :: InequalityConstraintEquation -> InequalityConstraintEquation
+    normaliseIneq ineq | g > 1     = arrayMapWithIndex norm ineq
+                       | otherwise = ineq
+      where
+        norm ind val | ind == 0  = normaliseUnits val
+                     | otherwise = val `div` g
+      
+        g = mygcdList $ tail $ elems ineq
+        -- I think div would do here, because g will always be positive, but
+        -- I feel safer using the mathematical description:
+        normaliseUnits a_0 = floor $ (fromInteger a_0 :: Double) / (fromInteger g)
 
     coeffSort :: InequalityConstraintEquation -> InequalityConstraintEquation -> Ordering
     coeffSort x y = compare (tail $ elems x) (tail $ elems y)
@@ -595,15 +606,6 @@ pruneAndCheck ineq = do let (opps,others) = splitEither $ groupOpposites $ map p
     checkConstantEq eq | all (== 0) (tail $ elems eq) = if (eq ! 0) >= 0 then Just Nothing else Nothing
                        | otherwise = Just $ Just eq
 
--- | Returns Nothing if there is definitely no solution, or (Just ineq) if 
--- further investigation is needed
-solveAndPrune' :: VariableMapping -> EqualityProblem -> InequalityProblem -> Maybe (VariableMapping,InequalityProblem)
-solveAndPrune' vm [] ineq = return (vm,ineq)
-solveAndPrune' vm eq ineq = solveConstraints vm eq ineq >>= (seqPair . transformPair return pruneAndCheck) >>= (\(x,(y,z)) -> solveAndPrune' x y z)
-
-solveAndPrune :: EqualityProblem -> InequalityProblem -> Maybe (VariableMapping,InequalityProblem)
-solveAndPrune eq = solveAndPrune' (defaultMapping $ snd $ bounds $ head eq) eq
-
 -- | Returns the number of variables (of x_1 .. x_n; x_0 is not counted)
 -- that have non-zero coefficients in the given inequality problems.
 numVariables :: InequalityProblem -> Int
@@ -621,7 +623,11 @@ numVariables ineq = length (nub $ concatMap findVars ineq)
 --
 -- Determine if there is an integer solution for x_k:
 --
--- TODO
+-- If it is an inexact projection, the function recurses into both the real and dark shadow.
+-- If necessary, it does brute-forcing.
+--
+--
+-- Real shadow:
 --
 -- Form lots of new equations:
 --  Given  a_Ak . x_k <= RHS(A)
@@ -631,52 +637,105 @@ numVariables ineq = length (nub $ concatMap findVars ineq)
 --         a_Ak . A_Bk . x_k >= A_Ak . RHS(B)
 --  For every combination of the RHS(A) and RHS(B) generate an inequality: a_Bk . RHS(A) - a_Ak . RHS(B) >=0
 -- Add these new equations to the set C, and iterate
+--
+-- Dark shadow:
+--
+-- Form lots of new equations:
+-- Given a_Ak . x_k <= RHS(A)
+--       a_Bk . x_k >= RHS(B)
+-- We need to form the equations:
+--       a_Bk . RHS(A) - a_Ak . RHS(B) - (a_Ak - 1)(a_Bk - 1) >= 0
+--
+-- That is, the dark shadow is the same as the real shadow but with the constant subtracted
 
-fmElimination :: InequalityProblem -> InequalityProblem
-fmElimination ineq = fmElimination' (presentItems ineq) (map normaliseIneq ineq)
+fmElimination :: VariableMapping -> InequalityProblem -> Maybe VariableMapping
+fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
   where
     -- Finds all variables that have at least one non-zero coefficient in the equation set.
     -- a_0 is ignored; 0 will never be in the returned list
     presentItems :: InequalityProblem -> [Int]
     presentItems = nub . map fst . filter ((/= 0) . snd) . concatMap (tail . assocs)
 
-    fmElimination' :: [Int] -> InequalityProblem -> InequalityProblem
-    fmElimination' [] ineq = ineq
-    fmElimination' (k:ks) ineq = fmElimination' ks (map normaliseIneq $ eliminate k ineq)
+    fmElimination' :: VariableMapping -> [Int] -> InequalityProblem -> Maybe VariableMapping
+    fmElimination' vm [] ineqs = pruneAndHandleIneq (vm,ineqs) >>* fst
+                                 -- We have to prune the ineqs when they have no variables to
+                                 -- ensure none are inconsistent    
+    fmElimination' vm indexes@(ix:ixs) ineqs
+      = do (vm',ineqsPruned) <- pruneAndHandleIneq (vm,ineqs)
+           case listToMaybe $ filter (flip isExactProjection ineqsPruned) indexes of
+             Just ex -> fmElimination' vm' (indexes \\ [ex]) (getRealShadow ex ineqs)
+             Nothing ->
+               case fmElimination' vm' ixs (getRealShadow ix ineqs) of
+                 Nothing -> Nothing
+                 Just vm'' -> case fmElimination' vm'' ixs (getDarkShadow ix ineqs) of
+                   Just vm''' -> return vm'''
+                   Nothing -> listToMaybe $ mapMaybe (uncurry $ solveProblem' vm'') $ getBruteForceProblems ix ineqs
     
-    --TODO should we still be checking for redundant equations in the new ones we generate?
+    pruneAndHandleIneq :: (VariableMapping, InequalityProblem) -> Maybe (VariableMapping, InequalityProblem)
+    pruneAndHandleIneq (vm,ineq)
+      = do (eq,ineq') <- pruneIneq ineq
+           if null eq then return (vm,ineq') else solveConstraints vm eq ineq'
     
-    eliminate :: Int -> InequalityProblem -> InequalityProblem
-    eliminate k ineq = eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
-      where
-        (eqA,eqB,eqC) = partition ineq
-      
-        -- We need to partition the related equations into sets A,B and C.
-        -- C is straightforward (a_k is zero).
-        -- In set B, a_k > 0, and "RHS(B)" (as described above) is the negation of the other
-        -- coefficients.  Therefore "-RHS(B)" is the other coefficients as-is.
-        -- In set A, a_k < 0,  and "RHS(A)" (as described above) is the other coefficients, untouched
-        -- So we simply zero out a_k, and return the rest, associated with the absolute value of a_k.
-        partition :: InequalityProblem -> ([(Integer, InequalityConstraintEquation)], [(Integer,InequalityConstraintEquation)], [InequalityConstraintEquation])
-        partition = (\(x,y,z) -> (concat x, concat y, concat z)) . unzip3 . map partition'
+    
+    -- We need to partition the related equations into sets A,B and C.
+    -- C is straightforward (a_k is zero).
+    -- In set B, a_k > 0, and "RHS(B)" (as described above) is the negation of the other
+    -- coefficients.  Therefore "-RHS(B)" is the other coefficients as-is.
+    -- In set A, a_k < 0,  and "RHS(A)" (as described above) is the other coefficients, untouched
+    -- So we simply zero out a_k, and return the rest, associated with the absolute value of a_k.
+    splitBounds :: Int -> InequalityProblem -> ([(Integer, InequalityConstraintEquation)], [(Integer,InequalityConstraintEquation)], [InequalityConstraintEquation])
+    splitBounds k = (\(x,y,z) -> (concat x, concat y, concat z)) . unzip3 . map partition'
           where
             partition' e | a_k == 0 = ([],[],[e])
                          | a_k <  0 = ([(abs a_k, e // [(k,0)])],[],[])
                          | a_k >  0 = ([],[(abs a_k, e // [(k,0)])],[])
               where
                 a_k = e ! k
-        
+
+    
+    getRealShadow :: Int -> InequalityProblem -> InequalityProblem
+    getRealShadow k ineqs = eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
+      where
+        (eqA,eqB,eqC) = splitBounds k ineqs
+                
         pairIneqs :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
         pairIneqs (x,ex) (y,ey) = arrayZipWith (+) (amap (* y) ex) (amap (* x) ey)
 
-    normaliseIneq :: InequalityConstraintEquation -> InequalityConstraintEquation
-    normaliseIneq ineq | g > 1     = arrayMapWithIndex norm ineq
-                       | otherwise = ineq
+    getDarkShadow :: Int -> InequalityProblem -> InequalityProblem
+    getDarkShadow k ineqs = eqC ++ map (uncurry pairIneqsDark) (product2 (eqA,eqB))
       where
-        norm ind val | ind == 0  = normaliseUnits val
-                     | otherwise = val `div` g
-      
-        g = mygcdList $ tail $ elems ineq
-        -- I think div would do here, because g will always be positive, but
-        -- I feel safer using the mathematical description:
-        normaliseUnits a_0 = floor $ (fromInteger a_0 :: Double) / (fromInteger g)
+        (eqA,eqB,eqC) = splitBounds k ineqs
+        
+        pairIneqsDark :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
+        pairIneqsDark (x,ex) (y,ey) = addConstant (-1*(y-1)*(x-1)) (arrayZipWith (+) (amap (* y) ex) (amap (* x) ey))
+
+    addConstant :: Integer -> InequalityConstraintEquation -> InequalityConstraintEquation
+    addConstant x e = e // [(0,(e ! 0) + x)]
+
+    isExactProjection :: Int -> InequalityProblem -> Bool
+    isExactProjection n ineqs = (all (== 1) $ pos n ineqs) || (all (== (-1)) $ neg n ineqs)
+      where
+        pos :: Int -> InequalityProblem -> [Integer]
+        pos n ineqs = filter (> 0) $ map (! n) ineqs
+        neg :: Int -> InequalityProblem -> [Integer]
+        neg n ineqs = filter (< 0) $ map (! n) ineqs
+    
+    getBruteForceProblems :: Int -> InequalityProblem -> [(EqualityProblem,InequalityProblem)]
+    getBruteForceProblems k ineqs = concatMap setLowerBound eqB
+      where
+        (eqA,eqB,eqC) = splitBounds k ineqs
+        
+        largestUpperA = maximum $ map fst eqA
+        
+        setLowerBound (b,beta) = map (\i -> ([addConstant (-i) (beta // [(k,b)])],eqC)) [0 .. max]
+          where
+            max = ((largestUpperA * b) - largestUpperA - b) `div` largestUpperA
+    
+solveProblem' :: VariableMapping -> EqualityProblem -> InequalityProblem -> Maybe VariableMapping
+solveProblem' vm eq ineq = solveConstraints vm eq ineq >>= uncurry fmElimination
+
+solveProblem :: EqualityProblem -> InequalityProblem -> Maybe VariableMapping
+solveProblem eq ineq = solveProblem' (defaultMapping maxVar) eq ineq
+  where
+    maxVar = if null eq && null ineq then 0 else
+                if null eq then snd $ bounds $ head ineq else snd $ bounds $ head eq
