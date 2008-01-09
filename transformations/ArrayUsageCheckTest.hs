@@ -139,6 +139,33 @@ p = [(6,1)]
 answers :: [([(Int, Integer)],Integer)] -> Map.Map CoeffIndex Integer
 answers = Map.fromList . map (transformPair (fst . head) id)
 
+-- Shows the answers in terms of the test variables
+showTestAnswers :: VariableMapping -> String
+showTestAnswers vm = concat $ intersperse "\n" $ map showAnswer $ Map.assocs vm 
+  where
+    showAnswer :: (CoeffIndex,EqualityConstraintEquation) -> String
+    showAnswer (x,eq) = mylookup x ++ " = " ++ showItems eq 
+    
+showItems :: EqualityConstraintEquation -> String
+showItems eq = concat (intersperse " + " (filter (not . null) $ map showItem (assocs eq)))
+
+showItem :: (CoeffIndex,Integer) -> String
+showItem (k,a_k) | a_k == 0  = ""
+                 | k == 0    = show a_k
+                 | a_k == 1  = mylookup k
+                 | otherwise = show a_k ++ mylookup k
+    
+mylookup :: CoeffIndex -> String
+mylookup x = Map.findWithDefault "unknown" x lookupTable
+    
+lookupTable :: Map.Map CoeffIndex String
+lookupTable = Map.fromList $ zip [1..] ["i","j","k","m","n","p"]
+
+showInequality :: InequalityConstraintEquation -> String
+showInequality ineq = "0 <= " ++ showItems ineq
+
+showInequalities :: InequalityProblem -> String
+showInequalities ineqs = concat $ intersperse "\n" $ map showInequality ineqs
 
 makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
 makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
@@ -195,7 +222,12 @@ check s (ind, eq, ineq) =
           sapped = uncurry solveAndPrune problem
           elimed = uncurry solveProblem problem
           testName = "check " ++ show s ++ " " ++ show ind
-            ++ "(VM after pruning was: " ++ show (transformMaybe fst sapped) ++ ")"
+            ++ "(VM after pruning was: " ++ showMaybe showTestAnswers (transformMaybe fst sapped) ++ 
+            ", ineqs: " ++ showMaybe showInequalities (transformMaybe snd sapped) ++ ")"
+
+showMaybe :: (a -> String) -> Maybe a -> String
+showMaybe f (Just x) = f x
+showMaybe _ Nothing = "Nothing"
 
 testMakeEquations :: Test
 testMakeEquations = TestList
