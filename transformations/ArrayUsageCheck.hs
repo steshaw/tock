@@ -667,11 +667,11 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
     getBruteForceProblems :: Int -> InequalityProblem -> [(EqualityProblem,InequalityProblem)]
     getBruteForceProblems k ineqs = concatMap setLowerBound eqB
       where
-        (eqA,eqB,eqC) = splitBounds k ineqs
+        (eqA,eqB,_) = splitBounds k ineqs
         
         largestUpperA = maximum $ map fst eqA
         
-        setLowerBound (b,beta) = map (\i -> ([addConstant (-i) (beta // [(k,b)])],eqC)) [0 .. max]
+        setLowerBound (b,beta) = map (\i -> ([addConstant (-i) (beta // [(k,b)])],ineqs)) [0 .. max]
           where
             max = ((largestUpperA * b) - largestUpperA - b) `div` largestUpperA
     
