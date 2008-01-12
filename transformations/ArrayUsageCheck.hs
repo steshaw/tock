@@ -90,11 +90,11 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
   where
     -- | The body of makeEquations; returns the variable mapping, the list of (nx,ex) pairs and a pair
     -- representing the upper and lower bounds of the array (inclusive).    
-    makeEquations' :: Either String (Map.Map String Int, [(Integer,EqualityConstraintEquation)], (EqualityConstraintEquation, EqualityConstraintEquation))
+    makeEquations' :: Either String (Map.Map String Int, [EqualityConstraintEquation], (EqualityConstraintEquation, EqualityConstraintEquation))
     makeEquations' = do ((v,h),s) <- (flip runStateT) Map.empty $
                            do flattened <- lift (mapM flatten es)
                               eqs <- mapM makeEquation flattened
-                              (1,high') <- (lift $ flatten high) >>= makeEquation 
+                              high' <- (lift $ flatten high) >>= makeEquation 
                               return (eqs,high')
                         return (s,v,(amap (const 0) h, h))
                               
@@ -105,24 +105,23 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
     -- where d is a constant (non-zero!) integer, and each e_k
     -- is either a const, a var, const * var, or (const * var) % const [TODO].
     -- If the expression cannot be transformed into such a format, an error is returned
-    flatten :: A.Expression -> Either String (Integer,[FlattenedExp])
-    flatten (A.Literal _ _ (A.IntLiteral _ n)) = return (1,[Const (read n)])
+    flatten :: A.Expression -> Either String [FlattenedExp]
+    flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
     flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
-                                    | op == A.Subtr = combine' (flatten lhs) (liftM (transformPair id (scale (-1))) $ flatten rhs)
+                                    | op == A.Subtr = combine' (flatten lhs) (liftM (scale (-1)) $ flatten rhs)
                                     | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
                                     -- TODO Div (either constant on bottom, or common (variable) factor(s) with top)
                                     | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
-    flatten (A.ExprVariable _ v) = return (1,[Scale 1 v])
+    flatten (A.ExprVariable _ v) = return [Scale 1 v]
     flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
 
     --TODO we need to handle lots more different expression types in future.
     
-    multiplyOut' :: Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
+    multiplyOut' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
     multiplyOut' x y = do {x' <- x; y' <- y; multiplyOut x' y'}
     
-    multiplyOut :: (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
-    multiplyOut (lx,lhs) (rx,rhs) = do exps <- mapM (uncurry mult) pairs 
-                                       return (lx * rx, exps)
+    multiplyOut :: [FlattenedExp] -> [FlattenedExp] -> Either String [FlattenedExp]
+    multiplyOut lhs rhs = mapM (uncurry mult) pairs 
       where
         pairs = product2 (lhs,rhs)
 
@@ -142,14 +141,12 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
         scale' (Scale n v) = Scale (n * sc) v
 
     -- | An easy way of applying combine to two monadic returns
-    combine' :: Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp]) -> Either String (Integer,[FlattenedExp])
+    combine' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
     combine' = liftM2 combine
     
-    -- | Combines (adds) two flattened expressions with a divisor.
-    -- Given (nx,ex) and (ny,ey), representing ex/nx and ey/ny, this becomes
-    -- ((ny*ex)+(nx*ey)/nx*ny (i.e. standard mathematics!).
-    combine :: (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp]) -> (Integer,[FlattenedExp])
-    combine (nx, ex) (ny, ey) = (nx * ny, scale ny ex ++ scale nx ey)
+    -- | Combines (adds) two flattened expressions.
+    combine :: [FlattenedExp] -> [FlattenedExp] -> [FlattenedExp]
+    combine = (++)
  
   
     -- | Finds the index associated with a particular variable; either by finding an existing index
@@ -164,33 +161,32 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> (s,squareEquations (pai
            put st'
            return ind
 
-    -- | Pairs all possible combinations of the list of divided equations.  That is for all pairs
-    -- in the list ((nx,ex),(ny,ey)) (representing ex/nx and ey/ny), forms the equation ny*ex = nx*ey
-    pairEqs :: [(Integer,EqualityConstraintEquation)] -> [EqualityConstraintEquation]
+    -- | Pairs all possible combinations of the list of equations.
+    pairEqs :: [EqualityConstraintEquation] -> [EqualityConstraintEquation]
     pairEqs = filter (any (/= 0) . elems) . map (uncurry pairEqs') . allPairs
       where
-        pairEqs' (nx,ex) (ny,ey) = arrayZipWith' 0 (-) (amap (* ny) ex) (amap (* nx) ey)
+        pairEqs' ex ey = arrayZipWith' 0 (-) ex ey
     
-    -- | Given a (low,high) bound (typically: array dimensions), and a list of equations (nx,ex) representing (ex/nx),
+    -- | Given a (low,high) bound (typically: array dimensions), and a list of equations ex,
     -- forms the possible inequalities: 
-    -- * ex/nx >= low  (=> ex >= low * nx)
-    -- * ex/nx <= high (=> ex <= high * nx)
-    getIneqs :: (EqualityConstraintEquation, EqualityConstraintEquation) -> [(Integer,EqualityConstraintEquation)] -> [InequalityConstraintEquation]
+    -- * ex >= low
+    -- * ex <= high
+    getIneqs :: (EqualityConstraintEquation, EqualityConstraintEquation) -> [EqualityConstraintEquation] -> [InequalityConstraintEquation]
     getIneqs (low, high) = concatMap getLH
       where
-        -- eq / sc >= low => eq - (sc * low) >= 0
-        -- eq / sc <= high => (high * sc) - eq >= 0
+        -- eq >= low => eq - low >= 0
+        -- eq <= high => high - eq >= 0
       
-        getLH :: (Integer,EqualityConstraintEquation) -> [InequalityConstraintEquation]
-        getLH (sc, eq) = [eq `addEq` (scaleEq (-sc) low),(scaleEq sc high) `addEq` amap negate eq]
+        getLH :: EqualityConstraintEquation -> [InequalityConstraintEquation]
+        getLH eq = [eq `addEq` (amap negate low),high `addEq` amap negate eq]
         
         addEq = arrayZipWith' 0 (+)
     
-    -- | Given a pair (nx,ex) representing ex/nx, forms an equation (e) from the latter part, and returns (nx,e)
-    makeEquation :: (Integer,[FlattenedExp]) -> StateT (Map.Map String Int) (Either String) (Integer,EqualityConstraintEquation)
-    makeEquation (divisor, summedItems)
+    -- | Given ex, forms an equation (e) from the latter part, and returns it
+    makeEquation :: [FlattenedExp] -> StateT (Map.Map String Int) (Either String) EqualityConstraintEquation
+    makeEquation summedItems
       = do eqs <- foldM makeEquation' Map.empty summedItems
-           return (divisor, mapToArray eqs)
+           return $ mapToArray eqs
       where
         makeEquation' :: Map.Map Int Integer -> FlattenedExp -> StateT (Map.Map String Int) (Either String) (Map.Map Int Integer)
         makeEquation' m (Const n) = return $ add (0,n) m
