@@ -284,8 +284,23 @@ testMakeEquations = TestList
               )
            A.Subtr (Lit $ intLiteral 5)
         ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 7)
+   
+   -- Testing i REM 2 vs (i + 1) REM 4
+   ,test (12,combine (i_ip1_mod_mapping 2 4)
+     [ [([con 0 === con 0],[]),rr_i_zero, rr_ip1_zero]
+      ,[([con 0 === i ++ con 1 ++ 4**k],[]),rr_i_zero,rr_ip1_pos]
+      ,[([con 0 === i ++ con 1 ++ 4**k],[]),rr_i_zero,rr_ip1_neg]
+      ,[([i ++ 2**j === con 0],[]),rr_i_pos,rr_ip1_zero]
+      ,[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_pos,rr_ip1_pos]
+      ,[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_pos,rr_ip1_neg]
+      ,[([i ++ 2**j === con 0],[]),rr_i_neg,rr_ip1_zero]
+      ,[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_neg,rr_ip1_pos]
+      ,[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_neg,rr_ip1_neg]
+     ], [buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 2)
+        ,buildExpr $ Dy (Dy (Var "i") A.Add (Lit $ intLiteral 1)) A.Rem (Lit $ intLiteral 4)
+        ], intLiteral 7)
       
-   -- TODO test REM vs REM, and REM + REM vs REM
+   -- TODO test REM + REM vs REM -- 27 combinations!
   ]
   where
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
@@ -300,6 +315,22 @@ testMakeEquations = TestList
     i_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const n),2)]
     _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
       (Modulo (Set.fromList [(Scale 3 $ variable "i"),(Scale (-2) $ variable "j")]) (Set.singleton $ Const n),3)]
+    -- i REM m, i + 1 REM n
+    i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ variable "i",1)
+      ,(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const m),2)
+      ,(Modulo (Set.fromList [Scale 1 $ variable "i", Const 1]) (Set.singleton $ Const n),3)
+     ]
+     
+    -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
+    rr_i_zero = ([i === con 0], leq [con 0,con 0,con 7])
+    rr_ip1_zero = ([i ++ con 1 === con 0], leq [con 0,con 0,con 7])
+    rr_i_pos = ([], leq [con 0, i ++ 2**j, con 7] &&& [i >== con 1, j <== con 0] &&& leq [con 0, i ++ 2**j, con 1])
+    rr_ip1_pos = ([], leq [con 0, i ++ con 1 ++ 4**k, con 7] &&& [i ++ con 1 >== con 1, k <== con 0] &&& leq [con 0,  i ++ con 1 ++ 4**k, con 3])
+    rr_i_neg = ([], leq [con 0, i ++ 2**j, con 7] &&& [i <== con (-1), j >== con 0] &&& leq [con (-1), i ++ 2**j, con 0])
+    rr_ip1_neg = ([], leq [con 0, i ++ con 1 ++ 4**k, con 7] &&& [i ++ con 1 <== con (-1), k >== con 0] &&& leq [con (-3), i ++ con 1 ++ 4**k, con 0])
+
+    combine :: VarMap -> [[([HandyEq],[HandyIneq])]] -> [(VarMap,[HandyEq],[HandyIneq])]
+    combine vm eq_ineqs = [(vm,e,i) | (e,i) <- map (transformPair concat concat . unzip) eq_ineqs]
 
 testIndexes :: Test
 testIndexes = TestList
