@@ -23,6 +23,7 @@ import Data.Array.IArray
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import qualified Data.Set as Set
 import Prelude hiding ((**),fail)
 import Test.HUnit
 import Test.QuickCheck hiding (check)
@@ -232,29 +233,35 @@ showMaybe _ Nothing = "Nothing"
 testMakeEquations :: Test
 testMakeEquations = TestList
   [
-    test (0,Map.empty,[con 0 === con 1],leq [con 0,con 0,con 7] &&& leq [con 0,con 1,con 7],
-      [intLiteral 0, intLiteral 1],intLiteral 7)
+    test (0,[(Map.empty,[con 0 === con 1],leq [con 0,con 1,con 7] &&& leq [con 0,con 2,con 7])],
+      [intLiteral 1, intLiteral 2],intLiteral 7)
      
-   ,test (1,i_mapping,[i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7],
+   ,test (1,[(i_mapping,[i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7])],
       [exprVariable "i",intLiteral 3],intLiteral 7)
    
-   ,test (2,ij_mapping,[i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7],
+   ,test (2,[(ij_mapping,[i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7])],
       [exprVariable "i",exprVariable "j"],intLiteral 7)
 
-   ,test (3,ij_mapping,[i ++ con 3 === j],leq [con 0,i ++ con 3,con 7] &&& leq [con 0,j,con 7],
+   ,test (3,[(ij_mapping,[i ++ con 3 === j],leq [con 0,i ++ con 3,con 7] &&& leq [con 0,j,con 7])],
       [buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 3),exprVariable "j"],intLiteral 7)
      
-   ,test (4,ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7],
+   ,test (4,[(ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7])],
       [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 7)
+   
+   ,test (10,[(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,i ++ 3 ** j,con 7])],
+      [buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 7)
   ]
   where
-    test :: (Integer,Map.Map String CoeffIndex,[HandyEq],[HandyIneq],[A.Expression],A.Expression) -> Test
-    test (ind, mpping, eqs, ineqs, exprs, upperBound) = 
-      TestCase $ assertEquivalentProblems ("testMakeEquations" ++ show ind)
-        (mpping,makeConsistent eqs ineqs) =<< (checkRight $ makeEquations exprs upperBound)
+    test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
+    test (ind, problems, exprs, upperBound) = 
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
+        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations exprs upperBound)
   
-    i_mapping = Map.singleton "i" 1
-    ij_mapping = Map.fromList [("i",1),("j",2)]
+    pairLatterTwo (a,b,c) = (a,(b,c))
+  
+    i_mapping = Map.singleton (Scale 1 $ variable "i") 1
+    ij_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2)]
+    i_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const n),2)]
 
 testIndexes :: Test
 testIndexes = TestList
@@ -369,7 +376,7 @@ testIndexes = TestList
 -- | Given one mapping and a second mapping, gives a function that converts the indexes
 -- from one to the indexes of the next.  If any of the keys in the map don't match
 -- (i.e. if (keys m0 /= keys m1)) Nothing will be returned
-generateMapping :: Map.Map String CoeffIndex -> Map.Map String CoeffIndex -> Maybe [(CoeffIndex,CoeffIndex)]
+generateMapping :: VarMap -> VarMap -> Maybe [(CoeffIndex,CoeffIndex)]
 generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap f m0 m1)
   where
     f (Just x) (Just y) = Just (x,y)
@@ -388,12 +395,17 @@ translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapCol
         swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
-assertEquivalentProblems :: String -> (Map.Map String CoeffIndex, (EqualityProblem, InequalityProblem)) -> (Map.Map String CoeffIndex, (EqualityProblem, InequalityProblem)) -> Assertion
-assertEquivalentProblems title exp act = assertEqual title translatedExp (Just $ sortP $ snd act)
+assertEquivalentProblems :: String -> [(VarMap, (EqualityProblem, InequalityProblem))] -> [(VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
+assertEquivalentProblems title exp act = mapM_ (uncurry $ assertEqual title) $ map (uncurry transform) $ zip exp act
   where
-    sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
+    transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
+    	               ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
+    transform exp act = (translatedExp, Just $ sortP $ snd act)
+      where
+        sortP :: (EqualityProblem, InequalityProblem) -> (EqualityProblem, InequalityProblem)      
+        sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
   
-    translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
+        translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
 
 checkRight :: Show a => Either a b -> IO b
 checkRight (Left err) = assertFailure ("Not Right: " ++ show err) >> return undefined
