@@ -257,11 +257,35 @@ testMakeEquations = TestList
    ,test (4,[(ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7])],
       [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 7)
    
+   -- Testing (i REM 3) vs (4)
    ,test (10,[
         (i_mod_mapping 3,[con 0 === con 4, i === con 0], leq [con 0,con 0,con 7] &&& leq [con 0,con 4,con 7])
        ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i >== con 1] &&& [j <== con 0] &&& leq [con 0, i ++ 3 ** j, con 2])
        ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i <== con (-1)] &&& [j >== con 0] &&& leq [con (-2), i ++ 3 ** j, con 0])
       ],[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 7)
+      
+   -- Testing ((3*i - 2*j REM 11) - 5) vs (i + j)
+   -- Expressed as ((2 * (i - j)) + i) REM 11 - 5, and i + j
+   ,test (11,[
+        (_3i_2j_mod_mapping 11,[con (-5) === i ++ j, 3**i ++ (-2)**j === con 0], leq [con 0,con (-5),con 7] &&& leq [con 0,i ++ j,con 7])
+       ,(_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
+          leq [con 0,i ++ j,con 7] &&& leq [con 0,3**i ++ (-2)**j ++ 11 ** k ++ con (-5),con 7]
+          &&& [3**i ++ (-2)**j >== con 1] &&& [k <== con 0] &&& leq [con 0, 3**i ++ (-2)**j ++ 11 ** k, con 10])
+       ,(_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
+          leq [con 0,i ++ j,con 7] &&& leq [con 0,3**i ++ (-2)**j ++ 11 ** k ++ con (-5),con 7]
+          &&& [3**i ++ (-2)**j <== con (-1)] &&& [k >== con 0] &&& leq [con (-10), 3**i ++ (-2)**j ++ 11 ** k, con 0])
+      ],[buildExpr $
+           Dy (Dy (Dy (Dy (Lit $ intLiteral 2)
+                       A.Mul (Dy (Var "i") A.Subtr (Var "j"))
+                      )
+                   A.Add (Var "i")
+                  )
+               A.Rem (Lit $ intLiteral 11)
+              )
+           A.Subtr (Lit $ intLiteral 5)
+        ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 7)
+      
+   -- TODO test REM vs REM, and REM + REM vs REM
   ]
   where
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
@@ -274,6 +298,8 @@ testMakeEquations = TestList
     i_mapping = Map.singleton (Scale 1 $ variable "i") 1
     ij_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2)]
     i_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const n),2)]
+    _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
+      (Modulo (Set.fromList [(Scale 3 $ variable "i"),(Scale (-2) $ variable "j")]) (Set.singleton $ Const n),3)]
 
 testIndexes :: Test
 testIndexes = TestList
