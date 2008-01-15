@@ -112,11 +112,11 @@ instance Ord FlattenedExp where
   compare (Scale {}) _ = LT
   compare _ (Scale {}) = GT
   compare (Modulo ltop lbottom) (Modulo rtop rbottom)
-    = combineCompare [compare ltop lbottom, compare lbottom rbottom]
+    = combineCompare [compare ltop rtop, compare lbottom rbottom]
   compare (Modulo {}) _ = LT
   compare _ (Modulo {}) = GT
   compare (Divide ltop lbottom) (Divide rtop rbottom)
-    = combineCompare [compare ltop lbottom, compare lbottom rbottom]
+    = combineCompare [compare ltop rtop, compare lbottom rbottom]
 
 customVarCompare :: A.Variable -> A.Variable -> Ordering
 customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
