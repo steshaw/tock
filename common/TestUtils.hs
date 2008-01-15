@@ -457,3 +457,8 @@ assertEitherFail testName result
      = case result of
          Left _ -> return ()
          Right _ -> assertFailure $ testName ++ "; test expected to fail but passed"
+
+assertEqualCustomShow :: Eq a => (a -> String) -> String -> a -> a -> Assertion
+assertEqualCustomShow showFunc testName exp act
+  | exp == act = return ()
+  | otherwise  = assertFailure $ testName ++ "\n" ++ "expected: " ++ showFunc exp ++ "\n but got: " ++ showFunc act
