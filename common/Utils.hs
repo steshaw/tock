@@ -76,8 +76,9 @@ splitEither ((Right y):es) = let (ls,rs) = splitEither es in (ls,y:rs)
 
 -- | Transforms between two 'Maybe' types using a function:
 transformMaybe :: (a -> b) -> Maybe a -> Maybe b
-transformMaybe _ Nothing = Nothing
-transformMaybe f (Just x) = Just (f x)
+--transformMaybe _ Nothing = Nothing
+--transformMaybe f (Just x) = Just (f x)
+transformMaybe = liftM
 
 -- | Try an IO operation, returning `Nothing` if it fails.
 maybeIO :: IO a -> IO (Maybe a)
@@ -117,6 +118,10 @@ combineCompare (EQ:os) = combineCompare os
 -- | Maps two functions over members of a pair
 transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
 transformPair f g (x,y) = (f x, g y)
+
+-- | Maps two functions over members of a triple
+transformTriple :: (x -> a) -> (y -> b) -> (z -> c) -> (x,y,z) -> (a,b,c)
+transformTriple f g h (x,y,z) = (f x, g y, h z)
 
 -- | Pipes a monadic return through a non-monadic transformation function:
 (>>*) :: Monad m => m a -> (a -> b) -> m b
