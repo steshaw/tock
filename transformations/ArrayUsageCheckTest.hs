@@ -168,6 +168,15 @@ showInequality ineq = "0 <= " ++ showItems ineq
 showInequalities :: InequalityProblem -> String
 showInequalities ineqs = concat $ intersperse "\n" $ map showInequality ineqs
 
+showEquality :: InequalityConstraintEquation -> String
+showEquality eq = "0 = " ++ showItems eq
+
+showEqualities :: InequalityProblem -> String
+showEqualities eqs = concat $ intersperse "\n" $ map showEquality eqs
+
+showProblem :: (EqualityProblem,InequalityProblem) -> String
+showProblem (eqs,ineqs) = showEqualities eqs ++ "\n" ++ showInequalities ineqs
+
 makeConsistent :: [HandyEq] -> [HandyIneq] -> (EqualityProblem, InequalityProblem)
 makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
   where
@@ -392,7 +401,7 @@ translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapCol
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
 assertEquivalentProblems :: String -> [(VarMap, (EqualityProblem, InequalityProblem))] -> [(VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
-assertEquivalentProblems title exp act = mapM_ (uncurry $ assertEqual title) $ map (uncurry transform) $ zip exp act
+assertEquivalentProblems title exp act = (uncurry $ assertEqualCustomShow (showListCustom $ showMaybe showProblem) title) $ unzip $ map (uncurry transform) $ zip exp act
   where
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
     	               ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
