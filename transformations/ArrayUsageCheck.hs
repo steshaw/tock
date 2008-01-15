@@ -171,7 +171,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
   
     -- | The body of makeEquations; returns the variable mapping, the list of (nx,ex) pairs and a pair
     -- representing the upper and lower bounds of the array (inclusive).    
-    makeEquations' :: Either String (VarMap, [(EqualityConstraintEquation,EqualityProblem,InequalityProblem)], (EqualityConstraintEquation, EqualityConstraintEquation))
+    makeEquations' :: Either String (VarMap, [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]], (EqualityConstraintEquation, EqualityConstraintEquation))
     makeEquations' = do ((v,h),s) <- (flip runStateT) Map.empty $
                            do flattened <- lift (mapM flatten es)
                               eqs <- mapM makeEquation flattened
@@ -179,7 +179,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                               high'' <- case high' of
                                           [(h,_,_)] -> return h
                                           _ -> throwError "Multiple possible upper bounds not supported"
-                              return (concat eqs,high'')
+                              return (eqs,high'')
                         return (s,v,(amap (const 0) h, h))
                               
     -- Note that in all these functions, the divisor should always be positive!
@@ -258,16 +258,18 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
            return ind           
 
     -- | Pairs all possible combinations of the list of equations.
-    pairEqsAndBounds :: [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
-    pairEqsAndBounds items bounds = (map (filterProblems . uncurry pairEqs') . allPairs) items 
+    pairEqsAndBounds :: [[(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
+    pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items 
       where
+        pairEqs :: [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+          -> [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+          -> [(EqualityProblem, InequalityProblem)]
+        pairEqs p0 p1 = map (uncurry pairEqs') $ product2 (p0,p1)
+      
         pairEqs' :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
           -> (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
           -> (EqualityProblem, InequalityProblem)
         pairEqs' (ex,eqX,ineqX) (ey,eqY,ineqY) = ([arrayZipWith' 0 (-) ex ey] ++ eqX ++ eqY, ineqX ++ ineqY ++ getIneqs bounds [ex,ey])
-    
-        filterProblems :: (EqualityProblem, InequalityProblem) -> (EqualityProblem, InequalityProblem)
-        filterProblems = transformPair (filter (any (/= 0) . elems)) (filter (any (/= 0) . elems))
     
     -- | Given a (low,high) bound (typically: array dimensions), and a list of equations ex,
     -- forms the possible inequalities: 
