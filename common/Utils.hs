@@ -265,3 +265,10 @@ zipMap f xs ys = Map.fromList $ mapMaybe f' (Set.elems allKeys)
     allKeys = Map.keysSet xs `Set.union` Map.keysSet ys
     
     f' k = transformMaybe ((,) k) $ f (Map.lookup k xs) (Map.lookup k ys)
+
+showMaybe :: (a -> String) -> Maybe a -> String
+showMaybe showFunc (Just x) = "Just " ++ showFunc x
+showMaybe _ Nothing = "Nothing"
+
+showListCustom :: (a -> String) -> [a] -> String
+showListCustom showFunc list = "[" ++ concat (intersperse "," (map showFunc list)) ++ "]"

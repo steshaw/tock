@@ -226,10 +226,6 @@ check s (ind, eq, ineq) =
             ++ "(VM after pruning was: " ++ showMaybe showTestAnswers (transformMaybe fst sapped) ++ 
             ", ineqs: " ++ showMaybe showInequalities (transformMaybe snd sapped) ++ ")"
 
-showMaybe :: (a -> String) -> Maybe a -> String
-showMaybe f (Just x) = f x
-showMaybe _ Nothing = "Nothing"
-
 testMakeEquations :: Test
 testMakeEquations = TestList
   [
