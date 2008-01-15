@@ -163,16 +163,20 @@ lookupTable :: Map.Map CoeffIndex String
 lookupTable = Map.fromList $ zip [1..] ["i","j","k","m","n","p"]
 
 showInequality :: InequalityConstraintEquation -> String
-showInequality ineq = "0 <= " ++ showItems ineq
+showInequality ineq = "0 <= " ++ zeroIfBlank (showItems ineq)
 
 showInequalities :: InequalityProblem -> String
 showInequalities ineqs = concat $ intersperse "\n" $ map showInequality ineqs
 
 showEquality :: InequalityConstraintEquation -> String
-showEquality eq = "0 = " ++ showItems eq
+showEquality eq = "0 = " ++ zeroIfBlank (showItems eq)
 
 showEqualities :: InequalityProblem -> String
 showEqualities eqs = concat $ intersperse "\n" $ map showEquality eqs
+
+zeroIfBlank :: String -> String
+zeroIfBlank s | null s    = "0"
+              | otherwise = s
 
 showProblem :: (EqualityProblem,InequalityProblem) -> String
 showProblem (eqs,ineqs) = showEqualities eqs ++ "\n" ++ showInequalities ineqs
