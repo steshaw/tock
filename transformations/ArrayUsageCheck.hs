@@ -357,7 +357,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
     mapToArray :: (IArray a v, Num v, Num k, Ord k, Ix k) => Map.Map k v -> a k v
     mapToArray m = accumArray (+) 0 (0, highest') . Map.assocs $ m
       where
-        highest' = maximum $ Map.keys m
+        highest' = maximum $ 0 : Map.keys m
     
     -- | Given a pair of equation sets, makes all the equations in the lists be the length
     -- of the longest equation.  All missing elements are of course given value zero.
@@ -368,7 +368,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
         makeSize :: (Show i, Show e,IArray a e, Ix i, Enum i) => (i,i) -> e -> a i e -> a i e
         makeSize size def arr = array size [(i,arrayLookupWithDefault def arr i) | i <- [fst size .. snd size]]
       
-        highest = maximum $ concatMap indices $ eqs ++ ineqs
+        highest = maximum $ 0 : (concatMap indices $ eqs ++ ineqs)
     
 type CoeffIndex = Int
 type EqualityConstraintEquation = Array CoeffIndex Integer

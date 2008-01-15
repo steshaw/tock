@@ -175,7 +175,7 @@ makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
     ineqs' = map (\(Ineq e) -> e) ineqs
       
     ensure = accumArray (+) 0 (0, largestIndex)
-    largestIndex = maximum $ map (maximum . map fst) $ eqs' ++ ineqs'
+    largestIndex = maximum $ map (maximum . map fst) $ [[(0,0)]] ++ eqs' ++ ineqs'
 
 
 -- | Returns Nothing if there is definitely no solution, or (Just ineq) if 
