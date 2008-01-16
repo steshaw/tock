@@ -1,0 +1,29 @@
+-- This file tests simple array uses without replication
+-- Four unknown variables are available; x, y, z.
+-- Two arrays are automatically declared; a (size 10) and b (size 12)
+
+PROC p(INT x, y, z)
+  [10]INT a:
+  [12]INT b:
+  PAR
+%%
+:
+
+PROC m()
+  SKIP
+:
+
+%PASS Distinct constants
+    a[0] := 3
+    a[1] := 4
+    a[4] := 5
+
+%FAIL Identical constants
+    a[0] := 3
+    a[0] := 4
+
+%PASS Same constant, different array
+    a[0] := 3
+    b[0] := 4
+
+%

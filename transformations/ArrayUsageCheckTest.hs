@@ -32,6 +32,7 @@ import Test.QuickCheck hiding (check)
 import ArrayUsageCheck
 import qualified AST as A
 import PrettyShow
+import TestHarness
 import TestUtils hiding (m)
 import Utils
 
@@ -718,6 +719,7 @@ qcTests = (TestList
    testArrayCheck
   ,testIndexes
   ,testMakeEquations
+  ,automaticTest "testcases/automatic/usage-check-1.occ.test"
  ]
  ,qcOmegaEquality ++ qcOmegaPrune)
 
