@@ -54,17 +54,23 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
     
     checkIndexes :: Meta -> (String,[A.Expression]) -> PassM ()
     checkIndexes m (arrName, indexes)
-      = -- liftIO (putStr $ "Checking: " ++ show (arrName, indexes)) >> 
-        case makeEquations indexes (makeConstant emptyMeta 1000000) of
-          Left err -> dieP m $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
-          Right [] -> return () -- No problems to work with
-          Right problems ->
-            case mapMaybe (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
-              -- No solutions; no worries!
-              [] -> return ()
-              ((varMapping,vm):_) -> do sol <- formatSolution varMapping (getCounterEqs vm)
-                                        arrName' <- getRealName (A.Name undefined undefined arrName)
-                                        dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
+      = do userArrName <- getRealName (A.Name undefined undefined arrName)
+           arrType <- typeOfName (A.Name undefined undefined arrName)
+           (arrLength,checkable) <- case arrType of
+             A.Array (A.Dimension d:_) _ -> return (d,True)
+             A.Array (A.UnknownDimension:_) _ -> return (undefined, False)
+             _ -> dieP m $ "Cannot usage check array \"" ++ userArrName ++ "\"; found to be of type: " ++ show arrType
+           if not checkable
+             then return ()
+             else case makeEquations indexes (makeConstant emptyMeta arrLength) of
+               Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
+               Right [] -> return () -- No problems to work with
+               Right problems ->
+                 case mapMaybe (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
+                   -- No solutions; no worries!
+                   [] -> return ()
+                   ((varMapping,vm):_) -> do sol <- formatSolution varMapping (getCounterEqs vm)
+                                             dieP m $ "Overlapping indexes of array \"" ++ userArrName ++ "\" when: " ++ sol
     
     formatSolution :: VarMap -> Map.Map CoeffIndex Integer -> PassM String
     formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
