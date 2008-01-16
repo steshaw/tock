@@ -26,4 +26,52 @@ PROC m()
     a[0] := 3
     b[0] := 4
 
+%FAIL Variable and a constant
+    a[0] := 3
+    a[x] := 4
+
+%PASS Out of bounds variable overlap #1
+    a[x * 10] := 3
+    a[(y * 9) + 1] := 4
+
+%PASS Out of bounds variable overlap #2
+    a[x * 11] := 3
+    a[(y * 10) + 1] := 4
+
+%FAIL In bounds variable overlap
+    a[x * 9] := 3
+    a[(y * 8) + 1] := 4
+
+%PASS Overlap with constants, but in sequence
+    SEQ
+      a[0] := 4
+      a[0] := 5
+    a[1] := 6
+
+%FAIL Overlap with constants in nested PAR
+    PAR
+      a[0] := 4
+      a[0] := 5
+    a[1] := 6
+
+%FAIL Two variables
+    a[x] := 3
+    a[y] := 5
+
+%PASS Modulo variable (c.d.) and a constant, safe
+    a[x REM 3] := 3
+    a[3] := 4
+
+%FAIL Modulo variable (c.d.) and a constant, unsafe
+    a[x REM 3] := 3
+    a[2] := 4
+
+%FAIL Modulo variable (v.d.) and a constant
+    a[x REM y] := 3
+    a[0] := 4
+
+%FAIL Modulo variable (v.d.) and normal variable (unsafe)
+    a[x REM y] := 3
+    a[x + 1] := 4
+
 %
