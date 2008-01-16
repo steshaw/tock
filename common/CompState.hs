@@ -55,6 +55,7 @@ data CompState = CompState {
     csMode :: CompMode,
     csBackend :: CompBackend,
     csFrontend :: CompFrontend,
+    csUsageChecking :: Bool,
     csVerboseLevel :: Int,
     csOutputFile :: String,
 
@@ -88,6 +89,7 @@ emptyState = CompState {
     csMode = ModeFull,
     csBackend = BackendC,
     csFrontend = FrontendOccam,
+    csUsageChecking = False, -- For now!  TODO turn this on by default
     csVerboseLevel = 0,
     csOutputFile = "-",
 
