@@ -59,12 +59,12 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
           Left err -> dieP m $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
           Right [] -> return () -- No problems to work with
           Right problems ->
-            case mapM (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
+            case mapMaybe (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
               -- No solutions; no worries!
-              Nothing -> return ()
-              Just ((varMapping,vm):_) -> do sol <- formatSolution varMapping (getCounterEqs vm)
-                                             arrName' <- getRealName (A.Name undefined undefined arrName)
-                                             dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
+              [] -> return ()
+              ((varMapping,vm):_) -> do sol <- formatSolution varMapping (getCounterEqs vm)
+                                        arrName' <- getRealName (A.Name undefined undefined arrName)
+                                        dieP m $ "Overlapping indexes of array \"" ++ arrName' ++ "\" when: " ++ sol
     
     formatSolution :: VarMap -> Map.Map CoeffIndex Integer -> PassM String
     formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
