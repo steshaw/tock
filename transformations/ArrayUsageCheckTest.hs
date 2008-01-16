@@ -301,6 +301,34 @@ testMakeEquations = TestList
         ], intLiteral 7)
       
    -- TODO test REM + REM vs REM -- 27 combinations!
+   
+   -- Testing i REM j vs 3
+   ,test (100,[
+     -- i = 0:
+     (i_mod_j_mapping, [con 0 === con 3, i === con 0], leq [con 0, con 0, con 7] &&& leq [con 0, con 3, con 7])
+     -- i positive, j positive, i REM j = i:
+    ,(i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     -- i positive, j positive, i REM j = i + k:
+    ,(i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== (-1)**j] &&& 
+        leq [con 0, i ++ k, j ++ con (-1)] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
+     -- i positive, j negative, i REM j = i:
+    ,(i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, (-1)**j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     -- i positive, j negative, i REM j = i + k:
+    ,(i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== j] &&& 
+        leq [con 0, i ++ k, (-1)**j ++ con (-1)] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
+
+     -- i negative, j positive, i REM j = i:
+    ,(i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [(-1)**j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     -- i negative, j positive, i REM j = i + k:
+    ,(i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== j] &&& 
+        leq [(-1)**j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
+     -- i negative, j negative, i REM j = i:
+    ,(i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     -- i negative, j negative, i REM j = i + k:
+    ,(i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== (-1)**j] &&& 
+        leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
+   ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 7)
+
   ]
   where
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
@@ -313,6 +341,8 @@ testMakeEquations = TestList
     i_mapping = Map.singleton (Scale 1 $ variable "i") 1
     ij_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2)]
     i_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const n),2)]
+    i_mod_j_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
+      (Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Scale 1 $ variable "j"),3)]
     _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
       (Modulo (Set.fromList [(Scale 3 $ variable "i"),(Scale (-2) $ variable "j")]) (Set.singleton $ Const n),3)]
     -- i REM m, i + 1 REM n
