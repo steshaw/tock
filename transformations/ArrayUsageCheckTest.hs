@@ -338,17 +338,17 @@ testMakeEquations = TestList
   
     pairLatterTwo (a,b,c) = (a,(b,c))
   
-    i_mapping = Map.singleton (Scale 1 $ variable "i") 1
-    ij_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2)]
-    i_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const n),2)]
-    i_mod_j_mapping = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
-      (Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Scale 1 $ variable "j"),3)]
-    _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ variable "i",1),(Scale 1 $ variable "j",2),
-      (Modulo (Set.fromList [(Scale 3 $ variable "i"),(Scale (-2) $ variable "j")]) (Set.singleton $ Const n),3)]
+    i_mapping = Map.singleton (Scale 1 $ (variable "i",0)) 1
+    ij_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2)]
+    i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
+    i_mod_j_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
+      (Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Scale 1 $ (variable "j",0)),3)]
+    _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
+      (Modulo (Set.fromList [(Scale 3 $ (variable "i",0)),(Scale (-2) $ (variable "j",0))]) (Set.singleton $ Const n),3)]
     -- i REM m, i + 1 REM n
-    i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ variable "i",1)
-      ,(Modulo (Set.singleton $ Scale 1 $ variable "i") (Set.singleton $ Const m),2)
-      ,(Modulo (Set.fromList [Scale 1 $ variable "i", Const 1]) (Set.singleton $ Const n),3)
+    i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ (variable "i",0),1)
+      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const m),2)
+      ,(Modulo (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
      ]
      
     -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
