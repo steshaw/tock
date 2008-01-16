@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Preprocess occam code.
-module PreprocessOccam (preprocessOccamProgram) where
+module PreprocessOccam (preprocessOccamProgram, preprocessOccamSource) where
 
 import Control.Monad.State
 import Data.List
@@ -60,7 +60,14 @@ preprocessFile m filename
           origCS <- get
           modify (\cs -> cs { csCurrentFile = realFilename })
           s <- liftIO $ hGetContents handle
-          toks <- runLexer realFilename s
+          toks <- preprocessSource m realFilename s
+          modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
+          return toks
+          
+-- | Preprocesses source directly and returns its tokenised form ready for parsing.
+preprocessSource :: Meta -> String -> String -> PassM [Token]
+preprocessSource m realFilename s
+    =  do toks <- runLexer realFilename s
           veryDebug $ "{{{ lexer tokens"
           veryDebug $ pshow toks
           veryDebug $ "}}}"
@@ -72,7 +79,6 @@ preprocessFile m filename
           veryDebug $ "{{{ preprocessed tokens"
           veryDebug $ pshow toks''
           veryDebug $ "}}}"
-          modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks''
 
 -- | Preprocess a token stream.
@@ -158,3 +164,6 @@ preprocessOccamProgram filename
           veryDebug $ "}}}"
           return toks
 
+-- | Preprocesses occam source direct from the given String
+preprocessOccamSource :: String -> PassM [Token]
+preprocessOccamSource source = preprocessSource emptyMeta "<unknown>" source
