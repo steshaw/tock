@@ -255,10 +255,10 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                              
  
   
-    -- | Finds the index associated with a particular variable; either by finding an existing index
-    -- or allocating a new one.
-    varIndex :: FlattenedExp -> StateT (VarMap) (Either String) Int
-    varIndex (Scale _ (var@(A.Variable _ (A.Name _ _ varName)),vi))
+-- | Finds the index associated with a particular variable; either by finding an existing index
+-- or allocating a new one.
+varIndex :: FlattenedExp -> StateT (VarMap) (Either String) Int
+varIndex (Scale _ (var@(A.Variable _ (A.Name _ _ varName)),vi))
       = do st <- get
            let (st',ind) = case Map.lookup (Scale 1 (var,vi)) st of
                              Just val -> (st,val)
@@ -266,7 +266,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                                         (Map.insert (Scale 1 (var,vi)) newId st, newId)
            put st'
            return ind
-    varIndex mod@(Modulo top bottom)
+varIndex mod@(Modulo top bottom)
       = do st <- get
            let (st',ind) = case Map.lookup mod st of
                              Just val -> (st,val)
@@ -275,9 +275,9 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
            put st'
            return ind           
 
-    -- | Pairs all possible combinations of the list of equations.
-    pairEqsAndBounds :: [[(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
-    pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items 
+-- | Pairs all possible combinations of the list of equations.
+pairEqsAndBounds :: [[(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
+pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items 
       where
         pairEqs :: [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
           -> [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
@@ -289,12 +289,12 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
           -> (EqualityProblem, InequalityProblem)
         pairEqs' (ex,eqX,ineqX) (ey,eqY,ineqY) = ([arrayZipWith' 0 (-) ex ey] ++ eqX ++ eqY, ineqX ++ ineqY ++ getIneqs bounds [ex,ey])
     
-    -- | Given a (low,high) bound (typically: array dimensions), and a list of equations ex,
-    -- forms the possible inequalities: 
-    -- * ex >= low
-    -- * ex <= high
-    getIneqs :: (EqualityConstraintEquation, EqualityConstraintEquation) -> [EqualityConstraintEquation] -> [InequalityConstraintEquation]
-    getIneqs (low, high) = concatMap getLH
+-- | Given a (low,high) bound (typically: array dimensions), and a list of equations ex,
+-- forms the possible inequalities: 
+-- * ex >= low
+-- * ex <= high
+getIneqs :: (EqualityConstraintEquation, EqualityConstraintEquation) -> [EqualityConstraintEquation] -> [InequalityConstraintEquation]
+getIneqs (low, high) = concatMap getLH
       where
         -- eq >= low => eq - low >= 0
         -- eq <= high => high - eq >= 0
@@ -304,9 +304,9 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
         
         addEq = arrayZipWith' 0 (+)
     
-    -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
-    makeEquation :: [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-    makeEquation summedItems
+-- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
+makeEquation :: [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+makeEquation summedItems
       = do eqs <- process summedItems
            return $ map (transformTriple mapToArray (map mapToArray) (map mapToArray)) eqs
       where
@@ -414,17 +414,17 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
         add :: (Int,Integer) -> [(Map.Map Int Integer,a,b)] -> [(Map.Map Int Integer,a,b)]
         add (m,n) = map $ transformTriple (Map.insertWith (+) m n) id id
     
-    -- | Converts a map to an array.  Any missing elements in the middle of the bounds are given the value zero.
-    -- Could probably be moved to Utils
-    mapToArray :: (IArray a v, Num v, Num k, Ord k, Ix k) => Map.Map k v -> a k v
-    mapToArray m = accumArray (+) 0 (0, highest') . Map.assocs $ m
+-- | Converts a map to an array.  Any missing elements in the middle of the bounds are given the value zero.
+-- Could probably be moved to Utils
+mapToArray :: (IArray a v, Num v, Num k, Ord k, Ix k) => Map.Map k v -> a k v
+mapToArray m = accumArray (+) 0 (0, highest') . Map.assocs $ m
       where
         highest' = maximum $ 0 : Map.keys m
     
-    -- | Given a pair of equation sets, makes all the equations in the lists be the length
-    -- of the longest equation.  All missing elements are of course given value zero.
-    squareEquations :: ([Array CoeffIndex Integer],[Array CoeffIndex Integer]) -> ([Array CoeffIndex Integer],[Array CoeffIndex Integer])
-    squareEquations (eqs,ineqs) = uncurry transformPair (mkPair $ map $ makeSize (0,highest) 0) (eqs,ineqs)
+-- | Given a pair of equation sets, makes all the equations in the lists be the length
+-- of the longest equation.  All missing elements are of course given value zero.
+squareEquations :: ([Array CoeffIndex Integer],[Array CoeffIndex Integer]) -> ([Array CoeffIndex Integer],[Array CoeffIndex Integer])
+squareEquations (eqs,ineqs) = uncurry transformPair (mkPair $ map $ makeSize (0,highest) 0) (eqs,ineqs)
     
       where
         makeSize :: (Show i, Show e,IArray a e, Ix i, Enum i) => (i,i) -> e -> a i e -> a i e
