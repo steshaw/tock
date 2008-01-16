@@ -333,8 +333,55 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                       -- x + my <= 0
                       ,Map.map negate $ add_x_plus_my Map.empty])
                      ) m)
-                 _ -> throwError "TODO - Variable divisor for modulo"
-              
+                 _ ->
+                   do bottom'' <- case bottom' of
+                                    [(b,_,_)] -> return b
+                                    _ -> throwError "Modulo or divide not allowed in the divisor of Modulo"
+                      return $
+                        -- The zero option (x = 0, x REM y = 0):
+                        (map (transformTriple id (++ [top'']) id) m)
+                        -- The rest:
+                        ++ twinItems True True (top'', topIndex) bottom''
+                        ++ twinItems True False (top'', topIndex) bottom''
+                        ++ twinItems False True (top'', topIndex) bottom''
+                        ++ twinItems False False (top'', topIndex) bottom''
+          where
+            -- Each pair for modulo (variable divisor) depending on signs of x and y (in x REM y):
+            twinItems :: Bool -> Bool -> (Map.Map Int Integer,Int) -> Map.Map Int Integer ->
+              [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
+            twinItems xPos yPos (top,topIndex) bottom
+              = (map (transformTriple (zipMap plus top) id
+                  (++ [xEquation]
+                   ++ [xLowerBound False]
+                   ++ [xUpperBound False])) m)
+                ++ (map (transformTriple (zipMap plus top . add' (topIndex,1)) id
+                  (++ [xEquation]
+                   ++ [xLowerBound True]
+                   ++ [xUpperBound True]
+                   -- We want to add the bounds for a and y as follows:
+                   -- xPos yPos | Equation
+                   -- T    T    | -y - a  >= 0
+                   -- T    F    | y - a >= 0
+                   -- F    T    | a - y  >= 0
+                   -- F    F    | a + y  >= 0
+                   -- Therefore the sign of a is (not xPos), the sign of y is (not yPos)
+                   ++ [add' (topIndex,if xPos then -1 else 1) (signEq (not yPos) bottom)])) m)
+              where
+                -- x >= 1 or x <= -1  (rearranged: -1 + x >= 0 or -1 - x >= 0)
+                xEquation = add' (0,-1) (signEq xPos top)
+                -- We include (x [+ a] >= 0 or x [+ a] <= 0) even though they are redundant in some cases (addA = False):
+                xLowerBound addA = signEq xPos $ (if addA then add' (topIndex,1) else id) top
+                -- We want to add the bounds as follows:
+                -- xPos yPos | Equation
+                -- T    T    | y - 1 - x - a  >= 0
+                -- T    F    | -y - 1 - x - a >= 0
+                -- F    T    | x + a - 1 + y  >= 0
+                -- F    F    | x + a - y - 1  >= 0
+                -- Therefore the sign of y in the equation is yPos, the sign of x and a is (not xPos)
+                xUpperBound addA = add' (0,-1) $ zipMap plus (signEq (not xPos) ((if addA then add' (topIndex,1) else id) top)) (signEq yPos bottom)
+                
+                signEq sign eq = if sign then eq else Map.map negate eq
+            
         makeEquation' m (Divide top bottom) = throwError "TODO Divide"
         
         onlyConst :: [FlattenedExp] -> Maybe Integer
