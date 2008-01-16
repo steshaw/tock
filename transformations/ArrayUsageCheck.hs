@@ -57,6 +57,7 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
       = -- liftIO (putStr $ "Checking: " ++ show (arrName, indexes)) >> 
         case makeEquations indexes (makeConstant emptyMeta 1000000) of
           Left err -> die $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
+          Right [] -> return () -- No problems to work with
           Right problems ->
             case mapM (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
               -- No solutions; no worries!
