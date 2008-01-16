@@ -243,26 +243,26 @@ testMakeEquations :: Test
 testMakeEquations = TestList
   [
     test (0,[(Map.empty,[con 0 === con 1],leq [con 0,con 1,con 7] &&& leq [con 0,con 2,con 7])],
-      [intLiteral 1, intLiteral 2],intLiteral 7)
+      [intLiteral 1, intLiteral 2],intLiteral 8)
      
    ,test (1,[(i_mapping,[i === con 3],leq [con 0,con 3,con 7] &&& leq [con 0,i,con 7])],
-      [exprVariable "i",intLiteral 3],intLiteral 7)
+      [exprVariable "i",intLiteral 3],intLiteral 8)
    
    ,test (2,[(ij_mapping,[i === j],leq [con 0,i,con 7] &&& leq [con 0,j,con 7])],
-      [exprVariable "i",exprVariable "j"],intLiteral 7)
+      [exprVariable "i",exprVariable "j"],intLiteral 8)
 
    ,test (3,[(ij_mapping,[i ++ con 3 === j],leq [con 0,i ++ con 3,con 7] &&& leq [con 0,j,con 7])],
-      [buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 3),exprVariable "j"],intLiteral 7)
+      [buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 3),exprVariable "j"],intLiteral 8)
      
    ,test (4,[(ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7])],
-      [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 7)
+      [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 8)
    
    -- Testing (i REM 3) vs (4)
    ,test (10,[
         (i_mod_mapping 3,[con 0 === con 4, i === con 0], leq [con 0,con 0,con 7] &&& leq [con 0,con 4,con 7])
        ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i >== con 1] &&& [j <== con 0] &&& leq [con 0, i ++ 3 ** j, con 2])
        ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i <== con (-1)] &&& [j >== con 0] &&& leq [con (-2), i ++ 3 ** j, con 0])
-      ],[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 7)
+      ],[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 8)
       
    -- Testing ((3*i - 2*j REM 11) - 5) vs (i + j)
    -- Expressed as ((2 * (i - j)) + i) REM 11 - 5, and i + j
@@ -283,7 +283,7 @@ testMakeEquations = TestList
                A.Rem (Lit $ intLiteral 11)
               )
            A.Subtr (Lit $ intLiteral 5)
-        ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 7)
+        ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 8)
    
    -- Testing i REM 2 vs (i + 1) REM 4
    ,test (12,combine (i_ip1_mod_mapping 2 4)
@@ -298,7 +298,7 @@ testMakeEquations = TestList
       ,[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_neg,rr_ip1_neg]
      ], [buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 2)
         ,buildExpr $ Dy (Dy (Var "i") A.Add (Lit $ intLiteral 1)) A.Rem (Lit $ intLiteral 4)
-        ], intLiteral 7)
+        ], intLiteral 8)
       
    -- TODO test REM + REM vs REM -- 27 combinations!
    
@@ -327,7 +327,7 @@ testMakeEquations = TestList
      -- i negative, j negative, i REM j = i + k:
     ,(i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== (-1)**j] &&& 
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
-   ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 7)
+   ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
   ]
   where

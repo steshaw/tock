@@ -192,7 +192,7 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                                           [(h,_,_)] -> return h
                                           _ -> throwError "Multiple possible upper bounds not supported"
                               return (eqs,high'')
-                        return (s,v,(amap (const 0) h, h))
+                        return (s,v,(amap (const 0) h, addConstant (-1) h))
                               
     -- Note that in all these functions, the divisor should always be positive!
   
