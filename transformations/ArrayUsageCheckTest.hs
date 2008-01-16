@@ -31,6 +31,7 @@ import Test.QuickCheck hiding (check)
 
 import ArrayUsageCheck
 import qualified AST as A
+import Omega
 import TestHarness
 import TestUtils hiding (m)
 import Utils
