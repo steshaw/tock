@@ -90,7 +90,9 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
     showFlattenedExp (Modulo top bottom)
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
-           return $ "(" ++ top' ++ " REM " ++ bottom' ++ ")"
+           case onlyConst (Set.toList bottom) of
+             Just _  -> return $ "(" ++ top' ++ " / " ++ bottom' ++ ")"
+             Nothing -> return $ "((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")"
     showFlattenedExp (Divide top bottom)
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
@@ -126,6 +128,12 @@ instance Ord FlattenedExp where
 customVarCompare :: A.Variable -> A.Variable -> Ordering
 customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
 -- TODO the rest
+
+onlyConst :: [FlattenedExp] -> Maybe Integer
+onlyConst [] = Just 0
+onlyConst ((Const n):es) = liftM2 (+) (return n) $ onlyConst es
+onlyConst _ = Nothing
+
 
 makeExpSet :: [FlattenedExp] -> Either String (Set.Set FlattenedExp)
 makeExpSet = foldM makeExpSet' Set.empty
@@ -388,11 +396,6 @@ makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqI
                 signEq sign eq = if sign then eq else Map.map negate eq
             
         makeEquation' m (Divide top bottom) = throwError "TODO Divide"
-        
-        onlyConst :: [FlattenedExp] -> Maybe Integer
-        onlyConst [] = Just 0
-        onlyConst ((Const n):es) = liftM2 (+) (return n) $ onlyConst es
-        onlyConst _ = Nothing
         
         empty :: [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         empty = [(Map.empty,[],[])]
