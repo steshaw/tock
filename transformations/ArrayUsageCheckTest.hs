@@ -714,14 +714,16 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
     
 qcTests :: IO (Test, [QuickCheckTest])
 qcTests
-  = do usageCheckTest <- automaticTest "testcases/automatic/usage-check-1.occ.test"
+  = do usageCheckTest1 <- automaticTest "testcases/automatic/usage-check-1.occ.test"
+       usageCheckTest2 <- automaticTest "testcases/automatic/usage-check-2.occ.test"
        return
         (TestList
         [
           testArrayCheck
          ,testIndexes
          ,testMakeEquations
-         ,usageCheckTest
+         ,usageCheckTest1
+         ,usageCheckTest2
         ]
         ,qcOmegaEquality ++ qcOmegaPrune)
 

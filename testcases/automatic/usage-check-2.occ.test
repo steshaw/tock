@@ -1,0 +1,47 @@
+-- This file tests array uses with replication
+-- Four unknown variables are available; x, y, z.
+-- Two arrays are automatically declared; a (size 10) and b (size 12)
+-- The automatic replication is i = [0..8]
+
+PROC p(INT x, y, z)
+  [10]INT a:
+  [20]INT b:
+  PAR i = 0 FOR 9
+%%
+:
+
+PROC m()
+  SKIP
+:
+
+%FAIL Constant in replication
+    a[0] := 3
+
+%PASS Replicated index
+    a[i] := 2
+    
+%FAIL Replicated index, twice
+    a[i] := 2
+    a[i] := 2
+
+%PASS Replicated index plus one
+    a[i + 1] := 2
+
+%FAIL Replicated index, modulo low number
+    a[i REM 8] := 3
+
+%PASS Replicated index, modulo ok number
+    a[i REM 9] := 3
+
+%PASS Replicated index plus a few, modulo ok number
+    a[(i + 4) REM 9] := 3
+
+%PASS Safe nested replication
+    PAR j = 0 FOR 2
+      b[(j * 10) + i] := 3
+      
+%PASS Unsafe nested replication
+    PAR j = 0 FOR 2
+      b[(j * 8) + i] := 3
+
+%
