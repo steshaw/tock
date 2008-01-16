@@ -230,6 +230,12 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
     combine = (++)
 flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
 
+squareAndPair ::
+  VarMap ->
+  [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]] ->
+  (EqualityConstraintEquation, EqualityConstraintEquation) ->
+  [(VarMap, (EqualityProblem, InequalityProblem))] 
+squareAndPair s v lh = [(s,squareEquations eqIneq) | eqIneq <- pairEqsAndBounds v lh]
 
 -- | Given a list of expressions, an expression representing the upper array bound, returns either an error
 -- (because the expressions can't be handled, typically) or a set of equalities, inequalities and mapping from
@@ -237,7 +243,7 @@ flatten other = throwError ("Unhandleable item found in expression: " ++ show ot
 -- TODO probably want to take this into the PassM monad at some point, to use the Meta in the error message
 -- TODO allow "background knowledge" in the form of other equalities and inequalities
 makeEquations :: [A.Expression] -> A.Expression -> Either String [(VarMap, (EqualityProblem, InequalityProblem))]
-makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqIneq) | eqIneq <- pairEqsAndBounds v lh])
+makeEquations es high = makeEquations' >>* uncurry3 squareAndPair
   where
   
     -- | The body of makeEquations; returns the variable mapping, the list of (nx,ex) pairs and a pair
