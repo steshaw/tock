@@ -73,6 +73,7 @@ tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTe
 tocktest_SOURCES += transformations/ArrayUsageCheckTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
 tocktest_SOURCES += common/TestUtils.hs common/CommonTest.hs common/FlowGraphTest.hs
+tocktest_SOURCES += common/TestHarness.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
 tocktest_SOURCES += TestMain.hs
 
