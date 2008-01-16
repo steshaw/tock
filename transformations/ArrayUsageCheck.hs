@@ -180,13 +180,6 @@ type VarMap = Map.Map FlattenedExp Int
 makeEquations :: [A.Expression] -> A.Expression -> Either String [(VarMap, (EqualityProblem, InequalityProblem))]
 makeEquations es high = makeEquations' >>* (\(s,v,lh) -> [(s,squareEquations eqIneq) | eqIneq <- pairEqsAndBounds v lh])
   where
-    {-
-    makeProblem :: Map.Map String Int
-      -> [(EqualityConstraintEquation,EqualityProblem, InequalityProblem)]
-      -> (EqualityConstraintEquation,EqualityConstraintEquation)
-      -> [(Map.Map String Int, (EqualityProblem, InequalityProblem))]
-    makeProblem varMap problems lowHigh = [(varMap, (eq,ineq)) | (eq,ineq) <- pairEqsAndBounds problems lowHigh]
-    -}
   
     -- | The body of makeEquations; returns the variable mapping, the list of (nx,ex) pairs and a pair
     -- representing the upper and lower bounds of the array (inclusive).    
