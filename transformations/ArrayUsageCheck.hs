@@ -753,6 +753,10 @@ numVariables ineq = length (nub $ concatMap findVars ineq)
   where
     findVars = map fst . filter ((/= 0) . snd) . tail . assocs
 
+-- | Adds a constant value to an equation:
+addConstant :: Integer -> Array Int Integer -> Array Int Integer
+addConstant x e = e // [(0,(e ! 0) + x)]
+
 -- | Eliminating the inequalities works as follows:
 --
 -- Rearrange (and normalise) equations for a particular variable x_k to eliminate so that 
@@ -865,10 +869,6 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
         
         pairIneqsDark :: (Integer, InequalityConstraintEquation) -> (Integer, InequalityConstraintEquation) -> InequalityConstraintEquation
         pairIneqsDark (x,ex) (y,ey) = addConstant (-1*(y-1)*(x-1)) (arrayZipWith (+) (amap (* y) ex) (amap (* x) ey))
-
-    -- Adds a constant value to an equation:
-    addConstant :: Integer -> InequalityConstraintEquation -> InequalityConstraintEquation
-    addConstant x e = e // [(0,(e ! 0) + x)]
 
     -- Checks if eliminating the specified variable would yield an exact projection (real shadow = dark shadow):
     -- This will be the case if the coefficient on all lower bounds or on all upper bounds is 1.  We check
