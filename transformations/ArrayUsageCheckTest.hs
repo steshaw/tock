@@ -496,8 +496,9 @@ translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapCol
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
 assertEquivalentProblems :: String -> [(VarMap, (EqualityProblem, InequalityProblem))] -> [(VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
-assertEquivalentProblems title exp act = assertEqual (title ++ " list sizes") (length exp) (length act)
-  >> ((uncurry $ assertEqualCustomShow (showListCustom $ showMaybe showProblem) title) $ unzip $ map (uncurry transform) $ zip exp act)
+assertEquivalentProblems title exp act
+  = ((uncurry $ assertEqualCustomShow (showPairCustom show $ showListCustom $ showMaybe showProblem) title)
+      $ pairPairs (length exp, length act) $ unzip $ map (uncurry transform) $ zip exp act)
   where
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
     	               ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
@@ -507,6 +508,8 @@ assertEquivalentProblems title exp act = assertEqual (title ++ " list sizes") (l
         sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
   
         translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
+
+    pairPairs (xa,ya) (xb,yb) = ((xa,xb), (ya,yb))
 
 checkRight :: Show a => Either a b -> IO b
 checkRight (Left err) = assertFailure ("Not Right: " ++ show err) >> return undefined

@@ -272,3 +272,6 @@ showMaybe _ Nothing = "Nothing"
 
 showListCustom :: (a -> String) -> [a] -> String
 showListCustom showFunc list = "[" ++ concat (intersperse "," (map showFunc list)) ++ "]"
+
+showPairCustom :: (a -> String) -> (b -> String) -> (a,b) -> String
+showPairCustom showA showB (a,b) = "(" ++ showA a ++ "," ++ showB b ++ ")"
