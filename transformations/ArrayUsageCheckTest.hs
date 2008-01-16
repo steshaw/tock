@@ -31,7 +31,6 @@ import Test.QuickCheck hiding (check)
 
 import ArrayUsageCheck
 import qualified AST as A
-import PrettyShow
 import TestHarness
 import TestUtils hiding (m)
 import Utils
@@ -713,15 +712,18 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
         result = undefined -- TODO replace solveAndPrune: solveProblem [] inp
     -}
     
-qcTests :: (Test, [QuickCheckTest])
-qcTests = (TestList
- [
-   testArrayCheck
-  ,testIndexes
-  ,testMakeEquations
-  ,automaticTest "testcases/automatic/usage-check-1.occ.test"
- ]
- ,qcOmegaEquality ++ qcOmegaPrune)
+qcTests :: IO (Test, [QuickCheckTest])
+qcTests
+  = do usageCheckTest <- automaticTest "testcases/automatic/usage-check-1.occ.test"
+       return
+        (TestList
+        [
+          testArrayCheck
+         ,testIndexes
+         ,testMakeEquations
+         ,usageCheckTest
+        ]
+        ,qcOmegaEquality ++ qcOmegaPrune)
 
 
 

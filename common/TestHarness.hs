@@ -46,8 +46,8 @@ import PassList
 import PreprocessOccam
 import Utils
 
-automaticTest :: FilePath -> Test
-automaticTest fileName = TestCase $ readFile fileName >>= performTest
+automaticTest :: FilePath -> IO Test
+automaticTest fileName = readFile fileName >>* performTest
 
 -- Bit of a hard-hack, until usage-checking is on by default:
 defaultState :: CompState
@@ -63,20 +63,21 @@ testOccam source = do result <- evalStateT (runErrorT compilation) defaultState
   where
     compilation = preprocessOccamSource source >>= parseOccamProgram >>= runPasses (getPassList defaultState)
 -- | Given a file's contents, tests it
-performTest :: String -> Assertion
+performTest :: String -> Test
 performTest fileName
   = case parseTestFile fileName of
-      Left err -> assertFailure $ "Error processing file \"" ++ fileName ++ "\": " ++ err
-      Right (prologue,tests) -> mapM_ performTest' (substitute prologue tests)
+      Left err -> TestCase $ assertFailure $ "Error processing file \"" ++ fileName ++ "\": " ++ err
+      Right (prologue,tests) -> TestList $ map performTest' (substitute prologue tests)
       
   where
     -- Substitutes each substitution into the prologue
     substitute :: String -> [(Bool, String, String)] -> [(Bool, String, String)]
     substitute prologue = map (\(a,b,subst) -> (a,b,subRegex (mkRegex "%%") prologue subst))
     
-    performTest' :: (Bool, String, String) -> Assertion
+    performTest' :: (Bool, String, String) -> Test
     performTest' (expPass, testName, testText)
-      = do result <- testOccam testText
+      = TestCase $ 
+        do result <- testOccam testText
            case result of
              Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ err) else return ()
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")

@@ -39,6 +39,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * "RainUsageCheckTest"
 module TestMain () where
 
+import Control.Monad
 import System.Console.GetOpt
 import System.Environment
 import Test.HUnit
@@ -68,9 +69,10 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
                        ([Left unknownLevel], [], []) -> err ("Unknown level: " ++ unknownLevel)
                        (_,_,errs) -> err (concat errs)
 
-          runTestTT hunitTests
+          hunitTests >>= runTestTT
           case qcLevel of
-            Just level -> sequence_ $ applyAll level qcTests
+            -- Monadic mess!
+            Just level -> join $ liftM sequence_ $ (liftM $ applyAll level) qcTests
             Nothing -> return ()
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
@@ -87,14 +89,16 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
                      "extensive" -> Right $ Just QC_Extensive
                      unknown -> Left unknown
 
-    hunitTests = TestList $ map fst tests
-    qcTests = concatMap snd tests
+    hunitTests :: IO Test
+    hunitTests = sequence tests >>* (TestList . fst . unzip)
+    qcTests :: IO [QuickCheckTest]
+    qcTests = concatMapM (liftM snd) tests
 
     tests = [
               ArrayUsageCheckTest.qcTests
               ,noqc BackendPassesTest.tests
               ,noqc CommonTest.tests
-              ,FlowGraphTest.qcTests
+              ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
               ,noqc ParseRainTest.tests
               ,noqc PassTest.tests
@@ -103,5 +107,6 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
               ,noqc RainUsageCheckTest.tests
             ]
 
-    noqc :: Test -> (Test, [QuickCheckTest])
-    noqc t = (t,[])
+    noqc :: Test -> IO (Test, [QuickCheckTest])
+    noqc t = return (t,[])
+
