@@ -237,6 +237,12 @@ squareAndPair ::
   [(VarMap, (EqualityProblem, InequalityProblem))] 
 squareAndPair s v lh = [(s,squareEquations eqIneq) | eqIneq <- pairEqsAndBounds v lh]
 
+
+-- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
+getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
+getSingleItem _ [(item,_,_)] = lift $ return item
+getSingleItem err _ = lift $ throwError err
+
 -- | Given a list of expressions, an expression representing the upper array bound, returns either an error
 -- (because the expressions can't be handled, typically) or a set of equalities, inequalities and mapping from
 -- (unique, munged) variable name to variable-index in the equations.
@@ -252,11 +258,8 @@ makeEquations es high = makeEquations' >>* uncurry3 squareAndPair
     makeEquations' = do ((v,h),s) <- (flip runStateT) Map.empty $
                            do flattened <- lift (mapM flatten es)
                               eqs <- mapM makeEquation flattened
-                              high' <- (lift $ flatten high) >>= makeEquation 
-                              high'' <- case high' of
-                                          [(h,_,_)] -> return h
-                                          _ -> throwError "Multiple possible upper bounds not supported"
-                              return (eqs,high'')
+                              high' <- (lift $ flatten high) >>= makeEquation >>= getSingleItem "Multiple possible upper bounds not supported"
+                              return (eqs,high')
                         return (s,v,(amap (const 0) h, addConstant (-1) h))
                              
  
@@ -323,9 +326,7 @@ makeEquation summedItems
         makeEquation' m sc@(Scale n v) = varIndex sc >>* (\ind -> add (ind, n) m)
         makeEquation' m mod@(Modulo top bottom)
           = do top' <- process $ Set.toList top
-               top'' <- case top' of
-                          [(t,_,_)] -> return t
-                          _ -> throwError "Modulo or divide not allowed in the numerator of Modulo"
+               top'' <- getSingleItem "Modulo or divide not allowed in the numerator of Modulo" top'
                bottom' <- process $ Set.toList bottom
                topIndex <- varIndex mod
                case onlyConst (Set.toList bottom) of
@@ -358,9 +359,7 @@ makeEquation summedItems
                       ,Map.map negate $ add_x_plus_my Map.empty])
                      ) m)
                  _ ->
-                   do bottom'' <- case bottom' of
-                                    [(b,_,_)] -> return b
-                                    _ -> throwError "Modulo or divide not allowed in the divisor of Modulo"
+                   do bottom'' <- getSingleItem "Modulo or divide not allowed in the divisor of Modulo" bottom'
                       return $
                         -- The zero option (x = 0, x REM y = 0):
                         (map (transformTriple id (++ [top'']) id) m)
