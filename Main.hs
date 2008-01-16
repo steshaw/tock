@@ -45,23 +45,9 @@ import Metadata
 import ParseOccam
 import ParseRain
 import Pass
+import PassList
 import PreprocessOccam
 import PrettyShow
-import RainPasses
-import SimplifyComms
-import SimplifyExprs
-import SimplifyProcs
-import SimplifyTypes
-import Unnest
-
-commonPasses :: [(String, Pass)]
-commonPasses =
-  [ ("Simplify types", simplifyTypes)
-  , ("Simplify expressions", simplifyExprs)
-  , ("Simplify processes", simplifyProcs)
-  , ("Flatten nested declarations", unnest)
-  , ("Simplify communications", simplifyComms)
-  ]
 
 type OptFunc = CompState -> IO CompState
 
@@ -281,15 +267,7 @@ compile mode fn outHandle
             ModeCompile ->
               do progress "Passes:"
 
-                 let passes
-                       = concat [ if csFrontend optsPS == FrontendRain
-                                    then rainPasses
-                                    else []
-                                , commonPasses
-                                , case csBackend optsPS of
-                                    BackendC -> genCPasses
-                                    BackendCPPCSP -> genCPPCSPPasses
-                                ]
+                 let passes = getPassList optsPS
                  ast2 <- runPasses passes ast1
 
                  debug "{{{ Generate code"
