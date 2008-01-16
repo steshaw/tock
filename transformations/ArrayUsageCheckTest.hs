@@ -330,6 +330,19 @@ testMakeEquations = TestList
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
+   ,testRep (200,both_rep_i ([i === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7]),
+     [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
+     
+   ,testRep (201,both_rep_i ([i === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+     ++ [(rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])],
+     [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
+
+   ,testRep (202,[
+        (rep_i_mapping,[i === j ++ con 1],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+       ,(rep_i_mapping,[i ++ con 1 === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
+       ++ replicate 2 (rep_i_mapping,[i === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+     ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
+
   ]
   where
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
@@ -337,7 +350,16 @@ testMakeEquations = TestList
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations exprs upperBound)
   
+    testRep :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
+    testRep (ind, problems, reps, exprs, upperBound) = 
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
+        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems)
+          =<< (checkRight $ makeReplicatedEquations reps exprs upperBound)
+  
     pairLatterTwo (a,b,c) = (a,(b,c))
+
+    joinMapping :: [VarMap] -> ([HandyEq],[HandyIneq]) -> [(VarMap,[HandyEq],[HandyIneq])]
+    joinMapping vms (eq,ineq) = map (\vm -> (vm,eq,ineq)) vms
   
     i_mapping = Map.singleton (Scale 1 $ (variable "i",0)) 1
     ij_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2)]
@@ -351,7 +373,12 @@ testMakeEquations = TestList
       ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const m),2)
       ,(Modulo (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
      ]
-     
+
+    rep_i_mapping = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)]
+    rep_i_mapping' = Map.fromList [((Scale 1 (variable "i",0)),2), ((Scale 1 (variable "i",1)),1)]
+
+    both_rep_i = joinMapping [rep_i_mapping, rep_i_mapping']
+
     -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
     rr_i_zero = ([i === con 0], leq [con 0,con 0,con 7])
     rr_ip1_zero = ([i ++ con 1 === con 0], leq [con 0,con 0,con 7])

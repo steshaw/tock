@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
+module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, makeReplicatedEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -175,7 +175,81 @@ makeExpSet = foldM makeExpSet' Set.empty
 
 type VarMap = Map.Map FlattenedExp Int
 
+-- | Given a list of (replicated variable, start, count), a list of parallel array accesses, the length of the array,
+-- returns the problems
+makeReplicatedEquations :: [(A.Variable, A.Expression, A.Expression)] -> [A.Expression] -> A.Expression ->
+  Either String [(VarMap, (EqualityProblem, InequalityProblem))]
+makeReplicatedEquations repVars accesses bound
+  = do flattenedAccesses <- mapM flatten accesses
+       let flattenedAccessesMirror = concatMap (\(v,_,_) -> mapMaybe (setIndexVar v 1) flattenedAccesses) repVars
+       -- TODO only compare with a mirror that involves the same replicated variable (TODO or not?)
+       bound' <- flatten bound
+       ((v,h,repVars'),s) <- (flip runStateT) Map.empty $
+          do accesses' <- liftM2 (++) (mapM makeEquation flattenedAccesses) (mapM makeEquation flattenedAccessesMirror)
+             high <- makeEquation bound' >>= getSingleItem "Multiple possible upper bounds not supported"
+             repVars' <- mapM (\(v,s,c) ->
+               do s' <- lift (flatten s) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication start"
+                  c' <- lift (flatten c) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication count"
+                  return (v,s',c')) repVars
+             return (accesses',high, repVars')
+       repBounds <- makeRepBound repVars' s
+       return $ concatMap (\repBound -> squareAndPair repBound s v (amap (const 0) h, addConstant (-1) h)) repBounds
 
+  where
+    setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> Maybe [FlattenedExp]
+    setIndexVar tv ti es = case mapAccumL (setIndexVar' tv ti) False es of
+      (True, es') -> Just es'
+      _ -> Nothing
+  
+    setIndexVar' :: A.Variable -> Int -> Bool -> FlattenedExp -> (Bool,FlattenedExp)
+    setIndexVar' tv ti b s@(Scale n (v,_))
+      | EQ == customVarCompare tv v = (True,Scale n (v,ti))
+      | otherwise = (b,s)
+    setIndexVar' _ _ b e = (b,e)
+
+    makeRepBound ::
+      [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
+      VarMap ->
+      Either String [InequalityProblem]
+    makeRepBound repVars vm = doPairs $ map (makeBound vm) repVars
+      where
+        doPairs :: Monad m => [m (InequalityProblem,InequalityProblem)] -> m [InequalityProblem]
+        doPairs prs = do prs' <- sequence prs
+                         return $ doPairs' prs'
+          where
+            doPairs' :: [([a],[a])] -> [[a]]
+            doPairs' [] = [[]]
+            doPairs' ((a,b):abs) = map (a ++) (doPairs' abs) ++ map (b ++) (doPairs' abs)
+      
+        makeBound :: VarMap -> (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation) -> Either String (InequalityProblem,InequalityProblem)
+        makeBound vm (repVar, start, count)
+          = do plain <- findIndex repVar 0
+               prime <- findIndex repVar 1
+               return
+                (
+                 -- start <= i  gives i - start >= 0
+                 [add (plain,1) (amap negate start)
+                 -- i <= j - 1 gives j - 1 - i >= 0
+                 ,simpleArray [(0,-1),(prime,1),(plain,-1)]
+                 -- j <= start + count - 1 gives start + count - j - 1 >= 0
+                 ,add (0,-1) $ add (prime, -1) $ arrayZipWith (+) start count]
+                ,
+                 -- start <= j  gives j - start >= 0
+                 [add (prime,1) (amap negate start)
+                 -- j <= i - 1 gives i - 1 - j >= 0
+                 ,simpleArray [(0,-1),(plain,1),(prime,-1)]
+                 -- i <= start + count - 1 gives start + count - i - 1 >= 0
+                 ,add (0,-1) $ add (plain, -1) $ arrayZipWith (+) start count]
+                )
+          where
+            findIndex v n = Map.lookup (Scale 1 (v,n)) vm
+
+            add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
+            add (ind,val) a = (makeSize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
+              where
+                newMin = minimum [fst $ bounds a, ind]
+                newMax = maximum [snd $ bounds a, ind]
+            
 -- Note that in all these functions, the divisor should always be positive!
   
 -- Takes an expression, and transforms it into an expression like:
