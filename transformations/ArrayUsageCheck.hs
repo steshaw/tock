@@ -56,7 +56,7 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
     checkIndexes m (arrName, indexes)
       = -- liftIO (putStr $ "Checking: " ++ show (arrName, indexes)) >> 
         case makeEquations indexes (makeConstant emptyMeta 1000000) of
-          Left err -> die $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
+          Left err -> dieP m $ "Could not work with array indexes for array \"" ++ arrName ++ "\": " ++ err
           Right [] -> return () -- No problems to work with
           Right problems ->
             case mapM (\(vm,p) -> seqPair (return vm,uncurry solveProblem p)) problems of
@@ -81,8 +81,12 @@ checkArrayUsage tree = (mapM_ checkPar $ listify (const True) tree) >> return tr
     
     showFlattenedExp :: FlattenedExp -> PassM String
     showFlattenedExp (Const n) = return $ show n
-    showFlattenedExp (Scale n (A.Variable _ vn)) = do vn' <- getRealName vn
-                                                      return $ (show n) ++ "*" ++ vn'
+    showFlattenedExp (Scale n (A.Variable _ vn))
+      = do vn' <- getRealName vn
+           case n of
+             1  -> return vn'
+             -1 -> return $ "-" ++ vn'
+             _  -> return $ (show n) ++ "*" ++ vn'
     showFlattenedExp (Modulo top bottom)
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
