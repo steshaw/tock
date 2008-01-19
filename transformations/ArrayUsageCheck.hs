@@ -184,16 +184,18 @@ makeReplicatedEquations repVars accesses bound
        let flattenedAccessesMirror = concatMap (\(v,_,_) -> mapMaybe (setIndexVar v 1) flattenedAccesses) repVars
        -- TODO only compare with a mirror that involves the same replicated variable (TODO or not?)
        bound' <- flatten bound
-       ((v,h,repVars'),s) <- (flip runStateT) Map.empty $
+       ((v,h,repVars',repVarIndexes),s) <- (flip runStateT) Map.empty $
           do accesses' <- liftM2 (++) (mapM makeEquation flattenedAccesses) (mapM makeEquation flattenedAccessesMirror)
              high <- makeEquation bound' >>= getSingleItem "Multiple possible upper bounds not supported"
              repVars' <- mapM (\(v,s,c) ->
                do s' <- lift (flatten s) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication start"
                   c' <- lift (flatten c) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication count"
                   return (v,s',c')) repVars
-             return (accesses',high, repVars')
+             repVarIndexes <- mapM (\(v,_,_) -> seqPair (varIndex (Scale 1 (v,0)), varIndex (Scale 1 (v,1)))) repVars
+             return (accesses',high, repVars',repVarIndexes)
        repBounds <- makeRepBound repVars' s
-       return $ concatMap (\repBound -> squareAndPair repBound s v (amap (const 0) h, addConstant (-1) h)) repBounds
+       --return $ concatMap (\repBound -> squareAndPair repBound s v (amap (const 0) h, addConstant (-1) h)) repBounds
+       return $ squareAndPair (map (\(pl,pr) -> (pl,pr,undefined,undefined)) repVarIndexes) s v (amap (const 0) h, addConstant (-1) h)
 
   where
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> Maybe [FlattenedExp]
@@ -305,14 +307,40 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
 flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
 
 squareAndPair ::
-  InequalityProblem ->
+  [(CoeffIndex, CoeffIndex, InequalityConstraintEquation, InequalityConstraintEquation)] ->
   VarMap ->
   [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]] ->
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [(VarMap, (EqualityProblem, InequalityProblem))] 
-squareAndPair extra s v lh = [(s,squareEquations (eq,ineq ++ extra)) | (eq,ineq) <- pairEqsAndBounds v lh]
-
-
+squareAndPair extra s v lh = [(s,squareEquations (eq,ineq ++ ex)) | (eq,ineq) <- pairEqsAndBounds v lh, and (map (\(pl,pr,_,_) -> primeImpliesPlain (eq,ineq) (pl,pr)) extra), ex <- if extra == [] then [[]] else productLists (applyAll (eq,ineq) (map addExtra extra))]
+  where
+    productLists :: [[[a]]] -> [[a]]
+    productLists [] = [[]]
+    productLists (xs:xss) = [x ++ ys  | x <- xs, ys <- productLists xss]
+    
+    itemPresent :: CoeffIndex -> [Array CoeffIndex Integer] -> Bool
+    itemPresent x = any (\a -> arrayLookupWithDefault 0 a x /= 0)
+    
+    primeImpliesPlain :: (EqualityProblem,InequalityProblem) -> (CoeffIndex,CoeffIndex) -> Bool
+    primeImpliesPlain (eq,ineq) (plain,prime) =
+      if itemPresent prime (eq ++ ineq)
+        -- There are primes, check all the plains are present:
+        then itemPresent plain (eq ++ ineq)
+        -- No prime, therefore fine:
+        else True
+    
+    addExtra :: (CoeffIndex, CoeffIndex, a, b) -> (EqualityProblem,InequalityProblem) -> [InequalityProblem]
+    addExtra (plain,prime,_,_) (eq, ineq)
+      | itemPresent plain (eq ++ ineq) && itemPresent prime (eq ++ ineq) = bothWays
+      | otherwise = [[]] -- One item, empty.  Note that this is not the empty list (no items), which would cause problems above
+      where
+        bothWays :: [InequalityProblem]
+        bothWays = map (\elems -> [simpleArray elems])
+          -- plain >= prime + 1  (plain - prime - 1 >= 0)
+          [[(plain,1), (prime,-1), (0, -1)]
+          -- prime >= plain + 1  (prime - plain - 1 >= 0)
+          ,[(prime,1), (plain,-1), (0, -1)]]
+    
 -- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
 getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
 getSingleItem _ [(item,_,_)] = lift $ return item
