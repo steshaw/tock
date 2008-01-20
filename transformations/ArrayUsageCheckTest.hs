@@ -330,9 +330,9 @@ testMakeEquations = TestList
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
-   ,testRep (200,both_rep_i ([i === j],
+   ,testRep (200,[(rep_i_mapping, [i === j],
        leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&& [i <== j ++ con (-1)]
-       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7]),
+       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
      [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
      
    ,testRep (201,[(rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])]

@@ -335,15 +335,11 @@ flatten other = throwError ("Unhandleable item found in expression: " ++ show ot
 --      last two are in effect identical.  Therefore we drop the i' prime
 --      version, because it has i' but not i.  In contrast, the first item
 --      (i == i') is retained because it features both i and i'.
---   2. For every equation that features both i and i', it adds two possible
---      versions.  One with the inequality "i <= i' - 1", the other with the
---      inequality "i' <= i - 1".  The inequalities make sure that i and i'
---      are distinct.  This is important; otherwise [i == i'] would have the
---      obvious solution.  The reason for having both inequalities is that
---      otherwise there could be mistakes.  "i == i' + 1" has no solution
---      when combined with "i <= i' - 1" (making it look safe), but when
---      combined with "i' <= i - 1" there is a solution, correctly identifying
---      the accesses as unsafe.
+--   2. For every equation that features both i and i', it adds
+--      the inequality "i <= i' - 1".  Because all possible combinations of
+--      accesses are examined, in the case of [i,i + 1,i', i' + 1], the pairing
+--      will produce both "i = i' + 1" and "i + 1 = i'" so there is no need
+--      to vary the inequality itself.
 squareAndPair ::
   [(CoeffIndex, CoeffIndex)] ->
   VarMap ->
@@ -351,23 +347,11 @@ squareAndPair ::
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [(VarMap, (EqualityProblem, InequalityProblem))] 
 squareAndPair repVars s v lh
-  = [(s,squareEquations (eq,ineq ++ ex))
+  = [(s,squareEquations (eq,ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
     | (eq,ineq) <- pairEqsAndBounds v lh
       ,and (map (primeImpliesPlain (eq,ineq)) repVars)
-      ,ex <- if repVars == []
-               -- If this was just the empty list, there be no values for
-               -- "ex" and thus the list comprehension would end up empty.
-               -- The correct value is a list with one empty list; this
-               -- way there is one possible value for "ex", which is blank.
-               -- Then the list comprehension will pan out properly.
-               then [[]]
-               else productLists (applyAll (eq,ineq) (map addExtra repVars))
     ]
   where
-    productLists :: [[[a]]] -> [[a]]
-    productLists [] = [[]]
-    productLists (xs:xss) = [x ++ ys  | x <- xs, ys <- productLists xss]
-    
     itemPresent :: CoeffIndex -> [Array CoeffIndex Integer] -> Bool
     itemPresent x = any (\a -> arrayLookupWithDefault 0 a x /= 0)
     
@@ -379,17 +363,14 @@ squareAndPair repVars s v lh
         -- No prime, therefore fine:
         else True
     
-    addExtra :: (CoeffIndex, CoeffIndex) -> (EqualityProblem,InequalityProblem) -> [InequalityProblem]
+    addExtra :: (CoeffIndex, CoeffIndex) -> (EqualityProblem,InequalityProblem) -> InequalityProblem
     addExtra (plain,prime) (eq, ineq)
-      | itemPresent plain (eq ++ ineq) && itemPresent prime (eq ++ ineq) = bothWays
-      | otherwise = [[]] -- One item, empty.  Note that this is not the empty list (no items), which would cause problems above
+      | itemPresent plain (eq ++ ineq) && itemPresent prime (eq ++ ineq) = extraIneq
+      | otherwise = []
       where
-        bothWays :: [InequalityProblem]
-        bothWays = map (\elems -> [simpleArray elems])
+        extraIneq :: InequalityProblem
           -- prime >= plain + 1  (prime - plain - 1 >= 0)
-          [[(prime,1), (plain,-1), (0, -1)]
-          -- plain >= prime + 1  (plain - prime - 1 >= 0)
-          ,[(plain,1), (prime,-1), (0, -1)]]
+        extraIneq = [simpleArray [(prime,1), (plain,-1), (0, -1)]]
           
 -- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
 getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
