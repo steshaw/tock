@@ -214,70 +214,29 @@ makeReplicatedEquations repVars accesses bound
     makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
       [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
     makeEquationWithPossibleRepBounds vars exp
-      = concatMapM (uncurry (makeEquationWithPossibleRepBound exp)) $
-          concatMap (\(v,lower,upper) -> [((v,0),(lower,upper)), ((v,1),(lower,upper))]) vars
+      = do items <- makeEquation exp
+           -- We fold over the variables, altering the items one at a time via mapM:
+           mapM (\item -> foldM addPossibleRepBound item $
+             concatMap (\(v,lower,upper) -> [(v,0,lower,upper), (v,1,lower,upper)]) vars
+             ) items
 
-    makeEquationWithPossibleRepBound :: [FlattenedExp] -> (A.Variable, Int) -> (EqualityConstraintEquation, EqualityConstraintEquation) ->
-      StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-    makeEquationWithPossibleRepBound exp vi (lower,upper)
-      | any hasVar exp = do eqs <- makeEquation exp
-                            index <- varIndex (Scale 1 vi)
-                            let boundEqs = [add (index,1) $ amap negate lower,add (index,-1) upper]
-                            return $ map (\(item,eq,ineq) -> (item,eq,ineq ++ boundEqs)) eqs
-      | otherwise = makeEquation exp
-
+    addPossibleRepBound :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem) ->
+      (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
+      StateT (VarMap) (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
+    addPossibleRepBound (item,eq,ineq) (var,index,lower,upper)
+      = do index <- varIndex (Scale 1 vi)
+           let boundEqs = if arrayLookupWithDefault 0 item index /= 0
+                            then [add (index,1) $ amap negate lower,add (index,-1) upper]
+                            else []
+           return (item,eq,ineq ++ boundEqs)
       where
-        hasVar (Scale _ vi) = True
-        hasVar _ = False
-        
+        vi = (var,index)
+      
         add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
         add (ind,val) a = (makeSize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
           where
             newMin = minimum [fst $ bounds a, ind]
             newMax = maximum [snd $ bounds a, ind]        
-
-    makeRepBound ::
-      [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
-      VarMap ->
-      Either String [InequalityProblem]
-    makeRepBound repVars vm = doPairs $ map (makeBound vm) repVars
-      where
-        doPairs :: Monad m => [m (InequalityProblem,InequalityProblem)] -> m [InequalityProblem]
-        doPairs prs = do prs' <- sequence prs
-                         return $ doPairs' prs'
-          where
-            doPairs' :: [([a],[a])] -> [[a]]
-            doPairs' [] = [[]]
-            doPairs' ((a,b):abs) = map (a ++) (doPairs' abs) ++ map (b ++) (doPairs' abs)
-      
-        makeBound :: VarMap -> (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation) -> Either String (InequalityProblem,InequalityProblem)
-        makeBound vm (repVar, start, count)
-          = do plain <- findIndex repVar 0
-               prime <- findIndex repVar 1
-               return
-                (
-                 -- start <= i  gives i - start >= 0
-                 [add (plain,1) (amap negate start)
-                 -- i <= j - 1 gives j - 1 - i >= 0
-                 ,simpleArray [(0,-1),(prime,1),(plain,-1)]
-                 -- j <= start + count - 1 gives start + count - j - 1 >= 0
-                 ,add (0,-1) $ add (prime, -1) $ arrayZipWith (+) start count]
-                ,
-                 -- start <= j  gives j - start >= 0
-                 [add (prime,1) (amap negate start)
-                 -- j <= i - 1 gives i - 1 - j >= 0
-                 ,simpleArray [(0,-1),(plain,1),(prime,-1)]
-                 -- i <= start + count - 1 gives start + count - i - 1 >= 0
-                 ,add (0,-1) $ add (plain, -1) $ arrayZipWith (+) start count]
-                )
-          where
-            findIndex v n = Map.lookup (Scale 1 (v,n)) vm
-
-            add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
-            add (ind,val) a = (makeSize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
-              where
-                newMin = minimum [fst $ bounds a, ind]
-                newMax = maximum [snd $ bounds a, ind]
             
 -- Note that in all these functions, the divisor should always be positive!
   
@@ -363,11 +322,11 @@ squareAndPair extra s v lh = [(s,squareEquations (eq,ineq ++ ex)) | (eq,ineq) <-
       where
         bothWays :: [InequalityProblem]
         bothWays = map (\elems -> [simpleArray elems])
-          -- plain >= prime + 1  (plain - prime - 1 >= 0)
-          [[(plain,1), (prime,-1), (0, -1)]
           -- prime >= plain + 1  (prime - plain - 1 >= 0)
-          ,[(prime,1), (plain,-1), (0, -1)]]
-    
+          [[(prime,1), (plain,-1), (0, -1)]
+          -- plain >= prime + 1  (plain - prime - 1 >= 0)
+          ,[(plain,1), (prime,-1), (0, -1)]]
+          
 -- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
 getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
 getSingleItem _ [(item,_,_)] = lift $ return item

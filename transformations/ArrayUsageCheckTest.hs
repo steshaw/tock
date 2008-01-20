@@ -335,9 +335,11 @@ testMakeEquations = TestList
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7]),
      [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
      
-   ,testRep (201,both_rep_i ([i === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
-     ++ [(rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])],
-     [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
+   ,testRep (201,[(rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])]
+     ++ both_rep_i ([i === j],
+       leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&& [i <== j ++ con (-1)]
+       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+     ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
 
    ,testRep (202,[
         (rep_i_mapping,[i === j ++ con 1],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
