@@ -177,12 +177,29 @@ type VarMap = Map.Map FlattenedExp Int
 
 -- | Given a list of (replicated variable, start, count), a list of parallel array accesses, the length of the array,
 -- returns the problems
+--
+-- The general strategy is as follows.
+-- For every array index (here termed an "access"), we transform it into
+-- the usual [FlattenedExp] using the flatten function.  Then we also transform
+-- any access that features a replicated variable into its mirrored version
+-- where each i is changed into i'.  This is done by using vi=(variable "i",0)
+-- (in Scale _ vi) for the plain (normal) version, and vi=(variable "i",1)
+-- for the prime (mirror) version.
+--
+-- Then the equations have bounds added.  The rules are fairly simple; if
+-- any of the transformed EqualityConstraintEquation representing an access
+-- have a non-zero i (and/or i'), the bound for that variable is added.
+-- So for example, an expression like "i = i' + 3" would have the bounds for
+-- both i and i' added (which would be near-identical, e.g. 1 <= i <= 6 and
+-- 1 <= i' <= 6).
+--
+-- The remainder of the work (correctly pairing equations) is done by
+-- squareAndPair.
 makeReplicatedEquations :: [(A.Variable, A.Expression, A.Expression)] -> [A.Expression] -> A.Expression ->
   Either String [(VarMap, (EqualityProblem, InequalityProblem))]
 makeReplicatedEquations repVars accesses bound
   = do flattenedAccesses <- mapM flatten accesses
        let flattenedAccessesMirror = concatMap (\(v,_,_) -> mapMaybe (setIndexVar v 1) flattenedAccesses) repVars
-       -- TODO only compare with a mirror that involves the same replicated variable (TODO or not?)
        bound' <- flatten bound
        ((v,h,repVars',repVarIndexes),s) <- (flip runStateT) Map.empty $
           do repVars' <- mapM (\(v,s,c) ->
@@ -195,9 +212,7 @@ makeReplicatedEquations repVars accesses bound
              
              repVarIndexes <- mapM (\(v,_,_) -> seqPair (varIndex (Scale 1 (v,0)), varIndex (Scale 1 (v,1)))) repVars
              return (accesses',high, repVars',repVarIndexes)
-       --repBounds <- makeRepBound repVars' s
-       --return $ concatMap (\repBound -> squareAndPair repBound s v (amap (const 0) h, addConstant (-1) h)) repBounds
-       return $ squareAndPair (map (\(pl,pr) -> (pl,pr,undefined,undefined)) repVarIndexes) s v (amap (const 0) h, addConstant (-1) h)
+       return $ squareAndPair repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
   where
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> Maybe [FlattenedExp]
@@ -292,13 +307,62 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
     combine = (++)
 flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
 
+-- | The "square" refers to making all equations the length of the longest
+-- one, and the pair refers to pairing each in a list of array accesses (e.g. 
+-- [0, 5, i + 2]) into all possible pairings ([0 == 5, 0 == i + 2, 5 == i + 2])
+--
+-- There are two complications to this function.
+-- 
+-- Firstly, the array accesses are not actually given in a plain list, but 
+-- instead a list of lists.  This is because for things like modulo, there are
+-- groups of possible accesses that should not be paired against each other.
+-- For example, you may have something like [0,x,-x] as the three possible
+-- options for a modulo.  You want to pair the accesses against other accesses
+-- (e.g. y + 6), but not against each other.  So the arguments are passed in
+-- in groups: [[0,x,-x],[y + 6]] and groups are paired against each other,
+-- but not against themselves.  This all refers to the third argument to the
+-- function.  Each item is actually a triple of (item, equalities, inequalities)
+-- because the modulo aspect adds additional constraints.
+--
+-- The other complication comes from replicated variables.
+-- The first argument is a list of (plain,prime) coefficient indexes
+-- that effectively labels the indexes related to replicated variables.
+-- squareAndPair does two things with this information:
+--   1. It discards all equations that feature only the prime version of
+--      a variable.  You might have passed in the accesses as [[i],[i'],[3]].
+--      (Altering the grouping would not be able to solve this particular problem)
+--      The pairings generated would be [i == i', i == 3, i' == 3].  But the
+--      last two are in effect identical.  Therefore we drop the i' prime
+--      version, because it has i' but not i.  In contrast, the first item
+--      (i == i') is retained because it features both i and i'.
+--   2. For every equation that features both i and i', it adds two possible
+--      versions.  One with the inequality "i <= i' - 1", the other with the
+--      inequality "i' <= i - 1".  The inequalities make sure that i and i'
+--      are distinct.  This is important; otherwise [i == i'] would have the
+--      obvious solution.  The reason for having both inequalities is that
+--      otherwise there could be mistakes.  "i == i' + 1" has no solution
+--      when combined with "i <= i' - 1" (making it look safe), but when
+--      combined with "i' <= i - 1" there is a solution, correctly identifying
+--      the accesses as unsafe.
 squareAndPair ::
-  [(CoeffIndex, CoeffIndex, InequalityConstraintEquation, InequalityConstraintEquation)] ->
+  [(CoeffIndex, CoeffIndex)] ->
   VarMap ->
   [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]] ->
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [(VarMap, (EqualityProblem, InequalityProblem))] 
-squareAndPair extra s v lh = [(s,squareEquations (eq,ineq ++ ex)) | (eq,ineq) <- pairEqsAndBounds v lh, and (map (\(pl,pr,_,_) -> primeImpliesPlain (eq,ineq) (pl,pr)) extra), ex <- if extra == [] then [[]] else productLists (applyAll (eq,ineq) (map addExtra extra))]
+squareAndPair repVars s v lh
+  = [(s,squareEquations (eq,ineq ++ ex))
+    | (eq,ineq) <- pairEqsAndBounds v lh
+      ,and (map (primeImpliesPlain (eq,ineq)) repVars)
+      ,ex <- if repVars == []
+               -- If this was just the empty list, there be no values for
+               -- "ex" and thus the list comprehension would end up empty.
+               -- The correct value is a list with one empty list; this
+               -- way there is one possible value for "ex", which is blank.
+               -- Then the list comprehension will pan out properly.
+               then [[]]
+               else productLists (applyAll (eq,ineq) (map addExtra repVars))
+    ]
   where
     productLists :: [[[a]]] -> [[a]]
     productLists [] = [[]]
@@ -315,8 +379,8 @@ squareAndPair extra s v lh = [(s,squareEquations (eq,ineq ++ ex)) | (eq,ineq) <-
         -- No prime, therefore fine:
         else True
     
-    addExtra :: (CoeffIndex, CoeffIndex, a, b) -> (EqualityProblem,InequalityProblem) -> [InequalityProblem]
-    addExtra (plain,prime,_,_) (eq, ineq)
+    addExtra :: (CoeffIndex, CoeffIndex) -> (EqualityProblem,InequalityProblem) -> [InequalityProblem]
+    addExtra (plain,prime) (eq, ineq)
       | itemPresent plain (eq ++ ineq) && itemPresent prime (eq ++ ineq) = bothWays
       | otherwise = [[]] -- One item, empty.  Note that this is not the empty list (no items), which would cause problems above
       where
