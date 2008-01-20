@@ -42,6 +42,7 @@ module TestMain () where
 import Control.Monad
 import System.Console.GetOpt
 import System.Environment
+import System.IO
 import Test.HUnit
 
 import qualified ArrayUsageCheckTest (qcTests)
@@ -57,19 +58,29 @@ import qualified RainUsageCheckTest (tests)
 import TestUtils
 import Utils
 
+data TestOption =
+  QC (Either String (Maybe QuickCheckLevel))
+  | OutputType Bool -- True is plain, False is erasing
+
 -- We run all the HUnit tests before all the QuickCheck tests.
 -- We run them apart so that the output from QuickCheck doesn't get
 -- confusing by being amongst the HUnit output,
 -- and we run HUnit first because these are typically the more
 -- interesting (and most worked on tests) so we see failures earlier.
 main :: IO ()
-main = do opts <- getArgs >>* getOpt RequireOrder options
-          qcLevel <- case opts of
-                       ([Right level], [], []) -> return level
-                       ([Left unknownLevel], [], []) -> err ("Unknown level: " ++ unknownLevel)
-                       (_,_,errs) -> err (concat errs)
+main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
+          when (not $ null errs) $ err (concat errs)
+          when (not $ null nonOpts) $ err ("Options not recognised: " ++ concat nonOpts)
+          qcLevel <- case findLevel opts of
+                       Right level -> return level
+                       Left unknownLevel -> err ("Unknown level: " ++ unknownLevel)
+          let testType = case findType opts of
+                           Just True -> True
+                           _ -> False
 
-          hunitTests >>= runTestTT
+          hunitTests >>= if testType
+                           then liftM fst . runTestText (putTextToHandle stdout False)
+                           else runTestTT
           case qcLevel of
             -- Monadic mess!
             Just level -> join $ liftM sequence_ $ (liftM $ applyAll level) qcTests
@@ -78,10 +89,20 @@ main = do opts <- getArgs >>* getOpt RequireOrder options
     err msg = ioError (userError (msg ++ usageInfo header options))
     header = "Usage: tocktest [OPTION..]"
     options = [Option [] ["qc","quickcheck"]
-                 (ReqArg matchLevel "LEVEL (off, low, medium, high, extensive)") "QuickCheck level"]
+                 (ReqArg matchLevel "LEVEL (off, low, medium, high, extensive)") "QuickCheck level"
+              ,Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"]
+    
+    findLevel :: [TestOption] -> Either String (Maybe QuickCheckLevel)
+    findLevel (QC qc:_) = qc
+    findLevel (_:os) = findLevel os
+    
+    findType :: [TestOption] -> Maybe Bool
+    findType (OutputType t:_) = Just t
+    findType (_:os) = findType os
+    findType [] = Nothing
 
-    matchLevel :: String -> Either String (Maybe QuickCheckLevel)
-    matchLevel s = case s of
+    matchLevel :: String -> TestOption
+    matchLevel s = QC $ case s of
                      "off" -> Right Nothing
                      "low" -> Right $ Just QC_Low
                      "medium" -> Right $ Just QC_Medium
