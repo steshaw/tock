@@ -185,15 +185,17 @@ makeReplicatedEquations repVars accesses bound
        -- TODO only compare with a mirror that involves the same replicated variable (TODO or not?)
        bound' <- flatten bound
        ((v,h,repVars',repVarIndexes),s) <- (flip runStateT) Map.empty $
-          do accesses' <- liftM2 (++) (mapM makeEquation flattenedAccesses) (mapM makeEquation flattenedAccessesMirror)
-             high <- makeEquation bound' >>= getSingleItem "Multiple possible upper bounds not supported"
-             repVars' <- mapM (\(v,s,c) ->
+          do repVars' <- mapM (\(v,s,c) ->
                do s' <- lift (flatten s) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication start"
                   c' <- lift (flatten c) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication count"
                   return (v,s',c')) repVars
+             accesses' <- liftM2 (++) (mapM (makeEquationWithPossibleRepBounds repVars') flattenedAccesses)
+                                      (mapM (makeEquationWithPossibleRepBounds repVars') flattenedAccessesMirror)
+             high <- makeEquation bound' >>= getSingleItem "Multiple possible upper bounds not supported"
+             
              repVarIndexes <- mapM (\(v,_,_) -> seqPair (varIndex (Scale 1 (v,0)), varIndex (Scale 1 (v,1)))) repVars
              return (accesses',high, repVars',repVarIndexes)
-       repBounds <- makeRepBound repVars' s
+       --repBounds <- makeRepBound repVars' s
        --return $ concatMap (\repBound -> squareAndPair repBound s v (amap (const 0) h, addConstant (-1) h)) repBounds
        return $ squareAndPair (map (\(pl,pr) -> (pl,pr,undefined,undefined)) repVarIndexes) s v (amap (const 0) h, addConstant (-1) h)
 
@@ -208,6 +210,31 @@ makeReplicatedEquations repVars accesses bound
       | EQ == customVarCompare tv v = (True,Scale n (v,ti))
       | otherwise = (b,s)
     setIndexVar' _ _ b e = (b,e)
+
+    makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
+      [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+    makeEquationWithPossibleRepBounds vars exp
+      = concatMapM (uncurry (makeEquationWithPossibleRepBound exp)) $
+          concatMap (\(v,lower,upper) -> [((v,0),(lower,upper)), ((v,1),(lower,upper))]) vars
+
+    makeEquationWithPossibleRepBound :: [FlattenedExp] -> (A.Variable, Int) -> (EqualityConstraintEquation, EqualityConstraintEquation) ->
+      StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+    makeEquationWithPossibleRepBound exp vi (lower,upper)
+      | any hasVar exp = do eqs <- makeEquation exp
+                            index <- varIndex (Scale 1 vi)
+                            let boundEqs = [add (index,1) $ amap negate lower,add (index,-1) upper]
+                            return $ map (\(item,eq,ineq) -> (item,eq,ineq ++ boundEqs)) eqs
+      | otherwise = makeEquation exp
+
+      where
+        hasVar (Scale _ vi) = True
+        hasVar _ = False
+        
+        add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
+        add (ind,val) a = (makeSize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
+          where
+            newMin = minimum [fst $ bounds a, ind]
+            newMax = maximum [snd $ bounds a, ind]        
 
     makeRepBound ::
       [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
