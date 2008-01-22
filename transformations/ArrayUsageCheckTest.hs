@@ -331,20 +331,25 @@ testMakeEquations = TestList
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
    ,testRep (200,[(rep_i_mapping, [i === j],
-       leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&& [i <== j ++ con (-1)]
+       ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
      [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
      
-   ,testRep (201,[(rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])]
-     ++ both_rep_i ([i === j],
-       leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&& [i <== j ++ con (-1)]
-       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+   ,testRep (201,
+     [(rep_i_mapping, [i === j],
+       ij_16 &&& [i <== j ++ con (-1)]
+       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
+     ++ replicate 2 (rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     ++ [(rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
 
    ,testRep (202,[
-        (rep_i_mapping,[i === j ++ con 1],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
-       ,(rep_i_mapping,[i ++ con 1 === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
-       ++ replicate 2 (rep_i_mapping,[i === j],leq [con 1, i, j ++ con (-1), con 5] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+        (rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
+       ,(rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
+       ,(rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+       ,(rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
+       ++ [(rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, i, con 6] &&& -- deliberate repeat
+             leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
   ]
@@ -393,6 +398,10 @@ testMakeEquations = TestList
 
     combine :: VarMap -> [[([HandyEq],[HandyIneq])]] -> [(VarMap,[HandyEq],[HandyIneq])]
     combine vm eq_ineqs = [(vm,e,i) | (e,i) <- map (transformPair concat concat . unzip) eq_ineqs]
+    
+    -- Helper functions for the replication:
+    
+    ij_16 = leq [con 1, i, con 6] &&& leq [con 1, j, con 6]
 
 testIndexes :: Test
 testIndexes = TestList
