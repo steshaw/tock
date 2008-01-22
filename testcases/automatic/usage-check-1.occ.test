@@ -54,6 +54,10 @@ PROC m()
       a[0] := 5
     a[1] := 6
 
+%PASS Overlapping constants in reading
+    a[1] := a[0]
+    a[2] := a[0]
+
 %FAIL Two variables
     a[x] := 3
     a[y] := 5
