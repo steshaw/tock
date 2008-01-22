@@ -529,7 +529,7 @@ translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapCol
 assertEquivalentProblems :: String -> [(VarMap, (EqualityProblem, InequalityProblem))] -> [(VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
 assertEquivalentProblems title exp act
   = ((uncurry $ assertEqualCustomShow (showPairCustom show $ showListCustom $ showMaybe showProblem) title)
-      $ pairPairs (length exp, length act) $ unzip $ map (uncurry transform) $ zip exp act)
+      $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ map (uncurry transform) $ zip exp act)
   where
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
     	               ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
@@ -541,6 +541,9 @@ assertEquivalentProblems title exp act
         translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
 
     pairPairs (xa,ya) (xb,yb) = ((xa,xb), (ya,yb))
+    
+    sortProblem :: [Maybe (EqualityProblem, InequalityProblem)] -> [Maybe (EqualityProblem, InequalityProblem)]
+    sortProblem = sort
 
 checkRight :: Show a => Either a b -> IO b
 checkRight (Left err) = assertFailure ("Not Right: " ++ show err) >> return undefined
