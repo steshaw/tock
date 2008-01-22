@@ -141,6 +141,16 @@ onlyConst [] = Just 0
 onlyConst ((Const n):es) = liftM2 (+) (return n) $ onlyConst es
 onlyConst _ = Nothing
 
+-- | A data type representing an array access.  Each triple is (index, extra-equalities, extra-inequalities).
+-- A Single item can be paired with every other access.
+-- Each item of a Group cannot be paired with each other, but can be paired with each other access.
+-- With a Replicated, each item in the left branch can be paired with each item in the right branch.
+-- Each item in the left branch can be paired with each other, and each item in the left branch can
+-- be paired with all other items.
+data ArrayAccess =
+  Single (EqualityConstraintEquation,EqualityProblem,InequalityProblem)
+  | Group [(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]
+  | Replicated [ArrayAccess] [ArrayAccess]
 
 makeExpSet :: [FlattenedExp] -> Either String (Set.Set FlattenedExp)
 makeExpSet = foldM makeExpSet' Set.empty
@@ -199,26 +209,24 @@ makeReplicatedEquations :: [(A.Variable, A.Expression, A.Expression)] -> [A.Expr
   Either String [(VarMap, (EqualityProblem, InequalityProblem))]
 makeReplicatedEquations repVars accesses bound
   = do flattenedAccesses <- mapM flatten accesses
-       let flattenedAccessesMirror = concatMap (\(v,_,_) -> mapMaybe (setIndexVar v 1) flattenedAccesses) repVars
+       let flattenedAccessesMirror = concatMap (\(v,_,_) -> map (setIndexVar v 1) flattenedAccesses) repVars
        bound' <- flatten bound
        ((v,h,repVars',repVarIndexes),s) <- (flip runStateT) Map.empty $
           do repVars' <- mapM (\(v,s,c) ->
-               do s' <- lift (flatten s) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication start"
-                  c' <- lift (flatten c) >>= makeEquation >>= getSingleItem "Modulo or Divide not allowed in replication count"
+               do s' <- lift (flatten s) >>= makeEquation >>= getSingleAccessItem "Modulo or Divide not allowed in replication start"
+                  c' <- lift (flatten c) >>= makeEquation >>= getSingleAccessItem "Modulo or Divide not allowed in replication count"
                   return (v,s',c')) repVars
-             accesses' <- liftM2 (++) (mapM (makeEquationWithPossibleRepBounds repVars') flattenedAccesses)
-                                      (mapM (makeEquationWithPossibleRepBounds repVars') flattenedAccessesMirror)
-             high <- makeEquation bound' >>= getSingleItem "Multiple possible upper bounds not supported"
-             
+             accesses' <- mapM (makeEquationWithPossibleRepBounds repVars' <.< makeEquation) flattenedAccesses
+             accesses'' <- mapM (makeEquationWithPossibleRepBounds repVars' <.< makeEquation) flattenedAccessesMirror
+             high <- makeEquation bound' >>= getSingleAccessItem "Multiple possible upper bounds not supported"
              repVarIndexes <- mapM (\(v,_,_) -> seqPair (varIndex (Scale 1 (v,0)), varIndex (Scale 1 (v,1)))) repVars
-             return (accesses',high, repVars',repVarIndexes)
-       return $ squareAndPair repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
+             return (Replicated accesses' accesses'',high, repVars',repVarIndexes)
+       return $ squareAndPair repVarIndexes s [v] (amap (const 0) h, addConstant (-1) h)
 
   where
-    setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> Maybe [FlattenedExp]
+    setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]
     setIndexVar tv ti es = case mapAccumL (setIndexVar' tv ti) False es of
-      (True, es') -> Just es'
-      _ -> Nothing
+      (_, es') -> es'
   
     setIndexVar' :: A.Variable -> Int -> Bool -> FlattenedExp -> (Bool,FlattenedExp)
     setIndexVar' tv ti b s@(Scale n (v,_))
@@ -227,13 +235,23 @@ makeReplicatedEquations repVars accesses bound
     setIndexVar' _ _ b e = (b,e)
 
     makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
-      [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-    makeEquationWithPossibleRepBounds vars exp
-      = do items <- makeEquation exp
+      ArrayAccess -> StateT (VarMap) (Either String) ArrayAccess
+    makeEquationWithPossibleRepBounds [] item = return item
+    makeEquationWithPossibleRepBounds ((v,lower,upper):vars) item
            -- We fold over the variables, altering the items one at a time via mapM:
-           mapM (\item -> foldM addPossibleRepBound item $
-             concatMap (\(v,lower,upper) -> [(v,0,lower,upper), (v,1,lower,upper)]) vars
-             ) items
+      = do item' <- makeEquationWithPossibleRepBounds vars item
+           flip addPossibleRepBound' (v,0,lower,upper) item' >>=
+             flip addPossibleRepBound' (v,1,lower,upper) 
+
+    addPossibleRepBound' :: ArrayAccess ->
+      (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
+      StateT (VarMap) (Either String) ArrayAccess
+    addPossibleRepBound' (Group accesses) v = mapM (flip addPossibleRepBound v) accesses >>* Group
+    addPossibleRepBound' (Replicated acc0 acc1) v
+      = do acc0' <- mapM (flip addPossibleRepBound' v) acc0
+           acc1' <- mapM (flip addPossibleRepBound' v) acc1
+           return $ Replicated acc0' acc1'
+    addPossibleRepBound' (Single acc) v = addPossibleRepBound acc v >>* Single
 
     addPossibleRepBound :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem) ->
       (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
@@ -290,6 +308,7 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
         mult (Scale _ v) (Scale _ v')
           = throwError $ "Cannot deal with non-linear equations; during flattening found: "
               ++ show v ++ " * " ++ show v'
+        -- TODO test and handle modulo and divide here
     
     -- | Scales a flattened expression by the given integer scaling.
     scale :: Integer -> [FlattenedExp] -> [FlattenedExp]
@@ -297,6 +316,7 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
       where
         scale' (Const n) = Const (n * sc)
         scale' (Scale n v) = Scale (n * sc) v
+        -- TODO test the other cases then write them
 
     -- | An easy way of applying combine to two monadic returns
     combine' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
@@ -343,7 +363,7 @@ flatten other = throwError ("Unhandleable item found in expression: " ++ show ot
 squareAndPair ::
   [(CoeffIndex, CoeffIndex)] ->
   VarMap ->
-  [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]] ->
+  [ArrayAccess] ->
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [(VarMap, (EqualityProblem, InequalityProblem))] 
 squareAndPair repVars s v lh
@@ -371,6 +391,20 @@ squareAndPair repVars s v lh
         extraIneq :: InequalityProblem
           -- prime >= plain + 1  (prime - plain - 1 >= 0)
         extraIneq = [simpleArray [(prime,1), (plain,-1), (0, -1)]]
+
+getSingles :: String -> [ArrayAccess] -> Either String [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+getSingles err = mapM getSingle
+  where
+    getSingle (Single acc) = return acc
+    getSingle _ = throwError err
+
+getSingleAccessItem :: MonadTrans m => String -> ArrayAccess -> m (Either String) EqualityConstraintEquation
+getSingleAccessItem _ (Single (acc,_,_)) = lift $ return acc
+getSingleAccessItem err _ = lift $ throwError err
+
+getSingleAccess :: MonadTrans m => String -> ArrayAccess -> m (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
+getSingleAccess _ (Single acc) = lift $ return acc
+getSingleAccess err _ = lift $ throwError err
           
 -- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
 getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
@@ -388,11 +422,11 @@ makeEquations es high = makeEquations' >>* uncurry3 (squareAndPair [])
   
     -- | The body of makeEquations; returns the variable mapping, the list of (nx,ex) pairs and a pair
     -- representing the upper and lower bounds of the array (inclusive).    
-    makeEquations' :: Either String (VarMap, [[(EqualityConstraintEquation,EqualityProblem,InequalityProblem)]], (EqualityConstraintEquation, EqualityConstraintEquation))
+    makeEquations' :: Either String (VarMap, [ArrayAccess], (EqualityConstraintEquation, EqualityConstraintEquation))
     makeEquations' = do ((v,h),s) <- (flip runStateT) Map.empty $
                            do flattened <- lift (mapM flatten es)
                               eqs <- mapM makeEquation flattened
-                              high' <- (lift $ flatten high) >>= makeEquation >>= getSingleItem "Multiple possible upper bounds not supported"
+                              high' <- (lift $ flatten high) >>= makeEquation >>= getSingleAccessItem "Multiple possible upper bounds not supported"
                               return (eqs,high')
                         return (s,v,(amap (const 0) h, addConstant (-1) h))
                              
@@ -419,13 +453,25 @@ varIndex mod@(Modulo top bottom)
            return ind           
 
 -- | Pairs all possible combinations of the list of equations.
-pairEqsAndBounds :: [[(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
-pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items 
+pairEqsAndBounds :: [ArrayAccess] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [(EqualityProblem, InequalityProblem)]
+pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items ++ concatMap pairRep items
       where
-        pairEqs :: [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-          -> [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+        pairEqs :: ArrayAccess
+          -> ArrayAccess
           -> [(EqualityProblem, InequalityProblem)]
-        pairEqs p0 p1 = map (uncurry pairEqs') $ product2 (p0,p1)
+        pairEqs (Single acc) (Single acc') = [pairEqs' acc acc']
+        pairEqs (Single acc) (Group accs) = map (pairEqs' acc) accs
+        pairEqs (Group accs) (Single acc) = map (pairEqs' acc) accs
+        pairEqs (Group accs) (Group accs') = map (uncurry pairEqs') $ product2 (accs,accs')
+        pairEqs (Replicated rA rB) acc
+          = concatMap (pairEqs acc) rA
+        pairEqs acc (Replicated rA rB)
+          = concatMap (pairEqs acc) rA
+      
+        -- Used to pair the items of a single instance of PAR replication with each other
+        pairRep :: ArrayAccess -> [(EqualityProblem, InequalityProblem)]
+        pairRep (Replicated rA rB) = (concatMap (uncurry pairEqs) $ product2 (rA,rB)) ++ concatMap (uncurry pairEqs) (allPairs rA)
+        pairRep _ = []
       
         pairEqs' :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
           -> (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
@@ -448,10 +494,13 @@ getIneqs (low, high) = concatMap getLH
         addEq = arrayZipWith' 0 (+)
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
-makeEquation :: [FlattenedExp] -> StateT (VarMap) (Either String) [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+makeEquation :: [FlattenedExp] -> StateT (VarMap) (Either String) ArrayAccess
 makeEquation summedItems
       = do eqs <- process summedItems
-           return $ map (transformTriple mapToArray (map mapToArray) (map mapToArray)) eqs
+           let eqs' = map (transformTriple mapToArray (map mapToArray) (map mapToArray)) eqs
+           return $ case eqs' of
+             [acc] -> Single acc
+             _ -> Group eqs'
       where
         process = foldM makeEquation' empty
       
