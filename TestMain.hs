@@ -45,7 +45,7 @@ import System.Environment
 import System.IO
 import Test.HUnit
 
-import qualified ArrayUsageCheckTest (qcTests)
+import qualified ArrayUsageCheckTest (ioqcTests)
 import qualified BackendPassesTest (tests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
@@ -116,7 +116,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     qcTests = concatMapM (liftM snd) tests
 
     tests = [
-              ArrayUsageCheckTest.qcTests
+              ArrayUsageCheckTest.ioqcTests
               ,noqc BackendPassesTest.tests
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests

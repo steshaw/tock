@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheckTest (qcTests) where
+module ArrayUsageCheckTest (ioqcTests) where
 
 import Control.Monad.Identity
 import Data.Array.IArray
@@ -759,8 +759,8 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
         result = undefined -- TODO replace solveAndPrune: solveProblem [] inp
     -}
     
-qcTests :: IO (Test, [QuickCheckTest])
-qcTests
+ioqcTests :: IO (Test, [QuickCheckTest])
+ioqcTests
   = do usageCheckTest1 <- automaticTest "testcases/automatic/usage-check-1.occ.test"
        usageCheckTest2 <- automaticTest "testcases/automatic/usage-check-2.occ.test"
        return
