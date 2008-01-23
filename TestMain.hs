@@ -95,6 +95,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     findLevel :: [TestOption] -> Either String (Maybe QuickCheckLevel)
     findLevel (QC qc:_) = qc
     findLevel (_:os) = findLevel os
+    findLevel [] = Right $ Just QC_Medium
     
     findType :: [TestOption] -> Maybe Bool
     findType (OutputType t:_) = Just t
