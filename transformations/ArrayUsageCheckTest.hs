@@ -765,20 +765,18 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
     
 ioqcTests :: IO (Test, [QuickCheckTest])
 ioqcTests
-  = do usageCheckTest1 <- automaticTest "testcases/automatic/usage-check-1.occ.test"
-       usageCheckTest2 <- automaticTest "testcases/automatic/usage-check-2.occ.test"
-       usageCheckTest3 <- automaticTest "testcases/automatic/usage-check-3.occ.test"
-       return
-        (TestList
+  = seqPair
+      (liftM TestList $ sequence
         [
-          testArrayCheck
-         ,testIndexes
-         ,testMakeEquations
-         ,usageCheckTest1
-         ,usageCheckTest2
-         ,usageCheckTest3
+          return testArrayCheck
+         ,return testIndexes
+         ,return testMakeEquations
+         ,automaticTest "testcases/automatic/usage-check-1.occ.test"
+         ,automaticTest "testcases/automatic/usage-check-2.occ.test"
+         ,automaticTest "testcases/automatic/usage-check-3.occ.test"
+         ,automaticTest "testcases/automatic/usage-check-4.occ.test"
         ]
-        ,qcOmegaEquality ++ qcOmegaPrune)
+      ,return $ qcOmegaEquality ++ qcOmegaPrune)
 
 
 
