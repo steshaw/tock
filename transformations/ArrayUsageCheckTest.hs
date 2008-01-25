@@ -767,6 +767,7 @@ ioqcTests :: IO (Test, [QuickCheckTest])
 ioqcTests
   = do usageCheckTest1 <- automaticTest "testcases/automatic/usage-check-1.occ.test"
        usageCheckTest2 <- automaticTest "testcases/automatic/usage-check-2.occ.test"
+       usageCheckTest3 <- automaticTest "testcases/automatic/usage-check-3.occ.test"
        return
         (TestList
         [
@@ -775,6 +776,7 @@ ioqcTests
          ,testMakeEquations
          ,usageCheckTest1
          ,usageCheckTest2
+         ,usageCheckTest3
         ]
         ,qcOmegaEquality ++ qcOmegaPrune)
 

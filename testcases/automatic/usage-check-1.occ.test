@@ -22,9 +22,19 @@ PROC m()
     a[0] := 3
     a[0] := 4
 
+%FAIL Identical constants, PAR assign
+    a[0],a[0] := 3,4
+
 %PASS Same constant, different array
     a[0] := 3
     b[0] := 4
+
+%FAIL Identical variables
+    x := 3
+    x := 4
+
+%FAIL Identical variables, PAR assign
+    x,x := 3,4
 
 %FAIL Variable and a constant
     a[0] := 3
