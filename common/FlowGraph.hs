@@ -88,12 +88,22 @@ data Monad m => FNode m a = Node (Meta, a, AlterAST m)
 instance (Monad m, Show a) => Show (FNode m a) where
   show (Node (m,x,_)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
 
+-- | The main FlowGraph type.  The m parameter is the monad
+-- in which alterations to the AST (based on the FlowGraph)
+-- must occur.  The a parameter is the type of the node labels.
 type FlowGraph m a = Gr (FNode m a) EdgeLabel
 
 type NodesEdges m a = ([LNode (FNode m a)],[LEdge EdgeLabel])
 
 type GraphMaker mLabel mAlter a b = ErrorT String (StateT (Node, Int, NodesEdges mAlter a) mLabel) b
 
+-- | The GraphLabelFuncs type.  These are a group of functions
+-- used to provide labels for different elements of AST.
+-- The m parameter is the monad the labelling must take place in,
+-- and the label parameter is of course the label type.
+-- The primary reason for having the blank (dummy) generator take a
+-- Meta as an argument is actually for testing.  But other uses 
+-- can simply ignore it if they want.
 data Monad m => GraphLabelFuncs m label = GLF {
      labelDummy :: Meta -> m label
     ,labelProcess :: A.Process -> m label
@@ -127,8 +137,15 @@ joinLabelFuncs fx fy = GLF
                          x1 <- f1 x
                          return (x0,x1)
 
--- The primary reason for having the blank generator take a Meta as an argument is actually for testing.  But other uses can simply ignore it if they want.
-buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) => GraphLabelFuncs mLabel label -> A.Structured -> mLabel (Either String (FlowGraph mAlter label))
+-- | Builds a control-flow-graph.  The mAlter monad is the monad in which
+-- AST alterations would take place.  Note that mAlter does not feature in
+-- the parameters, only in the result.  The mLabel monad is the monad in
+-- which the labelling must be done; hence the flow-graph is returned inside
+-- the label monad.
+buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
+  GraphLabelFuncs mLabel label ->
+  A.Structured ->
+  mLabel (Either String (FlowGraph mAlter label))
 buildFlowGraph funcs s
   = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]) )
        return $ case res of
