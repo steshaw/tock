@@ -352,6 +352,10 @@ testMakeEquations = TestList
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
+   -- Only a constant:
+   ,testRep (210,[(rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
+     ,[(variable "i", intLiteral 1, intLiteral 6)],[intLiteral 4],intLiteral 8)
+
   ]
   where
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test

@@ -24,6 +24,10 @@ PROC m()
     a[i] := 2
     a[i] := 2
 
+%FAIL Replicated index, twice, slightly different
+    a[i] := 2
+    a[i + 1] := 2
+
 %PASS Replicated index plus one
     a[i + 1] := 2
 
