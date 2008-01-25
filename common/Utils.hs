@@ -275,3 +275,12 @@ showListCustom showFunc list = "[" ++ concat (intersperse "," (map showFunc list
 
 showPairCustom :: (a -> String) -> (b -> String) -> (a,b) -> String
 showPairCustom showA showB (a,b) = "(" ++ showA a ++ "," ++ showB b ++ ")"
+
+singleton :: a -> [a]
+singleton x = [x]
+
+applyPair :: (a -> b) -> (a,a) -> (b,b)
+applyPair f = transformPair f f
+
+applyPairM :: Monad m => (a -> m b) -> (a,a) -> m (b,b)
+applyPairM f = seqPair . transformPair f f

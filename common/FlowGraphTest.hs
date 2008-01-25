@@ -401,7 +401,6 @@ genList :: (Int -> GenL a) -> Int -> GenL [a]
 genList _ 0 = return [([],[])]
 genList f n = (lift $ genNumsToTotal n) >>= mapM f >>= foldList
   where
-    singleton x = [x]
     foldList :: [[([Meta], a)]] -> StateT Id Gen [([Meta], [a])]
     foldList [g] = comb1 singleton (return g)
     foldList gs = return $ foldr foldX [] gs
