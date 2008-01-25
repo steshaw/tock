@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UsageCheck (checkPar, customVarCompare, Decl, labelFunctions, ParItems(..), Var(..), Vars(..)) where
 
+import Data.Generics
 import Data.Graph.Inductive
 import qualified Data.Set as Set
 
@@ -52,13 +53,120 @@ data ParItems a
   | ParItems [ParItems a]
   | RepParItem A.Replicator (ParItems a)
 
+emptyVars :: Vars
+emptyVars = Vars Set.empty Set.empty Set.empty
+
+mkReadVars :: [Var] -> Vars
+mkReadVars ss = Vars (Set.fromList ss) Set.empty Set.empty
+
+mkWrittenVars :: [Var] -> Vars
+mkWrittenVars ss = Vars Set.empty (Set.fromList ss) Set.empty
+
+mkUsedVars :: [Var] -> Vars
+mkUsedVars vs = Vars Set.empty Set.empty (Set.fromList vs)
+
+vars :: [Var] -> [Var] -> [Var] -> Vars
+vars mr mw  u = Vars (Set.fromList mr) (Set.fromList mw) (Set.fromList u)
+
+unionVars :: Vars -> Vars -> Vars
+unionVars (Vars mr mw u) (Vars mr' mw' u') = Vars (mr `Set.union` mr') (mw `Set.union` mw') (u `Set.union` u')
+
+foldUnionVars :: [Vars] -> Vars
+foldUnionVars = foldl unionVars emptyVars
+
+mapUnionVars :: (a -> Vars) -> [a] -> Vars
+mapUnionVars f = foldUnionVars . (map f)
+
 -- | Given a function to check a list of graph labels, a flow graph 
 -- and a starting node, returns a list of monadic actions (slightly
 -- more flexible than a monadic action giving a list) that will check
 -- all PAR items in the flow graph
 checkPar :: Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> Node -> [m b]
-checkPar = undefined -- TODO
+checkPar _ _ _ =  [return undefined] -- TODO
 --TODO is a start node actually necessary for checkPar?
 
-labelFunctions :: Die m => GraphLabelFuncs m (Maybe Decl, Vars)
-labelFunctions = undefined -- TODO
+--Gets the (written,read) variables of a piece of an occam program:
+
+--For subscripted variables used as Lvalues , e.g. a[b] it should return a[b] as written-to and b as read
+--For subscripted variables used as expressions, e.g. a[b] it should return a[b],b as read (with no written-to)
+
+getVarProc :: A.Process -> Vars
+getVarProc (A.Assign _ vars expList) 
+        --Join together:
+      = unionVars
+          --The written-to variables on the LHS:
+          (foldUnionVars (map processVarW vars)) 
+          --All variables read on the RHS:
+          (getVarExpList expList)
+getVarProc (A.GetTime _ v) = processVarW v
+getVarProc (A.Wait _ _ e) = getVarExp e
+getVarProc (A.Output _ chanVar outItems) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarOutputItem outItems)
+  where
+    getVarOutputItem :: A.OutputItem -> Vars
+    getVarOutputItem (A.OutExpression _ e) = getVarExp e
+    getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
+getVarProc (A.Input _ chanVar (A.InputSimple _ iis)) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarInputItem iis)
+  where
+    getVarInputItem :: A.InputItem -> Vars
+    getVarInputItem (A.InCounted _ cv av) = mkWrittenVars [variableToVar cv,variableToVar av]
+    getVarInputItem (A.InVariable _ v) = mkWrittenVars [variableToVar v]
+--TODO process calls
+getVarProc _ = emptyVars
+    
+    {-
+      Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
+      The problem with this is that given var@(A.SubscriptedVariable _ sub arrVar), the functions would be recursively
+      applied to sub and arrVar.  processVarW should return var as written to, but never the subscripts in sub; those subscripts are not written to!
+      
+      Therefore processVarW must *not* be applied using the generics library, and instead should always be applied
+      directly to an A.Variable.  Internally it uses the generics library to process the subscripts (using getVarExp)
+    -}    
+    
+    --Pull out all the subscripts into the read category, but leave the given var in the written category:
+processVarW :: A.Variable -> Vars
+processVarW v = mkWrittenVars [variableToVar v]
+    
+processVarR :: A.Variable -> Vars
+processVarR v = mkReadVars [variableToVar v]
+
+processVarUsed :: A.Variable -> Vars
+processVarUsed v = mkUsedVars [variableToVar v]
+
+variableToVar :: A.Variable -> Var
+variableToVar = Var
+
+getVarExpList :: A.ExpressionList -> Vars
+getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
+getVarExpList (A.FunctionCallList _ _ es) = foldUnionVars $ map getVarExp es --TODO record stuff in passed as well?
+
+getVarExp :: A.Expression -> Vars
+getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
+  where
+    --Only need to deal with the two cases where we can see an A.Variable directly;
+    --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
+    getVarExp' :: A.Expression -> Vars
+    getVarExp' (A.SizeVariable _ v) = processVarR v
+    getVarExp' (A.ExprVariable _ v) = processVarR v
+    getVarExp' _ = emptyVars
+
+getVarSpec :: A.Specification -> Vars
+getVarSpec = const emptyVars -- TODO
+
+getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
+getDecl _ _ = Nothing -- TODO
+
+
+labelFunctions :: forall m. Die m => GraphLabelFuncs m (Maybe Decl, Vars)
+labelFunctions = GLF
+ {
+   labelExpression = pair (const Nothing) getVarExp
+  ,labelExpressionList = pair (const Nothing) getVarExpList
+  ,labelDummy = const (return (Nothing, emptyVars))
+  ,labelProcess = pair (const Nothing) getVarProc
+  --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
+  ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
+  ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
+ }
+  where
+    pair :: (a -> b) -> (a -> c) -> (a -> m (b,c))
+    pair f0 f1 x = return (f0 x, f1 x)
