@@ -78,4 +78,8 @@ PROC m()
     a[x REM y] := 3
     a[x + 1] := 4
 
+%PASS Modulo variable (v.d.) and normal variable (safe)
+    a[x REM y] := 3
+    a[y] := 4
+
 %
