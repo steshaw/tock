@@ -92,4 +92,14 @@ PROC m()
     a[x REM y] := 3
     a[y] := 4
 
+%FAIL Overlap with items in nested replication
+    a[0] := 3
+    PAR i = 0 FOR 6
+      a[i] := 4
+
+%PASS Near-overlap with items in nested replication
+    a[0] := 3
+    PAR i = 1 FOR 6
+      a[i] := 4
+
 %
