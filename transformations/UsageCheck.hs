@@ -20,6 +20,7 @@ module UsageCheck (checkPar, customVarCompare, Decl, labelFunctions, ParItems(..
 
 import Data.Generics
 import Data.Graph.Inductive
+import Data.Maybe
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -81,9 +82,63 @@ mapUnionVars f = foldUnionVars . (map f)
 -- and a starting node, returns a list of monadic actions (slightly
 -- more flexible than a monadic action giving a list) that will check
 -- all PAR items in the flow graph
-checkPar :: Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> Node -> [m b]
-checkPar _ _ _ =  [return undefined] -- TODO
---TODO is a start node actually necessary for checkPar?
+checkPar :: forall m a b. Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> [m b]
+checkPar f g = map f allParItems
+  where
+    allStartParEdges :: [(Node,Node,Int)]
+    allStartParEdges = mapMaybe tagStartParEdge $ labEdges g
+  
+    tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Int)
+    tagStartParEdge (s,e,EStartPar n) = Just (s,e,n)
+    tagStartParEdge _ = Nothing
+    
+    allParItems :: [(Meta, ParItems a)]
+    allParItems = map makeEntry $ map findNodes allStartParEdges
+      where
+        findNodes :: (Node,Node,Int) -> (Node,[a])
+        findNodes (s,e,n) = (s, followUntilEdge e (EEndPar n))
+        
+        makeEntry :: (Node,[a]) -> (Meta, ParItems a)
+        makeEntry (s,x) = (maybe emptyMeta (\(Node (m,_,_)) -> m) (lab g s), ParItems $ map ParItem x)
+    
+    -- | We need to follow all edges out of a particular node until we reach
+    -- an edge that matches the given edge.  So what we effectively need
+    -- is a depth-first or breadth-first search (DFS or BFS), that terminates
+    -- on a given edge, not on a given node.  Therefore the DFS/BFS algorithms
+    -- that come with the inductive graph package are not very suitable as
+    -- they return node lists or edge lists, but we need a node list terminated
+    -- on a particular edge.
+    --
+    -- So, we shall attempt our own algorithm!  The algorithm for DFS given in 
+    -- the library is effectively:
+    --
+    -- dfs :: Graph gr => [Node] -> gr a b -> [Node]
+    -- dfs [] _ = []
+    -- dfs _ g | isEmpty g = []
+    -- dfs (v:vs) g = case match v g of
+    --                  (Just c,g')  -> node' c:dfs (suc' c++vs) g'
+    --                  (Nothing,g') -> dfs vs g'
+    -- where node' :: Context a b -> Node and suc' :: Context a b -> [Node]
+    --
+    -- We want to stop the DFS branch either when we find no nodes following the current
+    -- one (already effectively taken care of in the algorithm above; suc' will return
+    -- the empty list) or when the edge we are meant to take matches the given edge.
+    followUntilEdge :: Node -> EdgeLabel -> [a]
+    followUntilEdge startNode endEdge = customDFS [startNode] g
+      where
+        customDFS :: [Node] -> FlowGraph m a -> [a]
+        customDFS [] _ = []
+        customDFS _ g | isEmpty g = []
+        customDFS (v:vs) g = case match v g of
+                               (Just c, g') -> labelItem c : customDFS (customSucc c ++ vs) g'
+                               (Nothing, g') -> customDFS vs g'
+        
+        labelItem :: Context (FNode m a) EdgeLabel -> a
+        labelItem c = let (Node (_,x,_)) = lab' c in x
+        
+        customSucc :: Context (FNode m a) EdgeLabel -> [Node]
+        customSucc c = [n | (n,e) <- lsuc' c, e /= endEdge]
+    
 
 --Gets the (written,read) variables of a piece of an occam program:
 

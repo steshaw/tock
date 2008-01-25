@@ -21,7 +21,6 @@ module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, makeRe
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Array.IArray
-import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -43,13 +42,13 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       g <- case g' of
                         Left err -> die err
                         Right g -> return g
-                      checkArrayUsage g undefined -- TODO do we need a start node?
+                      checkArrayUsage g
                       return t
 
 
 -- TODO we should probably calculate this from the CFG
-checkArrayUsage :: forall m. (Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
-checkArrayUsage graph startNode = sequence_ $ checkPar checkArrayUsage' graph startNode
+checkArrayUsage :: forall m. (Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> m ()
+checkArrayUsage graph = sequence_ $ checkPar checkArrayUsage' graph
   where
     -- TODO take proper account of replication!
     flatten :: ParItems a -> [a]
