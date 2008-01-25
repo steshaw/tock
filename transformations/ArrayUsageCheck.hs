@@ -46,7 +46,6 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       return t
 
 
--- TODO we should probably calculate this from the CFG
 checkArrayUsage :: forall m. (Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> m ()
 checkArrayUsage graph = sequence_ $ checkPar checkArrayUsage' graph
   where
