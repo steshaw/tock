@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheck where 
+module UsageCheck (checkPar, customVarCompare, Decl, labelFunctions, ParItems(..), Var(..), Vars(..)) where
 
 import Data.Graph.Inductive
 import qualified Data.Set as Set
