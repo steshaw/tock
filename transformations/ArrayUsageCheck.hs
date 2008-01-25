@@ -142,6 +142,8 @@ data FlattenedExp
   | Modulo (Set.Set FlattenedExp) (Set.Set FlattenedExp)
   | Divide (Set.Set FlattenedExp) (Set.Set FlattenedExp)
 
+--TODO change the A.Variable to Var, and automatically derive Eq and Ord
+
 instance Eq FlattenedExp where
   a == b = EQ == compare a b
 
@@ -158,10 +160,6 @@ instance Ord FlattenedExp where
   compare _ (Modulo {}) = GT
   compare (Divide ltop lbottom) (Divide rtop rbottom)
     = combineCompare [compare ltop rtop, compare lbottom rbottom]
-
-customVarCompare :: A.Variable -> A.Variable -> Ordering
-customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
--- TODO the rest
 
 onlyConst :: [FlattenedExp] -> Maybe Integer
 onlyConst [] = Just 0

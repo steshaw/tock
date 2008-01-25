@@ -29,6 +29,16 @@ import Metadata
 
 newtype Var = Var A.Variable
 
+customVarCompare :: A.Variable -> A.Variable -> Ordering
+customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
+-- TODO the rest
+
+instance Eq Var where
+  a == b = EQ == compare a b
+
+instance Ord Var where
+  compare (Var a) (Var b) = customVarCompare a b
+
 data Vars = Vars {
   readVars :: Set.Set Var
   ,writtenVars :: Set.Set Var
