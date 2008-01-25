@@ -20,6 +20,7 @@ module UsageCheck (checkPar, customVarCompare, Decl, labelFunctions, ParItems(..
 
 import Data.Generics
 import Data.Graph.Inductive
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
@@ -85,21 +86,21 @@ mapUnionVars f = foldUnionVars . (map f)
 checkPar :: forall m a b. Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> [m b]
 checkPar f g = map f allParItems
   where
-    allStartParEdges :: [(Node,Node,Int)]
-    allStartParEdges = mapMaybe tagStartParEdge $ labEdges g
+    allStartParEdges :: Map.Map Int [(Node,Node)]
+    allStartParEdges = foldl (\mp (s,e,n) -> Map.insertWith (++) n [(s,e)] mp) Map.empty $ mapMaybe tagStartParEdge $ labEdges g
   
     tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Int)
     tagStartParEdge (s,e,EStartPar n) = Just (s,e,n)
     tagStartParEdge _ = Nothing
     
     allParItems :: [(Meta, ParItems a)]
-    allParItems = map makeEntry $ map findNodes allStartParEdges
+    allParItems = map makeEntry $ map findNodes $ Map.toList allStartParEdges
       where
-        findNodes :: (Node,Node,Int) -> (Node,[a])
-        findNodes (s,e,n) = (s, followUntilEdge e (EEndPar n))
+        findNodes :: (Int,[(Node,Node)]) -> (Node,[a])
+        findNodes (n,ses) = (undefined, concat [followUntilEdge e (EEndPar n) | (_,e) <- ses])
         
         makeEntry :: (Node,[a]) -> (Meta, ParItems a)
-        makeEntry (s,x) = (maybe emptyMeta (\(Node (m,_,_)) -> m) (lab g s), ParItems $ map ParItem x)
+        makeEntry (_,x) = (emptyMeta {- TODO fix this again -} , ParItems $ map ParItem x)
     
     -- | We need to follow all edges out of a particular node until we reach
     -- an edge that matches the given edge.  So what we effectively need
