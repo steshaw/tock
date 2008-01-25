@@ -36,7 +36,7 @@ commonPasses opts =
   [ ("Simplify types", simplifyTypes)
   , ("Simplify expressions", simplifyExprs)
   ]
-  ++ (if csUsageChecking opts then [("Check array usage", checkArrayUsage)] else []) ++
+  ++ (if csUsageChecking opts then [("Usage checks", usageCheckPass)] else []) ++
   [    
     ("Simplify processes", simplifyProcs)
   , ("Flatten nested declarations", unnest)

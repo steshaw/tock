@@ -361,13 +361,13 @@ testMakeEquations = TestList
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
     test (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
-        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations exprs upperBound)
+        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (exprs,[]) upperBound)
   
     testRep :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
     testRep (ind, problems, reps, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems)
-          =<< (checkRight $ makeReplicatedEquations reps exprs upperBound)
+          =<< (checkRight $ makeReplicatedEquations reps (exprs,[]) upperBound)
   
     pairLatterTwo (a,b,c) = (a,(b,c))
 
