@@ -100,9 +100,9 @@ checkArrayUsage graph = sequence_ $ checkPar checkArrayUsage' graph
                      do sol <- formatSolution varMapping (getCounterEqs vm)
                         cx <- showCode lx
                         cy <- showCode ly
-                        dieP m $ "Overlapping indexes of array \"" ++ userArrName ++ "\""
-                                 ++ "(\"" ++ cx ++ "\" could overlap with \"" ++ cy ++ "\")"
-                                 ++ " when: " ++ sol
+                        dieP m $ "Indexes of array \"" ++ userArrName ++ "\""
+                                 ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
+                                 ++ if sol /= "" then " when: " ++ sol else ""
     
     solve :: (labels,vm,(EqualityProblem,InequalityProblem)) -> Maybe (labels,vm,VariableMapping)
     solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
