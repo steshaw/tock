@@ -104,9 +104,12 @@ nextId' inc t
 -- for being isomorphic, based on the meta-tag node labels (node E in the expected list is 
 -- isomorphic to node A in the actual list if their meta tags are the same).
 testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
-testGraph testName nodes edges proc
+testGraph testName nodes edges proc = testGraph' testName nodes edges (A.OnlyP emptyMeta proc)
+
+testGraph' :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+testGraph' testName nodes edges code
   = TestCase $ 
-      case evalState (buildFlowGraph testOps (A.OnlyP emptyMeta proc)) Map.empty of
+      case evalState (buildFlowGraph testOps code) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
         Right g -> checkGraphEquality (nodes, edges) (g :: FlowGraph Identity Int)
   where  
