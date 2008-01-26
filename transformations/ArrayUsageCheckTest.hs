@@ -23,6 +23,7 @@ import Data.Array.IArray
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Ord
 import qualified Data.Set as Set
 import Prelude hiding ((**),fail)
 import Test.HUnit
@@ -260,20 +261,20 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
       [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 8)
    
    -- Testing (i REM 3) vs (4)
-   ,test (10,[
-        (i_mod_mapping 3,[con 0 === con 4, i === con 0], leq [con 0,con 0,con 7] &&& leq [con 0,con 4,con 7])
-       ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i >== con 1] &&& [j <== con 0] &&& leq [con 0, i ++ 3 ** j, con 2])
-       ,(i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i <== con (-1)] &&& [j >== con 0] &&& leq [con (-2), i ++ 3 ** j, con 0])
+   ,test' (10,[
+        ((0,1),i_mod_mapping 3,[con 0 === con 4, i === con 0], leq [con 0,con 0,con 7] &&& leq [con 0,con 4,con 7])
+       ,((0,1),i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i >== con 1] &&& [j <== con 0] &&& leq [con 0, i ++ 3 ** j, con 2])
+       ,((0,1),i_mod_mapping 3,[i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i <== con (-1)] &&& [j >== con 0] &&& leq [con (-2), i ++ 3 ** j, con 0])
       ],[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 8)
       
    -- Testing ((3*i - 2*j REM 11) - 5) vs (i + j)
    -- Expressed as ((2 * (i - j)) + i) REM 11 - 5, and i + j
-   ,test (11,[
-        (_3i_2j_mod_mapping 11,[con (-5) === i ++ j, 3**i ++ (-2)**j === con 0], leq [con 0,con (-5),con 7] &&& leq [con 0,i ++ j,con 7])
-       ,(_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
+   ,test' (11,[
+        ((0,1),_3i_2j_mod_mapping 11,[con (-5) === i ++ j, 3**i ++ (-2)**j === con 0], leq [con 0,con (-5),con 7] &&& leq [con 0,i ++ j,con 7])
+       ,((0,1),_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
           leq [con 0,i ++ j,con 7] &&& leq [con 0,3**i ++ (-2)**j ++ 11 ** k ++ con (-5),con 7]
           &&& [3**i ++ (-2)**j >== con 1] &&& [k <== con 0] &&& leq [con 0, 3**i ++ (-2)**j ++ 11 ** k, con 10])
-       ,(_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
+       ,((0,1),_3i_2j_mod_mapping 11,[3**i ++ (-2)**j ++ 11 ** k ++ con (-5) === i ++ j],
           leq [con 0,i ++ j,con 7] &&& leq [con 0,3**i ++ (-2)**j ++ 11 ** k ++ con (-5),con 7]
           &&& [3**i ++ (-2)**j <== con (-1)] &&& [k >== con 0] &&& leq [con (-10), 3**i ++ (-2)**j ++ 11 ** k, con 0])
       ],[buildExpr $
@@ -288,7 +289,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
         ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 8)
    
    -- Testing i REM 2 vs (i + 1) REM 4
-   ,test (12,combine (i_ip1_mod_mapping 2 4)
+   ,test' (12,combine (0,1) (i_ip1_mod_mapping 2 4)
      [ [([con 0 === con 0],[]),rr_i_zero, rr_ip1_zero]
       ,[([con 0 === i ++ con 1 ++ 4**k],[]),rr_i_zero,rr_ip1_pos]
       ,[([con 0 === i ++ con 1 ++ 4**k],[]),rr_i_zero,rr_ip1_neg]
@@ -305,72 +306,84 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
    -- TODO test REM + REM vs REM -- 27 combinations!
    
    -- Testing i REM j vs 3
-   ,test (100,[
+   ,test' (100,[
      -- i = 0:
-     (i_mod_j_mapping, [con 0 === con 3, i === con 0], leq [con 0, con 0, con 7] &&& leq [con 0, con 3, con 7])
+     ((0,1),i_mod_j_mapping, [con 0 === con 3, i === con 0], leq [con 0, con 0, con 7] &&& leq [con 0, con 3, con 7])
      -- i positive, j positive, i REM j = i:
-    ,(i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+    ,((0,1),i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      -- i positive, j positive, i REM j = i + k:
-    ,(i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== (-1)**j] &&& 
+    ,((0,1),i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== (-1)**j] &&& 
         leq [con 0, i ++ k, j ++ con (-1)] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
      -- i positive, j negative, i REM j = i:
-    ,(i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, (-1)**j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+    ,((0,1),i_mod_j_mapping, [i === con 3], [i >== con 1] &&& leq [con 0, i, (-1)**j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      -- i positive, j negative, i REM j = i + k:
-    ,(i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== j] &&& 
+    ,((0,1),i_mod_j_mapping, [i ++ k === con 3], [i >== con 1, k <== j] &&& 
         leq [con 0, i ++ k, (-1)**j ++ con (-1)] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
 
      -- i negative, j positive, i REM j = i:
-    ,(i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [(-1)**j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+    ,((0,1),i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [(-1)**j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      -- i negative, j positive, i REM j = i + k:
-    ,(i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== j] &&& 
+    ,((0,1),i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== j] &&& 
         leq [(-1)**j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
      -- i negative, j negative, i REM j = i:
-    ,(i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+    ,((0,1),i_mod_j_mapping, [i === con 3], [i <== con (-1)] &&& leq [j ++ con 1, i, con 0] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      -- i negative, j negative, i REM j = i + k:
-    ,(i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== (-1)**j] &&& 
+    ,((0,1),i_mod_j_mapping, [i ++ k === con 3], [i <== con (-1), k >== (-1)**j] &&& 
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
-   ,testRep (200,[(rep_i_mapping, [i === j],
+   ,testRep' (200,[((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
      [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
      
-   ,testRep (201,
-     [(rep_i_mapping, [i === j],
+   ,testRep' (201,
+     [((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
-     ++ replicate 2 (rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
-     ++ [(rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
+     ++ replicate 2 ((0,1),rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     ++ [((1,1),rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
 
-   ,testRep (202,[
-        (rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
-       ,(rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
-       ,(rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
-       ,(rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
-       ++ [(rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, i, con 6] &&& -- deliberate repeat
+   ,testRep' (202,[
+        ((0,1),rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
+       ,((0,1),rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
+       ,((0,0),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+       ,((1,1),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
+       ++ [((0,1),rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, i, con 6] &&& -- deliberate repeat
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
    -- Only a constant:
-   ,testRep (210,[(rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
+   ,testRep' (210,[((0,0),rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
      ,[(variable "i", intLiteral 1, intLiteral 6)],[intLiteral 4],intLiteral 8)
 
   ]
   where
+    -- These functions assume that you pair each list [x,y,z] as (x,y) (x,z) (y,z) in that order.
+    -- for more control use the test' and testRep' versions:
     test :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
-    test (ind, problems, exprs, upperBound) = 
-      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
-        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (exprs,[]) upperBound)
+    test (ind, problems, exprs, upperBound) = test' (ind, zipWith (\n (vm,eq,ineq) -> (n,vm,eq,ineq)) (labelNums 0 $ length exprs) problems, exprs, upperBound)
+
+    -- The ordering for the original list [0,1,2] should be [(0,1),(0,2),(1,2)]
+    -- So take each number, pair it with each remaining number in order, then increase
+    labelNums :: Int -> Int -> [(Int,Int)]
+    labelNums m n | m >= n    = []
+                  | otherwise = [(m,n') | n' <- [(m + 1) .. n]] ++ labelNums (m + 1) n 
+    
   
-    testRep :: (Integer,[(VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
-    testRep (ind, problems, reps, exprs, upperBound) = 
-      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
-        (map (transformPair id (uncurry makeConsistent)) $ map pairLatterTwo problems)
+    test' :: (Integer,[((Int,Int),VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
+    test' (ind, problems, exprs, upperBound) = 
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
+        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (exprs,[]) upperBound)
+  
+    testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
+    testRep' (ind, problems, reps, exprs, upperBound) = 
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
+        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems)
           =<< (checkRight $ makeReplicatedEquations reps (exprs,[]) upperBound)
   
-    pairLatterTwo (a,b,c) = (a,(b,c))
+    pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
     joinMapping :: [VarMap] -> ([HandyEq],[HandyIneq]) -> [(VarMap,[HandyEq],[HandyIneq])]
     joinMapping vms (eq,ineq) = map (\vm -> (vm,eq,ineq)) vms
@@ -407,8 +420,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     rr_i_neg = ([], leq [con 0, i ++ 2**j, con 7] &&& [i <== con (-1), j >== con 0] &&& leq [con (-1), i ++ 2**j, con 0])
     rr_ip1_neg = ([], leq [con 0, i ++ con 1 ++ 4**k, con 7] &&& [i ++ con 1 <== con (-1), k >== con 0] &&& leq [con (-3), i ++ con 1 ++ 4**k, con 0])
 
-    combine :: VarMap -> [[([HandyEq],[HandyIneq])]] -> [(VarMap,[HandyEq],[HandyIneq])]
-    combine vm eq_ineqs = [(vm,e,i) | (e,i) <- map (transformPair concat concat . unzip) eq_ineqs]
+    combine :: (Int,Int) -> VarMap -> [[([HandyEq],[HandyIneq])]] -> [((Int,Int),VarMap,[HandyEq],[HandyIneq])]
+    combine l vm eq_ineqs = [(l,vm,e,i) | (e,i) <- map (transformPair concat concat . unzip) eq_ineqs]
     
     -- Helper functions for the replication:
     
@@ -547,11 +560,36 @@ translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapCol
         swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
-assertEquivalentProblems :: String -> [(VarMap, (EqualityProblem, InequalityProblem))] -> [(VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
-assertEquivalentProblems title exp act
+assertEquivalentProblems :: String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
+  [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
+assertEquivalentProblems title indExpr exp act
   = ((uncurry $ assertEqualCustomShow (showPairCustom show $ showListCustom $ showMaybe showProblem) title)
-      $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ map (uncurry transform) $ zip exp act)
+      $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ map (uncurry transform)
+      $ map (uncurry checkLabel) $ zip (sortByLabels exp) (sortByLabels act))
   where
+    -- Since this is a test, I'm taking the lazy way out and allowing run-time errors in this
+    -- function rather than putting it all in a monad.  In HUnit the effect will be about the same
+    checkLabel :: ((Int, Int), VarMap, (EqualityProblem, InequalityProblem)) ->
+      ((Int, Int), VarMap, (EqualityProblem, InequalityProblem)) ->
+      ((VarMap, (EqualityProblem, InequalityProblem)), (VarMap, (EqualityProblem, InequalityProblem)))
+    checkLabel (l,vm,p) (l',vm',p')
+      | l == l'   = ((vm,p), (vm',p'))
+      | otherwise = error $ "Labels did not match, expected: " ++ show l ++ " but actual: " ++ show l'
+  
+    sortByLabels :: [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
+       [((Int, Int), VarMap, (EqualityProblem, InequalityProblem))]
+    sortByLabels = sortBy (comparing (\(l,_,_) -> l)) . map lookupIndexes
+    
+    sortPair :: (Int,Int) -> (Int, Int)
+    sortPair (x,y) | x <= y    = (x,y)
+                   | otherwise = (y,x)
+    
+    lookupIndexes :: ((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem)) ->
+      ((Int, Int), VarMap, (EqualityProblem, InequalityProblem))
+    lookupIndexes ((e,e'),vm, p) = (sortPair (lookup e, lookup e'), vm, p)
+      where
+        lookup e = maybe (-1) fst $ find ((== e) . snd) indExpr
+
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
                        ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
     transform exp act = (translatedExp, Just $ sortP $ snd act)
