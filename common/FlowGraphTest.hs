@@ -146,7 +146,7 @@ someSpec :: Meta -> A.Specification
 someSpec m = A.Specification m (simpleName $ show m) undefined
                
 testSeq :: Test
-testSeq = TestList
+testSeq = TestLabel "testSeq" $ TestList
  [
    testSeq' 0 [(0,m1)] [] (A.Several m1 [])
   ,testSeq' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
@@ -168,7 +168,7 @@ testSeq = TestList
     testSeq' n a b s = testGraph ("testSeq " ++ show n) a b (A.Seq m0 s)
     
 testPar :: Test
-testPar = TestList
+testPar = TestLabel "testPar" $ TestList
  [
    testPar' 0 [(0,m1)] [] (A.Several m1 [])
   ,testPar' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
@@ -197,7 +197,7 @@ testPar = TestList
     testPar' n a b s = testGraph ("testPar " ++ show n) a b (A.Par m0 A.PlainPar s)
 
 testWhile :: Test
-testWhile = TestList
+testWhile = TestLabel "testWhile" $ TestList
  [
     testGraph "testWhile 0" [(0,m0), (1,m1)] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
    ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
@@ -209,7 +209,7 @@ testWhile = TestList
  ]
 
 testCase :: Test
-testCase = TestList
+testCase = TestLabel "testCase" $ TestList
  [
    testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
   ,testGraph "testCase 1"
@@ -227,7 +227,7 @@ testCase = TestList
    cases m = (A.Several m) . (map (A.OnlyO mU))
 
 testIf :: Test
-testIf = TestList
+testIf = TestLabel "testIf" $ TestList
  [
    testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
@@ -606,7 +606,7 @@ testModify =
                           | otherwise = r1
 -- | Returns the list of tests:
 qcTests :: (Test, [QuickCheckTest])
-qcTests = (TestList
+qcTests = (TestLabel "FlowGraphTest" $ TestList
  [
   testCase
   ,testIf
