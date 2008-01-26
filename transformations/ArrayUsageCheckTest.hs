@@ -242,7 +242,7 @@ check s (ind, eq, ineq) =
             ", ineqs: " ++ showMaybe showInequalities (transformMaybe snd sapped) ++ ")"
 
 testMakeEquations :: Test
-testMakeEquations = TestList
+testMakeEquations = TestLabel "testMakeEquations" $ TestList
   [
     test (0,[(Map.empty,[con 0 === con 1],leq [con 0,con 1,con 7] &&& leq [con 0,con 2,con 7])],
       [intLiteral 1, intLiteral 2],intLiteral 8)
@@ -774,7 +774,7 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
 ioqcTests :: IO (Test, [QuickCheckTest])
 ioqcTests
   = seqPair
-      (liftM TestList $ sequence
+      (liftM (TestLabel "ArrayUsageCheckTest" . TestList) $ sequence
         [
           return testArrayCheck
          ,return testIndexes
