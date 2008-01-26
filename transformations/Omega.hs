@@ -352,6 +352,7 @@ pruneIneq ineq = do let (opps,others) = splitEither $ groupOpposites $ map prune
 numVariables :: InequalityProblem -> Int
 numVariables ineq = length (nub $ concatMap findVars ineq)
   where
+    findVars :: InequalityConstraintEquation -> [CoeffIndex]
     findVars = map fst . filter ((/= 0) . snd) . tail . assocs
 
 -- | Adds a constant value to an equation:

@@ -511,6 +511,7 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
 genGraph :: A.Structured -> FlowGraph Identity ()
 genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) id $ runIdentity $ buildFlowGraph funcs s
   where
+    empty :: a -> Identity ()
     empty = const (return ())
     funcs = GLF empty empty empty empty empty empty 
 

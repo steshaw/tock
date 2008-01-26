@@ -29,6 +29,7 @@ import Types
 simplifyTypes :: Pass
 simplifyTypes = runPasses passes
   where
+    passes :: [(String,Pass)]
     passes =
       [ ("Resolve types in AST", resolveNamedTypes)
       , ("Resolve types in state", rntState)

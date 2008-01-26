@@ -531,7 +531,7 @@ getIneqs (low, high) = concatMap getLH
       
         getLH :: EqualityConstraintEquation -> [InequalityConstraintEquation]
         getLH eq = [eq `addEq` (amap negate low),high `addEq` amap negate eq]
-        
+        addEq :: EqualityConstraintEquation -> EqualityConstraintEquation -> EqualityConstraintEquation
         addEq = arrayZipWith' 0 (+)
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
@@ -662,4 +662,3 @@ squareEquations (eqs,ineqs) = uncurry transformPair (mkPair $ map $ makeSize (0,
     
       where      
         highest = maximum $ 0 : (concatMap indices $ eqs ++ ineqs)
-

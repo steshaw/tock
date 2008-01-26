@@ -337,6 +337,7 @@ testArraySubscript = TestList
     
  ]
  where
+   stateTrans :: CSM m => m ()
    stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
 
@@ -398,7 +399,9 @@ testOverArray = TestList $ map testOverArray'
               "for\\(int ([[:alnum:]_]+)=0;\\2<foo" ++ sz 1 ++ ";\\2\\+\\+)\\{" ++
               "for\\(int ([[:alnum:]_]+)=0;\\3<foo" ++ sz 2 ++ ";\\3\\+\\+)\\{" ++
               "foo" ++ (f' [("\\1",[1,2]),("\\2",[2]),("\\3",[])]) ++ suff ++ ";\\}\\}\\}$"
+        state1 :: CSM m => m ()
         state1 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
+        state3 :: CSM m => m ()
         state3 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
 
 testReplicator :: Test
@@ -1046,6 +1049,7 @@ testOutput = TestList
  
    chan = simpleName "c"
    chanOut = simpleName "cOut"
+   state :: CSM m => m ()
    state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
    overOutput ops = ops {genOutput = override2 caret}

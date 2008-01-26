@@ -370,6 +370,7 @@ matchType et rt
             else bad
         _ -> if rt == et then return () else bad
   where
+    bad :: OccParser ()
     bad = die $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
 
 -- | Check that two lists of types match (for example, for parallel assignment).
@@ -1462,7 +1463,9 @@ formalArgSet
     <|> formalItem (aa channelSpecifier) newChannelName
     <|> formalItem (aa timerSpecifier) newTimerName
     <|> formalItem (aa portSpecifier) newPortName
-  where aa = liftM (\t -> (A.Abbrev, t))
+  where
+    aa :: OccParser A.Type -> OccParser (A.AbbrevMode, A.Type)
+    aa = liftM (\t -> (A.Abbrev, t))
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
 formalVariableType

@@ -31,6 +31,7 @@ import Pass
 simplifyProcs :: Pass
 simplifyProcs = runPasses passes
   where
+    passes :: [(String, Pass)]
     passes =
       [ ("Wrap PAR subprocesses in PROCs", parsToProcs)
       , ("Remove parallel assignment", removeParAssign)

@@ -64,6 +64,7 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
                            _ -> False
 
         -- A new line -- look to see what's going on with the indentation.
+        newLine :: [Token] -> PassM [Token]
         newLine rest
           | col == prevCol + 2   = withEOL $ (m, Indent) : rest
           -- FIXME: If col > prevCol, then look to see if there's a VALOF
@@ -76,6 +77,7 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
           | otherwise            = bad
             where
               steps = (prevCol - col) `div` 2
+              bad :: PassM [Token]
               bad = dieP m "Invalid indentation"
               -- This is actually the position at which the new line starts
               -- rather than the end of the previous line.

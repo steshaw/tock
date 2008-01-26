@@ -187,7 +187,8 @@ makeConsistent eqs ineqs = (map ensure eqs', map ensure ineqs')
   where
     eqs' = map (\(Eq e) -> e) eqs
     ineqs' = map (\(Ineq e) -> e) ineqs
-      
+    
+    ensure :: [(CoeffIndex, Integer)] -> EqualityConstraintEquation
     ensure = accumArray (+) 0 (0, largestIndex)
     largestIndex = maximum $ map (maximum . map fst) $ [[(0,0)]] ++ eqs' ++ ineqs'
 
@@ -374,9 +375,13 @@ testMakeEquations = TestList
     joinMapping :: [VarMap] -> ([HandyEq],[HandyIneq]) -> [(VarMap,[HandyEq],[HandyIneq])]
     joinMapping vms (eq,ineq) = map (\vm -> (vm,eq,ineq)) vms
   
+    i_mapping :: VarMap
     i_mapping = Map.singleton (Scale 1 $ (variable "i",0)) 1
+    ij_mapping :: VarMap
     ij_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2)]
+    i_mod_mapping :: Integer -> VarMap
     i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
+    i_mod_j_mapping :: VarMap
     i_mod_j_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
       (Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Scale 1 $ (variable "j",0)),3)]
     _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
@@ -387,7 +392,9 @@ testMakeEquations = TestList
       ,(Modulo (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
      ]
 
+    rep_i_mapping :: VarMap
     rep_i_mapping = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)]
+    rep_i_mapping' :: VarMap
     rep_i_mapping' = Map.fromList [((Scale 1 (variable "i",0)),2), ((Scale 1 (variable "i",1)),1)]
 
     both_rep_i = joinMapping [rep_i_mapping, rep_i_mapping']
@@ -507,6 +514,7 @@ testIndexes = TestList
     isMod var@[(ind,1)] alpha divisor = ([alpha_minus_div_sigma === var], leq [con 0, alpha_minus_div_sigma, con $ divisor - 1])
       where
         alpha_minus_div_sigma = alpha ++ (negate divisor) ** sigma
+        sigma :: [(Int, Integer)]
         sigma = [(ind+1,1)]
     
     -- | Adds both k and m to the equation!

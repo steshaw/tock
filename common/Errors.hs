@@ -61,6 +61,7 @@ dieIO (Just m@(Meta (Just fn) line column),s) = liftIO $
        putStrLn ""
        printError $ (show m) ++ " " ++ s
          where
+           contextLines :: Int
            contextLines = 5
            -- start is unit-based, so we need to convert to zero-based
            getLines :: String -> Int -> Int -> [String]

@@ -33,6 +33,7 @@ import Utils
 simplifyComms :: Pass
 simplifyComms = runPasses passes
   where
+    passes :: [(String, Pass)]
     passes =
       [ ("Define temporary variables for outputting expressions", outExprs)
        ,("Transform ? CASE statements/guards into plain CASE", transformInputCase)

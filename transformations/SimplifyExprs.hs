@@ -33,6 +33,7 @@ import Types
 simplifyExprs :: Pass
 simplifyExprs = runPasses passes
   where
+    passes :: [(String, Pass)]
     passes =
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
       , ("Convert AFTER to MINUS", removeAfter)

@@ -66,6 +66,7 @@ a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.E
 testGetVarProc :: Test
 testGetVarProc = TestList (map doTest tests)
  where
+   tests :: [(Int,[Var],[Var],[Var],[Var],A.Process)]
    tests =
     [
 --TODO test channel reads and writes (incl. reads in alts)

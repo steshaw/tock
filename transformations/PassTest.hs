@@ -451,9 +451,11 @@ testInputCase = TestList
     a0 = simpleName "a0"
     b2 = simpleName "b2"
     c1 = simpleName "c1"
+    defineMyProtocol :: CSM m => m ()
     defineMyProtocol = defineName (simpleName "prot") $ A.NameDef emptyMeta "prot" "prot" A.ProtocolName
       (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
       A.Original A.Unplaced
+    defineC :: CSM m => m ()
     defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
     
     specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
