@@ -230,7 +230,7 @@ check s (ind, eq, ineq) =
   case s of
     ImpossibleEq   -> TestCase $ assertEqual testName Nothing sapped
     SolveEq ans    -> TestCase $ assertEqual testName (Just (ans,[]))
-                                   	(transformMaybe (transformPair getCounterEqs id) sapped)
+                                   (transformMaybe (transformPair getCounterEqs id) sapped)
     ImpossibleIneq -> TestCase $ assertEqual testName Nothing elimed
     SolveIneq      -> TestCase $ assertBool  testName (isJust elimed) -- TODO check for a solution to the inequality
     where problem = makeConsistent eq ineq
@@ -545,7 +545,7 @@ assertEquivalentProblems title exp act
       $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ map (uncurry transform) $ zip exp act)
   where
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
-    	               ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
+                       ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
     transform exp act = (translatedExp, Just $ sortP $ snd act)
       where
         sortP :: (EqualityProblem, InequalityProblem) -> (EqualityProblem, InequalityProblem)      

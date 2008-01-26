@@ -227,7 +227,7 @@ testUnique2b :: Test
 testUnique2b = TestCase $ testPassWithItemsStateCheck "testUnique2b" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (simpleName "c") $ A.Declaration m A.Byte Nothing) $
-    	A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
+        A.Several m [(A.OnlyP m $ makeSimpleAssign "c" "d"),(A.OnlyP m $ makeSimpleAssign "c" "e")]
     exp = tag3 A.Spec DontCare (tag3 A.Specification DontCare ("newc"@@DontCare) $ A.Declaration m A.Byte Nothing) $
       tag2 A.Several DontCare [
         (tag2 A.OnlyP m $ tag3 A.Assign DontCare [tag2 A.Variable DontCare ("newc"@@DontCare)] (tag2 A.ExpressionList DontCare [(exprVariable "d")]))

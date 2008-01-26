@@ -293,7 +293,7 @@ assignOp
     <|> do {m <- reserved "*=" ; return (m,Just A.Times)}
     <|> do {m <- reserved "/=" ; return (m,Just A.Div)}
     <|> do {m <- reserved "%=" ; return (m,Just A.Rem)}
-    <|> do {m <- reserved "=" ; return (m,Nothing)}	
+    <|> do {m <- reserved "=" ; return (m,Nothing)}
 
 
 each :: RainParser A.Process

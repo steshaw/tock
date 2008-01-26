@@ -28,7 +28,7 @@ module Types
     , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
 
-	, leastGeneralSharedTypeRain
+    , leastGeneralSharedTypeRain
 
   ) where
 
