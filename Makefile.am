@@ -1,10 +1,15 @@
 GHC_OPTS = \
 	-fglasgow-exts \
-	-fallow-undecidable-instances \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
 	-fwarn-type-defaults \
 	-icommon -itransformations -ifrontends -ibackends
+
+if GHC68
+GHC_OPTS += -XUndecidableInstances -fwarn-tabs 
+else
+GHC_OPTS += -fallow-undecidable-instances
+endif
 
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES)
 	@MKDIR_P@ obj

@@ -115,6 +115,25 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
 )
 CFLAGS=
 
+AC_MSG_CHECKING([Checking GHC version])
+
+ghc_version=`ghc --numeric-version`
+ghc_version_major=`echo $ghc_version |  awk -F . '{print $1}'`
+ghc_version_mid=`echo $ghc_version |  awk -F . '{print $2}'`
+ghc_version_minor=`echo $ghc_version |  awk -F . '{print $3}'`
+
+AC_MSG_RESULT($ghc_version_major.$ghc_version_mid.$ghc_version_minor)
+
+AC_MSG_CHECKING([Checking that GHC version is at least 6.6.x])
+
+if test $ghc_version_major -lt 6 -o $ghc_version_mid -lt 6; then
+	AC_MSG_ERROR([GHC of at least version 6.6.x is required])
+else
+	AC_MSG_RESULT([ok])
+fi
+
+AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8])
+
 AC_SUBST(gnu89_inline)
 AC_SUBST(ccsp_kroc_available)
 AC_SUBST(cppcsp_available)
