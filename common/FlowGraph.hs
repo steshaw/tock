@@ -278,6 +278,12 @@ buildFlowGraph funcs s
       = do n <- addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
            n' <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
            (s,e) <- buildStructured outer str (route33 route A.Spec)
+           -- If it's a process or function spec we must process it too.  No need to
+           -- connect it up to the outer part though
+           case spec of
+             (A.Specification _ _ (A.Proc _ _ _ p)) -> buildProcess p (route44 (route33 (route23 route A.Spec) A.Specification) A.Proc) >> return ()
+             (A.Specification _ _ (A.Function _ _ _ _ s)) -> buildStructured None s (route55 (route33 (route23 route A.Spec) A.Specification) A.Function) >> return ()
+             _ -> return ()
            addEdge ESeq n s
            addEdge ESeq e n'
            return (n,n')
