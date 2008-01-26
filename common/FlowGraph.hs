@@ -314,6 +314,14 @@ decomp23 con f1 = decomp3 con return f1 return
 decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
 decomp33 con f2 = decomp3 con return return f2
 
+decomp44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp44 con f3 = decomp4 con return return return f3
+
+decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
+decomp55 con f4 = decomp5 con return return return return f4
+
 route22 :: (Monad m, Data a, Typeable a0, Typeable a1) => ASTModifier m a -> (a0 -> a1 -> a) -> ASTModifier m a1
 route22 route con = route @-> (decomp22 con)
 
@@ -322,3 +330,11 @@ route23 route con = route @-> (decomp23 con)
 
 route33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a2
 route33 route con = route @-> (decomp33 con)
+
+route44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a) -> ASTModifier m a3
+route44 route con = route @-> (decomp44 con)
+
+route55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> ASTModifier m a4
+route55 route con = route @-> (decomp55 con)

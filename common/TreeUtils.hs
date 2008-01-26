@@ -25,7 +25,7 @@ module TreeUtils (
   mkPattern, stopCaringPattern, namePattern, nameAndStopCaringPattern, 
   checkTreeForConstr,
   con0, con1, con2, con3, con4, con5, con6, con7
-  , decomp1, decomp2, decomp3
+  , decomp1, decomp2, decomp3, decomp4, decomp5
   ) where
 
 import Control.Monad.State
@@ -407,4 +407,12 @@ decomp2 con f0 f1 = gmapFuncs [mkM' f0, mkM' f1]
 
 decomp3 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a -> m a)
 decomp3 con f0 f1 f2 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2]
+
+decomp4 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a3 -> m a3) -> (a -> m a)
+decomp4 con f0 f1 f2 f3 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3]
+
+decomp5 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a3 -> m a3) -> (a4 -> m a4) -> (a -> m a)
+decomp5 con f0 f1 f2 f3 f4 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3, mkM' f4]
 
