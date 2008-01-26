@@ -6,7 +6,7 @@ GHC_OPTS = \
 	-icommon -itransformations -ifrontends -ibackends
 
 if GHC68
-GHC_OPTS += -XUndecidableInstances -fwarn-tabs 
+GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
 else
 GHC_OPTS += -fallow-undecidable-instances
 endif
