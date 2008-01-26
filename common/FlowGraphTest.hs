@@ -146,7 +146,7 @@ testGraph' testName nodes edges code
 
 -- | A helper function for making simple A.Specification items.
 someSpec :: Meta -> A.Specification
-someSpec m = A.Specification m (simpleName $ show m) undefined
+someSpec m = A.Specification m (simpleName $ show m) (A.DataType m A.Int)
                
 testSeq :: Test
 testSeq = TestLabel "testSeq" $ TestList
@@ -244,6 +244,29 @@ testIf = TestLabel "testIf" $ TestList
  where
    ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured
    ifs m = (A.Several m) . (map (\(e,p) -> A.OnlyC mU $ A.Choice (findMeta e) e p))
+
+testProcFuncSpec :: Test
+testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
+  [
+   -- Single spec of process (with SKIP body):
+    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100),(3,m3)] [(1,3,ESeq), (3,2,ESeq)]
+      (A.Spec mU (A.Specification m1 undefined $ A.Proc mU undefined undefined sm0) $ A.Several m3 [])
+   -- Single spec of process (with body with SEQ SKIP SKIP):
+   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(3,m8),(4,m5)] ([(1,3,ESeq), (3,2,ESeq)] ++ [(0,4,ESeq)])
+      (A.Spec mU (A.Specification m6 undefined $ A.Proc mU undefined undefined $
+        A.Seq m0 $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5]
+      ) $ A.Several m8 [])
+   -- Nested spec of process (with bodies with SEQ SKIP SKIP):
+   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(2,m8),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100)]
+      ([(0,7,ESeq), (7,2,ESeq), (2,8,ESeq), (8,1,ESeq)] ++ [(3,4,ESeq)] ++ [(5,6,ESeq)])
+      (A.Spec mU (A.Specification m6 undefined $ A.Proc mU undefined undefined $
+        A.Seq mU $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3]
+      ) $ 
+       A.Spec mU (A.Specification m7 undefined $ A.Proc mU undefined undefined $
+        A.Seq mU $ A.Several mU [A.OnlyP mU sm4,A.OnlyP mU sm5]
+      )  
+      $ A.Several m8 [])
+  ]
 
 --TODO test replicated seq/par
 --TODO test alts
@@ -614,6 +637,7 @@ qcTests = (TestLabel "FlowGraphTest" $ TestList
   testCase
   ,testIf
   ,testPar
+  ,testProcFuncSpec
   ,testSeq
   ,testWhile
  ]
