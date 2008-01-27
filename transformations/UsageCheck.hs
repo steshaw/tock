@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheck (checkPar, customVarCompare, Decl, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
+module UsageCheck (checkPar, customVarCompare, Decl(..), emptyVars, getVarProc, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.Graph.Inductive
