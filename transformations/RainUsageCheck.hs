@@ -20,93 +20,24 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module RainUsageCheck (Var(..), Vars(..), vars, Decl(..), getVarLabelFuncs, emptyVars, getVarProc, checkInitVar, findReachDef) where
+module RainUsageCheck (checkInitVar, findReachDef) where
 
-import Control.Monad.Error
 import Control.Monad.Identity
-import Data.Generics
 import Data.Graph.Inductive
 import Data.List hiding (union)
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
-import qualified AST as A
+import CompState
+import Errors
 import FlowAlgorithms
 import FlowGraph
+import Metadata
+import ShowCode
+import UsageCheck
 import Utils
-
--- In Rain, Deref can't nest with Dir in either way, so this doesn't need to be a recursive type:
-data Var =
-  Plain String
-  | Deref String
-  | Dir A.Direction String
-  deriving (Eq, Show, Ord)
-  
-data Vars = Vars {
-  maybeRead :: Set.Set Var,
-  maybeWritten :: Set.Set Var,
-  defWritten :: Set.Set Var,
-  used :: Set.Set Var -- e.g. channels, barriers
---  passed :: Set.Set String
-}
-  deriving (Eq, Show)
-
-emptyVars :: Vars
-emptyVars = Vars Set.empty Set.empty Set.empty Set.empty
-
-readVars :: [Var] -> Vars
-readVars ss = Vars (Set.fromList ss) Set.empty Set.empty Set.empty
-
-writtenVars :: [Var] -> Vars
-writtenVars ss = Vars Set.empty (Set.fromList ss) (Set.fromList ss) Set.empty
-
-usedVars :: [Var] -> Vars
-usedVars vs = Vars Set.empty Set.empty Set.empty (Set.fromList vs)
-
-vars :: [Var] -> [Var] -> [Var] -> [Var] -> Vars
-vars mr mw dw u = Vars (Set.fromList mr) (Set.fromList mw) (Set.fromList dw) (Set.fromList u)
-
-unionVars :: Vars -> Vars -> Vars
-unionVars (Vars mr mw dw u) (Vars mr' mw' dw' u') = Vars (mr `Set.union` mr') (mw `Set.union` mw') (dw `Set.union` dw') (u `Set.union` u')
-
-foldUnionVars :: [Vars] -> Vars
-foldUnionVars = foldl unionVars emptyVars
-
-mapUnionVars :: (a -> Vars) -> [a] -> Vars
-mapUnionVars f = foldUnionVars . (map f)
-
-nameToString :: A.Name -> String
-nameToString = A.nameName
-
---Gets the (written,read) variables of a piece of an occam program:
-
---For subscripted variables used as Lvalues , e.g. a[b] it should return a[b] as written-to and b as read
---For subscripted variables used as expressions, e.g. a[b] it should return a[b],b as read (with no written-to)
-
-getVarProc :: A.Process -> Vars
-getVarProc (A.Assign _ vars expList) 
-        --Join together:
-      = unionVars
-          --The written-to variables on the LHS:
-          (foldUnionVars (map processVarW vars)) 
-          --All variables read on the RHS:
-          (getVarExpList expList)
-getVarProc (A.GetTime _ v) = processVarW v
-getVarProc (A.Wait _ _ e) = getVarExp e
-getVarProc (A.Output _ chanVar outItems) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarOutputItem outItems)
-  where
-    getVarOutputItem :: A.OutputItem -> Vars
-    getVarOutputItem (A.OutExpression _ e) = getVarExp e
-    getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
-getVarProc (A.Input _ chanVar (A.InputSimple _ iis)) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarInputItem iis)
-  where
-    getVarInputItem :: A.InputItem -> Vars
-    getVarInputItem (A.InCounted _ cv av) = writtenVars [variableToVar cv,variableToVar av]
-    getVarInputItem (A.InVariable _ v) = writtenVars [variableToVar v]
---TODO process calls
-getVarProc _ = emptyVars
-    
+   
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
       The problem with this is that given var@(A.SubscriptedVariable _ sub arrVar), the functions would be recursively
@@ -117,6 +48,7 @@ getVarProc _ = emptyVars
     -}    
     
     --Pull out all the subscripts into the read category, but leave the given var in the written category:
+{-
 processVarW :: A.Variable -> Vars
 processVarW v = writtenVars [variableToVar v]
     
@@ -125,51 +57,7 @@ processVarR v = readVars [variableToVar v]
 
 processVarUsed :: A.Variable -> Vars
 processVarUsed v = usedVars [variableToVar v]
-
-variableToVar :: A.Variable -> Var
-variableToVar (A.Variable _ n) = Plain $ nameToString n
-variableToVar (A.DirectedVariable _ dir (A.Variable _ n)) = Dir dir $ nameToString n
-variableToVar (A.DerefVariable _ (A.Variable _ n)) = Deref $ nameToString n
-variableToVar v = error ("Unprocessable variable: " ++ show v) --TODO come up with a better solution than this
-
-getVarExpList :: A.ExpressionList -> Vars
-getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
-getVarExpList (A.FunctionCallList _ _ es) = foldUnionVars $ map getVarExp es --TODO record stuff in passed as well?
-
-getVarExp :: A.Expression -> Vars
-getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
-  where
-    --Only need to deal with the two cases where we can see an A.Variable directly;
-    --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
-    getVarExp' :: A.Expression -> Vars
-    getVarExp' (A.SizeVariable _ v) = processVarR v
-    getVarExp' (A.ExprVariable _ v) = processVarR v
-    getVarExp' _ = emptyVars
-
-getVarSpec :: A.Specification -> Vars
-getVarSpec = const emptyVars -- TODO
-
-data Decl = ScopeIn String | ScopeOut String deriving (Show, Eq)
-
-getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
-getDecl _ _ = Nothing -- TODO
-
-
-getVarLabelFuncs :: GraphLabelFuncs Identity (Maybe Decl, Vars)
-getVarLabelFuncs = GLF
- {
-   labelExpression = pair (const Nothing) getVarExp
-  ,labelExpressionList = pair (const Nothing) getVarExpList
-  ,labelDummy = const (return (Nothing, emptyVars))
-  ,labelProcess = pair (const Nothing) getVarProc
-  --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
-  ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
-  ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
- }
-  where
-    pair :: (a -> b) -> (a -> c) -> (a -> Identity (b,c))
-    pair f0 f1 x = return (f0 x, f1 x)
-
+-}
 {-
 
 
@@ -280,21 +168,31 @@ isSubsetOf _ Everything = True
 isSubsetOf Everything _ = False
 isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
 
+showCodeExSet :: (CSM m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
+showCodeExSet Everything = return "<all-vars>"
+showCodeExSet (NormalSet s)
+    = do ss <- mapM showCode (Set.toList s)
+         return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
-
--- TODO have some sort of error-message return if the check fails or if the code fails
-checkInitVar :: forall m. Monad m => FlowGraph m (Maybe Decl, Vars) -> Node -> Either String ()
+-- | Checks that no variable is used uninitialised.  That is, it checks that every -- variable is written to before it is read.
+checkInitVar :: forall m. (Monad m, Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
 checkInitVar graph startNode
-  = do vwb <- varWrittenBefore
+  = do vwb <- case flowAlgorithm graphFuncs (nodes graph) startNode of
+         Left err -> die $ "Error building control-flow graph: " ++ err
+         Right x -> return x
+       -- vwb is a map from Node to a set of Vars that have been written by that point
+       -- Now we check that for every variable read in each node, it has already been written to by then
        mapM_ (checkInitVar' vwb) (map readNode (labNodes graph))
   where
+    -- Gets all variables read-from in a particular node, and the node identifier
     readNode :: (Node, FNode m (Maybe Decl, Vars)) -> (Node, ExSet Var)
-    readNode (n, Node (_,(_,Vars read _ _ _),_)) = (n,NormalSet read)
+    readNode (n, Node (_,(_,Vars read _ _),_)) = (n,NormalSet read)
   
+    -- Gets all variables written-to in a particular node
     writeNode :: FNode m (Maybe Decl, Vars) -> ExSet Var
-    writeNode (Node (_,(_,Vars _ _ written _),_)) = NormalSet written
+    writeNode (Node (_,(_,Vars _ written _),_)) = NormalSet written
     
-    -- Nothing is treated as if were the set of all possible variables (easier than building that set):
+    -- Nothing is treated as if were the set of all possible variables:
     nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
     nodeFunction (n,_) inputVal Nothing = union inputVal (maybe emptySet writeNode (lab graph n))    
     nodeFunction (n, EEndPar _) inputVal (Just prevAgg) = unions [inputVal,prevAgg,maybe emptySet writeNode (lab graph n)]
@@ -309,18 +207,20 @@ checkInitVar graph startNode
        ,initVal = emptySet
        ,defVal = Everything
       }
-  
-    varWrittenBefore :: Either String (Map.Map Node (ExSet Var))
-    varWrittenBefore = flowAlgorithm graphFuncs (nodes graph) startNode
-
-    checkInitVar' :: Map.Map Node (ExSet Var) -> (Node, ExSet Var) -> Either String ()
+      
+    getMeta :: Node -> Meta
+    getMeta n = case lab graph n of
+      Just (Node (m,_,_)) -> m
+      _ -> emptyMeta
+        
+    checkInitVar' :: Map.Map Node (ExSet Var) -> (Node, ExSet Var) -> m ()
     checkInitVar' writtenMap (n,v)
-      = case Map.lookup n writtenMap of
-          Nothing -> throwError $ "Variable that is read from: " ++ show (lab graph n) ++ " is never written to"
-          -- All read vars should be in the previously-written set
-          Just vs -> if v `isSubsetOf` vs then return () else 
-            throwError $ "Variable read from: " ++ show (lab graph n) ++ " is not written to before-hand, sets: " ++ show v ++ " and " ++ show vs
-              ++ " writtenMap: " ++ show writtenMap
+      = let vs = fromMaybe emptySet (Map.lookup n writtenMap) in
+        -- The read-from set should be a subset of the written-to set:
+        if v `isSubsetOf` vs then return () else 
+          do readVars <- showCodeExSet v
+             writtenVars <- showCodeExSet vs
+             dieP (getMeta n) $ "Variable read from is not written to before-hand, sets are read: " ++ show readVars ++ " and written: " ++ show writtenVars
 
 -- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
 
@@ -348,10 +248,10 @@ findReachDef graph startNode
     readInNode' n v _ = readInNode v (lab graph n)
 
     readInNode :: Var -> Maybe (FNode m (Maybe Decl, Vars)) -> Bool
-    readInNode v (Just (Node (_,(_,Vars read _ _ _),_))) = Set.member v read
+    readInNode v (Just (Node (_,(_,Vars read _ _),_))) = Set.member v read
     
     writeNode :: FNode m (Maybe Decl, Vars) -> Set.Set Var
-    writeNode (Node (_,(_,Vars _ _ written _),_)) = written
+    writeNode (Node (_,(_,Vars _ written _),_)) = written
       
     -- | A confusiing function used by processNode.   It takes a node and node label, and uses
     -- these to form a multi-map modifier function that replaces all node-sources for variables
@@ -364,13 +264,8 @@ findReachDef graph startNode
     processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set Node) -> Maybe (Map.Map Var (Set.Set Node)) -> Map.Map Var (Set.Set Node)
     processNode (n,_) inputVal mm = mergeMultiMaps modifiedInput prevAgg
       where
-        -- Note that the two uses of maybe here use id in different senses.
-        -- In prevAgg, id is used on the value inside the Maybe.
-        -- Whereas, in modifiedInput, id is the default value (because a function is 
-        -- what comes out of maybe)
-      
         prevAgg :: Map.Map Var (Set.Set Node)
-        prevAgg = maybe Map.empty id mm
+        prevAgg = fromMaybe Map.empty mm
         
         modifiedInput :: Map.Map Var (Set.Set Node)
         modifiedInput = (maybe id (nodeLabelToMapInsert n) $ lab graph n) inputVal
