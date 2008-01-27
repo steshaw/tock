@@ -24,6 +24,16 @@ PROC m()
 
 %FAIL Identical constants, PAR assign
     a[0],a[0] := 3,4
+    
+%PASS Self-assign
+    a[0] := a[0]
+    a[1] := a[1]
+
+%PASS Self-assign, PAR assign
+    a[0],a[1] := a[0],a[1]
+
+%PASS PAR assign swap
+    a[0],a[1] := a[1],a[0]
 
 %PASS Same constant, different array
     a[0] := 3
