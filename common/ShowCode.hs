@@ -31,7 +31,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- My plan for testing was to take each of the cgtests, and parse it in to AST_A.  Then print AST_A using this
 -- module, and feed it back in to the parser to get AST_B.  Then check if AST_A and AST_B are equal.
 
-module ShowCode (showCode, showOccam, showRain, formatCode, extCode) where 
+module ShowCode (showCode, ShowOccam(..), showOccam, ShowRain(..), formatCode, extCode) where 
 
 import Control.Monad.State
 import Data.Generics
