@@ -32,6 +32,7 @@ import Test.QuickCheck hiding (check)
 
 import ArrayUsageCheck
 import qualified AST as A
+import Metadata
 import Omega
 import TestHarness
 import TestUtils hiding (m)
@@ -336,7 +337,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
    ,testRep' (200,[((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
-     [(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i"],intLiteral 8)
+     ("i", intLiteral 1, intLiteral 6),[exprVariable "i"],intLiteral 8)
      
    ,testRep' (201,
      [((0,0),rep_i_mapping, [i === j],
@@ -344,7 +345,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
      ++ replicate 2 ((0,1),rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      ++ [((1,1),rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
-     ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", intLiteral 3],intLiteral 8)
+     ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", intLiteral 3],intLiteral 8)
 
    ,testRep' (202,[
         ((0,1),rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
@@ -353,12 +354,13 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
        ,((1,1),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
        ++ [((0,1),rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, i, con 6] &&& -- deliberate repeat
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
-     ,[(variable "i", intLiteral 1, intLiteral 6)],[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
+     ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
    -- Only a constant:
    ,testRep' (210,[((0,0),rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
-     ,[(variable "i", intLiteral 1, intLiteral 6)],[intLiteral 4],intLiteral 8)
+     ,("i", intLiteral 1, intLiteral 6),[intLiteral 4],intLiteral 8)
 
+   -- TODO test reads and writes are paired properly
   ]
   where
     -- These functions assume that you pair each list [x,y,z] as (x,y) (x,z) (y,z) in that order.
@@ -381,11 +383,11 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
         (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (makeParItems exprs) upperBound)
   
-    testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
-    testRep' (ind, problems, reps, exprs, upperBound) = 
+    testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
+    testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
         (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems)
-          =<< (checkRight $ makeReplicatedEquations reps (exprs,[]) upperBound)
+          =<< (checkRight $ makeEquations (RepParItem (A.For emptyMeta (simpleName repName) repFrom repFor) $ makeParItems exprs) upperBound)
   
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
