@@ -28,9 +28,10 @@ import qualified AST as A
 import Errors
 import FlowGraph
 import Metadata
+import ShowCode
 
+newtype Var = Var A.Variable deriving (Show)
 
-newtype Var = Var A.Variable
 
 customVarCompare :: A.Variable -> A.Variable -> Ordering
 customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
@@ -42,11 +43,16 @@ instance Eq Var where
 instance Ord Var where
   compare (Var a) (Var b) = customVarCompare a b
 
+instance ShowOccam Var where
+  showOccamM (Var v) = showOccamM v
+instance ShowRain Var where
+  showRain (Var v) = showRain v
+
 data Vars = Vars {
   readVars :: Set.Set Var
   ,writtenVars :: Set.Set Var
   ,usedVars :: Set.Set Var -- for channels, barriers, etc
-}
+} deriving (Eq, Show)
 
 data Decl = ScopeIn String | ScopeOut String deriving (Show, Eq)
 
