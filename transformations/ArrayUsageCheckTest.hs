@@ -35,6 +35,7 @@ import qualified AST as A
 import Omega
 import TestHarness
 import TestUtils hiding (m)
+import UsageCheck hiding (Var)
 import Utils
 
 testArrayCheck :: Test
@@ -371,11 +372,14 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     labelNums m n | m >= n    = []
                   | otherwise = [(m,n') | n' <- [(m + 1) .. n]] ++ labelNums (m + 1) n 
     
+
+    makeParItems :: [A.Expression] -> ParItems ([A.Expression],[A.Expression])
+    makeParItems es = ParItems $ map (\e -> SeqItems [([e],[])]) es
   
     test' :: (Integer,[((Int,Int),VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
     test' (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
-        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (exprs,[]) upperBound)
+        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (makeParItems exprs) upperBound)
   
     testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],[(A.Variable, A.Expression, A.Expression)],[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, reps, exprs, upperBound) = 
