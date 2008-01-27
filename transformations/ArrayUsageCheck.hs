@@ -59,7 +59,7 @@ checkArrayUsage graph = sequence_ $ checkPar checkArrayUsage' graph
     groupArrayIndexes vs = filterByKey $ transformParItems (uncurry (zipMap join) . (transformPair (makeList . writtenVars) (makeList . readVars)) . mkPair) vs
       where
         join :: Maybe [a] -> Maybe [a] -> Maybe ([a],[a])
-        join x y = Just (maybe [] id x, maybe [] id y)
+        join x y = Just (fromMaybe [] x, fromMaybe [] y)
         
         flattenParItems :: ParItems a -> [a]
         flattenParItems (SeqItems xs) = xs
