@@ -39,6 +39,8 @@ joinCheckParFunctions f g x = seqPair (f x, g x)
 checkPar :: forall m a b. Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> [m b]
 checkPar f g = map f allParItems
   where
+    -- TODO deal with replicators
+  
     allStartParEdges :: Map.Map Int [(Node,Node)]
     allStartParEdges = foldl (\mp (s,e,n) -> Map.insertWith (++) n [(s,e)] mp) Map.empty $ mapMaybe tagStartParEdge $ labEdges g
   

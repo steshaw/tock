@@ -287,6 +287,7 @@ buildFlowGraph funcs s
            addEdge ESeq n s
            addEdge ESeq e n'
            return (n,n')
+    -- TODO replicator
     buildStructured _ s _ = do n <- addDummyNode (findMeta s)
                                return (n,n)
     
