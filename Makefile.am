@@ -85,6 +85,7 @@ tock_SOURCES_hs += backends/TLP.hs
 tock_SOURCES_hs += checks/ArrayUsageCheck.hs
 tock_SOURCES_hs += checks/Omega.hs
 tock_SOURCES_hs += checks/RainUsageCheck.hs
+tock_SOURCES_hs += checks/UsageCheckAlgorithms.hs
 tock_SOURCES_hs += checks/UsageCheckUtils.hs
 tock_SOURCES_hs += common/AST.hs
 tock_SOURCES_hs += common/CompState.hs

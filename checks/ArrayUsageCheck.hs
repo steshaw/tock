@@ -35,6 +35,7 @@ import Omega
 import Pass
 import ShowCode
 import Types
+import UsageCheckAlgorithms
 import UsageCheckUtils
 import Utils
 

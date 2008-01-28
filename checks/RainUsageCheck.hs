@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module RainUsageCheck (checkInitVar, findReachDef) where
+module RainUsageCheck (checkInitVar) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
@@ -36,7 +36,6 @@ import FlowGraph
 import Metadata
 import ShowCode
 import UsageCheckUtils
-import Utils
    
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
@@ -221,55 +220,3 @@ checkInitVar graph startNode
           do readVars <- showCodeExSet v
              writtenVars <- showCodeExSet vs
              dieP (getMeta n) $ "Variable read from is not written to before-hand, sets are read: " ++ show readVars ++ " and written: " ++ show writtenVars
-
--- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
-
--- I considered having the return type be Map Var (Map Node x)) rather than Map (Var,Node) x, but the time for lookup
--- will be identical (log N + log V in the former case, log (V*N) in the latter), and having a pair seemed simpler.
--- TODO correct that comment!
-findReachDef :: forall m. Monad m => FlowGraph m (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
-findReachDef graph startNode
-  = do r <- flowAlgorithm graphFuncs (nodes graph) startNode
-       -- These lines remove the maps where the variable is not read in that particular node:
-       let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
-       return $ Map.filter (not . Map.null) r'
-  where
-    graphFuncs :: GraphFuncs Node EdgeLabel (Map.Map Var (Set.Set Node))
-    graphFuncs = GF
-      {
-        nodeFunc = processNode
-        ,prevNodes = lpre graph
-        ,nextNodes = lsuc graph
-        ,initVal = Map.empty
-        ,defVal = Map.empty
-      }
-
-    readInNode' :: Node -> Var -> a -> Bool
-    readInNode' n v _ = readInNode v (lab graph n)
-
-    readInNode :: Var -> Maybe (FNode m (Maybe Decl, Vars)) -> Bool
-    readInNode v (Just (Node (_,(_,Vars read _ _),_))) = Set.member v read
-    
-    writeNode :: FNode m (Maybe Decl, Vars) -> Set.Set Var
-    writeNode (Node (_,(_,Vars _ written _),_)) = written
-      
-    -- | A confusiing function used by processNode.   It takes a node and node label, and uses
-    -- these to form a multi-map modifier function that replaces all node-sources for variables
-    -- written to by the given with node with a singleton set containing the given node.
-    -- That is, nodeLabelToMapInsert N (Node (_,Vars _ written _ _)) is a function that replaces
-    -- the sets for each v (v in written) with a singleton set {N}.
-    nodeLabelToMapInsert :: Node -> FNode m (Maybe Decl, Vars) -> Map.Map Var (Set.Set Node) -> Map.Map Var (Set.Set Node)
-    nodeLabelToMapInsert n = foldFuncs . (map (\v -> Map.insert v (Set.singleton n) )) . Set.toList . writeNode
-      
-    processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set Node) -> Maybe (Map.Map Var (Set.Set Node)) -> Map.Map Var (Set.Set Node)
-    processNode (n,_) inputVal mm = mergeMultiMaps modifiedInput prevAgg
-      where
-        prevAgg :: Map.Map Var (Set.Set Node)
-        prevAgg = fromMaybe Map.empty mm
-        
-        modifiedInput :: Map.Map Var (Set.Set Node)
-        modifiedInput = (maybe id (nodeLabelToMapInsert n) $ lab graph n) inputVal
-    
-    -- | Merges two "multi-maps" (maps to sets) using union
-    mergeMultiMaps :: (Ord k, Ord a) => Map.Map k (Set.Set a) -> Map.Map k (Set.Set a) -> Map.Map k (Set.Set a)
-    mergeMultiMaps = Map.unionWith (Set.union)
