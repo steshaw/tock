@@ -25,15 +25,12 @@ import qualified Data.Set as Set
 import qualified AST as A
 import Errors
 import FlowGraph
+import OrdAST()
 import ShowCode
 
 newtype Var = Var A.Variable deriving (Show)
 
 
--- Here's the idea for easily building a compare function.  Go through in ascending order.
--- Match A vs A in detail.  For A vs _ give LT.  Then match B vs B in detail
--- For B vs _ give LT.  Repeat until the end, and provide a default case of GT,
--- which will catch (_(>A) vs A, _(>B) vs B, etc)
 customVarCompare :: A.Variable -> A.Variable -> Ordering
 customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
 customVarCompare (A.Variable {}) _ = LT
@@ -44,7 +41,7 @@ instance Eq Var where
   a == b = EQ == compare a b
 
 instance Ord Var where
-  compare (Var a) (Var b) = customVarCompare a b
+  compare (Var a) (Var b) = compare a b
 
 instance ShowOccam Var where
   showOccamM (Var v) = showOccamM v
