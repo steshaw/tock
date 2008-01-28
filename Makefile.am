@@ -3,7 +3,7 @@ GHC_OPTS = \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
 	-fwarn-type-defaults \
-	-icommon -itransformations -ifrontends -ibackends
+	-ibackends -ichecks -icommon -ifrontends -itransformations
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
@@ -82,6 +82,10 @@ tock_SOURCES_hs += backends/BackendPasses.hs
 tock_SOURCES_hs += backends/GenerateC.hs
 tock_SOURCES_hs += backends/GenerateCPPCSP.hs
 tock_SOURCES_hs += backends/TLP.hs
+tock_SOURCES_hs += checks/ArrayUsageCheck.hs
+tock_SOURCES_hs += checks/Omega.hs
+tock_SOURCES_hs += checks/RainUsageCheck.hs
+tock_SOURCES_hs += checks/UsageCheck.hs
 tock_SOURCES_hs += common/AST.hs
 tock_SOURCES_hs += common/CompState.hs
 tock_SOURCES_hs += common/Errors.hs
@@ -107,15 +111,11 @@ tock_SOURCES_hs += frontends/PreprocessOccam.hs
 tock_SOURCES_hs += frontends/RainPasses.hs
 tock_SOURCES_hs += frontends/RainTypes.hs
 tock_SOURCES_hs += frontends/StructureOccam.hs
-tock_SOURCES_hs += transformations/ArrayUsageCheck.hs
-tock_SOURCES_hs += transformations/Omega.hs
-tock_SOURCES_hs += transformations/RainUsageCheck.hs
 tock_SOURCES_hs += transformations/SimplifyComms.hs
 tock_SOURCES_hs += transformations/SimplifyExprs.hs
 tock_SOURCES_hs += transformations/SimplifyProcs.hs
 tock_SOURCES_hs += transformations/SimplifyTypes.hs
 tock_SOURCES_hs += transformations/Unnest.hs
-tock_SOURCES_hs += transformations/UsageCheck.hs
 
 tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
 
@@ -123,6 +123,8 @@ tocktest_SOURCES = $(tock_SOURCES)
 tocktest_SOURCES += TestMain.hs
 tocktest_SOURCES += backends/BackendPassesTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs
+tocktest_SOURCES += checks/ArrayUsageCheckTest.hs
+tocktest_SOURCES += checks/RainUsageCheckTest.hs
 tocktest_SOURCES += common/CommonTest.hs
 tocktest_SOURCES += common/FlowGraphTest.hs
 tocktest_SOURCES += common/TestHarness.hs
@@ -130,9 +132,7 @@ tocktest_SOURCES += common/TestUtils.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs
 tocktest_SOURCES += frontends/RainPassesTest.hs
 tocktest_SOURCES += frontends/RainTypesTest.hs
-tocktest_SOURCES += transformations/ArrayUsageCheckTest.hs
 tocktest_SOURCES += transformations/PassTest.hs
-tocktest_SOURCES += transformations/RainUsageCheckTest.hs
 
 GenTagAST_SOURCES = GenTagAST.hs
 
