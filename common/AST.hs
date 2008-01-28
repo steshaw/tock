@@ -18,6 +18,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | Data types for occam abstract syntax.
 -- This is intended to be imported qualified as A.
+--
+-- All types with only no-argument constructors may (and should) derive Ord
+-- automatically, but for all other types the Ord instance is in the OrdAST module.
 module AST where
 
 {-! global : Haskell2Xml !-}

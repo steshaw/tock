@@ -24,6 +24,10 @@ GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
 
+GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
+	@MKDIR_P@ obj
+	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
+
 TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
 
 TOCK_CXXFLAGS = -O2 -g -Wall -ggdb3 -I.
@@ -71,7 +75,10 @@ endif
 common/TagAST.hs: GenTagAST$(EXEEXT)
 	./GenTagAST$(EXEEXT) > common/TagAST.hs
 
-BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs
+common/OrdAST.hs: GenOrdAST$(EXEEXT)
+	./GenOrdAST$(EXEEXT) > common/OrdAST.hs
+
+BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs common/OrdAST.hs
 CLEANFILES = $(BUILT_SOURCES)
 
 #One entry per line makes it easier to read and easier to modify, even if it is longer
@@ -96,6 +103,7 @@ tock_SOURCES_hs += common/FlowGraph.hs
 tock_SOURCES_hs += common/FlowAlgorithms.hs
 tock_SOURCES_hs += common/Intrinsics.hs
 tock_SOURCES_hs += common/Metadata.hs
+tock_SOURCES_hs += common/OrdAST.hs
 tock_SOURCES_hs += common/Pass.hs
 tock_SOURCES_hs += common/PassList.hs
 tock_SOURCES_hs += common/Pattern.hs
@@ -136,10 +144,11 @@ tocktest_SOURCES += frontends/RainTypesTest.hs
 tocktest_SOURCES += transformations/PassTest.hs
 
 GenTagAST_SOURCES = GenTagAST.hs
+GenOrdAST_SOURCES = GenOrdAST.hs
 
 #The programs to actually build:	
 bin_PROGRAMS = tock
-noinst_PROGRAMS = tocktest GenTagAST
+noinst_PROGRAMS = tocktest GenTagAST GenOrdAST
 
 
 clean-local:
