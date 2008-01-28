@@ -164,7 +164,7 @@ data ConversionMode =
   DefaultConversion
   | Round
   | Trunc
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | A subscript that can be applied to a variable or an expression.
 data Subscript =
@@ -276,7 +276,7 @@ data MonadicOp =
   | MonadicMinus
   | MonadicBitNot
   | MonadicNot
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | A dyadic (binary) operator.
 data DyadicOp =
@@ -287,7 +287,7 @@ data DyadicOp =
   | And | Or
   | Eq | NotEq | Less | More | LessEq | MoreEq
   | After
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | An item in an input.
 data InputItem =
@@ -327,7 +327,7 @@ data Choice = Choice Meta Expression Process
 data WaitMode =
   WaitFor
   | WaitUntil
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | A guard in an @ALT@.
 data Alternative =
@@ -400,7 +400,7 @@ data AbbrevMode =
   | Abbrev
   -- | An abbreviation by value.
   | ValAbbrev
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | Anything that introduces a new name.
 data Specification =
@@ -445,7 +445,7 @@ data SpecType =
 -- This indicates whether a function is inlined by the compiler.
 data SpecMode =
   PlainSpec | InlineSpec
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | Formal parameters for @PROC@s and @FUNCTION@s.
 data Formal =
@@ -473,7 +473,7 @@ data ParMode =
   -- 'Processor' instances inside this indicate which processor each parallel
   -- process runs on.
   | PlacedPar
-  deriving (Show, Eq, Typeable, Data)
+  deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | A process.
 data Process =
