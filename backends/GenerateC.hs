@@ -91,7 +91,7 @@ data GenOps = GenOps {
     -- | Generates the number of bytes in a fixed size type, fails if a free dimension is present and is not allowed.
     -- The Either parameter is either an array variable (to use the _sizes array of) or a boolean specifying
     -- wheter or not one free dimension is allowed (True <=> allowed).
-    genBytesIn :: GenOps -> A.Type -> Either Bool A.Variable -> CGen (),
+    genBytesIn :: GenOps -> Meta -> A.Type -> Either Bool A.Variable -> CGen (),
     -- | Generates a case statement over the given expression with the structured as the body.
     genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
     genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
@@ -428,15 +428,15 @@ indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
 
 
 -- | Generate the number of bytes in a type.
-cgenBytesIn :: GenOps -> A.Type -> Either Bool A.Variable -> CGen ()
-cgenBytesIn ops t v
+cgenBytesIn :: GenOps -> Meta -> A.Type -> Either Bool A.Variable -> CGen ()
+cgenBytesIn ops m t v
     = do  case (t, v) of
             (A.Array ds _, Left freeDimensionAllowed) ->
               case (length (indexOfFreeDimensions ds), freeDimensionAllowed) of
                 (0,_) -> return ()
-                (1,False) -> die "genBytesIn type with unknown dimension, when unknown dimensions are not allowed"
+                (1,False) -> dieP m "genBytesIn type with unknown dimension, when unknown dimensions are not allowed"
                 (1,True) -> return ()
-                (_,_) -> die "genBytesIn type with more than one free dimension"
+                (_,_) -> dieP m "genBytesIn type with more than one free dimension"
             _ -> return ()
           genBytesIn' ops t
   where
@@ -458,7 +458,7 @@ cgenBytesIn ops t v
     genBytesIn' ops t
       = case call getScalarType ops t of
           Just s -> tell ["sizeof(", s, ")"]
-          Nothing -> dieC $ formatCode "genBytesIn' %" t
+          Nothing -> diePC m $ formatCode "genBytesIn' %" t
 
     genBytesInArrayDim :: (A.Dimension,Int) -> CGen ()
     genBytesInArrayDim (A.Dimension n, _) = tell [show n, "*"]
@@ -875,7 +875,7 @@ cgenExpression _ (A.False m) = tell ["false"]
 cgenExpression ops (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction ops m s es
 --cgenExpression ops (A.SubscriptedExpr m s e)
 --cgenExpression ops (A.BytesInExpr m e)
-cgenExpression ops (A.BytesInType m t) = call genBytesIn ops t (Left False)
+cgenExpression ops (A.BytesInType m t) = call genBytesIn ops m t (Left False)
 --cgenExpression ops (A.OffsetOf m t n)
 --cgenExpression ops (A.ExprConstr {})
 cgenExpression ops (A.AllocMobile m t me) = call genAllocMobile ops m t me
@@ -975,10 +975,10 @@ cgenInputItem ops c (A.InCounted m cv av)
           tell [","]
           fst $ abbrevVariable ops A.Abbrev t av
           tell [","]
-          subT <- trivialSubscriptType t
+          subT <- trivialSubscriptType m t
           call genVariable ops cv
           tell ["*"]
-          call genBytesIn ops subT (Right av)
+          call genBytesIn ops m subT (Right av)
           tell [");"]
 cgenInputItem ops c (A.InVariable m v)
     =  do t <- typeOfVariable v
@@ -996,7 +996,7 @@ cgenInputItem ops c (A.InVariable m v)
                  tell [","]
                  rhs
                  tell [","]
-                 call genBytesIn ops t (Right v)
+                 call genBytesIn ops m t (Right v)
                  tell [");"]
 
 cgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
@@ -1010,10 +1010,10 @@ cgenOutputItem ops c (A.OutCounted m ce ae)
                  tell [","]
                  fst $ abbrevVariable ops A.Abbrev t v
                  tell [","]
-                 subT <- trivialSubscriptType t
+                 subT <- trivialSubscriptType m t
                  call genExpression ops ce
                  tell ["*"]
-                 call genBytesIn ops subT (Right v)
+                 call genBytesIn ops m subT (Right v)
                  tell [");"]
 cgenOutputItem ops c (A.OutExpression m e)
     =  do t <- typeOfExpression e
@@ -1030,7 +1030,7 @@ cgenOutputItem ops c (A.OutExpression m e)
                  tell [","]
                  fst $ abbrevVariable ops A.Abbrev t v
                  tell [","]
-                 call genBytesIn ops t (Right v)
+                 call genBytesIn ops m t (Right v)
                  tell [");"]
 --}}}
 
@@ -1162,9 +1162,9 @@ cgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable ->
 cgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
 cgenRetypeSizes ops m destT destN srcT srcV
     =     let size = do tell ["occam_check_retype("]
-                        call genBytesIn ops srcT (Right srcV)
+                        call genBytesIn ops m srcT (Right srcV)
                         tell [","]
-                        call genBytesIn ops destT (Left True)
+                        call genBytesIn ops m destT (Left True)
                         tell [","]
                         genMeta m
                         tell [")"] in
@@ -1188,7 +1188,7 @@ cgenRetypeSizes ops m destT destN srcT srcV
                                  case free of
                                    Just _ -> size
                                    Nothing ->
-                                     die "genRetypeSizes expecting free dimension"
+                                     dieP m "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
                  call genArraySize ops False (genLeftB >> seqComma dims >> genRightB) destN
@@ -1271,13 +1271,13 @@ cdeclareArraySizes ops t name
 -- | Generate a C literal to initialise an _sizes array with, where all the
 -- dimensions are fixed.
 cgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
-cgenArraySizesLiteral ops _ (A.Array ds _)
+cgenArraySizesLiteral ops n (A.Array ds _)
     = genLeftB >> seqComma dims >> genRightB
   where
     dims :: [CGen ()]
     dims = [case d of
               A.Dimension n -> tell [show n]
-              _ -> die "unknown dimension in array type"
+              _ -> dieP (findMeta n) "unknown dimension in array type"
             | d <- ds]
 
 -- | Initialise an item being declared.
@@ -1858,7 +1858,7 @@ cgenAssert ops m e
 
 --{{{ mobiles
 cgenAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen()
-cgenAllocMobile ops m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn ops t (Left False) >> tell [")"]
+cgenAllocMobile ops m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn ops m t (Left False) >> tell [")"]
 --TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
 -- into a subsequent assignment
 cgenAllocMobile ops _ _ _ = call genMissing ops "Mobile allocation with initialising-expression"

@@ -167,7 +167,7 @@ transformEachRange :: Data t => t -> PassM t
 transformEachRange = everywhereM (mkM transformEachRange')
   where
     transformEachRange' :: A.Structured -> PassM A.Structured
-    transformEachRange' s@(A.Rep {})
+    transformEachRange' s@(A.Rep m _ _)
       = case getMatchedItems patt s of 
           Left _ -> return s --Doesn't match, return the original 
           Right items ->
@@ -192,7 +192,7 @@ transformEachRange = everywhereM (mkM transformEachRange')
         castOrDie :: (Typeable b) => String -> Items -> PassM b
         castOrDie key items = case castADI (Map.lookup key items) of
           Just y -> return y
-          Nothing -> die "Internal error in transformEachRange"
+          Nothing -> dieP m "Internal error in transformEachRange"
     transformEachRange' s = return s
 
 -- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.

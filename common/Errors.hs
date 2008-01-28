@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Error handling and reporting.
-module Errors where
+module Errors (checkJust, Die, dieInternal, dieIO, dieP, dieReport, ErrorReport) where
 
 import Control.Monad.Error
 import Control.Monad.Trans
@@ -34,10 +34,6 @@ instance Error ErrorReport where
 -- | Class of monads that can fail.
 class Monad m => Die m where
   dieReport :: ErrorReport -> m a
-
-  -- | Fail, giving an error message.
-  die :: String -> m a
-  die s = dieReport (Nothing, s)
 
   -- | Fail, giving a position and an error message.
   dieP :: Die m => Meta -> String -> m a
@@ -90,6 +86,6 @@ dieInternal :: Monad m => ErrorReport -> m a
 dieInternal (m,s) = error $ "\n\n" ++ (maybe "" show m) ++ "Internal error: " ++ s
 
 -- | Extract a value from a Maybe type, dying with the given error if it's Nothing.
-checkJust :: Die m => String -> Maybe t -> m t
+checkJust :: Die m => ErrorReport -> Maybe t -> m t
 checkJust _ (Just v) = return v
-checkJust err _ = die err
+checkJust err _ = dieReport err

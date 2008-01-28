@@ -158,7 +158,7 @@ instance Die (StateT [FilePath] PassM) where
 compileFull :: String -> StateT [FilePath] PassM ()
 compileFull fn        = do optsPS <- lift get
                            destBin <- case csOutputFile optsPS of
-                                        "-" -> die "Must specify an output file when using full-compile mode"
+                                        "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
                                         file -> return file
 
                            -- First, compile the code into C/C++:
@@ -213,7 +213,7 @@ compileFull fn        = do optsPS <- lift get
                   exitCode <- liftIO $ waitForProcess p
                   case exitCode of
                     ExitSuccess -> return ()
-                    ExitFailure n -> die $ "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n
+                    ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n)
 
 -- | Picks out the handle from the options and passes it to the function:
 useOutputOptions :: (Handle -> PassM ()) -> PassM ()

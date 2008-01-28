@@ -314,14 +314,14 @@ cppgenInputItem ops c dest
              do call genVariable ops cv
                 tell ["*"]
                 t <- typeOfVariable av
-                subT <- trivialSubscriptType t
-                call genBytesIn ops subT (Right av)
+                subT <- trivialSubscriptType m t
+                call genBytesIn ops m subT (Right av)
              )
       (A.InVariable m v) ->
         do ct <- typeOfVariable c
            t <- typeOfVariable v
            case (byteArrayChan ct,t) of
-             (True,_)-> recvBytes v (call genBytesIn ops t (Right v))
+             (True,_)-> recvBytes v (call genBytesIn ops m t (Right v))
              (False,A.Array {}) -> do tell ["tockRecvArray("]
                                       chan'
                                       tell [","]
@@ -578,7 +578,7 @@ cppgenArraySizesLiteral ops n t@(A.Array ds _) =
     dims :: [CGen ()]
     dims = [case d of
               A.Dimension n -> tell [show n]
-              _ -> die "unknown dimension in array type"
+              _ -> dieP (findMeta n) "unknown dimension in array type"
             | d <- ds]
 
 -- | Changed because we initialise channels and arrays differently in C++
@@ -1093,9 +1093,9 @@ cppgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
 cppgenRetypeSizes ops m destT destN srcT srcV
     =     let checkSize 
                    = do tell ["if(occam_check_retype("]
-                        call genBytesIn ops srcT (Right srcV)
+                        call genBytesIn ops m srcT (Right srcV)
                         tell [","]
-                        call genBytesIn ops destT (Left True)
+                        call genBytesIn ops m destT (Left True)
                         tell [","]
                         genMeta m
                         tell [")!=1){"] 

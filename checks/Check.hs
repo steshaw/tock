@@ -43,7 +43,7 @@ import UsageCheckUtils
 usageCheckPass :: Pass
 usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       g <- case g' of
-                        Left err -> die err
+                        Left err -> dieP (findMeta t) err
                         Right g -> return g
                       sequence_ $ checkPar checkArrayUsage g
                       return t
@@ -186,10 +186,10 @@ showCodeExSet (NormalSet s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
-checkInitVar :: forall m. (Monad m, Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
-checkInitVar graph startNode
+checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
+checkInitVar m graph startNode
   = do vwb <- case flowAlgorithm graphFuncs (nodes graph) startNode of
-         Left err -> die $ "Error building control-flow graph: " ++ err
+         Left err -> dieP m $ "Error building control-flow graph: " ++ err
          Right x -> return x
        -- vwb is a map from Node to a set of Vars that have been written by that point
        -- Now we check that for every variable read in each node, it has already been written to by then

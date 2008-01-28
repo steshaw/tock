@@ -114,8 +114,8 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
 
     expand :: [A.Dimension] -> A.Expression -> PassM A.ArrayElem
     expand [] e = return $ A.ArrayElemExpr e
-    expand (A.UnknownDimension:_) _
-        = die "array literal containing non-literal array of unknown size"
+    expand (A.UnknownDimension:_) e
+        = dieP (findMeta e) "array literal containing non-literal array of unknown size"
     expand (A.Dimension n:ds) e
         = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
       where m = findMeta e

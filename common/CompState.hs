@@ -124,7 +124,7 @@ defineName n nd
 
 -- | Find the definition of a name.
 lookupName :: (CSM m, Die m) => A.Name -> m A.NameDef
-lookupName n = lookupNameOrError n (die $ "cannot find name " ++ A.nameName n)
+lookupName n = lookupNameOrError n (dieP (findMeta n) $ "cannot find name " ++ A.nameName n)
 
 lookupNameOrError :: CSM m => A.Name -> m A.NameDef -> m A.NameDef
 lookupNameOrError n err
@@ -253,8 +253,8 @@ makeNonceVariable s m t nt am
 diePC :: (CSM m, Die m) => Meta -> m String -> m a
 diePC m str = str >>= (dieP m)
 
-dieC :: (CSM m, Die m) => m String -> m a
-dieC str = str >>= die
+--dieC :: (CSM m, Die m) => m String -> m a
+--dieC str = str >>= die
 
 throwErrorC :: (CSM m,MonadError ErrorReport m) => (Maybe Meta,m String) -> m a
 throwErrorC (m,str) = str >>= ((curry throwError) m)

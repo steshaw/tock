@@ -136,7 +136,7 @@ evalExpression (A.MostNeg _ A.Int32) = return $ OccInt32 minBound
 evalExpression (A.MostPos _ A.Int64) = return $ OccInt64 maxBound
 evalExpression (A.MostNeg _ A.Int64) = return $ OccInt64 minBound
 evalExpression (A.SizeExpr m e)
-    =  do t <- typeOfExpression e >>= underlyingType
+    =  do t <- typeOfExpression e >>= underlyingType m
           case t of
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
             _ ->
@@ -145,7 +145,7 @@ evalExpression (A.SizeExpr m e)
                    OccArray vs -> return $ OccInt (fromIntegral $ length vs)
                    _ -> throwError (Just m, "size of non-constant expression " ++ show e ++ " used")
 evalExpression (A.SizeVariable m v)
-    =  do t <- typeOfVariable v >>= underlyingType
+    =  do t <- typeOfVariable v >>= underlyingType m
           case t of
             A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
             _ -> throwError (Just m, "size of non-fixed-size variable " ++ show v ++ " used")
@@ -155,12 +155,12 @@ evalExpression (A.True _) = return $ OccBool True
 evalExpression (A.False _) = return $ OccBool False
 evalExpression (A.SubscriptedExpr _ sub e) = evalExpression e >>= evalSubscript sub
 evalExpression (A.BytesInExpr m e)
-    =  do b <- typeOfExpression e >>= underlyingType >>= bytesInType
+    =  do b <- typeOfExpression e >>= underlyingType m >>= bytesInType
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
             _ -> throwError (Just m, "BYTESIN non-constant-size expression " ++ show e ++ " used")
 evalExpression (A.BytesInType m t)
-    =  do b <- underlyingType t >>= bytesInType
+    =  do b <- underlyingType m t >>= bytesInType
           case b of
             BIJust n -> return $ OccInt (fromIntegral $ n)
             _ -> throwErrorC (Just m, formatCode "BYTESIN non-constant-size type % used" t)

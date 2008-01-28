@@ -82,7 +82,7 @@ evalIntExpression e
           case runEvaluator ps (evalSimpleExpression e) of
             Left (m,err) -> dieReport (m,"cannot evaluate expression: " ++ err)
             Right (OccInt val) -> return $ fromIntegral val
-            Right _ -> die "expression is not of INT type"
+            Right _ -> dieP (findMeta e) "expression is not of INT type"
 
 -- | Evaluate a byte literal.
 evalByte :: (CSM m, Die m) => String -> m Char

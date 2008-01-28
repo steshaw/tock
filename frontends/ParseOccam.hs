@@ -252,7 +252,7 @@ postSubscripts t
 postSubscript :: A.Type -> OccParser A.Subscript
 postSubscript t
     =  do m <- md
-          t' <- resolveUserType t
+          t' <- resolveUserType m t
           case t' of
             A.Record _ ->
               do f <- tryXV sLeft fieldName
@@ -269,7 +269,7 @@ maybeSliced inner subscripter typer
     =  do m <- md
 
           (v, ff1) <- tryXVV sLeft inner fromOrFor
-          t <- typer v >>= underlyingType
+          t <- typer v >>= underlyingType m
           case t of
             (A.Array _ _) -> return ()
             _ -> dieP m $ "slice of non-array type " ++ showOccam t
@@ -361,22 +361,22 @@ areValidDimensions (d1:ds1) (d2:ds2)
 areValidDimensions _ _ = False
 
 -- | Check that a type we've inferred matches the type we expected.
-matchType :: A.Type -> A.Type -> OccParser ()
-matchType et rt
+matchType :: Meta -> A.Type -> A.Type -> OccParser ()
+matchType m et rt
     = case (et, rt) of
         ((A.Array ds t), (A.Array ds' t')) ->
           if areValidDimensions ds ds'
-            then matchType t t'
+            then matchType m t t'
             else bad
         _ -> if rt == et then return () else bad
   where
     bad :: OccParser ()
-    bad = die $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
+    bad = dieP m $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
 
 -- | Check that two lists of types match (for example, for parallel assignment).
-matchTypes :: [A.Type] -> [A.Type] -> OccParser ()
-matchTypes ets rts
-    = sequence_ [matchType et rt | (et, rt) <- zip ets rts]
+matchTypes :: Meta -> [A.Type] -> [A.Type] -> OccParser ()
+matchTypes m ets rts
+    = sequence_ [matchType m et rt | (et, rt) <- zip ets rts]
 
 -- | Parse a production inside a particular type context.
 inTypeContext :: Maybe A.Type -> OccParser a -> OccParser a
@@ -589,7 +589,7 @@ portType
 -- | Can a literal of type rawT be used as a value of type wantT?
 isValidLiteralType :: Meta -> A.Type -> A.Type -> OccParser Bool
 isValidLiteralType m rawT wantT
-    =  do underT <- resolveUserType wantT
+    =  do underT <- resolveUserType m wantT
           case (rawT, underT) of
             -- We don't yet know what type we want -- so assume it's OK for now.
             (_, A.Any) -> return True
@@ -606,8 +606,8 @@ isValidLiteralType m rawT wantT
               -- We can't just look at all the dimensions because this
               -- might be an array of a record type, or similar.
               if isValidDimension d2 d1
-                then do rawT' <- trivialSubscriptType rawT
-                        underT' <- trivialSubscriptType underT
+                then do rawT' <- trivialSubscriptType m rawT
+                        underT' <- trivialSubscriptType m underT
                         isValidLiteralType m rawT' underT'
                 else return False
             _ -> return $ rawT == wantT
@@ -629,14 +629,14 @@ applyDimensions _ t = t
 -- | Convert a raw array element literal into its real form.
 makeArrayElem :: A.Type -> A.ArrayElem -> OccParser A.ArrayElem
 makeArrayElem t@(A.Array _ _) (A.ArrayElemArray aes)
-    =  do elemT <- trivialSubscriptType t
+    =  do elemT <- trivialSubscriptType (findMeta aes) t
           liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
-makeArrayElem _ (A.ArrayElemArray _)
-    = die $ "unexpected nested array literal"
+makeArrayElem _ (A.ArrayElemArray es)
+    = dieP (findMeta es) $ "unexpected nested array literal"
 -- A nested array literal that's still of array type (i.e. it's not a
 -- record inside the array) -- collapse it.
-makeArrayElem t@(A.Array _ _) (A.ArrayElemExpr (A.Literal _ _ (A.ArrayLiteral _ aes)))
-    =  do elemT <- trivialSubscriptType t
+makeArrayElem t@(A.Array _ _) (A.ArrayElemExpr (A.Literal _ _ (A.ArrayLiteral m aes)))
+    =  do elemT <- trivialSubscriptType m t
           liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
 makeArrayElem t (A.ArrayElemExpr e)
     = liftM A.ArrayElemExpr $ makeLiteral e t
@@ -647,7 +647,7 @@ makeArrayElem t (A.ArrayElemExpr e)
 makeLiteral :: A.Expression -> A.Type -> OccParser A.Expression
 -- A literal.
 makeLiteral x@(A.Literal m t lr) wantT
-    =  do underT <- resolveUserType wantT
+    =  do underT <- resolveUserType m wantT
 
           typesOK <- isValidLiteralType m t wantT
           when (not typesOK) $
@@ -656,7 +656,7 @@ makeLiteral x@(A.Literal m t lr) wantT
           case (underT, lr) of
             -- An array literal.
             (A.Array _ _, A.ArrayLiteral ml aes) ->
-              do elemT <- trivialSubscriptType underT
+              do elemT <- trivialSubscriptType ml underT
                  aes' <- mapM (makeArrayElem elemT) aes
                  return $ A.Literal m (applyDimensions t wantT) (A.ArrayLiteral ml aes')
             -- A record literal -- which we need to convert from the raw
@@ -681,7 +681,7 @@ makeLiteral (A.SubscriptedExpr m sub e) wantT
 -- check it's the right type.
 makeLiteral e wantT
     =  do t <- typeOfExpression e
-          matchType wantT t
+          matchType (findMeta e) wantT t
           return e
 --}}}
 
@@ -876,7 +876,7 @@ associativeOpExpression
           tl <- typeOfExpression l
           r <- associativeOpExpression <|> operand
           tr <- typeOfExpression r
-          matchType tl tr
+          matchType m tl tr
           return $ A.Dyadic m o l r
     <?> "associative operator expression"
 
@@ -896,7 +896,7 @@ expressionOfType :: A.Type -> OccParser A.Expression
 expressionOfType wantT
     =  do e <- inTypeContext (Just wantT) expression
           t <- typeOfExpression e
-          matchType wantT t
+          matchType (findMeta e) wantT t
           return e
 
 intExpr = expressionOfType A.Int <?> "integer expression"
@@ -916,7 +916,7 @@ operandOfType :: A.Type -> OccParser A.Expression
 operandOfType wantT
     =  do o <- inTypeContext (Just wantT) operand
           t <- typeOfExpression o
-          matchType wantT t
+          matchType (findMeta o) wantT t
           return o
 --}}}
 --{{{ functions
@@ -955,7 +955,7 @@ functionMulti types
           as <- functionActuals fs
           sRightR
           rts <- returnTypesOfFunction n
-          matchTypes types rts
+          matchTypes m types rts
           return $ A.FunctionCallList m n as
     <?> "multi-valued function call"
 --}}}
@@ -1041,10 +1041,10 @@ conversion :: OccParser A.Expression
 conversion
     =  do m <- md
           t <- dataType
-          baseT <- underlyingType t
+          baseT <- underlyingType m t
           (c, o) <- conversionMode
           ot <- typeOfExpression o
-          baseOT <- underlyingType ot
+          baseOT <- underlyingType m ot
           c <- case (isPreciseConversion baseOT baseT, c) of
                  (False, A.DefaultConversion) ->
                    dieP m "imprecise conversion must specify ROUND or TRUNC"
@@ -1102,7 +1102,7 @@ variableOfType :: A.Type -> OccParser A.Variable
 variableOfType wantT
     =  do v <- variable
           t <- typeOfVariable v
-          matchType wantT t
+          matchType (findMeta v) wantT t
           return v
 
 channel :: OccParser A.Variable
@@ -1120,7 +1120,7 @@ channelOfType :: A.Type -> OccParser A.Variable
 channelOfType wantT
     =  do c <- channel
           t <- typeOfVariable c
-          matchType wantT t
+          matchType (findMeta c) wantT t
           return c
 
 timer :: OccParser A.Variable
@@ -1149,7 +1149,7 @@ portOfType :: A.Type -> OccParser A.Variable
 portOfType wantT
     =  do p <- port
           t <- typeOfVariable p
-          matchType wantT t
+          matchType (findMeta p) wantT t
           return p
 --}}}
 --{{{ protocols
@@ -1269,7 +1269,7 @@ isAbbrev newName oldVar
            sColon
            eol
            t <- typeOfVariable v
-           matchType s t
+           matchType m s t
            return $ A.Specification m n $ A.Is m A.Abbrev s v
     <?> "IS abbreviation"
 
@@ -1291,7 +1291,7 @@ chanArrayAbbrev
                                  n <- newChannelName
                                  sIS
                                  sLeft
-                                 ct <- trivialSubscriptType s
+                                 ct <- trivialSubscriptType m s
                                  case ct of
                                    A.Chan {} -> return (ct, s, n)
                                    _ -> pzero)
@@ -1356,7 +1356,7 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable v
-           checkRetypes origT s
+           checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
@@ -1364,7 +1364,7 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable c
-           checkRetypes origT s
+           checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s c
     <|> do m <- md
            (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
@@ -1372,24 +1372,24 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfExpression e
-           checkRetypes origT s
+           checkRetypes m origT s
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
 
 -- | Check that a RETYPES\/RESHAPES is safe.
-checkRetypes :: A.Type -> A.Type -> OccParser ()
+checkRetypes :: Meta -> A.Type -> A.Type -> OccParser ()
 -- Retyping channels is always "safe".
-checkRetypes (A.Chan {}) (A.Chan {}) = return ()
-checkRetypes fromT toT
+checkRetypes _ (A.Chan {}) (A.Chan {}) = return ()
+checkRetypes m fromT toT
     =  do bf <- bytesInType fromT
           bt <- bytesInType toT
           case (bf, bt) of
             (BIJust a, BIJust b) ->
-              when (a /= b) $ die "size mismatch in RETYPES"
+              when (a /= b) $ dieP m "size mismatch in RETYPES"
             (BIJust a, BIOneFree b _) ->
-              when (not ((b <= a) && (a `mod` b == 0))) $ die "size mismatch in RETYPES"
+              when (not ((b <= a) && (a `mod` b == 0))) $ dieP m "size mismatch in RETYPES"
             (_, BIManyFree) ->
-              die "multiple free dimensions in RETYPES/RESHAPES type"
+              dieP m "multiple free dimensions in RETYPES/RESHAPES type"
             -- Otherwise we have to do a runtime check.
             _ -> return ()
 
@@ -1600,7 +1600,7 @@ taggedList :: [(A.Name, [A.Type])] -> OccParser (A.Process -> A.Variant)
 taggedList nts
     =  do m <- md
           tag <- tagName
-          ts <- checkJust "unknown tag in protocol" $ lookup tag nts
+          ts <- checkJust (Just m, "unknown tag in protocol") $ lookup tag nts
           is <- sequence [sSemi >> inputItem t | t <- ts]
           return $ A.Variant m tag is
     <?> "tagged list"
@@ -1679,7 +1679,7 @@ channelOutput
                   return $ A.Output m c os
              Right nts ->
                do tag <- tagName
-                  ts <- checkJust "unknown tag in protocol" $ lookup tag nts
+                  ts <- checkJust (Just m, "unknown tag in protocol") $ lookup tag nts
                   os <- sequence [sSemi >> outputItem t | t <- ts]
                   eol
                   return $ A.OutputCase m c tag os
@@ -1755,7 +1755,7 @@ caseProcess
            sCASE
            sel <- expression
            t <- typeOfExpression sel
-           t' <- underlyingType t
+           t' <- underlyingType m t
            when (not $ isCaseableType t') $ dieP m "case selector has non-CASEable type"
            eol
            os <- maybeIndentedList m "empty CASE" (caseOption t)
@@ -1972,7 +1972,7 @@ sourceFile
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
     =  do case runParser prod cs "" toks of
-            Left err -> die $ "Parse error: " ++ show err
+            Left err -> dieReport (Nothing, "Parse error: " ++ show err)
             Right r -> return r
 
 -- | Parse an occam program.

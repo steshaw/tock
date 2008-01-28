@@ -23,6 +23,7 @@ import Control.Monad.State
 import Data.Generics
 
 import qualified AST as A
+import Metadata
 import Pass
 import Types
 
@@ -43,7 +44,7 @@ resolveNamedTypes = doGeneric `extM` doType
     doGeneric = makeGeneric resolveNamedTypes
 
     doType :: A.Type -> PassM A.Type
-    doType t@(A.UserDataType _) = underlyingType t
+    doType t@(A.UserDataType _) = underlyingType emptyMeta t
     doType t = doGeneric t
 
 -- | Resolve named types in CompState.

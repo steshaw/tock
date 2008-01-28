@@ -127,7 +127,7 @@ flattenAssign = doGeneric `extM` doProcess
                          let zero = A.Literal m A.Int $ A.IntLiteral m "0"
                          let rep = A.For m counter zero
                                                    (A.SizeVariable m srcV)
-                         itemT <- trivialSubscriptType t
+                         itemT <- trivialSubscriptType m t
                          let sub = A.Subscript m (A.ExprVariable m
                                                    (A.Variable m counter))
                          inner <- assign m itemT

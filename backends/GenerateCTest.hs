@@ -706,8 +706,8 @@ testRetypeSizes = TestList
   
    rep search replace str = subRegex (mkRegex search) str replace
  
-   showBytesInParams _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
-   showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
+   showBytesInParams _ _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
+   showBytesInParams _ _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
    showArrSize _ _ sz _ = tell ["^("] >> sz >> tell [")"]
    over ops = ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySize = showArrSize}
 
@@ -969,7 +969,7 @@ testInput = TestList
 --              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
 
    overInputItemCase ops = ops {genInputItem = override2 caret}
-   over ops = ops {genBytesIn = (\_ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
+   over ops = ops {genBytesIn = (\_ _ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
 
 testOutput :: Test
 testOutput = TestList
@@ -1054,33 +1054,33 @@ testOutput = TestList
               defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
    overOutput ops = ops {genOutput = override2 caret}
    overOutputItem ops = ops {genOutputItem = override2 caret}
-   over ops = ops {genBytesIn = override2 caret}
+   over ops = ops {genBytesIn = override3 caret}
 
 testBytesIn :: Test
 testBytesIn = TestList
  [
-  testBothSame "testBytesIn 0" "sizeof(int)" (tcall2 genBytesIn A.Int undefined)
-  ,testBothSame "testBytesIn 1" "sizeof(foo)" (tcall2 genBytesIn (A.Record foo) undefined)
-  ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int>)" (tcall2 genBytesIn (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) undefined)
-  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int>)" (tcall2 genBytesIn (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) undefined)
+  testBothSame "testBytesIn 0" "sizeof(int)" (tcall3 genBytesIn undefined A.Int undefined)
+  ,testBothSame "testBytesIn 1" "sizeof(foo)" (tcall3 genBytesIn undefined (A.Record foo) undefined)
+  ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int>)" (tcall3 genBytesIn undefined (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) undefined)
+  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int>)" (tcall3 genBytesIn undefined (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) undefined)
   
   --Array with a single known dimension:
-  ,testBothSame "testBytesIn 100" "5*sizeof(int)" (tcall2 genBytesIn (A.Array [A.Dimension 5] A.Int) (Left False))
+  ,testBothSame "testBytesIn 100" "5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5] A.Int) (Left False))
   --single unknown dimension, no variable, no free dimension allowed:
-  ,testBothFail "testBytesIn 101a" (tcall2 genBytesIn (A.Array [A.UnknownDimension] A.Int) (Left False))
+  ,testBothFail "testBytesIn 101a" (tcall3 genBytesIn undefined (A.Array [A.UnknownDimension] A.Int) (Left False))
   --single unknown dimension, no variable, free dimension allowed:
-  ,testBothSame "testBytesIn 101b" "sizeof(int)" (tcall2 genBytesIn (A.Array [A.UnknownDimension] A.Int) (Left True))
+  ,testBothSame "testBytesIn 101b" "sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.UnknownDimension] A.Int) (Left True))
   --single unknown dimension, with variable:
-  ,testBothSame "testBytesIn 102" "$(@0)*sizeof(int)" ((tcall2 genBytesIn (A.Array [A.UnknownDimension] A.Int) (Right undefined)) . over)
+  ,testBothSame "testBytesIn 102" "$(@0)*sizeof(int)" ((tcall3 genBytesIn undefined (A.Array [A.UnknownDimension] A.Int) (Right undefined)) . over)
   
   --Array with all known dimensions:
-  ,testBothSame "testBytesIn 200" "7*6*5*sizeof(int)" (tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6, A.Dimension 7] A.Int) (Left False))
+  ,testBothSame "testBytesIn 200" "7*6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6, A.Dimension 7] A.Int) (Left False))
   --single unknown dimension, no variable, no free dimension allowed:
-  ,testBothFail "testBytesIn 201a" (tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left False))
+  ,testBothFail "testBytesIn 201a" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left False))
   --single unknown dimension, no variable, free dimension allowed:
-  ,testBothSame "testBytesIn 201b" "6*5*sizeof(int)" (tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left True))
+  ,testBothSame "testBytesIn 201b" "6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left True))
   --single unknown dimension, with variable:
-  ,testBothSame "testBytesIn 202" "$(@2)*6*5*sizeof(int)" ((tcall2 genBytesIn (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Right undefined)) . over)
+  ,testBothSame "testBytesIn 202" "$(@2)*6*5*sizeof(int)" ((tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Right undefined)) . over)
   
  ]
  where
@@ -1096,8 +1096,8 @@ testMobile = TestList
     ((tcall2 genClearMobile emptyMeta undefined) . over)
  ]
   where
-    showBytesInParams _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
-    showBytesInParams _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
+    showBytesInParams _ _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
+    showBytesInParams _ _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
     over ops = ops {genBytesIn = showBytesInParams, genType = (\_ t -> tell [show t]), genExpression = override1 dollar, genVariable = override1 at}
 
 ---Returns the list of tests:

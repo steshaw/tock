@@ -65,7 +65,7 @@ typeOfName n
           t <- typeOfSpec st
           case t of
             Just t' -> return t'
-            Nothing -> die $ "cannot type name " ++ show st
+            Nothing -> dieP (findMeta n) $ "cannot type name " ++ show st
 
 typeOfSpec :: (CSM m, Die m) => A.SpecType -> m (Maybe A.Type)
 typeOfSpec st
@@ -113,7 +113,7 @@ recordFields m _ = dieP m "not record type"
 typeOfRecordField :: (CSM m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
 typeOfRecordField m t field
     =  do fs <- recordFields m t
-          checkJust "unknown record field" $ lookup field fs
+          checkJust (Just m, "unknown record field") $ lookup field fs
 
 -- | Apply a plain subscript to a type.
 plainSubscriptType :: (CSM m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
@@ -135,7 +135,7 @@ plainSubscriptType m _ t = diePC m $ formatCode "subscript of non-array type: %"
 -- subscripted.
 subscriptType :: (CSM m, Die m) => A.Subscript -> A.Type -> m A.Type
 subscriptType sub t@(A.UserDataType _)
-    = resolveUserType t >>= subscriptType sub
+    = resolveUserType (findMeta sub) t >>= subscriptType sub
 subscriptType (A.SubscriptFromFor m base count) t
     = sliceType m base count t
 subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
@@ -161,8 +161,8 @@ unsubscriptType (A.SubscriptFrom _ _) t
     = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptFor _ _) t
     = return $ removeFixedDimension t
-unsubscriptType (A.SubscriptField _ _) t
-    = die $ "unsubscript of record type (but we can't tell which one)"
+unsubscriptType (A.SubscriptField m _) t
+    = dieP m $ "unsubscript of record type (but we can't tell which one)"
 unsubscriptType (A.Subscript _ sub) t
     = return $ addDimensions [A.UnknownDimension] t
 
@@ -170,10 +170,10 @@ unsubscriptType (A.Subscript _ sub) t
 -- subscriptType with constant 0 as a subscript, but without the checking.
 -- This is used for the couple of cases where we know it's safe and don't want
 -- the usage check.
-trivialSubscriptType :: (CSM m, Die m) => A.Type -> m A.Type
-trivialSubscriptType (A.Array [d] t) = return t
-trivialSubscriptType (A.Array (d:ds) t) = return $ A.Array ds t
-trivialSubscriptType t = dieC $ formatCode "not plain array type: %" t
+trivialSubscriptType :: (CSM m, Die m) => Meta -> A.Type -> m A.Type
+trivialSubscriptType _ (A.Array [d] t) = return t
+trivialSubscriptType _ (A.Array (d:ds) t) = return $ A.Array ds t
+trivialSubscriptType m t = diePC m $ formatCode "not plain array type: %" t
 
 -- | Gets the 'A.Type' of a 'A.Variable' by looking at the types recorded in the 'CompState'.
 typeOfVariable :: (CSM m, Die m) => A.Variable -> m A.Type
@@ -184,12 +184,12 @@ typeOfVariable (A.DerefVariable m v)
     = do t <- typeOfVariable v
          case t of
            (A.Mobile innerT) -> return innerT
-           _ -> die $ "Tried to dereference a non-mobile variable: " ++ show v
+           _ -> dieP m $ "Tried to dereference a non-mobile variable: " ++ show v
 typeOfVariable (A.DirectedVariable m dir v)
     = do t <- typeOfVariable v
          case t of 
            (A.Chan A.DirUnknown attr innerT) -> return (A.Chan dir attr innerT)
-           _ -> die $ "Used specifier on something that was not a directionless channel: " ++ show v
+           _ -> dieP m $ "Used specifier on something that was not a directionless channel: " ++ show v
 
 -- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (CSM m, Die m) => A.Variable -> m A.AbbrevMode
@@ -245,7 +245,7 @@ typeOfExpression e
         A.True m -> return A.Bool
         A.False m -> return A.Bool
         A.FunctionCall m n es -> liftM head $ returnTypesOfFunction n
-        A.IntrinsicFunctionCall _ s _ -> liftM head $ returnTypesOfIntrinsic s
+        A.IntrinsicFunctionCall m s _ -> liftM head $ returnTypesOfIntrinsic m s
         A.SubscriptedExpr m s e ->
           typeOfExpression e >>= subscriptType s
         A.BytesInExpr m e -> return A.Int
@@ -274,14 +274,14 @@ returnTypesOfFunction n
             -- If it's not defined as a function, it might have been converted to a proc.
             _ ->
               do ps <- get
-                 checkJust "not defined as a function" $
+                 checkJust (Just $ findMeta n, "not defined as a function") $
                    Map.lookup (A.nameName n) (csFunctionReturns ps)
 
-returnTypesOfIntrinsic :: (CSM m, Die m) => String -> m [A.Type]
-returnTypesOfIntrinsic s
+returnTypesOfIntrinsic :: (CSM m, Die m) => Meta -> String -> m [A.Type]
+returnTypesOfIntrinsic m s
     = case lookup s intrinsicFunctions of
         Just (rts, _) -> return rts
-        Nothing -> die $ "unknown intrinsic function " ++ s
+        Nothing -> dieP m $ "unknown intrinsic function " ++ s
 
 -- | Get the items in a channel's protocol (for typechecking).
 -- Returns Left if it's a simple protocol, Right if it's tagged.
@@ -309,25 +309,25 @@ abbrevModeOfSpec s
 
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
-underlyingType :: (CSM m, Die m) => A.Type -> m A.Type
-underlyingType = everywhereM (mkM underlyingType')
+underlyingType :: (CSM m, Die m) => Meta -> A.Type -> m A.Type
+underlyingType m = everywhereM (mkM underlyingType')
   where
     underlyingType' :: (CSM m, Die m) => A.Type -> m A.Type
     underlyingType' t@(A.UserDataType _)
-      = resolveUserType t >>= underlyingType
+      = resolveUserType m t >>= underlyingType m
     underlyingType' (A.Array ds t) = return $ addDimensions ds t
     underlyingType' t = return t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
 -- user types.
-resolveUserType :: (CSM m, Die m) => A.Type -> m A.Type
-resolveUserType (A.UserDataType n)
+resolveUserType :: (CSM m, Die m) => Meta -> A.Type -> m A.Type
+resolveUserType m (A.UserDataType n)
     =  do st <- specTypeOfName n
           case st of
-            A.DataType _ t -> resolveUserType t
-            _ -> die $ "not a type name " ++ show n
-resolveUserType t = return t
+            A.DataType _ t -> resolveUserType m t
+            _ -> dieP m $ "not a type name " ++ show n
+resolveUserType _ t = return t
 
 -- | Add array dimensions to a type; if it's already an array it'll just add
 -- the new dimensions to the existing array.
