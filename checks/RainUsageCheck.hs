@@ -35,7 +35,7 @@ import FlowAlgorithms
 import FlowGraph
 import Metadata
 import ShowCode
-import UsageCheck
+import UsageCheckUtils
 import Utils
    
     {-

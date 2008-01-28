@@ -36,7 +36,7 @@ import Metadata
 import Omega
 import TestHarness
 import TestUtils hiding (m)
-import UsageCheck hiding (Var)
+import UsageCheckUtils hiding (Var)
 import Utils
 
 testArrayCheck :: Test

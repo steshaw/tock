@@ -31,7 +31,7 @@ import FlowGraph
 import Metadata
 import RainUsageCheck
 import TestUtils hiding (Var)
-import UsageCheck
+import UsageCheckUtils
 import Utils
 
 
