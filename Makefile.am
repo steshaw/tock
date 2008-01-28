@@ -43,12 +43,30 @@ CompilerCommands.hs: Makefile
 	echo -e 'cxxCommand :: String -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand inp out = "$(CXX) $(TOCK_CXXFLAGS) -x c++ -o " ++ out ++ " " ++ inp ++ " $(TOCK_CXXLDFLAGS)"\n' >> CompilerCommands.hs
 
+# Both these results are near-identical.  The -g flag to alex tells it to generate
+# a lexer optimised for GHC.  The other part of the rule inserts the
+# -fno-warn-tabs flag under GHC >= 6.8, but doesn't add anything under previous
+# versions of GHC
 
 frontends/LexOccam.hs: frontends/LexOccam.x
-	alex frontends/LexOccam.x
+	alex -g frontends/LexOccam.x -o frontends/LexOccam.temphs
+if GHC68
+	echo "{- OPTIONS_GHC -fno-warn-tabs -}\n" > frontends/LexOccam.hs
+	cat frontends/LexOccam.temphs >> frontends/LexOccam.hs
+	rm frontends/LexOccam.temphs
+else
+	mv frontends/LexOccam.temphs frontends/LexOccam.hs
+endif
 
 frontends/LexRain.hs: frontends/LexRain.x
-	alex frontends/LexRain.x
+	alex -g frontends/LexRain.x -o frontends/LexRain.temphs
+if GHC68
+	echo "{- OPTIONS_GHC -fno-warn-tabs -}\n" > frontends/LexRain.hs
+	cat frontends/LexRain.temphs >> frontends/LexRain.hs
+	rm frontends/LexRain.temphs
+else
+	mv frontends/LexRain.temphs frontends/LexRain.hs
+endif
 
 common/TagAST.hs: GenTagAST$(EXEEXT)
 	./GenTagAST$(EXEEXT) > common/TagAST.hs
