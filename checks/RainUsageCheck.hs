@@ -173,7 +173,7 @@ showCodeExSet (NormalSet s)
     = do ss <- mapM showCode (Set.toList s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
--- | Checks that no variable is used uninitialised.  That is, it checks that every -- variable is written to before it is read.
+-- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
 checkInitVar :: forall m. (Monad m, Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
 checkInitVar graph startNode
   = do vwb <- case flowAlgorithm graphFuncs (nodes graph) startNode of
