@@ -74,32 +74,65 @@ common/TagAST.hs: GenTagAST$(EXEEXT)
 BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs
 CLEANFILES = $(BUILT_SOURCES)
 
-tock_SOURCES_hs = transformations/SimplifyExprs.hs transformations/SimplifyTypes.hs 
-tock_SOURCES_hs += transformations/Unnest.hs transformations/RainUsageCheck.hs transformations/SimplifyProcs.hs
-tock_SOURCES_hs += transformations/SimplifyComms.hs transformations/ArrayUsageCheck.hs
-tock_SOURCES_hs += transformations/Omega.hs transformations/UsageCheck.hs
-tock_SOURCES_hs += frontends/PreprocessOccam.hs frontends/ParseRain.hs frontends/StructureOccam.hs
-tock_SOURCES_hs += frontends/ParseOccam.hs frontends/RainTypes.hs frontends/RainPasses.hs frontends/ParseUtils.hs
-tock_SOURCES_hs += common/Pass.hs common/TreeUtils.hs common/Intrinsics.hs common/EvalLiterals.hs
-tock_SOURCES_hs += common/Pattern.hs common/Errors.hs common/ShowCode.hs common/PrettyShow.hs
-tock_SOURCES_hs += common/EvalConstants.hs common/Utils.hs common/CompState.hs common/Types.hs
-tock_SOURCES_hs += common/Metadata.hs common/AST.hs common/FlowGraph.hs common/FlowAlgorithms.hs
-tock_SOURCES_hs += common/TagAST.hs common/PassList.hs
-tock_SOURCES_hs += backends/TLP.hs backends/BackendPasses.hs backends/AnalyseAsm.hs
-tock_SOURCES_hs += backends/GenerateC.hs backends/GenerateCPPCSP.hs
-tock_SOURCES_hs += Main.hs
+#One entry per line makes it easier to read and easier to modify, even if it is longer
+
+tock_SOURCES_hs = Main.hs
+tock_SOURCES_hs += backends/AnalyseAsm.hs
+tock_SOURCES_hs += backends/BackendPasses.hs
+tock_SOURCES_hs += backends/GenerateC.hs
+tock_SOURCES_hs += backends/GenerateCPPCSP.hs
+tock_SOURCES_hs += backends/TLP.hs
+tock_SOURCES_hs += common/AST.hs
+tock_SOURCES_hs += common/CompState.hs
+tock_SOURCES_hs += common/Errors.hs
+tock_SOURCES_hs += common/EvalConstants.hs
+tock_SOURCES_hs += common/EvalLiterals.hs
+tock_SOURCES_hs += common/FlowGraph.hs
+tock_SOURCES_hs += common/FlowAlgorithms.hs
+tock_SOURCES_hs += common/Intrinsics.hs
+tock_SOURCES_hs += common/Metadata.hs
+tock_SOURCES_hs += common/Pass.hs
+tock_SOURCES_hs += common/PassList.hs
+tock_SOURCES_hs += common/Pattern.hs
+tock_SOURCES_hs += common/PrettyShow.hs
+tock_SOURCES_hs += common/ShowCode.hs
+tock_SOURCES_hs += common/TagAST.hs
+tock_SOURCES_hs += common/TreeUtils.hs
+tock_SOURCES_hs += common/Types.hs
+tock_SOURCES_hs += common/Utils.hs
+tock_SOURCES_hs += frontends/ParseOccam.hs
+tock_SOURCES_hs += frontends/ParseRain.hs
+tock_SOURCES_hs += frontends/ParseUtils.hs
+tock_SOURCES_hs += frontends/PreprocessOccam.hs
+tock_SOURCES_hs += frontends/RainPasses.hs
+tock_SOURCES_hs += frontends/RainTypes.hs
+tock_SOURCES_hs += frontends/StructureOccam.hs
+tock_SOURCES_hs += transformations/ArrayUsageCheck.hs
+tock_SOURCES_hs += transformations/Omega.hs
+tock_SOURCES_hs += transformations/RainUsageCheck.hs
+tock_SOURCES_hs += transformations/SimplifyComms.hs
+tock_SOURCES_hs += transformations/SimplifyExprs.hs
+tock_SOURCES_hs += transformations/SimplifyProcs.hs
+tock_SOURCES_hs += transformations/SimplifyTypes.hs
+tock_SOURCES_hs += transformations/Unnest.hs
+tock_SOURCES_hs += transformations/UsageCheck.hs
 
 tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
 
-
 tocktest_SOURCES = $(tock_SOURCES)
-tocktest_SOURCES += transformations/PassTest.hs transformations/RainUsageCheckTest.hs
-tocktest_SOURCES += transformations/ArrayUsageCheckTest.hs
-tocktest_SOURCES += backends/GenerateCTest.hs backends/BackendPassesTest.hs
-tocktest_SOURCES += common/TestUtils.hs common/CommonTest.hs common/FlowGraphTest.hs
-tocktest_SOURCES += common/TestHarness.hs
-tocktest_SOURCES += frontends/ParseRainTest.hs frontends/RainPassesTest.hs frontends/RainTypesTest.hs
 tocktest_SOURCES += TestMain.hs
+tocktest_SOURCES += backends/BackendPassesTest.hs
+tocktest_SOURCES += backends/GenerateCTest.hs
+tocktest_SOURCES += common/CommonTest.hs
+tocktest_SOURCES += common/FlowGraphTest.hs
+tocktest_SOURCES += common/TestHarness.hs
+tocktest_SOURCES += common/TestUtils.hs
+tocktest_SOURCES += frontends/ParseRainTest.hs
+tocktest_SOURCES += frontends/RainPassesTest.hs
+tocktest_SOURCES += frontends/RainTypesTest.hs
+tocktest_SOURCES += transformations/ArrayUsageCheckTest.hs
+tocktest_SOURCES += transformations/PassTest.hs
+tocktest_SOURCES += transformations/RainUsageCheckTest.hs
 
 GenTagAST_SOURCES = GenTagAST.hs
 
