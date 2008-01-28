@@ -45,11 +45,11 @@ vL = variable "l"
 l0 = intLiteral 0
 l1 = intLiteral 1
 
-tvA = Var $ variable "a"
-tvB = Var $ variable "b"
-tvC = Var $ variable "c"
-tvD = Var $ variable "d"
-tvL = Var $ variable "l"
+tvA = Var $ vA
+tvB = Var $ vB
+tvC = Var $ vC
+tvD = Var $ vD
+tvL = Var $ vL
    
 --These are all shorthand for some useful "building block" processes
 --The syntax is roughly: <variable list>_eq_<variable list>
@@ -63,6 +63,8 @@ ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,l0]
 a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m vC) (A.ExprVariable m vD)]
 a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.ExprVariable m vB)]
 
+c_eq_b = A.Assign emptyMeta [vC] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vB]
+c_eq_d = A.Assign emptyMeta [vC] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vD]
 
 
 testGetVarProc :: Test
