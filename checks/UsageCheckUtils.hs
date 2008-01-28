@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, getVarProc, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
+import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
 
@@ -28,7 +29,7 @@ import FlowGraph
 import OrdAST()
 import ShowCode
 
-newtype Var = Var A.Variable deriving (Show)
+newtype Var = Var A.Variable deriving (Data, Show, Typeable)
 
 
 customVarCompare :: A.Variable -> A.Variable -> Ordering
@@ -47,6 +48,13 @@ instance ShowOccam Var where
   showOccamM (Var v) = showOccamM v
 instance ShowRain Var where
   showRain (Var v) = showRain v
+
+instance ShowOccam (Set.Set Var) where
+  showOccamM s
+      = do ss <- mapM showOccamM (Set.toList s)
+           return $ "{" ++ concat (intersperse ", " ss) ++ "}"
+instance ShowRain (Set.Set Var) where
+  showRain s = "{" ++ concat (intersperse ", " $ map showRain $ Set.toList s) ++ "}"
 
 data Vars = Vars {
   readVars :: Set.Set Var
