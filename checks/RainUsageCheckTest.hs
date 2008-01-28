@@ -27,9 +27,9 @@ import Test.HUnit
 
 
 import qualified AST as A
+import Check
 import FlowGraph
 import Metadata
-import RainUsageCheck
 import TestUtils hiding (Var)
 import UsageCheckAlgorithms
 import UsageCheckUtils

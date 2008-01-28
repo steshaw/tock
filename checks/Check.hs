@@ -16,11 +16,11 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | This code implements the usage checking in Rain.  It is designed to work with
+-- | This code implements various usage checking.  It is designed to work with
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module RainUsageCheck (checkInitVar) where
+module Check (checkInitVar) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
