@@ -43,17 +43,13 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       g <- case g' of
                         Left err -> die err
                         Right g -> return g
-                      checkArrayUsage g
+                      sequence_ $ checkPar checkArrayUsage g
                       return t
 
-
-checkArrayUsage :: forall m. (Die m, CSM m) => FlowGraph m (Maybe Decl, Vars) -> m ()
-checkArrayUsage graph = sequence_ $ checkPar checkArrayUsage' graph
-  where
-    checkArrayUsage' :: (Meta, ParItems (Maybe Decl, Vars)) -> m ()
-    checkArrayUsage' (m,p) = mapM_ (checkIndexes m) $ Map.toList $ 
-      groupArrayIndexes $ transformParItems snd p
-    
+checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems (Maybe Decl, Vars)) -> m ()
+checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
+    groupArrayIndexes $ transformParItems snd p
+  where    
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
     groupArrayIndexes vs = filterByKey $ transformParItems (uncurry (zipMap join) . (transformPair (makeList . writtenVars) (makeList . readVars)) . mkPair) vs
