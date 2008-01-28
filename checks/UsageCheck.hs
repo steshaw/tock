@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheck (checkPar, customVarCompare, Decl(..), emptyVars, getVarProc, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
+module UsageCheck (checkPar, customVarCompare, Decl(..), emptyVars, getVarProc, joinCheckParFunctions, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.Graph.Inductive
@@ -29,6 +29,7 @@ import Errors
 import FlowGraph
 import Metadata
 import ShowCode
+import Utils
 
 newtype Var = Var A.Variable deriving (Show)
 
@@ -97,8 +98,12 @@ foldUnionVars = foldl unionVars emptyVars
 mapUnionVars :: (a -> Vars) -> [a] -> Vars
 mapUnionVars f = foldUnionVars . (map f)
 
--- | Given a function to check a list of graph labels, a flow graph 
--- and a starting node, returns a list of monadic actions (slightly
+
+joinCheckParFunctions :: Monad m => ((Meta, ParItems a) -> m b) -> ((Meta, ParItems a) -> m c) -> ((Meta, ParItems a) -> m (b,c))
+joinCheckParFunctions f g x = seqPair (f x, g x)
+
+-- | Given a function to check a list of graph labels and a flow graph,
+-- returns a list of monadic actions (slightly
 -- more flexible than a monadic action giving a list) that will check
 -- all PAR items in the flow graph
 checkPar :: forall m a b. Monad m => ((Meta, ParItems a) -> m b) -> FlowGraph m a -> [m b]
