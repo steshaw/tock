@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, usageCheckPass, VarMap) where
+module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -29,23 +29,12 @@ import qualified Data.Set as Set
 import qualified AST as A
 import CompState
 import Errors
-import FlowGraph
 import Metadata
 import Omega
-import Pass
 import ShowCode
 import Types
-import UsageCheckAlgorithms
 import UsageCheckUtils
 import Utils
-
-usageCheckPass :: Pass
-usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
-                      g <- case g' of
-                        Left err -> die err
-                        Right g -> return g
-                      sequence_ $ checkPar checkArrayUsage g
-                      return t
 
 checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems (Maybe Decl, Vars)) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $

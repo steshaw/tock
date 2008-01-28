@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module Check (checkInitVar) where
+module Check (checkInitVar, usageCheckPass) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
@@ -29,13 +29,25 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
+import ArrayUsageCheck
 import CompState
 import Errors
 import FlowAlgorithms
 import FlowGraph
 import Metadata
+import Pass
 import ShowCode
+import UsageCheckAlgorithms
 import UsageCheckUtils
+
+usageCheckPass :: Pass
+usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
+                      g <- case g' of
+                        Left err -> die err
+                        Right g -> return g
+                      sequence_ $ checkPar checkArrayUsage g
+                      return t
+
    
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".

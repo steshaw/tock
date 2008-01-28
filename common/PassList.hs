@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Lists of passes
 module PassList (getPassList) where
 
-import ArrayUsageCheck
+import Check
 import CompState
 import GenerateC
 import GenerateCPPCSP
