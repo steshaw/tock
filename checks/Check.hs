@@ -45,34 +45,11 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       g <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right g -> return g
-                      sequence_ $ checkPar checkArrayUsage g
+                      sequence_ $ checkPar (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
+                      -- TODO add checkInitVar here (need to find roots in the tree)
                       return t
 
-   
-    {-
-      Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
-      The problem with this is that given var@(A.SubscriptedVariable _ sub arrVar), the functions would be recursively
-      applied to sub and arrVar.  processVarW should return var as written to, but never the subscripts in sub; those subscripts are not written to!
-      
-      Therefore processVarW must *not* be applied using the generics library, and instead should always be applied
-      directly to an A.Variable.  Internally it uses the generics library to process the subscripts (using getVarExp)
-    -}    
-    
-    --Pull out all the subscripts into the read category, but leave the given var in the written category:
-{-
-processVarW :: A.Variable -> Vars
-processVarW v = writtenVars [variableToVar v]
-    
-processVarR :: A.Variable -> Vars
-processVarR v = readVars [variableToVar v]
-
-processVarUsed :: A.Variable -> Vars
-processVarUsed v = usedVars [variableToVar v]
--}
-{-
-
-
--- I am not sure how you could build this out of the standard functions, so I built it myself
+-- | I am not sure how you could build this out of the standard functions, so I built it myself
 --Takes a list (let's say Y), a function that applies to a single item and a list, and then goes through applying the function
 --to each item in the list, with the rest of the list Y as a parameter.  Perhaps the code is clearer:
 permuteHelper :: (a -> [a] -> b) -> [a] -> [b]
@@ -83,72 +60,32 @@ permuteHelper func (x:xs) = permuteHelper' func [] x xs
     permuteHelper' func prev cur [] = [func cur prev]
     permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
 
-
---Whereas the other passes (at the current time of writing) are transforms on the tree, the usage checker
---does not modify the tree at all; it only needs to check if the usage is valid or not.  Therefore instead
---of using the generic "everywhere" function with a transform, I use "listify" (which is built on top of "everything")
---to pick out the processes that are failing the check
-    
---Returns Nothing if the check is fine, or Just [A.Process] if there is an error (listing all processes that are in error)
-parUsageCheck :: A.Process -> Maybe [A.Process]
-parUsageCheck proc
-  = case listify doUsageCheck proc of
-        [] -> Nothing
-        x -> Just x
+checkPlainVarUsage :: forall m. (Die m, CSM m) => (Meta, ParItems (Maybe Decl, Vars)) -> m ()
+checkPlainVarUsage (m, p) = check p
   where
-    doUsageCheck :: A.Process -> Bool
-    doUsageCheck (A.Par _ _ s) 
-      --Looking at the AST Parse for occam, we can either have:
-      --A.Par _ _ (A.Several _ [A.OnlyP _ _])
-      --A.Par _ _ (A.Rep _ _ (A.OnlyP _ _))
-      --Therefore skipSpecs shouldn't be necessary, but I may as well keep it in for now:
-      = case skipSpecs s of 
-          A.Several _ structList -> 
-            --Need to check that for each written item, it is not read/written elsewhere:
-            or $ permuteHelper usageCheckList (map getVars structList)
-          A.Rep _ rep (A.OnlyP _ proc) ->
-            False --TODO!
-    doUsageCheck _ = False
+    getVars :: ParItems (Maybe Decl, Vars) -> Vars
+    getVars (SeqItems ss) = foldUnionVars $ map snd ss
+    getVars (ParItems ps) = foldUnionVars $ map getVars ps
+    getVars (RepParItem _ p) = getVars p
+      
+    check :: ParItems (Maybe Decl, Vars) -> m ()
+    check (SeqItems {}) = return ()
+    check (ParItems ps) = sequence_ $ permuteHelper checkCREW (map getVars ps)
+    check (RepParItem _ p) = check (ParItems [p,p]) -- Easy way to check two replicated branches
     
-    --Recursively skips down past the Specs:
-    skipSpecs :: A.Structured -> A.Structured
-    skipSpecs (A.Spec _ _ s) = skipSpecs s
-    skipSpecs other = other
-    
-    --We need to check: 
-    --a) Should be no intersection between our written items, and any written or read items anywhere else
-    --b) You may only use a variable subscript if the array is not used anywhere else in the PAR
-    --We don't actually need to check for constant subscripts being the same - we assume constant folding has already
-    --taken place, which means that a[0] and a[0] will be picked up by the first check (a).  This also assumes
-    --that all array index literals will have been converted into INT literals rather than any other type.   
-    --The occam 2 manual says the types must be type INT, so this seems like an okay assumption.
-    usageCheckList :: WrittenRead -> [WrittenRead] -> Bool
-    usageCheckList (written,read) others 
-      = ((length (intersect written (allOtherWritten ++ allOtherRead))) /= 0)
-        || ((length (intersect (varSubscriptedArrays written) (subscriptedArrays (allOtherWritten ++ allOtherRead)))) /= 0)
-        where 
-          allOtherWritten = concatMap fst others
-          allOtherRead = concatMap snd others
-          
-          --Takes in the subscripted compound variables, and returns the *array* variables (not the subscripted compounds)
-          varSubscriptedArrays :: [A.Variable] -> [A.Variable]
-          varSubscriptedArrays = mapMaybe varSubscriptedArrays'
-          
-          varSubscriptedArrays' :: A.Variable -> Maybe A.Variable 
-          varSubscriptedArrays' (A.SubscriptedVariable _ s v) 
-            = case ((length . snd . removeDupWR) (everything concatWR (([],[]) `mkQ` getVarExp) s)) of 
-                0 -> Nothing
-                _ -> Just v
-          varSubscriptedArrays' _ = Nothing
-
-          --Takes in the subscripted compound variables, and returns the *array* variables (not the subscripted compounds)
-          subscriptedArrays :: [A.Variable] -> [A.Variable]
-          subscriptedArrays = mapMaybe subscriptedArrays'
-          
-          subscriptedArrays' :: A.Variable -> Maybe A.Variable
-          subscriptedArrays' (A.SubscriptedVariable _ _ v) = Just v
-          subscriptedArrays' _ = Nothing
--}
+    checkCREW :: Vars -> [Vars] -> m ()
+    checkCREW item rest
+      = do when (not $ Set.null writtenTwice) $
+             diePC (findMeta (head $ Set.elems writtenTwice)) $ formatCode
+               "The following variables are written-to in at least two places inside a PAR: %" writtenTwice
+           when (not $ Set.null writtenAndRead) $
+             diePC (findMeta (head $ Set.elems writtenAndRead)) $ formatCode
+               "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
+      where
+        writtenTwice = writtenVars item `Set.intersection` writtenVars otherVars
+        writtenAndRead = writtenVars item `Set.intersection` readVars otherVars
+      
+        otherVars = foldUnionVars rest
 
 -- | A custom Set wrapper that allows for easy representation of the "everything" set.
 -- In most instances, we could actually build the everything set, but
