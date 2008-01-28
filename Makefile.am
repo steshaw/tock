@@ -51,7 +51,7 @@ CompilerCommands.hs: Makefile
 frontends/LexOccam.hs: frontends/LexOccam.x
 	alex -g frontends/LexOccam.x -o frontends/LexOccam.temphs
 if GHC68
-	echo "{- OPTIONS_GHC -fno-warn-tabs -}\n" > frontends/LexOccam.hs
+	echo "{-# OPTIONS_GHC -fno-warn-tabs -fno-warn-monomorphism-restriction #-}" > frontends/LexOccam.hs
 	cat frontends/LexOccam.temphs >> frontends/LexOccam.hs
 	rm frontends/LexOccam.temphs
 else
@@ -61,7 +61,7 @@ endif
 frontends/LexRain.hs: frontends/LexRain.x
 	alex -g frontends/LexRain.x -o frontends/LexRain.temphs
 if GHC68
-	echo "{- OPTIONS_GHC -fno-warn-tabs -}\n" > frontends/LexRain.hs
+	echo "{-# OPTIONS_GHC -fno-warn-tabs -fno-warn-monomorphism-restriction #-}" > frontends/LexRain.hs
 	cat frontends/LexRain.temphs >> frontends/LexRain.hs
 	rm frontends/LexRain.temphs
 else
