@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 import qualified AST as A
 import Errors
 import FlowGraph
+import Metadata
 import OrdAST()
 import ShowCode
 
@@ -174,6 +175,13 @@ getVarSpec = const emptyVars -- TODO
 getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
 getDecl _ _ = Nothing -- TODO
 
+getVarFormals :: Meta -> [A.Formal] -> Vars
+getVarFormals m = mapUnionVars (getVarFormal m)
+  where
+    -- We treat formal parameters as being written-to, so that they
+    -- appear initialised at the beginning of the function
+    getVarFormal :: Meta -> A.Formal -> Vars
+    getVarFormal m (A.Formal _ _ n) = processVarW $ A.Variable m n
 
 labelFunctions :: forall m. Die m => GraphLabelFuncs m (Maybe Decl, Vars)
 labelFunctions = GLF
@@ -182,6 +190,7 @@ labelFunctions = GLF
   ,labelExpressionList = pair (const Nothing) getVarExpList
   ,labelDummy = const (return (Nothing, emptyVars))
   ,labelProcess = pair (const Nothing) getVarProc
+  ,labelStartNode = pair (const Nothing) (uncurry getVarFormals)
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
   ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)

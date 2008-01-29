@@ -122,7 +122,7 @@ testGraph' testName nodes edges code
     deNode (Node (x,y,_)) = (x,y)
     
     testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
-    testOps = GLF nextId nextId nextId nextId (nextId' 100) (nextId' 100)
+    testOps = GLF nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
     checkGraphEquality :: (Graph g, Show b, Ord b, Monad m) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode m Int) b -> Assertion
     checkGraphEquality (nodes, edges) g
@@ -541,7 +541,7 @@ genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " +
   where
     empty :: a -> Identity ()
     empty = const (return ())
-    funcs = GLF empty empty empty empty empty empty 
+    funcs = GLF empty empty empty empty empty empty empty
 
 -- | Given a flow-graph, it returns a list of all the identity alteration functions,
 -- for each node.  Applying any, many or all of these functions to the source AST

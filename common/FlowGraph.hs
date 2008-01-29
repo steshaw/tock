@@ -77,6 +77,7 @@ type ASTModifier m inner = (inner -> m inner) -> (A.Structured -> m A.Structured
 -- | A choice of AST altering functions built on ASTModifier.
 data AlterAST m = 
   AlterProcess (ASTModifier m A.Process)
+ |AlterArguments (ASTModifier m [A.Formal])
  |AlterExpression (ASTModifier m A.Expression)
  |AlterExpressionList (ASTModifier m A.ExpressionList)
  |AlterSpec (ASTModifier m A.Specification)
@@ -116,6 +117,7 @@ type GraphMaker mLabel mAlter a b = ErrorT String (StateT (GraphMakerState mAlte
 -- can simply ignore it if they want.
 data Monad m => GraphLabelFuncs m label = GLF {
      labelDummy :: Meta -> m label
+    ,labelStartNode :: (Meta, [A.Formal]) -> m label
     ,labelProcess :: A.Process -> m label
     ,labelExpression :: A.Expression -> m label
     ,labelExpressionList :: A.ExpressionList -> m label
@@ -132,6 +134,7 @@ joinLabelFuncs :: forall a b m. Monad m => GraphLabelFuncs m a -> GraphLabelFunc
 joinLabelFuncs fx fy = GLF
  {
   labelDummy = joinItem labelDummy,
+  labelStartNode = joinItem labelStartNode,
   labelProcess = joinItem labelProcess,
   labelExpression = joinItem labelExpression,
   labelExpressionList = joinItem labelExpressionList,
@@ -295,12 +298,12 @@ buildFlowGraph funcs s
            -- If it's a process or function spec we must process it too.  No need to
            -- connect it up to the outer part though
            case spec of
-             (A.Specification _ _ (A.Proc _ _ _ p)) ->
-               buildProcess p (route44 (route33 (route23 route A.Spec) A.Specification) A.Proc)
-                 >>= denoteRootNode . fst
-             (A.Specification _ _ (A.Function _ _ _ _ s)) ->
-               buildStructured None s (route55 (route33 (route23 route A.Spec) A.Specification) A.Function)
-                 >>= denoteRootNode . fst
+             (A.Specification _ _ (A.Proc m _ args p)) ->
+               let procRoute = (route33 (route23 route A.Spec) A.Specification) in
+               addNewSubProcFunc m args (Left (p, route44 procRoute A.Proc)) (route34 procRoute A.Proc)
+             (A.Specification _ _ (A.Function m _ _ args s)) ->
+               let funcRoute = (route33 (route23 route A.Spec) A.Specification) in
+               addNewSubProcFunc m args (Right (s, route55 funcRoute A.Function)) (route45 funcRoute A.Function)
              _ -> return ()
            addEdge ESeq n s
            addEdge ESeq e n'
@@ -308,6 +311,16 @@ buildFlowGraph funcs s
     -- TODO replicator
     buildStructured _ s _ = do n <- addDummyNode (findMeta s)
                                return (n,n)
+
+    addNewSubProcFunc :: Meta -> [A.Formal] -> Either (A.Process, ASTModifier mAlter A.Process) (A.Structured, ASTModifier mAlter A.Structured) ->
+      ASTModifier mAlter [A.Formal] -> GraphMaker mLabel mAlter label ()
+    addNewSubProcFunc m args body argsRoute
+      = do root <- addNode' m labelStartNode (m, args) (AlterArguments argsRoute)
+           denoteRootNode root
+           bodyNode <- case body of
+             Left (p,route) -> buildProcess p route >>* fst
+             Right (s,route) -> buildStructured None s route >>* fst
+           addEdge ESeq root bodyNode
     
     buildProcess :: A.Process -> ASTModifier mAlter A.Process -> GraphMaker mLabel mAlter label (Node, Node)
     buildProcess (A.Seq _ s) route = buildStructured Seq s (route22 route A.Seq)
@@ -339,9 +352,17 @@ decomp23 con f1 = decomp3 con return f1 return
 decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
 decomp33 con f2 = decomp3 con return return f2
 
+decomp34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp34 con f2 = decomp4 con return return f2 return
+
 decomp44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
   (a0 -> a1 -> a2 -> a3 -> a) -> (a3 -> m a3) -> (a -> m a)
 decomp44 con f3 = decomp4 con return return return f3
+
+decomp45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp45 con f3 = decomp5 con return return return f3 return
 
 decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
@@ -356,9 +377,17 @@ route23 route con = route @-> (decomp23 con)
 route33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a2
 route33 route con = route @-> (decomp33 con)
 
+route34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a) -> ASTModifier m a2
+route34 route con = route @-> (decomp34 con)
+
 route44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
   ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a) -> ASTModifier m a3
 route44 route con = route @-> (decomp44 con)
+
+route45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> ASTModifier m a3
+route45 route con = route @-> (decomp45 con)
 
 route55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   ASTModifier m a -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> ASTModifier m a4
