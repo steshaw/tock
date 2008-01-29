@@ -130,8 +130,7 @@ showCodeExSet (NormalSet s)
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
 checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
 checkInitVar m graph startNode
-       -- TODO don't pass in all the nodes from the graph, just those connected to startNode
-  = do vwb <- case flowAlgorithm graphFuncs (nodes graph) startNode of
+  = do vwb <- case flowAlgorithm graphFuncs (dfs [startNode] graph) startNode of
          Left err -> dieP m $ "Error building control-flow graph: " ++ err
          Right x -> return x
        -- vwb is a map from Node to a set of Vars that have been written by that point
