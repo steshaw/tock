@@ -59,6 +59,7 @@ options =
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
+  , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
   ]
 
 optMode :: String -> OptFunc
@@ -93,6 +94,14 @@ optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
+
+optUsageChecking :: String -> OptFunc
+optUsageChecking s ps
+    =  do usageCheck <- case s of
+            "on" -> return True
+            "off" -> return False
+            _ -> dieIO (Nothing, "Unknown usage checking mode: " ++ s)
+          return $ ps { csUsageChecking = usageCheck }
 
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
