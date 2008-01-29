@@ -51,8 +51,17 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
                       mapM_ (checkInitVar (findMeta t) g) roots
-                      -- TODO add checkInitVar here (need to find roots in the tree)
                       return t
+
+filterPlain :: Set.Set Var -> Set.Set Var
+filterPlain = Set.filter plain
+  where
+    plain (Var (A.Variable {})) = True
+    plain _ = False
+
+filterPlain' :: ExSet Var -> ExSet Var
+filterPlain' Everything = Everything
+filterPlain' (NormalSet s) = NormalSet $ filterPlain s
 
 -- | I am not sure how you could build this out of the standard functions, so I built it myself
 --Takes a list (let's say Y), a function that applies to a single item and a list, and then goes through applying the function
@@ -87,9 +96,8 @@ checkPlainVarUsage (m, p) = check p
              diePC (findMeta (head $ Set.elems writtenAndRead)) $ formatCode
                "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
       where
-        writtenTwice = writtenVars item `Set.intersection` writtenVars otherVars
-        writtenAndRead = writtenVars item `Set.intersection` readVars otherVars
-      
+        writtenTwice = filterPlain $ writtenVars item `Set.intersection` writtenVars otherVars
+        writtenAndRead = filterPlain $ writtenVars item `Set.intersection` readVars otherVars
         otherVars = foldUnionVars rest
 
 -- | A custom Set wrapper that allows for easy representation of the "everything" set.
@@ -170,7 +178,7 @@ checkInitVar m graph startNode
     checkInitVar' writtenMap (n,v)
       = let vs = fromMaybe emptySet (Map.lookup n writtenMap) in
         -- The read-from set should be a subset of the written-to set:
-        if v `isSubsetOf` vs then return () else 
+        if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
           do readVars <- showCodeExSet v
              writtenVars <- showCodeExSet vs
              dieP (getMeta n) $ "Variable read from is not written to before-hand, sets are read: " ++ show readVars ++ " and written: " ++ show writtenVars
