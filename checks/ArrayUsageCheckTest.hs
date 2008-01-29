@@ -827,6 +827,7 @@ ioqcTests
          ,automaticTest "testcases/automatic/usage-check-2.occ.test"
          ,automaticTest "testcases/automatic/usage-check-3.occ.test"
          ,automaticTest "testcases/automatic/usage-check-4.occ.test"
+         ,automaticTest "testcases/automatic/usage-check-5.occ.test"
         ]
       ,return $ qcOmegaEquality ++ qcOmegaPrune)
 

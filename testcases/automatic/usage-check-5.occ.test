@@ -1,0 +1,55 @@
+-- This file tests passing (plain and array) variables to functions
+-- Four unknown variables are available; x, y, z.
+-- Two arrays are automatically declared; a (size 10) and b (size 12)
+
+PROC pR(VAL INT n)
+  SKIP
+:
+
+PROC pRRW(VAL INT n, VAL INT o, INT p)
+  SKIP
+:
+
+INT,INT FUNCTION fRR(VAL INT m, VAL INT n)
+  VALOF
+    SKIP
+    RESULT m,n
+:
+
+PROC p(INT x, y, z)
+  [10]INT a:
+  [12]INT b:
+%%
+:
+
+PROC m()
+  SKIP
+:
+
+%PASS Distinct plain variables passed to one call
+  pRRW(x,y,z)
+
+%PASS Safely overlapping plain variables passed to one call
+  pRRW(x,x,z)
+
+%FAIL Risky overlapping plain variables passed to one call
+  pRRW(x,y,x)
+  
+%PASS Safely overlapping plain variables passed to two calls
+  PAR
+    pRRW(x,x,z)
+    pRRW(x,x,y)
+
+%FAIL Risky overlapping plain variables passed to two calls (#1)
+  PAR
+    pRRW(x,y,z)
+    pRRW(x,y,z)
+
+%FAIL Risky overlapping plain variables passed to two calls (#2)
+  PAR
+    pRRW(x,y,z)
+    pRRW(z,y,x)
+    
+-- TODO array versions of these
+
+%
