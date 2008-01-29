@@ -1,9 +1,19 @@
 GHC_OPTS = \
 	-fglasgow-exts \
+	-fwarn-deprecations \
+	-fwarn-duplicate-exports \
+	-fwarn-missing-fields \
+	-fwarn-missing-methods \
+	-fwarn-overlapping-patterns \
+	-fwarn-simple-patterns \
+	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
-	-fwarn-type-defaults \
 	-ibackends -ichecks -icommon -ifrontends -itransformations
+
+# TODO turn on this option too:
+#	-fwarn-missing-signatures
+
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
