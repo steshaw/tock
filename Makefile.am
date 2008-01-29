@@ -81,6 +81,8 @@ common/OrdAST.hs: GenOrdAST$(EXEEXT)
 BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs common/OrdAST.hs
 CLEANFILES = $(BUILT_SOURCES)
 
+EXTRA_DIST = docextra testcases/automatic
+
 #One entry per line makes it easier to read and easier to modify, even if it is longer
 
 tock_SOURCES_hs = Main.hs
