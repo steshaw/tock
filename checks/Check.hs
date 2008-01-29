@@ -49,6 +49,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                         Right g -> return g
                       sequence_ $ checkPar (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
                       checkParAssignUsage t
+                      checkProcCallArgsUsage t
                       -- TODO add checkInitVar here (need to find roots in the tree)
                       return t
 
@@ -189,3 +190,21 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
       where
         mockedupParItems :: ParItems (Maybe Decl, Vars)
         mockedupParItems = ParItems [SeqItems [(Nothing, processVarW v)] | v <- vs]
+
+
+checkProcCallArgsUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
+checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
+  where
+    isProcCall :: A.Process -> Bool
+    isProcCall (A.ProcCall {}) = True
+    isProcCall _ = False
+
+    -- | Need to check that all the destinations in a parallel assignment
+    -- are distinct.  So we check plain variables, and array variables
+    checkArgs :: A.Process -> m ()
+    checkArgs (A.ProcCall m _ params)
+      = do checkPlainVarUsage (m, mockedupParItems)
+           checkArrayUsage (m, mockedupParItems)
+      where
+        mockedupParItems :: ParItems (Maybe Decl, Vars)
+        mockedupParItems = ParItems [SeqItems [(Nothing, v)] | v <- map getVarActual params]
