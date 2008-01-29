@@ -10,6 +10,10 @@ PROC pRRW(VAL INT n, VAL INT o, INT p)
   SKIP
 :
 
+PROC pRWW(VAL INT n, INT o, INT p)
+  SKIP
+:
+
 INT,INT FUNCTION fRR(VAL INT m, VAL INT n)
   VALOF
     SKIP
@@ -26,14 +30,23 @@ PROC m()
   SKIP
 :
 
-%PASS Distinct plain variables passed to one call
+%PASS Distinct plain variables passed to one call (#1)
   pRRW(x,y,z)
+
+%PASS Distinct plain variables passed to one call (#2)
+  pRWW(x,y,z)
 
 %PASS Safely overlapping plain variables passed to one call
   pRRW(x,x,z)
 
-%FAIL Risky overlapping plain variables passed to one call
+%FAIL Risky overlapping plain variables passed to one call (#1)
   pRRW(x,y,x)
+  
+%FAIL Risky overlapping plain variables passed to one call (#2)
+  pRWW(x,y,y)
+  
+%FAIL Risky overlapping plain variables passed to one call (#3)
+  pRWW(x,y,x)
   
 %PASS Safely overlapping plain variables passed to two calls
   PAR
@@ -49,6 +62,22 @@ PROC m()
   PAR
     pRRW(x,y,z)
     pRRW(z,y,x)
+    
+%FAIL Risky overlapping plain variables passed to two calls (#3)
+  PAR
+    pRRW(x,y,z)
+    pRWW(x,y,z)
+
+%PASS Safe overlapping function calls
+  PAR
+    y := fRR(y,z)
+    x := fRR(x,z)
+
+%FAIL Risky overlapping function calls
+  PAR
+    x := fRR(y,z)
+    y := fRR(x,z)
+
     
 -- TODO array versions of these
 
