@@ -23,6 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Check (checkInitVar, usageCheckPass) where
 
 import Control.Monad.Identity
+import Data.Generics
 import Data.Graph.Inductive
 import Data.List hiding (union)
 import qualified Data.Map as Map
@@ -30,6 +31,7 @@ import Data.Maybe
 import qualified Data.Set as Set
 
 import ArrayUsageCheck
+import qualified AST as A
 import CompState
 import Errors
 import FlowAlgorithms
@@ -46,6 +48,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                         Left err -> dieP (findMeta t) err
                         Right g -> return g
                       sequence_ $ checkPar (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
+                      checkParAssignUsage t
                       -- TODO add checkInitVar here (need to find roots in the tree)
                       return t
 
@@ -169,3 +172,20 @@ checkInitVar m graph startNode
           do readVars <- showCodeExSet v
              writtenVars <- showCodeExSet vs
              dieP (getMeta n) $ "Variable read from is not written to before-hand, sets are read: " ++ show readVars ++ " and written: " ++ show writtenVars
+
+checkParAssignUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
+checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
+  where
+    isParAssign :: A.Process -> Bool
+    isParAssign (A.Assign _ vs _) = length vs >= 2
+    isParAssign _ = False
+
+    -- | Need to check that all the destinations in a parallel assignment
+    -- are distinct.  So we check plain variables, and array variables
+    checkParAssign :: A.Process -> m ()
+    checkParAssign (A.Assign m vs _)
+      = do checkPlainVarUsage (m, mockedupParItems)
+           checkArrayUsage (m, mockedupParItems)
+      where
+        mockedupParItems :: ParItems (Maybe Decl, Vars)
+        mockedupParItems = ParItems [SeqItems [(Nothing, processVarW v)] | v <- vs]

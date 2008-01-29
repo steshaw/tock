@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, foldUnionVars, getVarProc, labelFunctions, ParItems(..), transformParItems, Var(..), Vars(..), vars) where
+module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, foldUnionVars, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.List
@@ -109,7 +109,7 @@ getVarProc (A.Assign _ vars expList)
         --Join together:
       = unionVars
           --The written-to variables on the LHS:
-          (foldUnionVars (map processVarW vars)) 
+          (mapUnionVars processVarW vars) 
           --All variables read on the RHS:
           (getVarExpList expList)
 getVarProc (A.GetTime _ v) = processVarW v
