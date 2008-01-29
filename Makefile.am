@@ -174,10 +174,10 @@ cgtests/cgtest00.occ:
 # In future we should give the version compiled using the C++ backend a different extension:
 
 make-cgtests-c: tock cgtests/cgtest00.occ clean-cgtests
-	./compile-cgtests --backend=c
+	sh ./compile-cgtests --backend=c
 
 make-cgtests-cpp: tock cgtests/cgtest00.occ clean-cgtests
-	./compile-cgtests --backend=cppcsp
+	sh ./compile-cgtests --backend=cppcsp
 
 clean-cgtests:
 	rm -f cgtests/cgtest??
