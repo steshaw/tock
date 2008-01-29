@@ -37,7 +37,8 @@ data GraphFuncs n e a = GF {
 -- TODO further in the future, consider making this work nicely with the inductive graph rather than using node lists
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
--- an iterative data-flow analysis.
+-- an iterative data-flow analysis.  All the nodes in the list should be connected to
+-- the entry node, and there should be no nodes without predecessors in the list.
 flowAlgorithm :: forall n e a. (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> n -> Either String (Map.Map n a)
 flowAlgorithm funcs nodes startNode
   = iterate
