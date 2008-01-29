@@ -124,9 +124,14 @@ getVarProc (A.Input _ chanVar (A.InputSimple _ iis)) = (processVarUsed chanVar) 
     getVarInputItem :: A.InputItem -> Vars
     getVarInputItem (A.InCounted _ cv av) = mkWrittenVars [variableToVar cv,variableToVar av]
     getVarInputItem (A.InVariable _ v) = mkWrittenVars [variableToVar v]
---TODO process calls
+getVarProc (A.ProcCall _ _ params) =  mapUnionVars getVarActual params
 getVarProc _ = emptyVars
-    
+
+getVarActual :: A.Actual -> Vars
+getVarActual (A.ActualExpression _ e) = getVarExp e
+getVarActual (A.ActualVariable A.ValAbbrev _ v) = processVarR v
+getVarActual (A.ActualVariable _ _ v) = processVarW v
+
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
       The problem with this is that given var@(A.SubscriptedVariable _ sub arrVar), the functions would be recursively
