@@ -50,6 +50,7 @@ public:
 #include <boost/type_traits/remove_const.hpp>
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/preprocessor/repetition/repeat_from_to.hpp>
+#include <boost/tuple/tuple.hpp>
 
 inline unsigned TimeDiffHelper(unsigned now,unsigned waitFor)
 {
