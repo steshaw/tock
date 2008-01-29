@@ -106,12 +106,14 @@ nextId' inc t
 testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
 testGraph testName nodes edges proc = testGraph' testName nodes edges (A.OnlyP emptyMeta proc)
 
+--TODO test root nodes too
+
 testGraph' :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
 testGraph' testName nodes edges code
   = TestCase $ 
       case evalState (buildFlowGraph testOps code) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
-        Right g -> checkGraphEquality (nodes, edges) (g :: FlowGraph Identity Int)
+        Right (g,_) -> checkGraphEquality (nodes, edges) (g :: FlowGraph Identity Int)
   where  
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
@@ -535,7 +537,7 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
 -- | Generates a flow-graph from the given AST.
 -- TODO put this in proper error monad
 genGraph :: A.Structured -> FlowGraph Identity ()
-genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) id $ runIdentity $ buildFlowGraph funcs s
+genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) fst $ runIdentity $ buildFlowGraph funcs s
   where
     empty :: a -> Identity ()
     empty = const (return ())

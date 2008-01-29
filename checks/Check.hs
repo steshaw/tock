@@ -44,12 +44,13 @@ import UsageCheckUtils
 
 usageCheckPass :: Pass
 usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
-                      g <- case g' of
+                      (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
-                        Right g -> return g
+                        Right (g,rs) -> return (g,rs)
                       sequence_ $ checkPar (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
+                      mapM_ (checkInitVar (findMeta t) g) roots
                       -- TODO add checkInitVar here (need to find roots in the tree)
                       return t
 
@@ -129,6 +130,7 @@ showCodeExSet (NormalSet s)
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
 checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
 checkInitVar m graph startNode
+       -- TODO don't pass in all the nodes from the graph, just those connected to startNode
   = do vwb <- case flowAlgorithm graphFuncs (nodes graph) startNode of
          Left err -> dieP m $ "Error building control-flow graph: " ++ err
          Right x -> return x

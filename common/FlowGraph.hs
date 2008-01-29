@@ -82,6 +82,8 @@ data AlterAST m =
  |AlterSpec (ASTModifier m A.Specification)
  |AlterNothing
 
+-- | The label for a node.  A Meta tag, a custom label, and a function
+-- for altering the part of the AST that this node came from
 data Monad m => FNode m a = Node (Meta, a, AlterAST m)
 --type FEdge = (Node, EdgeLabel, Node)
 
@@ -93,9 +95,17 @@ instance (Monad m, Show a) => Show (FNode m a) where
 -- must occur.  The a parameter is the type of the node labels.
 type FlowGraph m a = Gr (FNode m a) EdgeLabel
 
+-- | A list of nodes and edges.  Used for building up the graph.
 type NodesEdges m a = ([LNode (FNode m a)],[LEdge EdgeLabel])
 
-type GraphMaker mLabel mAlter a b = ErrorT String (StateT (Node, Int, NodesEdges mAlter a) mLabel) b
+-- | The state carried around when building up the graph.  In order they are:
+-- * The next node identifier
+-- * The next identifier for a PAR item (for the EStartPar/EEndPar edges)
+-- * The list of nodes and edges to put into the graph
+-- * The list of root nodes thus far (those with no links to them)
+type GraphMakerState mAlter a = (Node, Int, NodesEdges mAlter a, [Node])
+
+type GraphMaker mLabel mAlter a b = ErrorT String (StateT (GraphMakerState mAlter a) mLabel) b
 
 -- | The GraphLabelFuncs type.  These are a group of functions
 -- used to provide labels for different elements of AST.
@@ -145,12 +155,12 @@ joinLabelFuncs fx fy = GLF
 buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   GraphLabelFuncs mLabel label ->
   A.Structured ->
-  mLabel (Either String (FlowGraph mAlter label))
+  mLabel (Either String (FlowGraph mAlter label, [Node]))
 buildFlowGraph funcs s
-  = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]) )
+  = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]), [])
        return $ case res of
                   (Left err,_) -> Left err
-                  (_,(_,_,(nodes, edges))) -> Right (mkGraph nodes edges)
+                  (Right (root,_),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
   where
     -- All the functions return the new graph, and the identifier of the node just added
     
@@ -158,17 +168,21 @@ buildFlowGraph funcs s
     run func = func funcs
         
     addNode :: (Meta, label, AlterAST mAlter) -> GraphMaker mLabel mAlter label Node
-    addNode x = do (n,pi,(nodes, edges)) <- get
-                   put (n+1, pi,((n, Node x):nodes, edges))
+    addNode x = do (n,pi,(nodes, edges), rs) <- get
+                   put (n+1, pi,((n, Node x):nodes, edges), rs)
                    return n
     
+    denoteRootNode :: Node -> GraphMaker mLabel mAlter label ()
+    denoteRootNode root = do (n, pi, nes, roots) <- get
+                             put (n, pi, nes, root : roots)
+    
     addEdge :: EdgeLabel -> Node -> Node -> GraphMaker mLabel mAlter label ()
-    addEdge label start end = do (n, pi, (nodes, edges)) <- get
+    addEdge label start end = do (n, pi, (nodes, edges), rs) <- get
                                  -- Edges should only be added after the nodes, so
                                  -- for safety here we can check that the nodes exist:
                                  if (notElem start $ map fst nodes) || (notElem end $ map fst nodes)
                                    then throwError "Could not add edge between non-existent nodes"
-                                   else put (n + 1, pi, (nodes,(start, end, label):edges))
+                                   else put (n + 1, pi, (nodes,(start, end, label):edges), rs)
     
     addNode' :: Meta -> (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> AlterAST mAlter -> GraphMaker mLabel mAlter label Node
     addNode' m f t r = do val <- (lift . lift) (run f t)
@@ -184,8 +198,8 @@ buildFlowGraph funcs s
     addDummyNode m = addNode' m labelDummy m AlterNothing
     
     addParEdges :: Node -> Node -> [(Node,Node)] -> GraphMaker mLabel mAlter label ()
-    addParEdges s e pairs = do (n,pi,(nodes,edges)) <- get
-                               put (n,pi+1,(nodes,edges ++ (concatMap (parEdge pi) pairs)))
+    addParEdges s e pairs = do (n,pi,(nodes,edges),rs) <- get
+                               put (n,pi+1,(nodes,edges ++ (concatMap (parEdge pi) pairs)),rs)
       where
         parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
         parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
@@ -281,8 +295,12 @@ buildFlowGraph funcs s
            -- If it's a process or function spec we must process it too.  No need to
            -- connect it up to the outer part though
            case spec of
-             (A.Specification _ _ (A.Proc _ _ _ p)) -> buildProcess p (route44 (route33 (route23 route A.Spec) A.Specification) A.Proc) >> return ()
-             (A.Specification _ _ (A.Function _ _ _ _ s)) -> buildStructured None s (route55 (route33 (route23 route A.Spec) A.Specification) A.Function) >> return ()
+             (A.Specification _ _ (A.Proc _ _ _ p)) ->
+               buildProcess p (route44 (route33 (route23 route A.Spec) A.Specification) A.Proc)
+                 >>= denoteRootNode . fst
+             (A.Specification _ _ (A.Function _ _ _ _ s)) ->
+               buildStructured None s (route55 (route33 (route23 route A.Spec) A.Specification) A.Function)
+                 >>= denoteRootNode . fst
              _ -> return ()
            addEdge ESeq n s
            addEdge ESeq e n'

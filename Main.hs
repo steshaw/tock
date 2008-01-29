@@ -48,6 +48,7 @@ import Pass
 import PassList
 import PreprocessOccam
 import PrettyShow
+import Utils
 
 type OptFunc = CompState -> IO CompState
 
@@ -260,7 +261,7 @@ compile mode fn outHandle
                  -- since it is never used.  Then we used graphsTyped (rather than graphs)
                  -- to prevent a compiler warning at graphsTyped being unused;
                  -- graphs is of course identical to graphsTyped, as you can see here:
-                 let (graphsTyped :: [Maybe (FlowGraph Identity String)]) = graphs
+                 let (graphsTyped :: [Maybe (FlowGraph Identity String)]) = map (transformMaybe fst) graphs
                  --TODO output each process to a separate file, rather than just taking the first:
                  return $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
 
