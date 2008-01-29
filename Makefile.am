@@ -168,7 +168,7 @@ clean-local:
 	rmdir obj
 
 cgtests/cgtest00.occ:
-	svn co https://subversion.frmb.org/pubsvn/cgtests/branches/tock cgtests
+	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/cgtests/branches/tock@4200 cgtests
 
 # We must clean the cgtests every time at the moment, because if someone makes make-cgtests-c then make-cgtests-cpp, they'll need a clean inbetween:
 # In future we should give the version compiled using the C++ backend a different extension:
