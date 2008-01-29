@@ -98,7 +98,7 @@ checkPar f g = map f allParItems
 -- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
 findReachDef :: forall m. Monad m => FlowGraph m (Maybe Decl, Vars) -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
 findReachDef graph startNode
-  = do r <- flowAlgorithm graphFuncs (nodes graph) startNode
+  = do r <- flowAlgorithm graphFuncs (nodes graph) (startNode, Map.empty)
        -- These lines remove the maps where the variable is not read in that particular node:
        let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
        return $ Map.filter (not . Map.null) r'
@@ -109,7 +109,6 @@ findReachDef graph startNode
         nodeFunc = processNode
         ,prevNodes = lpre graph
         ,nextNodes = lsuc graph
-        ,initVal = Map.empty
         ,defVal = Map.empty
       }
 

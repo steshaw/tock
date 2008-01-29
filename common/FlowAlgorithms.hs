@@ -28,7 +28,6 @@ data GraphFuncs n e a = GF {
    nodeFunc :: (n,e) -> a -> Maybe a -> a
    ,prevNodes :: n -> [(n,e)]
    ,nextNodes :: n -> [(n,e)]
-   ,initVal :: a
    -- defVal should be the unit of the aggregation.  That is, if (nodeFunc a b) == defVal, then (nodeFunc a b defVal) == defVal too
    -- TODO not sure if the above is still true
    ,defVal :: a
@@ -39,11 +38,11 @@ data GraphFuncs n e a = GF {
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.  All the nodes in the list should be connected to
 -- the entry node, and there should be no nodes without predecessors in the list.
-flowAlgorithm :: forall n e a. (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> n -> Either String (Map.Map n a)
-flowAlgorithm funcs nodes startNode
+flowAlgorithm :: forall n e a. (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> (n, a) -> Either String (Map.Map n a)
+flowAlgorithm funcs nodes (startNode, startVal)
   = iterate
       (Set.fromList nonStartNodes)
-      (Map.fromList $ (startNode,initVal funcs):(zip nonStartNodes (repeat (defVal funcs))))
+      (Map.fromList $ (startNode, startVal):(zip nonStartNodes (repeat (defVal funcs))))
   where
     nonStartNodes = (filter ((/=) startNode) nodes)
     
