@@ -98,22 +98,22 @@ nextId' inc t
                        return 0
        where m = findMeta t
 
--- | Given a test name, a list of nodes, a list of edges and an AST fragment, tests that the
+-- | Given a test name, a list of nodes, a list of root nodes, a list of edges and an AST fragment, tests that the
 -- CFG produced from the given AST matches the nodes and edges.  The nodes do not have to have
 -- the exact correct identifiers produced by the graph-building.  Instead, the graphs are checked
 -- for being isomorphic, based on the meta-tag node labels (node E in the expected list is 
 -- isomorphic to node A in the actual list if their meta tags are the same).
-testGraph :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
-testGraph testName nodes edges proc = testGraph' testName nodes edges (A.OnlyP emptyMeta proc)
+testGraph :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
+testGraph testName nodes roots edges proc = testGraph' testName nodes roots edges (A.OnlyP emptyMeta proc)
 
 --TODO test root nodes too
 
-testGraph' :: String -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
-testGraph' testName nodes edges code
+testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+testGraph' testName nodes roots edges code
   = TestCase $ 
       case evalState (buildFlowGraph testOps code) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
-        Right (g,_) -> checkGraphEquality (nodes, edges) (g :: FlowGraph Identity Int)
+        Right gr -> checkGraphEquality (nodes, roots, edges) (gr :: (FlowGraph Identity Int, [Node]))
   where  
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
@@ -124,11 +124,13 @@ testGraph' testName nodes edges code
     testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
     testOps = GLF nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
-    checkGraphEquality :: (Graph g, Show b, Ord b, Monad m) => ([(Int, Meta)], [(Int, Int, b)]) -> g (FNode m Int) b -> Assertion
-    checkGraphEquality (nodes, edges) g
+    checkGraphEquality :: (Graph g, Show b, Ord b, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, b)]) -> (g (FNode m Int) b, [Int]) -> Assertion
+    checkGraphEquality (nodes, roots, edges) (g, actRoots)
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
            assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
+           roots' <- mapM (transformNode nodeLookup) roots
+           assertEqual (testName ++ " Root lists not equal") (sort roots') (sort actRoots)
            edges' <- mapM (transformEdge nodeLookup) edges
            assertEqual (testName ++ " Edge lists not equal") (sort $ edges') (sort $ labEdges g)
     
@@ -145,6 +147,11 @@ testGraph' testName nodes edges code
           Nothing -> do assertFailure ("Could not map test edge to real edge: " ++ show e)
                         return e
           Just (start', end') -> return (start', end', label)
+
+    transformNode :: Map.Map Int Int -> Int -> IO Int
+    transformNode m n = case Map.lookup n m of
+      Just n' -> return n'
+      Nothing -> assertFailure (testName ++ " could not find root node in new graph: " ++ show n) >> return n
 
 -- | A helper function for making simple A.Specification items.
 someSpec :: Meta -> A.Specification
@@ -163,14 +170,17 @@ testSeq = TestLabel "testSeq" $ TestList
     (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
     
   ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4)
-  ,testSeq' 11
-    [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)]
+  ,testSeq'' 11
+    [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)] [1]
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
     (A.Several m11 [A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.OnlyP m9 sm10])
  ]
   where
     testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
-    testSeq' n a b s = testGraph ("testSeq " ++ show n) a b (A.Seq m0 s)
+    testSeq' n a b s = testSeq'' n a [0] b s
+
+    testSeq'' :: Int -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+    testSeq'' n a r b s = testGraph ("testSeq " ++ show n) a r b (A.Seq m0 s)
     
 testPar :: Test
 testPar = TestLabel "testPar" $ TestList
@@ -199,30 +209,30 @@ testPar = TestLabel "testPar" $ TestList
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
-    testPar' n a b s = testGraph ("testPar " ++ show n) a b (A.Par m0 A.PlainPar s)
+    testPar' n a b s = testGraph ("testPar " ++ show n) a [0] b (A.Par m0 A.PlainPar s)
 
 testWhile :: Test
 testWhile = TestLabel "testWhile" $ TestList
  [
-    testGraph "testWhile 0" [(0,m0), (1,m1)] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
-   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+    testGraph "testWhile 0" [(0,m0), (1,m1)] [0] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
+   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [2] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
       (A.Seq m0 $ A.Several m1 [A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
-   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [7] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
       (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
-   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
+   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [7] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
       (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
  ]
 
 testCase :: Test
 testCase = TestLabel "testCase" $ TestList
  [
-   testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
+   testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [0] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
   ,testGraph "testCase 1"
-     [(0,m10),(1,m0),(2,m2),(3,m3)]
+     [(0,m10),(1,m0),(2,m2),(3,m3)] [0]
      [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
      (A.Case m0 (A.True m10) $ cases m1 [A.Option m2 [A.True mU] sm3])
   ,testGraph "testCase 2"
-     [(0,m10),(1,m0),(2,m2),(3,m3),(4,m4),(5,m5)]
+     [(0,m10),(1,m0),(2,m2),(3,m3),(4,m4),(5,m5)] [0]
      [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (0,4,ESeq),(4,5,ESeq),(5,1,ESeq)]
      (A.Case m0 (A.True m10) $ cases m1 [A.Option m2 [A.True mU] sm3, A.Option m4 [A.True mU] sm5])
   --TODO test case statements that have specs
@@ -234,12 +244,12 @@ testCase = TestLabel "testCase" $ TestList
 testIf :: Test
 testIf = TestLabel "testIf" $ TestList
  [
-   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [0] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
-  ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] 
+  ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] [0]
                         [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5)])
-  ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] 
+  ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] [0]
                         [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq), (4,6,ESeq),(6,7,ESeq),(7,1,ESeq)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
  ]
@@ -251,20 +261,20 @@ testProcFuncSpec :: Test
 testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
   [
    -- Single spec of process (with SKIP body):
-    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100),(3,m3)] [(1,3,ESeq), (3,2,ESeq)]
-      (A.Spec mU (A.Specification m1 undefined $ A.Proc mU undefined undefined sm0) $ A.Several m3 [])
+    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100),(3,m3), (5,m5)] [1,5] [(5,0,ESeq), (1,3,ESeq), (3,2,ESeq)]
+      (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several m3 [])
    -- Single spec of process (with body with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(3,m8),(4,m5)] ([(1,3,ESeq), (3,2,ESeq)] ++ [(0,4,ESeq)])
-      (A.Spec mU (A.Specification m6 undefined $ A.Proc mU undefined undefined $
+   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(3,m8),(4,m5), (9,m9)] [1,9] ([(1,3,ESeq), (3,2,ESeq)] ++ [(9,0,ESeq), (0,4,ESeq)])
+      (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
         A.Seq m0 $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5]
       ) $ A.Several m8 [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(2,m8),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100)]
-      ([(0,7,ESeq), (7,2,ESeq), (2,8,ESeq), (8,1,ESeq)] ++ [(3,4,ESeq)] ++ [(5,6,ESeq)])
-      (A.Spec mU (A.Specification m6 undefined $ A.Proc mU undefined undefined $
+   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(2,m8),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100), (10,m10), (11, m11)] [0,10,11]
+      ([(0,7,ESeq), (7,2,ESeq), (2,8,ESeq), (8,1,ESeq)] ++ [(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
+      (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
         A.Seq mU $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3]
       ) $ 
-       A.Spec mU (A.Specification m7 undefined $ A.Proc mU undefined undefined $
+       A.Spec mU (A.Specification m7 undefined $ A.Proc m11 undefined undefined $
         A.Seq mU $ A.Several mU [A.OnlyP mU sm4,A.OnlyP mU sm5]
       )  
       $ A.Several m8 [])
