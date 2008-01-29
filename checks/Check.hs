@@ -129,6 +129,11 @@ isSubsetOf _ Everything = True
 isSubsetOf Everything _ = False
 isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
 
+difference :: Ord a => ExSet a -> ExSet a -> ExSet a
+difference _ Everything = NormalSet Set.empty
+difference Everything _ = Everything
+difference (NormalSet a) (NormalSet b) = NormalSet $ Set.difference a b
+
 showCodeExSet :: (CSM m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
 showCodeExSet (NormalSet s)
@@ -179,9 +184,8 @@ checkInitVar m graph startNode
       = let vs = fromMaybe emptySet (Map.lookup n writtenMap) in
         -- The read-from set should be a subset of the written-to set:
         if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
-          do readVars <- showCodeExSet v
-             writtenVars <- showCodeExSet vs
-             dieP (getMeta n) $ "Variable read from is not written to before-hand, sets are read: " ++ show readVars ++ " and written: " ++ show writtenVars
+          do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
+             dieP (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
 
 checkParAssignUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
