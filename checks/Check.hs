@@ -41,6 +41,7 @@ import Pass
 import ShowCode
 import UsageCheckAlgorithms
 import UsageCheckUtils
+import Utils
 
 usageCheckPass :: Pass
 usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
@@ -148,9 +149,13 @@ checkInitVar m graph startNode
        vwb <- case flowAlgorithm graphFuncs connectedNodes (startNode, startLabel) of
          Left err -> dieP m $ "Error building control-flow graph: " ++ err
          Right x -> return x
+       -- Label the connected nodes:
+       -- We should always be able to find the labels for the graphs, but we still use checkJust rather than fromJust
+       labelledConnectedNodes <- flip mapM connectedNodes (\n -> seqPair (return n,
+         checkJust (Just m, "Could not find label for node in checkInitVar") (lab graph n)))
        -- vwb is a map from Node to a set of Vars that have been written by that point
        -- Now we check that for every variable read in each node, it has already been written to by then
-       mapM_ (checkInitVar' vwb) (map readNode (labNodes graph))
+       mapM_ (checkInitVar' vwb) (map readNode labelledConnectedNodes)
   where
     connectedNodes = dfs [startNode] graph
 
