@@ -494,7 +494,7 @@ public:
 		return *this;
 	}
 	
-	typedef std::list<T>::iterator iterator;
+	typedef typename std::list<T>::iterator iterator;
 	
 	inline iterator beginSeqEach()
 	{
