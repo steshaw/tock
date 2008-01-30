@@ -219,6 +219,10 @@ testPar = TestLabel "testPar" $ TestList
   ,testPar' 10 [(1, m3), (2, m5), (6, m6),(106,sub m6 100)]
                [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
                (A.Several m1 [A.Spec mU (someSpec m6) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+  ,testPar' 11 [(1, m3), (2, m5), (3,m7), (6, m6),(106,sub m6 100)]
+               [(0,6,EStartPar 0),(6,1,EStartPar 1),(6,2,EStartPar 1),(1,106,EEndPar 1),(2,106,EEndPar 1)
+               ,(106,99,EEndPar 0), (0,3,EStartPar 0), (3,99,EEndPar 0)]
+               (A.Several m1 [A.Spec mU (someSpec m6) $ A.Several mU [A.OnlyP mU sm3, A.OnlyP mU sm5], A.OnlyP mU sm7])
 
   ,testPar' 20 [(1,m1),(2,m4),(100,sub m1 100)] [(0,1,EStartPar 0),(1,2,ESeq),(2,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
