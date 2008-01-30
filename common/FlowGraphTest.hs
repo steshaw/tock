@@ -199,31 +199,41 @@ testSeq = TestLabel "testSeq" $ TestList
 testPar :: Test
 testPar = TestLabel "testPar" $ TestList
  [
-   testPar' 0 [(0,m1)] [] (A.Several m1 [])
-  ,testPar' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
-  ,testPar' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
-  ,testPar' 3 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)]
-              [(0,1,EStartPar 0),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+   testPar' 0 [(1,m1)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [])
+  ,testPar' 1 [(1,m2)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.OnlyP m1 sm2)
+  ,testPar' 2 [(1,m3)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [A.OnlyP m2 sm3])
+  ,testPar' 3 [(1, m3), (2, m5)]
+              [(0,1,EStartPar 0),(1,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
               (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
-  ,testPar' 4 [(0,m1), (1,sub m1 1), (3,m3),(5,m5),(7,m7)]
-              [(0,3,EStartPar 0),(3,1,EEndPar 0),(0,5,EStartPar 0),(5,1,EEndPar 0),(0,7,EStartPar 0),(7,1,EEndPar 0)] 
+  ,testPar' 4 [(3,m3),(5,m5),(7,m7)]
+              [(0,3,EStartPar 0),(3,99,EEndPar 0),(0,5,EStartPar 0),(5,99,EEndPar 0),(0,7,EStartPar 0),(7,99,EEndPar 0)] 
               (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
-  ,testPar' 5 [(0,m1), (1, m3), (2, m5), (3,sub m1 1)]
-              [(0,1,EStartPar 0),(1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+  ,testPar' 5 [(1, m3), (2, m5)]
+              [(0,1,EStartPar 0),(1,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
               (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
-  ,testPar' 6 [(0,m1), (1,sub m1 1),(3,m3),(5,m5),(7,m7),(9,m9),(10,m10),(11,sub m10 1)]
-              [(10,3,EStartPar 0),(10,5,EStartPar 0),(10,7,EStartPar 0),(3,11,EEndPar 0),(5,11,EEndPar 0),(7,11,EEndPar 0)
-              ,(0,10,EStartPar 1),(11,1,EEndPar 1),(0,9,EStartPar 1),(9,1,EEndPar 1)] 
+  ,testPar' 6 [(3,m3),(5,m5),(7,m7),(9,m9)]
+              [(0,3,EStartPar 0), (0,5,EStartPar 0), (0,7,EStartPar 0), (0,9,EStartPar 0)
+              ,(3,99,EEndPar 0), (5,99,EEndPar 0), (7,99,EEndPar 0), (9,99,EEndPar 0)]
               (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
 
-  ,testPar' 10 [(0,m1), (1, m3), (2, m5), (3,sub m1 1), (6, m6),(106,sub m6 100)]
-               [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+  ,testPar' 10 [(1, m3), (2, m5), (6, m6),(106,sub m6 100)]
+               [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
                (A.Several m1 [A.Spec mU (someSpec m6) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+
+  ,testPar' 20 [(1,m1),(2,m4),(100,sub m1 100)] [(0,1,EStartPar 0),(1,2,ESeq),(2,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+
   --TODO test nested pars
+
+  
+  -- Replicated PAR:
+  
+  ,testPar' 100 [(0,m6), (1,m3), (2,m5), (3, sub m0 1)]
+    [(0,1,EStartPar 0), (1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
+    (A.Rep m6 (A.For mU undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])  
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
-    testPar' n a b s = testGraph ("testPar " ++ show n) a [0] b (A.Par m0 A.PlainPar s)
+    testPar' n a b s = testGraph ("testPar " ++ show n) (a ++ [(0,m0), (99,sub m0 1)]) [0] b (A.Par m0 A.PlainPar s)
 
 testWhile :: Test
 testWhile = TestLabel "testWhile" $ TestList
