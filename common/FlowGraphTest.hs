@@ -176,12 +176,14 @@ testSeq = TestLabel "testSeq" $ TestList
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
     (A.Several m11 [A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.OnlyP m9 sm10])
 
+  ,testSeq' 12 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+
   -- Replicated SEQ:
   
   ,testSeq' 100 [(0,m10), (1,m3), (2,m5)] [(0,1,ESeq), (1,2,ESeq), (2,0,ESeq)]
     (A.Rep m10 (A.For mU undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
 
-  ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [9] [(3,0,ESeq),(0,1,ESeq), (1,2,ESeq), (2,0,ESeq),(0,4,ESeq)]
+  ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [3] [(3,0,ESeq),(0,1,ESeq), (1,2,ESeq), (2,0,ESeq),(0,4,ESeq)]
     (A.OnlyP mU $ A.Seq m6 $ A.Several m7
       [A.OnlyP mU sm9
       ,(A.Rep m8 (A.For mU undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
