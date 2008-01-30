@@ -398,8 +398,8 @@ enforceSize1 :: Gen a -> Gen a
 enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
 
 -- | An instance of Arbitrary for A.Structured that wraps the "genStructured" function.
-instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
-  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured nothing n) (Id 0) >>* findEmpty >>* QC
+instance Arbitrary (QC (A.Process, Map.Map [Meta] A.Process)) where
+  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genProcess n) (Id 0) >>* findEmpty >>* QC
     where
       -- Copies the value for the empty-list key into the first element of the tuple:
       findEmpty :: [([Meta], a)] -> (a, Map.Map [Meta] a)
@@ -642,14 +642,18 @@ testModify =
   where
     -- | Checks that applying any set (from the powerset of identity functions) of identity functions
     -- does not change the AST.
-    prop_Id :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
-    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g) $ \f -> runIdentity (f g) *==* g
+    prop_Id :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
+    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g') $ \f -> runIdentity (f g') *==* g'
+      where
+        g' = A.OnlyP emptyMeta g
 
     -- | Checks that applying any set (from the powerset of replacement functions) of replacement functions
     -- produces the expected result.
-    prop_Rep :: QC (A.Structured, Map.Map [Meta] A.Structured) -> Result
-    prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g) $ 
-        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g)) *==* Map.lookup ms rest
+    prop_Rep :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
+    prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g') $ 
+        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g')) *==* (Map.lookup ms rest >>* A.OnlyP emptyMeta)
+      where
+        g' = A.OnlyP emptyMeta g
   
     -- | This tests our genNumsToTotal function, which is itself a test generator; nasty!
     prop_gennums :: Int -> Result
