@@ -62,7 +62,7 @@ import Utils
 data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
 --If is (previous condition) (final node)
-data OuterType = None | Seq | Par | Case (Node,Node) | If Node Node
+data OuterType = None | Seq | Par | Case (Node,Node) | If Node Node deriving (Show)
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
@@ -317,7 +317,15 @@ buildFlowGraph funcs s
            addEdge ESeq n s
            addEdge ESeq e n'
            return (n,n')
-    -- TODO replicator
+    buildStructured outer (A.Rep m rep str) route
+      = do case outer of
+             Seq -> do n <- addNode' m labelReplicator rep (AlterReplicator $ route23 route A.Rep)
+                       (s,e) <- buildStructured outer str (route33 route A.Rep)
+                       addEdge ESeq n s
+                       addEdge ESeq e n
+                       return (n,n)
+             _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
+
     buildStructured _ s _ = do n <- addDummyNode (findMeta s)
                                return (n,n)
 
