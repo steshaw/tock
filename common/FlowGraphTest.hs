@@ -339,6 +339,9 @@ genElem2 f m = comb2 f (genMeta m)
 genElem3 :: (Meta -> a0 -> a1 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL b
 genElem3 f m = comb3 f (genMeta m) 
 
+genElem4 :: (Meta -> a0 -> a1 -> a2 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
+genElem4 f m = comb4 f (genMeta m) 
+
 -- | A helper function for turning any item that can't be replaced into a GenL form (esp.
 -- for use as a parameter of genElemN).
 comb0 :: forall a. a -> GenL a
@@ -366,6 +369,12 @@ comb3 func list0 list1 list2 = (liftM3 (,,)) list0 list1 list2 >>* product3 >>* 
     process3 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],b)
     process3 (keys0, val0) (keys1, val1) (keys2, val2) = (keys0++keys1++keys2, func val0 val1 val2)
 
+comb4 :: forall a0 a1 a2 a3 b. (a0 -> a1 -> a2 -> a3 -> b) -> GenL a0 -> GenL a1 -> GenL a2 -> GenL a3 -> GenL b
+comb4 func list0 list1 list2 list3 = (liftM4 (,,,)) list0 list1 list2 list3 >>* product4 >>* map (uncurry4 process4)
+  where
+    process4 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],a3) -> ([Meta],b)
+    process4 (keys0, val0) (keys1, val1) (keys2, val2) (keys3, val3) = (keys0++keys1++keys2++keys3, func val0 val1 val2 val3)
+
 -- | Wrapper for Quickcheck.
 -- In order to stop conflict with Quickcheck's in-built rules for things such as pairs
 -- (which do not allow overlapping instances), we have to wrap such types ourself.
@@ -378,7 +387,7 @@ enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
 
 -- | An instance of Arbitrary for A.Structured that wraps the "genStructured" function.
 instance Arbitrary (QC (A.Structured, Map.Map [Meta] A.Structured)) where
-  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured justP n) (Id 0) >>* findEmpty >>* QC
+  arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genStructured nothing n) (Id 0) >>* findEmpty >>* QC
     where
       -- Copies the value for the empty-list key into the first element of the tuple:
       findEmpty :: [([Meta], a)] -> (a, Map.Map [Meta] a)
@@ -457,6 +466,9 @@ sub1 x = x-1
 sub2 :: Int -> Int
 sub2 x = x-2
 
+sub3 :: Int -> Int
+sub3 x = x-3
+
 -- Be careful with the test generators; there should always be an option with value 1 (or 0)
 -- in every list.  Recursion should always decrease the test size, and you
 -- should take the recursion into account in the required size (generally, recursive
@@ -513,6 +525,9 @@ genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (c
        --TODO proc and function declaration
       ]
 
+genReplicator :: GenL A.Replicator
+genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem4 A.For m (comb0 $ simpleName "i") genExpression genExpression
+
 -- | Generates a A.Structured, obeying the given OnlyAllowed structure.
 genStructured :: OnlyAllowed -> Int -> GenL A.Structured
 genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
@@ -521,6 +536,12 @@ genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,cond (onlyO allowed) (2,comb1 (A.OnlyO emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
    ,cond (onlyC allowed) (3,comb2 (\e p -> A.OnlyC emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
    ,cond (onlyA allowed) (4,genElem2 A.OnlyA m . genAlternative . sub1 )
+   
+   --Replicators are allowed in ALTs, IFs, SEQs and PARs:
+   
+   ,cond (onlyP allowed || onlyO allowed || onlyA allowed)
+     (5, genElem3 A.Rep m genReplicator . genStructured allowed . sub3)
+
    -- Specs currently don't work with Case statements TODO
    ,cond (not $ onlyO allowed) (3,genElem3 A.Spec m genSpecification . genStructured allowed . sub2 )
    ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
