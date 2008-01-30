@@ -551,7 +551,7 @@ genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    
    --Replicators are allowed in ALTs, IFs, SEQs and PARs:
    
-   ,cond (onlyP allowed || onlyO allowed || onlyA allowed)
+   ,cond (onlyP allowed || onlyC allowed || onlyA allowed)
      (4, genElem3 A.Rep m genReplicator . genStructured allowed . sub3)
 
    -- Specs currently don't work with Case statements TODO
