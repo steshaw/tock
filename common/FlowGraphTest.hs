@@ -595,6 +595,7 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
     applyFunc (AlterProcess f) = f return
     applyFunc (AlterExpression f) = f return
     applyFunc (AlterExpressionList f) = f return
+    applyFunc (AlterReplicator f) = f return
     applyFunc (AlterSpec f) = f return
     applyFunc (AlterNothing) = return
 
@@ -610,6 +611,7 @@ pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
     applyFunc (m,AlterProcess f) = f (g m)
     applyFunc (m,AlterExpression f) = f (g m)
     applyFunc (m,AlterExpressionList f) = f (g m)
+    applyFunc (m,AlterReplicator f) = f (g m)
     applyFunc (m,AlterSpec f) = f (g m)
     applyFunc (m,AlterNothing) = g m
     
