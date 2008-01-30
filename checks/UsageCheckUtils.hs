@@ -191,6 +191,7 @@ labelFunctions = GLF
   ,labelDummy = const (return (Nothing, emptyVars))
   ,labelProcess = pair (const Nothing) getVarProc
   ,labelStartNode = pair (const Nothing) (uncurry getVarFormals)
+  ,labelReplicator = const (return (Nothing, emptyVars))
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
   ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)

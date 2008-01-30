@@ -41,7 +41,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * If statements, on the other hand, have to be chained together.  Each expression is connected
 -- to its body, but also to the next expression.  There is no link between the last expression
 -- and the end of the if; if statements behave like STOP if nothing is matched.
-module FlowGraph (AlterAST(..), EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, joinLabelFuncs, makeFlowGraphInstr) where
+module FlowGraph (AlterAST(..), EdgeLabel(..), FNode(..), FlowGraph, GraphLabelFuncs(..), buildFlowGraph, joinLabelFuncs, makeFlowGraphInstr, mkLabelFuncsConst, mkLabelFuncsGeneric) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -80,6 +80,7 @@ data AlterAST m =
  |AlterArguments (ASTModifier m [A.Formal])
  |AlterExpression (ASTModifier m A.Expression)
  |AlterExpressionList (ASTModifier m A.ExpressionList)
+ |AlterReplicator (ASTModifier m A.Replicator)
  |AlterSpec (ASTModifier m A.Specification)
  |AlterNothing
 
@@ -121,6 +122,7 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelProcess :: A.Process -> m label
     ,labelExpression :: A.Expression -> m label
     ,labelExpressionList :: A.ExpressionList -> m label
+    ,labelReplicator :: A.Replicator -> m label
     ,labelScopeIn :: A.Specification -> m label
     ,labelScopeOut :: A.Specification -> m label
   }
@@ -138,6 +140,7 @@ joinLabelFuncs fx fy = GLF
   labelProcess = joinItem labelProcess,
   labelExpression = joinItem labelExpression,
   labelExpressionList = joinItem labelExpressionList,
+  labelReplicator = joinItem labelReplicator,
   labelScopeIn = joinItem labelScopeIn,
   labelScopeOut = joinItem labelScopeOut
  }
@@ -149,6 +152,12 @@ joinLabelFuncs fx fy = GLF
     joinTwo f0 f1 x = do x0 <- f0 x
                          x1 <- f1 x
                          return (x0,x1)
+
+mkLabelFuncsConst :: Monad m => m label -> GraphLabelFuncs m label
+mkLabelFuncsConst v = GLF (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v)
+
+mkLabelFuncsGeneric :: Monad m => (forall t. Data t => t -> m label) -> GraphLabelFuncs m label
+mkLabelFuncsGeneric f = GLF f f f f f f f f
 
 -- | Builds a control-flow-graph.  The mAlter monad is the monad in which
 -- AST alterations would take place.  Note that mAlter does not feature in

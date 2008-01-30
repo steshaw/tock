@@ -261,7 +261,7 @@ compile mode fn outHandle
               do procs <- findAllProcesses
                  let fs :: Data t => t -> PassM String
                      fs = ((liftM $ (take 20) . (filter ((/=) '\"'))) . pshowCode)
-                 let labelFuncs = GLF fs fs fs fs fs fs fs
+                 let labelFuncs = mkLabelFuncsGeneric fs
                  graphs <- mapM
                       ((liftM $ either (const Nothing) Just) . (buildFlowGraph labelFuncs) )
                       (map (A.OnlyP emptyMeta) (snd $ unzip $ procs))
