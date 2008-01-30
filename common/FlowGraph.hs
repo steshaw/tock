@@ -53,7 +53,10 @@ import Metadata
 import TreeUtils
 import Utils
 
--- | A node will either have zero links out, one or more Seq links, or one or more Par links.
+-- | A node will either have:
+-- * zero links out,
+-- * one or more Seq links out,
+-- * ot one or more Par links out.
 -- Zero links means it is a terminal node.
 -- One Seq link means a normal sequential progression.
 -- Multiple Seq links means choice.
@@ -62,7 +65,7 @@ import Utils
 data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
 --If is (previous condition) (final node)
-data OuterType = None | Seq | Par | Case (Node,Node) | If Node Node deriving (Show)
+data OuterType = ONone | OSeq | OPar | OCase (Node,Node) | OIf Node Node deriving (Show)
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
@@ -169,7 +172,7 @@ buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.Structured ->
   mLabel (Either String (FlowGraph mAlter label, [Node]))
 buildFlowGraph funcs s
-  = do res <- runStateT (runErrorT $ buildStructured None s id) (0, 0, ([],[]), [])
+  = do res <- runStateT (runErrorT $ buildStructured ONone s id) (0, 0, ([],[]), [])
        return $ case res of
                   (Left err,_) -> Left err
                   (Right (root,_),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
@@ -244,13 +247,13 @@ buildFlowGraph funcs s
     buildStructured :: OuterType -> A.Structured -> ASTModifier mAlter A.Structured -> GraphMaker mLabel mAlter label (Node, Node)
     buildStructured outer (A.Several m ss) route
       = do case outer of
-             None -> -- If there is no context, they should be left as disconnected graphs.
+             ONone -> -- If there is no context, they should be left as disconnected graphs.
                      do nodes <- mapMR decompSeveral (buildStructured outer) ss
                         n <- addDummyNode m
                         return (n, n)
-             Seq -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
+             OSeq ->do nodes <- mapMR decompSeveral (buildStructured outer) ss
                        joinPairs m nodes
-             Par -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
+             OPar ->do nodes <- mapMR decompSeveral (buildStructured outer) ss
                        case nodes of
                          [] -> do n <- addDummyNode m
                                   return (n,n)
@@ -262,10 +265,10 @@ buildFlowGraph funcs s
                            return (nStart, nEnd)
              --Because the conditions in If statements are chained together, we
              --must fold the specs, not map them independently
-             If prev end -> foldM foldIf (prev,end) (zip [0..] ss)
+             OIf prev end -> foldM foldIf (prev,end) (zip [0..] ss)
                where
                  foldIf :: (Node,Node) -> (Int,A.Structured) -> GraphMaker mLabel mAlter label (Node, Node)
-                 foldIf (prev,end) (ind,s) = do (prev',_) <- buildStructured (If prev end) s $ decompSeveral @-> (routeList ind)
+                 foldIf (prev,end) (ind,s) = do (prev',_) <- buildStructured (OIf prev end) s $ decompSeveral @-> (routeList ind)
                                                 return (prev', end)
              _ -> do nodes <- mapMR decompSeveral (buildStructured outer) ss
                      return (-1,-1)
@@ -279,7 +282,7 @@ buildFlowGraph funcs s
            (nbodys, nbodye) <- buildProcess p $ route @-> (\f (A.OnlyC m (A.Choice m' exp p)) -> f p >>* ((A.OnlyC m) . (A.Choice m' exp)))
            addEdge ESeq nexp nbodys
            case outer of
-             If cPrev cEnd ->
+             OIf cPrev cEnd ->
                do addEdge ESeq cPrev nexp
                   addEdge ESeq nbodye cEnd
              _ -> throwError "Choice found outside IF statement"
@@ -295,7 +298,7 @@ buildFlowGraph funcs s
                  return (nexps,nbodye)
                (A.Else _ p) -> buildProcess p $ route @-> (\f (A.OnlyO m (A.Else m2 p)) -> f p >>* ((A.OnlyO m) . (A.Else m2)))
            case outer of
-             Case (cStart, cEnd) ->
+             OCase (cStart, cEnd) ->
                do addEdge ESeq cStart s
                   addEdge ESeq e cEnd
              _ -> throwError "Option found outside CASE statement"
@@ -318,12 +321,13 @@ buildFlowGraph funcs s
            addEdge ESeq e n'
            return (n,n')
     buildStructured outer (A.Rep m rep str) route
-      = do case outer of
-             Seq -> do n <- addNode' m labelReplicator rep (AlterReplicator $ route23 route A.Rep)
-                       (s,e) <- buildStructured outer str (route33 route A.Rep)
-                       addEdge ESeq n s
-                       addEdge ESeq e n
-                       return (n,n)
+      = do let alter = AlterReplicator $ route23 route A.Rep
+           case outer of
+             OSeq -> do n <- addNode' m labelReplicator rep alter
+                        (s,e) <- buildStructured outer str (route33 route A.Rep)
+                        addEdge ESeq n s
+                        addEdge ESeq e n
+                        return (n,n)
              _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
 
     buildStructured _ s _ = do n <- addDummyNode (findMeta s)
@@ -336,12 +340,12 @@ buildFlowGraph funcs s
            denoteRootNode root
            bodyNode <- case body of
              Left (p,route) -> buildProcess p route >>* fst
-             Right (s,route) -> buildStructured None s route >>* fst
+             Right (s,route) -> buildStructured ONone s route >>* fst
            addEdge ESeq root bodyNode
     
     buildProcess :: A.Process -> ASTModifier mAlter A.Process -> GraphMaker mLabel mAlter label (Node, Node)
-    buildProcess (A.Seq _ s) route = buildStructured Seq s (route22 route A.Seq)
-    buildProcess (A.Par _ _ s) route = buildStructured Par s (route33 route A.Par)
+    buildProcess (A.Seq _ s) route = buildStructured OSeq s (route22 route A.Seq)
+    buildProcess (A.Par _ _ s) route = buildStructured OPar s (route33 route A.Par)
     buildProcess (A.While _ e p) route
       = do n <- addNodeExpression (findMeta e) e (route23 route A.While)
            (start, end) <- buildProcess p (route33 route A.While)
@@ -351,12 +355,12 @@ buildFlowGraph funcs s
     buildProcess (A.Case m e s) route
       = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
            nEnd <- addDummyNode m
-           buildStructured (Case (nStart,nEnd)) s (route33 route A.Case)
+           buildStructured (OCase (nStart,nEnd)) s (route33 route A.Case)
            return (nStart, nEnd)
     buildProcess (A.If m s) route
       = do nStart <- addDummyNode m
            nEnd <- addDummyNode m
-           buildStructured (If nStart nEnd) s (route22 route A.If)
+           buildStructured (OIf nStart nEnd) s (route22 route A.If)
            return (nStart, nEnd)
     buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route) >>* mkPair
 
