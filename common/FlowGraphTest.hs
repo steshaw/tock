@@ -129,7 +129,7 @@ testGraph' testName nodes roots edges code
     checkGraphEquality (nodes, roots, edges) (g, actRoots)
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
-           assertBool (testName ++ " Test graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
+           assertBool (testName ++ " Expected graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
            roots' <- mapM (transformNode nodeLookup) roots
            assertEqual (testName ++ " Root lists not equal") (sort roots') (sort actRoots)
            edges' <- mapM (transformEdge nodeLookup) edges
