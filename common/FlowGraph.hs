@@ -251,7 +251,7 @@ buildFlowGraph funcs s
         foldEither (Left _) (Right n) = Right [n]
         foldEither (Right ns) (Left _) = Right ns
         foldEither (Left hadNode) (Left hadNode') = Left $ hadNode || hadNode'
-        foldEither (Right ns) (Right n) = Right (n : ns)
+        foldEither (Right ns) (Right n) = Right (ns ++ [n])
 
         funcAndRoute :: (Int, inner) -> GraphMaker mLabel mAlter label (Either Bool (Node,Node))
         funcAndRoute (ind,x) = func x (outerRoute @-> routeList ind)
