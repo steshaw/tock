@@ -161,7 +161,7 @@ someSpec m = A.Specification m (simpleName $ show m) (A.DataType m A.Int)
 testSeq :: Test
 testSeq = TestLabel "testSeq" $ TestList
  [
-   testSeq' 0 [(0,m1)] [] (A.Several m1 [])
+   testSeq' 0 [(0,m0)] [] (A.Several m1 [])
   ,testSeq' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
   ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
   ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
@@ -176,7 +176,7 @@ testSeq = TestLabel "testSeq" $ TestList
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
     (A.Several m11 [A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.OnlyP m9 sm10])
 
-  ,testSeq' 12 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+  ,testSeq' 12 [(0,m1),(100,sub m1 100)] [(0,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   -- Replicated SEQ:
   
@@ -199,7 +199,7 @@ testSeq = TestLabel "testSeq" $ TestList
 testPar :: Test
 testPar = TestLabel "testPar" $ TestList
  [
-   testPar' 0 [(1,m1)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [])
+   testPar' 0 [] [(0,99,ESeq)] (A.Several m1 [])
   ,testPar' 1 [(1,m2)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.OnlyP m1 sm2)
   ,testPar' 2 [(1,m3)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [A.OnlyP m2 sm3])
   ,testPar' 3 [(1, m3), (2, m5)]
@@ -224,7 +224,7 @@ testPar = TestLabel "testPar" $ TestList
                ,(106,99,EEndPar 0), (0,3,EStartPar 0), (3,99,EEndPar 0)]
                (A.Several m1 [A.Spec mU (someSpec m6) $ A.Several mU [A.OnlyP mU sm3, A.OnlyP mU sm5], A.OnlyP mU sm7])
 
-  ,testPar' 20 [(1,m1),(2,m4),(100,sub m1 100)] [(0,1,EStartPar 0),(1,2,ESeq),(2,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+  ,testPar' 20 [(1,m1),(100,sub m1 100)] [(0,1,EStartPar 0),(1,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   --TODO test nested pars
 
