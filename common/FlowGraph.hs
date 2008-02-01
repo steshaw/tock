@@ -314,11 +314,7 @@ buildFlowGraph funcs s
       = do (s,e) <-
              case opt of
                (A.Option m es p) -> do
-                 nexpNodes <- mapMR (route @-> (\f (A.OnlyO m (A.Option m2 es p)) -> do {es' <- f es; return $ A.OnlyO m $ A.Option m2 es' p})) (\e r -> addNodeExpression (findMeta e) e r >>* mkPair) es
-                 (nexps, nexpe) <- joinPairs m nexpNodes
-                 (nbodys, nbodye) <- buildProcess p $ route @-> (\f (A.OnlyO m (A.Option m2 es p)) -> f p >>* ((A.OnlyO m) . (A.Option m2 es)))
-                 addEdge ESeq nexpe nbodys
-                 return (nexps,nbodye)
+                 buildProcess p $ route @-> (\f (A.OnlyO m (A.Option m2 es p)) -> f p >>* ((A.OnlyO m) . (A.Option m2 es)))
                (A.Else _ p) -> buildProcess p $ route @-> (\f (A.OnlyO m (A.Else m2 p)) -> f p >>* ((A.OnlyO m) . (A.Else m2)))
            case outer of
              OCase (cStart, cEnd) ->
