@@ -210,7 +210,7 @@ testPar = TestLabel "testPar" $ TestList
               (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
   ,testPar' 5 [(1, m3), (2, m5)]
               [(0,1,EStartPar 0),(1,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
-              (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
+              (A.Several mU [A.Several mU [A.OnlyP m2 sm3],A.Several mU [A.OnlyP m4 sm5]])
   ,testPar' 6 [(3,m3),(5,m5),(7,m7),(9,m9)]
               [(0,3,EStartPar 0), (0,5,EStartPar 0), (0,7,EStartPar 0), (0,9,EStartPar 0)
               ,(3,99,EEndPar 0), (5,99,EEndPar 0), (7,99,EEndPar 0), (9,99,EEndPar 0)]
