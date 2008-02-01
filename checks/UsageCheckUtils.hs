@@ -183,6 +183,10 @@ getVarFormals m = mapUnionVars (getVarFormal m)
     getVarFormal :: Meta -> A.Formal -> Vars
     getVarFormal m (A.Formal _ _ n) = processVarW $ A.Variable m n
 
+getVarRepExp :: A.Replicator -> Vars
+getVarRepExp (A.For _ _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
+getVarRepExp (A.ForEach _ _ e) = getVarExp e
+
 labelFunctions :: forall m. Die m => GraphLabelFuncs m (Maybe Decl, Vars)
 labelFunctions = GLF
  {
@@ -191,7 +195,7 @@ labelFunctions = GLF
   ,labelDummy = const (return (Nothing, emptyVars))
   ,labelProcess = pair (const Nothing) getVarProc
   ,labelStartNode = pair (const Nothing) (uncurry getVarFormals)
-  ,labelReplicator = const (return (Nothing, emptyVars))
+  ,labelReplicator = pair (const Nothing) getVarRepExp
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
   ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
