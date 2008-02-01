@@ -289,23 +289,23 @@ testProcFuncSpec :: Test
 testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
   [
    -- Single spec of process (with SKIP body):
-    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100),(3,m3), (5,m5)] [1,5] [(5,0,ESeq), (1,3,ESeq), (3,2,ESeq)]
-      (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several m3 [])
+    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100), (5,m5)] [1,5] [(5,0,ESeq), (1,2,ESeq)]
+      (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several mU [])
    -- Single spec of process (with body with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(3,m8),(4,m5), (9,m9)] [1,9] ([(1,3,ESeq), (3,2,ESeq)] ++ [(9,0,ESeq), (0,4,ESeq)])
+   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(4,m5), (9,m9)] [1,9] ([(1,2,ESeq)] ++ [(9,0,ESeq), (0,4,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
         A.Seq m0 $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5]
-      ) $ A.Several m8 [])
+      ) $ A.Several mU [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(2,m8),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100), (10,m10), (11, m11)] [0,10,11]
-      ([(0,7,ESeq), (7,2,ESeq), (2,8,ESeq), (8,1,ESeq)] ++ [(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
+   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100), (10,m10), (11, m11)] [0,10,11]
+      ([(0,7,ESeq), (7,8,ESeq), (8,1,ESeq)] ++ [(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
         A.Seq mU $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3]
       ) $ 
        A.Spec mU (A.Specification m7 undefined $ A.Proc m11 undefined undefined $
         A.Seq mU $ A.Several mU [A.OnlyP mU sm4,A.OnlyP mU sm5]
       )  
-      $ A.Several m8 [])
+      $ A.Several mU [])
   ]
 
 --TODO test replicated seq/par
