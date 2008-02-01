@@ -238,9 +238,26 @@ testPar = TestLabel "testPar" $ TestList
   
   -- Replicated PAR:
   
-  ,testPar' 100 [(0,m6), (1,m3), (2,m5), (3, sub m0 1)]
-    [(0,1,EStartPar 0), (1,3,EEndPar 0), (0,2,EStartPar 0), (2,3,EEndPar 0)]
-    (A.Rep m6 (A.For mU undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])  
+  ,testPar' 100 [(1,m6), (2,m3), (3,m5), (4, sub m6 1)]
+    [(0,1,EStartPar 0), (1,2,EStartPar 1), (2,4,EEndPar 1), (1,3,EStartPar 1), (3,4,EEndPar 1), (4,99,EEndPar 0)]
+    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])  
+
+  ,testPar' 101 [(1,m1), (2,m2), (3,m3), (11,sub m1 1), (4,m4), (5,m5), (6,m6), (7,m7), (15, sub m5 1)]
+    -- The links in the main PAR:
+    [(0,1,EStartPar 0), (11,99,EEndPar 0), (0,4,EStartPar 0), (4,99,EEndPar 0), (0,5,EStartPar 0), (15,99,EEndPar 0)
+    -- The links in the first replication:
+    ,(1,2,EStartPar 1), (2,11,EEndPar 1), (1,3,EStartPar 1), (3,11,EEndPar 1)
+    -- The links in the second replication:
+    ,(5,6,EStartPar 2), (6,15,EEndPar 2), (5,7,EStartPar 2), (7,15,EEndPar 2)]
+      
+    (A.Several mU
+      [(A.Rep m1 (A.For m1 undefined undefined undefined) $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3])
+      ,A.OnlyP mU sm4
+      ,(A.Rep m5 (A.For m5 undefined undefined undefined) $ A.Several mU [A.OnlyP mU sm6,A.OnlyP mU sm7])])
+
+  ,testPar' 102 [(1,m6), (4, sub m6 1)]
+    [(0,1,EStartPar 0), (1,4,ESeq), (4,99,EEndPar 0)]
+    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several mU [])
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
