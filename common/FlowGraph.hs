@@ -199,7 +199,9 @@ buildFlowGraph funcs s
                                  if (notElem start $ map fst nodes) || (notElem end $ map fst nodes)
                                    then throwError "Could not add edge between non-existent nodes"
                                    else put (n + 1, pi, (nodes,(start, end, label):edges), rs)
-    
+
+    -- It is important for the flow-graph tests that the Meta tag passed in is the same as the
+    -- result of calling findMeta on the third parameter
     addNode' :: Meta -> (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> AlterAST mAlter -> GraphMaker mLabel mAlter label Node
     addNode' m f t r = do val <- (lift . lift) (run f t)
                           addNode (m, val, r)
@@ -350,7 +352,7 @@ buildFlowGraph funcs s
     buildStructured outer (A.Rep m rep str) route
       = do let alter = AlterReplicator $ route23 route A.Rep
            case outer of
-             OSeq -> do n <- addNode' m labelReplicator rep alter
+             OSeq -> do n <- addNode' (findMeta rep) labelReplicator rep alter
                         nodes <- buildStructured outer str (route33 route A.Rep)
                         case nodes of
                           Right (s,e) ->
