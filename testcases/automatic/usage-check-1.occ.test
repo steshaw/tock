@@ -112,4 +112,14 @@ PROC m()
     PAR i = 1 FOR 6
       a[i] := 4
 
+%FAIL Overlap with replicator start
+    x := 3
+    PAR i = x FOR 6
+      a[i] := 4
+
+%FAIL Overlap with replicator count
+    x := 3
+    PAR i = 1 FOR x
+      a[i] := 4
+
 %
