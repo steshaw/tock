@@ -214,7 +214,8 @@ buildFlowGraph funcs s
     addDummyNode m = addNode' m labelDummy m AlterNothing
     
     getNextParEdgeId :: GraphMaker mLabel mAlter label Int
-    getNextParEdgeId = do (_,pi,_,_) <- get
+    getNextParEdgeId = do (a, pi, b, c) <- get
+                          put (a, pi + 1, b, c)
                           return pi
     
     addParEdges :: Int -> (Node,Node) -> [(Node,Node)] -> GraphMaker mLabel mAlter label ()
