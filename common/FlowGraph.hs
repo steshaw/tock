@@ -356,7 +356,8 @@ buildFlowGraph funcs s
                           Right (s,e) ->
                             do addEdge ESeq n s
                                addEdge ESeq e n
-                          Left _ -> return ()
+                          Left False -> addEdge ESeq n n
+                          Left True -> throwError $ show m ++ " SEQ replicator had non-joined up body when building flow-graph"
                         return $ Right (n,n)
              _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
 
