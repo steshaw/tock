@@ -361,6 +361,17 @@ buildFlowGraph funcs s
                           Left False -> addEdge ESeq n n
                           Left True -> throwError $ show m ++ " SEQ replicator had non-joined up body when building flow-graph"
                         return $ Right (n,n)
+             OPar pId _ ->
+               do s <- addNode' (findMeta rep) labelReplicator rep alter
+                  e <- addDummyNode m
+                  pId <- getNextParEdgeId
+                  nodes <- buildStructured (OPar pId (s,e)) str (route33 route A.Rep)
+                  case nodes of
+                    Left False -> addEdge ESeq s e
+                    Left True -> return ()
+                    Right (s',e') -> do addEdge (EStartPar pId) s s'
+                                        addEdge (EEndPar pId) e' e
+                  return $ Right (s,e)
              _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
 
     buildStructured _ s _ = return $ Left False
