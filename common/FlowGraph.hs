@@ -346,7 +346,8 @@ buildFlowGraph funcs s
                        _ -> return outer
            nodes <- buildStructured outer' str (route33 route A.Spec)
            case nodes of
-             Left {} -> do addEdge ESeq n n'
+             Left False -> do addEdge ESeq n n'
+             Left True -> return ()
              Right (s,e) -> do addEdge ESeq n s
                                addEdge ESeq e n'
            return $ Right (n,n')
@@ -393,7 +394,8 @@ buildFlowGraph funcs s
            pId <- getNextParEdgeId
            nodes <- buildStructured (OPar pId (nStart, nEnd)) s (route33 route A.Par)
            case nodes of
-             Left {} -> return () -- already wired up
+             Left False -> do addEdge ESeq nStart nEnd -- no processes in PAR, join start and end with simple ESeq link
+             Left True -> return () -- already wired up
              Right (start, end) ->
                   do addEdge (EStartPar pId) nStart start
                      addEdge (EEndPar pId) end nEnd
