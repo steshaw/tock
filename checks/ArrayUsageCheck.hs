@@ -86,7 +86,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                      do sol <- formatSolution varMapping (getCounterEqs vm)
                         cx <- showCode lx
                         cy <- showCode ly
-                        dieP m $ "Indexes of array \"" ++ userArrName ++ "\""
+                        dieP m $ "Indexes of array \"" ++ userArrName ++ "\" "
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
                                  ++ if sol /= "" then " when: " ++ sol else ""
     
