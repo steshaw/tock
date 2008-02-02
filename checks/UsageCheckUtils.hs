@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, Var(..), Vars(..), vars) where
+module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.List
@@ -63,13 +63,19 @@ data Vars = Vars {
   ,usedVars :: Set.Set Var -- for channels, barriers, etc
 } deriving (Eq, Show)
 
-data Decl = ScopeIn String | ScopeOut String deriving (Show, Eq)
+-- | The Bool indicates whether the variable was initialised (True = yes)
+data Decl = ScopeIn Bool String | ScopeOut String deriving (Show, Eq)
 
 -- | A data type representing things that happen in parallel.
 data ParItems a
   = SeqItems [a] -- ^ A list of items that happen only in sequence (i.e. none are in parallel with each other)
   | ParItems [ParItems a] -- ^ A list of items that are all in parallel with each other
   | RepParItem A.Replicator (ParItems a) -- ^ A list of replicated items that happen in parallel
+
+data UsageLabel = Usage
+  {nodeRep :: Maybe A.Replicator
+  ,nodeDecl :: Maybe Decl
+  ,nodeVars :: Vars}
 
 transformParItems :: (a -> b) -> ParItems a -> ParItems b
 transformParItems f (SeqItems xs) = SeqItems $ map f xs
@@ -187,19 +193,22 @@ getVarRepExp :: A.Replicator -> Vars
 getVarRepExp (A.For _ _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
 getVarRepExp (A.ForEach _ _ e) = getVarExp e
 
-labelFunctions :: forall m. Die m => GraphLabelFuncs m (Maybe Decl, Vars)
+labelFunctions :: forall m. Die m => GraphLabelFuncs m UsageLabel
 labelFunctions = GLF
  {
-   labelExpression = pair (const Nothing) getVarExp
-  ,labelExpressionList = pair (const Nothing) getVarExpList
-  ,labelDummy = const (return (Nothing, emptyVars))
-  ,labelProcess = pair (const Nothing) getVarProc
-  ,labelStartNode = pair (const Nothing) (uncurry getVarFormals)
-  ,labelReplicator = pair (const Nothing) getVarRepExp
+   labelExpression = single getVarExp
+  ,labelExpressionList = single getVarExpList
+  ,labelDummy = const (return $ Usage Nothing Nothing emptyVars)
+  ,labelProcess = single getVarProc
+  ,labelStartNode = single (uncurry getVarFormals)
+  ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp x))
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
-  ,labelScopeIn = pair (getDecl ScopeIn) getVarSpec
+  ,labelScopeIn = pair (getDecl $ ScopeIn False) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
  }
   where
-    pair :: (a -> b) -> (a -> c) -> (a -> m (b,c))
-    pair f0 f1 x = return (f0 x, f1 x)
+    single :: (a -> Vars) -> (a -> m UsageLabel)
+    single f x = return $ Usage Nothing Nothing (f x)
+  
+    pair :: (a -> Maybe Decl) -> (a -> Vars) -> (a -> m UsageLabel)
+    pair f0 f1 x = return $ Usage Nothing (f0 x) (f1 x)

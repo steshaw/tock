@@ -140,14 +140,14 @@ testParUsageCheck = TestList (map doTest tests)
 --TODO add tests for initialising a variable before use.
 --TODO especially test things like only initialising the variable in one part of an if
 
-buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph Identity (Maybe Decl, Vars)
+buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph Identity UsageLabel
 buildTestFlowGraph ns es start end v
   = mkGraph
-      ([(-1,Node (emptyMeta,(Just $ ScopeIn v, emptyVars), undefined)),(-2,Node (emptyMeta,(Just $ ScopeOut v,emptyVars), undefined))] ++ (map transNode ns))
+      ([(-1,Node (emptyMeta,Usage Nothing (Just $ ScopeIn False v) emptyVars, undefined)),(-2,Node (emptyMeta,Usage Nothing (Just $ ScopeOut v) emptyVars, undefined))] ++ (map transNode ns))
       ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
   where
-    transNode :: (Int, [Var], [Var]) -> (Int, FNode Identity (Maybe Decl, Vars))
-    transNode (n,r,w) = (n,Node (emptyMeta, (Nothing,vars r w []), undefined))
+    transNode :: (Int, [Var], [Var]) -> (Int, FNode Identity UsageLabel)
+    transNode (n,r,w) = (n,Node (emptyMeta, (Usage Nothing Nothing $ vars r w []), undefined))
 
 
 testInitVar :: Test

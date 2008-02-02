@@ -36,9 +36,9 @@ import Types
 import UsageCheckUtils
 import Utils
 
-checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems (Maybe Decl, Vars)) -> m ()
+checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems UsageLabel) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
-    groupArrayIndexes $ transformParItems snd p
+    groupArrayIndexes $ transformParItems nodeVars p
   where    
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))

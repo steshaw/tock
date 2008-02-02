@@ -48,7 +48,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right (g,rs) -> return (g,rs)
-                      sequence_ $ checkPar (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
+                      checkPar nodeRep (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
                       mapM_ (checkInitVar (findMeta t) g) roots
@@ -75,15 +75,15 @@ permuteHelper func (x:xs) = permuteHelper' func [] x xs
     permuteHelper' func prev cur [] = [func cur prev]
     permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
 
-checkPlainVarUsage :: forall m. (Die m, CSM m) => (Meta, ParItems (Maybe Decl, Vars)) -> m ()
+checkPlainVarUsage :: forall m. (Die m, CSM m) => (Meta, ParItems UsageLabel) -> m ()
 checkPlainVarUsage (m, p) = check p
   where
-    getVars :: ParItems (Maybe Decl, Vars) -> Vars
-    getVars (SeqItems ss) = foldUnionVars $ map snd ss
+    getVars :: ParItems UsageLabel -> Vars
+    getVars (SeqItems ss) = foldUnionVars $ map nodeVars ss
     getVars (ParItems ps) = foldUnionVars $ map getVars ps
     getVars (RepParItem _ p) = getVars p
       
-    check :: ParItems (Maybe Decl, Vars) -> m ()
+    check :: ParItems UsageLabel -> m ()
     check (SeqItems {}) = return ()
     check (ParItems ps) = sequence_ $ permuteHelper checkCREW (map getVars ps)
     check (RepParItem _ p) = check (ParItems [p,p]) -- Easy way to check two replicated branches
@@ -142,7 +142,7 @@ showCodeExSet (NormalSet s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
-checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m (Maybe Decl, Vars) -> Node -> m ()
+checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
 checkInitVar m graph startNode
   = do startLabel <- checkJust (Just m, "Could not find starting node in the control-flow graph")
          (lab graph startNode) >>* writeNode
@@ -160,12 +160,12 @@ checkInitVar m graph startNode
     connectedNodes = dfs [startNode] graph
 
     -- Gets all variables read-from in a particular node, and the node identifier
-    readNode :: (Node, FNode m (Maybe Decl, Vars)) -> (Node, ExSet Var)
-    readNode (n, Node (_,(_,Vars read _ _),_)) = (n,NormalSet read)
+    readNode :: (Node, FNode m UsageLabel) -> (Node, ExSet Var)
+    readNode (n, Node (_,ul,_)) = (n,NormalSet $ readVars $ nodeVars ul)
   
     -- Gets all variables written-to in a particular node
-    writeNode :: FNode m (Maybe Decl, Vars) -> ExSet Var
-    writeNode (Node (_,(_,Vars _ written _),_)) = NormalSet written
+    writeNode :: FNode m UsageLabel -> ExSet Var
+    writeNode (Node (_,ul,_)) = NormalSet $ writtenVars $ nodeVars ul
     
     -- Nothing is treated as if were the set of all possible variables:
     nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
@@ -209,8 +209,8 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
       = do checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, mockedupParItems)
       where
-        mockedupParItems :: ParItems (Maybe Decl, Vars)
-        mockedupParItems = ParItems [SeqItems [(Nothing, processVarW v)] | v <- vs]
+        mockedupParItems :: ParItems UsageLabel
+        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v] | v <- vs]
 
 
 checkProcCallArgsUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
@@ -227,5 +227,5 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
       = do checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, mockedupParItems)
       where
-        mockedupParItems :: ParItems (Maybe Decl, Vars)
-        mockedupParItems = ParItems [SeqItems [(Nothing, v)] | v <- map getVarActual params]
+        mockedupParItems :: ParItems UsageLabel
+        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing v] | v <- map getVarActual params]
