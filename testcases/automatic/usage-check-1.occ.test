@@ -122,4 +122,21 @@ PROC m()
     PAR i = 1 FOR x
       a[i] := 4
 
+%PASS Branch inside parallel
+    IF
+      x < 0
+        y := 0
+      TRUE
+        y := 2
+%PASS PAR inside branch inside parallel
+    IF
+      x < 0
+        PAR
+          x := 3
+          y := 4
+      TRUE
+        PAR
+          x := 2
+          y := 3
+
 %
