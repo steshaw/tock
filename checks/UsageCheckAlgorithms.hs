@@ -49,10 +49,13 @@ checkPar getRep f g = mapM f =<< allParItems
           m (Map.Map Int (Maybe A.Replicator, [(Node,Node)]))
         helper mp (s,e,n)
           | r == Nothing = fail "Could not find label for node"
-          | join r /= join (liftM fst $ Map.lookup n mp) = fail "Replicator not the same for all nodes at beginning of PAR"
-          | otherwise = return $ Map.insertWith add n (join r,[(s,e)]) mp
+          | prevR == Nothing || prevR == r =  return $ Map.insertWith add n (join r,[(s,e)]) mp
+          | otherwise = fail $ "Replicator not the same for all nodes at beginning of PAR: "
+             ++ show r ++ " ; " ++ show (Map.lookup n mp :: Maybe (Maybe A.Replicator, [(Node, Node)]))
           where
             add (newR, newNS) (oldR, oldNS) = (newR, oldNS ++ newNS)
+            prevR :: Maybe (Maybe A.Replicator)
+            prevR = liftM fst $ Map.lookup n mp
             r :: Maybe (Maybe A.Replicator)
             r = lab g s >>* (getRep . (\(Node (_,l,_)) -> l))
   
