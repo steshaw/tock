@@ -31,12 +31,13 @@ import CompState
 import Errors
 import Metadata
 import Omega
+import Pass
 import ShowCode
 import Types
 import UsageCheckUtils
 import Utils
 
-checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems UsageLabel) -> m ()
+checkArrayUsage :: forall m. (Die m, CSM m, MonadIO m) => (Meta, ParItems UsageLabel) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ transformParItems nodeVars p
   where    
@@ -92,18 +93,45 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                  case mapMaybe solve problems of
                    -- No solutions; no worries!
                    [] -> return ()
-                   (((lx,ly),varMapping,vm):_) ->
+                   (((lx,ly),varMapping,vm,problem):_) ->
                      do sol <- formatSolution varMapping (getCounterEqs vm)
                         cx <- showCode lx
                         cy <- showCode ly
+                        prob <- formatProblem varMapping problem
+                        debug $ "Found solution for problem: " ++ prob
                         dieP m $ "Indexes of array \"" ++ userArrName ++ "\" "
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
                                  ++ if sol /= "" then " when: " ++ sol else ""
     
-    solve :: (labels,vm,(EqualityProblem,InequalityProblem)) -> Maybe (labels,vm,VariableMapping)
+    solve :: (labels,vm,(EqualityProblem,InequalityProblem)) -> Maybe (labels,vm,VariableMapping,(EqualityProblem,InequalityProblem))
     solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
       Nothing -> Nothing
-      Just vm' -> Just (ls,vm,vm')
+      Just vm' -> Just (ls,vm,vm',(eq,ineq))
+
+    formatProblem :: VarMap -> (EqualityProblem, InequalityProblem) -> m String
+    formatProblem varToIndex (eq, ineq)
+      = do feqs <- mapM (showWithConst "=") $ eq
+           fineqs <- mapM (showWithConst ">=") $ ineq
+           return $ concat $ intersperse "\n" $ feqs ++ fineqs
+      where
+        showWithConst :: String -> Array CoeffIndex Integer -> m String
+        showWithConst op item = do text <- showEq item
+                                   return $
+                                     (if text == "" then "0" else text)
+                                       ++ " " ++ op ++ " " ++ show (negate $ item ! 0)
+
+        showEq :: Array CoeffIndex Integer -> m String
+        showEq = liftM (concat . intersperse " + ") . mapM showItem . filter ((/= 0) . snd) . tail . assocs
+
+        showItem :: (CoeffIndex, Integer) -> m String
+        showItem (n, a) = case find ((== n) . snd) $ Map.assocs varToIndex of
+          Just (exp,_) -> showFlattenedExp exp >>* (mult ++)
+          Nothing -> return "<unknown>"
+          where
+            mult = case a of
+              1 -> ""
+              -1 -> "-"
+              _ -> show a ++ "*"
     
     formatSolution :: VarMap -> Map.Map CoeffIndex Integer -> m String
     formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex

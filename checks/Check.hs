@@ -23,6 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Check (checkInitVar, usageCheckPass) where
 
 import Control.Monad.Identity
+import Control.Monad.Trans
 import Data.Generics
 import Data.Graph.Inductive
 import Data.List hiding (union)
@@ -195,7 +196,7 @@ checkInitVar m graph startNode
           do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
              dieP (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
 
-checkParAssignUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
+checkParAssignUsage :: forall m t. (CSM m, Die m, MonadIO m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
   where
     isParAssign :: A.Process -> Bool
@@ -213,7 +214,7 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
         mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v] | v <- vs]
 
 
-checkProcCallArgsUsage :: forall m t. (CSM m, Die m, Data t) => t -> m ()
+checkProcCallArgsUsage :: forall m t. (CSM m, Die m, MonadIO m, Data t) => t -> m ()
 checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
   where
     isProcCall :: A.Process -> Bool
