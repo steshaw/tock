@@ -510,6 +510,9 @@ pairEqsAndBounds items bounds = (concatMap (uncurry pairEqs) . allPairs) items +
           -> Maybe (EqualityProblem, InequalityProblem)
         pairEqs' (AARead,_) (AARead,_) = Nothing
         pairEqs' (_,(ex,eqX,ineqX)) (_,(ey,eqY,ineqY)) = Just ([arrayZipWith' 0 (-) ex ey] ++ eqX ++ eqY, ineqX ++ ineqY ++ getIneqs bounds [ex,ey])
+
+addEq :: EqualityConstraintEquation -> EqualityConstraintEquation -> EqualityConstraintEquation
+addEq = arrayZipWith' 0 (+)
     
 -- | Given a (low,high) bound (typically: array dimensions), and a list of equations ex,
 -- forms the possible inequalities: 
@@ -523,8 +526,7 @@ getIneqs (low, high) = concatMap getLH
       
         getLH :: EqualityConstraintEquation -> [InequalityConstraintEquation]
         getLH eq = [eq `addEq` (amap negate low),high `addEq` amap negate eq]
-        addEq :: EqualityConstraintEquation -> EqualityConstraintEquation -> EqualityConstraintEquation
-        addEq = arrayZipWith' 0 (+)
+
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
 makeEquation :: label -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess label)
