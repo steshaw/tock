@@ -121,7 +121,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     showFlattenedExp :: FlattenedExp -> m String
     showFlattenedExp (Const n) = return $ show n
     showFlattenedExp (Scale n ((A.Variable _ vn),vi))
-      = do vn' <- getRealName vn >>* (\s -> if vi == 0 then s else s ++ replicate vi '\'' )
+      = do vn' <- getRealName vn >>* (++ replicate vi '\'')
            case n of
              1  -> return vn'
              -1 -> return $ "-" ++ vn'
