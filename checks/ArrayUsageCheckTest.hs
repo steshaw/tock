@@ -361,6 +361,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
      ,("i", intLiteral 1, intLiteral 6),[intLiteral 4],intLiteral 8)
 
    -- TODO test reads and writes are paired properly
+   
+   -- TODO test background knowledge being used
   ]
   where
     -- These functions assume that you pair each list [x,y,z] as (x,y) (x,z) (y,z) in that order.
@@ -381,13 +383,13 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     test' :: (Integer,[((Int,Int),VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
     test' (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
-        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (makeParItems exprs) upperBound)
+        (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations [] (makeParItems exprs) upperBound)
   
     testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
         (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems)
-          =<< (checkRight $ makeEquations (RepParItem (A.For emptyMeta (simpleName repName) repFrom repFor) $ makeParItems exprs) upperBound)
+          =<< (checkRight $ makeEquations [] (RepParItem (A.For emptyMeta (simpleName repName) repFrom repFor) $ makeParItems exprs) upperBound)
   
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 

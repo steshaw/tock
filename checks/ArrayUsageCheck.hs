@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -67,6 +67,14 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
           = Just (A.nameName n, [e])
         getArrayIndex _ = Nothing
 
+    makeRepBounds :: A.Replicator -> [BackgroundKnowledge]
+    makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Add from for]
+      where
+        ev = A.ExprVariable m (A.Variable m n)
+
+    listReplicators :: ParItems UsageLabel -> [A.Replicator]
+    listReplicators p = mapMaybe nodeRep $ flattenParItems p
+
     checkIndexes :: Meta -> (String,ParItems ([A.Expression],[A.Expression])) -> m ()
     checkIndexes m (arrName, indexes)
       = do userArrName <- getRealName (A.Name undefined undefined arrName)
@@ -77,7 +85,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
              _ -> dieP m $ "Cannot usage check array \"" ++ userArrName ++ "\"; found to be of type: " ++ show arrType
            if not checkable
              then return ()
-             else case makeEquations indexes (makeConstant emptyMeta arrLength) of
+             else case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes (makeConstant emptyMeta arrLength) of
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
                Right problems ->
@@ -216,6 +224,8 @@ makeExpSet = foldM makeExpSet' Set.empty
 
 type VarMap = Map.Map FlattenedExp Int
 
+data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.Expression A.Expression
+
 -- | Given a list of (written,read) expressions, an expression representing the upper array bound, returns either an error
 -- (because the expressions can't be handled, typically) or a set of equalities, inequalities and mapping from
 -- (unique, munged) variable name to variable-index in the equations.
@@ -239,19 +249,35 @@ type VarMap = Map.Map FlattenedExp Int
 -- squareAndPair.
 --
 -- TODO probably want to take this into the PassM monad at some point, to use the Meta in the error message
--- TODO allow "background knowledge" in the form of other equalities and inequalities
-makeEquations :: ParItems ([A.Expression],[A.Expression]) -> A.Expression ->
+makeEquations :: [BackgroundKnowledge] -> ParItems ([A.Expression],[A.Expression]) -> A.Expression ->
   Either String [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))]
-makeEquations accesses bound
-  = do bound' <- flatten bound
-       ((v,h,repVarIndexes),s) <- (flip runStateT) Map.empty $
+makeEquations otherInfo accesses bound
+  = do ((v,h,o,repVarIndexes),s) <- (flip runStateT) Map.empty $
           do (accesses',repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
-             high <- makeEquation bound (error "Type is irrelevant for upper bound") bound'
-               >>= getSingleAccessItem "Multiple possible upper bounds not supported"
-             return (accesses', high, nub repVars)
-       return $ squareAndPair repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
+             high <- makeSingleEq bound "upper bound"
+             other <- mapM transformBK otherInfo
+             let other' = foldl accumProblem ([],[]) other
+             return (accesses', high, other', nub repVars)
+       return $ squareAndPair o repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
   where
+    -- TODO make sure only relevant background knowledge is used (somehow?)
+    -- TODO allow modulo in background knowledge
+    transformBK :: BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
+    transformBK (Equal eL eR) = do eL' <- makeSingleEq eL "background knowledge"
+                                   eR' <- makeSingleEq eR "background knowledge"
+                                   let e = addEq eL' (amap negate eR')
+                                   return ([e],[])
+    transformBK (LessThanOrEqual eL eR)
+      = do eL' <- makeSingleEq eL "background knowledge"
+           eR' <- makeSingleEq eR "background knowledge"
+           -- eL <= eR implies eR - eL >= 0
+           let e = addEq (amap negate eL') eR'
+           return ([],[e])
+
+    accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
+    accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
+
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]
     setIndexVar tv ti es = case mapAccumL (setIndexVar' tv ti) False es of
       (_, es') -> es'
@@ -423,13 +449,14 @@ flatten other = throwError ("Unhandleable item found in expression: " ++ show ot
 --      will produce both "i = i' + 1" and "i + 1 = i'" so there is no need
 --      to vary the inequality itself.
 squareAndPair ::
+  (EqualityProblem, InequalityProblem) ->
   [(CoeffIndex, CoeffIndex)] ->
   VarMap ->
   [ArrayAccess label] ->
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [((label, label), VarMap, (EqualityProblem, InequalityProblem))] 
-squareAndPair repVars s v lh
-  = [(labels, s,squareEquations (eq,ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
+squareAndPair (bkEq, bkIneq) repVars s v lh
+  = [(labels, s,squareEquations (bkEq ++ eq, bkIneq ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
     | (labels, eq,ineq) <- pairEqsAndBounds v lh
       ,and (map (primeImpliesPlain (eq,ineq)) repVars)
     ]
