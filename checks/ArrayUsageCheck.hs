@@ -260,6 +260,10 @@ makeEquations accesses bound
       | otherwise = (b,s)
     setIndexVar' _ _ b e = (b,e)
 
+    makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
+    makeSingleEq e desc = lift (flatten e) >>= makeEquation e (error $ "Type is irrelevant for " ++ desc)
+      >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
+
     makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
       ArrayAccess label -> StateT (VarMap) (Either String) (ArrayAccess label)
     makeEquationWithPossibleRepBounds [] item = return item
@@ -305,10 +309,8 @@ makeEquations accesses bound
         
         makeRepVarEq :: (A.Replicator, Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
         makeRepVarEq (A.For m varName from for, _)
-          = do from' <- lift (flatten from) >>= makeEquation from (error "Type is irrelevant for replication start")
-                          >>= getSingleAccessItem "Modulo or Divide not allowed in replication start"
-               for' <- lift (flatten for) >>= makeEquation for (error "Type is irrelevant for replication count")
-                          >>= getSingleAccessItem "Modulo or Divide not allowed in replication count"
+          = do from' <- makeSingleEq from "replication start"
+               for' <- makeSingleEq for "replication count"
                return (A.Variable m varName, from', for')
         
         mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> (ArrayAccessType, A.Expression) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [(A.Expression, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
