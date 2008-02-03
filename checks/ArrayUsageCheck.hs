@@ -40,6 +40,11 @@ checkArrayUsage :: forall m. (Die m, CSM m) => (Meta, ParItems UsageLabel) -> m 
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ transformParItems nodeVars p
   where    
+    flattenParItems :: ParItems a -> [a]
+    flattenParItems (SeqItems xs) = xs
+    flattenParItems (ParItems ps) = concatMap flattenParItems ps
+    flattenParItems (RepParItem _ p) = flattenParItems p
+
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
     groupArrayIndexes vs = filterByKey $ transformParItems (uncurry (zipMap join) . (transformPair (makeList . writtenVars) (makeList . readVars)) . mkPair) vs
@@ -47,10 +52,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
         join :: Maybe [a] -> Maybe [a] -> Maybe ([a],[a])
         join x y = Just (fromMaybe [] x, fromMaybe [] y)
         
-        flattenParItems :: ParItems a -> [a]
-        flattenParItems (SeqItems xs) = xs
-        flattenParItems (ParItems ps) = concatMap flattenParItems ps
-        flattenParItems (RepParItem _ p) = flattenParItems p
+
         
       
         makeList :: Set.Set Var -> Map.Map String [A.Expression]
