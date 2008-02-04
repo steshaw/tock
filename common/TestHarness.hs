@@ -57,7 +57,7 @@ automaticTimeTest scale fileName = readFile fileName >>* performTimeTest scale f
 
 -- Bit of a hard-hack, until usage-checking is on by default:
 defaultState :: CompState
-defaultState = emptyState {csUsageChecking = True , csVerboseLevel = 2 }
+defaultState = emptyState {csUsageChecking = True}
 
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
