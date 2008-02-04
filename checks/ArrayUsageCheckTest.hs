@@ -334,11 +334,13 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
+   -- i vs. i'
    ,testRep' (200,[((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
      ("i", intLiteral 1, intLiteral 6),[exprVariable "i"],intLiteral 8)
      
+   -- i vs i' vs 3
    ,testRep' (201,
      [((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
@@ -347,6 +349,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
      ++ [((1,1),rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
      ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", intLiteral 3],intLiteral 8)
 
+   -- i vs i + 1 vs i' vs i' + 1
    ,testRep' (202,[
         ((0,1),rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
        ,((0,1),rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
@@ -360,6 +363,12 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
    ,testRep' (210,[((0,0),rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
      ,("i", intLiteral 1, intLiteral 6),[intLiteral 4],intLiteral 8)
 
+{-
+   -- i REM 3 vs i' REM 3
+   ,testRep' (220,[((0,0), rep_i_mod_mapping 3, [con 0 === con 0, i === con 0, j === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7] &&& leq [con 0, con 0, con 7])
+    -- TODO The other eight combinations
+     ],("i", intLiteral 1, intLiteral 6),[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3)], intLiteral 8)
+-}
    -- TODO test reads and writes are paired properly
    
    -- TODO test background knowledge being used
@@ -419,6 +428,11 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     rep_i_mapping' = Map.fromList [((Scale 1 (variable "i",0)),2), ((Scale 1 (variable "i",1)),1)]
 
     both_rep_i = joinMapping [rep_i_mapping, rep_i_mapping']
+    
+    rep_i_mod_mapping :: Integer -> VarMap
+    rep_i_mod_mapping n = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)
+      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),3)
+      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",1)) (Set.singleton $ Const n),4)]
 
     -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
     rr_i_zero = ([i === con 0], leq [con 0,con 0,con 7])
