@@ -2,6 +2,7 @@ GHC_OPTS = \
 	-fglasgow-exts \
 	-fwarn-deprecations \
 	-fwarn-duplicate-exports \
+	-fwarn-incomplete-record-updates \
 	-fwarn-missing-fields \
 	-fwarn-missing-methods \
 	-fwarn-missing-signatures \
