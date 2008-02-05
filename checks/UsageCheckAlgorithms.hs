@@ -57,7 +57,7 @@ checkPar getRep f g = mapM f =<< allParItems
             prevR :: Maybe (Maybe A.Replicator)
             prevR = liftM fst $ Map.lookup n mp
             r :: Maybe (Maybe A.Replicator)
-            r = lab g s >>* (getRep . (\(Node (_,l,_)) -> l))
+            r = lab g s >>* (getRep . getNodeData)
   
     tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Int)
     tagStartParEdge (s,e,EStartPar n) = Just (s,e,n)
@@ -71,7 +71,7 @@ checkPar getRep f g = mapM f =<< allParItems
           [] -> fail "No edges in list of PAR edges"
           [n] -> case lab g n of
             Nothing -> fail "Label not found for node at start of PAR"
-            Just (Node (m,_,_)) -> return m
+            Just nd -> return $ getNodeMeta nd
           _ -> fail "PAR edges did not all start at the same node"
           where
             distinctItems = nub $ map fst ns
@@ -118,7 +118,7 @@ checkPar getRep f g = mapM f =<< allParItems
                                (Nothing, g') -> customDFS vs g'
         
         labelItem :: Context (FNode m a) EdgeLabel -> a
-        labelItem c = let (Node (_,x,_)) = lab' c in x
+        labelItem = getNodeData . lab'
         
         customSucc :: Context (FNode m a) EdgeLabel -> [Node]
         customSucc c = [n | (n,e) <- lsuc' c, e /= endEdge]
@@ -144,10 +144,10 @@ findReachDef graph startNode
     readInNode' n v _ = readInNode v (lab graph n)
 
     readInNode :: Var -> Maybe (FNode m UsageLabel) -> Bool
-    readInNode v (Just (Node (_,ul,_))) = (Set.member v . readVars . nodeVars) ul
+    readInNode v (Just nd) = (Set.member v . readVars . nodeVars) (getNodeData nd)
     
     writeNode :: FNode m UsageLabel -> Set.Set Var
-    writeNode (Node (_,ul,_)) = writtenVars $ nodeVars ul
+    writeNode nd = writtenVars $ nodeVars $ getNodeData nd
       
     -- | A confusiing function used by processNode.   It takes a node and node label, and uses
     -- these to form a multi-map modifier function that replaces all node-sources for variables

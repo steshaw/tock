@@ -390,7 +390,7 @@ instance ShowOccam A.Specification where
       +>> occamOutdent
       +>> (showOccamLine colon)
   --TODO use the specmode
-  showOccamM (A.Specification _ n (A.Function _ sm retTypes params el@(A.OnlyEL {})))
+  showOccamM (A.Specification _ n (A.Function _ sm retTypes params el@(A.Only {})))
     = showOccamLine $
         showWithCommas retTypes +>> (return " FUNCTION ") +>> showName n +>> return "(" +>> showWithCommas params +>> return ")"
         +>> return " IS " +>> showOccamM el +>> colon
@@ -461,17 +461,12 @@ instance ShowOccam A.Option where
   showOccamM (A.Option _ es p) = showOccamLine (showAll $ intersperse (return " , ") $ map showOccamM es) +>> occamBlock (showOccamM p)
   showOccamM (A.Else _ p) = showOccamLine (return "ELSE") +>> occamBlock (showOccamM p)
 
-instance ShowOccam A.Structured where
+instance (Data a, ShowOccam a) => ShowOccam (A.Structured a) where
   showOccamM (A.Spec _ spec str) = showOccamM spec +>> showOccamM str
   showOccamM (A.Rep _ rep str)
     = do item <- currentContext
          (showOccamLine (return (item ++ " ") +>> showOccamM rep)) +>> occamIndent +>> showOccamM str +>> occamOutdent
-  showOccamM (A.OnlyP _ p) = showOccamM p
-  showOccamM (A.OnlyEL _ el) = showOccamM el
-  showOccamM (A.OnlyA _ a) = showOccamM a
-  showOccamM (A.OnlyV _ v) = showOccamM v
-  showOccamM (A.OnlyC _ c) = showOccamM c
-  showOccamM (A.OnlyO _ o) = showOccamM o
+  showOccamM (A.Only _ p) = showOccamM p
   showOccamM (A.Several _ ss) = showAll $ map showOccamM ss
   showOccamM (A.ProcThen _ p str) = showOccamLine (return "VALOF") +>> occamBlock (showOccamM p +>> showOccamLine (return "RESULT " +>> showOccamM str))
 
@@ -485,7 +480,7 @@ instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
   --TODO functioncalllist
 
-outer :: String -> A.Structured -> OccamWriter String
+outer :: (Data a, ShowOccam a) => String -> A.Structured a -> OccamWriter String
 outer keyword (A.Rep _ rep str) = showOccamLine (return keyword +>> showOccamM rep) +>> beginStr keyword +>> showOccamM str +>> endStr
 outer keyword str = doStr keyword (showOccamM str)
 
@@ -523,7 +518,7 @@ instance ShowRain a where
 -- ShowOccam\/ShowRain implementation.  But since to add a type to the ShowOccam\/ShowRain 
 -- classes you have to provide a specific instance above anyway, I don't think that adding 
 -- one more line while you're at it is too bad.
-extCode :: Typeable b => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
+extCode :: (Data b, Typeable b) => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
 extCode q f = q 
                 `extQ` (text . (f :: A.DyadicOp -> String))
                 `extQ` (text . (f :: A.Expression -> String))
@@ -533,9 +528,10 @@ extCode q f = q
                 `extQ` (text . (f :: A.Process -> String))
                 `extQ` (text . (f :: A.Replicator -> String))
                 `extQ` (text . (f :: A.Specification -> String))
-                `extQ` (text . (f :: A.Structured -> String))
                 `extQ` (text . (f :: A.Type -> String))
                 `extQ` (text . (f :: A.Variable -> String))
+--TODO
+--                `ext1Q` (text . (f :: (Data c, ShowOccam c) => A.Structured c -> String))
 
 (+>>) :: State s [a] -> State s [a] -> State s [a]
 (+>>) x y = do x' <- x

@@ -75,14 +75,13 @@ data CompState = CompState {
     -- Set by passes
     csNonceCounter :: Int,
     csFunctionReturns :: Map String [A.Type],
-    csPulledItems :: [[A.Structured -> A.Structured]],
+    csPulledItems :: [[PulledItem]],
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Set A.Name
   }
   deriving (Data, Typeable)
 
-instance Show (A.Structured -> A.Structured) where
-  show p = "(function on Structured)"
+type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
 
 emptyState :: CompState
 emptyState = CompState {
@@ -155,7 +154,7 @@ popPullContext :: CSM m => m ()
 popPullContext = modify (\ps -> ps { csPulledItems = tail $ csPulledItems ps })
 
 -- | Add a pulled item to the collection.
-addPulled :: CSM m => (A.Structured -> A.Structured) -> m ()
+addPulled :: CSM m => PulledItem -> m ()
 addPulled item
     = modify (\ps -> case csPulledItems ps of
                        (l:ls) -> ps { csPulledItems = (item:l):ls })
@@ -169,12 +168,17 @@ havePulled
             _ -> return True
 
 -- | Apply pulled items to a Structured.
-applyPulled :: CSM m => A.Structured -> m A.Structured
+applyPulled :: (CSM m, Data a) => A.Structured a -> m (A.Structured a)
 applyPulled ast
     =  do ps <- get
           case csPulledItems ps of
             (l:ls) -> do put $ ps { csPulledItems = [] : ls }
-                         return $ foldl (\p f -> f p) ast l
+                         return $ foldl (\p f -> apply f p) ast l
+  where
+    apply :: Data a => PulledItem -> A.Structured a -> A.Structured a
+    apply (m, Left spec) = A.Spec m spec
+    apply (m, Right proc) = A.ProcThen m proc
+
 --}}}
 
 --{{{  type contexts

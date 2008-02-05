@@ -368,25 +368,60 @@ data Variant = Variant Meta Name [InputItem] Process
 -- | This represents something that can contain local replicators and specifications.
 -- (This ought to be a parametric type, @Structured Variant@ etc., but doing so
 -- makes using generic functions across it hard.)
-data Structured =
-  Rep Meta Replicator Structured
-  | Spec Meta Specification Structured
-  | ProcThen Meta Process Structured
-  | OnlyV Meta Variant                  -- ^ Variant (@CASE@) input process
-  | OnlyC Meta Choice                   -- ^ @IF@ process
-  | OnlyO Meta Option                   -- ^ @CASE@ process
-  | OnlyA Meta Alternative              -- ^ @ALT@ process
-  | OnlyP Meta Process                  -- ^ @SEQ@, @PAR@
-  | OnlyEL Meta ExpressionList          -- ^ @VALOF@
-  | Several Meta [Structured]
-  deriving (Show, Eq, Typeable, Data)
+data Data a => Structured a =
+  Rep Meta Replicator (Structured a)
+  | Spec Meta Specification (Structured a)
+  | ProcThen Meta Process (Structured a)
+  | Only Meta a
+  | Several Meta [Structured a]
+  deriving (Show, Eq, Typeable)
+
+-- The Data instance for Structured is tricky.  Because it is a parameterised class we
+-- need to change the dataCast1 function from the default declaration; something
+-- that leaving GHC to handle deriving (Data) will not achieve.  Therefore we have no
+-- choice but to provide our own instance long-hand here:
+
+_struct_RepConstr     = mkConstr _struct_DataType "Rep"  [] Prefix
+_struct_SpecConstr    = mkConstr _struct_DataType "Spec" [] Prefix
+_struct_ProcThenConstr= mkConstr _struct_DataType "ProcThen" [] Prefix
+_struct_OnlyConstr    = mkConstr _struct_DataType "Only" [] Prefix
+_struct_SeveralConstr = mkConstr _struct_DataType "Several" [] Prefix
+_struct_DataType = mkDataType "AST.Structured"
+  [_struct_RepConstr
+  ,_struct_SpecConstr
+  ,_struct_ProcThenConstr
+  ,_struct_OnlyConstr
+  ,_struct_SeveralConstr
+  ]
+
+instance Data a => Data (Structured a) where
+  gfoldl f z (Rep m r s)   = z Rep `f` m `f` r `f` s
+  gfoldl f z (Spec m sp str)   = z Spec `f` m `f` sp `f` str
+  gfoldl f z (ProcThen m p s)   = z ProcThen `f` m `f` p `f` s
+  gfoldl f z (Only m x)   = z Only `f` m `f` x
+  gfoldl f z (Several m ss)   = z Several `f` m `f` ss
+  toConstr (Rep {})  = _struct_RepConstr
+  toConstr (Spec {}) = _struct_SpecConstr
+  toConstr (ProcThen {}) = _struct_ProcThenConstr
+  toConstr (Only {}) = _struct_OnlyConstr
+  toConstr (Several {}) = _struct_SeveralConstr
+  gunfold k z c = case constrIndex c of
+                    1 -> (k . k . k) (z Rep)
+                    2 -> (k . k . k) (z Spec)
+                    3 -> (k . k . k) (z ProcThen)
+                    4 -> (k . k) (z Only)
+                    5 -> (k . k) (z Several)
+                    _ -> error "gunfold"
+  dataTypeOf _ = _struct_DataType
+  dataCast1 f  = gcast1 f
+
 
 -- | The mode in which an input operates.
 data InputMode =
   -- | A plain input from a channel.
   InputSimple Meta [InputItem]
   -- | A variant input from a channel.
-  | InputCase Meta Structured
+  | InputCase Meta (Structured Variant)
   -- | Read the value of a timer.
   | InputTimerRead Meta InputItem
   -- | Wait for a particular time to go past on a timer.
@@ -437,7 +472,7 @@ data SpecType =
   -- | Declare a @PROC@.
   | Proc Meta SpecMode [Formal] Process
   -- | Declare a @FUNCTION@.
-  | Function Meta SpecMode [Type] [Formal] Structured
+  | Function Meta SpecMode [Type] [Formal] (Structured ExpressionList)
   -- | Declare a retyping abbreviation of a variable.
   | Retypes Meta AbbrevMode Type Variable
   -- | Declare a retyping abbreviation of an expression.
@@ -491,16 +526,16 @@ data Process =
   | ClearMobile Meta Variable
   | Skip Meta
   | Stop Meta
-  | Seq Meta Structured
-  | If Meta Structured
-  | Case Meta Expression Structured
+  | Seq Meta (Structured Process)
+  | If Meta (Structured Choice)
+  | Case Meta Expression (Structured Option)
   | While Meta Expression Process
-  | Par Meta ParMode Structured
+  | Par Meta ParMode (Structured Process)
   -- | A @PROCESSOR@ process.
   -- The occam2.1 syntax says this is just a process, although it shouldn't be
   -- legal outside a @PLACED PAR@.
   | Processor Meta Expression Process
-  | Alt Meta Bool Structured
+  | Alt Meta Bool (Structured Alternative)
   | ProcCall Meta Name [Actual]
   -- | A call of a built-in @PROC@.
   -- This may go away in the future, since which @PROC@s are intrinsics depends
@@ -508,3 +543,4 @@ data Process =
   | IntrinsicProcCall Meta String [Actual]
   deriving (Show, Eq, Typeable, Data)
 
+type AST = Structured ()

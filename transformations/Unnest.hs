@@ -47,7 +47,7 @@ freeNamesIn :: Data t => t -> NameMap
 freeNamesIn = doGeneric
                 `extQ` (ignore :: String -> NameMap)
                 `extQ` (ignore :: Meta -> NameMap)
-                `extQ` doName `extQ` doStructured `extQ` doSpecType
+                `extQ` doName `ext1Q` doStructured `extQ` doSpecType
   where
     doGeneric :: Data t => t -> NameMap
     doGeneric n = Map.unions $ gmapQ freeNamesIn n
@@ -58,7 +58,7 @@ freeNamesIn = doGeneric
     doName :: A.Name -> NameMap
     doName n = Map.singleton (A.nameName n) n
 
-    doStructured :: A.Structured -> NameMap
+    doStructured :: Data a => A.Structured a -> NameMap
     doStructured (A.Rep _ rep s) = doRep rep s
     doStructured (A.Spec _ spec s) = doSpec spec s
     doStructured s = doGeneric s
@@ -171,7 +171,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
     doProcess p = doGeneric p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: A.Structured -> PassM A.Structured
+removeNesting :: forall a. Data a => A.Structured a -> PassM (A.Structured a)
 removeNesting p
     =  do pushPullContext
           p' <- pullSpecs p
@@ -185,13 +185,13 @@ removeNesting p
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric pullSpecs
 
-    doStructured :: A.Structured -> PassM A.Structured
+    doStructured :: A.Structured a -> PassM (A.Structured a)
     doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)
         = do isConst <- isConstantName n
              if isConst || canPull st then
                  do debug $ "removeNesting: pulling up " ++ show n
                     spec' <- doGeneric spec
-                    addPulled $ A.Spec m spec'
+                    addPulled $ (m, Left spec')
                     doStructured subS
                else doGeneric s
     doStructured s = doGeneric s

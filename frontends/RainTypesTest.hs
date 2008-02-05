@@ -287,8 +287,8 @@ checkExpressionTest = TestList
   passWhileIf n exp src = TestList
     [
       TestCase $ testPass ("checkExpressionTest/if " ++ show n) 
-        (mIf $ tag2 A.OnlyC DontCare $ tag3 A.Choice DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
-        (checkConditionalTypes $ A.If m $ A.OnlyC m $ A.Choice m (buildExpr src) (A.Skip m))
+        (mIf $ mOnlyC $ tag3 A.Choice DontCare (buildExprPattern exp) (tag1 A.Skip DontCare))
+        (checkConditionalTypes $ A.If m $ A.Only m $ A.Choice m (buildExpr src) (A.Skip m))
         state
       ,TestCase $ testPass ("checkExpressionTest/while " ++ show n)
         (mWhile (buildExprPattern exp) (tag1 A.Skip DontCare))
@@ -300,7 +300,7 @@ checkExpressionTest = TestList
   failWhileIf n src = TestList
     [
       TestCase $ testPassShouldFail ("checkExpressionTest/if " ++ show n) 
-        (checkConditionalTypes $ A.If m $ A.OnlyC m $ A.Choice m (buildExpr src) (A.Skip m))
+        (checkConditionalTypes $ A.If m $ A.Only m $ A.Choice m (buildExpr src) (A.Skip m))
         state
       ,TestCase $ testPassShouldFail ("checkExpressionTest/while " ++ show n)
         (checkConditionalTypes $ A.While m (buildExpr src) (A.Skip m))
@@ -325,7 +325,7 @@ checkExpressionTest = TestList
         then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (checkCommTypes st) state
         else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
       where
-        st = A.Alt m True $ A.OnlyA m $ A.Alternative m chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
+        st = A.Alt m True $ A.Only m $ A.Alternative m chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
  
   --Automatically tests checking inputs and outputs for various combinations of channel type and direction
   testAllCheckCommTypes :: Int -> Test

@@ -30,6 +30,7 @@ import Metadata
 import Pattern
 import SimplifyComms
 import SimplifyExprs
+import TagAST
 import TestUtils
 import TreeUtils
 
@@ -38,12 +39,12 @@ noInit :: Maybe A.Expression
 noInit = Nothing
 
 -- | An expression list containing a single value of 0.
-valof0 :: A.Structured 
-valof0 = A.OnlyEL m $ A.ExpressionList m [intLiteral 0]
+valof0 :: A.Structured A.ExpressionList
+valof0 = A.Only m $ A.ExpressionList m [intLiteral 0]
 
 -- | An expression list containing variables with the two given names.
-valofTwo :: String -> String -> A.Structured
-valofTwo a b = A.OnlyEL m $ A.ExpressionList m [exprVariable a,exprVariable b]
+valofTwo :: String -> String -> A.Structured A.ExpressionList
+valofTwo a b = A.Only m $ A.ExpressionList m [exprVariable a,exprVariable b]
 
 -- | Looks up an item from the Items, and attempts to cast it.  Fails (via assertions) if
 -- either the item is not found, or if the cast is invalid.
@@ -56,13 +57,12 @@ assertGetItemCast k kv
         Nothing -> (assertFailure $ "Wrong type when casting in assertGetItemCast for key: " ++ k) >> return (undefined)
 
 -- | Given a body, returns a function spec:
-singleParamFunc :: A.Structured-> A.Specification
+singleParamFunc :: A.Structured A.ExpressionList -> A.Specification
 singleParamFunc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] body)
 
 -- | Returns the expected body of the single parameter process (when the function had valof0 as a body)
 singleParamBodyExp :: Pattern -- ^ to match: A.Process
-singleParamBodyExp = tag2 A.Seq DontCare $
-                       tag2 A.OnlyP DontCare $ 
+singleParamBodyExp = tag2 A.Seq DontCare $ mOnlyP $
                          tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare)] $ tag2 A.ExpressionList DontCare [intLiteral 0]
 
 -- | Returns the expected specification type of the single parameter process
@@ -98,7 +98,7 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                                                  tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
                                                  tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $
                  tag2 A.Seq DontCare $
-                   tag2 A.OnlyP DontCare $ 
+                   mOnlyP $ 
                      tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare),tag2 A.Variable DontCare (Named "ret1" DontCare)] $ 
                        tag2 A.ExpressionList DontCare [exprVariable "param0",exprVariable "param1"]
                              --check return parameters were defined:
@@ -126,8 +126,8 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     procHeader body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0"), tag3 A.Formal A.Abbrev A.Int (Named "retOuter0" DontCare)] body
     procBodyOuter = procHeader $
                  tag2 A.Seq DontCare $                 
-                   tag3 A.Spec DontCare (tag3 A.Specification DontCare (simpleName "foo") (singleParamSpecExp singleParamBodyExp)) $
-                     tag2 A.OnlyP DontCare $ 
+                   mSpecP (tag3 A.Specification DontCare (simpleName "foo") (singleParamSpecExp singleParamBodyExp)) $
+                     mOnlyP $ 
                        tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "retOuter0" DontCare)] $ tag2 A.ExpressionList DontCare [intLiteral 0]
 
 
@@ -147,8 +147,8 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                              assertEqual "testFunctionsToProcs2 F" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
                              assertEqual "testFunctionsToProcs2 G" (Just [A.Int]) (Map.lookup "fooOuter" (csFunctionReturns state)) 
 
-skipP :: A.Structured
-skipP = A.OnlyP m (A.Skip m)
+skipP :: A.Structured A.Process
+skipP = A.Only m (A.Skip m)
 
 -- | Tests that a simple constructor (with no expression, nor function call) gets converted into the appropriate initialisation code
 testTransformConstr0 :: Test
@@ -161,10 +161,10 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
     exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Array [A.Dimension 10] A.Int) Nothing)) $ 
       A.ProcThen m 
       (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int Nothing)) $
-          A.Several m [A.OnlyP m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
-            A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.OnlyP m $ A.Seq m $ A.Several m
-            [A.OnlyP m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
-            A.OnlyP m $ A.Assign m [variable "i"] $ A.ExpressionList m [A.Dyadic m A.Plus (exprVariable "i") (intLiteral 1)]]
+          A.Several m [A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
+            A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.Only m $ A.Seq m $ A.Several m
+            [A.Only m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
+            A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [A.Dyadic m A.Plus (exprVariable "i") (intLiteral 1)]]
           ]
       )
       skipP
@@ -176,7 +176,7 @@ testOutExprs = TestList
   -- Test outputting from an expression:
   TestCase $ testPassWithItemsStateCheck "testOutExprs 0" 
     (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
-      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+      (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
     (outExprs $ 
@@ -188,7 +188,7 @@ testOutExprs = TestList
   -- Test outputting from a variable already:
   ,TestCase $ testPass "testOutExprs 1" 
     (tag2 A.Seq DontCare $
-      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+      (mOnlyP $ tag3 A.Output emptyMeta chan
         [outX])
     )
     (outExprs $ 
@@ -199,7 +199,7 @@ testOutExprs = TestList
   -- Test outputting from multiple output items:
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 2"
     (tag2 A.Seq DontCare $ (abbr "temp_var0" A.Byte (eXM 1)) $ (abbr "temp_var1" A.Int (intLiteral 2))
-      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+      (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
         ,mkPattern outX
         ,tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var1" DontCare)))
@@ -215,7 +215,7 @@ testOutExprs = TestList
   -- Test an OutCounted
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 3"
     (tag2 A.Seq DontCare $ (abbr "temp_var" A.Byte (eXM 1))
-      (tag2 A.OnlyP DontCare $ tag3 A.Output emptyMeta chan
+      (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag3 A.OutCounted emptyMeta 
           (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
           (exprVariable "x")
@@ -231,7 +231,7 @@ testOutExprs = TestList
   -- Test that OutputCase is also processed:
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 4" 
     (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
-      (tag2 A.OnlyP DontCare $ tag4 A.OutputCase emptyMeta chan (simpleName "foo")
+      (mOnlyP $ tag4 A.OutputCase emptyMeta chan (simpleName "foo")
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
     (outExprs $ 
@@ -244,7 +244,7 @@ testOutExprs = TestList
 
   ,TestCase $ testPass "testOutExprs 5" 
     (tag2 A.Seq DontCare $
-      (tag2 A.OnlyP DontCare $ A.OutputCase emptyMeta chan (simpleName "foo") [])
+      (mOnlyP $ A.OutputCase emptyMeta chan (simpleName "foo") [])
     )
     (outExprs $ 
       A.OutputCase emptyMeta chan (simpleName "foo") []
@@ -257,7 +257,7 @@ testOutExprs = TestList
    outXM n = A.OutExpression emptyMeta $ eXM n
    eXM n = buildExpr $ Dy (Var "x") A.Minus (Lit $ intLiteral n)
   
-   abbr key t e = tag3 A.Spec DontCare
+   abbr key t e = mSpecP
      (tag3 A.Specification DontCare (Named key DontCare) $ tag4 A.IsExpr DontCare A.ValAbbrev t e)
  
    chan = variable "c"
@@ -284,15 +284,15 @@ testInputCase = TestList
    -}
    TestCase $ testPass "testInputCase 0"     
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
-          tag2 A.Several DontCare
-         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
-           tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
+          mSeveralP
+         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
+           mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
          ]
      )
      (transformInputCase $ 
-       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
+       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
      )
      (defineMyProtocol >> defineC)
      
@@ -325,25 +325,25 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 1"
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
-          tag2 A.Several DontCare
-         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
-          [tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-          ,tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 2] $
-            tag2 A.Seq DontCare $ tag2 A.Several DontCare
-              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],tag2 A.OnlyP DontCare p1]
-          ,tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 1] $
-            tag2 A.Seq DontCare $ tag2 A.Several DontCare
-              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],tag2 A.OnlyP DontCare p2]
+          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
+          mSeveralP
+         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ mSeveralO
+          [mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+          ,mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 2] $
+            tag2 A.Seq DontCare $ mSeveralP
+              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],mOnlyP p1]
+          ,mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 1] $
+            tag2 A.Seq DontCare $ mSeveralP
+              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],mOnlyP p2]
           ]
          ]
      )
      (transformInputCase $ 
        A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
-         [A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
-         ,A.OnlyV emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
-         ,A.OnlyV emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
+         [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
+         ,A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
+         ,A.Only emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
          ]
      )
      (defineMyProtocol >> defineC)
@@ -383,25 +383,25 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 2"
        (tag2 A.Seq DontCare $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
-          tag2 A.Several DontCare
-         [tag2 A.OnlyP DontCare $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,tag2 A.OnlyP DontCare $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ tag2 A.Several emptyMeta
-          [tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-          ,specIntPatt "z" $ tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 2] $
-            tag2 A.Seq DontCare $ tag2 A.Several DontCare
-              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],tag2 A.OnlyP DontCare p1]
-          ,specIntPatt "x" $ specIntPatt "y" $ tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 1] $
-            tag2 A.Seq DontCare $ tag2 A.Several DontCare
-              [tag2 A.OnlyP DontCare $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],tag2 A.OnlyP DontCare p2]
+          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
+          mSeveralP
+         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
+         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ mSeveralO
+          [mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+          ,specIntPatt "z" $ mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 2] $
+            tag2 A.Seq DontCare $ mSeveralP
+              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],mOnlyP p1]
+          ,specIntPatt "x" $ specIntPatt "y" $ mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 1] $
+            tag2 A.Seq DontCare $ mSeveralP
+              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],mOnlyP p2]
           ]
          ]
      )
      (transformInputCase $ 
        A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
-         [A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0
-         ,specInt "z" $ A.OnlyV emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
-         ,specInt "x" $ specInt "y" $ A.OnlyV emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
+         [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
+         ,specInt "z" $ A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
+         ,specInt "x" $ specInt "y" $ A.Only emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
          ]
      )
      (defineMyProtocol >> defineC)
@@ -425,15 +425,15 @@ testInputCase = TestList
    -}
    ,TestCase $ testPass "testInputCase 100"
        (tag3 A.Alt DontCare False $ 
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
-          tag2 A.OnlyA DontCare $ tag4 A.Alternative DontCare c
+          mSpecA (tag3 A.Specification DontCare (Named "tag" DontCare) $ tag3 A.Declaration DontCare A.Int noInit) $
+          mOnlyA $ tag4 A.Alternative DontCare c
             (tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]) $
           tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
-           tag2 A.OnlyO DontCare $ tag3 A.Option DontCare [intLiteralPattern 0] p0
+           mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
      )
      (transformInputCase $ 
-       A.Alt emptyMeta False $ A.OnlyA emptyMeta $ A.Alternative emptyMeta c 
-        (A.InputCase emptyMeta $ A.OnlyV emptyMeta $ A.Variant emptyMeta a0 [] p0)
+       A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta c 
+        (A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0)
         (A.Skip emptyMeta)
      )
      (defineMyProtocol >> defineC)
@@ -459,7 +459,7 @@ testInputCase = TestList
     defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
     
     specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
-    specIntPatt s = tag3 A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
+    specIntPatt s = mSpecA' emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
                              
 --Returns the list of tests:
 tests :: Test

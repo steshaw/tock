@@ -105,27 +105,27 @@ nextId' inc t
 -- for being isomorphic, based on the meta-tag node labels (node E in the expected list is 
 -- isomorphic to node A in the actual list if their meta tags are the same).
 testGraph :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
-testGraph testName nodes roots edges proc = testGraph' testName nodes roots edges (A.OnlyP emptyMeta proc)
+testGraph testName nodes roots edges proc = testGraph' testName nodes roots edges (A.Only emptyMeta proc)
 
 --TODO test root nodes too
 
-testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
 testGraph' testName nodes roots edges code
   = TestCase $ 
       case evalState (buildFlowGraph testOps code) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
-        Right gr -> checkGraphEquality (nodes, roots, edges) (gr :: (FlowGraph Identity Int, [Node]))
+        Right gr -> checkGraphEquality (nodes, roots, edges) (gr :: (FlowGraph' Identity Int A.Process, [Node]))
   where  
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
     
-    deNode :: Monad m => FNode m a -> (Meta, a)
-    deNode (Node (x,y,_)) = (x,y)
+--    deNode :: Monad m => FNode' m a b -> (Meta, a)
+    deNode nd = (getNodeMeta nd, getNodeData nd)
     
     testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
     testOps = GLF nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
     
-    checkGraphEquality :: (Graph g, Show b, Ord b, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, b)]) -> (g (FNode m Int) b, [Int]) -> Assertion
+    checkGraphEquality :: (Data a, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, EdgeLabel)]) -> (FlowGraph' m Int a, [Int]) -> Assertion
     checkGraphEquality (nodes, roots, edges) (g, actRoots)
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
@@ -162,74 +162,74 @@ testSeq :: Test
 testSeq = TestLabel "testSeq" $ TestList
  [
    testSeq' 0 [(0,m0)] [] (A.Several m1 [])
-  ,testSeq' 1 [(0,m2)] [] (A.OnlyP m1 sm2)
-  ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.OnlyP m2 sm3])
-  ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
-  ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq),(1,2,ESeq)] (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
-  ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3],A.Several m1 [A.OnlyP m4 sm5]])
+  ,testSeq' 1 [(0,m2)] [] (A.Only m1 sm2)
+  ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.Only m2 sm3])
+  ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
+  ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq),(1,2,ESeq)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7])
+  ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Several m1 [A.Only m2 sm3],A.Several m1 [A.Only m4 sm5]])
   ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
-    (A.Several m1 [A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
+    (A.Several m1 [A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7], A.Only m8 sm9])
     
-  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4)
+  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Only m3 sm4)
   ,testSeq'' 11
     [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)] [1]
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
-    (A.Several m11 [A.Spec mU (someSpec m1) $ A.OnlyP m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.OnlyP m9 sm10])
+    (A.Several m11 [A.Spec mU (someSpec m1) $ A.Only m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.Only m9 sm10])
 
   ,testSeq' 12 [(0,m1),(100,sub m1 100)] [(0,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   -- Replicated SEQ:
   
   ,testSeq' 100 [(0,m10), (1,m3), (2,m5)] [(0,1,ESeq), (1,2,ESeq), (2,0,ESeq)]
-    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
 
   ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [3] [(3,0,ESeq),(0,1,ESeq), (1,2,ESeq), (2,0,ESeq),(0,4,ESeq)]
-    (A.OnlyP mU $ A.Seq m6 $ A.Several m7
-      [A.OnlyP mU sm9
-      ,(A.Rep m8 (A.For m8 undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
-      ,A.OnlyP mU sm11])
+    (A.Only mU $ A.Seq m6 $ A.Several m7
+      [A.Only mU sm9
+      ,(A.Rep m8 (A.For m8 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
+      ,A.Only mU sm11])
 
   ,testSeq' 102 [(0,m10)] [(0,0,ESeq)]
     (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several mU [])
 
   ,testSeq' 103 [(1,m10), (0,m1), (2,m2)] [(0,1,ESeq),(1,1,ESeq),(1,2,ESeq)]
-    (A.Several mU [A.OnlyP mU sm1, (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several mU []), A.OnlyP mU sm2])
+    (A.Several mU [A.Only mU sm1, (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several mU []), A.Only mU sm2])
 
  ]
   where
-    testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+    testSeq' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
     testSeq' n a b s = testSeq'' n a [0] b s
 
-    testSeq'' :: Int -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+    testSeq'' :: Int -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
     testSeq'' n a r b s = testGraph ("testSeq " ++ show n) a r b (A.Seq m0 s)
     
 testPar :: Test
 testPar = TestLabel "testPar" $ TestList
  [
    testPar' 0 [] [(0,99,ESeq)] (A.Several m1 [])
-  ,testPar' 1 [(1,m2)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.OnlyP m1 sm2)
-  ,testPar' 2 [(1,m3)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [A.OnlyP m2 sm3])
+  ,testPar' 1 [(1,m2)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Only m1 sm2)
+  ,testPar' 2 [(1,m3)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [A.Only m2 sm3])
   ,testPar' 3 [(1, m3), (2, m5)]
               [(0,1,EStartPar 0),(1,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
-              (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+              (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
   ,testPar' 4 [(3,m3),(5,m5),(7,m7)]
               [(0,3,EStartPar 0),(3,99,EEndPar 0),(0,5,EStartPar 0),(5,99,EEndPar 0),(0,7,EStartPar 0),(7,99,EEndPar 0)] 
-              (A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7])
+              (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7])
   ,testPar' 5 [(1, m3), (2, m5)]
               [(0,1,EStartPar 0),(1,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
-              (A.Several mU [A.Several mU [A.OnlyP m2 sm3],A.Several mU [A.OnlyP m4 sm5]])
+              (A.Several mU [A.Several mU [A.Only m2 sm3],A.Several mU [A.Only m4 sm5]])
   ,testPar' 6 [(3,m3),(5,m5),(7,m7),(9,m9)]
               [(0,3,EStartPar 0), (0,5,EStartPar 0), (0,7,EStartPar 0), (0,9,EStartPar 0)
               ,(3,99,EEndPar 0), (5,99,EEndPar 0), (7,99,EEndPar 0), (9,99,EEndPar 0)]
-              (A.Several m1 [A.Several m10 [A.OnlyP m2 sm3,A.OnlyP m4 sm5,A.OnlyP m6 sm7], A.OnlyP m8 sm9])
+              (A.Several m1 [A.Several m10 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7], A.Only m8 sm9])
 
   ,testPar' 10 [(1, m3), (2, m5), (6, m6),(106,sub m6 100)]
                [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
-               (A.Several m1 [A.Spec mU (someSpec m6) $ A.OnlyP m2 sm3,A.OnlyP m4 sm5])
+               (A.Several m1 [A.Spec mU (someSpec m6) $ A.Only m2 sm3,A.Only m4 sm5])
   ,testPar' 11 [(1, m3), (2, m5), (3,m7), (6, m6),(106,sub m6 100)]
                [(0,6,EStartPar 0),(6,1,EStartPar 1),(6,2,EStartPar 1),(1,106,EEndPar 1),(2,106,EEndPar 1)
                ,(106,99,EEndPar 0), (0,3,EStartPar 0), (3,99,EEndPar 0)]
-               (A.Several m1 [A.Spec mU (someSpec m6) $ A.Several mU [A.OnlyP mU sm3, A.OnlyP mU sm5], A.OnlyP mU sm7])
+               (A.Several m1 [A.Spec mU (someSpec m6) $ A.Several mU [A.Only mU sm3, A.Only mU sm5], A.Only mU sm7])
 
   ,testPar' 20 [(1,m1),(100,sub m1 100)] [(0,1,EStartPar 0),(1,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
@@ -240,7 +240,7 @@ testPar = TestLabel "testPar" $ TestList
   
   ,testPar' 100 [(1,m6), (2,m3), (3,m5), (4, sub m6 1)]
     [(0,1,EStartPar 0), (1,2,EStartPar 1), (2,4,EEndPar 1), (1,3,EStartPar 1), (3,4,EEndPar 1), (4,99,EEndPar 0)]
-    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5])  
+    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])  
 
   ,testPar' 101 [(1,m1), (2,m2), (3,m3), (11,sub m1 1), (4,m4), (5,m5), (6,m6), (7,m7), (15, sub m5 1)]
     -- The links in the main PAR:
@@ -251,16 +251,16 @@ testPar = TestLabel "testPar" $ TestList
     ,(5,6,EStartPar 2), (6,15,EEndPar 2), (5,7,EStartPar 2), (7,15,EEndPar 2)]
       
     (A.Several mU
-      [(A.Rep m1 (A.For m1 undefined undefined undefined) $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3])
-      ,A.OnlyP mU sm4
-      ,(A.Rep m5 (A.For m5 undefined undefined undefined) $ A.Several mU [A.OnlyP mU sm6,A.OnlyP mU sm7])])
+      [(A.Rep m1 (A.For m1 undefined undefined undefined) $ A.Several mU [A.Only mU sm2,A.Only mU sm3])
+      ,A.Only mU sm4
+      ,(A.Rep m5 (A.For m5 undefined undefined undefined) $ A.Several mU [A.Only mU sm6,A.Only mU sm7])])
 
   ,testPar' 102 [(1,m6), (4, sub m6 1)]
     [(0,1,EStartPar 0), (1,4,ESeq), (4,99,EEndPar 0)]
     (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several mU [])
  ]
   where
-    testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured -> Test
+    testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
     testPar' n a b s = testGraph ("testPar " ++ show n) (a ++ [(0,m0), (99,sub m0 1)]) [0] b (A.Par m0 A.PlainPar s)
 
 testWhile :: Test
@@ -268,11 +268,11 @@ testWhile = TestLabel "testWhile" $ TestList
  [
     testGraph "testWhile 0" [(0,m0), (1,m1)] [0] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
    ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [2] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
    ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [7] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP m9 $ A.While mU (A.True m2) sm3,A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
    ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [7] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
-      (A.Seq m0 $ A.Several m1 [A.OnlyP m6 sm7,A.OnlyP mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.OnlyP mU sm3,A.OnlyP mU sm9],A.OnlyP m4 sm5])
+      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.Only mU sm3,A.Only mU sm9],A.Only m4 sm5])
  ]
 
 testCase :: Test
@@ -290,8 +290,8 @@ testCase = TestLabel "testCase" $ TestList
   --TODO test case statements that have specs
  ]
  where
-   cases :: Meta -> [A.Option] -> A.Structured
-   cases m = (A.Several m) . (map (A.OnlyO mU))
+   cases :: Meta -> [A.Option] -> A.Structured A.Option
+   cases m = (A.Several m) . (map (A.Only mU))
 
 testIf :: Test
 testIf = TestLabel "testIf" $ TestList
@@ -306,8 +306,8 @@ testIf = TestLabel "testIf" $ TestList
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
  ]
  where
-   ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured
-   ifs m = (A.Several m) . (map (\(e,p) -> A.OnlyC mU $ A.Choice (findMeta e) e p))
+   ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured A.Choice
+   ifs m = (A.Several m) . (map (\(e,p) -> A.Only mU $ A.Choice (findMeta e) e p))
 
 testProcFuncSpec :: Test
 testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
@@ -318,16 +318,16 @@ testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
    -- Single spec of process (with body with SEQ SKIP SKIP):
    ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(4,m5), (9,m9)] [1,9] ([(1,2,ESeq)] ++ [(9,0,ESeq), (0,4,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
-        A.Seq m0 $ A.Several m1 [A.OnlyP m2 sm3,A.OnlyP m4 sm5]
+        A.Seq m0 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5]
       ) $ A.Several mU [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
    ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100), (10,m10), (11, m11)] [0,10,11]
       ([(0,7,ESeq), (7,8,ESeq), (8,1,ESeq)] ++ [(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
-        A.Seq mU $ A.Several mU [A.OnlyP mU sm2,A.OnlyP mU sm3]
+        A.Seq mU $ A.Several mU [A.Only mU sm2,A.Only mU sm3]
       ) $ 
        A.Spec mU (A.Specification m7 undefined $ A.Proc m11 undefined undefined $
-        A.Seq mU $ A.Several mU [A.OnlyP mU sm4,A.OnlyP mU sm5]
+        A.Seq mU $ A.Several mU [A.Only mU sm4,A.Only mU sm5]
       )  
       $ A.Several mU [])
   ]
@@ -528,27 +528,6 @@ sub3 x = x-3
 -- (such as for A.Alternative) you need to take account of this in its parent items, and bump
 -- up the required size for them accordingly.
 
--- | A type that indicates which of the OnlyX items are allowed in a given A.Structured.
--- This is to avoid generating, for example, A.If with A.OnlyA things inside them.
-data OnlyAllowed = OA {
-    onlyP :: Bool
-   ,onlyO :: Bool
-   ,onlyC :: Bool
-   ,onlyA :: Bool
-  }
-
-nothing = OA False False False False
-
-justP = nothing {onlyP = True}
-justO = nothing {onlyO = True}
-justC = nothing {onlyC = True}
-justA = nothing {onlyA = True}
-
--- | Slightly cheaty way of easily masking out items:
-cond :: Bool -> (Int, a) -> (Int, a)
-cond True = id
-cond False = const (1000000, undefined)
-
 -- | Generates a simple expression (A.True m).
 genExpression :: GenL A.Expression
 genExpression = nextIdT >>* makeMeta' >>= genElem1 A.True
@@ -564,6 +543,9 @@ genAlternative n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
     (3, genElem3 A.AlternativeSkip m genExpression . genProcess . sub2)
   ]
 
+genAlternative' :: (Int, Int -> GenL A.Alternative)
+genAlternative' = (3, genAlternative)
+
 -- | Generates a A.Specification.
 genSpecification :: GenL A.Specification
 genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (comb0 $ simpleName "x") genSpecType
@@ -577,27 +559,48 @@ genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (c
        --TODO proc and function declaration
       ]
 
+genChoice :: Int -> GenL A.Choice
+genChoice n = nextIdT >>* makeMeta' >>= \m -> (comb2 (\e p -> A.Choice emptyMeta e p) genExpression . genProcess . sub2) n
+
+genChoice' :: (Int, Int -> GenL A.Choice)
+genChoice' = (3, genChoice)
+
+genOption :: Int -> GenL A.Option
+genOption = comb1 (A.Else emptyMeta) . genProcess . sub1
+
+genOption' :: (Int, Int -> GenL A.Option)
+genOption' = (1, genOption)
+
 genReplicator :: GenL A.Replicator
 genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem4 A.For m (comb0 $ simpleName "i") genExpression genExpression
 
--- | Generates a A.Structured, obeying the given OnlyAllowed structure.
-genStructured :: OnlyAllowed -> Int -> GenL A.Structured
-genStructured allowed n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
-  [
-    cond (onlyP allowed) (2,genElem2 A.OnlyP m . genProcess . sub1 )
-   ,cond (onlyO allowed) (2,comb1 (A.OnlyO emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
-   ,cond (onlyC allowed) (3,comb2 (\e p -> A.OnlyC emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
-   ,cond (onlyA allowed) (4,genElem2 A.OnlyA m . genAlternative . sub1 )
-   
+class ReplicatorAnnotation a where
+  replicatorItem :: (Int, Int -> GenL a) -> Maybe (Int, Int -> GenL (A.Structured a))
+
+replicatorItem' x = (4, genElem3 A.Rep m genReplicator . genStructured x . sub3)
+
    --Replicators are allowed in ALTs, IFs, SEQs and PARs:
-   
-   ,cond (onlyP allowed || onlyC allowed || onlyA allowed)
-     (4, genElem3 A.Rep m genReplicator . genStructured allowed . sub3)
+instance ReplicatorAnnotation A.Process where replicatorItem = Just . replicatorItem'
+instance ReplicatorAnnotation A.Alternative where replicatorItem = Just . replicatorItem'
+instance ReplicatorAnnotation A.Choice where replicatorItem = Just . replicatorItem'
+
+instance ReplicatorAnnotation A.Option where replicatorItem = const Nothing
+
+-- | Generates a A.Structured, obeying the given OnlyAllowed structure.
+genStructured :: (Data a, ReplicatorAnnotation a) => (Int, Int -> GenL a) -> Int -> GenL (A.Structured a)
+genStructured (no,genOnly) n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
+ ([{-
+    cond (onlyP allowed) (2,genElem2 A.Only m . genProcess . sub1 )
+   ,cond (onlyO allowed) (2,comb1 (A.Only emptyMeta . A.Else emptyMeta) . genProcess . sub1 )
+   ,cond (onlyC allowed) (3,comb2 (\e p -> A.Only emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
+   ,cond (onlyA allowed) (4,genElem2 A.Only m . genAlternative . sub1 )
+-}   
+   (no - 1, genElem2 A.Only m . genOnly . sub1)
 
    -- Specs currently don't work with Case statements TODO
-   ,cond (not $ onlyO allowed) (3,genElem3 A.Spec m genSpecification . genStructured allowed . sub2 )
-   ,(1,genElem2 A.Several m . genList (genStructured allowed) . sub1)
-  ]
+   ,(3,genElem3 A.Spec m genSpecification . genStructured (no, genOnly) . sub2 )
+   ,(1,genElem2 A.Several m . genList (genStructured (no, genOnly)) . sub1)
+  ] ++ maybeToList (replicatorItem (no,genOnly)) )
 
 -- | Generates a A.Process.
 genProcess :: Int -> GenL A.Process
@@ -605,32 +608,35 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
   [
     (1,const $ genElem1 A.Skip m)
    ,(1,const $ genElem1 A.Stop m)
-   ,(2,genElem2 A.Seq m . genStructured justP . sub1)
-   ,(2,genElem3 A.Par m (comb0 A.PlainPar) . genStructured justP . sub1)
+   ,(2,genElem2 A.Seq m . genStructured genProcess' . sub1)
+   ,(2,genElem3 A.Par m (comb0 A.PlainPar) . genStructured genProcess' . sub1)
    ,(3,genElem3 A.While m genExpression . genProcess . sub2)
-   ,(2,genElem2 A.If m . genStructured justC . sub1)
-   ,(3,genElem3 A.Case m genExpression . genStructured justO . sub2)
+   ,(2,genElem2 A.If m . genStructured genChoice' . sub1)
+   ,(3,genElem3 A.Case m genExpression . genStructured genOption' . sub2)
    ,(2,const $ genElem3 A.Assign m (comb0 [variable "x"]) genExpressionList)
    ,(1,const $ genElem2 A.GetTime m (comb0 $ variable "x"))
    ,(1,const $ genElem3 A.Wait m (comb0 A.WaitFor) genExpression)
-   ,(2,genElem3 A.Alt m (comb0 True) . genStructured justA . sub1)
+   ,(2,genElem3 A.Alt m (comb0 True) . genStructured genAlternative' . sub1)
   ]
 
+genProcess' :: (Int, Int -> GenL A.Process)
+genProcess' = (1, genProcess)
 
 -- | Generates a flow-graph from the given AST.
 -- TODO put this in proper error monad
-genGraph :: A.Structured -> FlowGraph Identity ()
+genGraph :: Data a => A.Structured a -> FlowGraph' Identity () a
 genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) fst $ runIdentity $ buildFlowGraph funcs s
   where
-    funcs = mkLabelFuncsConst (return ()) 
+    funcs :: GraphLabelFuncs Identity ()
+    funcs = mkLabelFuncsConst (return ())
 
 -- | Given a flow-graph, it returns a list of all the identity alteration functions,
 -- for each node.  Applying any, many or all of these functions to the source AST
 -- should leave it unchanged.
-pickFuncId :: Monad m => FlowGraph m () -> [A.Structured -> m A.Structured]
+pickFuncId :: (Data a, Monad m) => FlowGraph' m () a -> [A.Structured a -> m (A.Structured a)]
 pickFuncId g = map (applyFunc . getFunc) (labNodes g)
   where
-    getFunc (_,Node (_,_,f)) = f
+    getFunc (_,n) = getNodeFunc n
     
     applyFunc (AlterProcess f) = f return
     applyFunc (AlterExpression f) = f return
@@ -641,10 +647,10 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
 
 -- | Given a flow-graph, it returns a list of the meta-tag replacement alteration functions,
 -- for each meta-tag (i.e. each node).
-pickFuncRep :: Monad m => FlowGraph m () -> Map.Map Meta (A.Structured -> m A.Structured)
+pickFuncRep :: (Data a, Monad m) => FlowGraph' m () a -> Map.Map Meta (A.Structured a -> m (A.Structured a))
 pickFuncRep gr = Map.fromList $ map (helpApplyFunc . getMetaFunc) (labNodes gr)
   where
-    getMetaFunc (_,Node (m,_,f)) = (m,f)
+    getMetaFunc (_,n) = (getNodeMeta n,getNodeFunc n)
     
     helpApplyFunc (m,f) = (m, applyFunc (m,f))
     
@@ -687,26 +693,26 @@ testModify =
     prop_Id :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
     prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g') $ \f -> runIdentity (f g') *==* g'
       where
-        g' = A.OnlyP emptyMeta g
+        g' = A.Only emptyMeta g
 
     -- | Checks that applying any set (from the powerset of replacement functions) of replacement functions
     -- produces the expected result.
     prop_Rep :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
     prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g') $ 
-        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g')) *==* (Map.lookup ms rest >>* A.OnlyP emptyMeta)
+        \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g')) *==* (Map.lookup ms rest >>* A.Only emptyMeta)
       where
-        g' = A.OnlyP emptyMeta g
+        g' = A.Only emptyMeta g
   
     -- | This tests our genNumsToTotal function, which is itself a test generator; nasty!
     prop_gennums :: Int -> Result
     prop_gennums n = generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum) *==* n
 
     -- | Repeatedly pairs the map with each element of the powerset of its keys
-    helper :: Monad m => Map.Map Meta (A.Structured -> m A.Structured) -> [(Map.Map Meta (A.Structured -> m A.Structured), [Meta])]
+    helper :: Monad m => Map.Map Meta (A.Structured a -> m (A.Structured a)) -> [(Map.Map Meta (A.Structured a -> m (A.Structured a)), [Meta])]
     helper fs = zip (repeat fs) (powerset $ Map.keys fs)
 
     -- | Applies the functions associated with the given meta tags
-    applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured -> m A.Structured) -> (A.Structured -> m A.Structured)
+    applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured a -> m (A.Structured a)) -> (A.Structured a -> m (A.Structured a))
     applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
 
 

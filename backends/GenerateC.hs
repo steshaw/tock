@@ -74,7 +74,7 @@ data GenOps = GenOps {
     -- | Generates the list of actual parameters to a function\/proc.
     genActuals :: GenOps -> [A.Actual] -> CGen (),
     genAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen(),
-    genAlt :: GenOps -> Bool -> A.Structured -> CGen (),
+    genAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
     genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
     -- | Declares a constant array for the sizes (dimensions) of a C array.
@@ -93,7 +93,7 @@ data GenOps = GenOps {
     -- wheter or not one free dimension is allowed (True <=> allowed).
     genBytesIn :: GenOps -> Meta -> A.Type -> Either Bool A.Variable -> CGen (),
     -- | Generates a case statement over the given expression with the structured as the body.
-    genCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen (),
+    genCase :: GenOps -> Meta -> A.Expression -> A.Structured A.Option -> CGen (),
     genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
     genClearMobile :: GenOps -> Meta -> A.Variable -> CGen (),
     genConversion :: GenOps -> Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
@@ -115,7 +115,7 @@ data GenOps = GenOps {
     -- | Gets the current time into the given variable
     genGetTime :: GenOps -> Meta -> A.Variable -> CGen (),
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
-    genIf :: GenOps -> Meta -> A.Structured -> CGen (),
+    genIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen (),
     genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
     genInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen (),
     genIntrinsicFunction :: GenOps -> Meta -> String -> [A.Expression] -> CGen (),
@@ -133,7 +133,7 @@ data GenOps = GenOps {
     genOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen (),
     -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
     genOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
-    genPar :: GenOps -> A.ParMode -> A.Structured -> CGen (),
+    genPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen (),
     genProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen (),
     genProcess :: GenOps -> A.Process -> CGen (),
     -- | Generates a replicator loop, given the replicator and body
@@ -141,7 +141,7 @@ data GenOps = GenOps {
     -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
     genReplicatorLoop :: GenOps -> A.Replicator -> CGen (),
     genRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
-    genSeq :: GenOps -> A.Structured -> CGen (),
+    genSeq :: GenOps -> A.Structured A.Process -> CGen (),
     genSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: GenOps -> String -> A.Expression -> CGen (),
     genSizeSuffix :: GenOps -> String -> CGen (),
@@ -150,11 +150,11 @@ data GenOps = GenOps {
     genSpecMode :: GenOps -> A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
     genStop :: GenOps -> Meta -> String -> CGen (),
-    genStructured :: GenOps -> A.Structured -> (A.Structured -> CGen ()) -> CGen (),
+    genStructured :: forall a. Data a => GenOps -> A.Structured a -> (Meta -> a -> CGen ()) -> CGen (),
     genTLPChannel :: GenOps -> TLPChannel -> CGen (),
     genTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen (),
     genTimerWait :: GenOps -> A.Expression -> CGen (),
-    genTopLevel :: GenOps -> A.Structured -> CGen (),
+    genTopLevel :: GenOps -> A.AST -> CGen (),
     -- | Generates the type as it might be used in a cast expression
     genType :: GenOps -> A.Type -> CGen (),
     genTypeSymbol :: GenOps -> String -> A.Type -> CGen (),
@@ -263,12 +263,12 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generate :: GenOps -> A.Structured -> PassM String
+generate :: GenOps -> A.AST -> PassM String
 generate ops ast
     =  do (a, out) <- runWriterT (call genTopLevel ops ast)
           return $ concat out
 
-generateC :: A.Structured -> PassM String
+generateC :: A.AST -> PassM String
 generateC = generate cgenOps
 
 cgenTLPChannel :: GenOps -> TLPChannel -> CGen ()
@@ -276,14 +276,14 @@ cgenTLPChannel _ TLPIn = tell ["in"]
 cgenTLPChannel _ TLPOut = tell ["out"]
 cgenTLPChannel _ TLPError = tell ["err"]
 
-cgenTopLevel :: GenOps -> A.Structured -> CGen ()
+cgenTopLevel :: GenOps -> A.AST -> CGen ()
 cgenTopLevel ops s
     =  do tell ["#include <tock_support.h>\n"]
           cs <- get
           tell ["extern int " ++ nameString n ++ "_stack_size;\n"
                 | n <- Set.toList $ csParProcs cs]
           sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
-          call genStructured ops s (\s -> tell ["\n#error Invalid top-level item: ",show s])
+          call genStructured ops s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
@@ -347,12 +347,12 @@ cgenOverArray ops m var func
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
-cgenStructured :: GenOps -> A.Structured -> (A.Structured -> CGen ()) -> CGen ()
+cgenStructured :: Data a => GenOps -> A.Structured a -> (Meta -> a -> CGen ()) -> CGen ()
 cgenStructured ops (A.Rep _ rep s) def = call genReplicator ops rep (call genStructured ops s def)
 cgenStructured ops (A.Spec _ spec s) def = call genSpec ops spec (call genStructured ops s def)
 cgenStructured ops (A.ProcThen _ p s) def = call genProcess ops p >> call genStructured ops s def
 cgenStructured ops (A.Several _ ss) def = sequence_ [call genStructured ops s def | s <- ss]
-cgenStructured _ s def = def s
+cgenStructured ops (A.Only m s) def = def m s
 
 --}}}
 
@@ -1618,13 +1618,13 @@ cgenStop ops m s
           tell [",\"", s, "\");"]
 --}}}
 --{{{  seq
-cgenSeq :: GenOps -> A.Structured -> CGen ()
+cgenSeq :: GenOps -> A.Structured A.Process -> CGen ()
 cgenSeq ops s = call genStructured ops s doP
   where
-    doP (A.OnlyP _ p) = call genProcess ops p
+    doP _ p = call genProcess ops p
 --}}}
 --{{{  if
-cgenIf :: GenOps -> Meta -> A.Structured -> CGen ()
+cgenIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen ()
 cgenIf ops m s
     =  do label <- makeNonce "if_end"
           tell ["/*",label,"*/"]
@@ -1632,10 +1632,10 @@ cgenIf ops m s
           call genStop ops m "no choice matched in IF process"
           tell [label, ":;"]
   where
-    genIfBody :: String -> A.Structured -> CGen ()
+    genIfBody :: String -> A.Structured A.Choice -> CGen ()
     genIfBody label s = call genStructured ops s doC
       where
-        doC (A.OnlyC m (A.Choice m' e p))
+        doC m (A.Choice m' e p)
             = do tell ["if("]
                  call genExpression ops e
                  tell ["){"]
@@ -1644,7 +1644,7 @@ cgenIf ops m s
                  tell ["}"]
 --}}}
 --{{{  case
-cgenCase :: GenOps -> Meta -> A.Expression -> A.Structured -> CGen ()
+cgenCase :: GenOps -> Meta -> A.Expression -> A.Structured A.Option -> CGen ()
 cgenCase ops m e s
     =  do tell ["switch("]
           call genExpression ops e
@@ -1655,17 +1655,17 @@ cgenCase ops m e s
                call genStop ops m "no option matched in CASE process"
           tell ["}"]
   where
-    genCaseBody :: CGen () -> A.Structured -> CGen Bool
+    genCaseBody :: CGen () -> A.Structured A.Option -> CGen Bool
     genCaseBody coll (A.Spec _ spec s)
         = genCaseBody (call genSpec ops spec coll) s
-    genCaseBody coll (A.OnlyO _ (A.Option _ es p))
+    genCaseBody coll (A.Only _ (A.Option _ es p))
         =  do sequence_ [tell ["case "] >> call genExpression ops e >> tell [":"] | e <- es]
               tell ["{"]
               coll
               call genProcess ops p
               tell ["}break;"]
               return False
-    genCaseBody coll (A.OnlyO _ (A.Else _ p))
+    genCaseBody coll (A.Only _ (A.Else _ p))
         =  do tell ["default:"]
               tell ["{"]
               coll
@@ -1686,7 +1686,7 @@ cgenWhile ops e p
           tell ["}"]
 --}}}
 --{{{  par
-cgenPar :: GenOps -> A.ParMode -> A.Structured -> CGen ()
+cgenPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar ops pm s
     =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
           pids <- makeNonce "pids"
@@ -1711,13 +1711,13 @@ cgenPar ops pm s
           tell [index, " = 0;\n"]
           call genStructured ops s (freeP pids index)
   where
-    createP pids pris index (A.OnlyP _ p)
+    createP pids pris index _ p
         = do when (pm == A.PriPar) $
                tell [pris, "[", index, "] = ", index, ";\n"]
              tell [pids, "[", index, "++] = "]
              genProcAlloc p
              tell [";\n"]
-    freeP pids index (A.OnlyP _ _)
+    freeP pids index _ _
         = do tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
 
     genProcAlloc :: A.Process -> CGen ()
@@ -1731,7 +1731,7 @@ cgenPar ops pm s
     genProcAlloc p = call genMissing ops $ "genProcAlloc " ++ show p
 --}}}
 --{{{  alt
-cgenAlt :: GenOps -> Bool -> A.Structured -> CGen ()
+cgenAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen ()
 cgenAlt ops isPri s
     =  do tell ["AltStart ();\n"]
           tell ["{\n"]
@@ -1753,10 +1753,10 @@ cgenAlt ops isPri s
           tell ["}\n"]
           tell [label, ":\n;\n"]
   where
-    genAltEnable :: A.Structured -> CGen ()
+    genAltEnable :: A.Structured A.Alternative -> CGen ()
     genAltEnable s = call genStructured ops s doA
       where
-        doA (A.OnlyA _ alt)
+        doA _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
@@ -1779,10 +1779,10 @@ cgenAlt ops isPri s
                         call genVariable ops c
                         tell [");\n"]
 
-    genAltDisable :: String -> A.Structured -> CGen ()
+    genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
     genAltDisable id s = call genStructured ops s doA
       where
-        doA (A.OnlyA _ alt)
+        doA _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
@@ -1803,10 +1803,10 @@ cgenAlt ops isPri s
                         call genVariable ops c
                         tell [");\n"]
 
-    genAltProcesses :: String -> String -> String -> A.Structured -> CGen ()
+    genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
     genAltProcesses id fired label s = call genStructured ops s doA
       where
-        doA (A.OnlyA _ alt)
+        doA _ alt
             = case alt of
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p

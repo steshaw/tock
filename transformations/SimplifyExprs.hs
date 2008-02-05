@@ -74,10 +74,10 @@ functionsToProcs = doGeneric `extM` doSpecification
              doGeneric spec
     doSpecification s = doGeneric s
 
-    vpToSeq :: A.Structured -> [A.Variable] -> A.Structured
+    vpToSeq :: A.Structured A.ExpressionList -> [A.Variable] -> A.Structured A.Process
     vpToSeq (A.Spec m spec s) vs = A.Spec m spec (vpToSeq s vs)
     vpToSeq (A.ProcThen m p s) vs = A.ProcThen m p (vpToSeq s vs)
-    vpToSeq (A.OnlyEL m el) vs = A.OnlyP m $ A.Assign m vs el
+    vpToSeq (A.Only m el) vs = A.Only m $ A.Assign m vs el
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
@@ -121,23 +121,23 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
       where m = findMeta e
 
 transformConstr :: Data t => t -> PassM t
-transformConstr = doGeneric `extM` doStructured
+transformConstr = doGeneric `ext1M` doStructured
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric transformConstr
     
-    doStructured :: A.Structured -> PassM A.Structured
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ t (A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
       = do indexVarSpec@(A.Specification _ indexVar _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
            scope' <- doGeneric scope
            return $ A.Spec m (A.Specification m' n (A.Declaration m' t Nothing)) $ A.ProcThen m''
              (A.Seq m'' $ A.Spec m'' (indexVarSpec) $ A.Several m'' [
-               A.OnlyP m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
-               A.Rep m'' rep $ A.OnlyP m'' $ A.Seq m'' $ A.Several m'' 
-                   [A.OnlyP m'' $ A.Assign m'' 
+               A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
+               A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m'' 
+                   [A.Only m'' $ A.Assign m'' 
                      [A.SubscriptedVariable m'' (A.Subscript m'' $ A.ExprVariable m'' $ A.Variable m'' indexVar) $ A.Variable m'' n]
                      $ A.ExpressionList m'' [exp]
-                   ,A.OnlyP m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus 
+                   ,A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus 
                      (A.ExprVariable m'' $ A.Variable m'' indexVar)
                      (A.Literal m'' A.Int $ A.IntLiteral m'' "1")]
                    ]
@@ -149,7 +149,7 @@ transformConstr = doGeneric `extM` doStructured
 -- so.
 pullUp :: Data t => t -> PassM t
 pullUp = doGeneric
-          `extM` doStructured
+          `ext1M` doStructured
           `extM` doProcess
           `extM` doSpecification
           `extM` doLiteralRepr
@@ -162,7 +162,7 @@ pullUp = doGeneric
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
-    doStructured :: A.Structured -> PassM A.Structured
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured s
         =  do pushPullContext
               -- Recurse over the body, then apply the pulled items to it
@@ -179,7 +179,7 @@ pullUp = doGeneric
               p' <- doGeneric p
               pulled <- havePulled
               p'' <- if pulled
-                       then liftM (A.Seq emptyMeta) $ applyPulled (A.OnlyP emptyMeta p')
+                       then liftM (A.Seq emptyMeta) $ applyPulled (A.Only emptyMeta p')
                        else return p'
               popPullContext
               return p''
@@ -199,7 +199,7 @@ pullUp = doGeneric
         =  do e' <- doExpression e
               fromT <- typeOfExpression e'
               spec@(A.Specification _ n' _) <- makeNonceIsExpr "retypes_expr" m' fromT e'
-              addPulled $ A.Spec m' spec
+              addPulled $ (m', Left spec)
               return $ A.Specification m n (A.Retypes m' am toT (A.Variable m' n'))
     doSpecification s = doGeneric s
 
@@ -231,7 +231,7 @@ pullUp = doGeneric
         pull t e
             = do let m = findMeta e
                  spec@(A.Specification _ n _) <- makeNonceIsExpr "array_expr" m t e
-                 addPulled $ A.Spec m spec
+                 addPulled $ (m, Left spec)
                  return $ A.ExprVariable m (A.Variable m n)
 
     -- | Pull any variable subscript that results in an array.
@@ -244,7 +244,7 @@ pullUp = doGeneric
                   do origAM <- abbrevModeOfVariable v'
                      let am = makeAbbrevAM origAM
                      spec@(A.Specification _ n _) <- makeNonceIs "array_slice" m t am v'
-                     addPulled $ A.Spec m spec
+                     addPulled $ (m, Left spec)
                      return $ A.Variable m n
                 _ -> return v'
     doVariable v = doGeneric v
@@ -258,12 +258,12 @@ pullUp = doGeneric
              ps <- get
              rts <- Map.lookup (A.nameName n) (csFunctionReturns ps)
              specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
-             sequence_ [addPulled $ A.Spec m spec | spec <- specs]
+             sequence_ [addPulled $ (m, Left spec) | spec <- specs]
 
              let names = [n | A.Specification _ n _ <- specs]
              let vars = [A.Variable m n | n <- names]
              let call = A.ProcCall m n ([A.ActualExpression t e | (t, e) <- zip ets es'] ++ [A.ActualVariable A.Abbrev t v | (t, v) <- zip rts vars])
-             addPulled $ A.ProcThen m call
+             addPulled $ (m, Right call)
 
              return vars
 
@@ -278,7 +278,7 @@ pullUp = doGeneric
              s' <- pullUp s
              t <- typeOfExpression e'
              spec@(A.Specification _ n _) <- makeNonceIsExpr "subscripted_expr" m t e'
-             addPulled $ A.Spec m spec
+             addPulled $ (m, Left spec)
              return $ A.ExprVariable m (A.SubscriptedVariable m s' (A.Variable m n))
     doExpression' e = doGeneric e
 

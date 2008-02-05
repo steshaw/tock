@@ -99,11 +99,13 @@ testCheckTreeForConstr = TestList
   ,doTest (1,A.Int,[con0 A.Int],[ADI A.Int])
   ,doTest (100, A.True emptyMeta, [con1 A.True],[ADI $ A.True emptyMeta])
   
-  ,doTest (200, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [con1 A.Skip], [ADI $ A.Skip emptyMeta])
-  ,doTest (201, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [con2 A.Several], [ADI $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta]])
-  ,doTest (202, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [con0 A.Int], [])
-  ,doTest (203, A.Seq emptyMeta $ A.Several emptyMeta [A.OnlyP emptyMeta $ A.Skip emptyMeta], [con2 A.OnlyP, con1 A.Skip],
-    [ADI $ A.OnlyP emptyMeta $ A.Skip emptyMeta, ADI $ A.Skip emptyMeta])
+  ,doTest (200, A.Seq emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta], [con1 A.Skip], [ADI $ A.Skip emptyMeta])
+  ,doTest (201, A.Seq emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta],
+    [con2 (A.Several :: Meta -> [A.Structured A.Process] -> A.Structured A.Process)],
+    [ADI $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta]])
+  ,doTest (202, A.Seq emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta], [con0 A.Int], [])
+  ,doTest (203, A.Seq emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta], [con2 (A.Only :: Meta -> A.Process -> A.Structured A.Process), con1 A.Skip],
+    [ADI $ A.Only emptyMeta $ A.Skip emptyMeta, ADI $ A.Skip emptyMeta])
  ]
  where
    doTest :: Data a => (Int, a, [Constr], [AnyDataItem]) -> Test

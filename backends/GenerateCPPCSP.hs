@@ -158,16 +158,16 @@ chansToAny x = do st <- get
 
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
-generateCPPCSP :: A.Structured -> PassM String
+generateCPPCSP :: A.AST -> PassM String
 generateCPPCSP = generate cppgenOps
 
 -- | Generates the top-level code for an AST.
-cppgenTopLevel :: GenOps -> A.Structured -> CGen ()
+cppgenTopLevel :: GenOps -> A.AST -> CGen ()
 cppgenTopLevel ops s
     =  do tell ["#include <tock_support_cppcsp.h>\n"]
           --In future, these declarations could be moved to a header file:
           sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
-          call genStructured ops s (\s -> tell ["\n#error Invalid top-level item: ",show s])
+          call genStructured ops s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           (chanType,writer) <- 
@@ -409,16 +409,16 @@ cppgenOutputCase ops c tag ois
 
 -- | We use the process wrappers here, in order to execute the functions in parallel.
 --We use forking instead of Run\/InParallelOneThread, because it is easier to use forking with replication.
-cppgenPar :: GenOps -> A.ParMode -> A.Structured -> CGen ()
+cppgenPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen ()
 cppgenPar ops _ s
   = do forking <- makeNonce "forking"
        tell ["{ csp::ScopedForking ",forking," ; "]
        call genStructured ops s (genPar' forking)
        tell [" }"]
        where
-         genPar' :: String -> A.Structured -> CGen ()
-         genPar' forking (A.OnlyP _ p) 
-           = case p of 
+         genPar' :: String -> Meta -> A.Process -> CGen ()
+         genPar' forking _ p
+          = case p of 
              A.ProcCall _ n as -> 
                do tell [forking," .forkInThisThread(new proc_"]
                   genName n
@@ -430,7 +430,7 @@ cppgenPar ops _ s
 
 
 -- | Changed to use C++CSP's Alternative class:
-cppgenAlt :: GenOps -> Bool -> A.Structured -> CGen ()
+cppgenAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen ()
 cppgenAlt ops _ s 
   = do guards <- makeNonce "alt_guards"
        tell ["std::list< csp::Guard* > ", guards, " ; "]
@@ -449,10 +449,10 @@ cppgenAlt ops _ s
        tell [label, ":\n;\n"]
   where
     --This function is like the enable function in GenerateC, but this one merely builds a list of guards.  It does not do anything other than add to the guard list
-    initAltGuards :: String -> A.Structured -> CGen ()
+    initAltGuards :: String -> A.Structured A.Alternative -> CGen ()
     initAltGuards guardList s = call genStructured ops s doA
       where
-        doA (A.OnlyA _ alt)
+        doA  _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
@@ -475,10 +475,10 @@ cppgenAlt ops _ s
 
     -- This is the same as GenerateC for now -- but it's not really reusable
     -- because it's so closely tied to how ALT is implemented in the backend.
-    genAltProcesses :: String -> String -> String -> A.Structured -> CGen ()
+    genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
     genAltProcesses id fired label s = call genStructured ops s doA
       where
-        doA (A.OnlyA _ alt)
+        doA _ alt
             = case alt of
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p
@@ -1047,7 +1047,7 @@ cppgenUnfoldedVariable ops m var
 --{{{  if
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
 
-cppgenIf :: GenOps -> Meta -> A.Structured -> CGen ()
+cppgenIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen ()
 cppgenIf ops m s
     =  do ifExc <- makeNonce "if_exc"
           tell ["class ",ifExc, "{};try{"]
@@ -1055,10 +1055,10 @@ cppgenIf ops m s
           call genStop ops m "no choice matched in IF process"
           tell ["}catch(",ifExc,"){}"]
   where
-    genIfBody :: String -> A.Structured -> CGen ()
+    genIfBody :: String -> A.Structured A.Choice -> CGen ()
     genIfBody ifExc s = call genStructured ops s doC
       where
-        doC (A.OnlyC m (A.Choice m' e p))
+        doC m (A.Choice m' e p)
             = do tell ["if("]
                  call genExpression ops e
                  tell ["){"]

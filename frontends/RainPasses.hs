@@ -86,9 +86,9 @@ transformInt = everywhereM (mkM transformInt')
 -- This may seem like three passes in one, but if you try to separate them out, it just ends up
 -- with more confusion and more code.
 uniquifyAndResolveVars :: Data t => t -> PassM t
-uniquifyAndResolveVars = everywhereM (mkM uniquifyAndResolveVars')
+uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
   where
-    uniquifyAndResolveVars' :: A.Structured -> PassM A.Structured
+    uniquifyAndResolveVars' :: Data a => A.Structured a -> PassM (A.Structured a)
     
     --Variable declarations:
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration {})) scope) 
@@ -164,9 +164,9 @@ checkIntegral _ = Nothing
 
 -- | Transforms seqeach\/pareach loops over things like [0..99] into SEQ i = 0 FOR 100 loops
 transformEachRange :: Data t => t -> PassM t
-transformEachRange = everywhereM (mkM transformEachRange')
+transformEachRange = everywhereM (mk1M transformEachRange')
   where
-    transformEachRange' :: A.Structured -> PassM A.Structured
+    transformEachRange' :: forall a. Data a => A.Structured a -> PassM (A.Structured a)
     transformEachRange' s@(A.Rep m _ _)
       = case getMatchedItems patt s of 
           Left _ -> return s --Doesn't match, return the original 
@@ -183,7 +183,8 @@ transformEachRange = everywhereM (mkM transformEachRange')
                    ) body
                  else dieP eachMeta "Items in range constructor (x..y) are not integer literals"
       where
-        patt = tag3 A.Rep (Named "repMeta" DontCare) (
+        patt :: Pattern
+        patt = tag3 (A.Rep :: Meta -> A.Replicator -> A.Structured a -> A.Structured a) (Named "repMeta" DontCare) (
                  tag3 A.ForEach (Named "eachMeta" DontCare) (Named "loopVar" DontCare) $ 
                    tag2 A.ExprConstr DontCare $ 
                      tag3 A.RangeConstr DontCare (tag3 A.Literal DontCare DontCare $ Named "begin" DontCare) 
@@ -197,9 +198,9 @@ transformEachRange = everywhereM (mkM transformEachRange')
 
 -- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
 transformEach :: Data t => t -> PassM t
-transformEach = everywhereM (mkM transformEach')
+transformEach = everywhereM (mk1M transformEach')
   where
-    transformEach' :: A.Structured -> PassM A.Structured
+    transformEach' :: Data a => A.Structured a -> PassM (A.Structured a)
     transformEach' (A.Rep m (A.ForEach m' loopVar loopExp) s)
       = do (spec,var,am) <- case loopExp of
              (A.ExprVariable _ v) -> return (id,v,A.Abbrev)
@@ -246,12 +247,12 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
     transformRangeRep' s = return s
 
 transformFunction :: Data t => t -> PassM t
-transformFunction = everywhereM (mkM transformFunction')
+transformFunction = return {- TODO handle functions again everywhereM (mkM transformFunction')
   where
     transformFunction' :: A.SpecType -> PassM A.SpecType
     transformFunction' (A.Function m specMode types params body)
       = case body of 
-          (A.OnlyP _ (A.Seq m' (A.Several m'' statements))) ->
+          (A.Only _ (A.Seq m' (A.Several m'' statements))) ->
             if (null statements)
               then dieP m "Functions must not have empty bodies"
               else case (last statements) of 
@@ -262,6 +263,7 @@ transformFunction = everywhereM (mkM transformFunction')
                 _ -> dieP m "Functions must have a return statement as their last statement"
           _ -> dieP m "Functions must have seq[uential] bodies"
     transformFunction' s = return s
+-}
 
 pullUpParDeclarations :: Data t => t -> PassM t
 pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
@@ -269,11 +271,11 @@ pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
     pullUpParDeclarations' :: A.Process -> PassM A.Process
     pullUpParDeclarations' p@(A.Par m mode inside) 
       = case chaseSpecs inside of
-          Just (specs, innerCode) -> return $ A.Seq m $ specs $ A.OnlyP m $ A.Par m mode innerCode
+          Just (specs, innerCode) -> return $ A.Seq m $ specs $ A.Only m $ A.Par m mode innerCode
           Nothing -> return p
     pullUpParDeclarations' p = return p
     
-    chaseSpecs :: A.Structured -> Maybe (A.Structured -> A.Structured, A.Structured)
+    chaseSpecs :: A.Structured A.Process -> Maybe (A.Structured A.Process -> A.Structured A.Process, A.Structured A.Process)
     chaseSpecs (A.Spec m spec inner) 
       = case chaseSpecs inner of
           Nothing -> Just (A.Spec m spec,inner)

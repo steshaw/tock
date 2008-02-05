@@ -34,6 +34,7 @@ module GenerateCTest (tests) where
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Writer
+import Data.Generics
 import Data.List (isInfixOf, intersperse)
 import Data.Maybe (fromMaybe)
 import Test.HUnit hiding (State)
@@ -833,21 +834,22 @@ testCase :: Test
 testCase = TestList
  [
   testBothSame "testCase 0" "switch($){default:^}" ((tcall3 genCase emptyMeta e (A.Several emptyMeta [])) . over)
-  ,testBothSame "testCase 1" "switch($){default:{@}break;}" ((tcall3 genCase emptyMeta e (A.OnlyO emptyMeta $ A.Else emptyMeta p)) . over)
-  ,testBothSame "testCase 2" "switch($){default:{#@}break;}" ((tcall3 genCase emptyMeta e (spec $ A.OnlyO emptyMeta $ A.Else emptyMeta p)) . over)
+  ,testBothSame "testCase 1" "switch($){default:{@}break;}" ((tcall3 genCase emptyMeta e (A.Only emptyMeta $ A.Else emptyMeta p)) . over)
+  ,testBothSame "testCase 2" "switch($){default:{#@}break;}" ((tcall3 genCase emptyMeta e (spec $ A.Only emptyMeta $ A.Else emptyMeta p)) . over)
   
-  ,testBothSame "testCase 10" "switch($){case $:{@}break;default:^}" ((tcall3 genCase emptyMeta e (A.OnlyO emptyMeta $ A.Option emptyMeta [intLiteral 0] p)) . over)
+  ,testBothSame "testCase 10" "switch($){case $:{@}break;default:^}" ((tcall3 genCase emptyMeta e (A.Only emptyMeta $ A.Option emptyMeta [intLiteral 0] p)) . over)
 
   ,testBothSame "testCase 20" "switch($){case $:case $:{#@}break;default:{@}break;case $:{@}break;}" ((tcall3 genCase emptyMeta e $ A.Several emptyMeta
-      [spec $ A.OnlyO emptyMeta $ A.Option emptyMeta [e, e] p
-      ,A.OnlyO emptyMeta $ A.Else emptyMeta p
-      ,A.OnlyO emptyMeta $ A.Option emptyMeta [e] p]
+      [spec $ A.Only emptyMeta $ A.Option emptyMeta [e, e] p
+      ,A.Only emptyMeta $ A.Else emptyMeta p
+      ,A.Only emptyMeta $ A.Option emptyMeta [e] p]
     ) . over)
  ]
   where
     --The expression and process won't be used so we can use what we like:
     e = A.True emptyMeta
     p = A.Skip emptyMeta
+    spec :: Data a => A.Structured a -> A.Structured a
     spec = A.Spec emptyMeta undefined
     over ops = ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
@@ -872,7 +874,7 @@ testIf = TestList
     ((tcall2 genIf emptyMeta (A.Several emptyMeta [])) . over)
   ,testBothR "testIf 1" "/\\*([[:alnum:]_]+)\\*/if\\(\\$\\)\\{@goto \\1;\\}\\^\\1:;" 
     "class ([[:alnum:]_]+)\\{\\};try\\{if\\(\\$\\)\\{@throw \\1\\(\\);\\}\\^\\}catch\\(\\1\\)\\{\\}"
-    ((tcall2 genIf emptyMeta (A.OnlyC emptyMeta $ A.Choice emptyMeta e p)) . over)
+    ((tcall2 genIf emptyMeta (A.Only emptyMeta $ A.Choice emptyMeta e p)) . over)
  ]
  where
    e :: A.Expression

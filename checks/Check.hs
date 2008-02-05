@@ -162,11 +162,11 @@ checkInitVar m graph startNode
 
     -- Gets all variables read-from in a particular node, and the node identifier
     readNode :: (Node, FNode m UsageLabel) -> (Node, ExSet Var)
-    readNode (n, Node (_,ul,_)) = (n,NormalSet $ readVars $ nodeVars ul)
+    readNode (n, nd) = (n,NormalSet $ readVars $ nodeVars $ getNodeData nd)
   
     -- Gets all variables written-to in a particular node
     writeNode :: FNode m UsageLabel -> ExSet Var
-    writeNode (Node (_,ul,_)) = NormalSet $ writtenVars $ nodeVars ul
+    writeNode nd = NormalSet $ writtenVars $ nodeVars $ getNodeData nd
     
     -- Nothing is treated as if were the set of all possible variables:
     nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
@@ -185,7 +185,7 @@ checkInitVar m graph startNode
       
     getMeta :: Node -> Meta
     getMeta n = case lab graph n of
-      Just (Node (m,_,_)) -> m
+      Just nd -> getNodeMeta nd
       _ -> emptyMeta
         
     checkInitVar' :: Map.Map Node (ExSet Var) -> (Node, ExSet Var) -> m ()

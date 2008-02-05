@@ -27,6 +27,7 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import BackendPasses
 import Pattern
+import TagAST
 import TestUtils
 import TreeUtils
 
@@ -34,19 +35,19 @@ import TreeUtils
 testTransformWaitFor0 :: Test
 testTransformWaitFor0 = TestCase $ testPass "testTransformWaitFor0" orig (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.OnlyA m $ A.AlternativeWait m A.WaitUntil (exprVariable "t") (A.Skip m)
+    orig = A.Alt m True $ A.Only m $ A.AlternativeWait m A.WaitUntil (exprVariable "t") (A.Skip m)
     
 -- | Test pulling out a single WaitFor:
 testTransformWaitFor1 :: Test
 testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
-            tag2 A.Several DontCare
+    orig = A.Alt m True $ A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+            mSeveralP
               [
-                tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
-                ,tag2 A.OnlyP DontCare $ tag3 A.Alt DontCare True $ tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)
+                mOnlyP $ tag2 A.GetTime DontCare var
+                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)
               ]
     varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
@@ -56,19 +57,19 @@ testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transfo
 testTransformWaitFor2 :: Test
 testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t0") (A.Skip m),
-                                       A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t1") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
-            tag2 A.Several DontCare
+    orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t0") (A.Skip m),
+                                       A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t1") (A.Skip m)]
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
+          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
+            mSeveralP
               [
-                tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var0
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t0")]
-                ,tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var1
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t1")]
-                ,tag2 A.OnlyP DontCare $ tag3 A.Alt DontCare True $ tag2 A.Several DontCare
-                  [tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar0 (A.Skip m)
-                  ,tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar1 (A.Skip m)]
+                mOnlyP $ tag2 A.GetTime DontCare var0
+                ,mOnlyP $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t0")]
+                ,mOnlyP $ tag2 A.GetTime DontCare var1
+                ,mOnlyP $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t1")]
+                ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
+                  [mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar0 (A.Skip m)
+                  ,mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar1 (A.Skip m)]
               ]
     varName0 = (tag3 A.Name DontCare A.VariableName $ Named "nowt0" DontCare)
     var0 = tag2 A.Variable DontCare varName0
@@ -81,14 +82,14 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transfo
 testTransformWaitFor3 :: Test
 testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.OnlyA m $ A.AlternativeWait m A.WaitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
-            tag2 A.Several DontCare
+    orig = A.Alt m True $ A.Only m $ A.AlternativeWait m A.WaitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+            mSeveralP
               [
-                tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar 
+                mOnlyP $ tag2 A.GetTime DontCare var
+                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar 
                   (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1"))]
-                ,tag2 A.OnlyP DontCare $ tag3 A.Alt DontCare True $ tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)
+                ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)
               ]
     varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
@@ -98,14 +99,14 @@ testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transfo
 testTransformWaitFor4 :: Test
 testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
-            tag2 A.Several DontCare
+    orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+            mSeveralP
               [
-                tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
-                ,tag2 A.OnlyP DontCare $ tag3 A.Alt DontCare True $ tag2 A.Several DontCare 
-                  [tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)]
+                mOnlyP $ tag2 A.GetTime DontCare var
+                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
+                  [mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar (A.Skip m)]
               ]
     varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
@@ -115,19 +116,19 @@ testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transfo
 testTransformWaitFor5 :: Test
 testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transformWaitFor orig) (return ())
   where
-    orig = A.Alt m True $ A.Several m [A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m),
-                                       A.OnlyA m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ tag3 A.Spec DontCare (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
-          tag3 A.Spec DontCare (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
-            tag2 A.Several DontCare
+    orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m),
+                                       A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
+          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
+            mSeveralP
               [
-                tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var0
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t")]
-                ,tag2 A.OnlyP DontCare $ tag2 A.GetTime DontCare var1
-                ,tag2 A.OnlyP DontCare $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t")]
-                ,tag2 A.OnlyP DontCare $ tag3 A.Alt DontCare True $ tag2 A.Several DontCare
-                  [tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar0 (A.Skip m)
-                  ,tag2 A.OnlyA DontCare $ tag4 A.AlternativeWait DontCare A.WaitUntil evar1 (A.Skip m)]
+                mOnlyP $ tag2 A.GetTime DontCare var0
+                ,mOnlyP $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t")]
+                ,mOnlyP $ tag2 A.GetTime DontCare var1
+                ,mOnlyP $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
+                  [mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar0 (A.Skip m)
+                  ,mOnlyA $ tag4 A.AlternativeWait DontCare A.WaitUntil evar1 (A.Skip m)]
               ]
     varName0 = (tag3 A.Name DontCare A.VariableName $ Named "nowt0" DontCare)
     var0 = tag2 A.Variable DontCare varName0

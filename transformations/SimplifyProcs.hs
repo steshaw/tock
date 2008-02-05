@@ -52,7 +52,7 @@ parsToProcs = doGeneric `extM` doProcess
     doProcess p = doGeneric p
 
     -- FIXME This should be generic and in Pass.
-    doStructured :: A.Structured -> PassM A.Structured
+    doStructured :: A.Structured A.Process -> PassM (A.Structured A.Process)
     doStructured (A.Rep m r s)
         =  do r' <- parsToProcs r
               s' <- doStructured s
@@ -65,10 +65,10 @@ parsToProcs = doGeneric `extM` doProcess
         =  do p' <- parsToProcs p
               s' <- doStructured s
               return $ A.ProcThen m p' s'
-    doStructured (A.OnlyP m p)
+    doStructured (A.Only m p)
         =  do p' <- parsToProcs p
               s@(A.Specification _ n _) <- makeNonceProc m p'
-              return $ A.Spec m s (A.OnlyP m (A.ProcCall m n []))
+              return $ A.Spec m s (A.Only m (A.ProcCall m n []))
     doStructured (A.Several m ss)
         = liftM (A.Several m) $ mapM doStructured ss
 
@@ -86,7 +86,7 @@ removeParAssign = doGeneric `extM` doProcess
               let temps = [A.Variable m n | A.Specification _ n _ <- specs]
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
               let second = [A.Assign m [v] (A.ExpressionList m [A.ExprVariable m v']) | (v, v') <- zip vs temps]
-              return $ A.Seq m $ foldl (\s spec -> A.Spec m spec s) (A.Several m (map (A.OnlyP m) (first ++ second))) specs
+              return $ A.Seq m $ foldl (\s spec -> A.Spec m spec s) (A.Several m (map (A.Only m) (first ++ second))) specs
     doProcess p = doGeneric p
 
 -- | Turn assignment of arrays and records into multiple assignments.
@@ -134,7 +134,7 @@ flattenAssign = doGeneric `extM` doProcess
                                          (A.SubscriptedVariable m sub destV) m'
                                          (A.ExprVariable m'
                                            (A.SubscriptedVariable m' sub srcV))
-                         return $ A.Rep m rep $ A.OnlyP m inner
+                         return $ A.Rep m rep $ A.Only m inner
                     A.Record _ ->
                       -- Record assignments become a sequence of
                       -- assignments, one for each field.
@@ -147,7 +147,7 @@ flattenAssign = doGeneric `extM` doProcess
                                           (A.ExprVariable m'
                                             (A.SubscriptedVariable m' sub srcV))
                                      | (fName, fType) <- fs]
-                         return $ A.Several m $ map (A.OnlyP m) assigns
+                         return $ A.Several m $ map (A.Only m) assigns
 
           return $ A.Seq m $ A.Spec m src $ A.Spec m dest body
 

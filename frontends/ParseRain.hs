@@ -21,6 +21,7 @@ module ParseRain where
 
 import Control.Monad (liftM)
 import Control.Monad.State (MonadState, liftIO, get, put)
+import Data.Generics
 import Data.List
 import Data.Maybe
 import qualified IO
@@ -243,22 +244,22 @@ expression
 data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
 
 
-innerBlock :: Bool -> RainParser A.Structured
+innerBlock :: Bool -> RainParser (A.Structured A.Process)
 innerBlock declsMustBeFirst = do m <- sLeftC 
                                  lines <- linesToEnd (if declsMustBeFirst then Decls else Mixed)
                                  case lines of
                                    Left single -> return single
                                    Right lines -> return $ A.Several m lines
   where
-    wrapProc :: A.Process -> A.Structured
-    wrapProc x = A.OnlyP (findMeta x) x
+    wrapProc :: A.Process -> A.Structured A.Process
+    wrapProc x = A.Only (findMeta x) x
         
-    makeList :: Either A.Structured [A.Structured] -> [A.Structured]
+    makeList :: Either (A.Structured A.Process) [A.Structured A.Process] -> [A.Structured A.Process]
     makeList (Left s) = [s]
     makeList (Right ss) = ss
         
     --Returns either a single line (which means the immediate next line is a declaration) or a list of remaining lines
-    linesToEnd :: InnerBlockLineState -> RainParser (Either A.Structured [A.Structured])
+    linesToEnd :: InnerBlockLineState -> RainParser (Either (A.Structured A.Process) [A.Structured A.Process])
     linesToEnd state
                = (if state /= NoMoreDecls then 
                     do (m,decl) <- declaration 
@@ -270,8 +271,10 @@ innerBlock declsMustBeFirst = do m <- sLeftC
                  <|> do {st <- statement ; rest <- linesToEnd nextState ; return $ Right $ (wrapProc st) : (makeList rest)}
                  --Although return is technically a statement, we parse it here because it can only occur inside a block,
                  --and we don't want to wrap it in an A.OnlyP:
+                 {- TODO parse return again
                  <|> do {m <- sReturn ; exp <- expression ; sSemiColon ; rest <- linesToEnd nextState ; 
                    return $ Right $ (A.OnlyEL m $ A.ExpressionList (findMeta exp) [exp]) : (makeList rest)}
+                 -}
                  <|> do {sRightC ; return $ Right []}
                  <?> "statement, declaration, or end of block"
                  where
@@ -298,9 +301,9 @@ assignOp
 
 each :: RainParser A.Process
 each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
-             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
+             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.Only m st }
        <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
-             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.OnlyP m st }
+             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.Only m st }
 
 comm :: Bool -> RainParser A.Process
 comm isAlt
@@ -321,18 +324,18 @@ alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- many altCase ; optElseCase 
     singleton :: RainParser a -> RainParser [a]
     singleton p = do {a <- p ; return [a]}
   
-    altCase :: RainParser A.Structured
+    altCase :: RainParser (A.Structured A.Alternative)
     altCase = do input <- comm True
                  case input of
-                   A.Input m lv im -> do { body <- block ; return $ A.OnlyA m $ A.Alternative m lv im body }
+                   A.Input m lv im -> do { body <- block ; return $ A.Only m $ A.Alternative m lv im body }
                    _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
               <|> do (m, wm, e) <- waitStatement True
                      body <- block
-                     return $ A.OnlyA m $ A.AlternativeWait m wm e body
-    elseCase :: RainParser A.Structured
+                     return $ A.Only m $ A.AlternativeWait m wm e body
+    elseCase :: RainParser (A.Structured A.Alternative)
     elseCase = do m <- sElse
                   body <- block
-                  return $ A.OnlyA m $ A.AlternativeSkip m (A.True m) body
+                  return $ A.Only m $ A.AlternativeSkip m (A.True m) body
 
 tuple :: RainParser [A.Expression]
 tuple = do { sLeftR ; items <- expression `sepBy` sComma ; sRightR ; return items }
@@ -363,8 +366,8 @@ statement :: RainParser A.Process
 statement 
   = do { m <- sWhile ; sLeftR ; exp <- expression ; sRightR ; st <- block ; return $ A.While m exp st}
     <|> do { m <- sIf ; sLeftR ; exp <- expression ; sRightR ; st <- block ; 
-             option (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) (A.Skip m))])
-                    (do {sElse ; elSt <- block ; return (A.If m $ A.Several m [A.OnlyC m (A.Choice m exp st), A.OnlyC m (A.Choice m (A.True m) elSt)])})
+             option (A.If m $ A.Several m [A.Only m (A.Choice m exp st), A.Only m (A.Choice m (A.True m) (A.Skip m))])
+                    (do {sElse ; elSt <- block ; return (A.If m $ A.Several m [A.Only m (A.Choice m exp st), A.Only m (A.Choice m (A.True m) elSt)])})
            }
     <|> block
     <|> each
@@ -389,41 +392,41 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember :: RainParser (A.Name,A.Type)
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
-declaration :: RainParser (Meta,A.Structured -> A.Structured)
+declaration :: Data a => RainParser (Meta, A.Structured a -> A.Structured a)
 declaration = try $ do {t <- dataType; sColon ; ns <- name `sepBy1` sComma ; sSemiColon ; 
                           return (findMeta t, \x -> foldr (foldSpec t) x ns) }
   where
-    foldSpec :: A.Type -> A.Name -> (A.Structured -> A.Structured)
+    foldSpec :: Data a => A.Type -> A.Name -> (A.Structured a -> A.Structured a)
     foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t Nothing
 
-terminator :: A.Structured
+terminator :: Data a => A.Structured a
 terminator = A.Several emptyMeta []
 
-processDecl :: RainParser A.Structured
+processDecl :: RainParser A.AST
 processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m
     (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
   terminator}
 
-functionDecl :: RainParser A.Structured
+functionDecl :: RainParser A.AST
 functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- block ;
-  return $ A.Spec m
-    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (A.OnlyP (findMeta body) body)))
+  return {- $ A.Spec m  TODO handle functions again
+    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (A.Only (findMeta body) body))) -}
   terminator}
 
-topLevelDecl :: RainParser A.Structured
+topLevelDecl :: RainParser A.AST
 topLevelDecl = do decls <- many (processDecl <|> functionDecl <?> "process or function declaration")
                   eof
                   return $ A.Several emptyMeta decls
 
-rainSourceFile :: RainParser (A.Structured, CompState)
+rainSourceFile :: RainParser (A.AST, CompState)
 rainSourceFile
     =   do p <- topLevelDecl
            s <- getState
            return (p, s)
 
 -- | Load and parse a Rain source file.
-parseRainProgram :: String -> PassM A.Structured
+parseRainProgram :: String -> PassM A.AST
 parseRainProgram filename
     =  do source <- liftIO $ readFile filename
           lexOut <- liftIO $ L.runLexer filename source          

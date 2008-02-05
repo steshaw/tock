@@ -39,7 +39,7 @@ instance Die PassM where
   dieReport = throwError
 
 -- | The type of an AST-mangling pass.
-type Pass = A.Structured -> PassM A.Structured
+type Pass = A.AST -> PassM A.AST
 
 -- | Compose a list of passes into a single pass.
 runPasses :: [(String, Pass)] -> Pass
@@ -105,3 +105,6 @@ excludeConstr cons x
   = if null items then return x else dieInternal (Nothing, "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x)
       where
         items = checkTreeForConstr cons x
+
+mk1M :: (Monad m, Data a, Typeable1 t) => (forall d . Data d => t d -> m (t d)) -> a -> m a
+mk1M = ext1M return

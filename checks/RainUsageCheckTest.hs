@@ -143,11 +143,11 @@ testParUsageCheck = TestList (map doTest tests)
 buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph Identity UsageLabel
 buildTestFlowGraph ns es start end v
   = mkGraph
-      ([(-1,Node (emptyMeta,Usage Nothing (Just $ ScopeIn False v) emptyVars, undefined)),(-2,Node (emptyMeta,Usage Nothing (Just $ ScopeOut v) emptyVars, undefined))] ++ (map transNode ns))
+      ([(-1,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeIn False v) emptyVars),(-2,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeOut v) emptyVars)] ++ (map transNode ns))
       ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
   where
     transNode :: (Int, [Var], [Var]) -> (Int, FNode Identity UsageLabel)
-    transNode (n,r,w) = (n,Node (emptyMeta, (Usage Nothing Nothing $ vars r w []), undefined))
+    transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing $ vars r w []))
 
 
 testInitVar :: Test

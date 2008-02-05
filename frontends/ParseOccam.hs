@@ -1339,7 +1339,7 @@ definition
            (rs, sm) <- tryVV (sepBy1 dataType sComma) (specMode sFUNCTION)
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (A.OnlyEL m el) }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (A.Only m el) }
              <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' vp }
     <|> retypesAbbrev
     <?> "definition"
@@ -1476,7 +1476,7 @@ formalVariableType
            return (A.Abbrev, s)
     <?> "formal variable type"
 
-valueProcess :: [A.Type] -> OccParser A.Structured
+valueProcess :: [A.Type] -> OccParser (A.Structured A.ExpressionList)
 valueProcess rs
     =   do m <- md
            sVALOF
@@ -1487,7 +1487,7 @@ valueProcess rs
            el <- expressionList rs
            eol
            outdent
-           return $ A.ProcThen m p (A.OnlyEL m el)
+           return $ A.ProcThen m p (A.Only m el)
     <|> handleSpecs specification (valueProcess rs) A.Spec
     <?> "value process"
 --}}}
@@ -1536,7 +1536,7 @@ process
     <|> procInstance
     <|> intrinsicProc
     <|> handleSpecs (allocation <|> specification) process
-                    (\m s p -> A.Seq m (A.Spec m s (A.OnlyP m p)))
+                    (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
     <?> "process"
 
 --{{{ assignment (:=)
@@ -1585,7 +1585,7 @@ channelInput
                do sCASE
                   tl <- taggedList nts
                   eol
-                  return (c, A.InputCase m (A.OnlyV m (tl (A.Skip m))))
+                  return (c, A.InputCase m (A.Only m (tl (A.Skip m))))
     <?> "channel input"
 
 timerInput :: OccParser (A.Variable, A.InputMode)
@@ -1641,7 +1641,7 @@ caseInput
            return $ A.Input m c (A.InputCase m (A.Several m vs))
     <?> "case input"
 
-variant :: [(A.Name, [A.Type])] -> OccParser A.Structured
+variant :: [(A.Name, [A.Type])] -> OccParser (A.Structured A.Variant)
 variant nts
     =   do m <- md
            tl <- taggedList nts
@@ -1649,7 +1649,7 @@ variant nts
            indent
            p <- process
            outdent
-           return $ A.OnlyV m (tl p)
+           return $ A.Only m (tl p)
     <|> handleSpecs specification (variant nts) A.Spec
     <?> "variant"
 --}}}
@@ -1710,8 +1710,8 @@ seqProcess :: OccParser A.Process
 seqProcess
     =   do m <- md
            sSEQ
-           do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m (A.Several m (map (A.OnlyP m) ps)) }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Seq m (A.Rep m r' (A.OnlyP m p)) }
+           do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m (A.Several m (map (A.Only m) ps)) }
+             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Seq m (A.Rep m r' (A.Only m p)) }
     <?> "SEQ process"
 --}}}
 --{{{ IF
@@ -1722,7 +1722,7 @@ ifProcess
            return $ A.If m c
     <?> "IF process"
 
-conditional :: OccParser A.Structured
+conditional :: OccParser (A.Structured A.Choice)
 conditional
     =   do m <- md
            sIF
@@ -1730,14 +1730,14 @@ conditional
              <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; c <- ifChoice; scopeOutRep r'; outdent; return $ A.Rep m r' c }
     <?> "conditional"
 
-ifChoice :: OccParser A.Structured
+ifChoice :: OccParser (A.Structured A.Choice)
 ifChoice
     =   guardedChoice
     <|> conditional
     <|> handleSpecs specification ifChoice A.Spec
     <?> "choice"
 
-guardedChoice :: OccParser A.Structured
+guardedChoice :: OccParser (A.Structured A.Choice)
 guardedChoice
     =   do m <- md
            b <- booleanExpr
@@ -1745,7 +1745,7 @@ guardedChoice
            indent
            p <- process
            outdent
-           return $ A.OnlyC m (A.Choice m b p)
+           return $ A.Only m (A.Choice m b p)
     <?> "guarded choice"
 --}}}
 --{{{ CASE
@@ -1762,21 +1762,21 @@ caseProcess
            return $ A.Case m sel (A.Several m os)
     <?> "CASE process"
 
-caseOption :: A.Type -> OccParser A.Structured
+caseOption :: A.Type -> OccParser (A.Structured A.Option)
 caseOption t
     =   do m <- md
            ces <- tryVX (sepBy (constExprOfType t) sComma) eol
            indent
            p <- process
            outdent
-           return $ A.OnlyO m (A.Option m ces p)
+           return $ A.Only m (A.Option m ces p)
     <|> do m <- md
            sELSE
            eol
            indent
            p <- process
            outdent
-           return $ A.OnlyO m (A.Else m p)
+           return $ A.Only m (A.Else m p)
     <|> handleSpecs specification (caseOption t) A.Spec
     <?> "option"
 --}}}
@@ -1798,8 +1798,8 @@ parallel :: OccParser A.Process
 parallel
     =   do m <- md
            isPri <- parKeyword
-           do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri (A.Several m (map (A.OnlyP m) ps)) }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Par m isPri (A.Rep m r' (A.OnlyP m p)) }
+           do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri (A.Several m (map (A.Only m) ps)) }
+             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Par m isPri (A.Rep m r' (A.Only m p)) }
     <|> processor
     <?> "PAR process"
 
@@ -1830,7 +1830,7 @@ altProcess
            return $ A.Alt m isPri a
     <?> "ALT process"
 
-alternation :: OccParser (Bool, A.Structured)
+alternation :: OccParser (Bool, A.Structured A.Alternative)
 alternation
     =   do m <- md
            isPri <- altKeyword
@@ -1846,7 +1846,7 @@ altKeyword
 -- The reason the CASE guards end up here is because they have to be handled
 -- specially: you can't tell until parsing the guts of the CASE what the processes
 -- are.
-alternative :: OccParser A.Structured
+alternative :: OccParser (A.Structured A.Alternative)
 alternative
     -- FIXME: Check we don't have PRI ALT inside ALT.
     =   do (isPri, a) <- alternation
@@ -1857,24 +1857,24 @@ alternative
            (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest (sCASE >> eol)
            nts <- caseInputItems c
            vs <- maybeIndentedList m "empty ? CASE" (variant nts)
-           return $ A.OnlyA m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           return $ A.Only m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
            c <- tryVXX channel sQuest (sCASE >> eol)
            nts <- caseInputItems c
            vs <- maybeIndentedList m "empty ? CASE" (variant nts)
-           return $ A.OnlyA m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           return $ A.Only m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
     <|> handleSpecs specification alternative A.Spec
     <?> "alternative"
 
-guardedAlternative :: OccParser A.Structured
+guardedAlternative :: OccParser (A.Structured A.Alternative)
 guardedAlternative
     =   do m <- md
            makeAlt <- guard
            indent
            p <- process
            outdent
-           return $ A.OnlyA m (makeAlt p)
+           return $ A.Only m (makeAlt p)
     <?> "guarded alternative"
 
 guard :: OccParser (A.Process -> A.Alternative)
@@ -1943,7 +1943,7 @@ intrinsicProc
 --}}}
 --{{{ top-level forms
 
-topLevelItem :: OccParser A.Structured
+topLevelItem :: OccParser A.AST
 topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
                         (\m s inner -> A.Spec m s inner)
                <|> do m <- md
@@ -1959,7 +1959,7 @@ topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
 -- A source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
 -- Instead, we nest the specifications
-sourceFile :: OccParser (A.Structured, CompState)
+sourceFile :: OccParser (A.AST, CompState)
 sourceFile
     =   do p <- topLevelItem
            s <- getState
@@ -1976,7 +1976,7 @@ runTockParser toks prod cs
             Right r -> return r
 
 -- | Parse an occam program.
-parseOccamProgram :: [Token] -> PassM A.Structured
+parseOccamProgram :: [Token] -> PassM A.AST
 parseOccamProgram toks
     =  do cs <- get
           (p, cs') <- runTockParser toks sourceFile cs

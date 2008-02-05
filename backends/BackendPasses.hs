@@ -35,12 +35,12 @@ identifyParProcs = everywhereM (mkM doProcess)
     doProcess p@(A.Par _ _ s) = findProcs s >> return p
     doProcess p = return p
 
-    findProcs :: A.Structured -> PassM ()
+    findProcs :: A.Structured A.Process -> PassM ()
     findProcs (A.Rep _ _ s) = findProcs s
     findProcs (A.Spec _ _ s) = findProcs s
     findProcs (A.ProcThen _ _ s) = findProcs s
     findProcs (A.Several _ ss) = sequence_ $ map findProcs ss
-    findProcs (A.OnlyP _ (A.ProcCall _ n _))
+    findProcs (A.Only _ (A.ProcCall _ n _))
         = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
 
 transformWaitFor :: Data t => t -> PassM t
@@ -51,20 +51,20 @@ transformWaitFor = everywhereM (mkM doAlt)
       = do (a',(specs,code)) <- runStateT (everywhereM (mkM doWaitFor) a) ([],[])
            if (null specs && null code)
              then return a
-             else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.OnlyP m a'])) specs
+             else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.Only m a'])) specs
     doAlt p = return p
     
-    addSpec :: (A.Structured -> A.Structured) -> A.Structured -> A.Structured
+    addSpec :: Data a => (A.Structured a -> A.Structured a) -> A.Structured a -> A.Structured a
     addSpec spec inner = spec inner
 
-    doWaitFor :: A.Alternative -> StateT ([A.Structured -> A.Structured], [A.Structured]) PassM A.Alternative
+    doWaitFor :: A.Alternative -> StateT ([A.Structured A.Process -> A.Structured A.Process], [A.Structured A.Process]) PassM A.Alternative
     doWaitFor a@(A.AlternativeWait m A.WaitFor e p)
       = do (specs, init) <- get
            id <- lift $ makeNonce "waitFor"
            let n = (A.Name m A.VariableName id)
            let var = A.Variable m n
            put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time Nothing))], 
-                init ++ [A.OnlyP m $ A.GetTime m var, A.OnlyP m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
+                init ++ [A.Only m $ A.GetTime m var, A.Only m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
            return $ A.AlternativeWait m A.WaitUntil (A.ExprVariable m var) p
                
     doWaitFor a = return a

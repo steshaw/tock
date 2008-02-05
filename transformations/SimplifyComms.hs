@@ -49,27 +49,27 @@ outExprs = doGeneric `extM` doProcess
     doProcess (A.Output m c ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
               let foldedSpec = foldFuncs specs
-              return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.Output m c ois')
+              return $ A.Seq m (foldedSpec $ A.Only m $ A.Output m c ois')
     doProcess (A.OutputCase m c tag ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
               let foldedSpec = foldFuncs specs
-              return $ A.Seq m (foldedSpec $ A.OnlyP m $ A.OutputCase m c tag ois')
+              return $ A.Seq m (foldedSpec $ A.Only m $ A.OutputCase m c tag ois')
     doProcess p = doGeneric p
   
-    changeItem :: A.OutputItem -> PassM (A.OutputItem, A.Structured -> A.Structured)
+    changeItem :: A.OutputItem -> PassM (A.OutputItem, A.Structured A.Process -> A.Structured A.Process)
     changeItem (A.OutExpression m e) = do (e', spec) <- transExpr m e
                                           return (A.OutExpression m e', spec)
     changeItem (A.OutCounted m ce ae) = do (ce', ceSpec) <- transExpr m ce
                                            (ae', aeSpec) <- transExpr m ae
                                            return (A.OutCounted m ce' ae', ceSpec . aeSpec)
 
-    transExpr :: Meta -> A.Expression -> PassM (A.Expression, A.Structured -> A.Structured)
+    transExpr :: Meta -> A.Expression -> PassM (A.Expression, A.Structured A.Process -> A.Structured A.Process)
     -- If it's already an output direct from a variable, no need to change it:
     transExpr _ e@(A.ExprVariable {}) = return (e, id)
     transExpr m e = do (nm, spec) <- abbrevExpr m e
                        return (A.ExprVariable m $ A.Variable m nm, spec)
     
-    abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured -> A.Structured)
+    abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured A.Process -> A.Structured A.Process)
     abbrevExpr m e = do t <- typeOfExpression e
                         specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
                         return (nm, A.Spec m specification)
@@ -143,56 +143,73 @@ transformInputCase = doGeneric `extM` doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int Nothing) A.VariableName A.Original
-           s' <- doStructured v s
+           s' <- doStructuredV v s
            return $ A.Seq m $ A.Spec m' spec $ A.Several m'
-             [A.OnlyP m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
-             ,A.OnlyP m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
+             [A.Only m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
+             ,A.Only m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
     doProcess (A.Alt m pri s)
-      = do s' <- doStructured undefined s
+      = do s' <- doStructuredA s
            return (A.Alt m pri s')
     doProcess p = doGeneric p
-    
-    doStructured :: A.Variable -> A.Structured -> PassM A.Structured
+
+    -- Can't easily use generics here as we're switching from one type of Structured to another
+    doStructuredV :: A.Variable -> A.Structured A.Variant -> PassM (A.Structured A.Option)
     -- These entries all just burrow deeper into the structured:
-    doStructured v (A.ProcThen m p s)
-      = do s' <- doStructured v s
+    doStructuredV v (A.ProcThen m p s)
+      = do s' <- doStructuredV v s
            p' <- doProcess p
            return (A.ProcThen m p' s')
-    doStructured v (A.Spec m sp st)
-      = do st' <- doStructured v st
+    doStructuredV v (A.Spec m sp st)
+      = do st' <- doStructuredV v st
            return (A.Spec m sp st')
-    doStructured v (A.Several m ss)
-      = do ss' <- mapM (doStructured v) ss
+    doStructuredV v (A.Several m ss)
+      = do ss' <- mapM (doStructuredV v) ss
            return (A.Several m ss')
-    doStructured v (A.Rep m rep s)
-      = do s' <- doStructured v s
+    doStructuredV v (A.Rep m rep s)
+      = do s' <- doStructuredV v s
            return (A.Rep m rep s')
-           
     -- Transform variant options:
-    doStructured chanVar (A.OnlyV m (A.Variant m' n iis p))
+    doStructuredV chanVar (A.Only m (A.Variant m' n iis p))
       = do (Right items) <- protocolItems chanVar
            let (Just idx) = elemIndex n (fst $ unzip items)
            p' <- doProcess p
-           return $ A.OnlyO m $ A.Option m' [makeConstant m' idx] $
+           return $ A.Only m $ A.Option m' [makeConstant m' idx] $
              if (length iis == 0)
                then p'
                else A.Seq m' $ A.Several m'
-                      [A.OnlyP m' $ A.Input m' chanVar (A.InputSimple m' iis)
-                      ,A.OnlyP (findMeta p') p']
-                      
+                      [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis)
+                      ,A.Only (findMeta p') p'] 
+ 
+    doStructuredA :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative)
+    -- TODO use generics instead of this boilerplate, but don't omit the doProcess call in ProcThen!
+    doStructuredA (A.ProcThen m p s)
+      = do s' <- doStructuredA s
+           p' <- doProcess p
+           return (A.ProcThen m p' s')
+    doStructuredA (A.Spec m sp st)
+      = do st' <- doStructuredA st
+           return (A.Spec m sp st')
+    doStructuredA (A.Several m ss)
+      = do ss' <- mapM doStructuredA ss
+           return (A.Several m ss')
+    doStructuredA (A.Rep m rep s)
+      = do s' <- doStructuredA s
+           return (A.Rep m rep s')
+
     -- Transform alt guards:
     -- The processes that are the body of input-case guards are always skip, so we can discard them:
-    doStructured _ (A.OnlyA m (A.Alternative m' v (A.InputCase m'' s) _))
+    doStructuredA (A.Only m (A.Alternative m' v (A.InputCase m'' s) _))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int Nothing) A.VariableName A.Original
-           s' <- doStructured v s
-           return $ A.Spec m' spec $ A.OnlyA m $ 
+           s' <- doStructuredV v s
+           return $ A.Spec m' spec $ A.Only m $ 
              A.Alternative m' v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
              A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
-    doStructured _ (A.OnlyA m (A.AlternativeCond m' e v (A.InputCase m'' s) _))
+    doStructuredA (A.Only m (A.AlternativeCond m' e v (A.InputCase m'' s) _))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int Nothing) A.VariableName A.Original
-           s' <- doStructured v s
-           return $ A.Spec m' spec $ A.OnlyA m $ 
+           s' <- doStructuredV v s
+           return $ A.Spec m' spec $ A.Only m $ 
              A.AlternativeCond m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
              A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
-    -- Leave other guards untouched:
-    doStructured _ a@(A.OnlyA {}) = return a
+    -- Leave other guards (and parts of Structured) untouched:
+    doStructuredA s = return s
+    

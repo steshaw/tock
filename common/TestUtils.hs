@@ -223,15 +223,15 @@ makeSimpleAssignPattern lhs rhs = stopCaringPattern emptyMeta $ mkPattern $ make
 
 -- | Turns a list of 'A.Process' into a 'A.Seq' with those processes in order, with empty meta tags.
 makeSeq :: [A.Process] -> A.Process
-makeSeq procList = A.Seq emptyMeta $ A.Several emptyMeta (map (\x -> A.OnlyP emptyMeta x) procList)
+makeSeq procList = A.Seq emptyMeta $ A.Several emptyMeta (map (A.Only emptyMeta) procList)
 
 -- | Turns a list of 'A.Process' into a 'A.Par' with those processes in order (with type 'A.PlainPar'), with empty meta tags.
 makePar :: [A.Process] -> A.Process
-makePar procList = A.Par emptyMeta A.PlainPar $ A.Several emptyMeta (map (\x -> A.OnlyP emptyMeta x) procList)
+makePar procList = A.Par emptyMeta A.PlainPar $ A.Several emptyMeta (map (A.Only emptyMeta) procList)
 
 -- | Wraps the given process in a replicated 'A.Par' of the form PAR i = 0 FOR 3.
 makeRepPar :: A.Process -> A.Process
-makeRepPar proc = A.Par emptyMeta A.PlainPar $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.OnlyP emptyMeta proc)
+makeRepPar proc = A.Par emptyMeta A.PlainPar $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.Only emptyMeta proc)
 
 -- | Creates an assignment to the given 'A.Variable' from the given 'A.Expression.'
 makeAssign :: A.Variable -> A.Expression -> A.Process

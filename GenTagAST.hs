@@ -23,6 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module GenTagAST where
 
 import Data.Generics
+import Data.List (intersperse)
 
 import qualified AST as A
 
@@ -36,7 +37,9 @@ genHeader = [
  ,"module TagAST where"
  ,"import Data.Generics"
  ,""
+ ,"import qualified AST"
  ,"import qualified AST as A"
+ ,"import qualified Metadata"
  ,"import Pattern"
  ,"import TreeUtils"
  -- Could probably auto-generate these, too:
@@ -47,6 +50,13 @@ genHeader = [
  ,"type F4 = (Data a0, Data a1, Data a2, Data a3) => a0 -> a1 -> a2 -> a3 -> Pattern"
  ,"type F5 = (Data a0, Data a1, Data a2, Data a3, Data a4) => a0 -> a1 -> a2 -> a3 -> a4 -> Pattern"
  ,"type F6 = (Data a0, Data a1, Data a2, Data a3, Data a4, Data a5) => a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> Pattern"
+ ,"type F0' a = Pattern"
+ ,"type F1' a0 = a0 -> Pattern"
+ ,"type F2' a1 = (Data a0) => a0 -> a1 -> Pattern"
+ ,"type F3' a2 = (Data a0, Data a1) => a0 -> a1 -> a2 -> Pattern"
+ ,"type F4' a3 = (Data a0, Data a1, Data a2) => a0 -> a1 -> a2 -> a3 -> Pattern"
+ ,"type F5' a4 = (Data a0, Data a1, Data a2, Data a3) => a0 -> a1 -> a2 -> a3 -> a4 -> Pattern"
+ ,"type F6' a5 = (Data a0, Data a1, Data a2, Data a3, Data a4) => a0 -> a1 -> a2 -> a3 -> a4 -> a5 -> Pattern" 
  ,""
  ]
 
@@ -60,6 +70,25 @@ genItem (num, name)
     n = show num
     mname = "m" ++ name
 
+genItem' :: String -> String -> (Int, String, [String]) -> [String]
+genItem' suffix typeName (num, name, paramTypes)
+  = [mname ++ "' :: F" ++ n ++ typeSuffix
+    ,mname ++ "' = tag" ++ n ++ " (A." ++ name ++ " :: " ++ params ++ ")"
+    ,mname ++ " :: F" ++ show (num - 1) ++ typeSuffix
+    ,mname ++ " = " ++ mname ++ "' DontCare"]
+  where
+--    typeSuffix = "' (" ++ typeName ++ ")"
+    typeSuffix = ""
+    
+    params = concat $ intersperse " -> " $
+      [case p of
+         "AST.Structured" -> typeName
+         "[AST.Structured]" -> "[" ++ typeName ++ "]"
+         _ -> p | p <- paramTypes] ++ [typeName]
+  
+    n = show num
+    mname = "m" ++ name ++ suffix
+
 consFor :: forall a. Data a => a -> [(Int, String)]
 consFor x = map consFor' (dataTypeConstrs $ dataTypeOf x)
   where
@@ -67,6 +96,26 @@ consFor x = map consFor' (dataTypeConstrs $ dataTypeOf x)
     -- I can't see a better way given the Data.Generics API
     consFor' :: Constr -> (Int, String)
     consFor' con = (length (gmapQ (const undefined) (fromConstr con :: a)), showConstr con)
+
+consParamsFor :: forall a. Data a => a -> [(Int, String, [String])]
+consParamsFor x = map consParamsFor' (dataTypeConstrs $ dataTypeOf x)
+  where
+    -- The way I work out how many arguments a constructor takes is crazy, but
+    -- I can't see a better way given the Data.Generics API
+    consParamsFor' :: Constr -> (Int, String, [String])
+    consParamsFor' con = (length cons, showConstr con, cons)
+      where
+        cons :: [String]
+        cons = gmapQ showDataType (fromConstr con :: a)
+        
+        -- Hack to handle various types:
+        showDataType :: Data b => b -> String
+        showDataType y = case n of
+          "Prelude.[]" -> "[" ++ (dataTypeName $ dataTypeOf x) ++ "]"
+          "Prelude.()" -> "()"
+          _ -> n
+          where
+            n = dataTypeName $ dataTypeOf y
 
 items :: [(Int, String)]
 items = concat
@@ -87,7 +136,6 @@ items = concat
  ,consFor (u :: A.Replicator)
  ,consFor (u :: A.Specification)
  ,consFor (u :: A.SpecType)
- ,consFor (u :: A.Structured)
  ,consFor (u :: A.Subscript)
  ,consFor (u :: A.Type)
  ,consFor (u :: A.Variable)
@@ -96,6 +144,18 @@ items = concat
  where
    u = undefined
 
+struct :: [String]
+struct = concat 
+ [concatMap (genItem' "P" "A.Structured A.Process") $ consParamsFor (undefined :: A.Structured A.Process)
+ ,concatMap (genItem' "O" "A.Structured A.Option") $ consParamsFor (undefined :: A.Structured A.Option)
+ ,concatMap (genItem' "C" "A.Structured A.Choice") $ consParamsFor (undefined :: A.Structured A.Choice)
+ ,concatMap (genItem' "V" "A.Structured A.Variant") $ consParamsFor (undefined :: A.Structured A.Variant)
+ ,concatMap (genItem' "A" "A.Structured A.Alternative") $ consParamsFor (undefined :: A.Structured A.Alternative)
+ ,concatMap (genItem' "EL" "A.Structured A.ExpressionList") $ consParamsFor (undefined :: A.Structured A.ExpressionList)
+ ,concatMap (genItem' "AST" "A.Structured ()") $ consParamsFor (undefined :: A.Structured ())
+ ]
+
+
 filterInvalid :: [(Int, a)] -> [(Int, a)]
 filterInvalid = filter (\(n,_) -> n > 0)
 
@@ -103,4 +163,4 @@ joinLines :: [String] -> String
 joinLines xs = concat [x ++ "\n" | x <- xs]
 
 main :: IO ()
-main = putStr $ joinLines $ genHeader ++ concatMap genItem (filterInvalid items)
+main = putStr $ joinLines $ genHeader ++ concatMap genItem (filterInvalid items) ++ struct

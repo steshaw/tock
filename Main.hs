@@ -261,10 +261,13 @@ compile mode fn outHandle
               do procs <- findAllProcesses
                  let fs :: Data t => t -> PassM String
                      fs = ((liftM $ (take 20) . (filter ((/=) '\"'))) . pshowCode)
+                 -- TODO fix this mode
+                 {-
                  let labelFuncs = mkLabelFuncsGeneric fs
                  graphs <- mapM
                       ((liftM $ either (const Nothing) Just) . (buildFlowGraph labelFuncs) )
-                      (map (A.OnlyP emptyMeta) (snd $ unzip $ procs))
+                      (map (A.Only emptyMeta) (snd $ unzip $ procs))
+                      
                       
                  -- We need this line to enforce the type of the mAlter monad (Identity)
                  -- since it is never used.  Then we used graphsTyped (rather than graphs)
@@ -273,7 +276,8 @@ compile mode fn outHandle
                  let (graphsTyped :: [Maybe (FlowGraph Identity String)]) = map (transformMaybe fst) graphs
                  --TODO output each process to a separate file, rather than just taking the first:
                  return $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
-
+                 -}
+                 return ""
             ModeCompile ->
               do progress "Passes:"
 

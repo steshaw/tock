@@ -572,7 +572,7 @@ sizeOfReplicator :: A.Replicator -> A.Expression
 sizeOfReplicator (A.For _ _ _ count) = count
 
 -- | Get the number of items in a Structured as an expression.
-sizeOfStructured :: A.Structured -> A.Expression
+sizeOfStructured :: Data a => A.Structured a -> A.Expression
 sizeOfStructured (A.Rep m rep s)
     = A.Dyadic m A.Times (sizeOfReplicator rep) (sizeOfStructured s)
 sizeOfStructured (A.Spec _ _ s) = sizeOfStructured s

@@ -47,13 +47,13 @@ genHeader = [
 -- | Here's the idea for easily building a compare function.  Go through in ascending order.
 -- Match A vs A in detail.  For A vs _ give LT, and for _ vs A give GT.  Then repeat for B, C, etc
 -- But for the last item, do not give the LT and GT matches!
-ordFor :: forall a. (Data a, Typeable a) => a -> [String]
-ordFor x = process $ map processConstr $ dataTypeConstrs $ dataTypeOf x
+ordFor' :: forall a. (Data a, Typeable a) => String -> a -> [String]
+ordFor' typeName x = process $ map processConstr $ dataTypeConstrs $ dataTypeOf x
   where
     process :: [(String, String, String, [String])] -> [String]
     process [] = []
     process items =
-      ["instance Ord " ++ (dataTypeName $ dataTypeOf x) ++ " where"]
+      ["instance Ord " ++ typeName ++ " where"]
       ++ concat [ [ "  compare (" ++ name ++ headL ++ ") (" ++ name ++ headR ++ ") = " ++
                     --Shortcut:
                     if null comparisons then "EQ" else
@@ -100,13 +100,21 @@ items = concat
  ,ordFor (u :: A.Replicator)
  ,ordFor (u :: A.Specification)
  ,ordFor (u :: A.SpecType)
- ,ordFor (u :: A.Structured)
+ --TODO define a new function for doing a parameterised Ord
+ ,ordFor' "(AST.Structured AST.Process)" (u :: A.Structured A.Process)
+ ,ordFor' "(AST.Structured AST.Choice)" (u :: A.Structured A.Choice)
+ ,ordFor' "(AST.Structured AST.Option)" (u :: A.Structured A.Option)
+ ,ordFor' "(AST.Structured AST.Alternative)" (u :: A.Structured A.Alternative)
+ ,ordFor' "(AST.Structured AST.Variant)" (u :: A.Structured A.Variant)
+ ,ordFor' "(AST.Structured AST.ExpressionList)" (u :: A.Structured A.ExpressionList)
  ,ordFor (u :: A.Subscript)
  ,ordFor (u :: A.Type)
  ,ordFor (u :: A.Variable)
  ,ordFor (u :: A.Variant)
  ]
  where
+   ordFor x = ordFor' (dataTypeName $ dataTypeOf x) x
+ 
    u = undefined
 
 joinLines :: [String] -> String

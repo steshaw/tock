@@ -134,15 +134,16 @@ doPattern p@(Match c ps) =
      items = map doPattern ps
      folded = foldPatternList p
 
-doAny :: (forall a. Typeable a => (a -> Doc) -> (a -> Doc)) -> GenericQ Doc
+doAny :: (forall a. Data a => (a -> Doc) -> (a -> Doc)) -> GenericQ Doc
 doAny extFunc = extFunc (
   (doGeneral anyFunc) `ext1Q` (doList anyFunc) `extQ` doString `extQ` doMeta `extQ` doPattern
           `extQ` (doMap anyFunc :: Map.Map String String -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String A.NameDef -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String [A.Type] -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String [A.Actual] -> Doc)
-          `extQ` (doSet anyFunc :: Set.Set String -> Doc)
-          `extQ` (doSet anyFunc :: Set.Set A.Name -> Doc)
+--          `extQ` (doSet anyFunc :: Set.Set String -> Doc)
+--          `extQ` (doSet anyFunc :: Set.Set A.Name -> Doc)
+          `ext1Q` (doSet anyFunc)
   )
      where
        anyFunc :: GenericQ Doc
@@ -159,7 +160,7 @@ pshowCode c = do st <- get
                    FrontendOccam -> return $ render $ (extOccam $ doAny extOccam) c
                    FrontendRain -> return $ render $ (extRain $ doAny extRain) c
   where
-    extOccam :: forall a. Typeable a => (a -> Doc) -> (a -> Doc)
+    extOccam :: forall a. (Data a, Typeable a) => (a -> Doc) -> (a -> Doc)
     extOccam f = extCode f showOccam
-    extRain :: forall a. Typeable a => (a -> Doc) -> (a -> Doc)
+    extRain :: forall a. (Data a, Typeable a) => (a -> Doc) -> (a -> Doc)
     extRain f = extCode f showRain

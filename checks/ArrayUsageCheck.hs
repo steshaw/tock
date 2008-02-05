@@ -31,7 +31,6 @@ import CompState
 import Errors
 import Metadata
 import Omega
-import Pass
 import ShowCode
 import Types
 import UsageCheckUtils
@@ -98,7 +97,11 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                         cx <- showCode lx
                         cy <- showCode ly
                         prob <- formatProblem varMapping problem
-                        debug $ "Found solution for problem: " ++ prob
+--                        debug $ "Found solution for problem: " ++ prob
+--                        liftIO $ putStrLn $ "Succeeded on problem: " ++ prob
+--                        allProbs <- concatMapM (\(_,_,p) -> formatProblem varMapping p >>* (++ "\n#\n")) problems
+--                        svm <- mapM showFlattenedExp $ Map.keys varMapping
+--                        liftIO $ putStrLn $ "All problems: " ++ allProbs ++ "\n" ++ (concat $ intersperse " ; " $ svm)
                         dieP m $ "Indexes of array \"" ++ userArrName ++ "\" "
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
                                  ++ if sol /= "" then " when: " ++ sol else ""
@@ -149,7 +152,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     showFlattenedExp :: FlattenedExp -> m String
     showFlattenedExp (Const n) = return $ show n
     showFlattenedExp (Scale n ((A.Variable _ vn),vi))
-      = do vn' <- getRealName vn >>* (++ replicate vi '\'')
+      = do vn' <- getRealName vn >>* (++ replicate vi '@')
            case n of
              1  -> return vn'
              -1 -> return $ "-" ++ vn'
@@ -174,8 +177,6 @@ data FlattenedExp
   | Scale Integer (A.Variable, Int)
   | Modulo (Set.Set FlattenedExp) (Set.Set FlattenedExp)
   | Divide (Set.Set FlattenedExp) (Set.Set FlattenedExp)
-
---TODO change the A.Variable to Var, and automatically derive Eq and Ord
 
 instance Eq FlattenedExp where
   a == b = EQ == compare a b
