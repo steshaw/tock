@@ -107,6 +107,7 @@ items = concat
  ,ordFor' "(AST.Structured AST.Alternative)" (u :: A.Structured A.Alternative)
  ,ordFor' "(AST.Structured AST.Variant)" (u :: A.Structured A.Variant)
  ,ordFor' "(AST.Structured AST.ExpressionList)" (u :: A.Structured A.ExpressionList)
+ ,ordFor' "(AST.Structured ())" (u :: A.Structured ())
  ,ordFor (u :: A.Subscript)
  ,ordFor (u :: A.Type)
  ,ordFor (u :: A.Variable)
