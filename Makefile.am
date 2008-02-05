@@ -52,7 +52,7 @@ CompilerCommands.hs: Makefile
 	echo -e 'cCommand inp out = "$(CC) $(TOCK_CFLAGS) -x c -c -o " ++ out ++ " " ++ inp\n' >> CompilerCommands.hs
 	echo -e 'cAsmCommand :: String -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'cAsmCommand inp out = "$(CC) $(TOCK_CFLAGS) -x c -S -o " ++ out ++ " " ++ inp\n' >> CompilerCommands.hs
-	echo -e 'krocLinkCommand :: String -> [String] -> String -> String\n'
+	echo -e 'krocLinkCommand :: String -> [String] -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'krocLinkCommand wrapper files out = "kroc -o " ++ out ++ " " ++ wrapper ++ " " ++ (concat (intersperse " " files))  ++ " -lcif"\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand :: String -> String -> String\n' >> CompilerCommands.hs
 	echo -e 'cxxCommand inp out = "$(CXX) $(TOCK_CXXFLAGS) -x c++ -o " ++ out ++ " " ++ inp ++ " $(TOCK_CXXLDFLAGS)"\n' >> CompilerCommands.hs
