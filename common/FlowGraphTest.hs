@@ -567,7 +567,7 @@ genChoice' :: (Int, Int -> GenL A.Choice)
 genChoice' = (3, genChoice)
 
 genOption :: Int -> GenL A.Option
-genOption = comb1 (A.Else emptyMeta) . genProcess . sub1
+genOption = comb1 (A.Else emptyMeta) . genProcess
 
 genOption' :: (Int, Int -> GenL A.Option)
 genOption' = (1, genOption)
@@ -596,7 +596,7 @@ genStructured (no,genOnly) n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,cond (onlyC allowed) (3,comb2 (\e p -> A.Only emptyMeta $ A.Choice emptyMeta e p) genExpression . genProcess . sub2)
    ,cond (onlyA allowed) (4,genElem2 A.Only m . genAlternative . sub1 )
 -}   
-   (no - 1, genElem2 A.Only m . genOnly . sub1)
+   (no + 1, genElem2 A.Only m . genOnly . sub1)
 
    -- Specs currently don't work with Case statements TODO
    ,(3,genElem3 A.Spec m genSpecification . genStructured (no, genOnly) . sub2 )
