@@ -367,6 +367,7 @@ buildStructured f outer (A.Rep m rep str) route
 buildStructured f outer (A.Only _ o) route = f outer (route22 route A.Only) o >>* Right
 buildStructured _ _ s _ = return $ Left False
 
+buildOnlyChoice :: (Monad mLabel, Monad mAlter) => OuterType -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType (Node, Node)
 buildOnlyChoice outer route (A.Choice m exp p)
   = do nexp <- addNodeExpression (findMeta exp) exp $ route23 route A.Choice
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
@@ -377,6 +378,8 @@ buildOnlyChoice outer route (A.Choice m exp p)
               addEdge ESeq nbodye cEnd
          _ -> throwError "Choice found outside IF statement"
        return (nexp,nbodye)
+
+buildOnlyOption :: (Monad mLabel, Monad mAlter) => OuterType -> ASTModifier mAlter A.Option structType -> A.Option -> GraphMaker mLabel mAlter label structType (Node, Node)
 buildOnlyOption outer route opt
   = do (s,e) <-
          case opt of

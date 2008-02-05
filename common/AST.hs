@@ -381,6 +381,9 @@ data Data a => Structured a =
 -- that leaving GHC to handle deriving (Data) will not achieve.  Therefore we have no
 -- choice but to provide our own instance long-hand here:
 
+_struct_RepConstr, _struct_SpecConstr, _struct_ProcThenConstr, _struct_OnlyConstr, _struct_SeveralConstr :: Constr
+_struct_DataType :: DataType
+
 _struct_RepConstr     = mkConstr _struct_DataType "Rep"  [] Prefix
 _struct_SpecConstr    = mkConstr _struct_DataType "Spec" [] Prefix
 _struct_ProcThenConstr= mkConstr _struct_DataType "ProcThen" [] Prefix

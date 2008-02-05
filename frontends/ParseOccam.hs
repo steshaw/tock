@@ -82,6 +82,8 @@ plainToken t = genToken test
     test (_, t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
+sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest, sRight, sRightR, sSemi :: OccParser ()
+
 sAmp = reserved "&"
 sAssign = reserved ":="
 sBang = reserved "!"
@@ -97,6 +99,14 @@ sRightR = reserved ")"
 sSemi = reserved ";"
 --}}}
 --{{{ keywords
+sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE, sBYTESIN, sCASE, sCHAN, sDATA,
+  sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS,
+  sMINUS, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, 
+  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM, sRESHAPES, sRESULT,
+  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
+  sWHILE, sWORKSPACE, sVECSPACE
+    :: OccParser ()
+
 sAFTER = reserved "AFTER"
 sALT = reserved "ALT"
 sAND = reserved "AND"
@@ -165,6 +175,8 @@ sWORKSPACE = reserved "WORKSPACE"
 sVECSPACE = reserved "VECSPACE"
 --}}}
 --{{{ markers inserted by the preprocessor
+indent, outdent, eol :: OccParser ()
+
 indent = do { plainToken Indent } <?> "indentation increase"
 outdent = do { plainToken Outdent } <?> "indentation decrease"
 eol = do { plainToken EndOfLine } <?> "end of line"
@@ -499,6 +511,10 @@ name nt
 newName :: A.NameType -> OccParser A.Name
 newName nt = anyName nt
 
+channelName, dataTypeName, functionName, portName, procName, protocolName,
+  recordName, timerName, variableName
+    :: OccParser A.Name
+
 channelName = name A.ChannelName
 dataTypeName = name A.DataTypeName
 functionName = name A.FunctionName
@@ -508,6 +524,10 @@ protocolName = name A.ProtocolName
 recordName = name A.RecordName
 timerName = name A.TimerName
 variableName = name A.VariableName
+
+newChannelName, newDataTypeName, newFunctionName, newPortName, newProcName, newProtocolName,
+  newRecordName, newTimerName, newVariableName
+    :: OccParser A.Name
 
 newChannelName = newName A.ChannelName
 newDataTypeName = newName A.DataTypeName
@@ -529,6 +549,8 @@ unscopedName nt
     =  do n <- anyName nt
           findUnscopedName n
     <?> show nt
+
+fieldName, tagName, newFieldName, newTagName :: OccParser A.Name
 
 fieldName = unscopedName A.FieldName
 tagName = unscopedName A.TagName
@@ -899,7 +921,9 @@ expressionOfType wantT
           matchType (findMeta e) wantT t
           return e
 
+intExpr :: OccParser A.Expression
 intExpr = expressionOfType A.Int <?> "integer expression"
+booleanExpr :: OccParser A.Expression
 booleanExpr = expressionOfType A.Bool <?> "boolean expression"
 
 constExprOfType :: A.Type -> OccParser A.Expression
@@ -910,6 +934,7 @@ constExprOfType wantT
             dieReport (m,"expression is not constant (" ++ msg ++ ")")
           return e'
 
+constIntExpr :: OccParser A.Expression
 constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
 operandOfType :: A.Type -> OccParser A.Expression

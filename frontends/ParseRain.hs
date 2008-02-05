@@ -44,6 +44,10 @@ instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
   dieReport (Nothing, err) = fail err  
 
+sLeftQ, sRightQ, sLeftR, sRightR, sLeftC, sRightC, sSemiColon, sColon, sComma, sIn, sOut, sDots,
+  sPar, sSeq, sAlt, sPri, sSeqeach, sPareach, sChannel, sOne2One, sIf, sElse, sWhile, sProcess, sFunction, sRun, sReturn, sWait, sFor, sUntil
+  :: RainParser Meta
+
 --{{{ Symbols
 sLeftQ = reserved "["
 sRightQ = reserved "]"

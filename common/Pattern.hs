@@ -47,13 +47,16 @@ instance Data Pattern where
   gunfold _ _ _ = error "gunfold Pattern"
   
   dataTypeOf _ = ty_Pattern
-  
+
+ty_Pattern :: DataType  
 ty_Pattern = mkDataType "TreeUtil.Pattern"
    [
     constr_DontCare
     ,constr_Named
     ,constr_Match
    ]
+
+constr_DontCare, constr_Named, constr_Match :: Constr
  
 constr_DontCare = mkConstr ty_Pattern "DontCare" [] Prefix
 constr_Named = mkConstr ty_Pattern "Named" [] Prefix

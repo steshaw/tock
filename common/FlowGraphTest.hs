@@ -44,6 +44,7 @@ import Utils
 makeMeta :: Int -> Meta
 makeMeta n = Meta (Just "FlowGraphTest") n 0
 
+m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, mU :: Meta
 -- To make typing the tests as short as possible (typing a function call means bracketing is needed, which is a pain):
 m0 = makeMeta 0
 m1 = makeMeta 1
@@ -64,6 +65,7 @@ mU = makeMeta (-1)
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
 
+sm0, sm1, sm2, sm3, sm4, sm5, sm6, sm7, sm8, sm9, sm10, sm11 :: A.Process
 -- Various abbreviations for unique A.Process items
 sm0 = A.Skip m0
 sm1 = A.Skip m1
@@ -578,6 +580,7 @@ genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem4 A.For m (comb0 $ simple
 class ReplicatorAnnotation a where
   replicatorItem :: (Int, Int -> GenL a) -> Maybe (Int, Int -> GenL (A.Structured a))
 
+replicatorItem' :: (ReplicatorAnnotation a, Data a) => (Int, Int -> GenL a) -> (Int, Int -> GenL (A.Structured a))
 replicatorItem' x = (4, genElem3 A.Rep m genReplicator . genStructured x . sub3)
 
    --Replicators are allowed in ALTs, IFs, SEQs and PARs:
