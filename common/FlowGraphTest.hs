@@ -459,6 +459,7 @@ nextIdT = modify' incId
 
 -- | A function similar to the QuickCheck oneof function, that works on GenL stuff rather than Gen.
 oneofL :: [GenL a] -> GenL a
+oneofL [] = fail "Empty list fed to oneofL"
 oneofL gs = do i <- lift $ choose (0,length gs-1)
                gs !! i
 
