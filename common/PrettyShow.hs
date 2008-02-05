@@ -141,9 +141,8 @@ doAny extFunc = extFunc (
           `extQ` (doMap anyFunc :: Map.Map String A.NameDef -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String [A.Type] -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String [A.Actual] -> Doc)
---          `extQ` (doSet anyFunc :: Set.Set String -> Doc)
---          `extQ` (doSet anyFunc :: Set.Set A.Name -> Doc)
-          `ext1Q` (doSet anyFunc)
+          `extQ` (doSet anyFunc :: Set.Set String -> Doc)
+          `extQ` (doSet anyFunc :: Set.Set A.Name -> Doc)
   )
      where
        anyFunc :: GenericQ Doc
