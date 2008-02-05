@@ -680,12 +680,12 @@ deepCheck test level = (flip check) test $ configForSize $
     QC_High -> 5000
     QC_Extensive -> 10000
 
-testModify :: [QuickCheckTest]
+testModify :: [LabelledQuickCheckTest]
 testModify =
  [
-   deepCheck prop_Id
-  ,deepCheck prop_Rep
-  ,deepCheck prop_gennums
+   ("Control-Flow Graph Identity Transformations", deepCheck prop_Id)
+  ,("Control-Flow Graph Replacement Transformations", deepCheck prop_Rep)
+  ,("Random List Generation", deepCheck prop_gennums)
  ]
   where
     -- | Checks that applying any set (from the powerset of identity functions) of identity functions
@@ -726,7 +726,7 @@ testModify =
         collectAll' r0 r1 | ok r0 == Just False = r0
                           | otherwise = r1
 -- | Returns the list of tests:
-qcTests :: (Test, [QuickCheckTest])
+qcTests :: (Test, [LabelledQuickCheckTest])
 qcTests = (TestLabel "FlowGraphTest" $ TestList
  [
   testCase

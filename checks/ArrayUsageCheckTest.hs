@@ -728,8 +728,8 @@ generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>=
 instance Arbitrary OmegaTestInput where
   arbitrary = generateProblem >>* OMI
 
-qcOmegaEquality :: [QuickCheckTest]
-qcOmegaEquality = [scaleQC (40,200,2000,10000) prop]
+qcOmegaEquality :: [LabelledQuickCheckTest]
+qcOmegaEquality = [("Omega Test Equality Solving", scaleQC (40,200,2000,10000) prop)]
   where
     prop (OMI (ans,(eq,ineq))) = omegaCheck actAnswer
       where
@@ -812,8 +812,8 @@ newtype OmegaPruneInput = OPI MutatedProblem deriving (Show)
 instance Arbitrary OmegaPruneInput where
   arbitrary = ((generateProblem >>* snd)  >>= (return . snd) >>= mutateEquations) >>* OPI
 
-qcOmegaPrune :: [QuickCheckTest]
-qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
+qcOmegaPrune :: [LabelledQuickCheckTest]
+qcOmegaPrune = [("Omega Test Pruning", scaleQC (100,1000,10000,50000) prop)]
   where
     --We perform the map assocs because we can't compare arrays using *==*
     -- (toConstr fails in the pretty-printing!).
@@ -831,7 +831,7 @@ qcOmegaPrune = [scaleQC (100,1000,10000,50000) prop]
         result = undefined -- TODO replace solveAndPrune: solveProblem [] inp
     -}
     
-ioqcTests :: IO (Test, [QuickCheckTest])
+ioqcTests :: IO (Test, [LabelledQuickCheckTest])
 ioqcTests
   = seqPair
       (liftM (TestLabel "ArrayUsageCheckTest" . TestList) $ sequence

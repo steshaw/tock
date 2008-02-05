@@ -61,6 +61,8 @@ data QuickCheckLevel = QC_Low | QC_Medium | QC_High | QC_Extensive deriving (Sho
 
 type QuickCheckTest = QuickCheckLevel -> IO ()
 
+type LabelledQuickCheckTest = (String, QuickCheckTest)
+
 scaleQC :: Testable a => (Int,Int,Int,Int) -> a -> QuickCheckTest
 scaleQC (low,med,high,ext) test level
   = case level of

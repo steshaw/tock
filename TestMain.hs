@@ -83,7 +83,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
                            else runTestTT
           case qcLevel of
             -- Monadic mess!
-            Just level -> join $ liftM sequence_ $ (liftM $ applyAll level) qcTests
+            Just level -> mapM_ (runQCTest level) =<< qcTests
             Nothing -> return ()
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
@@ -111,9 +111,12 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
                      "extensive" -> Right $ Just QC_Extensive
                      unknown -> Left unknown
 
+    runQCTest :: QuickCheckLevel -> LabelledQuickCheckTest -> IO ()
+    runQCTest level (label, test) = putStr (label ++ ": ") >> test level
+
     hunitTests :: IO Test
     hunitTests = sequence tests >>* (TestList . fst . unzip)
-    qcTests :: IO [QuickCheckTest]
+    qcTests :: IO [LabelledQuickCheckTest]
     qcTests = concatMapM (liftM snd) tests
 
     tests = [
@@ -129,6 +132,6 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc RainUsageCheckTest.tests
             ]
 
-    noqc :: Test -> IO (Test, [QuickCheckTest])
+    noqc :: Test -> IO (Test, [LabelledQuickCheckTest])
     noqc t = return (t,[])
 
