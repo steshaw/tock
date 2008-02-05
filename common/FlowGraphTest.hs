@@ -112,7 +112,7 @@ testGraph testName nodes roots edges proc = testGraph' testName nodes roots edge
 testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
 testGraph' testName nodes roots edges code
   = TestCase $ 
-      case evalState (buildFlowGraph testOps code) Map.empty of
+      case evalState (buildFlowGraphP testOps code) Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
         Right gr -> checkGraphEquality (nodes, roots, edges) (gr :: (FlowGraph' Identity Int A.Process, [Node]))
   where  
@@ -624,8 +624,8 @@ genProcess' = (1, genProcess)
 
 -- | Generates a flow-graph from the given AST.
 -- TODO put this in proper error monad
-genGraph :: Data a => A.Structured a -> FlowGraph' Identity () a
-genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) fst $ runIdentity $ buildFlowGraph funcs s
+genGraph :: A.Structured A.Process -> FlowGraph' Identity () A.Process
+genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) fst $ runIdentity $ buildFlowGraphP funcs s
   where
     funcs :: GraphLabelFuncs Identity ()
     funcs = mkLabelFuncsConst (return ())
