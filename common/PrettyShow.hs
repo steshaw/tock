@@ -87,7 +87,9 @@ foldPatternList (Match con patList)
   = if (showConstr con == "(:)")
     then
       --patList must contain two items.  The first is the list item (to be returned), the second is a nested list -- possibly the empty list
-      (head patList) : (foldPatternList $ last patList)
+      (case patList of
+        (p:ps:[]) -> p : (foldPatternList ps)
+        _ -> error "List constructor with other than two children")
     else []
 foldPatternList _ = []
 
