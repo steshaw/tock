@@ -111,7 +111,7 @@ testCheckTreeForConstr = TestList
 
 --Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "CommonTest" $ TestList
  [
    testIsSafeConversion
    ,testCheckTreeForConstr

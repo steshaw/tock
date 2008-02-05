@@ -654,7 +654,7 @@ testTime =
         
 --Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "ParseRainTest" $ TestList
  [
   parseTests testExprs,
   parseTests testLiteral,

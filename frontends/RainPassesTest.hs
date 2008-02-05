@@ -519,7 +519,7 @@ testPullUpParDecl2 = TestCase $ testPass "testPullUpParDecl2" exp (pullUpParDecl
 
 ---Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "RainPassesTest" $ TestList
  [
    testEachPass0
    ,testEachPass1
