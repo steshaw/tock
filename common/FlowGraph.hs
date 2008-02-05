@@ -148,7 +148,7 @@ makeTestNode :: Monad m => Meta -> a -> FNode m a
 makeTestNode m d = Node (m,d,undefined)
 
 -- | Builds the instructions to send to GraphViz
-makeFlowGraphInstr :: (Monad m, Show a) => FlowGraph m a -> String
+makeFlowGraphInstr :: (Monad m, Show a, Data b) => FlowGraph' m a b -> String
 makeFlowGraphInstr = graphviz'
 
 -- | Joins two labelling functions together.  They must use the same monad.
