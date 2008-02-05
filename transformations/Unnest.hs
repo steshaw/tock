@@ -35,6 +35,7 @@ import Types
 unnest :: Pass
 unnest = runPasses passes
   where
+    passes :: [(String, Pass)]
     passes =
       [ ("Convert free names to arguments", removeFreeNames)
       , ("Pull nested definitions to top level", removeNesting)
