@@ -564,11 +564,7 @@ testIndexes = TestList
 -- from one to the indexes of the next.  If any of the keys in the map don't match
 -- (i.e. if (keys m0 /= keys m1)) Nothing will be returned
 generateMapping :: VarMap -> VarMap -> Maybe [(CoeffIndex,CoeffIndex)]
-generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap f m0 m1)
-  where
-    f (Just x) (Just y) = Just (x,y)
-    f _ _ = Nothing
-    -- More readable than liftM (,)  !
+generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap mergeMaybe m0 m1)
 
 -- | Given a forward mapping list, translates equations across
 translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> IO (Maybe (EqualityProblem, InequalityProblem))
