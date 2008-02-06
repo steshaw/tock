@@ -571,24 +571,36 @@ generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Ma
     -- More readable than liftM (,)  !
 
 -- | Given a forward mapping list, translates equations across
-translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> Maybe (EqualityProblem, InequalityProblem)
-translateEquations mp = seqPair . transformPair (mapM swapColumns) (mapM swapColumns)
+translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> IO (Maybe (EqualityProblem, InequalityProblem))
+translateEquations mp (eq,ineq) = do eq' <- mapM swapColumns eq >>* sequence -- mapM is in the IO monad, sequence is in the Maybe monad
+                                     ineq' <- mapM swapColumns ineq >>* sequence
+                                     return $ mergeMaybe eq' ineq'
   where
-    swapColumns :: Array CoeffIndex Integer -> Maybe (Array CoeffIndex Integer)
-    swapColumns arr = liftM simpleArray $ mapM swapColumns' $ assocs arr
+    swapColumns :: Array CoeffIndex Integer -> IO (Maybe (Array CoeffIndex Integer))
+    swapColumns arr
+      = case mapM swapColumns' $ assocs arr of
+          Just swapped -> check swapped >> (return . Just $ simpleArray swapped)
+          Nothing -> return Nothing
       where
         swapColumns' :: (CoeffIndex,Integer) -> Maybe (CoeffIndex,Integer)
         swapColumns' (0,v) = Just (0,v) -- Never swap the units column
         swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
+    
+    check :: [(CoeffIndex,Integer)] -> Assertion
+    check ies = if length ies == 1 + maximum (map fst ies) then return () else
+       assertFailure $ "Error in translateEquations, not all indexes present after swap: " ++ show ies
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
 assertEquivalentProblems :: String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
   [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
 assertEquivalentProblems title indExpr exp act
-  = ((uncurry $ assertEqualCustomShow (showPairCustom show $ showListCustom $ showMaybe showProblem) title)
-      $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ map (uncurry transform)
-      $ map (uncurry checkLabel) $ zip (sortByLabels exp) (sortByLabels act))
+  = do transformed <- mapM (uncurry transform) $ map (uncurry checkLabel) $ zip (sortByLabels exp) (sortByLabels act)
+       (uncurry $ assertEqualCustomShow showFunc title)
+         $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ transformed
   where
+    showFunc :: (Int, [Maybe (EqualityProblem, InequalityProblem)]) -> String
+    showFunc = showPairCustom show $ showListCustom $ showMaybe showProblem
+  
     -- Since this is a test, I'm taking the lazy way out and allowing run-time errors in this
     -- function rather than putting it all in a monad.  In HUnit the effect will be about the same
     checkLabel :: ((Int, Int), VarMap, (EqualityProblem, InequalityProblem)) ->
@@ -613,14 +625,17 @@ assertEquivalentProblems title indExpr exp act
         lookup e = maybe (-1) fst $ find ((== e) . snd) indExpr
 
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
-                       ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
-    transform exp act = (translatedExp, Just $ sortP $ snd act)
+                       IO ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
+    transform exp act
+      = do translatedExp <- case generateMapping (fst exp) (fst act) of
+             Just mapping -> translateEquations mapping (snd exp)
+             Nothing -> return Nothing
+           return (translatedExp >>* sortP, Just $ sortP $ snd act)
       where
         sortP :: (EqualityProblem, InequalityProblem) -> (EqualityProblem, InequalityProblem)      
         sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
   
-        translatedExp = ( generateMapping (fst exp) (fst act) >>= flip translateEquations (snd exp)) >>* sortP
-
+        
     pairPairs (xa,ya) (xb,yb) = ((xa,xb), (ya,yb))
     
     sortProblem :: [Maybe (EqualityProblem, InequalityProblem)] -> [Maybe (EqualityProblem, InequalityProblem)]
