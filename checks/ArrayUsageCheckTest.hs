@@ -568,23 +568,27 @@ generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Ma
 
 -- | Given a forward mapping list, translates equations across
 translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> IO (Maybe (EqualityProblem, InequalityProblem))
-translateEquations mp (eq,ineq) = do eq' <- mapM swapColumns eq >>* sequence -- mapM is in the IO monad, sequence is in the Maybe monad
-                                     ineq' <- mapM swapColumns ineq >>* sequence
-                                     return $ mergeMaybe eq' ineq'
+translateEquations mp (eq,ineq)
+  = do assertEqual "translateEquations mapping not one-to-one" (sort $ map fst mp) (sort $ map snd mp)
+       assertCompareCustom "translateEquations input not square" (>=) 1 $ length $ nub $ map (snd . bounds) $ eq ++ ineq
+       eq' <- mapM swapColumns eq >>* sequence -- mapM is in the IO monad, sequence is in the Maybe monad
+       ineq' <- mapM swapColumns ineq >>* sequence
+       return $ mergeMaybe eq' ineq'
   where
     swapColumns :: Array CoeffIndex Integer -> IO (Maybe (Array CoeffIndex Integer))
     swapColumns arr
       = case mapM swapColumns' $ assocs arr of
-          Just swapped -> check swapped >> (return . Just $ simpleArray swapped)
+          Just swapped -> check arr swapped >> (return . Just $ simpleArray swapped)
           Nothing -> return Nothing
       where
         swapColumns' :: (CoeffIndex,Integer) -> Maybe (CoeffIndex,Integer)
         swapColumns' (0,v) = Just (0,v) -- Never swap the units column
         swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
     
-    check :: [(CoeffIndex,Integer)] -> Assertion
-    check ies = if length ies == 1 + maximum (map fst ies) then return () else
+    check :: Show a => a -> [(CoeffIndex,Integer)] -> Assertion
+    check x ies = if length ies == 1 + maximum (map fst ies) then return () else
        assertFailure $ "Error in translateEquations, not all indexes present after swap: " ++ show ies
+         ++ " value beforehand was: " ++ show x ++ " mapping was: " ++ show mp
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
 assertEquivalentProblems :: String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
@@ -622,12 +626,17 @@ assertEquivalentProblems title indExpr exp act
 
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
                        IO ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
-    transform exp act
+    transform exp@(_, (e_eq, e_ineq)) act@(_, (a_eq, a_ineq))
       = do translatedExp <- case generateMapping (fst exp) (fst act) of
-             Just mapping -> translateEquations mapping (snd exp)
+             Just mapping -> translateEquations mapping (resize e_eq, resize e_ineq)
              Nothing -> return Nothing
-           return (translatedExp >>* sortP, Just $ sortP $ snd act)
+           return (translatedExp >>* sortP, Just $ sortP $ transformPair resize resize $ snd act)
       where
+        size = maximum $ map (snd . bounds) $ concat [e_eq, e_ineq, a_eq, a_ineq]
+
+        resize :: [Array CoeffIndex Integer] -> [Array CoeffIndex Integer]
+        resize = map (makeArraySize (0, size) 0)
+
         sortP :: (EqualityProblem, InequalityProblem) -> (EqualityProblem, InequalityProblem)      
         sortP (eq,ineq) = (sort $ map normaliseEquality eq, sort ineq)
   
