@@ -284,3 +284,6 @@ applyPair f = transformPair f f
 
 applyPairM :: Monad m => (a -> m b) -> (a,a) -> m (b,b)
 applyPairM f = seqPair . transformPair f f
+
+makeArraySize :: (IArray a e, Ix i, Enum i) => (i,i) -> e -> a i e -> a i e
+makeArraySize size def arr = array size [(i,arrayLookupWithDefault def arr i) | i <- [fst size .. snd size]]
