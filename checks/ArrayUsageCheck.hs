@@ -75,7 +75,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     -- Turns a replicator into background knowledge about that replicator
     -- TODO we need to subtract one off (from + for)
     makeRepBounds :: A.Replicator -> [BackgroundKnowledge]
-    makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Add from for]
+    makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Subtr (A.Dyadic m A.Add from for) (makeConstant m 1)]
       where
         ev = A.ExprVariable m (A.Variable m n)
 
