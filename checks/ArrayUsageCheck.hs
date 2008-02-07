@@ -21,6 +21,7 @@ module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(.
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Array.IArray
+import Data.Int
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -36,15 +37,19 @@ import Types
 import UsageCheckUtils
 import Utils
 
+-- | A check-pass that checks the given ParItems (usually generated from a control-flow graph)
+-- for any overlapping array indices.
 checkArrayUsage :: forall m. (Die m, CSM m, MonadIO m) => (Meta, ParItems UsageLabel) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ transformParItems nodeVars p
-  where    
+  where
+    -- Gets all the items inside a ParItems and returns them in a flat list.
     flattenParItems :: ParItems a -> [a]
     flattenParItems (SeqItems xs) = xs
     flattenParItems (ParItems ps) = concatMap flattenParItems ps
     flattenParItems (RepParItem _ p) = flattenParItems p
 
+    -- Takes a ParItems Vars, and returns a map from array-variable-name to a list of writes and a list of reads for that array.
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
     groupArrayIndexes vs = filterByKey $ transformParItems (uncurry (zipMap join) . (transformPair (makeList . writtenVars) (makeList . readVars)) . mkPair) vs
@@ -52,40 +57,45 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
         join :: Maybe [a] -> Maybe [a] -> Maybe ([a],[a])
         join x y = Just (fromMaybe [] x, fromMaybe [] y)
         
-
-        
-      
+        -- Turns a set of variables into a map (from array-name to list of index-expressions)
         makeList :: Set.Set Var -> Map.Map String [A.Expression]
         makeList = Set.fold (maybe id (uncurry $ Map.insertWith (++)) . getArrayIndex) Map.empty
         
+        -- Lifts a map (from array-name to expression-lists) inside a ParItems to being a map (from array-name to ParItems of expression lists)
         filterByKey :: ParItems (Map.Map String ([A.Expression], [A.Expression])) -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
         filterByKey p = Map.fromList $ map (\k -> (k, transformParItems (Map.findWithDefault ([],[]) k) p)) (concatMap Map.keys $ flattenParItems p)
       
-        -- TODO this is quite hacky:
+        -- Gets the (array-name, indexes) from a Var.
+        -- TODO this is quite hacky, and doesn't yet deal with slices and so on:
         getArrayIndex :: Var -> Maybe (String, [A.Expression])
         getArrayIndex (Var (A.SubscriptedVariable _ (A.Subscript _ e) (A.Variable _ n)))
           = Just (A.nameName n, [e])
         getArrayIndex _ = Nothing
 
+    -- Turns a replicator into background knowledge about that replicator
+    -- TODO we need to subtract one off (from + for)
     makeRepBounds :: A.Replicator -> [BackgroundKnowledge]
     makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Add from for]
       where
         ev = A.ExprVariable m (A.Variable m n)
 
+    -- Gets all the replicators present in the argument
     listReplicators :: ParItems UsageLabel -> [A.Replicator]
     listReplicators p = mapMaybe nodeRep $ flattenParItems p
 
+    -- Checks the given ParItems of writes and reads against each other.  The
+    -- String (array-name) and Meta are only used for printing out error messages
     checkIndexes :: Meta -> (String,ParItems ([A.Expression],[A.Expression])) -> m ()
     checkIndexes m (arrName, indexes)
       = do userArrName <- getRealName (A.Name undefined undefined arrName)
            arrType <- typeOfName (A.Name undefined undefined arrName)
-           (arrLength,checkable) <- case arrType of
-             A.Array (A.Dimension d:_) _ -> return (d,True)
-             A.Array (A.UnknownDimension:_) _ -> return (undefined, False)
+           arrLength <- case arrType of
+             A.Array (A.Dimension d:_) _ -> return d
+             -- Unknown dimension, use the maximum value for a (assumed 32-bit for INT) integer:
+             A.Array (A.UnknownDimension:_) _ -> return $ fromInteger $ toInteger (maxBound :: Int32)
+             -- It's not an array:
              _ -> dieP m $ "Cannot usage check array \"" ++ userArrName ++ "\"; found to be of type: " ++ show arrType
-           if not checkable
-             then return ()
-             else case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes (makeConstant emptyMeta arrLength) of
+           case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes (makeConstant emptyMeta arrLength) of
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
                Right problems ->
@@ -106,11 +116,13 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
                                  ++ if sol /= "" then " when: " ++ sol else ""
     
+    -- Solves the problem and munges the arguments and results into a useful order
     solve :: (labels,vm,(EqualityProblem,InequalityProblem)) -> Maybe (labels,vm,VariableMapping,(EqualityProblem,InequalityProblem))
     solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
       Nothing -> Nothing
       Just vm' -> Just (ls,vm,vm',(eq,ineq))
 
+    -- Formats an entire problem ready to print it out half-legibly for debugging purposes
     formatProblem :: VarMap -> (EqualityProblem, InequalityProblem) -> m String
     formatProblem varToIndex (eq, ineq)
       = do feqs <- mapM (showWithConst "=") $ eq
@@ -136,6 +148,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
               -1 -> "-"
               _ -> show a ++ "*"
     
+    -- Formats a solution (not a problem, just the solution) ready to print it out for the user
     formatSolution :: VarMap -> Map.Map CoeffIndex Integer -> m String
     formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
                                                 return $ concat $ intersperse " , " $ catMaybes names
@@ -149,6 +162,9 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     getRealName :: A.Name -> m String
     getRealName n = lookupName n >>* A.ndOrigName
     
+    -- Shows a FlattenedExp legibly by looking up real names for variables, and formatting things.
+    -- The output for things involving modulo might be a bit odd, but there isn't really anything 
+    -- much that can be done about that
     showFlattenedExp :: FlattenedExp -> m String
     showFlattenedExp (Const n) = return $ show n
     showFlattenedExp (Scale n ((A.Variable _ vn),vi))
@@ -161,7 +177,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
            case onlyConst (Set.toList bottom) of
-             Just _  -> return $ "(" ++ top' ++ " / " ++ bottom' ++ ")"
+             Just _  -> return $ "-(" ++ top' ++ " / " ++ bottom' ++ ")"
              Nothing -> return $ "((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")"
     showFlattenedExp (Divide top bottom)
       = do top' <- showFlattenedExpSet top
@@ -174,13 +190,25 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
 -- | A type for inside makeEquations:
 data FlattenedExp
   = Const Integer 
+    -- ^ A constant
   | Scale Integer (A.Variable, Int)
+    -- ^ A variable and coefficient.  The first argument is the coefficient
+    -- The second part of the pair is for sub-indexing (or "priming") variables.
+    -- For example, replication is done by checking the replicated variable "i"
+    -- against a sub-indexed (with "1") version (denoted "i'").  The sub-index
+    -- is what differentiates i from i', given that they are technically the
+    -- same A.Variable
   | Modulo (Set.Set FlattenedExp) (Set.Set FlattenedExp)
+    -- ^ A modulo, with the given top and bottom (in that order)
   | Divide (Set.Set FlattenedExp) (Set.Set FlattenedExp)
+    -- ^ An integer division, with the given top and bottom (in that order)
 
 instance Eq FlattenedExp where
   a == b = EQ == compare a b
 
+-- | A Straight forward comparison for FlattenedExp that compares while ignoring
+-- the value of a const (Const 3 == Const 5) and the value of a scale
+-- (Scale 1 (v,0)) == (Scale 3 (v,0)), although note that (Scale 1 (v,0)) /= (Scale 1 (v,1))
 instance Ord FlattenedExp where
   compare (Const _) (Const _) = EQ
   compare (Const _) _ = LT
@@ -195,6 +223,8 @@ instance Ord FlattenedExp where
   compare (Divide ltop lbottom) (Divide rtop rbottom)
     = combineCompare [compare ltop rtop, compare lbottom rbottom]
 
+-- | Checks if an expression list contains only constants.  Returns Just (the aggregate constant) if so,
+-- otherwise returns Nothing.
 onlyConst :: [FlattenedExp] -> Maybe Integer
 onlyConst [] = Just 0
 onlyConst ((Const n):es) = liftM2 (+) (return n) $ onlyConst es
@@ -210,16 +240,31 @@ data ArrayAccess label =
   Group [(label, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
   | Replicated [ArrayAccess label] [ArrayAccess label]
 
+-- | A simple data type for denoting whether an array access is a read or a write
 data ArrayAccessType = AAWrite | AARead
 
-parItemToArrayAccessM :: Monad m => ([(A.Replicator, Bool)] -> a -> m [(label, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]) -> ParItems a -> m [ArrayAccess label]
-parItemToArrayAccessM f (SeqItems xs) = sequence [concatMapM (f []) xs >>* Group]
+-- | Transforms the ParItems (from the control-flow graph) into the more suitable ArrayAccess
+-- data type used by this array usage checker.
+parItemToArrayAccessM :: Monad m =>
+  (  [(A.Replicator, Bool)] -> 
+     a ->
+     m [(label, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
+  ) -> 
+  ParItems a -> 
+  m [ArrayAccess label]
+parItemToArrayAccessM f (SeqItems xs)
+  -- Each sequential item is a group of one:
+  = sequence [concatMapM (f []) xs >>* Group]
 parItemToArrayAccessM f (ParItems ps) = concatMapM (parItemToArrayAccessM f) ps
 parItemToArrayAccessM f (RepParItem rep p) 
   = do normal <- parItemToArrayAccessM (\reps -> f ((rep,False):reps)) p
        mirror <- parItemToArrayAccessM (\reps -> f ((rep,True):reps)) p
        return [Replicated normal mirror]
 
+-- | Turns a list of expressions (which may contain many constants, or duplicated variables)
+-- into a set of expressions with at most one constant term, and at most one appearance
+-- of a any variable, or distinct modulo/division of variables.
+-- If there is any problem (specifically, nested modulo or divisions) an error will be returned instead
 makeExpSet :: [FlattenedExp] -> Either String (Set.Set FlattenedExp)
 makeExpSet = foldM makeExpSet' Set.empty
   where
@@ -251,8 +296,10 @@ makeExpSet = foldM makeExpSet' Set.empty
       | otherwise = Nothing
     addScale _ _ _ _ = Nothing
 
-type VarMap = Map.Map FlattenedExp Int
+-- | A map from an item (a FlattenedExp, which may be a variable, or modulo/divide item) to its coefficient in the problem.
+type VarMap = Map.Map FlattenedExp CoeffIndex
 
+-- | Background knowledge about a problem; either an equality or an inequality.
 data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.Expression A.Expression
 
 -- | Given a list of (written,read) expressions, an expression representing the upper array bound, returns either an error
@@ -268,11 +315,14 @@ data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.E
 -- for the prime (mirror) version.
 --
 -- Then the equations have bounds added.  The rules are fairly simple; if
--- any of the transformed EqualityConstraintEquation representing an access
+-- any of the transformed EqualityConstraintEquation (or related equalities or inequalities) representing an access
 -- have a non-zero i (and/or i'), the bound for that variable is added.
 -- So for example, an expression like "i = i' + 3" would have the bounds for
 -- both i and i' added (which would be near-identical, e.g. 1 <= i <= 6 and
--- 1 <= i' <= 6).
+-- 1 <= i' <= 6).  We have to check the equalities and inequalities because
+-- when processing modulo, for the i REM y == 0 option, i will not appear in
+-- the index itself (which will be 0) but will appear in the surrounding
+-- constraints, and we still want to add the replication bounds.
 --
 -- The remainder of the work (correctly pairing equations) is done by
 -- squareAndPair.
@@ -290,6 +340,7 @@ makeEquations otherInfo accesses bound
        return $ squareAndPair o repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
   where
+    -- | Transforms background knowledge into problems
     -- TODO make sure only relevant background knowledge is used (somehow?)
     -- TODO allow modulo in background knowledge
     transformBK :: BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
@@ -304,12 +355,15 @@ makeEquations otherInfo accesses bound
            let e = addEq (amap negate eL') eR'
            return ([],[e])
 
+    -- | A helper function for joining two problems
     accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
     accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
 
+    -- | A front-end to the setIndexVar' function
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]
     setIndexVar tv ti = map (setIndexVar' tv ti)
   
+    -- | Sets the sub-index of the specified variable throughout the expression
     setIndexVar' :: A.Variable -> Int -> FlattenedExp -> FlattenedExp
     setIndexVar' tv ti s@(Scale n (v,_))
       | EQ == customVarCompare tv v = Scale n (v,ti)
@@ -324,10 +378,15 @@ makeEquations otherInfo accesses bound
         bottom' = Set.map (setIndexVar' tv ti) bottom
     setIndexVar' _ _ e = e
 
+    -- | Turns a single expression into an equation-item.  An error is given if the resulting 
+    -- expression is anything complicated (for example, modulo or divide)
     makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
     makeSingleEq e desc = lift (flatten e) >>= makeEquation e (error $ "Type is irrelevant for " ++ desc)
       >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
 
+    -- | A helper function that takes a list of replicated variables and lower and upper bounds, then
+    -- looks to add the bounds to any array accesses that feature the replicated variable in either
+    -- its plain or primed version (the bounds are left plain or primed appropriately).
     makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
       ArrayAccess label -> StateT (VarMap) (Either String) (ArrayAccess label)
     makeEquationWithPossibleRepBounds [] item = return item
@@ -337,6 +396,7 @@ makeEquations otherInfo accesses bound
            flip addPossibleRepBound' (v,0,lower,upper) item' >>=
              flip addPossibleRepBound' (v,1,lower,upper) 
 
+    -- | Applies addPossibleRepBound everywhere in an ArrayAccess
     addPossibleRepBound' :: ArrayAccess label ->
       (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
       StateT (VarMap) (Either String) (ArrayAccess label)
@@ -346,6 +406,8 @@ makeEquations otherInfo accesses bound
            acc1' <- mapM (flip addPossibleRepBound' v) acc1
            return $ Replicated acc0' acc1'
 
+    -- | Adds a replicated bound if any of the item, equalities or inequalities feature
+    -- the variable in question
     addPossibleRepBound :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem) ->
       (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
       StateT (VarMap) (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
@@ -360,12 +422,18 @@ makeEquations otherInfo accesses bound
       
         vi = (var,index)
       
-        add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
+        -- | A function to add an amount to the specified index, without the possibility of
+        -- screwing up the array by adding a number that is beyond its current size (in that
+        -- case, the array is resized appropriately)
+        add :: (CoeffIndex, Integer) -> Array CoeffIndex Integer -> Array CoeffIndex Integer
         add (ind,val) a = (makeArraySize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
           where
             newMin = minimum [fst $ bounds a, ind]
             newMax = maximum [snd $ bounds a, ind]        
 
+    -- | Given a list of replicators (marked enabled/disabled by a flag), the writes and reads, 
+    -- turns them into a single list of accesses with all the relevant information.  The writes and reads
+    -- can be grouped together because they are differentiated by the ArrayAccessType in the result
     mkEq :: [(A.Replicator, Bool)] -> ([A.Expression], [A.Expression]) -> StateT [(CoeffIndex, CoeffIndex)] (StateT VarMap (Either String)) [(A.Expression, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
     mkEq reps (ws,rs) = do repVarEqs <- mapM (liftF makeRepVarEq) reps
                            concatMapM (mkEq' repVarEqs) (ws' ++ rs')
@@ -388,6 +456,7 @@ makeEquations otherInfo accesses bound
                               Group g' -> return g'
                               _ -> throwError "Replicated group found unexpectedly"
 
+    -- | Turns all instances of the variable from the given replicator into their primed version in the given expression
     mirrorFlaggedVars :: [FlattenedExp] -> (A.Replicator,Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
     mirrorFlaggedVars exp (_,False) = return exp
     mirrorFlaggedVars exp (A.For m varName from for, True)
