@@ -370,12 +370,46 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
    ,testRep' (210,[((0,0),rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
      ,("i", intLiteral 1, intLiteral 6),[intLiteral 4],intLiteral 8)
 
-{-
+
    -- i REM 3 vs i' REM 3
-   ,testRep' (220,[((0,0), rep_i_mod_mapping 3, [con 0 === con 0, i === con 0, j === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7] &&& leq [con 0, con 0, con 7])
-    -- TODO The other eight combinations
+   ,testRep' (220,[
+      -- i REM 3 == 0 and i' REM 3 == 0   
+      ((0,0), rep_i_mod_mapping 3, [con 0 === con 0, i === con 0, j === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7] &&& leq [con 0, con 0, con 7])
+      -- i REM 3 == 0 and i' >= 1
+     ,((0,0), rep_i_mod_mapping 3, [con 0 === j ++ 3**m, i === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7]
+        &&& leq [con 0, j ++ 3**m, con 7] &&& [m <== con 0, j >== con 1] &&& leq [con 0, j ++ 3**m, con 2])
+      -- i REM 3 == 0 and i' <= -1
+     ,((0,0), rep_i_mod_mapping 3, [con 0 === j ++ 3**m, i === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7]
+        &&& leq [con 0, j ++ 3**m, con 7] &&& [m >== con 0, j <== con (-1)] &&& leq [con (-2), j ++ 3**m, con 0])
+      -- i >= 1 and i' REM 3 == 0
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === con 0, j === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7]
+        &&& leq [con 0, i ++ 3**k, con 7] &&& [k <== con 0, i >== con 1] &&& leq [con 0, i ++ 3**k, con 2])
+      -- i >= 1 and i' >= 1
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === j ++ 3**m], ij_16 &&&  [i <== j ++ con (-1)]
+       &&& leq [con 0, i ++ 3**k, con 7] &&& leq [con 0, j ++ 3**m, con 7]
+       &&& [m <== con 0, k <== con 0, i >== con 1, j >== con 1]
+       &&& leq [con 0, i ++ 3**k, con 2] &&& leq [con 0, j ++ 3**m, con 2])
+      -- i >= 1 and i' <= -1
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === j ++ 3**m], ij_16 &&&  [i <== j ++ con (-1)]
+       &&& leq [con 0, i ++ 3**k, con 7] &&& leq [con 0, j ++ 3**m, con 7]
+       &&& [m >== con 0, k <== con 0, i >== con 1, j <== con (-1)]
+       &&& leq [con 0, i ++ 3**k, con 2] &&& leq [con (-2), j ++ 3**m, con 0])
+      -- i <= -1 and i' REM 3 == 0
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === con 0, j === con 0], ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, con 0, con 7]
+        &&& leq [con 0, i ++ 3**k, con 7] &&& [k >== con 0, i <== con (-1)] &&& leq [con (-2), i ++ 3**k, con 0])
+      -- i <= - 1 and i' >= 1
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === j ++ 3**m], ij_16 &&&  [i <== j ++ con (-1)]
+       &&& leq [con 0, i ++ 3**k, con 7] &&& leq [con 0, j ++ 3**m, con 7]
+       &&& [m <== con 0, k >== con 0, i <== con (-1), j >== con 1]
+       &&& leq [con (-2), i ++ 3**k, con 0] &&& leq [con 0, j ++ 3**m, con 2])
+      -- i <= - 1 and i' <= -1
+     ,((0,0), rep_i_mod_mapping 3, [i ++ 3**k === j ++ 3**m], ij_16 &&&  [i <== j ++ con (-1)]
+       &&& leq [con 0, i ++ 3**k, con 7] &&& leq [con 0, j ++ 3**m, con 7]
+       &&& [m >== con 0, k >== con 0, i <== con (-1), j <== con (-1)]
+       &&& leq [con (-2), i ++ 3**k, con 0] &&& leq [con (-2), j ++ 3**m, con 0])
      ],("i", intLiteral 1, intLiteral 6),[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3)], intLiteral 8)
--}
+
+
    -- TODO test reads and writes are paired properly
    
    -- TODO test background knowledge being used
