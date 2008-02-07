@@ -350,12 +350,14 @@ makeEquations otherInfo accesses bound
       (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
       StateT (VarMap) (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
     addPossibleRepBound (item,eq,ineq) (var,index,lower,upper)
-      = do index <- varIndex (Scale 1 vi)
-           let boundEqs = if arrayLookupWithDefault 0 item index /= 0
-                            then [add (index,1) $ amap negate lower,add (index,-1) upper]
+      = do vindex <- varIndex (Scale 1 vi)
+           let boundEqs = if elemPresent vindex item || any (elemPresent vindex) eq || any (elemPresent vindex) ineq
+                            then [add (vindex,1) $ amap negate lower,add (vindex,-1) upper]
                             else []
            return (item,eq,ineq ++ boundEqs)
       where
+        elemPresent index item = arrayLookupWithDefault 0 item index /= 0
+      
         vi = (var,index)
       
         add :: (Int,Integer) -> Array Int Integer -> Array Int Integer
