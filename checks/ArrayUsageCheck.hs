@@ -444,8 +444,8 @@ makeEquations otherInfo accesses bound
         makeRepVarEq :: (A.Replicator, Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
         makeRepVarEq (A.For m varName from for, _)
           = do from' <- makeSingleEq from "replication start"
-               for' <- makeSingleEq for "replication count"
-               return (A.Variable m varName, from', for')
+               upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
+               return (A.Variable m varName, from', upper)
         
         mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> (ArrayAccessType, A.Expression) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [(A.Expression, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
         mkEq' repVarEqs (aat, e) 
