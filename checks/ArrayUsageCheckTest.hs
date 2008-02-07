@@ -334,6 +334,13 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
    ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
 
+
+   -- i vs. i'
+   ,testRep' (199,[((0,0),rep_i_mapping, [i === j],
+       leq [con 3, i, con 4] &&& leq [con 3, j, con 4]  &&& [i <== j ++ con (-1)]
+       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])],
+     ("i", intLiteral 3, intLiteral 2),[exprVariable "i"],intLiteral 8)
+
    -- i vs. i'
    ,testRep' (200,[((0,0),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
