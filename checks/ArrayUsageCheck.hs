@@ -308,14 +308,21 @@ makeEquations otherInfo accesses bound
     accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
 
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]
-    setIndexVar tv ti es = case mapAccumL (setIndexVar' tv ti) False es of
-      (_, es') -> es'
+    setIndexVar tv ti = map (setIndexVar' tv ti)
   
-    setIndexVar' :: A.Variable -> Int -> Bool -> FlattenedExp -> (Bool,FlattenedExp)
-    setIndexVar' tv ti b s@(Scale n (v,_))
-      | EQ == customVarCompare tv v = (True,Scale n (v,ti))
-      | otherwise = (b,s)
-    setIndexVar' _ _ b e = (b,e)
+    setIndexVar' :: A.Variable -> Int -> FlattenedExp -> FlattenedExp
+    setIndexVar' tv ti s@(Scale n (v,_))
+      | EQ == customVarCompare tv v = Scale n (v,ti)
+      | otherwise = s
+    setIndexVar' tv ti (Modulo top bottom) = Modulo top' bottom'
+      where
+        top' = Set.map (setIndexVar' tv ti) top
+        bottom' = Set.map (setIndexVar' tv ti) bottom
+    setIndexVar' tv ti (Divide top bottom) = Divide top' bottom'
+      where
+        top' = Set.map (setIndexVar' tv ti) top
+        bottom' = Set.map (setIndexVar' tv ti) bottom
+    setIndexVar' _ _ e = e
 
     makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
     makeSingleEq e desc = lift (flatten e) >>= makeEquation e (error $ "Type is irrelevant for " ++ desc)
