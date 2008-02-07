@@ -515,7 +515,7 @@ squareAndPair (bkEq, bkIneq) repVars s v lh
       where
         extraIneq :: InequalityProblem
           -- prime >= plain + 1  (prime - plain - 1 >= 0)
-        extraIneq = [simpleArray [(prime,1), (plain,-1), (0, -1)]]
+        extraIneq = [mapToArray $ Map.fromList [(prime,1), (plain,-1), (0, -1)]]
 
 getSingleAccessItem :: MonadTrans m => String -> ArrayAccess label -> m (Either String) EqualityConstraintEquation
 getSingleAccessItem _ (Group [(_,_,(acc,_,_))]) = lift $ return acc
