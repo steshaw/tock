@@ -262,7 +262,10 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
      
    ,test (4,[(ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7])],
       [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 8)
-   
+
+   ,test' (5, [((0,1), ijk_mapping, [j === k], leq [con 0, j, i ++ con (-1)] &&& leq [con 0, k, i ++ con (-1)])],
+     [exprVariable "j", exprVariable "k"], exprVariable "i")
+
    -- Testing (i REM 3) vs (4)
    ,test' (10,[
         ((0,1),i_mod_mapping 3,[con 0 === con 4, i === con 0], leq [con 0,con 0,con 7] &&& leq [con 0,con 4,con 7])
@@ -451,6 +454,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     i_mapping = Map.singleton (Scale 1 $ (variable "i",0)) 1
     ij_mapping :: VarMap
     ij_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2)]
+    ijk_mapping :: VarMap
+    ijk_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),(Scale 1 $ (variable "k",0),3)]
     i_mod_mapping :: Integer -> VarMap
     i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
     i_mod_j_mapping :: VarMap
