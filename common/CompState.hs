@@ -153,12 +153,12 @@ defineName n nd
     = modify $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
 
 -- | Find the definition of a name.
-lookupName :: (CSM m, Die m) => A.Name -> m A.NameDef
+lookupName :: (CSMR m, Die m) => A.Name -> m A.NameDef
 lookupName n = lookupNameOrError n (dieP (findMeta n) $ "cannot find name " ++ A.nameName n)
 
-lookupNameOrError :: CSM m => A.Name -> m A.NameDef -> m A.NameDef
+lookupNameOrError :: CSMR m => A.Name -> m A.NameDef -> m A.NameDef
 lookupNameOrError n err
-    =  do ps <- get
+    =  do ps <- getCompState
           case Map.lookup (A.nameName n) (csNames ps) of
             Just nd -> return nd
             Nothing -> err
@@ -191,9 +191,9 @@ addPulled item
                        (l:ls) -> ps { csPulledItems = (item:l):ls })
 
 -- | Do we currently have any pulled items?
-havePulled :: CSM m => m Bool
+havePulled :: CSMR m => m Bool
 havePulled
-    =  do ps <- get
+    =  do ps <- getCompState
           case csPulledItems ps of
             ([]:_) -> return False
             _ -> return True
@@ -224,9 +224,9 @@ popTypeContext
     = modify (\ps -> ps { csTypeContext = tail $ csTypeContext ps })
 
 -- | Get the current type context, if there is one.
-getTypeContext :: CSM m => m (Maybe A.Type)
+getTypeContext :: CSMR m => m (Maybe A.Type)
 getTypeContext
-    =  do ps <- get
+    =  do ps <- getCompState
           case csTypeContext ps of
             (Just c):_ -> return $ Just c
             _ -> return Nothing
@@ -285,18 +285,18 @@ makeNonceVariable s m t nt am
     = defineNonce m s (A.Declaration m t Nothing) nt am
 --}}}
 
-diePC :: (CSM m, Die m) => Meta -> m String -> m a
+diePC :: (CSMR m, Die m) => Meta -> m String -> m a
 diePC m str = str >>= (dieP m)
 
 --dieC :: (CSM m, Die m) => m String -> m a
 --dieC str = str >>= die
 
-throwErrorC :: (CSM m,MonadError ErrorReport m) => (Maybe Meta,m String) -> m a
+throwErrorC :: (CSMR m,MonadError ErrorReport m) => (Maybe Meta,m String) -> m a
 throwErrorC (m,str) = str >>= ((curry throwError) m)
 
-findAllProcesses :: CSM m => m [(String,A.Process)]
+findAllProcesses :: CSMR m => m [(String,A.Process)]
 findAllProcesses
-  = do st <- get
+  = do st <- getCompState
        return $ mapMaybe findAllProcesses' (Map.assocs $ csNames st)
   where
     findAllProcesses' :: (String, A.NameDef) -> Maybe (String, A.Process)
