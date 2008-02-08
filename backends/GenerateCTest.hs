@@ -106,9 +106,6 @@ assertGenFail n act
 evalCGen :: CGen () -> GenOps -> CompState -> IO (Either Errors.ErrorReport [String])
 evalCGen act ops state = evalStateT (runErrorT $ execWriterT $ runReaderT act ops) state
 
-evalCGen' :: CGen' () -> CompState -> IO (Either Errors.ErrorReport [String])
-evalCGen' act state = evalStateT (runErrorT $ execWriterT act) state
-
 -- | Checks that running the test for the C and C++ backends produces the right output for each.
 testBothS :: 
   String -- ^ Test Name
@@ -174,49 +171,32 @@ testBoth a b c d = testBothS a b c d (return ())
 testBothSame :: String -> String -> CGen () -> Test
 testBothSame a b c = testBothSameS a b c (return ())
   
--- | These functions are all helper functions that are like call, but turn the call
--- into a function suitable to pass to all the test functions; i.e. a function
--- parameterised solely by the GenOps.
-{-
-tcall :: (GenOps -> GenOps -> a -> b) -> a -> (GenOps -> b)
-tcall f x = (\o -> f o o x)
-
-tcall2 :: (GenOps -> GenOps -> a0 -> a1 -> b) -> a0 -> a1 -> (GenOps -> b)
-tcall2 f x y = (\o -> f o o x y)
-
-tcall3 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> b) -> a0 -> a1 -> a2 -> (GenOps -> b)
-tcall3 f x y z = (\o -> f o o x y z)
-
-tcall4 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> a3 -> b) -> a0 -> a1 -> a2 -> a3 -> (GenOps -> b)
-tcall4 f a b c d = (\o -> f o o a b c d)
-
-tcall5 :: (GenOps -> GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> b) -> a0 -> a1 -> a2 -> a3 -> a4 -> (GenOps -> b)
-tcall5 func a b c d e = (\o -> func o o a b c d e)
--}
-tcall f = call f undefined
-tcall2 f = call f undefined
-tcall3 f = call f undefined
-tcall4 f = call f undefined
-tcall5 f = call f undefined
-
+-- | These functions are here for a historical reason, and are all defined
+-- to be call.
+tcall, tcall2, tcall3, tcall4, tcall5 :: CGenCall a => (GenOps -> a) -> a
+tcall = call
+tcall2 = call
+tcall3 = call
+tcall4 = call
+tcall5 = call
 
 -- | Overrides a specified function in GenOps to return the given value
 override1 ::
   b -- ^ The value to return for the overridden function
-  -> (GenOps -> a -> b) -- ^ The resulting overriden function
-override1 val = (\_ _ -> val)
+  -> (a -> b) -- ^ The resulting overriden function
+override1 val = (\_ -> val)
 
-override2 :: b -> (GenOps -> a0 -> a1 -> b)
-override2 val = (\_ _ _ -> val)
+override2 :: b -> (a0 -> a1 -> b)
+override2 val = (\_ _ -> val)
 
-override3 :: b -> (GenOps -> a0 -> a1 -> a2 -> b)
-override3 val = (\_ _ _ _ -> val)
+override3 :: b -> (a0 -> a1 -> a2 -> b)
+override3 val = (\_ _ _ -> val)
 
-override4 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> b)
-override4 val = (\_ _ _ _ _ -> val)
+override4 :: b -> (a0 -> a1 -> a2 -> a3 -> b)
+override4 val = (\_ _ _ _ -> val)
 
-override5 :: b -> (GenOps -> a0 -> a1 -> a2 -> a3 -> a4 -> b)
-override5 val = (\_ _ _ _ _ _ -> val)
+override5 :: b -> (a0 -> a1 -> a2 -> a3 -> a4 -> b)
+override5 val = (\_ _ _ _ _ -> val)
 
 testGenType :: Test
 testGenType = TestList 
@@ -412,7 +392,7 @@ testOverArray = TestList $ map testOverArray'
          testRS "testOverArray'" rx3 (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state3
          return ()
       where
-        func f = Just $ call genVariableUnchecked undefined (f $ A.Variable emptyMeta foo) >> tell [";"]
+        func f = Just $ call genVariableUnchecked (f $ A.Variable emptyMeta foo) >> tell [";"]
         rx1 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
         rx3 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{" ++
               "for\\(int ([[:alnum:]_]+)=0;\\2<foo" ++ sz 1 ++ ";\\2\\+\\+)\\{" ++
@@ -545,12 +525,12 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
    testAll' n (iC,fC) (iCPP,fCPP) t state init = TestList
     [
      testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) (over (tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t init))) state
-     ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareInit ops ops emptyMeta t (A.Variable emptyMeta foo) init)) state
+     ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareInit ops emptyMeta t (A.Variable emptyMeta foo) init)) state
      ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP (over (tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t Nothing))) state
-     ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareFree ops ops emptyMeta t (A.Variable emptyMeta foo))) state
+     ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareFree ops emptyMeta t (A.Variable emptyMeta foo))) state
     ]
      where
-       overArray _ _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
+       overArray _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
          Just p -> caret >> p >> caret
          Nothing -> return ()
        over = local $ \ops -> ops {genDeclaration = override3 at, genOverArray = overArray}
@@ -684,7 +664,7 @@ testSpec = TestList
     testAllSameS n e s st o = testAllS n e e s st o
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override4 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
-                   ,genType = (\_ x -> tell ["$(",show x,")"])
+                   ,genType = (\x -> tell ["$(",show x,")"])
                    ,genVariable = override1 at
                    }
 
@@ -725,9 +705,9 @@ testRetypeSizes = TestList
   
    rep search replace str = subRegex (mkRegex search) str replace
  
-   showBytesInParams _ _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
-   showBytesInParams _ _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
-   showArrSize _ _ sz _ = tell ["^("] >> sz >> tell [")"]
+   showBytesInParams _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
+   showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
+   showArrSize _ sz _ = tell ["^("] >> sz >> tell [")"]
    over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySize = showArrSize}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
@@ -800,8 +780,8 @@ testGenVariable = TestList
      where
        state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t Nothing) am A.Unplaced
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
-       over = local $ \ops -> ops {genArraySubscript = (\_ b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression ops) subs))
-                      ,genDirectedVariable = (\_ cg _ -> dollar >> cg >> dollar)}
+       over = local $ \ops -> ops {genArraySubscript = (\b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
+                      ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
    
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testA n eC eCPP sub t = TestList [test n eC eCPP sub A.Original t, test (n+1) eC eCPP sub A.Abbrev t, test (n+2) eC eCPP sub A.ValAbbrev t]
@@ -989,7 +969,7 @@ testInput = TestList
 --              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
 
    overInputItemCase = local $ \ops -> ops {genInputItem = override2 caret}
-   over = local $ \ops -> ops {genBytesIn = (\_ _ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
+   over = local $ \ops -> ops {genBytesIn = (\_ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
 
 testOutput :: Test
 testOutput = TestList
@@ -1104,21 +1084,21 @@ testBytesIn = TestList
   
  ]
  where
-   over = local $ \ops -> ops {genVariable = override1 dollar, genSizeSuffix = (\_ n -> tell["(@",n,")"])}
+   over = local $ \ops -> ops {genVariable = override1 dollar, genSizeSuffix = (\n -> tell["(@",n,")"])}
 
 testMobile :: Test
 testMobile = TestList
  [
   testBoth "testMobile 0" "malloc(#(Int Left False))" "new Int" (local over (tcall3 genAllocMobile emptyMeta (A.Mobile A.Int) Nothing))
-  ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalStateT (runErrorT (execWriterT $ flip runReaderT (over cppgenOps) $ call genAllocMobile undefined emptyMeta (A.Mobile A.Int) (Just undefined))) emptyState)
+  ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalStateT (runErrorT (execWriterT $ flip runReaderT (over cppgenOps) $ call genAllocMobile emptyMeta (A.Mobile A.Int) (Just undefined))) emptyState)
   
   ,testBoth "testMobile 100" "if(@!=NULL){free(@);@=NULL;}" "if(@!=NULL){delete @;@=NULL;}"
     (local over (tcall2 genClearMobile emptyMeta undefined))
  ]
   where
-    showBytesInParams _ _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
-    showBytesInParams _ _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
-    over ops = ops {genBytesIn = showBytesInParams, genType = (\_ t -> tell [show t]), genExpression = override1 dollar, genVariable = override1 at}
+    showBytesInParams _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
+    showBytesInParams _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
+    over ops = ops {genBytesIn = showBytesInParams, genType = (\t -> tell [show t]), genExpression = override1 dollar, genVariable = override1 at}
 
 ---Returns the list of tests:
 tests :: Test

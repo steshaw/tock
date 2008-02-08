@@ -162,12 +162,12 @@ generateCPPCSP :: A.AST -> PassM String
 generateCPPCSP = generate cppgenOps
 
 -- | Generates the top-level code for an AST.
-cppgenTopLevel :: GenOps -> A.AST -> CGen ()
-cppgenTopLevel ops s
+cppgenTopLevel :: A.AST -> CGen ()
+cppgenTopLevel s
     =  do tell ["#include <tock_support_cppcsp.h>\n"]
           --In future, these declarations could be moved to a header file:
-          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
-          call genStructured ops s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
+          sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
+          call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           (chanType,writer) <- 
@@ -180,16 +180,16 @@ cppgenTopLevel ops s
           tell [" csp::Run( csp::InParallel (new ",writer,"(std::cout,out.reader())) (new ",writer,"(std::cerr,err.reader())) (csp::InSequenceOneThread ( new proc_"]
           genName name 
           tell ["("]
-          infixComma $ map (tlpChannel ops) chans
+          infixComma $ map tlpChannel chans
           tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}"]
   where
-    tlpChannel :: GenOps -> (A.Direction,TLPChannel) -> CGen()
-    tlpChannel ops (dir,c) = case dir of
+    tlpChannel :: (A.Direction,TLPChannel) -> CGen()
+    tlpChannel (dir,c) = case dir of
                                A.DirUnknown -> tell ["&"] >> chanName
                                A.DirInput -> chanName >> tell [" .reader() "]
                                A.DirOutput -> chanName >> tell [" .writer() "]
                              where
-                               chanName = call genTLPChannel ops c
+                               chanName = call genTLPChannel c
 
 --}}}
 
@@ -197,8 +197,8 @@ cppgenTopLevel ops s
 -- | CIF has a stop function for stopping processes.
 --In C++CSP I use the exception handling to make a stop call throw a StopException,
 --and the catch is placed so that catching a stop exception immediately finishes the process
-cppgenStop :: GenOps -> Meta -> String -> CGen ()
-cppgenStop _ m s 
+cppgenStop :: Meta -> String -> CGen ()
+cppgenStop m s 
   = do tell ["throw StopException("]
        genMeta m
        tell [" \"",s,"\");"]
@@ -206,49 +206,49 @@ cppgenStop _ m s
 --{{{ Two helper functions to aggregate some common functionality in this file.
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanin\<\>
-genCPPCSPChannelInput :: GenOps -> A.Variable -> CGen()
-genCPPCSPChannelInput ops var
+genCPPCSPChannelInput :: A.Variable -> CGen()
+genCPPCSPChannelInput var
   = do t <- typeOfVariable var
        case t of
-         (A.Chan A.DirInput _ _) -> call genVariable ops var
-         (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
+         (A.Chan A.DirInput _ _) -> call genVariable var
+         (A.Chan A.DirUnknown _ _) -> do call genVariable var
                                          tell ["->reader()"]
-         _ -> call genMissing ops $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
+         _ -> call genMissing $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
-genCPPCSPChannelOutput :: GenOps -> A.Variable -> CGen()
-genCPPCSPChannelOutput ops var
+genCPPCSPChannelOutput :: A.Variable -> CGen()
+genCPPCSPChannelOutput var
   = do t <- typeOfVariable var
        case t of
-         (A.Chan A.DirOutput _ _) -> call genVariable ops var
-         (A.Chan A.DirUnknown _ _) -> do call genVariable ops var
+         (A.Chan A.DirOutput _ _) -> call genVariable var
+         (A.Chan A.DirUnknown _ _) -> do call genVariable var
                                          tell ["->writer()"]
-         _ -> call genMissing ops $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
+         _ -> call genMissing $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
 --}}}
 
 -- | C++CSP2 returns the number of seconds since the epoch as the time
 --Since this is too large to be contained in an int once it has been multiplied,
 --the remainder is taken to trim the timer back down to something that will be useful in an int
-cppgenTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen ()
-cppgenTimerRead ops c v
+cppgenTimerRead :: A.Variable -> A.Variable -> CGen ()
+cppgenTimerRead c v
     =  do tell ["csp::CurrentTime (&"]
-          call genVariable ops c
+          call genVariable c
           tell [");\n"]
-          call genVariable ops v
+          call genVariable v
           tell [" = (int)(unsigned)remainder(1000000.0 * csp::GetSeconds("]
-          call genVariable ops c
+          call genVariable c
           tell ["),4294967296.0);\n"]
 
-cppgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
-cppgenGetTime ops m v
+cppgenGetTime :: Meta -> A.Variable -> CGen ()
+cppgenGetTime m v
     =  do tell ["csp::CurrentTime(&"]
-          call genVariable ops v
+          call genVariable v
           tell [");"]
 
-cppgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
-cppgenWait ops wm e
+cppgenWait :: A.WaitMode -> A.Expression -> CGen ()
+cppgenWait wm e
     =  do tell [if wm == A.WaitFor then "csp::SleepFor" else "csp::SleepUntil", "("]
-          call genExpression ops e
+          call genExpression e
           tell [");"]
 
 {-|
@@ -282,11 +282,11 @@ We could say that HIGHalpha = HIGH.  But if the user wrapped around LOWalpha, we
 if LOWalpha is a wrapped round version of LOW.  This could be done by checking whether LOWalpha < LOW.  If this is true, it must have wrapped.  
 Otherwise, it must not have.
 -}
-genCPPCSPTime :: GenOps -> A.Expression -> CGen String
-genCPPCSPTime ops e
+genCPPCSPTime :: A.Expression -> CGen String
+genCPPCSPTime e
     = do  time <- makeNonce "time_exp"
           tell ["unsigned ",time," = (unsigned)"]
-          call genExpression ops e
+          call genExpression e
           tell [" ; "]
           curTime <- makeNonce "time_exp"
           curTimeLow <- makeNonce "time_exp"
@@ -299,51 +299,51 @@ genCPPCSPTime ops e
           tell ["csp::Time ",retTime," = csp::Seconds((((double)(",curTimeHigh," + TimeDiffHelper(",curTimeLow,",",time,")) * 4294967296.0) + (double)",time,") / 1000000.0);"]
           return retTime
 
-cppgenTimerWait :: GenOps -> A.Expression -> CGen ()
-cppgenTimerWait ops e
+cppgenTimerWait :: A.Expression -> CGen ()
+cppgenTimerWait e
     =  do 
-          time <- genCPPCSPTime ops e
+          time <- genCPPCSPTime e
           tell ["csp::SleepUntil(",time,");"]
 
-cppgenInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen ()
-cppgenInputItem ops c dest
+cppgenInputItem :: A.Variable -> A.InputItem -> CGen ()
+cppgenInputItem c dest
   = case dest of
       (A.InCounted m cv av) -> 
-        do call genInputItem ops c (A.InVariable m cv)
+        do call genInputItem c (A.InVariable m cv)
            recvBytes av (
-             do call genVariable ops cv
+             do call genVariable cv
                 tell ["*"]
                 t <- typeOfVariable av
                 subT <- trivialSubscriptType m t
-                call genBytesIn ops m subT (Right av)
+                call genBytesIn m subT (Right av)
              )
       (A.InVariable m v) ->
         do ct <- typeOfVariable c
            t <- typeOfVariable v
            case (byteArrayChan ct,t) of
-             (True,_)-> recvBytes v (call genBytesIn ops m t (Right v))
+             (True,_)-> recvBytes v (call genBytesIn m t (Right v))
              (False,A.Array {}) -> do tell ["tockRecvArray("]
                                       chan'
                                       tell [","]
-                                      call genVariable ops v
+                                      call genVariable v
                                       tell [");"]
              (False,_) -> do chan'
                              tell [">>"]
-                             genNonPoint ops v
+                             genNonPoint v
                              tell [";"]
   where
-    chan' = genCPPCSPChannelInput ops c
+    chan' = genCPPCSPChannelInput c
     recvBytes :: A.Variable -> CGen () -> CGen ()
     recvBytes v b = do tell ["tockRecvArrayOfBytes("]
                        chan'
                        tell [",tockSendableArrayOfBytes("]
                        b
                        tell [","]
-                       genPoint ops v
+                       genPoint v
                        tell ["));"]
 
-cppgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
-cppgenOutputItem ops chan item
+cppgenOutputItem :: A.Variable -> A.OutputItem -> CGen ()
+cppgenOutputItem chan item
   = case item of
       (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) -> (sendBytes cv) >> (sendBytes av)
       (A.OutExpression _ (A.ExprVariable _ sv)) ->
@@ -354,18 +354,18 @@ cppgenOutputItem ops chan item
             (False,A.Array {}) -> do tell ["tockSendArray("]
                                      chan'
                                      tell [","]
-                                     call genVariable ops sv
+                                     call genVariable sv
                                      tell [");"]
             (False,_) -> do chan'
                             tell ["<<"]
-                            genNonPoint ops sv
+                            genNonPoint sv
                             tell [";"]
   where
-    chan' = genCPPCSPChannelOutput ops chan
+    chan' = genCPPCSPChannelOutput chan
     
     sendBytes v = do chan'
                      tell ["<<tockSendableArrayOfBytes("]
-                     genPoint ops v
+                     genPoint v
                      tell [");"]
 
 byteArrayChan :: A.Type -> Bool
@@ -374,14 +374,14 @@ byteArrayChan (A.Chan _ _ A.Any) = True
 byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
 byteArrayChan _ = False
 
-genPoint :: GenOps -> A.Variable -> CGen()
-genPoint ops v = do t <- typeOfVariable v
-                    when (not $ isPoint t) $ tell ["&"]
-                    call genVariable ops v
-genNonPoint :: GenOps -> A.Variable -> CGen()
-genNonPoint ops v = do t <- typeOfVariable v
-                       when (isPoint t) $ tell ["*"]
-                       call genVariable ops v                    
+genPoint :: A.Variable -> CGen()
+genPoint v = do t <- typeOfVariable v
+                when (not $ isPoint t) $ tell ["&"]
+                call genVariable v
+genNonPoint :: A.Variable -> CGen()
+genNonPoint v = do t <- typeOfVariable v
+                   when (isPoint t) $ tell ["*"]
+                   call genVariable v                    
 isPoint :: A.Type -> Bool
 isPoint (A.Record _) = True
 isPoint (A.Array _ _) = True
@@ -393,27 +393,27 @@ infixComma :: [CGen ()] -> CGen ()
 infixComma (c0:cs) = c0 >> sequence_ [genComma >> c | c <- cs]
 infixComma [] = return ()
 
-cppgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
-cppgenOutputCase ops c tag ois 
+cppgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
+cppgenOutputCase c tag ois 
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tell ["tockSendInt("]
-          genCPPCSPChannelOutput ops c
+          genCPPCSPChannelOutput c
           tell [","]
           genName tag
           tell ["_"]
           genName proto
           tell [");"]
-          call genOutput ops c ois
+          call genOutput c ois
 
 
 -- | We use the process wrappers here, in order to execute the functions in parallel.
 --We use forking instead of Run\/InParallelOneThread, because it is easier to use forking with replication.
-cppgenPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen ()
-cppgenPar ops _ s
+cppgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
+cppgenPar _ s
   = do forking <- makeNonce "forking"
        tell ["{ csp::ScopedForking ",forking," ; "]
-       call genStructured ops s (genPar' forking)
+       call genStructured s (genPar' forking)
        tell [" }"]
        where
          genPar' :: String -> Meta -> A.Process -> CGen ()
@@ -423,15 +423,15 @@ cppgenPar ops _ s
                do tell [forking," .forkInThisThread(new proc_"]
                   genName n
                   tell ["("]
-                  call genActuals ops as
+                  call genActuals as
                   tell [" ) ); "] 
              _ -> error ("trying to run something other than a process in parallel")
       
 
 
 -- | Changed to use C++CSP's Alternative class:
-cppgenAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen ()
-cppgenAlt ops _ s 
+cppgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
+cppgenAlt _ s 
   = do guards <- makeNonce "alt_guards"
        tell ["std::list< csp::Guard* > ", guards, " ; "]
        initAltGuards guards s
@@ -450,46 +450,46 @@ cppgenAlt ops _ s
   where
     --This function is like the enable function in GenerateC, but this one merely builds a list of guards.  It does not do anything other than add to the guard list
     initAltGuards :: String -> A.Structured A.Alternative -> CGen ()
-    initAltGuards guardList s = call genStructured ops s doA
+    initAltGuards guardList s = call genStructured s doA
       where
         doA  _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf ops e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
+                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.AlternativeSkip _ e _ -> withIf e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
                 A.AlternativeWait _ wm e _ -> 
                   do tell [guardList, " . push_back( new ", if wm == A.WaitUntil then "csp::TimeoutGuard (" else "csp::RelTimeoutGuard("]
-                     call genExpression ops e
+                     call genExpression e
                      tell ["));"]
 
         doIn c im
             = do case im of
-                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
-                     do timeVal <- genCPPCSPTime ops time
+                     do timeVal <- genCPPCSPTime time
                         tell [guardList, " . push_back( new csp::TimeoutGuard (",timeVal,"));\n"]
                    _ ->
                      do tell [guardList, " . push_back( "]
-                        genCPPCSPChannelInput ops c
+                        genCPPCSPChannelInput c
                         tell [" . inputGuard());\n"]
 
     -- This is the same as GenerateC for now -- but it's not really reusable
     -- because it's so closely tied to how ALT is implemented in the backend.
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured ops s doA
+    genAltProcesses id fired label s = call genStructured s doA
       where
         doA _ alt
             = case alt of
                 A.Alternative _ c im p -> doIn c im p
-                A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p
-                A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
-                A.AlternativeWait _ _ _ p -> doCheck (call genProcess ops p)
+                A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
+                A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
+                A.AlternativeWait _ _ _ p -> doCheck (call genProcess p)
 
         doIn c im p
             = do case im of
-                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
-                   A.InputTimerAfter _ _ -> doCheck (call genProcess ops p)
-                   _ -> doCheck (call genInput ops c im >> call genProcess ops p)
+                   A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
+                   A.InputTimerAfter _ _ -> doCheck (call genProcess p)
+                   _ -> doCheck (call genInput c im >> call genProcess p)
 
         doCheck body
             = do tell ["if (", id, "++ == ", fired, ") {\n"]
@@ -499,22 +499,22 @@ cppgenAlt ops _ s
 
 
 -- | In GenerateC this uses prefixComma (because "Process * me" is always the first argument), but here we use infixComma.
-cppgenActuals :: GenOps -> [A.Actual] -> CGen ()
-cppgenActuals ops as = infixComma (map (call genActual ops) as)
+cppgenActuals :: [A.Actual] -> CGen ()
+cppgenActuals as = infixComma (map (call genActual) as)
 
 -- | In GenerateC this has special code for passing array sizes around, which we don't need.
-cppgenActual :: GenOps -> A.Actual -> CGen ()
-cppgenActual ops actual
+cppgenActual :: A.Actual -> CGen ()
+cppgenActual actual
     = case actual of
-        A.ActualExpression t e -> call genExpression ops e
-        A.ActualVariable am t v -> cppabbrevVariable ops am t v
+        A.ActualExpression t e -> call genExpression e
+        A.ActualVariable am t v -> cppabbrevVariable am t v
 
 -- | The only change from GenerateC is that passing "me" is not necessary in C++CSP
-cppgenProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen ()
-cppgenProcCall ops n as 
+cppgenProcCall :: A.Name -> [A.Actual] -> CGen ()
+cppgenProcCall n as 
     = do genName n
          tell ["("]
-         call genActuals ops as
+         call genActuals as
          tell [");"]
 
 
@@ -523,52 +523,52 @@ cppgenProcCall ops n as
 --The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
 --I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
 --but I will worry about that later
-cppgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
-cppgenDeclaration ops arrType@(A.Array ds t) n False
-    =  do call genType ops t
+cppgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
+cppgenDeclaration arrType@(A.Array ds t) n False
+    =  do call genType t
           tell [" "]
           case t of
             A.Chan A.DirUnknown _ _ ->
               do genName n
                  tell ["_storage"]
-                 call genFlatArraySize ops ds
+                 call genFlatArraySize ds
                  tell [";"]
-                 call genType ops t
+                 call genType t
                  tell ["* "]
             _ -> return ()
-          call genArrayStoreName ops n
-          call genFlatArraySize ops ds
+          call genArrayStoreName n
+          call genFlatArraySize ds
           tell [";"]
-          call declareArraySizes ops arrType n
-cppgenDeclaration ops arrType@(A.Array ds t) n True
-    =  do call genType ops t
+          call declareArraySizes arrType n
+cppgenDeclaration arrType@(A.Array ds t) n True
+    =  do call genType t
           tell [" "]
-          call genArrayStoreName ops n
-          call genFlatArraySize ops ds
+          call genArrayStoreName n
+          call genFlatArraySize ds
           tell [";"]
-          call genType ops arrType
+          call genType arrType
           tell [" "]
           genName n;
           tell [";"]
-cppgenDeclaration ops t n _
-    =  do call genType ops t
+cppgenDeclaration t n _
+    =  do call genType t
           tell [" "]
           genName n
           tell [";"]
 
-cppdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
-cppdeclareArraySizes ops arrType@(A.Array ds _) n = do
+cppdeclareArraySizes :: A.Type -> A.Name -> CGen ()
+cppdeclareArraySizes arrType@(A.Array ds _) n = do
           tell ["const "]
-          call genType ops arrType
+          call genType arrType
           tell [" "]
           genName n
           tell ["="]
-          call genArraySizesLiteral ops n arrType
+          call genArraySizesLiteral n arrType
           tell [";"]
 
-cppgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
-cppgenArraySizesLiteral ops n t@(A.Array ds _) = 
-  do call genType ops t
+cppgenArraySizesLiteral :: A.Name -> A.Type -> CGen ()
+cppgenArraySizesLiteral n t@(A.Array ds _) = 
+  do call genType t
      tell ["("]
      genName n
      tell ["_actual,tockDims("]
@@ -582,22 +582,22 @@ cppgenArraySizesLiteral ops n t@(A.Array ds _) =
             | d <- ds]
 
 -- | Changed because we initialise channels and arrays differently in C++
-cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
-cppdeclareInit ops m t@(A.Array ds t') var _
+cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
+cppdeclareInit m t@(A.Array ds t') var _
     = Just $ do fdeclareInit <- fget declareInit
-                init <- return (\sub -> fdeclareInit ops m t' (sub var) Nothing)
-                call genOverArray ops m var init
+                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
+                call genOverArray m var init
                 case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tockInitChanArray("]
-                       call genVariableUnchecked ops var
+                       call genVariableUnchecked var
                        tell ["_storage,"]
-                       call genVariableUnchecked ops var
+                       call genVariableUnchecked var
                        tell ["_actual,"]
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-cppdeclareInit ops m rt@(A.Record _) var _
+cppdeclareInit m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
@@ -605,49 +605,49 @@ cppdeclareInit ops m rt@(A.Record _) var _
     initField :: A.Type -> A.Variable -> CGen ()
     -- An array as a record field; we must initialise the sizes.
     initField t@(A.Array ds _) v
-        =  do call genVariableUnchecked ops v
+        =  do call genVariableUnchecked v
               tell ["=tockArrayView("]
-              call genVariableUnchecked ops v
+              call genVariableUnchecked v
               tell ["_actual,tockDims("]
               infixComma [tell [show n] | (A.Dimension n) <- ds]
               tell ["));"]
               fdeclareInit <- fget declareInit
-              doMaybe $ fdeclareInit ops m t v Nothing
+              doMaybe $ fdeclareInit m t v Nothing
     initField t v = do fdeclareInit <- fget declareInit
-                       doMaybe $ fdeclareInit ops m t v Nothing
-cppdeclareInit ops m _ v (Just e)
-    = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
-cppdeclareInit _ _ _ _ _ = Nothing
+                       doMaybe $ fdeclareInit m t v Nothing
+cppdeclareInit m _ v (Just e)
+    = Just $ call genAssign m [v] $ A.ExpressionList m [e]
+cppdeclareInit _ _ _ _ = Nothing
 
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
-cppdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cppdeclareFree _ _ _ _ = Nothing
+cppdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cppdeclareFree _ _ _ = Nothing
 
 -- | Changed to work properly with declareFree to free channel arrays.
-cppremoveSpec :: GenOps -> A.Specification -> CGen ()
-cppremoveSpec ops (A.Specification m n (A.Declaration _ t _))
+cppremoveSpec :: A.Specification -> CGen ()
+cppremoveSpec (A.Specification m n (A.Declaration _ t _))
     = do fdeclareFree <- fget declareFree
-         case fdeclareFree ops m t var of
+         case fdeclareFree m t var of
                Just p -> p
                Nothing -> return ()
   where
     var = A.Variable m n
-cppremoveSpec _ _ = return ()
+cppremoveSpec _ = return ()
 
 
-cppgenArrayStoreName :: GenOps -> A.Name -> CGen()
-cppgenArrayStoreName ops n = genName n >> tell ["_actual"]
+cppgenArrayStoreName :: A.Name -> CGen()
+cppgenArrayStoreName n = genName n >> tell ["_actual"]
 
 --Changed from GenerateC because we don't need the extra code for array sizes
-cppabbrevExpression :: GenOps -> A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
-cppabbrevExpression ops am t@(A.Array _ _) e
+cppabbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
+cppabbrevExpression am t@(A.Array _ _) e
     = case e of
-        A.ExprVariable _ v -> cppabbrevVariable ops am t v
-        A.Literal _ (A.Array ds _) r -> call genExpression ops e
+        A.ExprVariable _ v -> cppabbrevVariable am t v
+        A.Literal _ (A.Array ds _) r -> call genExpression e
         _ -> bad
   where
-    bad = call genMissing ops "array expression abbreviation"
-cppabbrevExpression ops am _ e = call genExpression ops e
+    bad = call genMissing "array expression abbreviation"
+cppabbrevExpression am _ e = call genExpression e
 
 -- | Takes a list of dimensions and outputs a comma-seperated list of the numerical values
 --Unknown dimensions have value 0 (which is treated specially by the tockArrayView class)
@@ -662,21 +662,21 @@ genDims dims = infixComma $ map genDim dims
 --and also changed to use infixComma.
 --Therefore these functions are not part of GenOps.  They are called directly by cppgenForwardDeclaration and cppintroduceSpec.
 --To use for a constructor list, pass prefixUnderscore as the function, otherwise pass the identity function
-cppgenFormals :: GenOps -> (A.Name -> A.Name) -> [A.Formal] -> CGen ()
-cppgenFormals ops nameFunc list = infixComma (map (cppgenFormal ops nameFunc) list)
+cppgenFormals :: (A.Name -> A.Name) -> [A.Formal] -> CGen ()
+cppgenFormals nameFunc list = infixComma (map (cppgenFormal nameFunc) list)
 
 --Changed as genFormals
-cppgenFormal :: GenOps -> (A.Name -> A.Name) -> A.Formal -> CGen ()
-cppgenFormal ops nameFunc (A.Formal am t n) = call genDecl ops am t (nameFunc n)
+cppgenFormal :: (A.Name -> A.Name) -> A.Formal -> CGen ()
+cppgenFormal nameFunc (A.Formal am t n) = call genDecl am t (nameFunc n)
 
-cppgenForwardDeclaration :: GenOps -> A.Specification -> CGen()
-cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
+cppgenForwardDeclaration :: A.Specification -> CGen()
+cppgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
     =  do --Generate the "process" as a C++ function:
-          call genSpecMode ops sm
+          call genSpecMode sm
           tell ["void "]
           name 
           tell [" ("]
-          cppgenFormals ops (\x -> x) fs
+          cppgenFormals (\x -> x) fs
           tell [");"]
 
           --And generate its CSProcess wrapper:
@@ -687,7 +687,7 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
           tell ["public:inline proc_"]
           name
           tell ["("]
-          cppgenFormals ops prefixUnderscore fs
+          cppgenFormals prefixUnderscore fs
           -- One of the cgtests declares an array of 200*100*sizeof(csp::Time).  
           -- Assuming csp::Time could be up to 16 bytes, we need half a meg stack: 
           tell [") : csp::CSProcess(524288)"]
@@ -699,7 +699,7 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
     --A simple function for generating declarations of class variables
     genClassVar :: A.Formal -> CGen()
     genClassVar (A.Formal am t n) 
-        = do call genDecl ops am t n
+        = do call genDecl am t n
              tell[";"]
 
     --Generates the given list of class variables
@@ -719,19 +719,19 @@ cppgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
     genConstructorList :: [A.Formal] -> CGen ()
     genConstructorList fs = mapM_ genConsItem fs
 
-cppgenForwardDeclaration _ _ = return ()
+cppgenForwardDeclaration _ = return ()
 
-cppintroduceSpec :: GenOps -> A.Specification -> CGen ()
+cppintroduceSpec :: A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
-cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
+cppintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
     =  do --Generate the "process" as a C++ function:
-          call genSpecMode ops sm
+          call genSpecMode sm
           tell ["void "]
           name 
           tell [" ("]
-          cppgenFormals ops (\x -> x) fs
+          cppgenFormals (\x -> x) fs
           tell [") {\n"]
-          call genProcess ops p
+          call genProcess p
           tell ["}\n"]                                                                          
 
           --And generate its CSProcess wrapper:
@@ -754,31 +754,31 @@ cppintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
     genParamList fs = infixComma $ map genParam fs
 
 -- Changed because we use cppabbrevVariable instead of abbrevVariable:
-cppintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
-    =  do let rhs = cppabbrevVariable ops am t v
-          call genDecl ops am t n
+cppintroduceSpec (A.Specification _ n (A.Is _ am t v))
+    =  do let rhs = cppabbrevVariable am t v
+          call genDecl am t n
           tell ["="]
           rhs
           tell [";"]
 --Clause only changed to use C++ rather than C arrays:
-cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
-    =  do let rhs = cppabbrevExpression ops am t e
+cppintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
+    =  do let rhs = cppabbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ (A.Array dims _)  _) ->
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
               -- declaration, since you can't say "int *foo = {vs};" in C.
               do tmp <- makeNonce "array_literal"
                  tell ["const "]
-                 call genType ops ts
+                 call genType ts
                  tell [" ",tmp, " [] = "]
                  rhs
                  tell [" ; "]
                  tell ["const tockArrayView< const "]
-                 call genType ops ts
+                 call genType ts
                  tell [" , ",show (length dims)," /**/>/**/ "]
                  genName n
                  tell ["(("]
-                 call genType ops ts 
+                 call genType ts 
                  tell [" *)",tmp,",tockDims("]
                  genDims dims
                  tell ["));\n"]
@@ -787,37 +787,37 @@ cppintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
               -- directly writing a struct literal in C that you can use -> on.
               do tmp <- makeNonce "record_literal"
                  tell ["const "]
-                 call genType ops t
+                 call genType t
                  tell [" ", tmp, " = "]
                  rhs
                  tell [";\n"]
-                 call genDecl ops am t n
+                 call genDecl am t n
                  tell [" = &", tmp, ";\n"]
             _ ->
-              do call genDecl ops am t n
+              do call genDecl am t n
                  tell [" = "]
                  rhs
                  tell [";\n"]
 
 --This clause was simplified, because we don't need separate array sizes in C++:
-cppintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
+cppintroduceSpec (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct{"]
-          sequence_ [call genDeclaration ops t n True
+          sequence_ [call genDeclaration t n True
                      | (n, t) <- fs]
           tell ["}"]
           when b $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
 --Clause changed to handle array retyping
-cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
+cppintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
-          let rhs = cppabbrevVariable ops A.Abbrev origT v
-          call genDecl ops am t n
+          let rhs = cppabbrevVariable A.Abbrev origT v
+          call genDecl am t n
           tell ["="]
           case t of 
             (A.Array dims _) ->
               --Arrays need to be handled differently because we need to feed the sizes in, not just perform a straight cast
-              do call genDeclType ops am t
+              do call genDeclType am t
                  tell ["(tockDims("]
                  genDims dims
                  tell ["),"]
@@ -833,7 +833,7 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
                                _ -> False
                  when deref $ tell ["*"]
                  tell ["("]
-                 call genDeclType ops am t
+                 call genDeclType am t
                  when deref $ tell ["*"]
                  tell [")"]
                  case origT of 
@@ -841,12 +841,12 @@ cppintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
                    (A.Array _ _) -> tell ["("] >> rhs >> tell [".data())"]
                    _ -> rhs
                  tell [";"]
-          call genRetypeSizes ops m t n origT v
+          call genRetypeSizes m t n origT v
 --For all other cases, use the C implementation:
-cppintroduceSpec ops n = cintroduceSpec ops n
+cppintroduceSpec n = cintroduceSpec n
 
-cppgenSizeSuffix :: GenOps -> String -> CGen ()
-cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
+cppgenSizeSuffix :: String -> CGen ()
+cppgenSizeSuffix dim = tell [".extent(", dim, ")"]
 --}}}
 
 
@@ -854,31 +854,31 @@ cppgenSizeSuffix _ dim = tell [".extent(", dim, ")"]
 -- | If a type maps to a simple C type, return Just that; else return Nothing.
 --Changed from GenerateC to change the A.Timer type to use C++CSP time.
 --Also changed the bool type, because vector<bool> in C++ is odd, so we hide it from the compiler.
-cppgetScalarType :: GenOps -> A.Type -> Maybe String
-cppgetScalarType _ A.Bool = Just "bool"
-cppgetScalarType _ A.Byte = Just "uint8_t"
-cppgetScalarType _ A.UInt16 = Just "uint16_t"
-cppgetScalarType _ A.UInt32 = Just "uint32_t"
-cppgetScalarType _ A.UInt64 = Just "uint64_t"
-cppgetScalarType _ A.Int8 = Just "int8_t"
-cppgetScalarType _ A.Int = Just "int"
-cppgetScalarType _ A.Int16 = Just "int16_t"
-cppgetScalarType _ A.Int32 = Just "int32_t"
-cppgetScalarType _ A.Int64 = Just "int64_t"
-cppgetScalarType _ A.Real32 = Just "float"
-cppgetScalarType _ A.Real64 = Just "double"
-cppgetScalarType _ A.Timer = Just "csp::Time"
-cppgetScalarType _ A.Time = Just "csp::Time"
-cppgetScalarType _ _ = Nothing
+cppgetScalarType :: A.Type -> Maybe String
+cppgetScalarType A.Bool = Just "bool"
+cppgetScalarType A.Byte = Just "uint8_t"
+cppgetScalarType A.UInt16 = Just "uint16_t"
+cppgetScalarType A.UInt32 = Just "uint32_t"
+cppgetScalarType A.UInt64 = Just "uint64_t"
+cppgetScalarType A.Int8 = Just "int8_t"
+cppgetScalarType A.Int = Just "int"
+cppgetScalarType A.Int16 = Just "int16_t"
+cppgetScalarType A.Int32 = Just "int32_t"
+cppgetScalarType A.Int64 = Just "int64_t"
+cppgetScalarType A.Real32 = Just "float"
+cppgetScalarType A.Real64 = Just "double"
+cppgetScalarType A.Timer = Just "csp::Time"
+cppgetScalarType A.Time = Just "csp::Time"
+cppgetScalarType _ = Nothing
 
 -- | Generates an array type, giving the Blitz++ array the correct dimensions
-cppgenArrayType :: GenOps -> Bool -> A.Type -> Int -> CGen ()
-cppgenArrayType ops const (A.Array dims t) rank
-    =  cppgenArrayType ops const t (rank + (max 1 (length dims)))
-cppgenArrayType ops const t rank
+cppgenArrayType :: Bool -> A.Type -> Int -> CGen ()
+cppgenArrayType const (A.Array dims t) rank
+    =  cppgenArrayType const t (rank + (max 1 (length dims)))
+cppgenArrayType const t rank
     =  do tell ["tockArrayView<"]
           when (const) (tell ["const "])
-          call genType ops t
+          call genType t
           case t of
             A.Chan A.DirUnknown _ _ -> tell ["*"]
             _ -> return ()
@@ -886,11 +886,11 @@ cppgenArrayType ops const t rank
     
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
-cppgenType :: GenOps -> A.Type -> CGen ()
-cppgenType ops arr@(A.Array _ _)
-    =  cppgenArrayType ops False arr 0    
-cppgenType _ (A.Record n) = genName n
-cppgenType ops (A.Chan dir attr t)
+cppgenType :: A.Type -> CGen ()
+cppgenType arr@(A.Array _ _)
+    =  cppgenArrayType False arr 0    
+cppgenType (A.Record n) = genName n
+cppgenType (A.Chan dir attr t)
     = do let chanType = case dir of
                           A.DirInput -> "csp::Chanin"
                           A.DirOutput -> "csp::Chanout"
@@ -901,29 +901,29 @@ cppgenType ops (A.Chan dir attr t)
                               (True,False)  -> "csp::Any2OneChannel"
                               (True,True)   -> "csp::Any2AnyChannel"
          tell [chanType,"<"]
-         cppTypeInsideChannel ops t
+         cppTypeInsideChannel t
          tell [">/**/"]
   where
-    cppTypeInsideChannel :: GenOps -> A.Type -> CGen ()
-    cppTypeInsideChannel ops A.Any = tell ["tockSendableArrayOfBytes"]
-    cppTypeInsideChannel ops (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
-    cppTypeInsideChannel ops (A.UserProtocol _) = tell ["tockSendableArrayOfBytes"]
-    cppTypeInsideChannel ops (A.Array ds t)
+    cppTypeInsideChannel :: A.Type -> CGen ()
+    cppTypeInsideChannel A.Any = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel (A.UserProtocol _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel (A.Array ds t)
       = do tell ["tockSendableArray<"]
-           call genType ops t
+           call genType t
            tell [","]
            tell $ intersperse "*" [case d of A.Dimension n -> show n | d <- ds]
            tell [">/**/"]
-    cppTypeInsideChannel ops t = call genType ops t
-cppgenType ops (A.Mobile t@(A.Array {})) = call genType ops t
-cppgenType ops (A.Mobile t@(A.List {})) = call genType ops t
-cppgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
-cppgenType ops (A.List t) = tell ["tockList<"] >> call genType ops t >> tell [">/**/"]
-cppgenType ops t
+    cppTypeInsideChannel t = call genType t
+cppgenType (A.Mobile t@(A.Array {})) = call genType t
+cppgenType (A.Mobile t@(A.List {})) = call genType t
+cppgenType (A.Mobile t) = call genType t >> tell ["*"]
+cppgenType (A.List t) = tell ["tockList<"] >> call genType t >> tell [">/**/"]
+cppgenType t
  = do fgetScalarType <- fget getScalarType
-      case fgetScalarType ops t of
+      case fgetScalarType t of
         Just s -> tell [s]
-        Nothing -> call genMissingC ops $ formatCode "genType %" t
+        Nothing -> call genMissingC $ formatCode "genType %" t
 
 
 -- | Helper function for prefixing an underscore to a name.
@@ -934,52 +934,52 @@ prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 -- | Generate the right-hand side of an abbreviation of a variable.
 --Changed from GenerateC because we no longer need the A.Name -> CGen() function returned that dealt with array sizes
 --I also pass the type of the array through to cppgenSlice
-cppabbrevVariable :: GenOps -> A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
-cppabbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = call genVariable ops v
-cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
-    = fst (cppgenSlice ops v start count ds)
-cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = fst (cppgenSlice ops v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
-cppabbrevVariable ops am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
-    = fst (cppgenSlice ops v (makeConstant m 0) count ds)
-cppabbrevVariable ops am (A.Array _ _) v
-    = call genVariable ops v
-cppabbrevVariable ops am (A.Chan {}) v
-    = call genVariable ops v
-cppabbrevVariable ops am (A.Record _) v
-    = call genVariable ops v
-cppabbrevVariable ops am t v
-    = call genVariableAM ops v am
+cppabbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
+cppabbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
+    = call genVariable v
+cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
+    = fst (cppgenSlice v start count ds)
+cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
+    = fst (cppgenSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
+cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
+    = fst (cppgenSlice v (makeConstant m 0) count ds)
+cppabbrevVariable am (A.Array _ _) v
+    = call genVariable v
+cppabbrevVariable am (A.Chan {}) v
+    = call genVariable v
+cppabbrevVariable am (A.Record _) v
+    = call genVariable v
+cppabbrevVariable am t v
+    = call genVariableAM v am
 
 
 -- | Use C++ array slices:
 --TODO put index checking back:
-cppgenSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
-cppgenSlice ops (A.SubscriptedVariable _ _ v) start count ds
+cppgenSlice :: A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
+cppgenSlice (A.SubscriptedVariable _ _ v) start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
-    = (do call genVariableUnchecked ops v
+    = (do call genVariableUnchecked v
           tell [".sliceFromFor("]
           genStart
           tell [",occam_check_slice("]
           genStart
           tell [","]
-          call genExpression ops count
+          call genExpression count
           tell [","]
-          call genVariableUnchecked ops v
-          call genSizeSuffix ops "0"
+          call genVariableUnchecked v
+          call genSizeSuffix "0"
           tell [","]
           genMeta (findMeta count)
           tell ["))"]
       , const (return ())
       )
   where
-    genStart = call genExpression ops start
+    genStart = call genExpression start
          
 -- | Changed from GenerateC to use multiple subscripting (e.g. [1][2][3]) rather than the combined indexing of the C method (e.g. [1*x*y+2*y+3])
-cppgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
-cppgenArraySubscript ops checkValid v es
+cppgenArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
+cppgenArraySubscript checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           sequence_ $ genPlainSub v es [0..(numDims - 1)]
@@ -1004,26 +1004,26 @@ cppgenArraySubscript ops checkValid v es
         genSub
             = if checkValid
                 then do tell ["occam_check_index("]
-                        call genExpression ops e
+                        call genExpression e
                         tell [","]
-                        call genVariable ops v
-                        call genSizeSuffix ops (show sub)
+                        call genVariable v
+                        call genSizeSuffix (show sub)
                         tell [","]
                         genMeta (findMeta e)
                         tell [")"]
-                else call genExpression ops e
+                else call genExpression e
 --}}}
 
 -- | Changed to remove array size:
-cppgenUnfoldedExpression :: GenOps -> A.Expression -> CGen ()
-cppgenUnfoldedExpression ops (A.Literal _ t lr)
-    =  call genLiteralRepr ops lr
-cppgenUnfoldedExpression ops (A.ExprVariable m var) = call genUnfoldedVariable ops m var
-cppgenUnfoldedExpression ops e = call genExpression ops e
+cppgenUnfoldedExpression :: A.Expression -> CGen ()
+cppgenUnfoldedExpression (A.Literal _ t lr)
+    =  call genLiteralRepr lr
+cppgenUnfoldedExpression (A.ExprVariable m var) = call genUnfoldedVariable m var
+cppgenUnfoldedExpression e = call genExpression e
 
 -- | Changed to remove array size:
-cppgenUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen ()
-cppgenUnfoldedVariable ops m var
+cppgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
+cppgenUnfoldedVariable m var
     =  do t <- typeOfVariable var
           case t of
             A.Array ds _ ->
@@ -1033,16 +1033,16 @@ cppgenUnfoldedVariable ops m var
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
-                 seqComma [call genUnfoldedVariable ops m (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                 seqComma [call genUnfoldedVariable m (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
                  genRightB
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariableUnchecked ops var
+            _ -> call genVariableUnchecked var
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
-    unfoldArray [] v = call genUnfoldedVariable ops m v
+    unfoldArray [] v = call genUnfoldedVariable m v
     unfoldArray (A.Dimension n:ds) v
       = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
                     | i <- [0..(n - 1)]]
@@ -1052,34 +1052,34 @@ cppgenUnfoldedVariable ops m var
 --{{{  if
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
 
-cppgenIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen ()
-cppgenIf ops m s
+cppgenIf :: Meta -> A.Structured A.Choice -> CGen ()
+cppgenIf m s
     =  do ifExc <- makeNonce "if_exc"
           tell ["class ",ifExc, "{};try{"]
           genIfBody ifExc s
-          call genStop ops m "no choice matched in IF process"
+          call genStop m "no choice matched in IF process"
           tell ["}catch(",ifExc,"){}"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody ifExc s = call genStructured ops s doC
+    genIfBody ifExc s = call genStructured s doC
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]
-                 call genExpression ops e
+                 call genExpression e
                  tell ["){"]
-                 call genProcess ops p
+                 call genProcess p
                  tell ["throw ",ifExc, "();}"]
 --}}}
 
 
 -- | Changed to make array VAL abbreviations have constant data:
-cppgenDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen ()
-cppgenDeclType ops am t
+cppgenDeclType :: A.AbbrevMode -> A.Type -> CGen ()
+cppgenDeclType am t
     =  do case t of
-            A.Array _ _ -> cppgenArrayType ops (am == A.ValAbbrev) t 0
+            A.Array _ _ -> cppgenArrayType (am == A.ValAbbrev) t 0
             _ ->
               do when (am == A.ValAbbrev) $ tell ["const "]
-                 call genType ops t
+                 call genType t
                  case t of
                    A.Chan A.DirInput _ _ -> return ()
                    A.Chan A.DirOutput _ _ -> return ()
@@ -1087,24 +1087,24 @@ cppgenDeclType ops am t
                    _ -> when (am == A.Abbrev) $ tell ["*const"]
 
 -- | Changed because C++CSP has channel-ends as concepts (whereas CCSP does not)
-cppgenDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen ()
-cppgenDirectedVariable ops v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
-cppgenDirectedVariable ops v A.DirOutput = tell ["(("] >> v >> tell [")->writer())"]
-cppgenDirectedVariable ops v dir = call genMissing ops $ "Cannot direct variable to direction: " ++ show dir
+cppgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
+cppgenDirectedVariable v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
+cppgenDirectedVariable v A.DirOutput = tell ["(("] >> v >> tell [")->writer())"]
+cppgenDirectedVariable v dir = call genMissing $ "Cannot direct variable to direction: " ++ show dir
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
-cppgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
-cppgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
-cppgenRetypeSizes ops m destT destN srcT srcV
+cppgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+cppgenRetypeSizes _ (A.Chan {}) _ (A.Chan {}) _ = return ()
+cppgenRetypeSizes m destT destN srcT srcV
     =     let checkSize 
                    = do tell ["if(occam_check_retype("]
-                        call genBytesIn ops m srcT (Right srcV)
+                        call genBytesIn m srcT (Right srcV)
                         tell [","]
-                        call genBytesIn ops m destT (Left True)
+                        call genBytesIn m destT (Left True)
                         tell [","]
                         genMeta m
                         tell [")!=1){"] 
-                        call genStop ops m "size mismatch in RETYPES"
+                        call genStop m "size mismatch in RETYPES"
                         tell ["}"] in
           case destT of
             -- An array -- figure out the genMissing dimension, if there is one.
@@ -1118,16 +1118,16 @@ cppgenRetypeSizes ops m destT destN srcT srcV
             _ -> checkSize
               
 
-cppgenAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen ()
-cppgenAllocMobile ops m (A.Mobile t) me
+cppgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen ()
+cppgenAllocMobile m (A.Mobile t) me
   = do tell ["new "]
-       call genType ops t 
+       call genType t 
        case me of
-         Just e -> tell ["("] >> call genExpression ops e >> tell [")"]
+         Just e -> tell ["("] >> call genExpression e >> tell [")"]
          Nothing -> return ()
 
-cppgenClearMobile :: GenOps -> Meta -> A.Variable -> CGen ()
-cppgenClearMobile ops _ v
+cppgenClearMobile :: Meta -> A.Variable -> CGen ()
+cppgenClearMobile _ v
   = do tell ["if("]
        genVar
        tell ["!=NULL){delete "]
@@ -1136,4 +1136,4 @@ cppgenClearMobile ops _ v
        genVar
        tell ["=NULL;}"]
   where
-    genVar = call genVariable ops v
+    genVar = call genVariable v

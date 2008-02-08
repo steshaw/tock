@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (call, CGen, CGen', cgenOps, cintroduceSpec, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, SubscripterFunction, withIf ) where
+module GenerateC (CGenCall(..), CGen, CGen', cgenOps, cintroduceSpec, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, SubscripterFunction, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -66,157 +66,152 @@ instance Die CGen where
 -- backends without breaking the mutual recursion.
 data GenOps = GenOps {
     -- | Declares the C array of sizes for an occam array.
-    declareArraySizes :: GenOps -> A.Type -> A.Name -> CGen (),
+    declareArraySizes :: A.Type -> A.Name -> CGen (),
     -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
-    declareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
+    declareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
-    declareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ()),
+    declareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ()),
     -- | Generates an individual parameter to a function\/proc.
-    genActual :: GenOps -> A.Actual -> CGen (),
+    genActual :: A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
-    genActuals :: GenOps -> [A.Actual] -> CGen (),
-    genAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen(),
-    genAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen (),
+    genActuals :: [A.Actual] -> CGen (),
+    genAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen(),
+    genAlt :: Bool -> A.Structured A.Alternative -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
-    genArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen (),
+    genArrayLiteralElems :: [A.ArrayElem] -> CGen (),
     -- | Declares a constant array for the sizes (dimensions) of a C array.
-    genArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen (),
+    genArraySize :: Bool -> CGen () -> A.Name -> CGen (),
     -- | Writes out the dimensions of an array, that can be used to initialise the sizes of an array.  Fails if there is an 'A.UnknownDimension' present.
-    genArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen (),
+    genArraySizesLiteral :: A.Name -> A.Type -> CGen (),
     -- | Writes out the actual data storage array name.
-    genArrayStoreName :: GenOps -> A.Name -> CGen(),
+    genArrayStoreName :: A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
-    genArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen (),
-    genAssert :: GenOps -> Meta -> A.Expression -> CGen (),
+    genArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen (),
+    genAssert :: Meta -> A.Expression -> CGen (),
     -- | Generates an assignment statement with a single destination and single source.
-    genAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
+    genAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
     -- | Generates the number of bytes in a fixed size type, fails if a free dimension is present and is not allowed.
     -- The Either parameter is either an array variable (to use the _sizes array of) or a boolean specifying
     -- wheter or not one free dimension is allowed (True <=> allowed).
-    genBytesIn :: GenOps -> Meta -> A.Type -> Either Bool A.Variable -> CGen (),
+    genBytesIn :: Meta -> A.Type -> Either Bool A.Variable -> CGen (),
     -- | Generates a case statement over the given expression with the structured as the body.
-    genCase :: GenOps -> Meta -> A.Expression -> A.Structured A.Option -> CGen (),
-    genCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen (),
-    genClearMobile :: GenOps -> Meta -> A.Variable -> CGen (),
-    genConversion :: GenOps -> Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
-    genConversionSymbol :: GenOps -> A.Type -> A.Type -> A.ConversionMode -> CGen (),
-    genDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),
-    genDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen (),
+    genCase :: Meta -> A.Expression -> A.Structured A.Option -> CGen (),
+    genCheckedConversion :: Meta -> A.Type -> A.Type -> CGen () -> CGen (),
+    genClearMobile :: Meta -> A.Variable -> CGen (),
+    genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
+    genConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen (),
+    genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen (),
+    genDeclType :: A.AbbrevMode -> A.Type -> CGen (),
     -- | Generates a declaration of a variable of the specified type and name.  
     -- The Bool indicates whether the declaration is inside a record (True) or not (False).
-    genDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen (),
-    genDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen (),
-    genDyadic :: GenOps -> Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
-    genExpression :: GenOps -> A.Expression -> CGen (),
-    genFlatArraySize :: GenOps -> [A.Dimension] -> CGen (),
-    genFormal :: GenOps -> A.Formal -> CGen (),
-    genFormals :: GenOps -> [A.Formal] -> CGen (),
-    genForwardDeclaration :: GenOps -> A.Specification -> CGen(),
-    genFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen (),
-    genFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen (),
+    genDeclaration :: A.Type -> A.Name -> Bool -> CGen (),
+    genDirectedVariable :: CGen () -> A.Direction -> CGen (),
+    genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
+    genExpression :: A.Expression -> CGen (),
+    genFlatArraySize :: [A.Dimension] -> CGen (),
+    genFormal :: A.Formal -> CGen (),
+    genFormals :: [A.Formal] -> CGen (),
+    genForwardDeclaration :: A.Specification -> CGen(),
+    genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen (),
+    genFuncMonadic :: Meta -> String -> A.Expression -> CGen (),
     -- | Gets the current time into the given variable
-    genGetTime :: GenOps -> Meta -> A.Variable -> CGen (),
+    genGetTime :: Meta -> A.Variable -> CGen (),
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
-    genIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen (),
-    genInput :: GenOps -> A.Variable -> A.InputMode -> CGen (),
-    genInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen (),
-    genIntrinsicFunction :: GenOps -> Meta -> String -> [A.Expression] -> CGen (),
-    genIntrinsicProc :: GenOps -> Meta -> String -> [A.Actual] -> CGen (),
-    genLiteral :: GenOps -> A.LiteralRepr -> CGen (),
-    genLiteralRepr :: GenOps -> A.LiteralRepr -> CGen (),
-    genMissing :: GenOps -> String -> CGen (),
-    genMissingC :: GenOps -> CGen String -> CGen (),
-    genMonadic :: GenOps -> Meta -> A.MonadicOp -> A.Expression -> CGen (),
+    genIf :: Meta -> A.Structured A.Choice -> CGen (),
+    genInput :: A.Variable -> A.InputMode -> CGen (),
+    genInputItem :: A.Variable -> A.InputItem -> CGen (),
+    genIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen (),
+    genIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen (),
+    genLiteral :: A.LiteralRepr -> CGen (),
+    genLiteralRepr :: A.LiteralRepr -> CGen (),
+    genMissing :: String -> CGen (),
+    genMissingC :: CGen String -> CGen (),
+    genMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen (),
     -- | Generates an output statement.
-    genOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen (),
+    genOutput :: A.Variable -> [A.OutputItem] -> CGen (),
     -- | Generates an output statement for a tagged protocol.
-    genOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
+    genOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
     -- | Generates an output for an individual item.
-    genOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen (),
+    genOutputItem :: A.Variable -> A.OutputItem -> CGen (),
     -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
-    genOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
-    genPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen (),
-    genProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen (),
-    genProcess :: GenOps -> A.Process -> CGen (),
+    genOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
+    genPar :: A.ParMode -> A.Structured A.Process -> CGen (),
+    genProcCall :: A.Name -> [A.Actual] -> CGen (),
+    genProcess :: A.Process -> CGen (),
     -- | Generates a replicator loop, given the replicator and body
-    genReplicator :: GenOps -> A.Replicator -> CGen () -> CGen (),
+    genReplicator :: A.Replicator -> CGen () -> CGen (),
     -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
-    genReplicatorLoop :: GenOps -> A.Replicator -> CGen (),
-    genRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
-    genSeq :: GenOps -> A.Structured A.Process -> CGen (),
-    genSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen (),
-    genSimpleMonadic :: GenOps -> String -> A.Expression -> CGen (),
-    genSizeSuffix :: GenOps -> String -> CGen (),
-    genSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ()),
-    genSpec :: GenOps -> A.Specification -> CGen () -> CGen (),
-    genSpecMode :: GenOps -> A.SpecMode -> CGen (),
+    genReplicatorLoop :: A.Replicator -> CGen (),
+    genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
+    genSeq :: A.Structured A.Process -> CGen (),
+    genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
+    genSimpleMonadic :: String -> A.Expression -> CGen (),
+    genSizeSuffix :: String -> CGen (),
+    genSlice :: A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ()),
+    genSpec :: A.Specification -> CGen () -> CGen (),
+    genSpecMode :: A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
-    genStop :: GenOps -> Meta -> String -> CGen (),
-    genStructured :: forall a. Data a => GenOps -> A.Structured a -> (Meta -> a -> CGen ()) -> CGen (),
-    genTLPChannel :: GenOps -> TLPChannel -> CGen (),
-    genTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen (),
-    genTimerWait :: GenOps -> A.Expression -> CGen (),
-    genTopLevel :: GenOps -> A.AST -> CGen (),
+    genStop :: Meta -> String -> CGen (),
+    genStructured :: forall a. Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen (),
+    genTLPChannel :: TLPChannel -> CGen (),
+    genTimerRead :: A.Variable -> A.Variable -> CGen (),
+    genTimerWait :: A.Expression -> CGen (),
+    genTopLevel :: A.AST -> CGen (),
     -- | Generates the type as it might be used in a cast expression
-    genType :: GenOps -> A.Type -> CGen (),
-    genTypeSymbol :: GenOps -> String -> A.Type -> CGen (),
-    genUnfoldedExpression :: GenOps -> A.Expression -> CGen (),
-    genUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen (),
+    genType :: A.Type -> CGen (),
+    genTypeSymbol :: String -> A.Type -> CGen (),
+    genUnfoldedExpression :: A.Expression -> CGen (),
+    genUnfoldedVariable :: Meta -> A.Variable -> CGen (),
     -- | Generates a variable, with indexing checks if needed
-    genVariable :: GenOps -> A.Variable -> CGen (),
-    genVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen (),
+    genVariable :: A.Variable -> CGen (),
+    genVariableAM :: A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
-    genVariableUnchecked :: GenOps -> A.Variable -> CGen (),
+    genVariableUnchecked :: A.Variable -> CGen (),
     -- | Performs a wait for\/until (depending on the 'A.WaitMode') a specified time
-    genWait :: GenOps -> A.WaitMode -> A.Expression -> CGen (),
+    genWait :: A.WaitMode -> A.Expression -> CGen (),
     -- | Generates a while loop with the given condition and body.
-    genWhile :: GenOps -> A.Expression -> A.Process -> CGen (),
-    getScalarType :: GenOps -> A.Type -> Maybe String,
-    introduceSpec :: GenOps -> A.Specification -> CGen (),
-    removeSpec :: GenOps -> A.Specification -> CGen ()
+    genWhile :: A.Expression -> A.Process -> CGen (),
+    getScalarType :: A.Type -> Maybe String,
+    introduceSpec :: A.Specification -> CGen (),
+    removeSpec :: A.Specification -> CGen ()
   }
 
 -- | Call an operation in GenOps.
-{-
-call :: (GenOps -> GenOps -> t) -> GenOps -> t
-call f ops = f ops ops
--}
-
 class CGenCall a where
-  call :: (GenOps -> GenOps -> a) -> GenOps -> a
+  call :: (GenOps -> a) -> a
 
 instance CGenCall (a -> CGen z) where
---  call :: (GenOps -> GenOps -> a -> CGen b) -> a -> CGen b
-  call f _ x0 = do ops <- ask
-                   f ops ops x0
+--  call :: (a -> CGen b) -> a -> CGen b
+  call f x0 = do ops <- ask
+                 f ops x0
 
 instance CGenCall (a -> b -> CGen z) where
-  call f _ x0 x1
+  call f x0 x1
     = do ops <- ask
-         f ops ops x0 x1
+         f ops x0 x1
 
 instance CGenCall (a -> b -> c -> CGen z) where
-  call f _ x0 x1 x2
+  call f x0 x1 x2
     = do ops <- ask
-         f ops ops x0 x1 x2
+         f ops x0 x1 x2
 
 instance CGenCall (a -> b -> c -> d -> CGen z) where
-  call f _ x0 x1 x2 x3
+  call f x0 x1 x2 x3
     = do ops <- ask
-         f ops ops x0 x1 x2 x3
+         f ops x0 x1 x2 x3
 
 instance CGenCall (a -> b -> c -> d -> e -> CGen z) where
-  call f _ x0 x1 x2 x3 x4
+  call f x0 x1 x2 x3 x4
     = do ops <- ask
-         f ops ops x0 x1 x2 x3 x4
+         f ops x0 x1 x2 x3 x4
 
 -- A bit of a mind-boggler, but this is essentially for genSlice
 instance CGenCall (a -> b -> c -> d -> (CGen x, y -> CGen z)) where
-  call f _ x0 x1 x2 x3
+  call f x0 x1 x2 x3
     = (do ops <- ask
-          fst $ f ops ops x0 x1 x2 x3
+          fst $ f ops x0 x1 x2 x3
       ,\y -> do ops <- ask
-                (snd $ f ops ops x0 x1 x2 x3) y
+                (snd $ f ops x0 x1 x2 x3) y
       )
 
 fget :: (GenOps -> a) -> CGen a
@@ -235,7 +230,7 @@ cgenOps = GenOps {
     genArrayLiteralElems = cgenArrayLiteralElems,
     genArraySize = cgenArraySize,
     genArraySizesLiteral = cgenArraySizesLiteral,
-    genArrayStoreName = const genName,
+    genArrayStoreName = genName,
     genArraySubscript = cgenArraySubscript,
     genAssert = cgenAssert,
     genAssign = cgenAssign,
@@ -266,7 +261,7 @@ cgenOps = GenOps {
     genLiteral = cgenLiteral,
     genLiteralRepr = cgenLiteralRepr,
     genMissing = cgenMissing,
-    genMissingC = (\ops x -> x >>= cgenMissing ops),
+    genMissingC = (\x -> x >>= cgenMissing),
     genMonadic = cgenMonadic,
     genOutput = cgenOutput,
     genOutputCase = cgenOutputCase,
@@ -308,29 +303,29 @@ cgenOps = GenOps {
 
 --{{{  top-level
 generate :: GenOps -> A.AST -> PassM String
-generate ops ast = execWriterT (runReaderT (call genTopLevel undefined ast) ops) >>* concat
+generate ops ast = execWriterT (runReaderT (call genTopLevel ast) ops) >>* concat
 
 generateC :: A.AST -> PassM String
 generateC = generate cgenOps
 
-cgenTLPChannel :: GenOps -> TLPChannel -> CGen ()
-cgenTLPChannel _ TLPIn = tell ["in"]
-cgenTLPChannel _ TLPOut = tell ["out"]
-cgenTLPChannel _ TLPError = tell ["err"]
+cgenTLPChannel :: TLPChannel -> CGen ()
+cgenTLPChannel TLPIn = tell ["in"]
+cgenTLPChannel TLPOut = tell ["out"]
+cgenTLPChannel TLPError = tell ["err"]
 
-cgenTopLevel :: GenOps -> A.AST -> CGen ()
-cgenTopLevel ops s
+cgenTopLevel :: A.AST -> CGen ()
+cgenTopLevel s
     =  do tell ["#include <tock_support.h>\n"]
           cs <- get
           tell ["extern int " ++ nameString n ++ "_stack_size;\n"
                 | n <- Set.toList $ csParProcs cs]
-          sequence_ $ map (call genForwardDeclaration ops) (listify (const True :: A.Specification -> Bool) s)
-          call genStructured ops s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
+          sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
+          call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
           (name, chans) <- tlpInterface
           tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
           genName name
           tell [" (me"]
-          sequence_ [tell [", "] >> call genTLPChannel ops c | (_,c) <- chans]
+          sequence_ [tell [", "] >> call genTLPChannel c | (_,c) <- chans]
           tell [");\n"]
           tell ["}\n"]
           
@@ -343,8 +338,8 @@ cgenTopLevel ops s
 --}}}
 
 --{{{  utilities
-cgenMissing :: GenOps -> String -> CGen ()
-cgenMissing _ s = tell ["\n#error Unimplemented: ", s, "\n"]
+cgenMissing :: String -> CGen ()
+cgenMissing s = tell ["\n#error Unimplemented: ", s, "\n"]
 
 --{{{  simple punctuation
 genComma :: CGen ()
@@ -364,8 +359,8 @@ genRightB = tell ["}"]
 type SubscripterFunction = A.Variable -> A.Variable
 
 -- | Map an operation over every item of an occam array.
-cgenOverArray :: GenOps -> Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
-cgenOverArray ops m var func
+cgenOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
+cgenOverArray m var func
     =  do A.Array ds _ <- typeOfVariable var
           specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
@@ -374,14 +369,14 @@ cgenOverArray ops m var func
           case func arg of
             Just p ->
               do sequence_ [do tell ["for(int "]
-                               call genVariable ops i
+                               call genVariable i
                                tell ["=0;"]
-                               call genVariable ops i
+                               call genVariable i
                                tell ["<"]
-                               call genVariable ops var
-                               call genSizeSuffix ops (show v)
+                               call genVariable var
+                               call genSizeSuffix (show v)
                                tell [";"]
-                               call genVariable ops i
+                               call genVariable i
                                tell ["++){"]
                             | (v :: Integer, i) <- zip [0..] indices]
                  p
@@ -389,12 +384,12 @@ cgenOverArray ops m var func
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
-cgenStructured :: Data a => GenOps -> A.Structured a -> (Meta -> a -> CGen ()) -> CGen ()
-cgenStructured ops (A.Rep _ rep s) def = call genReplicator ops rep (call genStructured ops s def)
-cgenStructured ops (A.Spec _ spec s) def = call genSpec ops spec (call genStructured ops s def)
-cgenStructured ops (A.ProcThen _ p s) def = call genProcess ops p >> call genStructured ops s def
-cgenStructured ops (A.Several _ ss) def = sequence_ [call genStructured ops s def | s <- ss]
-cgenStructured ops (A.Only m s) def = def m s
+cgenStructured :: Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen ()
+cgenStructured (A.Rep _ rep s) def = call genReplicator rep (call genStructured s def)
+cgenStructured (A.Spec _ spec s) def = call genSpec spec (call genStructured s def)
+cgenStructured (A.ProcThen _ p s) def = call genProcess p >> call genStructured s def
+cgenStructured (A.Several _ ss) def = sequence_ [call genStructured s def | s <- ss]
+cgenStructured (A.Only m s) def = def m s
 
 --}}}
 
@@ -415,52 +410,52 @@ genName n = tell [nameString n]
 
 --{{{  types
 -- | If a type maps to a simple C type, return Just that; else return Nothing.
-cgetScalarType :: GenOps -> A.Type -> Maybe String
-cgetScalarType _ A.Bool = Just "bool"
-cgetScalarType _ A.Byte = Just "uint8_t"
-cgetScalarType _ A.UInt16 = Just "uint16_t"
-cgetScalarType _ A.UInt32 = Just "uint32_t"
-cgetScalarType _ A.UInt64 = Just "uint64_t"
-cgetScalarType _ A.Int8 = Just "int8_t"
-cgetScalarType _ A.Int = Just "int"
-cgetScalarType _ A.Int16 = Just "int16_t"
-cgetScalarType _ A.Int32 = Just "int32_t"
-cgetScalarType _ A.Int64 = Just "int64_t"
-cgetScalarType _ A.Real32 = Just "float"
-cgetScalarType _ A.Real64 = Just "double"
-cgetScalarType _ A.Timer = Just "Time"
-cgetScalarType _ A.Time = Just "Time"
-cgetScalarType _ _ = Nothing
+cgetScalarType :: A.Type -> Maybe String
+cgetScalarType A.Bool = Just "bool"
+cgetScalarType A.Byte = Just "uint8_t"
+cgetScalarType A.UInt16 = Just "uint16_t"
+cgetScalarType A.UInt32 = Just "uint32_t"
+cgetScalarType A.UInt64 = Just "uint64_t"
+cgetScalarType A.Int8 = Just "int8_t"
+cgetScalarType A.Int = Just "int"
+cgetScalarType A.Int16 = Just "int16_t"
+cgetScalarType A.Int32 = Just "int32_t"
+cgetScalarType A.Int64 = Just "int64_t"
+cgetScalarType A.Real32 = Just "float"
+cgetScalarType A.Real64 = Just "double"
+cgetScalarType A.Timer = Just "Time"
+cgetScalarType A.Time = Just "Time"
+cgetScalarType _ = Nothing
 
 -- | Generate the C type corresponding to a variable being declared.
 -- It must be possible to use this in arrays.
-cgenType :: GenOps -> A.Type -> CGen ()
-cgenType ops (A.Array _ t)
-    =  do call genType ops t
+cgenType :: A.Type -> CGen ()
+cgenType (A.Array _ t)
+    =  do call genType t
           case t of
             A.Chan A.DirUnknown _ _ -> tell ["*"]
             _ -> return ()
           tell ["*"]
-cgenType _ (A.Record n) = genName n
-cgenType ops (A.Mobile t@(A.Array {})) = call genType ops t
-cgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
+cgenType (A.Record n) = genName n
+cgenType (A.Mobile t@(A.Array {})) = call genType t
+cgenType (A.Mobile t) = call genType t >> tell ["*"]
 
 -- UserProtocol -- not used
 -- Channels are of type "Channel", but channel-ends are of type "Channel*"
-cgenType _ (A.Chan A.DirUnknown _ t) = tell ["Channel"]
-cgenType _ (A.Chan _ _ t) = tell ["Channel*"]
+cgenType (A.Chan A.DirUnknown _ t) = tell ["Channel"]
+cgenType (A.Chan _ _ t) = tell ["Channel*"]
 -- Counted -- not used
 -- Any -- not used
---cgenType ops (A.Port t) =
+--cgenType (A.Port t) =
 
 --TODO have a pass that declares these list types:
-cgenType ops t@(A.List {}) = tell [subRegex (mkRegex "[^A-Za-z0-9]") (show t) ""]
+cgenType t@(A.List {}) = tell [subRegex (mkRegex "[^A-Za-z0-9]") (show t) ""]
 
-cgenType ops t
+cgenType t
  = do f <- fget getScalarType
-      case f ops t of
+      case f t of
         Just s -> tell [s]
-        Nothing -> call genMissingC ops $ formatCode "genType %" t
+        Nothing -> call genMissingC $ formatCode "genType %" t
 
 indexOfFreeDimensions :: [A.Dimension] -> [Int]
 indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
@@ -471,8 +466,8 @@ indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
 
 
 -- | Generate the number of bytes in a type.
-cgenBytesIn :: GenOps -> Meta -> A.Type -> Either Bool A.Variable -> CGen ()
-cgenBytesIn ops m t v
+cgenBytesIn :: Meta -> A.Type -> Either Bool A.Variable -> CGen ()
+cgenBytesIn m t v
     = do  case (t, v) of
             (A.Array ds _, Left freeDimensionAllowed) ->
               case (length (indexOfFreeDimensions ds), freeDimensionAllowed) of
@@ -481,26 +476,26 @@ cgenBytesIn ops m t v
                 (1,True) -> return ()
                 (_,_) -> dieP m "genBytesIn type with more than one free dimension"
             _ -> return ()
-          genBytesIn' ops t
+          genBytesIn' t
   where
-    genBytesIn' :: GenOps -> A.Type -> CGen ()
-    genBytesIn' ops (A.Array ds t)
+    genBytesIn' :: A.Type -> CGen ()
+    genBytesIn' (A.Array ds t)
       = do mapM_ genBytesInArrayDim (reverse $ zip ds [0..]) --The reverse is simply to match the existing tests
-           genBytesIn' ops t
+           genBytesIn' t
 
-    genBytesIn' _ (A.Record n)
+    genBytesIn' (A.Record n)
       = do tell ["sizeof("]
            genName n
            tell [")"]
     -- This is so that we can do RETYPES checks on channels; we don't actually
     -- allow retyping between channels and other things.
-    genBytesIn' ops t@(A.Chan {})
+    genBytesIn' t@(A.Chan {})
       = do tell ["sizeof("]
-           call genType ops t
+           call genType t
            tell [")"]
-    genBytesIn' ops t
+    genBytesIn' t
       = do f <- fget getScalarType
-           case f ops t of
+           case f t of
              Just s -> tell ["sizeof(", s, ")"]
              Nothing -> diePC m $ formatCode "genBytesIn' %" t
 
@@ -509,18 +504,18 @@ cgenBytesIn ops m t v
     genBytesInArrayDim (A.UnknownDimension, i)
         = case v of
             Right rv ->
-              do call genVariable ops rv
-                 call genSizeSuffix ops (show i)
+              do call genVariable rv
+                 call genSizeSuffix (show i)
                  tell ["*"]
             _ -> return ()
 
 --}}}
 
 --{{{  declarations
-cgenDeclType :: GenOps -> A.AbbrevMode -> A.Type -> CGen ()
-cgenDeclType ops am t
+cgenDeclType :: A.AbbrevMode -> A.Type -> CGen ()
+cgenDeclType am t
     =  do when (am == A.ValAbbrev) $ tell ["const "]
-          call genType ops t
+          call genType t
           case t of
             A.Array _ _ -> return ()
             A.Chan A.DirInput _ _ -> return ()
@@ -528,26 +523,26 @@ cgenDeclType ops am t
             A.Record _ -> tell ["*const"]
             _ -> when (am == A.Abbrev) $ tell ["*const"]
 
-cgenDecl :: GenOps -> A.AbbrevMode -> A.Type -> A.Name -> CGen ()
-cgenDecl ops am t n
-    =  do call genDeclType ops am t
+cgenDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
+cgenDecl am t n
+    =  do call genDeclType am t
           tell [" "]
           genName n
 --}}}
 
 --{{{  conversions
-cgenCheckedConversion :: GenOps -> Meta -> A.Type -> A.Type -> CGen () -> CGen ()
-cgenCheckedConversion ops m fromT toT exp
+cgenCheckedConversion :: Meta -> A.Type -> A.Type -> CGen () -> CGen ()
+cgenCheckedConversion m fromT toT exp
     =  do tell ["(("]
-          call genType ops toT
+          call genType toT
           tell [") "]
           if isSafeConversion fromT toT
             then exp
-            else do call genTypeSymbol ops "range_check" fromT
+            else do call genTypeSymbol "range_check" fromT
                     tell [" ("]
-                    call genTypeSymbol ops "mostneg" toT
+                    call genTypeSymbol "mostneg" toT
                     tell [", "]
-                    call genTypeSymbol ops "mostpos" toT
+                    call genTypeSymbol "mostpos" toT
                     tell [", "]
                     exp
                     tell [", "]
@@ -555,49 +550,49 @@ cgenCheckedConversion ops m fromT toT exp
                     tell [")"]
           tell [")"]
 
-cgenConversion :: GenOps -> Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
-cgenConversion ops m A.DefaultConversion toT e
+cgenConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
+cgenConversion m A.DefaultConversion toT e
     =  do fromT <- typeOfExpression e
-          call genCheckedConversion ops m fromT toT (call genExpression ops e)
-cgenConversion ops m cm toT e
+          call genCheckedConversion m fromT toT (call genExpression e)
+cgenConversion m cm toT e
     =  do fromT <- typeOfExpression e
           case (isSafeConversion fromT toT, isRealType fromT, isRealType toT) of
             (True, _, _) ->
               -- A safe conversion -- no need for a check.
-              call genCheckedConversion ops m fromT toT (call genExpression ops e)
+              call genCheckedConversion m fromT toT (call genExpression e)
             (_, True, True) ->
               -- Real to real.
-              do call genConversionSymbol ops fromT toT cm
+              do call genConversionSymbol fromT toT cm
                  tell [" ("]
-                 call genExpression ops e
+                 call genExpression e
                  tell [", "]
                  genMeta m
                  tell [")"]
             (_, True, False) ->
               -- Real to integer -- do real -> int64_t -> int.
-              do let exp = do call genConversionSymbol ops fromT A.Int64 cm
+              do let exp = do call genConversionSymbol fromT A.Int64 cm
                               tell [" ("]
-                              call genExpression ops e
+                              call genExpression e
                               tell [", "]
                               genMeta m
                               tell [")"]
-                 call genCheckedConversion ops m A.Int64 toT exp
+                 call genCheckedConversion m A.Int64 toT exp
             (_, False, True) ->
               -- Integer to real -- do int -> int64_t -> real.
-              do call genConversionSymbol ops A.Int64 toT cm
+              do call genConversionSymbol A.Int64 toT cm
                  tell [" ("]
-                 call genCheckedConversion ops m fromT A.Int64 (call genExpression ops e)
+                 call genCheckedConversion m fromT A.Int64 (call genExpression e)
                  tell [", "]
                  genMeta m
                  tell [")"]
-            _ -> call genMissing ops $ "genConversion " ++ show cm
+            _ -> call genMissing $ "genConversion " ++ show cm
 
-cgenConversionSymbol :: GenOps -> A.Type -> A.Type -> A.ConversionMode -> CGen ()
-cgenConversionSymbol ops fromT toT cm
+cgenConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen ()
+cgenConversionSymbol fromT toT cm
     =  do tell ["occam_convert_"]
-          call genType ops fromT
+          call genType fromT
           tell ["_"]
-          call genType ops toT
+          call genType toT
           tell ["_"]
           case cm of
             A.Round -> tell ["round"]
@@ -605,15 +600,15 @@ cgenConversionSymbol ops fromT toT cm
 --}}}
 
 --{{{  literals
-cgenLiteral :: GenOps -> A.LiteralRepr -> CGen ()
-cgenLiteral ops lr
+cgenLiteral :: A.LiteralRepr -> CGen ()
+cgenLiteral lr
     = if isStringLiteral lr
         then do tell ["\""]
                 let A.ArrayLiteral _ aes = lr
                 sequence_ [genByteLiteral s
                            | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ s)) <- aes]
                 tell ["\""]
-        else call genLiteralRepr ops lr
+        else call genLiteralRepr lr
 
 -- | Does a LiteralRepr represent something that can be a plain string literal?
 isStringLiteral :: A.LiteralRepr -> Bool
@@ -624,18 +619,18 @@ isStringLiteral (A.ArrayLiteral _ aes)
            | ae <- aes]
 isStringLiteral _ = False
 
-cgenLiteralRepr :: GenOps -> A.LiteralRepr -> CGen ()
-cgenLiteralRepr _ (A.RealLiteral m s) = tell [s]
-cgenLiteralRepr _ (A.IntLiteral m s) = genDecimal s
-cgenLiteralRepr _ (A.HexLiteral m s) = tell ["0x", s]
-cgenLiteralRepr ops (A.ByteLiteral m s) = tell ["'"] >> genByteLiteral s >> tell ["'"]
-cgenLiteralRepr ops (A.ArrayLiteral m aes)
+cgenLiteralRepr :: A.LiteralRepr -> CGen ()
+cgenLiteralRepr (A.RealLiteral m s) = tell [s]
+cgenLiteralRepr (A.IntLiteral m s) = genDecimal s
+cgenLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
+cgenLiteralRepr (A.ByteLiteral m s) = tell ["'"] >> genByteLiteral s >> tell ["'"]
+cgenLiteralRepr (A.ArrayLiteral m aes)
     =  do genLeftB
-          call genArrayLiteralElems ops aes
+          call genArrayLiteralElems aes
           genRightB
-cgenLiteralRepr ops (A.RecordLiteral _ es)
+cgenLiteralRepr (A.RecordLiteral _ es)
     =  do genLeftB
-          seqComma $ map (call genUnfoldedExpression ops) es
+          seqComma $ map (call genUnfoldedExpression) es
           genRightB
 
 -- | Generate an expression inside a record literal.
@@ -646,20 +641,20 @@ cgenLiteralRepr ops (A.RecordLiteral _ es)
 -- constant subscript of a constant array.  So we need to be sure that when we
 -- use this at the top level, the thing we're unfolding only contains literals.
 -- Yuck!
-cgenUnfoldedExpression :: GenOps -> A.Expression -> CGen ()
-cgenUnfoldedExpression ops (A.Literal _ t lr)
-    =  do call genLiteralRepr ops lr
+cgenUnfoldedExpression :: A.Expression -> CGen ()
+cgenUnfoldedExpression (A.Literal _ t lr)
+    =  do call genLiteralRepr lr
           case t of
             A.Array ds _ ->
               do genComma
-                 call genArraySizesLiteral ops undefined t --TODO work this out for C++
+                 call genArraySizesLiteral undefined t --TODO work this out for C++
             _ -> return ()
-cgenUnfoldedExpression ops (A.ExprVariable m var) = call genUnfoldedVariable ops m var
-cgenUnfoldedExpression ops e = call genExpression ops e
+cgenUnfoldedExpression (A.ExprVariable m var) = call genUnfoldedVariable m var
+cgenUnfoldedExpression e = call genExpression e
 
 -- | Generate a variable inside a record literal.
-cgenUnfoldedVariable :: GenOps -> Meta -> A.Variable -> CGen ()
-cgenUnfoldedVariable ops m var
+cgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
+cgenUnfoldedVariable m var
     =  do t <- typeOfVariable var
           case t of
             A.Array ds _ ->
@@ -667,20 +662,20 @@ cgenUnfoldedVariable ops m var
                  unfoldArray ds var
                  genRightB
                  genComma
-                 call genArraySizesLiteral ops undefined t --TODO work this out for C++
+                 call genArraySizesLiteral undefined t --TODO work this out for C++
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
-                 seqComma [call genUnfoldedVariable ops m (A.SubscriptedVariable m (A.SubscriptField m n) var)
+                 seqComma [call genUnfoldedVariable m (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
                  genRightB
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariableUnchecked ops var
+            _ -> call genVariableUnchecked var
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
-    unfoldArray [] v = call genUnfoldedVariable ops m v
+    unfoldArray [] v = call genUnfoldedVariable m v
     unfoldArray (A.Dimension n:ds) v
       = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
                     | i <- [0..(n - 1)]]
@@ -694,13 +689,13 @@ genDecimal ('0':s) = genDecimal s
 genDecimal ('-':s) = tell ["-"] >> genDecimal s
 genDecimal s = tell [s]
 
-cgenArrayLiteralElems :: GenOps -> [A.ArrayElem] -> CGen ()
-cgenArrayLiteralElems ops aes
+cgenArrayLiteralElems :: [A.ArrayElem] -> CGen ()
+cgenArrayLiteralElems aes
     = seqComma $ map genElem aes
   where
     genElem :: A.ArrayElem -> CGen ()
-    genElem (A.ArrayElemArray aes) = call genArrayLiteralElems ops aes
-    genElem (A.ArrayElemExpr e) = call genUnfoldedExpression ops e
+    genElem (A.ArrayElemArray aes) = call genArrayLiteralElems aes
+    genElem (A.ArrayElemExpr e) = call genUnfoldedExpression e
 
 genByteLiteral :: String -> CGen ()
 genByteLiteral s
@@ -767,15 +762,15 @@ I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
 -}
 -- | Generate C code for a variable.
-cgenVariable :: GenOps -> A.Variable -> CGen ()
-cgenVariable ops = cgenVariable' ops True
+cgenVariable :: A.Variable -> CGen ()
+cgenVariable = cgenVariable' True
 
 -- | Generate C code for a variable without doing any range checks.
-cgenVariableUnchecked :: GenOps -> A.Variable -> CGen ()
-cgenVariableUnchecked ops = cgenVariable' ops False
+cgenVariableUnchecked :: A.Variable -> CGen ()
+cgenVariableUnchecked = cgenVariable' False
 
-cgenVariable' :: GenOps -> Bool -> A.Variable -> CGen ()
-cgenVariable' ops checkValid v
+cgenVariable' :: Bool -> A.Variable -> CGen ()
+cgenVariable' checkValid v
   = do (cg, n) <- inner 0 v Nothing
        addPrefix cg n
   where
@@ -823,12 +818,12 @@ cgenVariable' ops checkValid v
              _ -> inner (ind+1) v mt
     inner ind (A.DirectedVariable _ dir v) mt
       = do (cg,n) <- (inner ind v mt)           
-           return (call genDirectedVariable ops (addPrefix cg n) dir, 0)
+           return (call genDirectedVariable (addPrefix cg n) dir, 0)
     inner ind sv@(A.SubscriptedVariable _ (A.Subscript _ _) _) mt
       = do let (es, v) = collectSubs sv
            t <- typeOfVariable sv
            (cg, n) <- inner ind v (Just t)
-           return (cg >> call genArraySubscript ops checkValid v es, n)
+           return (cg >> call genArraySubscript checkValid v es, n)
     inner ind (A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               return (addPrefix cg ind' >> tell ["->"] >> genName n, 0)
@@ -862,11 +857,11 @@ cgenVariable' ops checkValid v
     collectSubs v = ([], v)
 
 
-cgenDirectedVariable :: GenOps -> CGen () -> A.Direction -> CGen ()
-cgenDirectedVariable _ var _ = var
+cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
+cgenDirectedVariable var _ = var
 
-cgenArraySubscript :: GenOps -> Bool -> A.Variable -> [A.Expression] -> CGen ()
-cgenArraySubscript ops checkValid v es
+cgenArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
+cgenArraySubscript checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
@@ -886,204 +881,204 @@ cgenArraySubscript ops checkValid v es
         genSub
             = if checkValid
                 then do tell ["occam_check_index("]
-                        call genExpression ops e
+                        call genExpression e
                         tell [","]
-                        call genVariable ops v
-                        call genSizeSuffix ops (show sub)
+                        call genVariable v
+                        call genSizeSuffix (show sub)
                         tell [","]
                         genMeta (findMeta e)
                         tell [")"]
-                else call genExpression ops e
-        genChunks = [call genVariable ops v >> call genSizeSuffix ops (show i) | i <- subs]
+                else call genExpression e
+        genChunks = [call genVariable v >> call genSizeSuffix (show i) | i <- subs]
 --}}}
 
 --{{{  expressions
-cgenExpression :: GenOps -> A.Expression -> CGen ()
-cgenExpression ops (A.Monadic m op e) = call genMonadic ops m op e
-cgenExpression ops (A.Dyadic m op e f) = call genDyadic ops m op e f
-cgenExpression ops (A.MostPos m t) = call genTypeSymbol ops "mostpos" t
-cgenExpression ops (A.MostNeg m t) = call genTypeSymbol ops "mostneg" t
---cgenExpression ops (A.SizeType m t)
-cgenExpression ops (A.SizeExpr m e)
-    =  do call genExpression ops e
-          call genSizeSuffix ops "0"
-cgenExpression ops (A.SizeVariable m v)
-    =  do call genVariable ops v
-          call genSizeSuffix ops "0"
-cgenExpression ops (A.Conversion m cm t e) = call genConversion ops m cm t e
-cgenExpression ops (A.ExprVariable m v) = call genVariable ops v
-cgenExpression ops (A.Literal _ _ lr) = call genLiteral ops lr
-cgenExpression _ (A.True m) = tell ["true"]
-cgenExpression _ (A.False m) = tell ["false"]
---cgenExpression ops (A.FunctionCall m n es)
-cgenExpression ops (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction ops m s es
---cgenExpression ops (A.SubscriptedExpr m s e)
---cgenExpression ops (A.BytesInExpr m e)
-cgenExpression ops (A.BytesInType m t) = call genBytesIn ops m t (Left False)
---cgenExpression ops (A.OffsetOf m t n)
---cgenExpression ops (A.ExprConstr {})
-cgenExpression ops (A.AllocMobile m t me) = call genAllocMobile ops m t me
-cgenExpression ops t = call genMissing ops $ "genExpression " ++ show t
+cgenExpression :: A.Expression -> CGen ()
+cgenExpression (A.Monadic m op e) = call genMonadic m op e
+cgenExpression (A.Dyadic m op e f) = call genDyadic m op e f
+cgenExpression (A.MostPos m t) = call genTypeSymbol "mostpos" t
+cgenExpression (A.MostNeg m t) = call genTypeSymbol "mostneg" t
+--cgenExpression (A.SizeType m t)
+cgenExpression (A.SizeExpr m e)
+    =  do call genExpression e
+          call genSizeSuffix "0"
+cgenExpression (A.SizeVariable m v)
+    =  do call genVariable v
+          call genSizeSuffix "0"
+cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
+cgenExpression (A.ExprVariable m v) = call genVariable v
+cgenExpression (A.Literal _ _ lr) = call genLiteral lr
+cgenExpression (A.True m) = tell ["true"]
+cgenExpression (A.False m) = tell ["false"]
+--cgenExpression (A.FunctionCall m n es)
+cgenExpression (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction m s es
+--cgenExpression (A.SubscriptedExpr m s e)
+--cgenExpression (A.BytesInExpr m e)
+cgenExpression (A.BytesInType m t) = call genBytesIn m t (Left False)
+--cgenExpression (A.OffsetOf m t n)
+--cgenExpression (A.ExprConstr {})
+cgenExpression (A.AllocMobile m t me) = call genAllocMobile m t me
+cgenExpression t = call genMissing $ "genExpression " ++ show t
 
-cgenSizeSuffix :: GenOps -> String -> CGen ()
-cgenSizeSuffix _ dim = tell ["_sizes[", dim, "]"]
+cgenSizeSuffix :: String -> CGen ()
+cgenSizeSuffix dim = tell ["_sizes[", dim, "]"]
 
-cgenTypeSymbol :: GenOps -> String -> A.Type -> CGen ()
-cgenTypeSymbol ops s t
+cgenTypeSymbol :: String -> A.Type -> CGen ()
+cgenTypeSymbol s t
  = do f <- fget getScalarType
-      case f ops t of
+      case f t of
         Just ct -> tell ["occam_", s, "_", ct]
-        Nothing -> call genMissingC ops $ formatCode "genTypeSymbol %" t
+        Nothing -> call genMissingC $ formatCode "genTypeSymbol %" t
 
-cgenIntrinsicFunction :: GenOps -> Meta -> String -> [A.Expression] -> CGen ()
-cgenIntrinsicFunction ops m s es
+cgenIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen ()
+cgenIntrinsicFunction m s es
     =  do tell ["occam_", s, " ("]
-          sequence [call genExpression ops e >> genComma | e <- es]
+          sequence [call genExpression e >> genComma | e <- es]
           genMeta m
           tell [")"]
 --}}}
 
 --{{{  operators
-cgenSimpleMonadic :: GenOps -> String -> A.Expression -> CGen ()
-cgenSimpleMonadic ops s e
+cgenSimpleMonadic :: String -> A.Expression -> CGen ()
+cgenSimpleMonadic s e
     =  do tell ["(", s]
-          call genExpression ops e
+          call genExpression e
           tell [")"]
 
-cgenFuncMonadic :: GenOps -> Meta -> String -> A.Expression -> CGen ()
-cgenFuncMonadic ops m s e
+cgenFuncMonadic :: Meta -> String -> A.Expression -> CGen ()
+cgenFuncMonadic m s e
     =  do t <- typeOfExpression e
-          call genTypeSymbol ops s t
+          call genTypeSymbol s t
           tell [" ("]
-          call genExpression ops e
+          call genExpression e
           tell [", "]
           genMeta m
           tell [")"]
 
-cgenMonadic :: GenOps -> Meta -> A.MonadicOp -> A.Expression -> CGen ()
-cgenMonadic ops m A.MonadicSubtr e = call genFuncMonadic ops m "negate" e
-cgenMonadic ops _ A.MonadicMinus e = call genSimpleMonadic ops "-" e
-cgenMonadic ops _ A.MonadicBitNot e = call genSimpleMonadic ops "~" e
-cgenMonadic ops _ A.MonadicNot e = call genSimpleMonadic ops "!" e
+cgenMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen ()
+cgenMonadic m A.MonadicSubtr e = call genFuncMonadic m "negate" e
+cgenMonadic _ A.MonadicMinus e = call genSimpleMonadic "-" e
+cgenMonadic _ A.MonadicBitNot e = call genSimpleMonadic "~" e
+cgenMonadic _ A.MonadicNot e = call genSimpleMonadic "!" e
 
-cgenSimpleDyadic :: GenOps -> String -> A.Expression -> A.Expression -> CGen ()
-cgenSimpleDyadic ops s e f
+cgenSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
+cgenSimpleDyadic s e f
     =  do tell ["("]
-          call genExpression ops e
+          call genExpression e
           tell [" ", s, " "]
-          call genExpression ops f
+          call genExpression f
           tell [")"]
 
-cgenFuncDyadic :: GenOps -> Meta -> String -> A.Expression -> A.Expression -> CGen ()
-cgenFuncDyadic ops m s e f
+cgenFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
+cgenFuncDyadic m s e f
     =  do t <- typeOfExpression e
-          call genTypeSymbol ops s t
+          call genTypeSymbol s t
           tell [" ("]
-          call genExpression ops e
+          call genExpression e
           tell [", "]
-          call genExpression ops f
+          call genExpression f
           tell [", "]
           genMeta m
           tell [")"]
 
-cgenDyadic :: GenOps -> Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
-cgenDyadic ops m A.Add e f = call genFuncDyadic ops m "add" e f
-cgenDyadic ops m A.Subtr e f = call genFuncDyadic ops m "subtr" e f
-cgenDyadic ops m A.Mul e f = call genFuncDyadic ops m "mul" e f
-cgenDyadic ops m A.Div e f = call genFuncDyadic ops m "div" e f
-cgenDyadic ops m A.Rem e f = call genFuncDyadic ops m "rem" e f
-cgenDyadic ops _ A.Plus e f = call genSimpleDyadic ops "+" e f
-cgenDyadic ops _ A.Minus e f = call genSimpleDyadic ops "-" e f
-cgenDyadic ops _ A.Times e f = call genSimpleDyadic ops "*" e f
-cgenDyadic ops _ A.LeftShift e f = call genSimpleDyadic ops "<<" e f
-cgenDyadic ops _ A.RightShift e f = call genSimpleDyadic ops ">>" e f
-cgenDyadic ops _ A.BitAnd e f = call genSimpleDyadic ops "&" e f
-cgenDyadic ops _ A.BitOr e f = call genSimpleDyadic ops "|" e f
-cgenDyadic ops _ A.BitXor e f = call genSimpleDyadic ops "^" e f
-cgenDyadic ops _ A.And e f = call genSimpleDyadic ops "&&" e f
-cgenDyadic ops _ A.Or e f = call genSimpleDyadic ops "||" e f
-cgenDyadic ops _ A.Eq e f = call genSimpleDyadic ops "==" e f
-cgenDyadic ops _ A.NotEq e f = call genSimpleDyadic ops "!=" e f
-cgenDyadic ops _ A.Less e f = call genSimpleDyadic ops "<" e f
-cgenDyadic ops _ A.More e f = call genSimpleDyadic ops ">" e f
-cgenDyadic ops _ A.LessEq e f = call genSimpleDyadic ops "<=" e f
-cgenDyadic ops _ A.MoreEq e f = call genSimpleDyadic ops ">=" e f
+cgenDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
+cgenDyadic m A.Add e f = call genFuncDyadic m "add" e f
+cgenDyadic m A.Subtr e f = call genFuncDyadic m "subtr" e f
+cgenDyadic m A.Mul e f = call genFuncDyadic m "mul" e f
+cgenDyadic m A.Div e f = call genFuncDyadic m "div" e f
+cgenDyadic m A.Rem e f = call genFuncDyadic m "rem" e f
+cgenDyadic _ A.Plus e f = call genSimpleDyadic "+" e f
+cgenDyadic _ A.Minus e f = call genSimpleDyadic "-" e f
+cgenDyadic _ A.Times e f = call genSimpleDyadic "*" e f
+cgenDyadic _ A.LeftShift e f = call genSimpleDyadic "<<" e f
+cgenDyadic _ A.RightShift e f = call genSimpleDyadic ">>" e f
+cgenDyadic _ A.BitAnd e f = call genSimpleDyadic "&" e f
+cgenDyadic _ A.BitOr e f = call genSimpleDyadic "|" e f
+cgenDyadic _ A.BitXor e f = call genSimpleDyadic "^" e f
+cgenDyadic _ A.And e f = call genSimpleDyadic "&&" e f
+cgenDyadic _ A.Or e f = call genSimpleDyadic "||" e f
+cgenDyadic _ A.Eq e f = call genSimpleDyadic "==" e f
+cgenDyadic _ A.NotEq e f = call genSimpleDyadic "!=" e f
+cgenDyadic _ A.Less e f = call genSimpleDyadic "<" e f
+cgenDyadic _ A.More e f = call genSimpleDyadic ">" e f
+cgenDyadic _ A.LessEq e f = call genSimpleDyadic "<=" e f
+cgenDyadic _ A.MoreEq e f = call genSimpleDyadic ">=" e f
 --}}}
 
 --{{{  input/output items
-cgenInputItem :: GenOps -> A.Variable -> A.InputItem -> CGen ()
-cgenInputItem ops c (A.InCounted m cv av)
-    =  do call genInputItem ops c (A.InVariable m cv)
+cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
+cgenInputItem c (A.InCounted m cv av)
+    =  do call genInputItem c (A.InVariable m cv)
           t <- typeOfVariable av
           tell ["ChanIn("]
-          call genVariable ops c
+          call genVariable c
           tell [","]
-          fst $ abbrevVariable ops A.Abbrev t av
+          fst $ abbrevVariable A.Abbrev t av
           tell [","]
           subT <- trivialSubscriptType m t
-          call genVariable ops cv
+          call genVariable cv
           tell ["*"]
-          call genBytesIn ops m subT (Right av)
+          call genBytesIn m subT (Right av)
           tell [");"]
-cgenInputItem ops c (A.InVariable m v)
+cgenInputItem c (A.InVariable m v)
     =  do t <- typeOfVariable v
-          let rhs = fst $ abbrevVariable ops A.Abbrev t v
+          let rhs = fst $ abbrevVariable A.Abbrev t v
           case t of
             A.Int ->
               do tell ["ChanInInt("]
-                 call genVariable ops c
+                 call genVariable c
                  tell [","]
                  rhs
                  tell [");"]
             _ ->
               do tell ["ChanIn("]
-                 call genVariable ops c
+                 call genVariable c
                  tell [","]
                  rhs
                  tell [","]
-                 call genBytesIn ops m t (Right v)
+                 call genBytesIn m t (Right v)
                  tell [");"]
 
-cgenOutputItem :: GenOps -> A.Variable -> A.OutputItem -> CGen ()
-cgenOutputItem ops c (A.OutCounted m ce ae)
-    =  do call genOutputItem ops c (A.OutExpression m ce)
+cgenOutputItem :: A.Variable -> A.OutputItem -> CGen ()
+cgenOutputItem c (A.OutCounted m ce ae)
+    =  do call genOutputItem c (A.OutExpression m ce)
           t <- typeOfExpression ae
           case ae of
             A.ExprVariable m v ->
               do tell ["ChanOut("]
-                 call genVariable ops c
+                 call genVariable c
                  tell [","]
-                 fst $ abbrevVariable ops A.Abbrev t v
+                 fst $ abbrevVariable A.Abbrev t v
                  tell [","]
                  subT <- trivialSubscriptType m t
-                 call genExpression ops ce
+                 call genExpression ce
                  tell ["*"]
-                 call genBytesIn ops m subT (Right v)
+                 call genBytesIn m subT (Right v)
                  tell [");"]
-cgenOutputItem ops c (A.OutExpression m e)
+cgenOutputItem c (A.OutExpression m e)
     =  do t <- typeOfExpression e
           case (t, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt("]
-                 call genVariable ops c
+                 call genVariable c
                  tell [","]
-                 call genExpression ops e
+                 call genExpression e
                  tell [");"]
             (_, A.ExprVariable _ v) ->
               do tell ["ChanOut("]
-                 call genVariable ops c
+                 call genVariable c
                  tell [","]
-                 fst $ abbrevVariable ops A.Abbrev t v
+                 fst $ abbrevVariable A.Abbrev t v
                  tell [","]
-                 call genBytesIn ops m t (Right v)
+                 call genBytesIn m t (Right v)
                  tell [");"]
 --}}}
 
 --{{{  replicators
-cgenReplicator :: GenOps -> A.Replicator -> CGen () -> CGen ()
-cgenReplicator ops rep body
+cgenReplicator :: A.Replicator -> CGen () -> CGen ()
+cgenReplicator rep body
     =  do tell ["for("]
-          call genReplicatorLoop ops rep
+          call genReplicatorLoop rep
           tell ["){"]
           body
           tell ["}"]
@@ -1092,8 +1087,8 @@ isZero :: A.Expression -> Bool
 isZero (A.Literal _ A.Int (A.IntLiteral _ "0")) = True
 isZero _ = False
 
-cgenReplicatorLoop :: GenOps -> A.Replicator -> CGen ()
-cgenReplicatorLoop ops (A.For m index base count)
+cgenReplicatorLoop :: A.Replicator -> CGen ()
+cgenReplicatorLoop (A.For m index base count)
     = if isZero base
         then simple
         else general
@@ -1105,7 +1100,7 @@ cgenReplicatorLoop ops (A.For m index base count)
               tell ["=0;"]
               genName index
               tell ["<"]
-              call genExpression ops count
+              call genExpression count
               tell [";"]
               genName index
               tell ["++"]
@@ -1114,11 +1109,11 @@ cgenReplicatorLoop ops (A.For m index base count)
     general
         =  do counter <- makeNonce "replicator_count"
               tell ["int ", counter, "="]
-              call genExpression ops count
+              call genExpression count
               tell [","]
               genName index
               tell ["="]
-              call genExpression ops base
+              call genExpression base
               tell [";", counter, ">0;", counter, "--,"]
               genName index
               tell ["++"]
@@ -1128,17 +1123,17 @@ cgenReplicatorLoop ops (A.For m index base count)
 --{{{  abbreviations
 -- FIXME: This code is horrible, and I can't easily convince myself that it's correct.
 
-cgenSlice :: GenOps -> A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
-cgenSlice ops v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
+cgenSlice :: A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
+cgenSlice v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
-    = (tell ["&"] >> call genVariableUnchecked ops v,
-       call genArraySize ops False
+    = (tell ["&"] >> call genVariableUnchecked v,
+       call genArraySize False
                     (do genLeftB
                         tell ["occam_check_slice("]
-                        call genExpression ops start
+                        call genExpression start
                         tell [","]
-                        call genExpression ops count
+                        call genExpression count
                         tell [","]
                         genName on
                         tell ["_sizes[0],"]
@@ -1151,8 +1146,8 @@ cgenSlice ops v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
                         genRightB
                     ))
 
-cgenArraySize :: GenOps -> Bool -> CGen () -> A.Name -> CGen ()
-cgenArraySize ops isPtr size n
+cgenArraySize :: Bool -> CGen () -> A.Name -> CGen ()
+cgenArraySize isPtr size n
     = if isPtr
         then do tell ["const int*"]
                 genName n
@@ -1168,48 +1163,48 @@ cgenArraySize ops isPtr size n
 noSize :: A.Name -> CGen ()
 noSize n = return ()
 
-cgenVariableAM :: GenOps -> A.Variable -> A.AbbrevMode -> CGen ()
-cgenVariableAM ops v am
+cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
+cgenVariableAM v am
     =  do when (am == A.Abbrev) $ tell ["&"]
-          call genVariable ops v
+          call genVariable v
 
 -- | Generate the right-hand side of an abbreviation of a variable.
-abbrevVariable :: GenOps -> A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
-abbrevVariable ops am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = (tell ["&"] >> call genVariable ops v, genAASize v 0)
+abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
+abbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
+    = (tell ["&"] >> call genVariable v, genAASize v 0)
   where
         genAASize :: A.Variable -> Integer -> A.Name -> CGen ()
         genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
             = genAASize v (arg + 1)
         genAASize (A.Variable _ on) arg
-            = call genArraySize ops True
+            = call genArraySize True
                        (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
         genAASize (A.DirectedVariable _ _ v)  arg
-            = const $ call genMissing ops "Cannot abbreviate a directed variable as an array"
+            = const $ call genMissing "Cannot abbreviate a directed variable as an array"
                 
-abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
-    = call genSlice ops v start count ds
-abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = call genSlice ops v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
-abbrevVariable ops am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
-    = call genSlice ops v (makeConstant m 0) count ds
-abbrevVariable ops am (A.Array _ _) v
-    = (call genVariable ops v, call genArraySize ops True (call genVariable ops v >> tell ["_sizes"]))
-abbrevVariable ops am (A.Chan {}) v
-    = (call genVariable ops v, noSize)
-abbrevVariable ops am (A.Record _) v
-    = (call genVariable ops v, noSize)
-abbrevVariable ops am t v
-    = (call genVariableAM ops v am, noSize)
+abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
+    = call genSlice v start count ds
+abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
+    = call genSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
+abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
+    = call genSlice v (makeConstant m 0) count ds
+abbrevVariable am (A.Array _ _) v
+    = (call genVariable v, call genArraySize True (call genVariable v >> tell ["_sizes"]))
+abbrevVariable am (A.Chan {}) v
+    = (call genVariable v, noSize)
+abbrevVariable am (A.Record _) v
+    = (call genVariable v, noSize)
+abbrevVariable am t v
+    = (call genVariableAM v am, noSize)
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
-cgenRetypeSizes :: GenOps -> Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
-cgenRetypeSizes _ _ (A.Chan {}) _ (A.Chan {}) _ = return ()
-cgenRetypeSizes ops m destT destN srcT srcV
+cgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
+cgenRetypeSizes _ (A.Chan {}) _ (A.Chan {}) _ = return ()
+cgenRetypeSizes m destT destN srcT srcV
     =     let size = do tell ["occam_check_retype("]
-                        call genBytesIn ops m srcT (Right srcV)
+                        call genBytesIn m srcT (Right srcV)
                         tell [","]
-                        call genBytesIn ops m destT (Left True)
+                        call genBytesIn m destT (Left True)
                         tell [","]
                         genMeta m
                         tell [")"] in
@@ -1223,7 +1218,7 @@ cgenRetypeSizes ops m destT destN srcT srcV
                      do tell ["if("]
                         size
                         tell ["!=1){"]
-                        call genStop ops m "array size mismatch in RETYPES"
+                        call genStop m "array size mismatch in RETYPES"
                         tell ["}"]
                    _ -> return ()
 
@@ -1236,87 +1231,87 @@ cgenRetypeSizes ops m destT destN srcT srcV
                                      dieP m "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
-                 call genArraySize ops False (genLeftB >> seqComma dims >> genRightB) destN
+                 call genArraySize False (genLeftB >> seqComma dims >> genRightB) destN
 
             -- Not array; just check the size is 1.
             _ ->
               do tell ["if("]
                  size
                  tell ["!=1){"]
-                 call genStop ops m "size mismatch in RETYPES"
+                 call genStop m "size mismatch in RETYPES"
                  tell ["}"]
 
 -- | Generate the right-hand side of an abbreviation of an expression.
-abbrevExpression :: GenOps -> A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
-abbrevExpression ops am t@(A.Array _ _) e
+abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
+abbrevExpression am t@(A.Array _ _) e
     = case e of
-        A.ExprVariable _ v -> abbrevVariable ops am t v
-        A.Literal _ t@(A.Array _ _) r -> (call genExpression ops e, call declareArraySizes ops t)
+        A.ExprVariable _ v -> abbrevVariable am t v
+        A.Literal _ t@(A.Array _ _) r -> (call genExpression e, call declareArraySizes t)
         _ -> bad
   where
-    bad = (call genMissing ops "array expression abbreviation", noSize)
-abbrevExpression ops am _ e
-    = (call genExpression ops e, noSize)
+    bad = (call genMissing "array expression abbreviation", noSize)
+abbrevExpression am _ e
+    = (call genExpression e, noSize)
 --}}}
 
 --{{{  specifications
-cgenSpec :: GenOps -> A.Specification -> CGen () -> CGen ()
-cgenSpec ops spec body
-    =  do call introduceSpec ops spec
+cgenSpec :: A.Specification -> CGen () -> CGen ()
+cgenSpec spec body
+    =  do call introduceSpec spec
           body
-          call removeSpec ops spec
+          call removeSpec spec
 
 -- | Generate a declaration of a new variable.
-cgenDeclaration :: GenOps -> A.Type -> A.Name -> Bool -> CGen ()
-cgenDeclaration ops at@(A.Array ds t) n False
-    =  do call genType ops t
+cgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
+cgenDeclaration at@(A.Array ds t) n False
+    =  do call genType t
           tell [" "]
           case t of
             A.Chan A.DirUnknown _ _ ->
               do genName n
                  tell ["_storage"]
-                 call genFlatArraySize ops ds
+                 call genFlatArraySize ds
                  tell [";"]
-                 call genType ops t
+                 call genType t
                  tell ["* "]
             _ -> return ()
-          call genArrayStoreName ops n
-          call genFlatArraySize ops ds
+          call genArrayStoreName n
+          call genFlatArraySize ds
           tell [";"]
-          call declareArraySizes ops at n
-cgenDeclaration ops (A.Array ds t) n True
-    =  do call genType ops t
+          call declareArraySizes at n
+cgenDeclaration (A.Array ds t) n True
+    =  do call genType t
           tell [" "]
-          call genArrayStoreName ops n
-          call genFlatArraySize ops ds
+          call genArrayStoreName n
+          call genFlatArraySize ds
           tell [";"]
           tell ["int "]
           genName n
           tell ["_sizes[",show $ length ds,"];"]
-cgenDeclaration ops t n _
-    =  do call genType ops t
+cgenDeclaration t n _
+    =  do call genType t
           tell [" "]
           genName n
           tell [";"]
 
 -- | Generate the size of the C array that an occam array of the given
 -- dimensions maps to.
-cgenFlatArraySize :: GenOps -> [A.Dimension] -> CGen ()
-cgenFlatArraySize ops ds
+cgenFlatArraySize :: [A.Dimension] -> CGen ()
+cgenFlatArraySize ds
     =  do tell ["["]
           sequence $ intersperse (tell ["*"])
                                  [case d of A.Dimension n -> tell [show n] | d <- ds]
           tell ["]"]
 
 -- | Declare an _sizes array for a variable.
-cdeclareArraySizes :: GenOps -> A.Type -> A.Name -> CGen ()
-cdeclareArraySizes ops t name
-    = call genArraySize ops False (call genArraySizesLiteral ops name t) name
+cdeclareArraySizes :: A.Type -> A.Name -> CGen ()
+cdeclareArraySizes t name
+    = call genArraySize False (call genArraySizesLiteral name t) name
 
 -- | Generate a C literal to initialise an _sizes array with, where all the
 -- dimensions are fixed.
-cgenArraySizesLiteral :: GenOps -> A.Name -> A.Type -> CGen ()
-cgenArraySizesLiteral ops n (A.Array ds _)
+cgenArraySizesLiteral :: A.Name -> A.Type -> CGen ()
+cgenArraySizesLiteral n (A.Array ds _)
     = genLeftB >> seqComma dims >> genRightB
   where
     dims :: [CGen ()]
@@ -1326,26 +1321,26 @@ cgenArraySizesLiteral ops n (A.Array ds _)
             | d <- ds]
 
 -- | Initialise an item being declared.
-cdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
-cdeclareInit ops _ (A.Chan A.DirUnknown _ _) var _
+cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
+cdeclareInit _ (A.Chan A.DirUnknown _ _) var _
     = Just $ do tell ["ChanInit("]
-                call genVariableUnchecked ops var
+                call genVariableUnchecked var
                 tell [");"]
-cdeclareInit ops m t@(A.Array ds t') var _
+cdeclareInit m t@(A.Array ds t') var _
     = Just $ do case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tock_init_chan_array("]
-                       call genVariableUnchecked ops var
+                       call genVariableUnchecked var
                        tell ["_storage,"]
-                       call genVariableUnchecked ops var
+                       call genVariableUnchecked var
                        tell [","]
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
                 fdeclareInit <- fget declareInit
-                init <- return (\sub -> fdeclareInit ops m t' (sub var) Nothing)
-                call genOverArray ops m var init
-cdeclareInit ops m rt@(A.Record _) var _
+                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
+                call genOverArray m var init
+cdeclareInit m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
@@ -1353,21 +1348,21 @@ cdeclareInit ops m rt@(A.Record _) var _
     initField :: A.Type -> A.Variable -> CGen ()
     -- An array as a record field; we must initialise the sizes.
     initField t@(A.Array ds _) v
-        =  do sequence_ [do call genVariableUnchecked ops v
-                            call genSizeSuffix ops (show i) 
+        =  do sequence_ [do call genVariableUnchecked v
+                            call genSizeSuffix (show i) 
                             tell ["=", show n, ";"]
                          | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
               fdeclareInit <- fget declareInit
-              doMaybe $ fdeclareInit ops m t v Nothing
+              doMaybe $ fdeclareInit m t v Nothing
     initField t v = do fdeclareInit <- fget declareInit
-                       doMaybe $ fdeclareInit ops m t v Nothing
-cdeclareInit ops m _ v (Just e)
-    = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
-cdeclareInit _ _ _ _ _ = Nothing
+                       doMaybe $ fdeclareInit m t v Nothing
+cdeclareInit m _ v (Just e)
+    = Just $ call genAssign m [v] $ A.ExpressionList m [e]
+cdeclareInit _ _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
-cdeclareFree :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareFree _ _ _ _ = Nothing
+cdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cdeclareFree _ _ _ = Nothing
 
 {-
                   Original        Abbrev
@@ -1384,28 +1379,28 @@ CHAN OF INT c IS d:       Channel *c = d;
 []CHAN OF INT ds IS cs:   Channel **ds = cs;
                           const int *ds_sizes = cs_sizes;
 -}
-cintroduceSpec :: GenOps -> A.Specification -> CGen ()
-cintroduceSpec ops (A.Specification m n (A.Declaration _ t init))
-    = do call genDeclaration ops t n False
+cintroduceSpec :: A.Specification -> CGen ()
+cintroduceSpec (A.Specification m n (A.Declaration _ t init))
+    = do call genDeclaration t n False
          fdeclareInit <- fget declareInit
-         case fdeclareInit ops m t (A.Variable m n) init of
+         case fdeclareInit m t (A.Variable m n) init of
            Just p -> p
            Nothing -> return ()
-cintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
-    =  do let (rhs, rhsSizes) = abbrevVariable ops am t v
-          call genDecl ops am t n
+cintroduceSpec (A.Specification _ n (A.Is _ am t v))
+    =  do let (rhs, rhsSizes) = abbrevVariable am t v
+          call genDecl am t n
           tell ["="]
           rhs
           tell [";"]
           rhsSizes n
-cintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
-    =  do let (rhs, rhsSizes) = abbrevExpression ops am t e
+cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
+    =  do let (rhs, rhsSizes) = abbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
               -- declaration, since you can't say "int *foo = {vs};" in C.
               do tell ["const "]
-                 call genType ops ts
+                 call genType ts
                  tell [" "]
                  genName n
                  tell ["[] = "]
@@ -1417,37 +1412,37 @@ cintroduceSpec ops (A.Specification _ n (A.IsExpr _ am t e))
               -- directly writing a struct literal in C that you can use -> on.
               do tmp <- makeNonce "record_literal"
                  tell ["const "]
-                 call genType ops t
+                 call genType t
                  tell [" ", tmp, " = "]
                  rhs
                  tell [";\n"]
-                 call genDecl ops am t n
+                 call genDecl am t n
                  tell [" = &", tmp, ";\n"]
                  rhsSizes n
             _ ->
-              do call genDecl ops am t n
+              do call genDecl am t n
                  tell [" = "]
                  rhs
                  tell [";\n"]
                  rhsSizes n
-cintroduceSpec ops (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
-    =  do call genType ops c        
+cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
+    =  do call genType c        
           tell ["*"]
-          call genArrayStoreName ops n
+          call genArrayStoreName n
           tell ["[]={"]
-          seqComma (map (call genVariable ops) cs)
+          seqComma (map (call genVariable) cs)
           tell ["};"]
-          call declareArraySizes ops (A.Array [A.Dimension $ length cs] c) n
-cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
-cintroduceSpec ops (A.Specification _ n (A.RecordType _ b fs))
+          call declareArraySizes (A.Array [A.Dimension $ length cs] c) n
+cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
+cintroduceSpec (A.Specification _ n (A.RecordType _ b fs))
     =  do tell ["typedef struct{"]
-          sequence_ [call genDeclaration ops t n True | (n, t) <- fs]
+          sequence_ [call genDeclaration t n True | (n, t) <- fs]
           tell ["}"]
           when b $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
-cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
-cintroduceSpec ops (A.Specification _ n (A.ProtocolCase _ ts))
+cintroduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
+cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum{"]
           seqComma [genName tag >> tell ["_"] >> genName n | (tag, _) <- ts]
           -- You aren't allowed to have an empty enum.
@@ -1456,19 +1451,19 @@ cintroduceSpec ops (A.Specification _ n (A.ProtocolCase _ ts))
           tell ["}"]
           genName n
           tell [";"]
-cintroduceSpec ops (A.Specification _ n (A.Proc _ sm fs p))
-    =  do call genSpecMode ops sm
+cintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
+    =  do call genSpecMode sm
           tell ["void "]
           genName n
           tell [" (Process *me"]
-          call genFormals ops fs
+          call genFormals fs
           tell [") {\n"]
-          call genProcess ops p
+          call genProcess p
           tell ["}\n"]
-cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
+cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
-          let (rhs, _) = abbrevVariable ops A.Abbrev origT v
-          call genDecl ops am t n
+          let (rhs, _) = abbrevVariable A.Abbrev origT v
+          call genDecl am t n
           tell ["="]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
           -- we need to dereference the pointer that abbrevVariable gives us.
@@ -1480,66 +1475,66 @@ cintroduceSpec ops (A.Specification _ n (A.Retypes m am t v))
                         _ -> False
           when deref $ tell ["*"]
           tell ["("]
-          call genDeclType ops am t
+          call genDeclType am t
           when deref $ tell ["*"]
           tell [")"]
           rhs
           tell [";"]
-          call genRetypeSizes ops m t n origT v
---cintroduceSpec ops (A.Specification _ n (A.RetypesExpr _ am t e))
-cintroduceSpec ops n = call genMissing ops $ "introduceSpec " ++ show n
+          call genRetypeSizes m t n origT v
+--cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
+cintroduceSpec n = call genMissing $ "introduceSpec " ++ show n
 
-cgenForwardDeclaration :: GenOps -> A.Specification -> CGen ()
-cgenForwardDeclaration ops (A.Specification _ n (A.Proc _ sm fs _))
-    =  do call genSpecMode ops sm
+cgenForwardDeclaration :: A.Specification -> CGen ()
+cgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
+    =  do call genSpecMode sm
           tell ["void "]
           genName n
           tell [" (Process *me"]
-          call genFormals ops fs
+          call genFormals fs
           tell [");"]
-cgenForwardDeclaration _ _ = return ()
+cgenForwardDeclaration _ = return ()
 
-cremoveSpec :: GenOps -> A.Specification -> CGen ()
-cremoveSpec ops (A.Specification m n (A.Declaration _ t _))
+cremoveSpec :: A.Specification -> CGen ()
+cremoveSpec (A.Specification m n (A.Declaration _ t _))
  = do fdeclareFree <- fget declareFree
-      case fdeclareFree ops m t var of
+      case fdeclareFree m t var of
         Just p -> p
         Nothing -> return ()
   where
     var = A.Variable m n
-cremoveSpec _ _ = return ()
+cremoveSpec _ = return ()
 
-cgenSpecMode :: GenOps -> A.SpecMode -> CGen ()
-cgenSpecMode _ A.PlainSpec = return ()
-cgenSpecMode _ A.InlineSpec = tell ["inline "]
+cgenSpecMode :: A.SpecMode -> CGen ()
+cgenSpecMode A.PlainSpec = return ()
+cgenSpecMode A.InlineSpec = tell ["inline "]
 --}}}
 
 --{{{  actuals/formals
 prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
-cgenActuals :: GenOps -> [A.Actual] -> CGen ()
-cgenActuals ops as = prefixComma (map (call genActual ops) as)
+cgenActuals :: [A.Actual] -> CGen ()
+cgenActuals as = prefixComma (map (call genActual) as)
 
-cgenActual :: GenOps -> A.Actual -> CGen ()
-cgenActual ops actual
+cgenActual :: A.Actual -> CGen ()
+cgenActual actual
     = case actual of
         A.ActualExpression t e ->
           case (t, e) of
             (A.Array _ _, A.ExprVariable _ v) ->
-              do call genVariable ops v
+              do call genVariable v
                  tell [","]
-                 call genVariable ops v
+                 call genVariable v
                  tell ["_sizes"]
-            _ -> call genExpression ops e
+            _ -> call genExpression e
         A.ActualVariable am t v ->
           case t of
             A.Array _ _ ->
-              do call genVariable ops v
+              do call genVariable v
                  tell [","]
-                 call genVariable ops v
+                 call genVariable v
                  tell ["_sizes"]
-            _ -> fst $ abbrevVariable ops am t v
+            _ -> fst $ abbrevVariable am t v
 
 numCArgs :: [A.Actual] -> Int
 numCArgs [] = 0
@@ -1547,180 +1542,180 @@ numCArgs (A.ActualVariable _ (A.Array _ _) _:fs) = 2 + numCArgs fs
 numCArgs (A.ActualExpression (A.Array _ _) _:fs) = 2 + numCArgs fs
 numCArgs (_:fs) = 1 + numCArgs fs
 
-cgenFormals :: GenOps -> [A.Formal] -> CGen ()
-cgenFormals ops fs = prefixComma (map (call genFormal ops) fs)
+cgenFormals :: [A.Formal] -> CGen ()
+cgenFormals fs = prefixComma (map (call genFormal) fs)
 
-cgenFormal :: GenOps -> A.Formal -> CGen ()
-cgenFormal ops (A.Formal am t n)
+cgenFormal :: A.Formal -> CGen ()
+cgenFormal (A.Formal am t n)
     = case t of
         A.Array _ t' ->
-          do call genDecl ops am t n
+          do call genDecl am t n
              tell [", const int *"]
              genName n
              tell ["_sizes"]
-        _ -> call genDecl ops am t n
+        _ -> call genDecl am t n
 --}}}
 
 --{{{  processes
-cgenProcess :: GenOps -> A.Process -> CGen ()
-cgenProcess ops p = case p of
-  A.Assign m vs es -> call genAssign ops m vs es
-  A.Input m c im -> call genInput ops c im
-  A.Output m c ois -> call genOutput ops c ois
-  A.OutputCase m c t ois -> call genOutputCase ops c t ois
-  A.GetTime m v -> call genGetTime ops m v
-  A.Wait m wm e -> call genWait ops wm e
+cgenProcess :: A.Process -> CGen ()
+cgenProcess p = case p of
+  A.Assign m vs es -> call genAssign m vs es
+  A.Input m c im -> call genInput c im
+  A.Output m c ois -> call genOutput c ois
+  A.OutputCase m c t ois -> call genOutputCase c t ois
+  A.GetTime m v -> call genGetTime m v
+  A.Wait m wm e -> call genWait wm e
   A.Skip m -> tell ["/* skip */\n"]
-  A.Stop m -> call genStop ops m "STOP process"
-  A.Seq _ s -> call genSeq ops s
-  A.If m s -> call genIf ops m s
-  A.Case m e s -> call genCase ops m e s
-  A.While m e p -> call genWhile ops e p
-  A.Par m pm s -> call genPar ops pm s
+  A.Stop m -> call genStop m "STOP process"
+  A.Seq _ s -> call genSeq s
+  A.If m s -> call genIf m s
+  A.Case m e s -> call genCase m e s
+  A.While m e p -> call genWhile e p
+  A.Par m pm s -> call genPar pm s
   -- PROCESSOR does nothing special.
-  A.Processor m e p -> call genProcess ops p
-  A.Alt m b s -> call genAlt ops b s
-  A.ProcCall m n as -> call genProcCall ops n as
-  A.IntrinsicProcCall m s as -> call genIntrinsicProc ops m s as
+  A.Processor m e p -> call genProcess p
+  A.Alt m b s -> call genAlt b s
+  A.ProcCall m n as -> call genProcCall n as
+  A.IntrinsicProcCall m s as -> call genIntrinsicProc m s as
 
 --{{{  assignment
-cgenAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
-cgenAssign ops m [v] (A.ExpressionList _ [e])
+cgenAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
+cgenAssign m [v] (A.ExpressionList _ [e])
     = do t <- typeOfVariable v
          f <- fget getScalarType
-         case f ops t of
+         case f t of
            Just _ -> doAssign v e
            Nothing -> case t of
              -- Assignment of channel-ends, but not channels, is possible (at least in Rain):
              A.Chan A.DirInput _ _ -> doAssign v e
              A.Chan A.DirOutput _ _ -> doAssign v e
-             _ -> call genMissingC ops $ formatCode "assignment of type %" t
+             _ -> call genMissingC $ formatCode "assignment of type %" t
   where
     doAssign :: A.Variable -> A.Expression -> CGen ()
     doAssign v e
-        = do call genVariable ops v
+        = do call genVariable v
              tell ["="]
-             call genExpression ops e
+             call genExpression e
              tell [";"]
-cgenAssign ops m _ _ = call genMissing ops "Cannot perform assignment with multiple destinations or multiple sources"
+cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
 
 --}}}
 --{{{  input
-cgenInput :: GenOps -> A.Variable -> A.InputMode -> CGen ()
-cgenInput ops c im
+cgenInput :: A.Variable -> A.InputMode -> CGen ()
+cgenInput c im
     =  do case im of
-            A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead ops c v
-            A.InputTimerAfter m e -> call genTimerWait ops e
-            A.InputSimple m is -> sequence_ $ map (call genInputItem ops c) is
-            _ -> call genMissing ops $ "genInput " ++ show im
+            A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead c v
+            A.InputTimerAfter m e -> call genTimerWait e
+            A.InputSimple m is -> sequence_ $ map (call genInputItem c) is
+            _ -> call genMissing $ "genInput " ++ show im
 
-cgenTimerRead :: GenOps -> A.Variable -> A.Variable -> CGen ()
-cgenTimerRead ops c v
+cgenTimerRead :: A.Variable -> A.Variable -> CGen ()
+cgenTimerRead c v
     =  do tell ["ProcTime (&"]
-          call genVariable ops c
+          call genVariable c
           tell [");\n"]
-          call genVariable ops v
+          call genVariable v
           tell [" = "]
-          call genVariable ops c
+          call genVariable c
           tell [";\n"]
 
-cgenTimerWait :: GenOps -> A.Expression -> CGen ()
-cgenTimerWait ops e
+cgenTimerWait :: A.Expression -> CGen ()
+cgenTimerWait e
     =  do tell ["ProcTimeAfter("]
-          call genExpression ops e
+          call genExpression e
           tell [");"]
 
-cgenGetTime :: GenOps -> Meta -> A.Variable -> CGen ()
-cgenGetTime ops m v
+cgenGetTime :: Meta -> A.Variable -> CGen ()
+cgenGetTime m v
     =  do tell ["ProcTime(&"]
-          call genVariable ops v
+          call genVariable v
           tell [");"]
 
-cgenWait :: GenOps -> A.WaitMode -> A.Expression -> CGen ()
-cgenWait ops A.WaitUntil e = call genTimerWait ops e
-cgenWait ops A.WaitFor e
+cgenWait :: A.WaitMode -> A.Expression -> CGen ()
+cgenWait A.WaitUntil e = call genTimerWait e
+cgenWait A.WaitFor e
     =  do tell ["ProcAfter("]
-          call genExpression ops e
+          call genExpression e
           tell [");"]
 
 --}}}
 --{{{  output
-cgenOutput :: GenOps -> A.Variable -> [A.OutputItem] -> CGen ()
-cgenOutput ops c ois = sequence_ $ map (call genOutputItem ops c) ois
+cgenOutput :: A.Variable -> [A.OutputItem] -> CGen ()
+cgenOutput c ois = sequence_ $ map (call genOutputItem c) ois
 
-cgenOutputCase :: GenOps -> A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
-cgenOutputCase ops c tag ois
+cgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
+cgenOutputCase c tag ois
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt("]
-          call genVariable ops c
+          call genVariable c
           tell [","]
           genName tag
           tell ["_"]
           genName proto
           tell [");"]
-          call genOutput ops c ois
+          call genOutput c ois
 --}}}
 --{{{  stop
-cgenStop :: GenOps -> Meta -> String -> CGen ()
-cgenStop ops m s
+cgenStop :: Meta -> String -> CGen ()
+cgenStop m s
     =  do tell ["occam_stop("]
           genMeta m
           tell [",\"", s, "\");"]
 --}}}
 --{{{  seq
-cgenSeq :: GenOps -> A.Structured A.Process -> CGen ()
-cgenSeq ops s = call genStructured ops s doP
+cgenSeq :: A.Structured A.Process -> CGen ()
+cgenSeq s = call genStructured s doP
   where
-    doP _ p = call genProcess ops p
+    doP _ p = call genProcess p
 --}}}
 --{{{  if
-cgenIf :: GenOps -> Meta -> A.Structured A.Choice -> CGen ()
-cgenIf ops m s
+cgenIf :: Meta -> A.Structured A.Choice -> CGen ()
+cgenIf m s
     =  do label <- makeNonce "if_end"
           tell ["/*",label,"*/"]
           genIfBody label s
-          call genStop ops m "no choice matched in IF process"
+          call genStop m "no choice matched in IF process"
           tell [label, ":;"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody label s = call genStructured ops s doC
+    genIfBody label s = call genStructured s doC
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]
-                 call genExpression ops e
+                 call genExpression e
                  tell ["){"]
-                 call genProcess ops p
+                 call genProcess p
                  tell ["goto ", label, ";"]
                  tell ["}"]
 --}}}
 --{{{  case
-cgenCase :: GenOps -> Meta -> A.Expression -> A.Structured A.Option -> CGen ()
-cgenCase ops m e s
+cgenCase :: Meta -> A.Expression -> A.Structured A.Option -> CGen ()
+cgenCase m e s
     =  do tell ["switch("]
-          call genExpression ops e
+          call genExpression e
           tell ["){"]
           seenDefault <- genCaseBody (return ()) s
           when (not seenDefault) $
             do tell ["default:"]
-               call genStop ops m "no option matched in CASE process"
+               call genStop m "no option matched in CASE process"
           tell ["}"]
   where
     genCaseBody :: CGen () -> A.Structured A.Option -> CGen Bool
     genCaseBody coll (A.Spec _ spec s)
-        = genCaseBody (call genSpec ops spec coll) s
+        = genCaseBody (call genSpec spec coll) s
     genCaseBody coll (A.Only _ (A.Option _ es p))
-        =  do sequence_ [tell ["case "] >> call genExpression ops e >> tell [":"] | e <- es]
+        =  do sequence_ [tell ["case "] >> call genExpression e >> tell [":"] | e <- es]
               tell ["{"]
               coll
-              call genProcess ops p
+              call genProcess p
               tell ["}break;"]
               return False
     genCaseBody coll (A.Only _ (A.Else _ p))
         =  do tell ["default:"]
               tell ["{"]
               coll
-              call genProcess ops p
+              call genProcess p
               tell ["}break;"]
               return True
     genCaseBody coll (A.Several _ ss)
@@ -1728,30 +1723,30 @@ cgenCase ops m e s
               return $ or seens
 --}}}
 --{{{  while
-cgenWhile :: GenOps -> A.Expression -> A.Process -> CGen ()
-cgenWhile ops e p
+cgenWhile :: A.Expression -> A.Process -> CGen ()
+cgenWhile e p
     =  do tell ["while("]
-          call genExpression ops e
+          call genExpression e
           tell ["){"]
-          call genProcess ops p
+          call genProcess p
           tell ["}"]
 --}}}
 --{{{  par
-cgenPar :: GenOps -> A.ParMode -> A.Structured A.Process -> CGen ()
-cgenPar ops pm s
+cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
+cgenPar pm s
     =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
           pids <- makeNonce "pids"
           pris <- makeNonce "priorities"
           index <- makeNonce "i"
           when (pm == A.PriPar) $
             do tell ["int ", pris, "["]
-               call genExpression ops size
+               call genExpression size
                tell ["];\n"]
           tell ["Process *", pids, "["]
-          call genExpression ops size
+          call genExpression size
           tell ["];\n"]
           tell ["int ", index, " = 0;\n"]
-          call genStructured ops s (createP pids pris index)
+          call genStructured s (createP pids pris index)
           tell [pids, "[", index, "] = NULL;\n"]
           tell ["if(",pids,"[0] != NULL){"] -- CIF seems to deadlock when you give ProcParList a list 
                                             -- beginning with NULL (i.e. with no processes)
@@ -1760,7 +1755,7 @@ cgenPar ops pm s
             _ -> tell ["ProcParList (", pids, ");\n"]
           tell ["}"]
           tell [index, " = 0;\n"]
-          call genStructured ops s (freeP pids index)
+          call genStructured s (freeP pids index)
   where
     createP pids pris index _ p
         = do when (pm == A.PriPar) $
@@ -1777,13 +1772,13 @@ cgenPar ops pm s
               genName n
               let stackSize = nameString n ++ "_stack_size"
               tell [", ", stackSize, ", ", show $ numCArgs as]
-              call genActuals ops as
+              call genActuals as
               tell [")"]
-    genProcAlloc p = call genMissing ops $ "genProcAlloc " ++ show p
+    genProcAlloc p = call genMissing $ "genProcAlloc " ++ show p
 --}}}
 --{{{  alt
-cgenAlt :: GenOps -> Bool -> A.Structured A.Alternative -> CGen ()
-cgenAlt ops isPri s
+cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
+cgenAlt isPri s
     =  do tell ["AltStart ();\n"]
           tell ["{\n"]
           genAltEnable s
@@ -1805,70 +1800,70 @@ cgenAlt ops isPri s
           tell [label, ":\n;\n"]
   where
     genAltEnable :: A.Structured A.Alternative -> CGen ()
-    genAltEnable s = call genStructured ops s doA
+    genAltEnable s = call genStructured s doA
       where
         doA _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltEnableSkip ();\n"]
+                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip ();\n"]
                 --transformWaitFor should have removed all A.WaitFor guards (transforming them into A.WaitUntil):
                 A.AlternativeWait _ A.WaitUntil e _ ->
                   do tell ["AltEnableTimer ( "]
-                     call genExpression ops e
+                     call genExpression e
                      tell [" );\n"]
 
         doIn c im
             = do case im of
-                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
                      do tell ["AltEnableTimer ("]
-                        call genExpression ops time
+                        call genExpression time
                         tell [");\n"]
                    _ ->
                      do tell ["AltEnableChannel ("]
-                        call genVariable ops c
+                        call genVariable c
                         tell [");\n"]
 
     genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
-    genAltDisable id s = call genStructured ops s doA
+    genAltDisable id s = call genStructured s doA
       where
         doA _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf ops e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf ops e $ tell ["AltDisableSkip (", id, "++);\n"]
+                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (", id, "++);\n"]
                 A.AlternativeWait _ A.WaitUntil e _ ->
                      do tell ["AltDisableTimer (", id, "++, "]
-                        call genExpression ops e
+                        call genExpression e
                         tell [");\n"]
         doIn c im
             = do case im of
-                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
+                   A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
                      do tell ["AltDisableTimer (", id, "++, "]
-                        call genExpression ops time
+                        call genExpression time
                         tell [");\n"]
                    _ ->
                      do tell ["AltDisableChannel (", id, "++, "]
-                        call genVariable ops c
+                        call genVariable c
                         tell [");\n"]
 
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured ops s doA
+    genAltProcesses id fired label s = call genStructured s doA
       where
         doA _ alt
             = case alt of
                 A.Alternative _ c im p -> doIn c im p
-                A.AlternativeCond _ e c im p -> withIf ops e $ doIn c im p
-                A.AlternativeSkip _ e p -> withIf ops e $ doCheck (call genProcess ops p)
-                A.AlternativeWait _ _ _ p -> doCheck (call genProcess ops p)
+                A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
+                A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
+                A.AlternativeWait _ _ _ p -> doCheck (call genProcess p)
 
         doIn c im p
             = do case im of
-                   A.InputTimerRead _ _ -> call genMissing ops "timer read in ALT"
-                   A.InputTimerAfter _ _ -> doCheck (call genProcess ops p)
-                   _ -> doCheck (call genInput ops c im >> call genProcess ops p)
+                   A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
+                   A.InputTimerAfter _ _ -> doCheck (call genProcess p)
+                   _ -> doCheck (call genInput c im >> call genProcess p)
 
         doCheck body
             = do tell ["if (", id, "++ == ", fired, ") {\n"]
@@ -1876,46 +1871,46 @@ cgenAlt ops isPri s
                  tell ["goto ", label, ";\n"]
                  tell ["}\n"]
 
-withIf :: GenOps -> A.Expression -> CGen () -> CGen ()
-withIf ops cond body
+withIf :: A.Expression -> CGen () -> CGen ()
+withIf cond body
     =  do tell ["if ("]
-          call genExpression ops cond
+          call genExpression cond
           tell [") {\n"]
           body
           tell ["}\n"]
 --}}}
 --{{{  proc call
-cgenProcCall :: GenOps -> A.Name -> [A.Actual] -> CGen ()
-cgenProcCall ops n as
+cgenProcCall :: A.Name -> [A.Actual] -> CGen ()
+cgenProcCall n as
     =  do genName n
           tell [" (me"]
-          call genActuals ops as
+          call genActuals as
           tell [");\n"]
 --}}}
 --{{{  intrinsic procs
-cgenIntrinsicProc :: GenOps -> Meta -> String -> [A.Actual] -> CGen ()
-cgenIntrinsicProc ops m "ASSERT" [A.ActualExpression A.Bool e] = call genAssert ops m e
-cgenIntrinsicProc ops _ s _ = call genMissing ops $ "intrinsic PROC " ++ s
+cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
+cgenIntrinsicProc m "ASSERT" [A.ActualExpression A.Bool e] = call genAssert m e
+cgenIntrinsicProc _ s _ = call genMissing $ "intrinsic PROC " ++ s
 
-cgenAssert :: GenOps -> Meta -> A.Expression -> CGen ()
-cgenAssert ops m e
+cgenAssert :: Meta -> A.Expression -> CGen ()
+cgenAssert m e
     =  do tell ["if (!"]
-          call genExpression ops e
+          call genExpression e
           tell [") {\n"]
-          call genStop ops m "assertion failed"
+          call genStop m "assertion failed"
           tell ["}\n"]
 --}}}
 --}}}
 
 --{{{ mobiles
-cgenAllocMobile :: GenOps -> Meta -> A.Type -> Maybe A.Expression -> CGen()
-cgenAllocMobile ops m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn ops m t (Left False) >> tell [")"]
+cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
+cgenAllocMobile m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn m t (Left False) >> tell [")"]
 --TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
 -- into a subsequent assignment
-cgenAllocMobile ops _ _ _ = call genMissing ops "Mobile allocation with initialising-expression"
+cgenAllocMobile _ _ _ = call genMissing "Mobile allocation with initialising-expression"
 
-cgenClearMobile :: GenOps -> Meta -> A.Variable -> CGen ()
-cgenClearMobile ops _ v
+cgenClearMobile :: Meta -> A.Variable -> CGen ()
+cgenClearMobile _ v
   = do tell ["if("]
        genVar
        tell ["!=NULL){free("]
@@ -1924,6 +1919,6 @@ cgenClearMobile ops _ v
        genVar
        tell ["=NULL;}"]
   where
-    genVar = call genVariable ops v
+    genVar = call genVariable v
 
 --}}}
