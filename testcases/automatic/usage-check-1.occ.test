@@ -81,6 +81,10 @@ PROC m()
 %FAIL Two variables
     a[x] := 3
     a[y] := 5
+    
+%PASS Multiplied variables
+    a[x*y] := 3
+    a[(x*y) + 1] := 5
 
 %PASS Modulo variable (c.d.) and a constant, safe
     a[x REM 3] := 3
