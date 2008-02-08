@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), onlyConst, makeEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -43,12 +43,6 @@ checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems Usage
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ transformParItems nodeVars p
   where
-    -- Gets all the items inside a ParItems and returns them in a flat list.
-    flattenParItems :: ParItems a -> [a]
-    flattenParItems (SeqItems xs) = xs
-    flattenParItems (ParItems ps) = concatMap flattenParItems ps
-    flattenParItems (RepParItem _ p) = flattenParItems p
-
     -- Takes a ParItems Vars, and returns a map from array-variable-name to a list of writes and a list of reads for that array.
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
@@ -202,6 +196,7 @@ data FlattenedExp
     -- ^ A modulo, with the given top and bottom (in that order)
   | Divide (Set.Set FlattenedExp) (Set.Set FlattenedExp)
     -- ^ An integer division, with the given top and bottom (in that order)
+  deriving (Show)
 
 instance Eq FlattenedExp where
   a == b = EQ == compare a b

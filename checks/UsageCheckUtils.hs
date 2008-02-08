@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
+module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.List
@@ -71,6 +71,7 @@ data ParItems a
   = SeqItems [a] -- ^ A list of items that happen only in sequence (i.e. none are in parallel with each other)
   | ParItems [ParItems a] -- ^ A list of items that are all in parallel with each other
   | RepParItem A.Replicator (ParItems a) -- ^ A list of replicated items that happen in parallel
+  deriving (Show)
 
 data UsageLabel = Usage
   {nodeRep :: Maybe A.Replicator
@@ -81,6 +82,13 @@ transformParItems :: (a -> b) -> ParItems a -> ParItems b
 transformParItems f (SeqItems xs) = SeqItems $ map f xs
 transformParItems f (ParItems ps) = ParItems $ map (transformParItems f) ps
 transformParItems f (RepParItem r p) = RepParItem r (transformParItems f p)
+
+-- Gets all the items inside a ParItems and returns them in a flat list.
+flattenParItems :: ParItems a -> [a]
+flattenParItems (SeqItems xs) = xs
+flattenParItems (ParItems ps) = concatMap flattenParItems ps
+flattenParItems (RepParItem _ p) = flattenParItems p
+
 
 emptyVars :: Vars
 emptyVars = Vars Set.empty Set.empty Set.empty
