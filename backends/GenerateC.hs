@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (call, CGen, cgenOps, cintroduceSpec, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, SubscripterFunction, withIf ) where
+module GenerateC (call, CGen, CGen', cgenOps, cintroduceSpec, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, SubscripterFunction, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -25,6 +25,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
 import Control.Monad.Error
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import Text.Printf
@@ -52,7 +53,8 @@ genCPasses =
 --}}}
 
 --{{{  monad definition
-type CGen = WriterT [String] PassM
+type CGen' = WriterT [String] PassM
+type CGen = ReaderT GenOps CGen'
 
 instance Die CGen where
   dieReport = throwError
@@ -175,8 +177,50 @@ data GenOps = GenOps {
   }
 
 -- | Call an operation in GenOps.
+{-
 call :: (GenOps -> GenOps -> t) -> GenOps -> t
 call f ops = f ops ops
+-}
+
+class CGenCall a where
+  call :: (GenOps -> GenOps -> a) -> GenOps -> a
+
+instance CGenCall (a -> CGen z) where
+--  call :: (GenOps -> GenOps -> a -> CGen b) -> a -> CGen b
+  call f _ x0 = do ops <- ask
+                   f ops ops x0
+
+instance CGenCall (a -> b -> CGen z) where
+  call f _ x0 x1
+    = do ops <- ask
+         f ops ops x0 x1
+
+instance CGenCall (a -> b -> c -> CGen z) where
+  call f _ x0 x1 x2
+    = do ops <- ask
+         f ops ops x0 x1 x2
+
+instance CGenCall (a -> b -> c -> d -> CGen z) where
+  call f _ x0 x1 x2 x3
+    = do ops <- ask
+         f ops ops x0 x1 x2 x3
+
+instance CGenCall (a -> b -> c -> d -> e -> CGen z) where
+  call f _ x0 x1 x2 x3 x4
+    = do ops <- ask
+         f ops ops x0 x1 x2 x3 x4
+
+-- A bit of a mind-boggler, but this is essentially for genSlice
+instance CGenCall (a -> b -> c -> d -> (CGen x, y -> CGen z)) where
+  call f _ x0 x1 x2 x3
+    = (do ops <- ask
+          fst $ f ops ops x0 x1 x2 x3
+      ,\y -> do ops <- ask
+                (snd $ f ops ops x0 x1 x2 x3) y
+      )
+
+fget :: (GenOps -> a) -> CGen a
+fget = asks
 
 -- | Operations for the C backend.
 cgenOps :: GenOps
@@ -264,9 +308,7 @@ cgenOps = GenOps {
 
 --{{{  top-level
 generate :: GenOps -> A.AST -> PassM String
-generate ops ast
-    =  do (a, out) <- runWriterT (call genTopLevel ops ast)
-          return $ concat out
+generate ops ast = execWriterT (runReaderT (call genTopLevel undefined ast) ops) >>* concat
 
 generateC :: A.AST -> PassM String
 generateC = generate cgenOps
@@ -415,7 +457,8 @@ cgenType _ (A.Chan _ _ t) = tell ["Channel*"]
 cgenType ops t@(A.List {}) = tell [subRegex (mkRegex "[^A-Za-z0-9]") (show t) ""]
 
 cgenType ops t
-    = case call getScalarType ops t of
+ = do f <- fget getScalarType
+      case f ops t of
         Just s -> tell [s]
         Nothing -> call genMissingC ops $ formatCode "genType %" t
 
@@ -456,9 +499,10 @@ cgenBytesIn ops m t v
            call genType ops t
            tell [")"]
     genBytesIn' ops t
-      = case call getScalarType ops t of
-          Just s -> tell ["sizeof(", s, ")"]
-          Nothing -> diePC m $ formatCode "genBytesIn' %" t
+      = do f <- fget getScalarType
+           case f ops t of
+             Just s -> tell ["sizeof(", s, ")"]
+             Nothing -> diePC m $ formatCode "genBytesIn' %" t
 
     genBytesInArrayDim :: (A.Dimension,Int) -> CGen ()
     genBytesInArrayDim (A.Dimension n, _) = tell [show n, "*"]
@@ -886,7 +930,8 @@ cgenSizeSuffix _ dim = tell ["_sizes[", dim, "]"]
 
 cgenTypeSymbol :: GenOps -> String -> A.Type -> CGen ()
 cgenTypeSymbol ops s t
-    = case call getScalarType ops t of
+ = do f <- fget getScalarType
+      case f ops t of
         Just ct -> tell ["occam_", s, "_", ct]
         Nothing -> call genMissingC ops $ formatCode "genTypeSymbol %" t
 
@@ -1297,7 +1342,8 @@ cdeclareInit ops m t@(A.Array ds t') var _
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-                init <- return (\sub -> call declareInit ops m t' (sub var) Nothing)
+                fdeclareInit <- fget declareInit
+                init <- return (\sub -> fdeclareInit ops m t' (sub var) Nothing)
                 call genOverArray ops m var init
 cdeclareInit ops m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
@@ -1311,8 +1357,10 @@ cdeclareInit ops m rt@(A.Record _) var _
                             call genSizeSuffix ops (show i) 
                             tell ["=", show n, ";"]
                          | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
-              doMaybe $ call declareInit ops m t v Nothing
-    initField t v = doMaybe $ call declareInit ops m t v Nothing
+              fdeclareInit <- fget declareInit
+              doMaybe $ fdeclareInit ops m t v Nothing
+    initField t v = do fdeclareInit <- fget declareInit
+                       doMaybe $ fdeclareInit ops m t v Nothing
 cdeclareInit ops m _ v (Just e)
     = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
 cdeclareInit _ _ _ _ _ = Nothing
@@ -1339,7 +1387,8 @@ CHAN OF INT c IS d:       Channel *c = d;
 cintroduceSpec :: GenOps -> A.Specification -> CGen ()
 cintroduceSpec ops (A.Specification m n (A.Declaration _ t init))
     = do call genDeclaration ops t n False
-         case call declareInit ops m t (A.Variable m n) init of
+         fdeclareInit <- fget declareInit
+         case fdeclareInit ops m t (A.Variable m n) init of
            Just p -> p
            Nothing -> return ()
 cintroduceSpec ops (A.Specification _ n (A.Is _ am t v))
@@ -1452,7 +1501,8 @@ cgenForwardDeclaration _ _ = return ()
 
 cremoveSpec :: GenOps -> A.Specification -> CGen ()
 cremoveSpec ops (A.Specification m n (A.Declaration _ t _))
-    = case call declareFree ops m t var of
+ = do fdeclareFree <- fget declareFree
+      case fdeclareFree ops m t var of
         Just p -> p
         Nothing -> return ()
   where
@@ -1537,7 +1587,8 @@ cgenProcess ops p = case p of
 cgenAssign :: GenOps -> Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
 cgenAssign ops m [v] (A.ExpressionList _ [e])
     = do t <- typeOfVariable v
-         case call getScalarType ops t of
+         f <- fget getScalarType
+         case f ops t of
            Just _ -> doAssign v e
            Nothing -> case t of
              -- Assignment of channel-ends, but not channels, is possible (at least in Rain):

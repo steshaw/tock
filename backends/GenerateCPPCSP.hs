@@ -584,7 +584,8 @@ cppgenArraySizesLiteral ops n t@(A.Array ds _) =
 -- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: GenOps -> Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
 cppdeclareInit ops m t@(A.Array ds t') var _
-    = Just $ do init <- return (\sub -> call declareInit ops m t' (sub var) Nothing)
+    = Just $ do fdeclareInit <- fget declareInit
+                init <- return (\sub -> fdeclareInit ops m t' (sub var) Nothing)
                 call genOverArray ops m var init
                 case t' of
                   A.Chan A.DirUnknown _ _ ->
@@ -610,8 +611,10 @@ cppdeclareInit ops m rt@(A.Record _) var _
               tell ["_actual,tockDims("]
               infixComma [tell [show n] | (A.Dimension n) <- ds]
               tell ["));"]
-              doMaybe $ call declareInit ops m t v Nothing
-    initField t v = doMaybe $ call declareInit ops m t v Nothing
+              fdeclareInit <- fget declareInit
+              doMaybe $ fdeclareInit ops m t v Nothing
+    initField t v = do fdeclareInit <- fget declareInit
+                       doMaybe $ fdeclareInit ops m t v Nothing
 cppdeclareInit ops m _ v (Just e)
     = Just $ call genAssign ops m [v] $ A.ExpressionList m [e]
 cppdeclareInit _ _ _ _ _ = Nothing
@@ -623,7 +626,8 @@ cppdeclareFree _ _ _ _ = Nothing
 -- | Changed to work properly with declareFree to free channel arrays.
 cppremoveSpec :: GenOps -> A.Specification -> CGen ()
 cppremoveSpec ops (A.Specification m n (A.Declaration _ t _))
-    = do case call declareFree ops m t var of
+    = do fdeclareFree <- fget declareFree
+         case fdeclareFree ops m t var of
                Just p -> p
                Nothing -> return ()
   where
@@ -916,7 +920,8 @@ cppgenType ops (A.Mobile t@(A.List {})) = call genType ops t
 cppgenType ops (A.Mobile t) = call genType ops t >> tell ["*"]
 cppgenType ops (A.List t) = tell ["tockList<"] >> call genType ops t >> tell [">/**/"]
 cppgenType ops t
-    = case call getScalarType ops t of
+ = do fgetScalarType <- fget getScalarType
+      case fgetScalarType ops t of
         Just s -> tell [s]
         Nothing -> call genMissingC ops $ formatCode "genType %" t
 
