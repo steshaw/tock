@@ -181,12 +181,12 @@ removeNesting p
           return s
   where
     pullSpecs :: Data t => t -> PassM t
-    pullSpecs = doGeneric `extM` doStructured
+    pullSpecs = doGeneric `ext1M` doStructured
 
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric pullSpecs
 
-    doStructured :: A.Structured a -> PassM (A.Structured a)
+    doStructured :: Data t => A.Structured t -> PassM (A.Structured t)
     doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)
         = do isConst <- isConstantName n
              if isConst || canPull st then
