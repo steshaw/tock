@@ -112,7 +112,7 @@ makeGeneric top
         `extM` (return :: String -> PassM String)
         `extM` (return :: Meta -> PassM Meta)
 
-excludeConstr :: Data a => [Constr] -> a -> PassM a
+excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 
   = if null items then return x else dieInternal (Nothing, "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x)
       where

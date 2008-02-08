@@ -283,7 +283,7 @@ pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
     chaseSpecs _ = Nothing
 
 -- | All the items that should have been removed at the end of the Rain passes.
-excludeTransformedRainFeatures :: Data t => t -> PassM t
+excludeTransformedRainFeatures :: (Data t, CSMR m) => t -> m t
 excludeTransformedRainFeatures = excludeConstr
   [ con0 A.Int
    ,con0 A.Any
@@ -292,7 +292,7 @@ excludeTransformedRainFeatures = excludeConstr
   ]
 
 -- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
-excludeNonRainFeatures :: Data t => t -> PassM t
+excludeNonRainFeatures :: (Data t, CSMR m) => t -> m t
 excludeNonRainFeatures = excludeConstr
   [ con0 A.Real32
    ,con0 A.Real64
