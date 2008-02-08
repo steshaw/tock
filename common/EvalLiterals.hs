@@ -30,7 +30,7 @@ import Data.Word
 import Numeric
 
 import qualified AST as A
-import CompState
+import CompState hiding (CSM) -- everything here is read-only
 import Errors
 import Metadata
 
@@ -76,18 +76,18 @@ isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
 isConstantArray (A.ArrayElemExpr e) = isConstant e
 
 -- | Evaluate a constant integer expression.
-evalIntExpression :: (CSM m, Die m) => A.Expression -> m Int
+evalIntExpression :: (CSMR m, Die m) => A.Expression -> m Int
 evalIntExpression e
-    =  do ps <- get
+    =  do ps <- getCompState
           case runEvaluator ps (evalSimpleExpression e) of
             Left (m,err) -> dieReport (m,"cannot evaluate expression: " ++ err)
             Right (OccInt val) -> return $ fromIntegral val
             Right _ -> dieP (findMeta e) "expression is not of INT type"
 
 -- | Evaluate a byte literal.
-evalByte :: (CSM m, Die m) => String -> m Char
+evalByte :: (CSMR m, Die m) => String -> m Char
 evalByte s
-    =  do ps <- get
+    =  do ps <- getCompState
           case runEvaluator ps (evalByteLiteral s) of
             Left (m,err) -> dieReport (m,"cannot evaluate byte literal: " ++ err)
             Right (OccByte ch) -> return (chr $ fromIntegral ch)

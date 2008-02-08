@@ -41,7 +41,7 @@ import Text.PrettyPrint.HughesPJ hiding (space, colon)
 import Text.Regex
 
 import qualified AST as A
-import CompState
+import CompState hiding (CSM) -- everything here is read-only
 
 data ShowOccamState = ShowOccamState {
   indentLevel :: Int,  -- The indent level in spaces (add two for each indent)
@@ -144,22 +144,21 @@ class ShowRain a where
   showRain :: a -> String
 
 -- | Shows the given code (AST item) as either occam or Rain code, depending on which frontend was selected
-showCode :: (CSM m, ShowOccam a, ShowRain a) => a -> m String
+showCode :: (CSMR m, ShowOccam a, ShowRain a) => a -> m String
 showCode o
-   = do st <- get
+   = do st <- getCompState
         case csFrontend st of
-          FrontendOccam -> do st <- get
-                              return $ evalState (showOccamM o) (initialShowOccamState $ transformNames $ csNames st)
+          FrontendOccam -> return $ evalState (showOccamM o) (initialShowOccamState $ transformNames $ csNames st)
           FrontendRain -> return $ showRain o
  where
    transformNames :: Map.Map String A.NameDef -> Map.Map String String
    transformNames = Map.map A.ndOrigName
 
 -- | Some type hackery to allow formatCode to take a variable number of functions.
-class CSM m => ShowCodeFormat a m | a -> m where
+class CSMR m => ShowCodeFormat a m | a -> m where
   chain :: [String] -> [m String] -> a
 
-instance CSM m => ShowCodeFormat (m String) m where
+instance CSMR m => ShowCodeFormat (m String) m where
   chain xs ys = (liftM concat) (sequence $ interleave (map return xs) (ys))
     where
       --Given [a,b,c] [1,2], produces [a,1,b,2,c] etc
@@ -169,14 +168,14 @@ instance CSM m => ShowCodeFormat (m String) m where
       interleave (x:xs) (y:ys) = (x:y: (interleave xs ys))
 
 
-instance (ShowOccam a, ShowRain a, ShowCodeFormat r m, CSM m) => ShowCodeFormat (a -> r) m where
+instance (ShowOccam a, ShowRain a, ShowCodeFormat r m, CSMR m) => ShowCodeFormat (a -> r) m where
   chain a x = (\y -> chain a (x ++ [showCode y]))
               
 
 -- | Formats the given code as either occam or Rain code, depending on the frontend (using showCode).
 -- Use like this:
 -- dieC $ formatCode "Types do not match: % and %" ta tb
-formatCode :: (CSM m,ShowCodeFormat r m) => String -> r
+formatCode :: (CSMR m,ShowCodeFormat r m) => String -> r
 formatCode fmt = chain (splitRegex (mkRegex "%") fmt) []
 
 
