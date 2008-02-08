@@ -436,12 +436,12 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
   
     test' :: (Integer,[((Int,Int),VarMap,[HandyEq],[HandyIneq])],[A.Expression],A.Expression) -> Test
     test' (ind, problems, exprs, upperBound) = 
-      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations [] (makeParItems exprs) upperBound)
   
     testRep' :: (Integer,[((Int, Int), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
-      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind) (zip [0..] exprs)
+      TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (transformTriple (applyPair (exprs !!)) id (uncurry makeConsistent)) $ map pairLatterTwo problems)
           =<< (checkRight $ makeEquations [] (RepParItem (A.For emptyMeta (simpleName repName) repFrom repFor) $ makeParItems exprs) upperBound)
   
@@ -610,28 +610,34 @@ testIndexes = TestList
 -- | Given one mapping and a second mapping, gives a function that converts the indexes
 -- from one to the indexes of the next.  If any of the keys in the map don't match
 -- (i.e. if (keys m0 /= keys m1)) Nothing will be returned
-generateMapping :: VarMap -> VarMap -> Maybe [(CoeffIndex,CoeffIndex)]
-generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap mergeMaybe m0 m1)
+
+generateMapping :: TestMonad m r => VarMap -> VarMap -> m [(CoeffIndex,CoeffIndex)]
+generateMapping m0 m1
+  = do testEqual "Keys in variable mapping" (Map.keys m0) (Map.keys m1)
+       return $ Map.elems $ zipMap mergeMaybe m0 m1
 
 -- | Given a forward mapping list, translates equations across
 translateEquations :: forall m r. TestMonad m r =>
-  [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> m (Maybe (EqualityProblem, InequalityProblem))
+  [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> m (EqualityProblem, InequalityProblem)
 translateEquations mp (eq,ineq)
   = do testEqual "translateEquations mapping not one-to-one" (sort $ map fst mp) (sort $ map snd mp)
        testCompareCustom "translateEquations input not square" (>=) 1 $ length $ nub $ map (snd . bounds) $ eq ++ ineq
-       eq' <- mapM swapColumns eq >>* sequence -- mapM is in the IO monad, sequence is in the Maybe monad
-       ineq' <- mapM swapColumns ineq >>* sequence
-       return $ mergeMaybe eq' ineq'
+       eq' <- mapM swapColumns eq
+       ineq' <- mapM swapColumns ineq
+       return (eq', ineq')
   where
-    swapColumns :: Array CoeffIndex Integer -> m (Maybe (Array CoeffIndex Integer))
+    swapColumns :: Array CoeffIndex Integer -> m (Array CoeffIndex Integer)
     swapColumns arr
-      = case mapM swapColumns' $ assocs arr of
-          Just swapped -> check arr swapped >> (return . Just $ simpleArray swapped)
-          Nothing -> return Nothing
+      = do swapped <- mapM swapColumns' $ assocs arr
+           check arr swapped
+           return $ simpleArray swapped
       where
-        swapColumns' :: (CoeffIndex,Integer) -> Maybe (CoeffIndex,Integer)
-        swapColumns' (0,v) = Just (0,v) -- Never swap the units column
-        swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
+        swapColumns' :: (CoeffIndex,Integer) -> m (CoeffIndex,Integer)
+        swapColumns' (0,v) = return (0,v) -- Never swap the units column
+        swapColumns' (x,v)
+          = case find ((== x) . fst) mp of
+              Just (_,y) -> return (y,v)
+              Nothing -> testFailure "Could not find column to swap to"  >> return undefined
     
     check :: Show a => a -> [(CoeffIndex,Integer)] -> m ()
     check x ies = if length ies == 1 + maximum (map fst ies) then return () else
@@ -639,46 +645,39 @@ translateEquations mp (eq,ineq)
          ++ " value beforehand was: " ++ show x ++ " mapping was: " ++ show mp
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
-assertEquivalentProblems :: forall m r. TestMonad m r => String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
+assertEquivalentProblems :: forall m r. (TestMonad m r) => String -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
   [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] -> m ()
-assertEquivalentProblems title indExpr exp act
+assertEquivalentProblems title exp act
   = do transformed <- mapM (uncurry transform) $ map (uncurry checkLabel) $ zip (sortByLabels exp) (sortByLabels act)
        (uncurry $ testEqualCustomShow showFunc title)
          $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ transformed
   where
-    showFunc :: (Int, [Maybe (EqualityProblem, InequalityProblem)]) -> String
-    showFunc = showPairCustom show $ showListCustom $ showMaybe showProblem
+    showFunc :: (Int, [(EqualityProblem, InequalityProblem)]) -> String
+    showFunc = showPairCustom show $ showListCustom $ showProblem
   
     -- Since this is a test, I'm taking the lazy way out and allowing run-time errors in this
     -- function rather than putting it all in a monad.  In HUnit the effect will be about the same
-    checkLabel :: ((Int, Int), VarMap, (EqualityProblem, InequalityProblem)) ->
-      ((Int, Int), VarMap, (EqualityProblem, InequalityProblem)) ->
+    checkLabel :: (Show label, Ord label) => ((label, label), VarMap, (EqualityProblem, InequalityProblem)) ->
+      ((label, label), VarMap, (EqualityProblem, InequalityProblem)) ->
       ((VarMap, (EqualityProblem, InequalityProblem)), (VarMap, (EqualityProblem, InequalityProblem)))
     checkLabel (l,vm,p) (l',vm',p')
       | l == l'   = ((vm,p), (vm',p'))
       | otherwise = error $ "Labels did not match, expected: " ++ show l ++ " but actual: " ++ show l'
   
     sortByLabels :: [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
-       [((Int, Int), VarMap, (EqualityProblem, InequalityProblem))]
-    sortByLabels = sortBy (comparing (\(l,_,_) -> l)) . map lookupIndexes
+       [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))]
+    sortByLabels = sortBy (comparing (\(l,_,_) -> l)) . map (\(es,b,c) -> (sortPair es, b, c))
     
-    sortPair :: (Int,Int) -> (Int, Int)
+    sortPair :: Ord a => (a,a) -> (a, a)
     sortPair (x,y) | x <= y    = (x,y)
                    | otherwise = (y,x)
-    
-    lookupIndexes :: ((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem)) ->
-      ((Int, Int), VarMap, (EqualityProblem, InequalityProblem))
-    lookupIndexes ((e,e'),vm, p) = (sortPair (lookup e, lookup e'), vm, p)
-      where
-        lookup e = maybe (-1) fst $ find ((== e) . snd) indExpr
 
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
-                       m ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
+                       m ( (EqualityProblem, InequalityProblem), (EqualityProblem, InequalityProblem) )
     transform exp@(_, (e_eq, e_ineq)) act@(_, (a_eq, a_ineq))
-      = do translatedExp <- case generateMapping (fst exp) (fst act) of
-             Just mapping -> translateEquations mapping (resize e_eq, resize e_ineq)
-             Nothing -> return Nothing
-           return (translatedExp >>* sortP, Just $ sortP $ transformPair resize resize $ snd act)
+      = do mapping <- generateMapping (fst exp) (fst act)
+           translatedExp <- translateEquations mapping (resize e_eq, resize e_ineq)
+           return (sortP translatedExp, sortP $ transformPair resize resize $ snd act)
       where
         size = maximum $ map (snd . bounds) $ concat [e_eq, e_ineq, a_eq, a_ineq]
 
@@ -691,11 +690,11 @@ assertEquivalentProblems title indExpr exp act
         
     pairPairs (xa,ya) (xb,yb) = ((xa,xb), (ya,yb))
     
-    sortProblem :: [Maybe (EqualityProblem, InequalityProblem)] -> [Maybe (EqualityProblem, InequalityProblem)]
+    sortProblem :: [(EqualityProblem, InequalityProblem)] -> [(EqualityProblem, InequalityProblem)]
     sortProblem = sort
 
-checkRight :: Show a => Either a b -> IO b
-checkRight (Left err) = assertFailure ("Not Right: " ++ show err) >> return undefined
+checkRight :: (Show a, TestMonad m r) => Either a b -> m b
+checkRight (Left err) = testFailure ("Not Right: " ++ show err) >> return undefined
 checkRight (Right x) = return x
 
 -- QuickCheck tests for Omega Test:
