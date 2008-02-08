@@ -35,9 +35,9 @@ data TLPChannel = TLPIn | TLPOut | TLPError
 
 -- | Get the name of the TLP and the channels it uses.
 -- Fail if the process isn't using a valid interface.
-tlpInterface :: (CSM m, Die m) => m ( A.Name, [(A.Direction, TLPChannel)] )
+tlpInterface :: (CSMR m, Die m) => m ( A.Name, [(A.Direction, TLPChannel)] )
 tlpInterface
-    =  do ps <- get
+    =  do ps <- getCompState
           when (null $ csMainLocals ps) (dieReport (Nothing,"No main process found"))
           let mainName = snd $ head $ csMainLocals ps
           st <- specTypeOfName mainName
@@ -48,7 +48,7 @@ tlpInterface
           when ((nub (map snd chans)) /= (map snd chans)) $ dieP (findMeta mainName) "Channels used more than once in TLP"
           return (mainName, chans)
   where
-    tlpChannel :: (CSM m, Die m) => Meta -> A.Formal -> m (A.Direction, TLPChannel)
+    tlpChannel :: (CSMR m, Die m) => Meta -> A.Formal -> m (A.Direction, TLPChannel)
     tlpChannel m (A.Formal _ (A.Chan dir _ _) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def

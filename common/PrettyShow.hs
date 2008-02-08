@@ -38,7 +38,7 @@ import qualified Data.Set as Set
 import Text.PrettyPrint.HughesPJ
 
 import qualified AST as A
-import CompState
+import CompState hiding (CSM) -- everything here is read-only
 import Metadata
 import Pattern
 import ShowCode
@@ -153,8 +153,8 @@ doAny extFunc = extFunc (
 pshow :: Data a => a -> String
 pshow x = render $ doAny id x
 
-pshowCode :: (Data a, CSM m) => a -> m String
-pshowCode c = do st <- get
+pshowCode :: (Data a, CSMR m) => a -> m String
+pshowCode c = do st <- getCompState
                  case csFrontend st of
                    FrontendOccam -> return $ render $ (extOccam $ doAny extOccam) c
                    FrontendRain -> return $ render $ (extRain $ doAny extRain) c
