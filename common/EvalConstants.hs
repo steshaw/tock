@@ -28,7 +28,7 @@ import Data.Maybe
 import Text.Printf
 
 import qualified AST as A
-import CompState
+import CompState hiding (CSM) -- everything here is read-only
 import Errors
 import EvalLiterals
 import Metadata
@@ -37,16 +37,16 @@ import Types
 
 -- | Simplify an expression by constant folding, and also return whether it's a
 -- constant after that.
-constantFold :: CSM m => A.Expression -> m (A.Expression, Bool, ErrorReport)
+constantFold :: CSMR m => A.Expression -> m (A.Expression, Bool, ErrorReport)
 constantFold e
-    =  do ps <- get
+    =  do ps <- getCompState
           let (e', msg) = case simplifyExpression ps e of
                             Left err -> (e, err)
                             Right val -> (val, (Nothing, "already folded"))
           return (e', isConstant e', msg)
 
 -- | Is a name defined as a constant expression? If so, return its definition.
-getConstantName :: (CSM m, Die m) => A.Name -> m (Maybe A.Expression)
+getConstantName :: (CSMR m, Die m) => A.Name -> m (Maybe A.Expression)
 getConstantName n
     =  do st <- specTypeOfName n
           case st of
@@ -56,7 +56,7 @@ getConstantName n
             _ -> return Nothing
 
 -- | Is a name defined as a constant expression?
-isConstantName :: (CSM m, Die m) => A.Name -> m Bool
+isConstantName :: (CSMR m, Die m) => A.Name -> m Bool
 isConstantName n
     =  do me <- getConstantName n
           return $ case me of
