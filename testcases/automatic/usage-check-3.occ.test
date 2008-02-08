@@ -21,13 +21,13 @@ PROC m()
 %FAIL Modulo items in SEQ replicator (unsafe)
   SEQ i = 0 FOR 6
     PAR
-      a[(i + 1) REM 4] := 3
-      a[i] := 4
+      a[(i + 1) REM 6] := 3
+      a[0] := 4
 
 %PASS Modulo items in SEQ replicator (safe)
   SEQ i = 0 FOR 6
     PAR
-      a[(i + 1) REM 5] := 3
-      a[i] := 4
+      a[(i + 1) REM 7] := 3
+      a[0] := 4
 
 %
