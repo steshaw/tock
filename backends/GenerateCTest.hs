@@ -45,6 +45,7 @@ import qualified AST as A
 import CompState
 import Errors
 import GenerateC
+import GenerateCBased
 import GenerateCPPCSP
 import Metadata
 import TestUtils

@@ -81,6 +81,7 @@ import qualified AST as A
 import CompState
 import Errors
 import GenerateC
+import GenerateCBased
 import Metadata
 import Pass
 import ShowCode
