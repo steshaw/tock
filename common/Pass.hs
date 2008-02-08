@@ -52,10 +52,12 @@ instance Warn PassMR where
 
 -- | The type of an AST-mangling pass.
 type Pass = A.AST -> PassM A.AST
+type PassR = A.AST -> PassMR A.AST
 
-runPassR :: PassMR a -> PassM a
-runPassR p = do st <- get
-                (r,w) <- liftIO $ runWriterT $ runReaderT (runErrorT p) st
+runPassR :: PassR -> Pass
+runPassR p t 
+           = do st <- get
+                (r,w) <- liftIO $ runWriterT $ runReaderT (runErrorT (p t)) st
                 case r of
                   Left err -> throwError err
                   Right result -> tell w >> return result

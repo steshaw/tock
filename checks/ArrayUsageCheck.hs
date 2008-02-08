@@ -39,7 +39,7 @@ import Utils
 
 -- | A check-pass that checks the given ParItems (usually generated from a control-flow graph)
 -- for any overlapping array indices.
-checkArrayUsage :: forall m. (Die m, CSM m, MonadIO m) => (Meta, ParItems UsageLabel) -> m ()
+checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems UsageLabel) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ transformParItems nodeVars p
   where

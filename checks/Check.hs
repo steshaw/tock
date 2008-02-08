@@ -44,7 +44,7 @@ import UsageCheckAlgorithms
 import UsageCheckUtils
 import Utils
 
-usageCheckPass :: Pass
+usageCheckPass :: PassR
 usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
@@ -76,7 +76,7 @@ permuteHelper func (x:xs) = permuteHelper' func [] x xs
     permuteHelper' func prev cur [] = [func cur prev]
     permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
 
-checkPlainVarUsage :: forall m. (Die m, CSM m) => (Meta, ParItems UsageLabel) -> m ()
+checkPlainVarUsage :: forall m. (Die m, CSMR m) => (Meta, ParItems UsageLabel) -> m ()
 checkPlainVarUsage (m, p) = check p
   where
     getVars :: ParItems UsageLabel -> Vars
@@ -136,14 +136,14 @@ difference _ Everything = NormalSet Set.empty
 difference Everything _ = Everything
 difference (NormalSet a) (NormalSet b) = NormalSet $ Set.difference a b
 
-showCodeExSet :: (CSM m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
+showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
 showCodeExSet (NormalSet s)
     = do ss <- mapM showCode (Set.toList s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
-checkInitVar :: forall m. (Monad m, Die m, CSM m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
+checkInitVar :: forall m. (Monad m, Die m, CSMR m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
 checkInitVar m graph startNode
   = do startLabel <- checkJust (Just m, "Could not find starting node in the control-flow graph")
          (lab graph startNode) >>* writeNode
@@ -196,7 +196,7 @@ checkInitVar m graph startNode
           do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
              dieP (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
 
-checkParAssignUsage :: forall m t. (CSM m, Die m, MonadIO m, Data t) => t -> m ()
+checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
   where
     isParAssign :: A.Process -> Bool
@@ -214,7 +214,7 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
         mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v] | v <- vs]
 
 
-checkProcCallArgsUsage :: forall m t. (CSM m, Die m, MonadIO m, Data t) => t -> m ()
+checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
 checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
   where
     isProcCall :: A.Process -> Bool
