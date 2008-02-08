@@ -147,6 +147,7 @@ tocktest_SOURCES += checks/ArrayUsageCheckTest.hs
 tocktest_SOURCES += checks/RainUsageCheckTest.hs
 tocktest_SOURCES += common/CommonTest.hs
 tocktest_SOURCES += common/FlowGraphTest.hs
+tocktest_SOURCES += common/TestFramework.hs
 tocktest_SOURCES += common/TestHarness.hs
 tocktest_SOURCES += common/TestUtils.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs

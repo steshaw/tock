@@ -34,6 +34,7 @@ import ArrayUsageCheck
 import qualified AST as A
 import Metadata
 import Omega
+import TestFramework
 import TestHarness
 import TestUtils hiding (m)
 import UsageCheckUtils hiding (Var)
@@ -608,15 +609,16 @@ generateMapping :: VarMap -> VarMap -> Maybe [(CoeffIndex,CoeffIndex)]
 generateMapping m0 m1 = if Map.keys m0 /= Map.keys m1 then Nothing else Just (Map.elems $ zipMap mergeMaybe m0 m1)
 
 -- | Given a forward mapping list, translates equations across
-translateEquations :: [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> IO (Maybe (EqualityProblem, InequalityProblem))
+translateEquations :: forall m r. TestMonad m r =>
+  [(CoeffIndex,CoeffIndex)] -> (EqualityProblem, InequalityProblem) -> m (Maybe (EqualityProblem, InequalityProblem))
 translateEquations mp (eq,ineq)
-  = do assertEqual "translateEquations mapping not one-to-one" (sort $ map fst mp) (sort $ map snd mp)
-       assertCompareCustom "translateEquations input not square" (>=) 1 $ length $ nub $ map (snd . bounds) $ eq ++ ineq
+  = do testEqual "translateEquations mapping not one-to-one" (sort $ map fst mp) (sort $ map snd mp)
+       testCompareCustom "translateEquations input not square" (>=) 1 $ length $ nub $ map (snd . bounds) $ eq ++ ineq
        eq' <- mapM swapColumns eq >>* sequence -- mapM is in the IO monad, sequence is in the Maybe monad
        ineq' <- mapM swapColumns ineq >>* sequence
        return $ mergeMaybe eq' ineq'
   where
-    swapColumns :: Array CoeffIndex Integer -> IO (Maybe (Array CoeffIndex Integer))
+    swapColumns :: Array CoeffIndex Integer -> m (Maybe (Array CoeffIndex Integer))
     swapColumns arr
       = case mapM swapColumns' $ assocs arr of
           Just swapped -> check arr swapped >> (return . Just $ simpleArray swapped)
@@ -626,17 +628,17 @@ translateEquations mp (eq,ineq)
         swapColumns' (0,v) = Just (0,v) -- Never swap the units column
         swapColumns' (x,v) = transformMaybe (\y -> (y,v)) $ transformMaybe fst $ find ((== x) . snd) mp
     
-    check :: Show a => a -> [(CoeffIndex,Integer)] -> Assertion
+    check :: Show a => a -> [(CoeffIndex,Integer)] -> m ()
     check x ies = if length ies == 1 + maximum (map fst ies) then return () else
-       assertFailure $ "Error in translateEquations, not all indexes present after swap: " ++ show ies
+       testFailure $ "Error in translateEquations, not all indexes present after swap: " ++ show ies
          ++ " value beforehand was: " ++ show x ++ " mapping was: " ++ show mp
 
 -- | Asserts that the two problems are equivalent, once you take into account the potentially different variable mappings
-assertEquivalentProblems :: String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
-  [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] -> Assertion
+assertEquivalentProblems :: forall m r. TestMonad m r => String -> [(Int, A.Expression)] -> [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
+  [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] -> m ()
 assertEquivalentProblems title indExpr exp act
   = do transformed <- mapM (uncurry transform) $ map (uncurry checkLabel) $ zip (sortByLabels exp) (sortByLabels act)
-       (uncurry $ assertEqualCustomShow showFunc title)
+       (uncurry $ testEqualCustomShow showFunc title)
          $ pairPairs (length exp, length act) $ transformPair sortProblem sortProblem $ unzip $ transformed
   where
     showFunc :: (Int, [Maybe (EqualityProblem, InequalityProblem)]) -> String
@@ -666,7 +668,7 @@ assertEquivalentProblems title indExpr exp act
         lookup e = maybe (-1) fst $ find ((== e) . snd) indExpr
 
     transform :: (VarMap, (EqualityProblem, InequalityProblem)) -> (VarMap, (EqualityProblem, InequalityProblem)) ->
-                       IO ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
+                       m ( Maybe (EqualityProblem, InequalityProblem), Maybe (EqualityProblem, InequalityProblem) )
     transform exp@(_, (e_eq, e_ineq)) act@(_, (a_eq, a_ineq))
       = do translatedExp <- case generateMapping (fst exp) (fst act) of
              Just mapping -> translateEquations mapping (resize e_eq, resize e_ineq)
@@ -792,13 +794,14 @@ instance Arbitrary OmegaTestInput where
 qcOmegaEquality :: [LabelledQuickCheckTest]
 qcOmegaEquality = [("Omega Test Equality Solving", scaleQC (40,200,2000,10000) prop)]
   where
+    prop :: OmegaTestInput -> QCProp
     prop (OMI (ans,(eq,ineq))) = omegaCheck actAnswer
       where
         actAnswer = solveConstraints (defaultMapping $ Map.size ans) eq ineq
         -- We use Map.assocs because pshow doesn't work on Maps
         omegaCheck (Just (vm,ineqs)) = (True *==* all (all (== 0) . elems) ineqs)
           *&&* ((Map.assocs ans) *==* (Map.assocs $ getCounterEqs vm))
-        omegaCheck Nothing = mkFailResult ("Found Nothing while expecting answer: " ++ show (eq,ineq))
+        omegaCheck Nothing = testFailure ("Found Nothing while expecting answer: " ++ show (eq,ineq))
 
 -- | A randomly mutated problem ready for testing the inequality pruning.
 -- The first part is the input to the pruning, and the second part is the expected result;

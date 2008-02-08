@@ -37,6 +37,7 @@ import qualified AST as A
 import FlowGraph
 import Metadata
 import PrettyShow
+import TestFramework
 import TestUtils
 import Utils
 
@@ -694,21 +695,21 @@ testModify =
   where
     -- | Checks that applying any set (from the powerset of identity functions) of identity functions
     -- does not change the AST.
-    prop_Id :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
-    prop_Id (QC (g,_)) = collectAll $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g') $ \f -> runIdentity (f g') *==* g'
+    prop_Id :: QC (A.Process, Map.Map [Meta] A.Process) -> QCProp
+    prop_Id (QC (g,_)) = sequence_ $ (flip map) (map (foldFuncsM) $ powerset $ pickFuncId $ genGraph g') $ \f -> runIdentity (f g') *==* g'
       where
         g' = A.Only emptyMeta g
 
     -- | Checks that applying any set (from the powerset of replacement functions) of replacement functions
     -- produces the expected result.
-    prop_Rep :: QC (A.Process, Map.Map [Meta] A.Process) -> Result
-    prop_Rep (QC (g,rest)) = collectAll $ (flip map) (helper $ pickFuncRep $ genGraph g') $ 
+    prop_Rep :: QC (A.Process, Map.Map [Meta] A.Process) -> QCProp
+    prop_Rep (QC (g,rest)) = sequence_ $ (flip map) (helper $ pickFuncRep $ genGraph g') $ 
         \(funcs,ms) -> Just (runIdentity (applyMetas ms funcs g')) *==* (Map.lookup ms rest >>* A.Only emptyMeta)
       where
         g' = A.Only emptyMeta g
   
     -- | This tests our genNumsToTotal function, which is itself a test generator; nasty!
-    prop_gennums :: Int -> Result
+    prop_gennums :: Int -> QCProp
     prop_gennums n = generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum) *==* n
 
     -- | Repeatedly pairs the map with each element of the powerset of its keys
@@ -719,16 +720,6 @@ testModify =
     applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured a -> m (A.Structured a)) -> (A.Structured a -> m (A.Structured a))
     applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
 
-
-    -- | Collects multiple test results together, using the first failure as its result
-    --  (if there is a failure; otherwise the result will be a pass).
-    collectAll :: [Result] -> Result
-    collectAll = foldl collectAll'(Result {ok = Just True, arguments = [], stamp = []})
-      where
-        -- Only keep the first failure:
-        collectAll' :: Result -> Result -> Result
-        collectAll' r0 r1 | ok r0 == Just False = r0
-                          | otherwise = r1
 -- | Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])
 qcTests = (TestLabel "FlowGraphTest" $ TestList
