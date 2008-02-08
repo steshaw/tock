@@ -300,6 +300,7 @@ testArraySizes = TestList
   ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]])
  ]
  where
+  unfolded :: Override
   unfolded = local (\ops -> ops {genUnfoldedExpression = override1 dollar})
 
 testActuals :: Test
@@ -317,7 +318,9 @@ testActuals = TestList
   ,testBoth "genActual 2" "@,@_sizes" "@" $ over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo))
  ]
  where
+   overActual :: Override
    overActual = local (\ops -> ops {genActual = override1 at})
+   over :: Override
    over = local (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
    
 testArraySubscript :: Test
@@ -540,6 +543,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
        overArray _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
          Just p -> caret >> p >> caret
          Nothing -> return ()
+       over :: Override
        over = local $ \ops -> ops {genDeclaration = override3 at, genOverArray = overArray}
 
    testAllSame :: Int -> (String,String) -> A.Type -> Test
@@ -715,6 +719,7 @@ testRetypeSizes = TestList
    showBytesInParams _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
    showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
    showArrSize _ sz _ = tell ["^("] >> sz >> tell [")"]
+   over :: Override
    over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySize = showArrSize}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
@@ -787,6 +792,7 @@ testGenVariable = TestList
      where
        state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t Nothing) am A.Unplaced
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
+       over :: Override
        over = local $ \ops -> ops {genArraySubscript = (\b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
                       ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
    
@@ -833,6 +839,7 @@ testAssign = TestList
    --The expression won't be examined so we can use what we like:
    e = A.True emptyMeta
    state t = defineName (simpleName "foo") $ simpleDefDecl "foo" t
+   over :: Override
    over = local $ \ops -> ops {genVariable = override1 at, genExpression = override1 dollar}
 
 testCase :: Test
@@ -856,11 +863,13 @@ testCase = TestList
     p = A.Skip emptyMeta
     spec :: Data a => A.Structured a -> A.Structured a
     spec = A.Spec emptyMeta undefined
+    over :: Override
     over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
 testGetTime :: Test
 testGetTime = testBoth "testGetTime 0" "ProcTime(&@);" "csp::CurrentTime(&@);" (over (tcall2 genGetTime emptyMeta undefined))
   where
+    over :: Override
     over = local $ \ops -> ops {genVariable = override1 at}
 
 testWait :: Test
@@ -870,6 +879,7 @@ testWait = TestList
   ,testBoth "testWait 1" "ProcAfter($);" "csp::SleepFor($);" (over (tcall2 genWait A.WaitFor undefined))
  ]
  where
+   over :: Override
    over = local $ \ops -> ops {genExpression = override1 dollar}
 
 testIf :: Test
@@ -886,11 +896,13 @@ testIf = TestList
    e = undefined
    p :: A.Process
    p = undefined
+   over :: Override
    over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
 testWhile :: Test
 testWhile = testBothSame "testWhile 0" "while($){@}" (over (tcall2 genWhile undefined undefined))
   where
+    over :: Override
     over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at}
 
 testInput :: Test
