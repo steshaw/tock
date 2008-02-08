@@ -20,6 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Pass where
 
 import Control.Monad.Error
+import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
 import Data.List
@@ -34,12 +35,23 @@ import TreeUtils
 
 -- | The monad in which AST-mangling passes operate.
 type PassM = ErrorT ErrorReport (StateT CompState IO)
+type PassMR = ErrorT ErrorReport (ReaderT CompState IO)
 
 instance Die PassM where
   dieReport = throwError
 
+instance Die PassMR where
+  dieReport = throwError
+
 -- | The type of an AST-mangling pass.
 type Pass = A.AST -> PassM A.AST
+
+runPassR :: PassMR a -> PassM a
+runPassR p = do st <- get
+                r <- liftIO $ runReaderT (runErrorT p) st
+                case r of
+                  Left err -> throwError err
+                  Right result -> return result
 
 -- | Compose a list of passes into a single pass.
 runPasses :: [(String, Pass)] -> Pass
