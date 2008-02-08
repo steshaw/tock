@@ -25,6 +25,7 @@ import Control.Monad.Writer
 import Data.Generics
 
 import qualified AST as A
+import CompState
 import Errors
 import Metadata
 import Pass
@@ -37,6 +38,9 @@ type CGen = ReaderT GenOps CGen'
 
 instance Die CGen where
   dieReport = throwError
+  
+instance CSMR m => CSMR (ReaderT GenOps m) where
+  getCompState = lift getCompState
 --}}}
 
 -- | A function that applies a subscript to a variable.

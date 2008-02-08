@@ -50,6 +50,9 @@ instance MonadState st (GenParser tok st) where
   get = getState
   put = setState
 
+instance CSMR (GenParser tok CompState) where
+  getCompState = getState
+
 instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
   dieReport (Nothing, err) = fail err

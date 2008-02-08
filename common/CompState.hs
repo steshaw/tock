@@ -20,7 +20,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module CompState where
 
 import Control.Monad.Error
+import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Generics
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -112,8 +114,37 @@ emptyState = CompState {
 
 -- | Class of monads which keep a CompState.
 -- (This is just shorthand for the equivalent MonadState constraint.)
-class MonadState CompState m => CSM m
-instance MonadState CompState m => CSM m
+class (CSMR m, MonadState CompState m) => CSM m
+instance (CSMR m, MonadState CompState m) => CSM m
+
+-- | This class is like a specific instance of MonadReader.  I tried playing
+-- with introducing all sorts of MonadReader classes, trying to infer it from
+-- MonadState.  But due to various problems (you can't directly infer MonadReader
+-- from MonadState, you can't easily stack different MonadReader instances, etc)
+-- this was the easiest method to get a read-only CompState monad.
+--
+-- If you introduce new monads or monad transformers elsewhere in the code you
+-- may have to define your own instance (see for example, ParseOccam or GenerateCBased)
+class Monad m => CSMR m where
+  getCompState :: m CompState
+
+instance Monad m => CSMR (ReaderT CompState m) where
+  getCompState = ask
+
+instance Monad m => CSMR (StateT CompState m) where
+  getCompState = get
+
+instance CSMR (Reader CompState) where
+  getCompState = ask
+
+instance CSMR (State CompState) where
+  getCompState = get
+
+instance (CSMR m, Error e) => CSMR (ErrorT e m) where
+  getCompState = lift getCompState
+
+instance (CSMR m, Monoid w) => CSMR (WriterT w m) where
+  getCompState = lift getCompState
 
 --{{{  name definitions
 -- | Add the definition of a name.
