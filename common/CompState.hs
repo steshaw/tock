@@ -72,7 +72,6 @@ data CompState = CompState {
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
     csTypeContext :: [Maybe A.Type],
-    csWarnings :: [String],
 
     -- Set by passes
     csNonceCounter :: Int,
@@ -103,7 +102,6 @@ emptyState = CompState {
     csUnscopedNames = Map.empty,
     csNameCounter = 0,
     csTypeContext = [],
-    csWarnings = [],
 
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
@@ -146,6 +144,14 @@ instance (CSMR m, Error e) => CSMR (ErrorT e m) where
 instance (CSMR m, Monoid w) => CSMR (WriterT w m) where
   getCompState = lift getCompState
 
+type WarningReport = (Maybe Meta, String)
+
+class Monad m => Warn m where
+  warnReport :: WarningReport -> m ()
+
+--instance (MonadWriter [WarningReport] m) => Warn m where
+--  warnReport r = tell [r]
+
 --{{{  name definitions
 -- | Add the definition of a name.
 defineName :: CSM m => A.Name -> A.NameDef -> m ()
@@ -167,12 +173,14 @@ lookupNameOrError n err
 
 --{{{  warnings
 -- | Add a warning with no source position.
-addPlainWarning :: CSM m => String -> m ()
-addPlainWarning msg = modify (\ps -> ps { csWarnings = msg : csWarnings ps })
+addPlainWarning :: Warn m => String -> m ()
+addPlainWarning msg = warnReport (Nothing, msg)
+  -- modify (\ps -> ps { csWarnings = msg : csWarnings ps })
 
 -- | Add a warning.
-addWarning :: CSM m => Meta -> String -> m ()
-addWarning m s = addPlainWarning $ "Warning: " ++ show m ++ ": " ++ s
+addWarning :: Warn m => Meta -> String -> m ()
+addWarning m s = warnReport (Just m, s)
+  -- addPlainWarning $ "Warning: " ++ show m ++ ": " ++ s
 --}}}
 
 --{{{  pulled items

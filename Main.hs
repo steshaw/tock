@@ -22,6 +22,7 @@ module Main (main) where
 import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Either
 import Data.Generics
 import Data.Maybe
@@ -145,10 +146,10 @@ main = do
             ModeFull -> evalStateT (compileFull fn) []
 
   -- Run the compiler.
-  v <- evalStateT (runErrorT operation) initState
+  v <- runWriterT $ evalStateT (runErrorT operation) initState
   case v of
-    Left e -> dieIO e
-    Right r -> return ()
+    (Left e, ws) -> showWarnings ws >> dieIO e
+    (Right r, ws) -> showWarnings ws
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)
@@ -252,8 +253,6 @@ compile mode fn outHandle
         debugAST ast1
         debug "}}}"
 
-        showWarnings
-
         output <-
           case mode of
             ModeParse -> return $ pshow ast1
@@ -290,8 +289,6 @@ compile mode fn outHandle
 
                  return code
 
-        showWarnings
-
         liftIO $ hPutStr outHandle output
 
         progress "Done"
@@ -303,8 +300,6 @@ postCAnalyse fn outHandle
 
           progress "Analysing assembly"
           output <- analyseAsm asm
-
-          showWarnings
 
           liftIO $ hPutStr outHandle output
 

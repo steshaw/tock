@@ -22,6 +22,7 @@ module Pass where
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Generics
 import Data.List
 import System.IO
@@ -34,24 +35,30 @@ import PrettyShow
 import TreeUtils
 
 -- | The monad in which AST-mangling passes operate.
-type PassM = ErrorT ErrorReport (StateT CompState IO)
-type PassMR = ErrorT ErrorReport (ReaderT CompState IO)
+type PassM = ErrorT ErrorReport (StateT CompState (WriterT [WarningReport]  IO))
+type PassMR = ErrorT ErrorReport (ReaderT CompState (WriterT [WarningReport]  IO))
 
 instance Die PassM where
   dieReport = throwError
 
 instance Die PassMR where
   dieReport = throwError
+  
+instance Warn PassM where
+  warnReport w = tell [w]
+
+instance Warn PassMR where
+  warnReport w = tell [w]
 
 -- | The type of an AST-mangling pass.
 type Pass = A.AST -> PassM A.AST
 
 runPassR :: PassMR a -> PassM a
 runPassR p = do st <- get
-                r <- liftIO $ runReaderT (runErrorT p) st
+                (r,w) <- liftIO $ runWriterT $ runReaderT (runErrorT p) st
                 case r of
                   Left err -> throwError err
-                  Right result -> return result
+                  Right result -> tell w >> return result
 
 -- | Compose a list of passes into a single pass.
 runPasses :: [(String, Pass)] -> Pass
@@ -71,16 +78,17 @@ verboseMessage n s
           when (csVerboseLevel ps >= n) $
             liftIO $ hPutStrLn stderr s
 
+{-
 -- | Print a warning message.
 warn :: (CSM m, MonadIO m) => String -> m ()
 warn = verboseMessage 0
-
--- | Print out any warnings stored.
-showWarnings :: (CSM m, MonadIO m) => m ()
-showWarnings
-    =  do ps <- get
-          sequence_ $ map warn (reverse $ csWarnings ps)
-          put $ ps { csWarnings = [] }
+-}
+-- | Print out a list of warnings
+showWarnings ::  MonadIO m => [WarningReport] -> m ()
+showWarnings = mapM_ printWarning
+  where
+    printWarning (Just m, s) = liftIO $ hPutStrLn stderr $ show m ++ " " ++ s
+    printWarning (Nothing, s) = liftIO $ hPutStrLn stderr s
 
 -- | Print a progress message.
 progress :: (CSM m, MonadIO m) => String -> m ()

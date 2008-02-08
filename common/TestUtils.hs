@@ -40,6 +40,7 @@ module TestUtils where
 
 import Control.Monad.Error
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Generics
 import qualified Data.Map as Map
 import System.Time
@@ -322,7 +323,7 @@ runPass ::
   PassM b                            -- ^ The actual pass.
   -> CompState                       -- ^ The state to use to run the pass.
   -> IO (CompState, Either ErrorReport b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
-runPass actualPass startState = (liftM (\(x,y) -> (y,x))) (runStateT (runErrorT actualPass) startState)
+runPass actualPass startState = (liftM (\((x,y),_) -> (y,x))) (runWriterT $ runStateT (runErrorT actualPass) startState)
 
 -- | A test that runs a given AST pass and checks that it succeeds.
 testPass :: 

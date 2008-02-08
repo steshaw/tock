@@ -49,6 +49,7 @@ import GenerateCBased
 import GenerateCPPCSP
 import Metadata
 import TestUtils
+import Utils
 
 -- | A few helper functions for writing certain characters (that won't appear in our generated C/C++ source)
 -- to the WriterT monad.  Useful as simple placeholders/special values during testers.
@@ -105,7 +106,10 @@ assertGenFail n act
                            else assertFailure $ n ++ " pass succeeded when expected to fail, output: " ++ (subRegex (mkRegex "/\\*\\*/") (concat ss) "")
 
 evalCGen :: CGen () -> GenOps -> CompState -> IO (Either Errors.ErrorReport [String])
-evalCGen act ops state = evalStateT (runErrorT $ execWriterT $ runReaderT act ops) state
+evalCGen act ops state = evalCGen' (runReaderT act ops) state
+
+evalCGen' :: CGen' () -> CompState -> IO (Either Errors.ErrorReport [String])
+evalCGen' act state = runWriterT (evalStateT (runErrorT $ execWriterT act) state) >>* fst
 
 -- | Checks that running the test for the C and C++ backends produces the right output for each.
 testBothS :: 
@@ -132,7 +136,7 @@ testBothFailS testName act startState = TestList
 
 -- | Checks that the given output of a backend satisfies the given regex, and returns the matched groups.
 testRS :: String -> String -> CGen' () -> State CompState () -> IO [String]
-testRS testName exp act startState = assertGenR testName exp (evalStateT (runErrorT (execWriterT act)) state)
+testRS testName exp act startState = assertGenR testName exp (evalCGen' act state)
   where
     state = execState startState emptyState
 
@@ -881,7 +885,7 @@ testIf = TestList
    e :: A.Expression
    e = undefined
    p :: A.Process
-   p = undefined 
+   p = undefined
    over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
 testWhile :: Test
@@ -1096,7 +1100,7 @@ testMobile :: Test
 testMobile = TestList
  [
   testBoth "testMobile 0" "malloc(#(Int Left False))" "new Int" (local over (tcall3 genAllocMobile emptyMeta (A.Mobile A.Int) Nothing))
-  ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalStateT (runErrorT (execWriterT $ flip runReaderT (over cppgenOps) $ call genAllocMobile emptyMeta (A.Mobile A.Int) (Just undefined))) emptyState)
+  ,TestCase $ assertGen "testMobile 1/C++" "new Int($)" $ (evalCGen (call genAllocMobile emptyMeta (A.Mobile A.Int) (Just undefined)) (over cppgenOps) emptyState)
   
   ,testBoth "testMobile 100" "if(@!=NULL){free(@);@=NULL;}" "if(@!=NULL){delete @;@=NULL;}"
     (local over (tcall2 genClearMobile emptyMeta undefined))

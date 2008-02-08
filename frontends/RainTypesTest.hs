@@ -21,6 +21,7 @@ module RainTypesTest where
 
 import Control.Monad.State
 import Control.Monad.Error
+import Control.Monad.Writer
 import Data.Generics
 import Test.HUnit hiding (State)
 
@@ -34,6 +35,7 @@ import TagAST
 import TestUtils
 import TreeUtils
 import Types
+import Utils
 
 -- | Tests that constants in expressions are folded properly.  TODO these tests could do with a lot of expanding.
 -- It may even be easiest to use QuickCheck for the testing.
@@ -379,7 +381,7 @@ checkExpressionTest = TestList
                               if (e /= act) then pass' (10000 + n) t (mkPattern e) e else return ()
             where
               errorOrType :: IO (Either ErrorReport A.Type)
-              errorOrType = evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState)
+              errorOrType = ((runWriterT (evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState))) :: IO (Either ErrorReport A.Type, [WarningReport])) >>* fst
   
   
   fail :: Int -> ExprHelper -> Test

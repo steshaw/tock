@@ -21,6 +21,7 @@ module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (liftM, when)
 import Control.Monad.State (MonadState, modify, get, put)
+import Control.Monad.Writer (tell)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -41,17 +42,29 @@ import Types
 import Utils
 
 --{{{ the parser monad
-type OccParser = GenParser Token CompState
+type OccParser = GenParser Token ([WarningReport], CompState)
 
 -- | Make MonadState functions work in the parser monad.
 -- This came from <http://hackage.haskell.org/trac/ghc/ticket/1274> -- which means
 -- it'll probably be in a future GHC release anyway.
+{-
 instance MonadState st (GenParser tok st) where
   get = getState
   put = setState
+-}
+instance CSMR (GenParser tok (a,CompState)) where
+  getCompState = getState >>* snd
 
-instance CSMR (GenParser tok CompState) where
-  getCompState = getState
+-- We can expose only part of the state to make it look like we are only using
+-- CompState:
+instance MonadState CompState (GenParser tok (a,CompState)) where
+  get = getState >>* snd
+  put st = do (other, _) <- getState
+              setState (other, st)
+
+instance Warn (GenParser tok ([WarningReport], b)) where
+  warnReport w = do (ws, other) <- getState
+                    setState (ws ++ [w], other)
 
 instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
@@ -410,7 +423,7 @@ noTypeContext = inTypeContext Nothing
 --{{{ name scoping
 findName :: A.Name -> OccParser A.Name
 findName thisN
-    =  do st <- getState
+    =  do st <- get
           origN <- case lookup (A.nameName thisN) (csLocalNames st) of
                      Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
                      Just n -> return n
@@ -420,13 +433,13 @@ findName thisN
 
 makeUniqueName :: String -> OccParser String
 makeUniqueName s
-    =  do st <- getState
-          setState $ st { csNameCounter = csNameCounter st + 1 }
+    =  do st <- get
+          put $ st { csNameCounter = csNameCounter st + 1 }
           return $ s ++ "_u" ++ show (csNameCounter st)
 
 findUnscopedName :: A.Name -> OccParser A.Name
 findUnscopedName n@(A.Name m nt s)
-    =  do st <- getState
+    =  do st <- get
           case Map.lookup s (csUnscopedNames st) of
             Just s' -> return $ A.Name m nt s'
             Nothing ->
@@ -456,11 +469,11 @@ scopeIn n@(A.Name m nt s) t am
 
 scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m nt s)
-    =  do st <- getState
+    =  do st <- get
           let lns' = case csLocalNames st of
                        (s, _):ns -> ns
                        otherwise -> dieInternal (Just m, "scopeOut trying to scope out the wrong name")
-          setState $ st { csLocalNames = lns' }
+          put $ st { csLocalNames = lns' }
 
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
@@ -1979,7 +1992,7 @@ topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
                       -- Stash the current locals so that we can either restore them
                       -- when we get back to the file we included this one from, or
                       -- pull the TLP name from them at the end.
-                      updateState $ (\ps -> ps { csMainLocals = csLocalNames ps })
+                      modify $ (\ps -> ps { csMainLocals = csLocalNames ps })
                       return $ A.Several m []
                       
 
@@ -1987,11 +2000,11 @@ topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
 -- A source file is really a series of specifications, but the later ones need to
 -- have the earlier ones in scope, so we can't parse them separately.
 -- Instead, we nest the specifications
-sourceFile :: OccParser (A.AST, CompState)
+sourceFile :: OccParser (A.AST, [WarningReport], CompState)
 sourceFile
     =   do p <- topLevelItem
-           s <- getState
-           return (p, s)
+           (w, s) <- getState
+           return (p, w, s)
 --}}}
 --}}}
 
@@ -1999,7 +2012,7 @@ sourceFile
 -- | Parse a token stream with the given production.
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
-    =  do case runParser prod cs "" toks of
+    =  do case runParser prod ([], cs) "" toks of
             Left err -> dieReport (Nothing, "Parse error: " ++ show err)
             Right r -> return r
 
@@ -2007,8 +2020,9 @@ runTockParser toks prod cs
 parseOccamProgram :: [Token] -> PassM A.AST
 parseOccamProgram toks
     =  do cs <- get
-          (p, cs') <- runTockParser toks sourceFile cs
+          (p, ws, cs') <- runTockParser toks sourceFile cs
           put cs'
+          tell ws
           return p
 --}}}
 
