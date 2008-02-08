@@ -181,6 +181,8 @@ tcall3 = call
 tcall4 = call
 tcall5 = call
 
+type Override = CGen () -> CGen ()
+
 -- | Overrides a specified function in GenOps to return the given value
 override1 ::
   b -- ^ The value to return for the overridden function
@@ -969,6 +971,7 @@ testInput = TestList
 --   state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
 --              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
 
+   overInputItemCase, over :: Override
    overInputItemCase = local $ \ops -> ops {genInputItem = override2 caret}
    over = local $ \ops -> ops {genBytesIn = (\_ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
 
@@ -1053,6 +1056,7 @@ testOutput = TestList
    state :: CSM m => m ()
    state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
+   overOutput, overOutputItem, over :: Override
    overOutput = local $ \ops -> ops {genOutput = override2 caret}
    overOutputItem = local $ \ops -> ops {genOutputItem = override2 caret}
    over = local $ \ops -> ops {genBytesIn = override3 caret}
@@ -1085,6 +1089,7 @@ testBytesIn = TestList
   
  ]
  where
+   over :: Override
    over = local $ \ops -> ops {genVariable = override1 dollar, genSizeSuffix = (\n -> tell["(@",n,")"])}
 
 testMobile :: Test
