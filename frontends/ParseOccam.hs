@@ -44,14 +44,6 @@ import Utils
 --{{{ the parser monad
 type OccParser = GenParser Token ([WarningReport], CompState)
 
--- | Make MonadState functions work in the parser monad.
--- This came from <http://hackage.haskell.org/trac/ghc/ticket/1274> -- which means
--- it'll probably be in a future GHC release anyway.
-{-
-instance MonadState st (GenParser tok st) where
-  get = getState
-  put = setState
--}
 instance CSMR (GenParser tok (a,CompState)) where
   getCompState = getState >>* snd
 
@@ -62,6 +54,7 @@ instance MonadState CompState (GenParser tok (a,CompState)) where
   put st = do (other, _) <- getState
               setState (other, st)
 
+-- The other part of the state is actually the built-up list of warnings:
 instance Warn (GenParser tok ([WarningReport], b)) where
   warnReport w = do (ws, other) <- getState
                     setState (ws ++ [w], other)

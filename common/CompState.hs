@@ -31,7 +31,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
-import Errors
+import Errors (Die, dieP, ErrorReport)
 import Metadata
 
 -- | Modes that Tock can run in.
@@ -144,10 +144,6 @@ instance (CSMR m, Error e) => CSMR (ErrorT e m) where
 instance (CSMR m, Monoid w) => CSMR (WriterT w m) where
   getCompState = lift getCompState
 
-type WarningReport = (Maybe Meta, String)
-
-class Monad m => Warn m where
-  warnReport :: WarningReport -> m ()
 
 --instance (MonadWriter [WarningReport] m) => Warn m where
 --  warnReport r = tell [r]
@@ -169,18 +165,6 @@ lookupNameOrError n err
             Just nd -> return nd
             Nothing -> err
 
---}}}
-
---{{{  warnings
--- | Add a warning with no source position.
-addPlainWarning :: Warn m => String -> m ()
-addPlainWarning msg = warnReport (Nothing, msg)
-  -- modify (\ps -> ps { csWarnings = msg : csWarnings ps })
-
--- | Add a warning.
-addWarning :: Warn m => Meta -> String -> m ()
-addWarning m s = warnReport (Just m, s)
-  -- addPlainWarning $ "Warning: " ++ show m ++ ": " ++ s
 --}}}
 
 --{{{  pulled items

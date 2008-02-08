@@ -34,7 +34,7 @@ import Numeric (readDec)
 import Text.Printf
 import Text.Regex
 
-import CompState
+import Errors
 import Pass
 import PrettyShow
 

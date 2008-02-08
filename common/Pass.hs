@@ -78,18 +78,6 @@ verboseMessage n s
           when (csVerboseLevel ps >= n) $
             liftIO $ hPutStrLn stderr s
 
-{-
--- | Print a warning message.
-warn :: (CSM m, MonadIO m) => String -> m ()
-warn = verboseMessage 0
--}
--- | Print out a list of warnings
-showWarnings ::  MonadIO m => [WarningReport] -> m ()
-showWarnings = mapM_ printWarning
-  where
-    printWarning (Just m, s) = liftIO $ hPutStrLn stderr $ show m ++ " " ++ s
-    printWarning (Nothing, s) = liftIO $ hPutStrLn stderr s
-
 -- | Print a progress message.
 progress :: (CSM m, MonadIO m) => String -> m ()
 progress = verboseMessage 1

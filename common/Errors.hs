@@ -17,11 +17,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Error handling and reporting.
-module Errors (checkJust, Die, dieInternal, dieIO, dieP, dieReport, ErrorReport) where
+module Errors (addPlainWarning, addWarning, checkJust, Die(..), dieInternal, dieIO, dieP, ErrorReport, showWarnings, Warn(..), WarningReport) where
 
 import Control.Monad.Error
 import Control.Monad.Trans
 import Data.List
+import System.IO
 import System.IO.Error
 
 import Metadata
@@ -35,9 +36,24 @@ instance Error ErrorReport where
 class Monad m => Die m where
   dieReport :: ErrorReport -> m a
 
-  -- | Fail, giving a position and an error message.
-  dieP :: Die m => Meta -> String -> m a
-  dieP m s = dieReport (Just m,s)
+-- | Fail, giving a position and an error message.
+dieP :: Die m => Meta -> String -> m a
+dieP m s = dieReport (Just m,s)
+
+type WarningReport = (Maybe Meta, String)
+
+class Monad m => Warn m where
+  warnReport :: WarningReport -> m ()
+
+--{{{  warnings
+-- | Add a warning with no source position.
+addPlainWarning :: Warn m => String -> m ()
+addPlainWarning msg = warnReport (Nothing, msg)
+
+-- | Add a warning.
+addWarning :: Warn m => Meta -> String -> m ()
+addWarning m s = warnReport (Just m, s)
+--}}}
 
 -- | Wrapper around error that gives nicer formatting, and prints out context
 --
@@ -80,6 +96,14 @@ dieIO (_,s) = printError s
 
 printError :: String -> a
 printError s = error $ "Error: " ++ s ++ "\n"
+
+-- | Print out a list of warnings
+showWarnings ::  MonadIO m => [WarningReport] -> m ()
+showWarnings = mapM_ printWarning
+  where
+    printWarning (Just m, s) = liftIO $ hPutStrLn stderr $ show m ++ " " ++ s
+    printWarning (Nothing, s) = liftIO $ hPutStrLn stderr s
+
 
 -- | Fail after an internal error.
 dieInternal :: Monad m => ErrorReport -> m a
