@@ -527,28 +527,35 @@ type GenEqItems = (A.Expression, [(CoeffIndex, Integer)])
 
 -- Generates a new variable, or multiplied variable pair
 -- TODO potentially scale variable
-genNewItem :: StateT VarMap Gen GenEqItems
-genNewItem = do m <- get
-                let nextId = 1 + maximum (0 : Map.elems m)
-                (exp, fexp) <- frequency'
-                  [(80, return (exprVariable $ "x" ++ show nextId, Scale 1 (variable $ "x" ++ show nextId,0) ))
+genNewItem :: Bool -> StateT VarMap Gen (GenEqItems, FlattenedExp)
+genNewItem specialAllowed
+           = do (exp, fexp, nextId) <- frequency' $
+                  [(80, do m <- get
+                           let nextId = 1 + maximum (0 : Map.elems m)
+                           return (exprVariable $ "x" ++ show nextId, Scale 1 (variable $ "x" ++ show nextId,0), nextId))
 -- TODO enable this once multiplied variables are supported
---                  ,(20, return $ A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))]
-                  ]
-                put $ Map.insert fexp nextId m
-                return (exp, [(nextId,1)])
+--                  ,(20, return (A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))
+                  ] ++ if not specialAllowed then []
+                         else [(20, do ((eT,iT),fT) <- genNewItem False
+                                       ((eB,iB),fB) <- genNewItem False
+                                       m <- get
+                                       let nextId = 1 + maximum (0 : Map.elems m)
+                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo (Set.singleton fT) (Set.singleton fB), nextId)
+                              )]
+                modify (Map.insert fexp nextId)
+                return ((exp, [(nextId,1)]), fexp)
 
-genConst :: StateT VarMap Gen GenEqItems
+genConst :: StateT VarMap Gen (GenEqItems, FlattenedExp)
 genConst = do val <- lift $ choose (1, 10)
               let exp = intLiteral val
-              return (exp, [(0,val)])
+              return ((exp, [(0,val)]), Const val)
 
 generateEquationInput :: Gen ([((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
 generateEquationInput
  = do ((items, upper),vm) <- flip runStateT Map.empty
-         (do upper <- frequency' [(80, genConst), (20, genNewItem)]
+         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewItem False >>* fst)]
              itemCount <- lift $ choose (1,6)
-             items <- replicateM itemCount $ frequency' [(40, genConst), (60, genNewItem)]
+             items <- replicateM itemCount (genNewItem False >>* fst)
              return (items, upper)
          )
       return (makeResults vm items upper, ParItems $ map (\(x,_) -> SeqItems [[x]]) items, fst upper)
