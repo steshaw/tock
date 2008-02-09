@@ -477,16 +477,16 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     ijk_mapping :: VarMap
     ijk_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),(Scale 1 $ (variable "k",0),3)]
     i_mod_mapping :: Integer -> VarMap
-    i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
+    i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
     i_mod_j_mapping :: VarMap
     i_mod_j_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
-      (Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Scale 1 $ (variable "j",0)),3)]
+      (Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Scale 1 $ (variable "j",0)),3)]
     _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
-      (Modulo (Set.fromList [(Scale 3 $ (variable "i",0)),(Scale (-2) $ (variable "j",0))]) (Set.singleton $ Const n),3)]
+      (Modulo 1 (Set.fromList [(Scale 3 $ (variable "i",0)),(Scale (-2) $ (variable "j",0))]) (Set.singleton $ Const n),3)]
     -- i REM m, i + 1 REM n
     i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ (variable "i",0),1)
-      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const m),2)
-      ,(Modulo (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const m),2)
+      ,(Modulo 1 (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
      ]
 
     rep_i_mapping :: VarMap
@@ -498,8 +498,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     
     rep_i_mod_mapping :: Integer -> VarMap
     rep_i_mod_mapping n = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)
-      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),3)
-      ,(Modulo (Set.singleton $ Scale 1 $ (variable "i",1)) (Set.singleton $ Const n),4)]
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),3)
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",1)) (Set.singleton $ Const n),4)]
 
     -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
     rr_i_zero = ([i === con 0], leq [con 0,con 0,con 7])
@@ -562,7 +562,7 @@ genNewItem specialAllowed
                                        ((eB,iB),fB) <- genNewItem False
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
-                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo (Set.singleton fT) (Set.singleton fB), nextId)
+                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (Set.singleton fT) (Set.singleton fB), nextId)
                               )]
                 modify (Map.insert fexp nextId)
                 return ((exp, [(nextId,1)]), fexp)
@@ -572,9 +572,10 @@ genConst = do val <- lift $ choose (1, 10)
               let exp = intLiteral val
               return ((exp, [(0,val)]), Const val)
 
-genNewExp :: StateT VarMap Gen (GenEqItems, [FlattenedExp])
-genNewExp = do num <- lift $ choose (1,4)
-               items <- replicateM num $ frequency' [(20, maybeMult genConst), (80, maybeMult $ genNewItem True)]
+genNewExp :: Bool -> StateT VarMap Gen (GenEqItems, [FlattenedExp])
+genNewExp specialAllowed
+          = do num <- lift $ choose (1,4)
+               items <- replicateM num $ frequency' [(20, maybeMult genConst), (80, maybeMult $ genNewItem specialAllowed)]
                return $ fromJust $ foldl join Nothing items
   where
     maybeMult :: StateT VarMap Gen (GenEqItems, FlattenedExp) -> StateT VarMap Gen (GenEqItems, FlattenedExp)
@@ -631,24 +632,24 @@ generateEquationInput
     arrayBound x u = leq [con 0, x, u ++ con (-1)]
     
     moduloEq :: VarMap -> FlattenedExp -> [([ModuloCase], [(CoeffIndex, Integer)], [HandyEq], [HandyIneq])]
-    moduloEq vm m@(Modulo top bottom) =
+    moduloEq vm m@(Modulo n top bottom) =
      let topVar = lookupF (Set.findMin top {-TODO-} ) vm
          botVar = lookupF (Set.findMin bottom {-TODO-} ) vm
          modVar = lookupF m vm
      in case onlyConst (Set.toList bottom) of
-      Just c -> let v = topVar ++ (abs c)**modVar in
+      Just c -> let v = n**(topVar ++ (abs c)**modVar) in
 
-                [ ([XZero], [(0,0)], [topVar === con 0], [])
+                [ ([XZero], [(0,0)], [n**topVar === con 0], [])
                 , ([XPos], v, [], [topVar >== con 1, modVar <== con 0] &&& leq [con 0, v, con (abs c - 1)])
                 , ([XNeg], v, [], [topVar <== con (-1), modVar >== con 0] &&& leq [con (1 - abs c), v, con 0])
                 ]
-      Nothing -> let v = topVar ++ modVar in
-                 [ ([XZero], [(0,0)], [topVar === con 0], []) -- TODO stop the divisor being zero
+      Nothing -> let v = n**(topVar ++ modVar) in
+                 [ ([XZero], [(0,0)], [n**topVar === con 0], []) -- TODO stop the divisor being zero
                  
-                 , ([XPosYPosAZero], topVar, [], [topVar >== con 1] &&& leq [con 0, topVar, botVar ++ con (-1)])
-                 , ([XPosYNegAZero], topVar, [], [topVar >== con 1] &&& leq [con 0, topVar, (-1)**botVar ++ con (-1)])
-                 , ([XNegYPosAZero], topVar, [], [topVar <== con (-1)] &&& leq [(-1)**botVar ++ con 1, topVar, con 0])
-                 , ([XNegYNegAZero], topVar, [], [topVar <== con (-1)] &&& leq [botVar ++ con 1, topVar, con 0])
+                 , ([XPosYPosAZero], n**topVar, [], [topVar >== con 1] &&& leq [con 0, topVar, botVar ++ con (-1)])
+                 , ([XPosYNegAZero], n**topVar, [], [topVar >== con 1] &&& leq [con 0, topVar, (-1)**botVar ++ con (-1)])
+                 , ([XNegYPosAZero], n**topVar, [], [topVar <== con (-1)] &&& leq [(-1)**botVar ++ con 1, topVar, con 0])
+                 , ([XNegYNegAZero], n**topVar, [], [topVar <== con (-1)] &&& leq [botVar ++ con 1, topVar, con 0])
                  
                  , ([XPosYPosANonZero], v, [], [topVar >== con 1, modVar <== (-1)**botVar] &&& leq [con 0, v, botVar ++ con (-1)])
                  , ([XPosYNegANonZero], v, [], [topVar >== con 1, modVar <== botVar] &&& leq [con 0, v, (-1)**botVar ++ con (-1)])
@@ -663,8 +664,8 @@ generateEquationInput
     lookupF :: FlattenedExp -> VarMap -> [(CoeffIndex, Integer)]
     lookupF (Const c) _ = con c
     lookupF f@(Scale a v) vm = [(fromJust $ Map.lookup f vm, a)]
-    lookupF f@(Modulo t b) vm = [(fromJust $ Map.lookup f vm, 1)]
-    lookupF f@(Divide t b) vm = [(fromJust $ Map.lookup f vm, 1)]
+    lookupF f@(Modulo a t b) vm = [(fromJust $ Map.lookup f vm, a)]
+    lookupF f@(Divide a t b) vm = [(fromJust $ Map.lookup f vm, a)]
 
 qcTestMakeEquations :: [LabelledQuickCheckTest]
 qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (100,1000,5000,10000) prop)]

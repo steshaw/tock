@@ -163,21 +163,25 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     showFlattenedExp (Const n) = return $ show n
     showFlattenedExp (Scale n ((A.Variable _ vn),vi))
       = do vn' <- getRealName vn >>* (++ replicate vi '\'')
-           case n of
-             1  -> return vn'
-             -1 -> return $ "-" ++ vn'
-             _  -> return $ (show n) ++ "*" ++ vn'
-    showFlattenedExp (Modulo top bottom)
+           return $ showScale vn' n
+    showFlattenedExp (Modulo n top bottom)
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
            case onlyConst (Set.toList bottom) of
-             Just _  -> return $ "-(" ++ top' ++ " / " ++ bottom' ++ ")"
-             Nothing -> return $ "((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")"
-    showFlattenedExp (Divide top bottom)
+             Just _  -> return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") (-n)
+             Nothing -> return $ showScale ("((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")") n
+    showFlattenedExp (Divide n top bottom)
       = do top' <- showFlattenedExpSet top
            bottom' <- showFlattenedExpSet bottom
-           return $ "(" ++ top' ++ " / " ++ bottom' ++ ")"
+           return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") n
     
+    showScale :: String -> Integer -> String
+    showScale s n =
+           case n of
+             1  -> s
+             -1 -> "-" ++ s
+             _  -> (show n) ++ "*" ++ s
+
     showFlattenedExpSet :: Set.Set FlattenedExp -> m String
     showFlattenedExpSet s = liftM concat $ sequence $ intersperse (return " + ") $ map showFlattenedExp $ Set.toList s
 
@@ -192,10 +196,10 @@ data FlattenedExp
     -- against a sub-indexed (with "1") version (denoted "i'").  The sub-index
     -- is what differentiates i from i', given that they are technically the
     -- same A.Variable
-  | Modulo (Set.Set FlattenedExp) (Set.Set FlattenedExp)
-    -- ^ A modulo, with the given top and bottom (in that order)
-  | Divide (Set.Set FlattenedExp) (Set.Set FlattenedExp)
-    -- ^ An integer division, with the given top and bottom (in that order)
+  | Modulo Integer (Set.Set FlattenedExp) (Set.Set FlattenedExp)
+    -- ^ A modulo, with a coefficient/scale and given top and bottom (in that order)
+  | Divide Integer (Set.Set FlattenedExp) (Set.Set FlattenedExp)
+    -- ^ An integer division, with a coefficient/scale and the given top and bottom (in that order)
   deriving (Show)
 
 instance Eq FlattenedExp where
@@ -211,11 +215,11 @@ instance Ord FlattenedExp where
   compare (Scale _ (lv,li)) (Scale _ (rv,ri)) = combineCompare [customVarCompare lv rv, compare li ri]
   compare (Scale {}) _ = LT
   compare _ (Scale {}) = GT
-  compare (Modulo ltop lbottom) (Modulo rtop rbottom)
+  compare (Modulo _ ltop lbottom) (Modulo _ rtop rbottom)
     = combineCompare [compare ltop rtop, compare lbottom rbottom]
   compare (Modulo {}) _ = LT
   compare _ (Modulo {}) = GT
-  compare (Divide ltop lbottom) (Divide rtop rbottom)
+  compare (Divide _ ltop lbottom) (Divide _ rtop rbottom)
     = combineCompare [compare ltop rtop, compare lbottom rbottom]
 
 -- | Checks if an expression list contains only constants.  Returns Just (the aggregate constant) if so,
@@ -374,11 +378,11 @@ makeEquations otherInfo accesses bound
     setIndexVar' tv ti s@(Scale n (v,_))
       | EQ == customVarCompare tv v = Scale n (v,ti)
       | otherwise = s
-    setIndexVar' tv ti (Modulo top bottom) = Modulo top' bottom'
+    setIndexVar' tv ti (Modulo n top bottom) = Modulo n top' bottom'
       where
         top' = Set.map (setIndexVar' tv ti) top
         bottom' = Set.map (setIndexVar' tv ti) bottom
-    setIndexVar' tv ti (Divide top bottom) = Divide top' bottom'
+    setIndexVar' tv ti (Divide n top bottom) = Divide n top' bottom'
       where
         top' = Set.map (setIndexVar' tv ti) top
         bottom' = Set.map (setIndexVar' tv ti) bottom
@@ -493,8 +497,8 @@ flatten (A.ExprVariable _ v) = return [Scale 1 (v,0)]
 flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
                                 | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
                                 | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
-                                | op == A.Rem   = liftM2L Modulo (flatten lhs) (flatten rhs)
-                                | op == A.Div   = liftM2L Divide (flatten lhs) (flatten rhs)
+                                | op == A.Rem   = liftM2L (Modulo 1) (flatten lhs) (flatten rhs)
+                                | op == A.Div   = liftM2L (Divide 1) (flatten lhs) (flatten rhs)
                                 | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
   where
 --    liftM2L :: (Ord a, Ord b, Monad m) => (Set.Set a -> Set.Set b -> c) -> m [a] -> m [b] -> m [c]
@@ -618,7 +622,7 @@ varIndex (Scale _ (var@(A.Variable _ (A.Name _ _ varName)),vi))
                                         (Map.insert (Scale 1 (var,vi)) newId st, newId)
            put st'
            return ind
-varIndex mod@(Modulo top bottom)
+varIndex mod@(Modulo _ top bottom)
       = do st <- get
            let (st',ind) = case Map.lookup mod st of
                              Just val -> (st,val)
@@ -692,7 +696,7 @@ makeEquation l t summedItems
                            [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         makeEquation' m (Const n) = return $ add (0,n) m
         makeEquation' m sc@(Scale n v) = varIndex sc >>* (\ind -> add (ind, n) m)
-        makeEquation' m mod@(Modulo top bottom)
+        makeEquation' m mod@(Modulo _ top bottom) -- TODO use the scale properly
           = do top' <- process (Set.toList top) >>* map (\(_,a,b,c) -> (a,b,c))
                top'' <- getSingleItem "Modulo or divide not allowed in the numerator of Modulo" top'
                bottom' <- process (Set.toList bottom) >>* map (\(_,a,b,c) -> (a,b,c))
@@ -783,7 +787,7 @@ makeEquation l t summedItems
                   (False, False, True ) -> XNegYNegANonZero
                   (False, False, False) -> XNegYNegAZero
             
-        makeEquation' m (Divide top bottom) = throwError "TODO Divide"
+        makeEquation' m (Divide _ top bottom) = throwError "TODO Divide"
         
         empty :: [([ModuloCase],Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         empty = [([],Map.empty,[],[])]
