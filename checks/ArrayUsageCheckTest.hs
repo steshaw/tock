@@ -563,6 +563,11 @@ genNewItem specialAllowed
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
                                        return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (Set.singleton fT) (Set.singleton fB), nextId)
+                              ),(20,do ((eT,iT),fT) <- genNewItem False
+                                       ((eB,iB),fB) <- genConst
+                                       m <- get
+                                       let nextId = 1 + maximum (0 : Map.elems m)
+                                       return (A.Dyadic emptyMeta A.Div eT eB, Divide 1 (Set.singleton fT) (Set.singleton fB), nextId)
                               )]
                 modify (Map.insert fexp nextId)
                 return ((exp, [(nextId,1)]), fexp)
@@ -669,8 +674,28 @@ generateEquationInput
                  , ([XNegYPosANonZero], n**v, [], [topVar <== con (-1), modVar >== botVar] &&& leq [(-1)**botVar ++ con 1, v, con 0])
                  , ([XNegYNegANonZero], n**v, [], [topVar <== con (-1), modVar >== (-1)**botVar] &&& leq [botVar ++ con 1, v, con 0])
                  ]
-    -- TODO add divide here with equations
-    -- (for constant divisor)
+    moduloEq' vm m@(Divide n top bottom) =
+            [ ([XZero], [(0,0)], [topVar === con 0], [])
+            , ([XPos], n**divVar, [], [topVar >== con 1]  &&& eqs (resultSignum True))
+            , ([XNeg], n**divVar, [], [topVar <== con (-1)] &&& eqs (resultSignum False))
+            ]
+            where
+              topVar = lookupFS (Set.toList top) vm
+              divVar = lookupF m vm
+              c = fromJust $ onlyConst (Set.toList bottom)
+              v = topVar ++ (-c)**divVar
+
+              resultSignum xpos = signum c * (if xpos then 1 else -1)
+
+              -- TopSign BottomSign Bounds:
+              --  +++      +++       (0, c - 1)
+              --  +++      ---       (c + 1, 0)   (or: 1 - abs c, 0)
+              --  ---      +++       (1 - c, 0)
+              --  ---      ---       (0, -1 - c)  (or: (0, abs c - 1)
+              eqs sign = [sign**divVar >== con 0] &&& leq
+                           (if signum c == sign
+                             then [con 0, v, con (abs c - 1)]
+                             else [con (1 - abs c), v, con 0])
     moduloEq' vm exp = [([], lookupF exp vm, [], [])]
     
     lookupFS :: [FlattenedExp] -> VarMap -> [(CoeffIndex, Integer)]
