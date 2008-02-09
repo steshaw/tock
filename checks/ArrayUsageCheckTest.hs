@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module ArrayUsageCheckTest (ioqcTests) where
 
 import Control.Monad.Identity
+import Control.Monad.State
 import Data.Array.IArray
 import Data.List
 import qualified Data.Map as Map
@@ -496,6 +497,94 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     
     ij_16 = leq [con 1, i, con 6] &&& leq [con 1, j, con 6]
 
+testMakeEquation :: TestMonad m r => ([((A.Expression, A.Expression), VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression) -> m ()
+testMakeEquation (problems, exprs, upperBound) =
+ assertEquivalentProblems ""
+   (map (\(x,y,z) -> (x, y, uncurry makeConsistent z)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations [] (transformParItems pairWithEmpty exprs) upperBound)
+  where
+    pairWithEmpty a = (a,[])
+    pairLatterTwo (l,a,b,c) = (l,a,(b,c))
+
+newtype MakeEquationInput = MEI ([((A.Expression, A.Expression), VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression) deriving (Show)
+
+instance Arbitrary MakeEquationInput where
+  arbitrary = generateEquationInput >>* MEI
+
+frequency' :: [(Int, StateT s Gen a)] -> StateT s Gen a
+frequency' items = do dist <- lift $ choose (0, (sum $ map fst items) - 1)
+                      findDist dist items
+  where
+    findDist n ((sz, x):sxs)
+      | n < sz     = x
+      | otherwise = findDist (n - sz) sxs
+
+type GenVarMap = Map.Map A.Expression (CoeffIndex, FlattenedExp)
+
+-- Generates a new variable, or multiplied variable pair
+-- TODO potentially scale variable
+genNewItem :: StateT GenVarMap Gen (A.Expression, CoeffIndex)
+genNewItem = do m <- get
+                let nextId = 1 + maximum (0 : map fst (Map.elems m))
+                (exp, fexp) <- frequency'
+                  [(80, return (exprVariable $ "x" ++ show nextId, Scale 1 (variable $ "x" ++ show nextId,0) ))
+-- TODO enable this once multiplied variables are supported
+--                  ,(20, return $ A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))]
+                  ]
+                put $ Map.insert exp (nextId, fexp) m
+                return (exp, nextId)
+
+genConst :: StateT GenVarMap Gen (A.Expression, CoeffIndex)
+genConst = do m <- get
+              val <- lift $ choose (1, 10)
+              let exp = intLiteral val
+              put $ Map.insert exp (0, Const val) m
+              return (exp, 0)
+
+generateEquationInput :: Gen ([((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
+generateEquationInput
+ = do ((items, upper),vm) <- flip runStateT Map.empty
+         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewItem >>* fst)]
+             itemCount <- lift $ choose (1,6)
+             items <- replicateM itemCount $ frequency' [(40, genConst >>* fst), (60, genNewItem >>* fst)]
+             return (items, upper)
+         )
+      return (makeResults vm items upper, ParItems $ map (\x -> SeqItems [[x]]) items, upper)
+  where
+    makeVarMap :: GenVarMap -> VarMap
+    makeVarMap = Map.fromList . filter ((/= (Const undefined)) . fst) . map revPair . Map.elems
+  
+    makeResults :: GenVarMap -> [A.Expression] -> A.Expression -> [((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])]
+    makeResults vm items upper = fromJust $
+      do items' <- mapM (\x -> seqPair (return x, liftM snd $ Map.lookup x vm)) items
+         let allItemPairs = allPairs items'
+         fupper <- Map.lookup upper vm >>* snd
+         return $ map (flip (makeResult vm) (upper, fupper)) allItemPairs
+  
+    makeResult :: GenVarMap -> ((A.Expression, FlattenedExp), (A.Expression, FlattenedExp)) -> (A.Expression, FlattenedExp) -> ((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])
+    makeResult vm ((e0,f0),(e1,f1)) (upper, fupper) = ((e0, e1), varMap, [var0 === var1], leq [con 0, var0, varU ++ con (-1)] &&& leq [con 0, var1, varU ++ con (-1)])
+      where
+        varMap = makeVarMap vm
+        
+        ind0 = lookInVM e0
+        ind1 = lookInVM e1
+        indU = lookInVM upper
+        
+        var0 = varOrConst ind0 f0
+        var1 = varOrConst ind1 f1
+        varU = varOrConst indU fupper
+        
+        lookInVM f = fromMaybe 0 (liftM fst $ Map.lookup f vm)
+        varOrConst ind f = case onlyConst [f] of
+          Just n -> [(0, n)]
+          Nothing -> [(ind, 1)]
+
+
+qcTestMakeEquations :: [LabelledQuickCheckTest]
+qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (100,100,100,100) prop)]
+  where
+    prop :: MakeEquationInput -> QCProp
+    prop (MEI mei) = testMakeEquation mei
+
 testIndexes :: Test
 testIndexes = TestList
   [
@@ -913,7 +1002,7 @@ ioqcTests
          ,automaticTest "testcases/automatic/usage-check-4.occ.test"
          ,automaticTest "testcases/automatic/usage-check-5.occ.test"
         ]
-      ,return $ qcOmegaEquality ++ qcOmegaPrune)
+      ,return $ qcOmegaEquality ++ qcOmegaPrune ++ qcTestMakeEquations)
 
 
 
