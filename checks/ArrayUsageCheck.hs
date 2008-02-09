@@ -486,11 +486,6 @@ makeEquations otherInfo accesses bound
 
 -- Note that in all these functions, the divisor should always be positive!
   
--- Takes an expression, and transforms it into an expression like:
--- (e_0 + e_1 + e_2) / d
--- where d is a constant (non-zero!) integer, and each e_k
--- is either a const, a var, const * var, or (const * var) % const [TODO].
--- If the expression cannot be transformed into such a format, an error is returned
 flatten :: A.Expression -> Either String [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
 flatten (A.ExprVariable _ v) = return [Scale 1 (v,0)]
@@ -525,7 +520,8 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
     scale :: Integer -> FlattenedExp -> Either String FlattenedExp
     scale sc (Const n) = return $ Const (n * sc)
     scale sc (Scale n v) = return $ Scale (n * sc) v
-    -- TODO test the other cases then write them
+    scale sc (Modulo n t b) = return $ Modulo (n * sc) t b
+    scale sc (Divide n t b) = return $ Divide (n * sc) t b
 
     -- | An easy way of applying combine to two monadic returns
     combine' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
@@ -696,14 +692,15 @@ makeEquation l t summedItems
                            [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         makeEquation' m (Const n) = return $ add (0,n) m
         makeEquation' m sc@(Scale n v) = varIndex sc >>* (\ind -> add (ind, n) m)
-        makeEquation' m mod@(Modulo _ top bottom) -- TODO use the scale properly
+        makeEquation' m mod@(Modulo n top bottom)
           = do top' <- process (Set.toList top) >>* map (\(_,a,b,c) -> (a,b,c))
                top'' <- getSingleItem "Modulo or divide not allowed in the numerator of Modulo" top'
                bottom' <- process (Set.toList bottom) >>* map (\(_,a,b,c) -> (a,b,c))
-               topIndex <- varIndex mod
+               modIndex <- varIndex mod
                case onlyConst (Set.toList bottom) of
                  Just bottomConst -> 
-                   let add_x_plus_my = zipMap plus top'' . zipMap plus (Map.fromList [(topIndex,bottomConst)]) in
+                    -- Actually adds n*(x + my)
+                   let add_x_plus_my = zipMap plus (Map.map (*n) top'') . zipMap plus (Map.fromList [(modIndex,n * bottomConst)]) in
                    return $
                      -- The zero option (x = 0, x REM y = 0):
                    ( map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
@@ -713,7 +710,7 @@ makeEquation l t summedItems
                       -- x >= 1
                       [zipMap plus (Map.fromList [(0,-1)]) top''
                       -- m <= 0
-                      ,Map.fromList [(topIndex,-1)]
+                      ,Map.fromList [(modIndex,-1)]
                       -- x + my + 1 - |y| <= 0
                       ,Map.map negate $ add_x_plus_my $ Map.fromList [(0,1 - bottomConst)]
                       -- x + my >= 0
@@ -724,7 +721,7 @@ makeEquation l t summedItems
                       -- x <= -1
                       [add' (0,-1) $ Map.map negate top''
                       -- m >= 0
-                      ,Map.fromList [(topIndex,1)]
+                      ,Map.fromList [(modIndex,1)]
                       -- x + my - 1 + |y| >= 0
                       ,add_x_plus_my $ Map.fromList [(0,bottomConst - 1)]
                       -- x + my <= 0
@@ -736,20 +733,20 @@ makeEquation l t summedItems
                         -- The zero option (x = 0, x REM y = 0):
                         (map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
                         -- The rest:
-                        ++ twinItems True True (top'', topIndex) bottom''
-                        ++ twinItems True False (top'', topIndex) bottom''
-                        ++ twinItems False True (top'', topIndex) bottom''
-                        ++ twinItems False False (top'', topIndex) bottom''
+                        ++ twinItems True True n (top'', modIndex) bottom''
+                        ++ twinItems True False n (top'', modIndex) bottom''
+                        ++ twinItems False True n (top'', modIndex) bottom''
+                        ++ twinItems False False n (top'', modIndex) bottom''
           where
             -- Each pair for modulo (variable divisor) depending on signs of x and y (in x REM y):
-            twinItems :: Bool -> Bool -> (Map.Map Int Integer,Int) -> Map.Map Int Integer ->
+            twinItems :: Bool -> Bool -> Integer -> (Map.Map Int Integer,Int) -> Map.Map Int Integer ->
               [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
-            twinItems xPos yPos (top,topIndex) bottom
-              = (map (transformQuad (++ [findCase xPos yPos False]) (zipMap plus top) id
+            twinItems xPos yPos n (top,modIndex) bottom
+              = (map (transformQuad (++ [findCase xPos yPos False]) (zipMap plus $ Map.map (*n) top) id
                   (++ [xEquation]
                    ++ [xLowerBound False]
                    ++ [xUpperBound False])) m)
-                ++ (map (transformQuad (++ [findCase xPos yPos True]) (zipMap plus top . add' (topIndex,1)) id
+                ++ (map (transformQuad (++ [findCase xPos yPos True]) (zipMap plus (Map.map (*n) top) . add' (modIndex, n)) id
                   (++ [xEquation]
                    ++ [xLowerBound True]
                    ++ [xUpperBound True]
@@ -760,12 +757,12 @@ makeEquation l t summedItems
                    -- F    T    | a - y  >= 0
                    -- F    F    | a + y  >= 0
                    -- Therefore the sign of a is (not xPos), the sign of y is (not yPos)
-                   ++ [add' (topIndex,if xPos then -1 else 1) (signEq (not yPos) bottom)])) m)
+                   ++ [add' (modIndex,if xPos then -1 else 1) (signEq (not yPos) bottom)])) m)
               where
                 -- x >= 1 or x <= -1  (rearranged: -1 + x >= 0 or -1 - x >= 0)
                 xEquation = add' (0,-1) (signEq xPos top)
                 -- We include (x [+ a] >= 0 or x [+ a] <= 0) even though they are redundant in some cases (addA = False):
-                xLowerBound addA = signEq xPos $ (if addA then add' (topIndex,1) else id) top
+                xLowerBound addA = signEq xPos $ (if addA then add' (modIndex,1) else id) top
                 -- We want to add the bounds as follows:
                 -- xPos yPos | Equation
                 -- T    T    | y - 1 - x - a  >= 0
@@ -773,7 +770,7 @@ makeEquation l t summedItems
                 -- F    T    | x + a - 1 + y  >= 0
                 -- F    F    | x + a - y - 1  >= 0
                 -- Therefore the sign of y in the equation is yPos, the sign of x and a is (not xPos)
-                xUpperBound addA = add' (0,-1) $ zipMap plus (signEq (not xPos) ((if addA then add' (topIndex,1) else id) top)) (signEq yPos bottom)
+                xUpperBound addA = add' (0,-1) $ zipMap plus (signEq (not xPos) ((if addA then add' (modIndex,1) else id) top)) (signEq yPos bottom)
                 
                 signEq sign eq = if sign then eq else Map.map negate eq
                 
