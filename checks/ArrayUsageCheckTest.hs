@@ -115,7 +115,7 @@ leq [] = []
 leq [_] = []
 leq (x:y:zs) = (x <== y) : (leq (y:zs))
 
-(&&&) :: [HandyIneq] -> [HandyIneq] -> [HandyIneq]
+(&&&) :: [a] -> [a] -> [a]
 (&&&) = (++)
   
 infixr 4 ===
@@ -537,7 +537,7 @@ genNewItem specialAllowed
 --                  ,(20, return (A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))
                   ] ++ if not specialAllowed then []
                          else [(20, do ((eT,iT),fT) <- genNewItem False
-                                       ((eB,iB),fB) <- genNewItem False
+                                       ((eB,iB),fB) <- genConst -- TODO enable variable divisor
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
                                        return (A.Dyadic emptyMeta A.Rem eT eB, Modulo (Set.singleton fT) (Set.singleton fB), nextId)
@@ -555,19 +555,48 @@ generateEquationInput
  = do ((items, upper),vm) <- flip runStateT Map.empty
          (do upper <- frequency' [(80, genConst >>* fst), (20, genNewItem False >>* fst)]
              itemCount <- lift $ choose (1,6)
-             items <- replicateM itemCount (genNewItem False >>* fst)
+             items <- replicateM itemCount (genNewItem True)
              return (items, upper)
          )
-      return (makeResults vm items upper, ParItems $ map (\(x,_) -> SeqItems [[x]]) items, fst upper)
+      return (makeResults vm items upper, ParItems $ map (\((x,_),_) -> SeqItems [[x]]) items, fst upper)
   where
     makeResults :: VarMap ->
-      [GenEqItems] ->
+      [(GenEqItems, FlattenedExp)] ->
       GenEqItems -> 
       [((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])]
-    makeResults vm items upper = map (flip (makeResult vm) upper) (allPairs items)
+    makeResults vm items upper = concatMap (flip (makeResult vm) upper) (allPairs items)
   
-    makeResult :: VarMap -> (GenEqItems, GenEqItems) -> GenEqItems -> ((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])
-    makeResult vm ((ex,x),(ey,y)) (_,u) = ((ex, ey), vm, [x === y], leq [con 0, x, u ++ con (-1)] &&& leq [con 0, y, u ++ con (-1)])
+    makeResult :: VarMap -> ((GenEqItems, FlattenedExp), (GenEqItems, FlattenedExp)) -> GenEqItems -> [((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])]
+    makeResult vm (((ex,x),fx),((ey,y),fy)) (_,u) = mkItem (ex, moduloEq vm fx) (ey, moduloEq vm fy)
+      where
+        mkItem :: (A.Expression, [([(CoeffIndex, Integer)], [HandyEq], [HandyIneq])]) ->
+                  (A.Expression, [([(CoeffIndex, Integer)], [HandyEq], [HandyIneq])]) ->
+                  [((A.Expression, A.Expression),VarMap,[HandyEq],[HandyIneq])]
+        mkItem (ex, xinfo) (ey, yinfo) = map (\(eq,ineq) -> ((ex,ey),vm,eq,ineq)) $ map (uncurry joinItems) (product2 (xinfo, yinfo))
+
+        joinItems :: ([(CoeffIndex, Integer)], [HandyEq], [HandyIneq]) ->
+                     ([(CoeffIndex, Integer)], [HandyEq], [HandyIneq]) ->
+                     ([HandyEq],[HandyIneq])
+        joinItems (x, xEq, xIneq) (y, yEq, yIneq) = ([x === y] &&& xEq &&& yEq, xIneq &&& yIneq &&& arrayBound x u &&& arrayBound y u)
+
+    arrayBound :: [(CoeffIndex, Integer)] -> [(CoeffIndex, Integer)] -> [HandyIneq]
+    arrayBound x u = leq [con 0, x, u ++ con (-1)]
+    
+    moduloEq :: VarMap -> FlattenedExp -> [([(CoeffIndex, Integer)], [HandyEq], [HandyIneq])]
+    moduloEq vm m@(Modulo top bottom) = let topVar = lookupF (Set.findMin top {-TODO-} ) vm in let modVar = lookupF m vm in case onlyConst (Set.toList bottom) of
+      Just c -> [ ([(0,0)], [topVar === con 0], [])
+                , (topVar ++ (abs c)**modVar, [], [topVar >== con 1, modVar <== con 0] &&& leq [con 0, topVar ++ (abs c)**modVar, con (abs c - 1)])
+                , (topVar ++ (abs c)**modVar, [], [topVar <== con (-1), modVar >== con 0] &&& leq [con (1 - abs c), topVar ++ (abs c)**modVar, con 0])
+                ]
+      Nothing -> [] --TODO (variable divisor)
+    -- TODO add divide here with equations
+    moduloEq vm exp = [(lookupF exp vm, [], [])]
+    
+    lookupF :: FlattenedExp -> VarMap -> [(CoeffIndex, Integer)]
+    lookupF (Const c) _ = con c
+    lookupF f@(Scale a v) vm = [(fromJust $ Map.lookup f vm, a)]
+    lookupF f@(Modulo t b) vm = [(fromJust $ Map.lookup f vm, 1)]
+    lookupF f@(Divide t b) vm = [(fromJust $ Map.lookup f vm, 1)]
 
 qcTestMakeEquations :: [LabelledQuickCheckTest]
 qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (100,100,100,100) prop)]

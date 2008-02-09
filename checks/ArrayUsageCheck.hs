@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), onlyConst, makeEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
