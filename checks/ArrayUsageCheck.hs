@@ -625,7 +625,15 @@ varIndex mod@(Modulo _ top bottom)
                              Nothing -> let newId = (1 + (maximum $ 0 : Map.elems st)) in
                                         (Map.insert mod newId st, newId)
            put st'
-           return ind           
+           return ind
+varIndex div@(Divide _ top bottom)
+      = do st <- get
+           let (st',ind) = case Map.lookup div st of
+                             Just val -> (st,val)
+                             Nothing -> let newId = (1 + (maximum $ 0 : Map.elems st)) in
+                                        (Map.insert div newId st, newId)
+           put st'
+           return ind
 
 -- | Pairs all possible combinations of the list of equations.
 pairEqsAndBounds :: [ArrayAccess label] -> (EqualityConstraintEquation, EqualityConstraintEquation) -> [((label,label),EqualityProblem, InequalityProblem)]
@@ -784,7 +792,49 @@ makeEquation l t summedItems
                   (False, False, True ) -> XNegYNegANonZero
                   (False, False, False) -> XNegYNegAZero
             
-        makeEquation' m (Divide _ top bottom) = throwError "TODO Divide"
+        makeEquation' m div@(Divide n top bottom)
+          = do top' <- process (Set.toList top) >>* map (\(_,a,b,c) -> (a,b,c))
+               top'' <- getSingleItem "Modulo or Divide not allowed in the numerator of Divide" top'
+               bottom' <- process (Set.toList bottom) >>* map (\(_,a,b,c) -> (a,b,c))
+               divIndex <- varIndex div
+               case onlyConst (Set.toList bottom) of
+                 Just bottomConst -> 
+                   let add_m :: Map.Map Int Integer -> Map.Map Int Integer
+                       add_m = zipMap plus (Map.fromList [(divIndex,n)])
+                       add_x_minus_my = zipMap plus top'' . zipMap plus (Map.fromList [(divIndex,-bottomConst)]) in
+                   return $
+                     -- The zero option (x = 0, x REM y = 0):
+                   ( map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
+                   ++
+                     -- The top-is-positive option:
+                   ( map (transformQuad (++ [XPos]) add_m id (++
+                      -- x >= 1
+                      [zipMap plus (Map.fromList [(0,-1)]) top''
+                      -- m >= 0 if y positive
+                      -- m <= 0 (i.e. -m >= 0) if y negative
+                      ,Map.fromList [(divIndex, signum bottomConst)]
+                      -- x + my + 1 - y <= 0 if y positive
+                      -- x + my - 1 - y >= 0 if y negative
+                      ,(if (bottomConst > 0) then Map.map negate else id) $ add_x_minus_my $ Map.fromList [(0,signum bottomConst - bottomConst)]
+                      -- x + my >= 0 if y positive
+                      -- x + my <= 0 if negative
+                      ,(if (bottomConst > 0) then id else Map.map negate) $ add_x_minus_my $ Map.empty])
+                     ) m) ++
+                    -- The top-is-negative option:
+                   ( map (transformQuad (++ [XNeg]) add_m id (++
+                      -- x <= -1
+                      [add' (0,-1) $ Map.map negate top''
+                      -- m <= 0 if y positive
+                      -- m >= 0 if y negative
+                      ,Map.fromList [(divIndex, - signum bottomConst)]
+                      -- x + my - 1 + y >= 0 if y positive
+                      -- x + my + 1 + y <= 0 if y negative
+                      ,(if (bottomConst > 0) then id else Map.map negate) $ add_x_minus_my $ Map.fromList [(0,bottomConst - signum bottomConst)]
+                      -- x + my <= 0 if y positive
+                      -- x + my >= 0 if y negative
+                      ,(if (bottomConst > 0) then Map.map negate else id) $ add_x_minus_my Map.empty])
+                     ) m)
+                 _ -> throwError "Variables in divisor not supported by usage checker"
         
         empty :: [([ModuloCase],Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         empty = [([],Map.empty,[],[])]
