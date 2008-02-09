@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), onlyConst, makeEquations, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), ModuloCase(..), onlyConst, makeEquations, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -98,8 +98,8 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                    [] -> return ()
                    (((lx,ly),varMapping,vm,problem):_) ->
                      do sol <- formatSolution varMapping (getCounterEqs vm)
-                        cx <- showCode lx
-                        cy <- showCode ly
+                        cx <- showCode (fst lx)
+                        cy <- showCode (fst ly)
                         prob <- formatProblem varMapping problem
 --                        debug $ "Found solution for problem: " ++ prob
 --                        liftIO $ putStrLn $ "Succeeded on problem: " ++ prob
@@ -297,6 +297,17 @@ type VarMap = Map.Map FlattenedExp CoeffIndex
 -- | Background knowledge about a problem; either an equality or an inequality.
 data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.Expression A.Expression
 
+-- | The names relate to the equations given in my Omega Test presentation.
+-- X is the top, Y is the bottom, A is the other var (x REM y = x + a)
+data ModuloCase =
+   XZero
+ | XPos | XNeg -- these two are for constant divisor, all the ones below are for variable divisor
+ | XPosYPosAZero | XPosYPosANonZero
+ | XPosYNegAZero | XPosYNegANonZero
+ | XNegYPosAZero | XNegYPosANonZero
+ | XNegYNegAZero | XNegYNegANonZero
+ deriving (Show, Eq, Ord)
+
 -- | Given a list of (written,read) expressions, an expression representing the upper array bound, returns either an error
 -- (because the expressions can't be handled, typically) or a set of equalities, inequalities and mapping from
 -- (unique, munged) variable name to variable-index in the equations.
@@ -324,7 +335,7 @@ data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.E
 --
 -- TODO probably want to take this into the PassM monad at some point, to use the Meta in the error message
 makeEquations :: [BackgroundKnowledge] -> ParItems ([A.Expression],[A.Expression]) -> A.Expression ->
-  Either String [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))]
+  Either String [(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap, (EqualityProblem, InequalityProblem))]
 makeEquations otherInfo accesses bound
   = do ((v,h,o,repVarIndexes),s) <- (flip runStateT) Map.empty $
           do (accesses',repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
@@ -429,7 +440,11 @@ makeEquations otherInfo accesses bound
     -- | Given a list of replicators (marked enabled/disabled by a flag), the writes and reads, 
     -- turns them into a single list of accesses with all the relevant information.  The writes and reads
     -- can be grouped together because they are differentiated by the ArrayAccessType in the result
-    mkEq :: [(A.Replicator, Bool)] -> ([A.Expression], [A.Expression]) -> StateT [(CoeffIndex, CoeffIndex)] (StateT VarMap (Either String)) [(A.Expression, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
+    mkEq :: [(A.Replicator, Bool)] ->
+            ([A.Expression], [A.Expression]) ->
+             StateT [(CoeffIndex, CoeffIndex)]
+               (StateT VarMap (Either String))
+                 [((A.Expression, [ModuloCase]), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
     mkEq reps (ws,rs) = do repVarEqs <- mapM (liftF makeRepVarEq) reps
                            concatMapM (mkEq' repVarEqs) (ws' ++ rs')
       where
@@ -442,7 +457,11 @@ makeEquations otherInfo accesses bound
                upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
                return (A.Variable m varName, from', upper)
         
-        mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> (ArrayAccessType, A.Expression) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [(A.Expression, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
+        mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
+                 (ArrayAccessType, A.Expression) ->
+                 StateT [(CoeffIndex,CoeffIndex)]
+                   (StateT VarMap (Either String))
+                     [((A.Expression, [ModuloCase]), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
         mkEq' repVarEqs (aat, e) 
                        = do f <- lift . lift $ flatten e
                             f' <- foldM mirrorFlaggedVars f reps
@@ -658,34 +677,35 @@ getIneqs (low, high) = concatMap getLH
 
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
-makeEquation :: label -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess label)
+makeEquation :: label -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess (label,[ModuloCase]))
 makeEquation l t summedItems
       = do eqs <- process summedItems
-           let eqs' = map (transformTriple mapToArray (map mapToArray) (map mapToArray)) eqs :: [(EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-           return $ case eqs' of
---             [acc] -> Single (l,t,acc)
-             _ -> Group [(l,t,e) | e <- eqs']
+           let eqs' = map (transformQuad id mapToArray (map mapToArray) (map mapToArray)) eqs :: [([ModuloCase], EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
+           return $ Group [((l,c),t,(e0,e1,e2)) | (c,e0,e1,e2) <- eqs']
       where
-        process :: [FlattenedExp] -> StateT VarMap (Either String) [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
+        process :: [FlattenedExp] -> StateT VarMap (Either String) [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         process = foldM makeEquation' empty
       
-        makeEquation' :: [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])] -> FlattenedExp -> StateT (VarMap) (Either String) [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
+        makeEquation' :: [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])] ->
+                         FlattenedExp ->
+                         StateT (VarMap) (Either String)
+                           [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         makeEquation' m (Const n) = return $ add (0,n) m
         makeEquation' m sc@(Scale n v) = varIndex sc >>* (\ind -> add (ind, n) m)
         makeEquation' m mod@(Modulo top bottom)
-          = do top' <- process $ Set.toList top
+          = do top' <- process (Set.toList top) >>* map (\(_,a,b,c) -> (a,b,c))
                top'' <- getSingleItem "Modulo or divide not allowed in the numerator of Modulo" top'
-               bottom' <- process $ Set.toList bottom
+               bottom' <- process (Set.toList bottom) >>* map (\(_,a,b,c) -> (a,b,c))
                topIndex <- varIndex mod
                case onlyConst (Set.toList bottom) of
                  Just bottomConst -> 
                    let add_x_plus_my = zipMap plus top'' . zipMap plus (Map.fromList [(topIndex,bottomConst)]) in
                    return $
                      -- The zero option (x = 0, x REM y = 0):
-                   ( map (transformTriple id (++ [top'']) id) m)
+                   ( map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
                    ++
                      -- The top-is-positive option:
-                   ( map (transformTriple add_x_plus_my id (++
+                   ( map (transformQuad (++ [XPos]) add_x_plus_my id (++
                       -- x >= 1
                       [zipMap plus (Map.fromList [(0,-1)]) top''
                       -- m <= 0
@@ -696,7 +716,7 @@ makeEquation l t summedItems
                       ,add_x_plus_my $ Map.empty])
                      ) m) ++
                     -- The top-is-negative option:
-                   ( map (transformTriple add_x_plus_my id (++
+                   ( map (transformQuad (++ [XNeg]) add_x_plus_my id (++
                       -- x <= -1
                       [add' (0,-1) $ Map.map negate top''
                       -- m >= 0
@@ -710,7 +730,7 @@ makeEquation l t summedItems
                    do bottom'' <- getSingleItem "Modulo or divide not allowed in the divisor of Modulo" bottom'
                       return $
                         -- The zero option (x = 0, x REM y = 0):
-                        (map (transformTriple id (++ [top'']) id) m)
+                        (map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
                         -- The rest:
                         ++ twinItems True True (top'', topIndex) bottom''
                         ++ twinItems True False (top'', topIndex) bottom''
@@ -719,13 +739,13 @@ makeEquation l t summedItems
           where
             -- Each pair for modulo (variable divisor) depending on signs of x and y (in x REM y):
             twinItems :: Bool -> Bool -> (Map.Map Int Integer,Int) -> Map.Map Int Integer ->
-              [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
+              [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
             twinItems xPos yPos (top,topIndex) bottom
-              = (map (transformTriple (zipMap plus top) id
+              = (map (transformQuad (++ [findCase xPos yPos False]) (zipMap plus top) id
                   (++ [xEquation]
                    ++ [xLowerBound False]
                    ++ [xUpperBound False])) m)
-                ++ (map (transformTriple (zipMap plus top . add' (topIndex,1)) id
+                ++ (map (transformQuad (++ [findCase xPos yPos True]) (zipMap plus top . add' (topIndex,1)) id
                   (++ [xEquation]
                    ++ [xLowerBound True]
                    ++ [xUpperBound True]
@@ -752,11 +772,21 @@ makeEquation l t summedItems
                 xUpperBound addA = add' (0,-1) $ zipMap plus (signEq (not xPos) ((if addA then add' (topIndex,1) else id) top)) (signEq yPos bottom)
                 
                 signEq sign eq = if sign then eq else Map.map negate eq
+                
+                findCase xPos yPos aNonZero = case (xPos, yPos, aNonZero) of
+                  (True , True , True ) -> XPosYPosANonZero
+                  (True , True , False) -> XPosYPosAZero
+                  (True , False, True ) -> XPosYNegANonZero
+                  (True , False, False) -> XPosYNegAZero
+                  (False, True , True ) -> XNegYPosANonZero
+                  (False, True , False) -> XNegYPosAZero
+                  (False, False, True ) -> XNegYNegANonZero
+                  (False, False, False) -> XNegYNegAZero
             
         makeEquation' m (Divide top bottom) = throwError "TODO Divide"
         
-        empty :: [(Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
-        empty = [(Map.empty,[],[])]
+        empty :: [([ModuloCase],Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
+        empty = [([],Map.empty,[],[])]
         
         plus :: Num n => Maybe n -> Maybe n -> Maybe n
         plus x y = Just $ (fromMaybe 0 x) + (fromMaybe 0 y)
@@ -764,8 +794,8 @@ makeEquation l t summedItems
         add' :: (Int,Integer) -> Map.Map Int Integer -> Map.Map Int Integer
         add' (m,n) = Map.insertWith (+) m n
         
-        add :: (Int,Integer) -> [(Map.Map Int Integer,a,b)] -> [(Map.Map Int Integer,a,b)]
-        add (m,n) = map $ transformTriple (Map.insertWith (+) m n) id id
+        add :: (Int,Integer) -> [(z,Map.Map Int Integer,a,b)] -> [(z,Map.Map Int Integer,a,b)]
+        add (m,n) = map $ (\(a,b,c,d) -> (a,(Map.insertWith (+) m n) b,c,d))
     
 -- | Converts a map to an array.  Any missing elements in the middle of the bounds are given the value zero.
 -- Could probably be moved to Utils
