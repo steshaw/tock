@@ -119,9 +119,13 @@ combineCompare (EQ:os) = combineCompare os
 transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
 transformPair f g (x,y) = (f x, g y)
 
--- | Maps two functions over members of a triple
+-- | Maps three functions over members of a triple
 transformTriple :: (x -> a) -> (y -> b) -> (z -> c) -> (x,y,z) -> (a,b,c)
 transformTriple f g h (x,y,z) = (f x, g y, h z)
+
+-- | Maps four functions over members of a quadtuple
+transformQuad :: (x -> a) -> (y -> b) -> (z -> c) -> (z' -> d) -> (x,y,z,z') -> (a,b,c,d)
+transformQuad f g h i (x,y,z,z') = (f x, g y, h z, i z')
 
 -- | Pipes a monadic return through a non-monadic transformation function:
 (>>*) :: Monad m => m a -> (a -> b) -> m b
