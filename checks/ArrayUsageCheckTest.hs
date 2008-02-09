@@ -35,6 +35,7 @@ import ArrayUsageCheck
 import qualified AST as A
 import Metadata
 import Omega
+import ShowCode
 import TestFramework
 import TestHarness
 import TestUtils hiding (m)
@@ -728,12 +729,12 @@ assertEquivalentProblems title exp act
   
     -- Since this is a test, I'm taking the lazy way out and allowing run-time errors in this
     -- function rather than putting it all in a monad.  In HUnit the effect will be about the same
-    checkLabel :: (Show label, Ord label) => ((label, label), VarMap, (EqualityProblem, InequalityProblem)) ->
-      ((label, label), VarMap, (EqualityProblem, InequalityProblem)) ->
+    checkLabel :: ((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem)) ->
+      ((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem)) ->
       ((VarMap, (EqualityProblem, InequalityProblem)), (VarMap, (EqualityProblem, InequalityProblem)))
     checkLabel (l,vm,p) (l',vm',p')
       | l == l'   = ((vm,p), (vm',p'))
-      | otherwise = error $ "Labels did not match, expected: " ++ show l ++ " but actual: " ++ show l'
+      | otherwise = error $ "Labels did not match, expected: " ++ showPairCustom showOccam showOccam l ++ " but actual: " ++ showPairCustom showOccam showOccam l'
   
     sortByLabels :: [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))] ->
        [((A.Expression, A.Expression), VarMap, (EqualityProblem, InequalityProblem))]
