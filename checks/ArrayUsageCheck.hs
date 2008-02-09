@@ -472,7 +472,7 @@ flatten :: A.Expression -> Either String [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
 flatten (A.ExprVariable _ v) = return [Scale 1 (v,0)]
 flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
-                                | op == A.Subtr = combine' (flatten lhs) (liftM (scale (-1)) $ flatten rhs)
+                                | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
                                 | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
                                 | op == A.Rem   = liftM2L Modulo (flatten lhs) (flatten rhs)
                                 | op == A.Div   = liftM2L Divide (flatten lhs) (flatten rhs)
@@ -492,21 +492,17 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
         pairs = product2 (lhs,rhs)
 
         mult :: FlattenedExp -> FlattenedExp -> Either String FlattenedExp
-        mult (Const x) (Const y) = return $ Const (x*y)
-        mult (Scale n v) (Const x) = return $ Scale (n*x) v
-        mult (Const x) (Scale n v) = return $ Scale (n*x) v
-        mult (Scale _ v) (Scale _ v')
+        mult (Const x) e = scale x e
+        mult e (Const x) = scale x e
+        mult e e'
           = throwError $ "Cannot deal with non-linear equations; during flattening found: "
-              ++ show v ++ " * " ++ show v'
-        -- TODO test and handle modulo and divide here
+              ++ show e ++ " * " ++ show e' -- TODO format this better, but later on change behaviour to subst new variable
     
     -- | Scales a flattened expression by the given integer scaling.
-    scale :: Integer -> [FlattenedExp] -> [FlattenedExp]
-    scale sc = map scale'
-      where
-        scale' (Const n) = Const (n * sc)
-        scale' (Scale n v) = Scale (n * sc) v
-        -- TODO test the other cases then write them
+    scale :: Integer -> FlattenedExp -> Either String FlattenedExp
+    scale sc (Const n) = return $ Const (n * sc)
+    scale sc (Scale n v) = return $ Scale (n * sc) v
+    -- TODO test the other cases then write them
 
     -- | An easy way of applying combine to two monadic returns
     combine' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
