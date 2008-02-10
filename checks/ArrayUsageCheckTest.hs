@@ -558,12 +558,12 @@ genNewItem specialAllowed
 -- TODO enable this once multiplied variables are supported
 --                  ,(20, return (A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))
                   ] ++ if not specialAllowed then []
-                         else [(20, do ((eT,iT),fT) <- genNewItem False
+                         else [(10, do ((eT,iT),fT) <- genNewItem False -- TODO turn this into genNewExp, maybe others too.  But ensure termination!
                                        ((eB,iB),fB) <- genNewItem False
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
                                        return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (Set.singleton fT) (Set.singleton fB), nextId)
-                              ),(20,do ((eT,iT),fT) <- genNewItem False
+                              ),(10,do ((eT,iT),fT) <- genNewItem False
                                        ((eB,iB),fB) <- genConst
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
