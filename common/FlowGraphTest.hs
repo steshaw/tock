@@ -299,6 +299,9 @@ testCase = TestLabel "testCase" $ TestList
 testIf :: Test
 testIf = TestLabel "testIf" $ TestList
  [
+   -- Remember that the last branch of an IF doesn't link to the end of the IF, because
+   -- occam stops if no option is found.
+ 
    testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [0] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
   ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] [0]
@@ -307,6 +310,20 @@ testIf = TestLabel "testIf" $ TestList
   ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] [0]
                         [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq), (4,6,ESeq),(6,7,ESeq),(7,1,ESeq)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
+
+  ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5)] [0]
+    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 5, ESeq)]
+    (A.If m0 $ A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3)])
+
+  ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7)] [0]
+    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq)]
+    (A.If m0 $ A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
+
+  ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9)] [0]
+    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq), (5,8,ESeq),
+     (8,9,ESeq), (9,1,ESeq)]
+    (A.If m0 $ A.Several mU [A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
+                            , ifs mU [(A.True m8, sm9)]])
  ]
  where
    ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured A.Choice
