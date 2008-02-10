@@ -362,6 +362,18 @@ buildStructured f outer (A.Rep m rep str) route
                 Right (s',e') -> do addEdge (EStartPar pId) s s'
                                     addEdge (EEndPar pId) e' e
               return $ Right (s,e)
+         OIf prev end ->
+           do repNode <- addNode' (findMeta rep) labelReplicator rep alter
+              addEdge ESeq prev repNode
+              nodes <- buildStructured f (OIf repNode end) str (route33 route A.Rep)
+              
+              case nodes of
+                Left False -> return $ Right (repNode, repNode)
+                Left True -> return $ Right (repNode, repNode)
+                Right (p,e) -> do addEdge ESeq p repNode
+                                  return $ Right (repNode, repNode)
+              
+              return $ Right (repNode, end)
          _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
 
 buildStructured f outer (A.Only _ o) route = f outer (route22 route A.Only) o >>* Right
