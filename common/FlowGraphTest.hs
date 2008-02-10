@@ -108,26 +108,27 @@ nextId' inc t
 -- for being isomorphic, based on the meta-tag node labels (node E in the expected list is 
 -- isomorphic to node A in the actual list if their meta tags are the same).
 testGraph :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Process -> Test
-testGraph testName nodes roots edges proc = testGraph' testName nodes roots edges (A.Only emptyMeta proc)
+testGraph testName nodes roots edges proc = testGraphF testName nodes roots edges (buildFlowGraphP testOps $ A.Only emptyMeta proc)
 
---TODO test root nodes too
+testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.AST -> Test
+testGraph' testName nodes roots edges str = testGraphF testName nodes roots edges (buildFlowGraph testOps str)
 
-testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
-testGraph' testName nodes roots edges code
+testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
+testOps = GLF nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
+
+testGraphF :: Data structType => String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> State (Map.Map Meta Int) (Either String (FlowGraph' Identity Int structType, [Node])) -> Test
+testGraphF testName nodes roots edges grF
   = TestCase $ 
-      case evalState (buildFlowGraphP testOps code) Map.empty of
+      case evalState grF Map.empty of
         Left err -> assertFailure (testName ++ " graph building failed: " ++ err)
-        Right gr -> checkGraphEquality (nodes, roots, edges) (gr :: (FlowGraph' Identity Int A.Process, [Node]))
+        Right gr -> checkGraphEquality (nodes, roots, edges) gr -- :: (FlowGraph' Identity Int structType, [Node]))
   where  
     -- Checks two graphs are equal by creating a node mapping from the expected graph to the real map (checkNodeEquality),
     -- then mapping the edges across (transformEdge) and checking everything is right (in checkGraphEquality)
     
 --    deNode :: Monad m => FNode' m a b -> (Meta, a)
     deNode nd = (getNodeMeta nd, getNodeData nd)
-    
-    testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
-    testOps = GLF nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
-    
+        
     checkGraphEquality :: (Data a, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, EdgeLabel)]) -> (FlowGraph' m Int a, [Int]) -> Assertion
     checkGraphEquality (nodes, roots, edges) (g, actRoots)
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
@@ -164,7 +165,7 @@ someSpec m = A.Specification m (simpleName $ show m) (A.DataType m A.Int)
 testSeq :: Test
 testSeq = TestLabel "testSeq" $ TestList
  [
-   testSeq' 0 [(0,m0)] [] (A.Several m1 [])
+   testSeq' 0 [(0,m1)] [] (A.Several m1 [])
   ,testSeq' 1 [(0,m2)] [] (A.Only m1 sm2)
   ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.Only m2 sm3])
   ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
@@ -179,7 +180,7 @@ testSeq = TestLabel "testSeq" $ TestList
     [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
     (A.Several m11 [A.Spec mU (someSpec m1) $ A.Only m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.Only m9 sm10])
 
-  ,testSeq' 12 [(0,m1),(100,sub m1 100)] [(0,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+  ,testSeq' 12 [(0,m1),(4,m4),(100,sub m1 100)] [(0,4,ESeq),(4,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   -- Replicated SEQ:
   
@@ -192,11 +193,11 @@ testSeq = TestLabel "testSeq" $ TestList
       ,(A.Rep m8 (A.For m8 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
       ,A.Only mU sm11])
 
-  ,testSeq' 102 [(0,m10)] [(0,0,ESeq)]
-    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several mU [])
+  ,testSeq' 102 [(0,m10), (1,m1)] [(0,1,ESeq), (1,0,ESeq)]
+    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m1 [])
 
-  ,testSeq' 103 [(1,m10), (0,m1), (2,m2)] [(0,1,ESeq),(1,1,ESeq),(1,2,ESeq)]
-    (A.Several mU [A.Only mU sm1, (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several mU []), A.Only mU sm2])
+  ,testSeq' 103 [(1,m10), (0,m1), (2,m2), (3,m3)] [(0,1,ESeq),(1,3,ESeq), (3,1,ESeq),(1,2,ESeq)]
+    (A.Several mU [A.Only mU sm1, (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m3 []), A.Only mU sm2])
 
  ]
   where
@@ -283,13 +284,13 @@ testCase = TestLabel "testCase" $ TestList
  [
    testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [0] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
   ,testGraph "testCase 1"
-     [(0,m10),(1,m0),(3,m3)] [0]
-     [(0,3,ESeq),(3,1,ESeq)]
-     (A.Case m0 (A.True m10) $ cases m1 [A.Option mU [A.True mU] sm3])
+     [(0,m10),(1,m0),(2,m2),(3,m3)] [0]
+     [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+     (A.Case m0 (A.True m10) $ cases mU [A.Option mU [A.True m2] sm3])
   ,testGraph "testCase 2"
-     [(0,m10),(1,m0),(3,m3),(5,m5)] [0]
-     [(0,3,ESeq), (3,1,ESeq), (0,5,ESeq), (5,1,ESeq)]
-     (A.Case m0 (A.True m10) $ cases m1 [A.Option mU [A.True mU] sm3, A.Option mU [A.True mU] sm5])
+     [(0,m10),(1,m0), (2,m2), (3,m3), (4, m4), (5,m5)] [0]
+     [(0,2,ESeq), (2,3,ESeq), (3,1,ESeq), (0,4,ESeq), (4,5,ESeq), (5,1,ESeq)]
+     (A.Case m0 (A.True m10) $ cases m1 [A.Option mU [A.True m2] sm3, A.Option mU [A.True m4] sm5])
   --TODO test case statements that have specs
  ]
  where
@@ -332,17 +333,18 @@ testIf = TestLabel "testIf" $ TestList
 testProcFuncSpec :: Test
 testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
   [
-   -- Single spec of process (with SKIP body):
-    testGraph' "testProcFuncSpec 0" [(0, m0),(1,m1),(2,sub m1 100), (5,m5)] [1,5] [(5,0,ESeq), (1,2,ESeq)]
+   -- Single spec of process (with SKIP body) in AST (not connected up):
+    testGraph' "testProcFuncSpec 0" [(0, m0), (5,m5)] [5] [(5,0,ESeq)]
       (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several mU [])
+      
    -- Single spec of process (with body with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 1" [(0, m3),(1,m6),(2,sub m6 100),(4,m5), (9,m9)] [1,9] ([(1,2,ESeq)] ++ [(9,0,ESeq), (0,4,ESeq)])
+   ,testGraph' "testProcFuncSpec 1" [(0, m3), (4,m5), (9,m9)] [9] ([(9,0,ESeq), (0,4,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
         A.Seq m0 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5]
       ) $ A.Several mU [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 2" [(0,m6),(1,sub m6 100),(3,m2),(4,m3),(5,m4),(6,m5),(7,m7),(8,sub m7 100), (10,m10), (11, m11)] [0,10,11]
-      ([(0,7,ESeq), (7,8,ESeq), (8,1,ESeq)] ++ [(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
+   ,testGraph' "testProcFuncSpec 2" [(3,m2),(4,m3),(5,m4),(6,m5), (10,m10), (11, m11)] [10,11]
+      ([(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
         A.Seq mU $ A.Several mU [A.Only mU sm2,A.Only mU sm3]
       ) $ 
@@ -350,6 +352,11 @@ testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
         A.Seq mU $ A.Several mU [A.Only mU sm4,A.Only mU sm5]
       )  
       $ A.Several mU [])
+      
+   -- Single spec of process (with SKIP body) in a SEQ (connected up):
+   ,testGraph "testProcFuncSpec 10" [(0, m0),(1,m1),(2,sub m1 100), (3, m3), (5,m5)] [1,5] [(5,0,ESeq), (1,3,ESeq), (3,2,ESeq)]
+      (A.Seq mU $ A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several m3 [])
+      
   ]
 
 --TODO test replicated seq/par

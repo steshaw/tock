@@ -65,9 +65,6 @@ import Utils
 -- and this identifier is unique and matches a later endpar link
 data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
---If is (previous condition) (final node)
-data OuterType = ONone | OSeq | OPar Int (Node, Node) | OCase (Node,Node) | OIf Node Node deriving (Show)
-
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
 -- provide flexibility; you can always use the Identity monad.
@@ -241,10 +238,13 @@ routeList n f xs
        x' <- f x
        return (pre ++ [x'] ++ suf)
 
-mapMR :: forall inner mAlter mLabel label structType. (Monad mLabel, Monad mAlter) => ASTModifier mAlter [inner] structType -> (inner -> ASTModifier mAlter inner structType -> GraphMaker mLabel mAlter label structType (Node,Node)) -> [inner] -> GraphMaker mLabel mAlter label structType [(Node,Node)]
+mapMR :: forall inner mAlter mLabel label retType structType. (Monad mLabel, Monad mAlter) =>
+  ASTModifier mAlter [inner] structType ->
+  (inner -> ASTModifier mAlter inner structType -> GraphMaker mLabel mAlter label structType retType) ->
+  [inner] -> GraphMaker mLabel mAlter label structType [retType]
 mapMR outerRoute func xs = mapM funcAndRoute (zip [0..] xs)
   where
-    funcAndRoute :: (Int, inner) -> GraphMaker mLabel mAlter label structType (Node,Node)
+    funcAndRoute :: (Int, inner) -> GraphMaker mLabel mAlter label structType retType
     funcAndRoute (ind,x) = func x (outerRoute @-> routeList ind)
 
 
@@ -270,129 +270,192 @@ joinPairs m [] = addDummyNode m >>* mkPair
 joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
                        return (fst (head nodes), snd (last nodes))
 
-
-buildStructuredP :: (Monad mLabel, Monad mAlter) =>
-  OuterType -> A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType -> GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
-buildStructuredP = buildStructured (\_ r p -> buildProcess p r)
-buildStructuredC :: (Monad mLabel, Monad mAlter) =>
-  OuterType -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType -> GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
-buildStructuredC = buildStructured buildOnlyChoice
-buildStructuredO :: (Monad mLabel, Monad mAlter) =>
-  OuterType -> A.Structured A.Option -> ASTModifier mAlter (A.Structured A.Option) structType -> GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
-buildStructuredO = buildStructured buildOnlyOption
-
--- Returns a pair of beginning-node, end-node
--- Bool indicates emptiness (False = empty, True = there was something)
-buildStructured :: forall a mAlter mLabel label structType. (Monad mLabel, Monad mAlter, Data a) =>
-  (OuterType -> ASTModifier mAlter a structType -> a -> GraphMaker mLabel mAlter label structType (Node, Node)) ->
-  OuterType -> A.Structured a -> ASTModifier mAlter (A.Structured a) structType -> GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
-buildStructured f outer (A.Several m ss) route
-  = do case outer of
-         ONone -> -- If there is no context, they should be left as disconnected graphs.
-                 do nodes <- mapMRE decompSeveral (buildStructured f outer) ss
-                    return $ Left $ nonEmpty nodes
-         OSeq -> do nodes <- mapMRE decompSeveral (buildStructured f outer) ss
-                    case nodes of
-                      Left hadNodes -> return $ Left hadNodes
-                      Right nodes' -> joinPairs m nodes' >>* Right
-         OPar pId (nStart, nEnd) ->
-                do nodes <- mapMRE decompSeveral (buildStructured f outer) ss
-                   addParEdges pId (nStart, nEnd) $ either (const []) id nodes
-                   return $ Left $ nonEmpty nodes
-         --Because the conditions in If statements are chained together, we
-         --must fold the specs, not map them independently
-         OIf prev end -> foldM foldIf (prev,end) (zip [0..] ss) >>* Right
-           where
-             foldIf :: (Node,Node) -> (Int,A.Structured a) -> GraphMaker mLabel mAlter label structType (Node, Node)
-             foldIf (prev,end) (ind,s) = do nodes <- buildStructured f (OIf prev end) s $ decompSeveral @-> (routeList ind)
-                                            case nodes of
-                                              Left {} -> return (prev,end)
-                                              Right (prev',_) -> return (prev', end)
-         _ -> do nodes <- mapMRE decompSeveral (buildStructured f outer) ss
-                 return $ Left $ nonEmpty nodes
-  where
-        decompSeveral :: ASTModifier mAlter [A.Structured a] structType
-        decompSeveral = route22 route A.Several
-
-buildStructured f outer (A.Spec m spec str) route
+addSpecNodes :: (Monad mAlter, Monad mLabel, Data a) => A.Specification -> ASTModifier mAlter (A.Structured a) structType -> GraphMaker mLabel mAlter label structType (Node, Node)
+addSpecNodes spec route
   = do n <- addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
        n' <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+       return (n, n')
 
-       -- If it's a process or function spec we must process it too.  No need to
-       -- connect it up to the outer part though
-       case spec of
-         (A.Specification _ _ (A.Proc m _ args p)) ->
-           let procRoute = (route33 (route23 route A.Spec) A.Specification) in
-           addNewSubProcFunc m args (Left (p, route44 procRoute A.Proc)) (route34 procRoute A.Proc)
-         (A.Specification _ _ (A.Function m _ _ args s)) ->
-           let funcRoute = (route33 (route23 route A.Spec) A.Specification) in
-           addNewSubProcFunc m args (Right (s, route55 funcRoute A.Function)) (route45 funcRoute A.Function)
-         _ -> return ()
+-- Descends into process or function specifications, but doesn't join them up.  Any other specifications are ignored
+buildProcessOrFunctionSpec :: (Monad mAlter, Monad mLabel) => A.Specification -> ASTModifier mAlter (A.Specification) structType ->
+  GraphMaker mLabel mAlter label structType ()
+buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args p)) route
+ = let procRoute = (route33 route A.Specification) in
+   addNewSubProcFunc m args (Left (p, route44 procRoute A.Proc)) (route34 procRoute A.Proc)
+buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args s)) route
+  = let funcRoute = (route33 route A.Specification) in
+    addNewSubProcFunc m args (Right (s, route55 funcRoute A.Function)) (route45 funcRoute A.Function)
+buildProcessOrFunctionSpec _ _ = return ()
 
-       outer' <- case outer of
-                   OPar {} -> getNextParEdgeId >>* flip OPar (n,n')
-                   _ -> return outer
-       nodes <- buildStructured f outer' str (route33 route A.Spec)
+-- All the various types of Structured (SEQ, PAR, ALT, IF, CASE, input-CASE, VALOF) deal with their nodes so differently
+-- that I have ended up having a different function for each of them, because there is so little commonality
+--
+-- They differ in many ways, one of the main ones being who has responsibility for adding the links.  In the (easy) case
+-- of SEQ, we always return (begin, end) nodes and let the caller draw in the links.  In the case of PAR, the tricky
+-- aspect of nested Specs and such means it's better to pass the outermost begin/end nodes for the PAR into the function
+-- and let each sub-function draw the links.
+
+buildStructuredAST :: (Monad mLabel, Monad mAlter) => A.Structured () -> ASTModifier mAlter (A.Structured ()) () ->
+  GraphMaker mLabel mAlter label () ()
+buildStructuredAST (A.Several _ ss) route
+  = do mapMR (route22 route A.Several) buildStructuredAST ss
+       return () 
+buildStructuredAST (A.Spec _ spec str) route
+  = do buildProcessOrFunctionSpec spec (route23 route A.Spec)
+       buildStructuredAST str (route33 route A.Spec)
+buildStructuredAST s _ = throwError $ "Unexpected element at top-level: " ++ show s
+
+buildStructuredEL :: (Monad mLabel, Monad mAlter) => A.Structured A.ExpressionList -> ASTModifier mAlter (A.Structured A.ExpressionList) structType ->
+  GraphMaker mLabel mAlter label structType (Node, Node)
+buildStructuredEL (A.Only m el) route = addNodeExpressionList m el (route22 route A.Only) >>* mkPair
+buildStructuredEL (A.ProcThen _ p str) route
+  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
+       (ss, se) <- buildStructuredEL str (route33 route A.ProcThen)
+       addEdge ESeq pe ss
+       return (ps, se)
+buildStructuredEL (A.Spec m spec str) route
+  = do (n,n') <- addSpecNodes spec route
+       buildProcessOrFunctionSpec spec (route23 route A.Spec)
+       (s,e) <- buildStructuredEL str (route33 route A.Spec)
+       addEdge ESeq n s
+       addEdge ESeq e n'
+       return (n, n')
+buildStructuredEL s _ = throwError $ "Unexpected element in function: " ++ show s
+
+
+buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
+  GraphMaker mLabel mAlter label structType (Node, Node)
+buildStructuredSeq (A.Several m ss) route
+  = do nodes <- mapMR (route22 route A.Several) buildStructuredSeq ss
+       joinPairs m nodes
+buildStructuredSeq (A.Spec m spec str) route
+  = do (n,n') <- addSpecNodes spec route
+       buildProcessOrFunctionSpec spec (route23 route A.Spec)
+       (s,e) <- buildStructuredSeq str (route33 route A.Spec)
+       addEdge ESeq n s
+       addEdge ESeq e n'
+       return (n, n')
+buildStructuredSeq (A.Rep m rep str) route
+  = let alter = AlterReplicator $ route23 route A.Rep in
+    do n <- addNode' (findMeta rep) labelReplicator rep alter
+       (s,e) <- buildStructuredSeq str (route33 route A.Rep)
+       addEdge ESeq n s
+       addEdge ESeq e n
+       return (n, n)
+buildStructuredSeq (A.Only _ p) route = buildProcess p (route22 route A.Only)
+buildStructuredSeq (A.ProcThen _ p str) route
+  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
+       (ss, se) <- buildStructuredSeq str (route33 route A.ProcThen)
+       addEdge ESeq pe ss
+       return (ps, se)
+
+buildStructuredPar :: (Monad mLabel, Monad mAlter) => Int -> (Node, Node) ->
+  A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
+  GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
+buildStructuredPar pId (nStart, nEnd) (A.Several m ss) route
+  = do nodes <- mapMRE (route22 route A.Several) (buildStructuredPar pId (nStart, nEnd)) ss
+       addParEdges pId (nStart, nEnd) $ either (const []) id nodes
+       return $ Left $ nonEmpty nodes
+buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
+  = do (n,n') <- addSpecNodes spec route
+       pId' <- getNextParEdgeId
+       buildProcessOrFunctionSpec spec (route23 route A.Spec)
+       nodes <- buildStructuredPar pId' (n, n') str (route33 route A.Spec)
        case nodes of
          Left False -> do addEdge ESeq n n'
          Left True -> return ()
          Right (s,e) -> do addEdge ESeq n s
                            addEdge ESeq e n'
        return $ Right (n,n')
-buildStructured f outer (A.Rep m rep str) route
-  = do let alter = AlterReplicator $ route23 route A.Rep
-       case outer of
-         OSeq -> do n <- addNode' (findMeta rep) labelReplicator rep alter
-                    nodes <- buildStructured f outer str (route33 route A.Rep)
-                    case nodes of
-                      Right (s,e) ->
-                        do addEdge ESeq n s
-                           addEdge ESeq e n
-                      Left False -> addEdge ESeq n n
-                      Left True -> throwError $ show m ++ " SEQ replicator had non-joined up body when building flow-graph"
-                    return $ Right (n,n)
-         OPar pId _ ->
-           do s <- addNode' (findMeta rep) labelReplicator rep alter
-              e <- addDummyNode m
-              pId <- getNextParEdgeId
-              nodes <- buildStructured f (OPar pId (s,e)) str (route33 route A.Rep)
-              case nodes of
-                Left False -> addEdge ESeq s e
-                Left True -> return ()
-                Right (s',e') -> do addEdge (EStartPar pId) s s'
-                                    addEdge (EEndPar pId) e' e
-              return $ Right (s,e)
-         OIf prev end ->
-           do repNode <- addNode' (findMeta rep) labelReplicator rep alter
-              addEdge ESeq prev repNode
-              nodes <- buildStructured f (OIf repNode end) str (route33 route A.Rep)
-              
-              case nodes of
-                Left False -> return $ Right (repNode, repNode)
-                Left True -> return $ Right (repNode, repNode)
-                Right (p,e) -> do addEdge ESeq p repNode
-                                  return $ Right (repNode, repNode)
-              
-              return $ Right (repNode, end)
-         _ -> throwError $ "Cannot have replicators inside context: " ++ show outer
+buildStructuredPar pId (nStart, nEnd) (A.Rep m rep str) route
+  = let alter = AlterReplicator $ route23 route A.Rep in
+    do s <- addNode' (findMeta rep) labelReplicator rep alter
+       e <- addDummyNode m
+       pId' <- getNextParEdgeId
+       nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Rep)
+       case nodes of
+         Left False -> addEdge ESeq s e
+         Left True -> return ()
+         Right (s',e') -> do addEdge (EStartPar pId') s s'
+                             addEdge (EEndPar pId') e' e
+       return $ Right (s,e)
+buildStructuredPar _ _ (A.Only _ p) route = buildProcess p (route22 route A.Only) >>* Right
+buildStructuredPar pId (nStart, nEnd) (A.ProcThen m p str) route
+  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
+       n <- addDummyNode m
+       pId' <- getNextParEdgeId
+       nodes <- buildStructuredPar pId' (pe, n) str (route33 route A.ProcThen)
+       case nodes of
+         Left False -> return $ Right (ps, pe)
+         Left True -> return $ Right (ps, n)
+         Right (s,e) -> do addEdge ESeq pe s
+                           return $ Right (ps, e)
 
-buildStructured f outer (A.Only _ o) route = f outer (route22 route A.Only) o >>* Right
-buildStructured _ _ s _ = return $ Left False
+buildStructuredCase :: (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Option -> ASTModifier mAlter (A.Structured A.Option) structType ->
+  GraphMaker mLabel mAlter label structType ()
+buildStructuredCase (nStart, nEnd) (A.Several _ ss) route
+  = do mapMR (route22 route A.Several) (buildStructuredCase (nStart, nEnd)) ss
+       return ()
+buildStructuredCase (nStart, nEnd) (A.ProcThen _ p str) route
+  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
+       addEdge ESeq nStart ps
+       buildStructuredCase (pe, nEnd) str (route33 route A.ProcThen)
+buildStructuredCase (nStart, nEnd) (A.Only _ o) route
+  = buildOnlyOption (nStart, nEnd) (route22 route A.Only) o
+buildStructuredCase (nStart, nEnd) (A.Spec _ spec str) route
+  = do (n, n') <- addSpecNodes spec route
+       addEdge ESeq nStart n
+       addEdge ESeq n' nEnd
+       buildStructuredCase (n, n') str (route33 route A.Spec)
+buildStructuredCase _ s _ = throwError $ "Unexpected element in CASE statement: " ++ show s
 
-buildOnlyChoice :: (Monad mLabel, Monad mAlter) => OuterType -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType (Node, Node)
-buildOnlyChoice outer route (A.Choice m exp p)
+buildStructuredIf :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType ->
+  GraphMaker mLabel mAlter label structType Node
+buildStructuredIf (prev, end) (A.Several _ ss) route
+  = foldM foldIf prev (zip [0..] ss)
+      where
+        foldIf :: Node -> (Int,A.Structured A.Choice) -> GraphMaker mLabel mAlter label structType Node
+        foldIf prev (ind, s) = buildStructuredIf (prev, end) s $ route22 route A.Several @-> (routeList ind)
+buildStructuredIf (prev, end) (A.ProcThen _ p str) route
+  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
+       addEdge ESeq prev ps
+       buildStructuredIf (pe, end) str (route33 route A.ProcThen)
+buildStructuredIf (prev, end) (A.Only _ c) route
+  = buildOnlyChoice (prev, end) (route22 route A.Only) c
+buildStructuredIf (prev, end) (A.Spec _ spec str) route
+       -- Specs are tricky in IFs, because they can scope out either
+       -- at the end of a choice-block, or when moving on to the next
+       -- choice.  But these nodes are not the same because they have
+       -- different connections leading out of them
+  = do nIn <- addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
+       nOutBlock <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+       nOutNext <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+       
+       last <- buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
+       
+       addEdge ESeq prev nIn
+       when (last /= prev) $ -- Only add the edge if there was a block it's connected to!
+         addEdge ESeq nOutBlock end
+       addEdge ESeq last nOutNext
+       return nOutNext
+buildStructuredIf (prev, end) (A.Rep _ rep str) route
+  = do repNode <- addNode' (findMeta rep) labelReplicator rep (AlterReplicator $ route23 route A.Rep)
+       lastNode <- buildStructuredIf (repNode, end) str (route33 route A.Rep)
+       addEdge ESeq prev repNode
+       addEdge ESeq lastNode repNode
+       return repNode
+
+buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType Node
+buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
   = do nexp <- addNodeExpression (findMeta exp) exp $ route23 route A.Choice
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
        addEdge ESeq nexp nbodys
-       case outer of
-         OIf cPrev cEnd ->
-           do addEdge ESeq cPrev nexp
-              addEdge ESeq nbodye cEnd
-         _ -> throwError "Choice found outside IF statement"
-       return (nexp,nbodye)
+       addEdge ESeq cPrev nexp
+       addEdge ESeq nbodye cEnd
+       return nexp
 
-buildOnlyOption :: (Monad mLabel, Monad mAlter) => OuterType -> ASTModifier mAlter A.Option structType -> A.Option -> GraphMaker mLabel mAlter label structType (Node, Node)
-buildOnlyOption outer route opt
+buildOnlyOption :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Option structType -> A.Option -> GraphMaker mLabel mAlter label structType ()
+buildOnlyOption (cStart, cEnd) route opt
   = do (s,e) <-
          case opt of
            (A.Option m es p) -> do
@@ -402,12 +465,9 @@ buildOnlyOption outer route opt
              addEdge ESeq nexpe nbodys
              return (nexps,nbodye)
            (A.Else _ p) -> buildProcess p $ route22 route A.Else
-       case outer of
-         OCase (cStart, cEnd) ->
-           do addEdge ESeq cStart s
-              addEdge ESeq e cEnd
-         _ -> throwError "Option found outside CASE statement"
-       return (s,e)
+       addEdge ESeq cStart s
+       addEdge ESeq e cEnd
+       return ()
 
 addNewSubProcFunc :: (Monad mLabel, Monad mAlter) => 
   Meta -> [A.Formal] -> Either (A.Process, ASTModifier mAlter A.Process structType) (A.Structured A.ExpressionList, ASTModifier mAlter (A.Structured A.ExpressionList) structType) ->
@@ -417,28 +477,17 @@ addNewSubProcFunc m args body argsRoute
        denoteRootNode root
        bodyNode <- case body of
          Left (p,route) -> buildProcess p route >>* fst
-         Right (s,route) ->
-           do s <- buildStructured (buildEL m) ONone s route
-              case s of
-                Left {} -> throwError $ show m ++ " Expected VALOF or specification at top-level of function when building flow-graph"
-                Right (n,_) -> return n            
+         Right (s,route) -> buildStructuredEL s route >>* fst
        addEdge ESeq root bodyNode
-  where
-        buildEL m _ r el = addNodeExpressionList m el r >>* mkPair
 
 buildProcess :: (Monad mLabel, Monad mAlter) => A.Process -> ASTModifier mAlter A.Process structType -> GraphMaker mLabel mAlter label structType (Node, Node)
 buildProcess (A.Seq m s) route
-  = do s <- buildStructuredP OSeq s (route22 route A.Seq)
-       case s of
-         Left True -> throwError $ show m ++ " SEQ had non-joined up body when building flow-graph"
-         Left False -> do n <- addDummyNode m
-                          return (n, n)
-         Right ns -> return ns
+  = buildStructuredSeq s (route22 route A.Seq)
 buildProcess (A.Par m _ s) route
   = do nStart <- addDummyNode m
        nEnd <- addDummyNode m
        pId <- getNextParEdgeId
-       nodes <- buildStructuredP (OPar pId (nStart, nEnd)) s (route33 route A.Par)
+       nodes <- buildStructuredPar pId (nStart, nEnd) s (route33 route A.Par)
        case nodes of
          Left False -> do addEdge ESeq nStart nEnd -- no processes in PAR, join start and end with simple ESeq link
          Left True -> return () -- already wired up
@@ -455,13 +504,14 @@ buildProcess (A.While _ e p) route
 buildProcess (A.Case m e s) route
   = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
        nEnd <- addDummyNode m
-       buildStructuredO (OCase (nStart,nEnd)) s (route33 route A.Case)
+       buildStructuredCase (nStart,nEnd) s (route33 route A.Case)
        return (nStart, nEnd)
 buildProcess (A.If m s) route
   = do nStart <- addDummyNode m
        nEnd <- addDummyNode m
-       buildStructuredC (OIf nStart nEnd) s (route22 route A.If)
+       buildStructuredIf (nStart, nEnd) s (route22 route A.If)
        return (nStart, nEnd)
+-- TODO Alt
 buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route) >>* mkPair
 
 
@@ -471,27 +521,25 @@ buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route)
 -- the parameters, only in the result.  The mLabel monad is the monad in
 -- which the labelling must be done; hence the flow-graph is returned inside
 -- the label monad.
-buildFlowGraph :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter, Data structType) =>
+buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   GraphLabelFuncs mLabel label ->
-  A.Structured structType ->
-  mLabel (Either String (FlowGraph' mAlter label structType, [Node]))
+  A.AST  ->
+  mLabel (Either String (FlowGraph' mAlter label (), [Node]))
 buildFlowGraph funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructured (\_ _ _ -> throwError "Did not expect outer-most node to exist in AST") ONone s id
+  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s id
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right (Left {}),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, roots)
-                  (Right (Right (root,_)),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
+                  (Right _,(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, roots)
 
 buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   GraphLabelFuncs mLabel label ->
   A.Structured A.Process ->
   mLabel (Either String (FlowGraph' mAlter label A.Process, [Node]))
 buildFlowGraphP funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructuredP ONone s id
+  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s id
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right (Left {}),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, roots)
-                  (Right (Right (root,_)),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
+                  (Right (root,_),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
 
     
 decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
