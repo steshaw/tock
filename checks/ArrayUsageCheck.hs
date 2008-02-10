@@ -32,6 +32,7 @@ import CompState
 import Errors
 import Metadata
 import Omega
+import OrdAST()
 import ShowCode
 import Types
 import UsageCheckUtils
@@ -161,8 +162,8 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     -- much that can be done about that
     showFlattenedExp :: FlattenedExp -> m String
     showFlattenedExp (Const n) = return $ show n
-    showFlattenedExp (Scale n ((A.Variable _ vn),vi))
-      = do vn' <- getRealName vn >>* (++ replicate vi '\'')
+    showFlattenedExp (Scale n (e,vi))
+      = do vn' <- showCode e >>* (++ replicate vi '\'')
            return $ showScale vn' n
     showFlattenedExp (Modulo n top bottom)
       = do top' <- showFlattenedExpSet top
@@ -189,7 +190,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
 data FlattenedExp
   = Const Integer 
     -- ^ A constant
-  | Scale Integer (A.Variable, Int)
+  | Scale Integer (A.Expression, Int)
     -- ^ A variable and coefficient.  The first argument is the coefficient
     -- The second part of the pair is for sub-indexing (or "priming") variables.
     -- For example, replication is done by checking the replicated variable "i"
@@ -212,7 +213,7 @@ instance Ord FlattenedExp where
   compare (Const _) (Const _) = EQ
   compare (Const _) _ = LT
   compare _ (Const _) = GT
-  compare (Scale _ (lv,li)) (Scale _ (rv,ri)) = combineCompare [customVarCompare lv rv, compare li ri]
+  compare (Scale _ (lv,li)) (Scale _ (rv,ri)) = combineCompare [compare lv rv, compare li ri]
   compare (Scale {}) _ = LT
   compare _ (Scale {}) = GT
   compare (Modulo _ ltop lbottom) (Modulo _ rtop rbottom)
@@ -289,9 +290,9 @@ makeExpSet = foldM makeExpSet' Set.empty
     addConst x (Const n) s = Just $ Set.insert (Const (n + x)) s
     addConst _ _ _ = Nothing
 
-    addScale :: Integer -> (A.Variable,Int) -> FlattenedExp -> Set.Set FlattenedExp -> Maybe (Set.Set FlattenedExp)
+    addScale :: Integer -> (A.Expression,Int) -> FlattenedExp -> Set.Set FlattenedExp -> Maybe (Set.Set FlattenedExp)
     addScale x (lv,li) (Scale n (rv,ri)) s
-      | (EQ == customVarCompare lv rv) && (li == ri) = Just $ Set.insert (Scale (x + n) (rv,ri)) s
+      | (EQ == compare lv rv) && (li == ri) = Just $ Set.insert (Scale (x + n) (rv,ri)) s
       | otherwise = Nothing
     addScale _ _ _ _ = Nothing
 
@@ -376,7 +377,7 @@ makeEquations otherInfo accesses bound
     -- | Sets the sub-index of the specified variable throughout the expression
     setIndexVar' :: A.Variable -> Int -> FlattenedExp -> FlattenedExp
     setIndexVar' tv ti s@(Scale n (v,_))
-      | EQ == customVarCompare tv v = Scale n (v,ti)
+      | EQ == compare (A.ExprVariable emptyMeta tv) v = Scale n (v,ti)
       | otherwise = s
     setIndexVar' tv ti (Modulo n top bottom) = Modulo n top' bottom'
       where
@@ -422,15 +423,13 @@ makeEquations otherInfo accesses bound
       (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
       StateT (VarMap) (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
     addPossibleRepBound (item,eq,ineq) (var,index,lower,upper)
-      = do vindex <- varIndex (Scale 1 vi)
+      = do vindex <- varIndex (Scale 1 $ (A.ExprVariable emptyMeta var, index))
            let boundEqs = if elemPresent vindex item || any (elemPresent vindex) eq || any (elemPresent vindex) ineq
                             then [add (vindex,1) $ amap negate lower,add (vindex,-1) upper]
                             else []
            return (item,eq,ineq ++ boundEqs)
       where
         elemPresent index item = arrayLookupWithDefault 0 item index /= 0
-      
-        vi = (var,index)
       
         -- | A function to add an amount to the specified index, without the possibility of
         -- screwing up the array by adding a number that is beyond its current size (in that
@@ -478,7 +477,7 @@ makeEquations otherInfo accesses bound
     mirrorFlaggedVars :: [FlattenedExp] -> (A.Replicator,Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
     mirrorFlaggedVars exp (_,False) = return exp
     mirrorFlaggedVars exp (A.For m varName from for, True)
-      = do varIndexes <- lift $ seqPair (varIndex (Scale 1 (var,0)), varIndex (Scale 1 (var,1)))
+      = do varIndexes <- lift $ seqPair (varIndex (Scale 1 (A.ExprVariable emptyMeta var,0)), varIndex (Scale 1 (A.ExprVariable emptyMeta var,1)))
            modify (varIndexes :)
            return $ setIndexVar var 1 exp
       where
@@ -488,7 +487,6 @@ makeEquations otherInfo accesses bound
   
 flatten :: A.Expression -> Either String [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
-flatten (A.ExprVariable _ v) = return [Scale 1 (v,0)]
 flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
                                 | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
                                 | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
@@ -512,9 +510,11 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
         mult :: FlattenedExp -> FlattenedExp -> Either String FlattenedExp
         mult (Const x) e = scale x e
         mult e (Const x) = scale x e
-        mult e e'
-          = throwError $ "Cannot deal with non-linear equations; during flattening found: "
-              ++ show e ++ " * " ++ show e' -- TODO format this better, but later on change behaviour to subst new variable
+        mult e e' = return $ (Scale 1 (A.Dyadic emptyMeta A.Mul (backToEq e) (backToEq e'), 0))
+    
+        backToEq :: FlattenedExp -> A.Expression
+        backToEq (Scale n (e,0)) = (if n == 1 then id else A.Dyadic emptyMeta A.Mul (makeConstant emptyMeta (fromInteger n))) e
+        -- TODO the other cases
     
     -- | Scales a flattened expression by the given integer scaling.
     scale :: Integer -> FlattenedExp -> Either String FlattenedExp
@@ -530,7 +530,7 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
     -- | Combines (adds) two flattened expressions.
     combine :: [FlattenedExp] -> [FlattenedExp] -> [FlattenedExp]
     combine = (++)
-flatten other = throwError ("Unhandleable item found in expression: " ++ show other)
+flatten e = return [Scale 1 (e,0)]
 
 -- | The "square" refers to making all equations the length of the longest
 -- one, and the pair refers to pairing each in a list of array accesses (e.g. 
@@ -610,12 +610,12 @@ getSingleItem err _ = lift $ throwError err
 -- | Finds the index associated with a particular variable; either by finding an existing index
 -- or allocating a new one.
 varIndex :: FlattenedExp -> StateT (VarMap) (Either String) Int
-varIndex (Scale _ (var@(A.Variable _ (A.Name _ _ varName)),vi))
+varIndex (Scale _ (e,vi))
       = do st <- get
-           let (st',ind) = case Map.lookup (Scale 1 (var,vi)) st of
+           let (st',ind) = case Map.lookup (Scale 1 (e,vi)) st of
                              Just val -> (st,val)
                              Nothing -> let newId = (1 + (maximum $ 0 : Map.elems st)) in
-                                        (Map.insert (Scale 1 (var,vi)) newId st, newId)
+                                        (Map.insert (Scale 1 (e,vi)) newId st, newId)
            put st'
            return ind
 varIndex mod@(Modulo _ top bottom)

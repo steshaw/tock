@@ -471,35 +471,35 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     joinMapping vms (eq,ineq) = map (\vm -> (vm,eq,ineq)) vms
   
     i_mapping :: VarMap
-    i_mapping = Map.singleton (Scale 1 $ (variable "i",0)) 1
+    i_mapping = Map.singleton (Scale 1 $ (exprVariable "i",0)) 1
     ij_mapping :: VarMap
-    ij_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2)]
+    ij_mapping = Map.fromList [(Scale 1 $ (exprVariable "i",0),1),(Scale 1 $ (exprVariable "j",0),2)]
     ijk_mapping :: VarMap
-    ijk_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),(Scale 1 $ (variable "k",0),3)]
+    ijk_mapping = Map.fromList [(Scale 1 $ (exprVariable "i",0),1),(Scale 1 $ (exprVariable "j",0),2),(Scale 1 $ (exprVariable "k",0),3)]
     i_mod_mapping :: Integer -> VarMap
-    i_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),2)]
+    i_mod_mapping n = Map.fromList [(Scale 1 $ (exprVariable "i",0),1),(Modulo 1 (Set.singleton $ Scale 1 $ (exprVariable "i",0)) (Set.singleton $ Const n),2)]
     i_mod_j_mapping :: VarMap
-    i_mod_j_mapping = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
-      (Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Scale 1 $ (variable "j",0)),3)]
-    _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ (variable "i",0),1),(Scale 1 $ (variable "j",0),2),
-      (Modulo 1 (Set.fromList [(Scale 3 $ (variable "i",0)),(Scale (-2) $ (variable "j",0))]) (Set.singleton $ Const n),3)]
+    i_mod_j_mapping = Map.fromList [(Scale 1 $ (exprVariable "i",0),1),(Scale 1 $ (exprVariable "j",0),2),
+      (Modulo 1 (Set.singleton $ Scale 1 $ (exprVariable "i",0)) (Set.singleton $ Scale 1 $ (exprVariable "j",0)),3)]
+    _3i_2j_mod_mapping n = Map.fromList [(Scale 1 $ (exprVariable "i",0),1),(Scale 1 $ (exprVariable "j",0),2),
+      (Modulo 1 (Set.fromList [(Scale 3 $ (exprVariable "i",0)),(Scale (-2) $ (exprVariable "j",0))]) (Set.singleton $ Const n),3)]
     -- i REM m, i + 1 REM n
-    i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ (variable "i",0),1)
-      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const m),2)
-      ,(Modulo 1 (Set.fromList [Scale 1 $ (variable "i",0), Const 1]) (Set.singleton $ Const n),3)
+    i_ip1_mod_mapping m n = Map.fromList [(Scale 1 $ (exprVariable "i",0),1)
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (exprVariable "i",0)) (Set.singleton $ Const m),2)
+      ,(Modulo 1 (Set.fromList [Scale 1 $ (exprVariable "i",0), Const 1]) (Set.singleton $ Const n),3)
      ]
 
     rep_i_mapping :: VarMap
-    rep_i_mapping = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)]
+    rep_i_mapping = Map.fromList [((Scale 1 (exprVariable "i",0)),1), ((Scale 1 (exprVariable "i",1)),2)]
     rep_i_mapping' :: VarMap
-    rep_i_mapping' = Map.fromList [((Scale 1 (variable "i",0)),2), ((Scale 1 (variable "i",1)),1)]
+    rep_i_mapping' = Map.fromList [((Scale 1 (exprVariable "i",0)),2), ((Scale 1 (exprVariable "i",1)),1)]
 
     both_rep_i = joinMapping [rep_i_mapping, rep_i_mapping']
     
     rep_i_mod_mapping :: Integer -> VarMap
-    rep_i_mod_mapping n = Map.fromList [((Scale 1 (variable "i",0)),1), ((Scale 1 (variable "i",1)),2)
-      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",0)) (Set.singleton $ Const n),3)
-      ,(Modulo 1 (Set.singleton $ Scale 1 $ (variable "i",1)) (Set.singleton $ Const n),4)]
+    rep_i_mod_mapping n = Map.fromList [((Scale 1 (exprVariable "i",0)),1), ((Scale 1 (exprVariable "i",1)),2)
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (exprVariable "i",0)) (Set.singleton $ Const n),3)
+      ,(Modulo 1 (Set.singleton $ Scale 1 $ (exprVariable "i",1)) (Set.singleton $ Const n),4)]
 
     -- Helper functions for i REM 2 vs (i + 1) REM 4.  Each one is a pair of equalities, inequalities
     rr_i_zero = ([i === con 0], leq [con 0,con 0,con 7])
@@ -554,9 +554,12 @@ genNewItem specialAllowed
            = do (exp, fexp, nextId) <- frequency' $
                   [(80, do m <- get
                            let nextId = 1 + maximum (0 : Map.elems m)
-                           return (exprVariable $ "x" ++ show nextId, Scale 1 (variable $ "x" ++ show nextId,0), nextId))
--- TODO enable this once multiplied variables are supported
---                  ,(20, return (A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId))
+                           let exp = exprVariable $ "x" ++ show nextId
+                           return (exp, Scale 1 (exp,0), nextId))
+                  ,(20, do m <- get
+                           let nextId = 1 + maximum (0 : Map.elems m)
+                           let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
+                           return (exp,Scale 1 (exp, 0), nextId))
                   ] ++ if not specialAllowed then []
                          else [(10, do ((eT,iT),fT) <- genNewItem False -- TODO turn this into genNewExp, maybe others too.  But ensure termination!
                                        ((eB,iB),fB) <- genNewItem False

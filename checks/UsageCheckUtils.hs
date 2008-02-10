@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (customVarCompare, Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
+module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Data.Generics hiding (GT)
 import Data.List
@@ -31,13 +31,6 @@ import OrdAST()
 import ShowCode
 
 newtype Var = Var A.Variable deriving (Data, Show, Typeable)
-
-
-customVarCompare :: A.Variable -> A.Variable -> Ordering
-customVarCompare (A.Variable _ (A.Name _ _ lname)) (A.Variable _ (A.Name _ _ rname)) = compare lname rname
-customVarCompare (A.Variable {}) _ = LT
--- TODO the rest (will need an ordering over Expression, yikes!)
---customVarCompare _ _ = GT
 
 instance Eq Var where
   a == b = EQ == compare a b
