@@ -526,10 +526,9 @@ testMakeEquation (problems, exprs, upperBound) =
 
 -- TODO add background knowledge
 -- TODO add replicators
--- TODO add modulo and divide
 newtype MakeEquationInput = MEI ([(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
 
--- Show isn't very useful on QuickCheck failure and just spams the screen:
+-- Show isn't very useful on QuickCheck failure in this case and just spams the screen:
 instance Show MakeEquationInput where
   show = const ""
 
@@ -548,7 +547,6 @@ frequency' items = do dist <- lift $ choose (0, (sum $ map fst items) - 1)
 type GenEqItems = (A.Expression, [(CoeffIndex, Integer)])
 
 -- Generates a new variable, or multiplied variable pair
--- TODO potentially scale variable
 genNewItem :: Bool -> StateT VarMap Gen (GenEqItems, FlattenedExp)
 genNewItem specialAllowed
            = do (exp, fexp, nextId) <- frequency' $
