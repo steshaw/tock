@@ -559,19 +559,23 @@ genNewItem specialAllowed
                            let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
                            return (exp,Scale 1 (exp, 0), nextId))
                   ] ++ if not specialAllowed then []
-                         else [(10, do ((eT,iT),fT) <- genNewItem False -- TODO turn this into genNewExp, maybe others too.  But ensure termination!
-                                       ((eB,iB),fB) <- genNewItem False
+                         else [(10, do ((eT,iT),fT) <- genNewExp False
+                                       ((eB,iB),fB) <- genNewExp False
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
-                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (Set.singleton fT) (Set.singleton fB), nextId)
-                              ),(10,do ((eT,iT),fT) <- genNewItem False
+                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (errorOrRight $ makeExpSet fT) (errorOrRight $ makeExpSet fB), nextId)
+                              ),(10,do ((eT,iT),fT) <- genNewExp False
                                        ((eB,iB),fB) <- genConst
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
-                                       return (A.Dyadic emptyMeta A.Div eT eB, Divide 1 (Set.singleton fT) (Set.singleton fB), nextId)
+                                       return (A.Dyadic emptyMeta A.Div eT eB, Divide 1 (errorOrRight $ makeExpSet fT) (Set.singleton fB), nextId)
                               )]
                 modify (Map.insert fexp nextId)
                 return ((exp, [(nextId,1)]), fexp)
+
+errorOrRight :: Show a => Either a b -> b
+errorOrRight (Left x) = error $ "Not Right: Left " ++ show x
+errorOrRight (Right x) = x
 
 genConst :: StateT VarMap Gen (GenEqItems, FlattenedExp)
 genConst = do val <- lift $ choose (1, 10)
@@ -607,7 +611,7 @@ genNewExp specialAllowed
 generateEquationInput :: Gen ([(((A.Expression,[ModuloCase]), (A.Expression,[ModuloCase])),VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
 generateEquationInput
  = do ((items, upper),vm) <- flip runStateT Map.empty
-         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewItem False >>* fst)]
+         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewExp False >>* fst)]
              itemCount <- lift $ choose (1,5)
              items <- replicateM itemCount (genNewExp True)
              return (items, upper)
@@ -711,7 +715,7 @@ generateEquationInput
     lookupF f@(Divide a t b) vm = [(fromJust $ Map.lookup f vm, 1)]
 
 qcTestMakeEquations :: [LabelledQuickCheckTest]
-qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (20,100,200,400) prop)]
+qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (20,100,400,1000) prop)]
   where
     prop :: MakeEquationInput -> QCProp
     prop (MEI mei) = testMakeEquation mei
