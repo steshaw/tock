@@ -61,7 +61,7 @@ dieIO :: (Monad m, MonadIO m) => ErrorReport -> m a
 dieIO (Just m@(Meta (Just fn) line column),s) = liftIO $
        -- If we can't read the file successfully, still print our original error
        -- rather than a "can't read file" error:
-    do fileContents <- catch (readFile fn) (\_ -> printError s)
+    do fileContents <- catch (readFile fn) (\_ -> printError (show m ++ s))
        let startingLine = max 1 (line - contextLines)
        let lines = map replaceTabs $ getLines fileContents (startingLine) ((2 * contextLines) + 1)
        putStrLn $ fn ++ ":"
