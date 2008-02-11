@@ -143,7 +143,7 @@ showCodeExSet (NormalSet s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
-checkInitVar :: forall m. (Monad m, Die m, CSMR m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
+checkInitVar :: forall m. (Monad m, Die m, Warn m, CSMR m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
 checkInitVar m graph startNode
   = do startLabel <- checkJust (Just m, "Could not find starting node in the control-flow graph")
          (lab graph startNode) >>* writeNode
@@ -194,7 +194,7 @@ checkInitVar m graph startNode
         -- The read-from set should be a subset of the written-to set:
         if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
           do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
-             dieP (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
+             addWarning (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
 
 checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
