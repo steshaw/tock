@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), ModuloCase(..), onlyConst, makeEquations, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -707,31 +707,32 @@ makeEquation l t summedItems
                modIndex <- varIndex mod
                case onlyConst (Set.toList bottom) of
                  Just bottomConst -> 
-                    -- Actually adds n*(x + my)
-                   let add_x_plus_my = zipMap plus (Map.map (*n) top'') . zipMap plus (Map.fromList [(modIndex,n * bottomConst)]) in
+                   let add_x_plus_my = zipMap plus top'' . zipMap plus (Map.fromList [(modIndex, abs bottomConst)]) in
+                    -- Adds n*(x + my)
+                   let add_n_x_plus_my = zipMap plus (Map.map (*n) top'') . zipMap plus (Map.fromList [(modIndex, n * abs bottomConst)]) in
                    return $
                      -- The zero option (x = 0, x REM y = 0):
                    ( map (transformQuad (++ [XZero]) id (++ [top'']) id) m)
                    ++
                      -- The top-is-positive option:
-                   ( map (transformQuad (++ [XPos]) add_x_plus_my id (++
+                   ( map (transformQuad (++ [XPos]) add_n_x_plus_my id (++
                       -- x >= 1
                       [zipMap plus (Map.fromList [(0,-1)]) top''
                       -- m <= 0
                       ,Map.fromList [(modIndex,-1)]
                       -- x + my + 1 - |y| <= 0
-                      ,Map.map negate $ add_x_plus_my $ Map.fromList [(0,1 - bottomConst)]
+                      ,Map.map negate $ add_x_plus_my $ Map.fromList [(0,1 - abs bottomConst)]
                       -- x + my >= 0
                       ,add_x_plus_my $ Map.empty])
                      ) m) ++
                     -- The top-is-negative option:
-                   ( map (transformQuad (++ [XNeg]) add_x_plus_my id (++
+                   ( map (transformQuad (++ [XNeg]) add_n_x_plus_my id (++
                       -- x <= -1
                       [add' (0,-1) $ Map.map negate top''
                       -- m >= 0
                       ,Map.fromList [(modIndex,1)]
                       -- x + my - 1 + |y| >= 0
-                      ,add_x_plus_my $ Map.fromList [(0,bottomConst - 1)]
+                      ,add_x_plus_my $ Map.fromList [(0,abs bottomConst - 1)]
                       -- x + my <= 0
                       ,Map.map negate $ add_x_plus_my Map.empty])
                      ) m)
