@@ -92,10 +92,10 @@ checkPlainVarUsage (m, p) = check p
     checkCREW :: Vars -> [Vars] -> m ()
     checkCREW item rest
       = do when (not $ Set.null writtenTwice) $
-             diePC (findMeta (head $ Set.elems writtenTwice)) $ formatCode
+             diePC m $ formatCode
                "The following variables are written-to in at least two places inside a PAR: %" writtenTwice
            when (not $ Set.null writtenAndRead) $
-             diePC (findMeta (head $ Set.elems writtenAndRead)) $ formatCode
+             diePC m $ formatCode
                "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
       where
         writtenTwice = filterPlain $ writtenVars item `Set.intersection` writtenVars otherVars
