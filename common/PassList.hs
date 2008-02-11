@@ -34,11 +34,9 @@ import Unnest
 commonPasses :: CompState -> [(String, Pass)]
 commonPasses opts =
   [ ("Simplify types", simplifyTypes)
-  , ("Simplify expressions", simplifyExprs)
-  ]
-  ++ (if csUsageChecking opts then [("Usage checks", runPassR usageCheckPass)] else []) ++
-  [    
-    ("Simplify processes", simplifyProcs)
+  ] ++ (if csUsageChecking opts then [("Usage checks", runPassR usageCheckPass)] else []) ++
+  [ ("Simplify expressions", simplifyExprs)
+  , ("Simplify processes", simplifyProcs)
   , ("Flatten nested declarations", unnest)
   , ("Simplify communications", simplifyComms)
   ]
