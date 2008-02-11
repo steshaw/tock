@@ -549,25 +549,41 @@ frequency' items = do dist <- lift $ choose (0, (sum $ map fst items) - 1)
 -- | The item corresponding to the 
 type GenEqItems = (A.Expression, [(CoeffIndex, Integer)])
 
+-- exprDepth is only really used to stop the possible infinite recursion in the multiplied variable * expression.
+-- All other recursions are barred by never recursing with specialAllowed = True (outside of the above item)
+
 -- Generates a new variable, or multiplied variable pair
-genNewItem :: Bool -> StateT VarMap Gen (GenEqItems, FlattenedExp)
-genNewItem specialAllowed
+genNewItem :: Int -> Bool -> StateT VarMap Gen (GenEqItems, FlattenedExp)
+genNewItem exprDepth specialAllowed
            = do (exp, fexp, nextId) <- frequency' $
                   [(80, do m <- get
                            let nextId = 1 + maximum (0 : Map.elems m)
                            let exp = exprVariable $ "x" ++ show nextId
                            return (exp, Scale 1 (exp,0), nextId))
-                  ,(20, do m <- get
-                           let nextId = 1 + maximum (0 : Map.elems m)
-                           let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
-                           return (exp,Scale 1 (exp, 0), nextId))
+                  ,(20, if exprDepth <= 1
+                          then
+                            do m <- get
+                               let nextId = 1 + maximum (0 : Map.elems m)
+                               let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
+                               return (exp,Scale 1 (exp, 0), nextId)
+                          else
+                            do m <- get
+                               ((expToMult,_),_) <- genNewItem (exprDepth - 1) True
+                               -- We deliberately overwrite the state here, because we don't need/want the items
+                               -- produced in expToMult to be in the variable map (the real code won't bother
+                               -- inserting them, only the multiplied item
+                               put m
+                               let nextId = 1 + maximum (0 : Map.elems m)
+                               let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) expToMult
+                               return (exp, Scale 1 (exp, 0), nextId)
+                   )
                   ] ++ if not specialAllowed then []
-                         else [(10, do ((eT,iT),fT) <- genNewExp False
-                                       ((eB,iB),fB) <- genNewExp False
+                         else [(10, do ((eT,iT),fT) <- genNewExp (exprDepth - 1) False True
+                                       ((eB,iB),fB) <- genNewExp (exprDepth - 1) False True
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
                                        return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (errorOrRight $ makeExpSet fT) (errorOrRight $ makeExpSet fB), nextId)
-                              ),(10,do ((eT,iT),fT) <- genNewExp False
+                              ),(10,do ((eT,iT),fT) <- genNewExp (exprDepth - 1) False True
                                        ((eB,iB),fB) <- genConst
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
@@ -585,10 +601,11 @@ genConst = do val <- lift $ choose (1, 10)
               let exp = intLiteral val
               return ((exp, [(0,val)]), Const val)
 
-genNewExp :: Bool -> StateT VarMap Gen (GenEqItems, [FlattenedExp])
-genNewExp specialAllowed
+genNewExp :: Int -> Bool -> Bool -> StateT VarMap Gen (GenEqItems, [FlattenedExp])
+genNewExp exprDepth specialAllowed constAllowed
           = do num <- lift $ oneof $ map return [1,1,1,1,2,2,3] -- bias towards low numbers of items
-               items <- replicateM num $ frequency' [(20, maybeMult genConst), (80, maybeMult $ genNewItem specialAllowed)]
+               items <- replicateM num $ frequency' [(if constAllowed then 20 else 0, maybeMult genConst),
+                                                     (80, maybeMult $ genNewItem (exprDepth - 1) specialAllowed)]
                return $ fromJust $ foldl join Nothing items
   where
     maybeMult :: StateT VarMap Gen (GenEqItems, FlattenedExp) -> StateT VarMap Gen (GenEqItems, FlattenedExp)
@@ -614,9 +631,9 @@ genNewExp specialAllowed
 generateEquationInput :: Gen ([(((A.Expression,[ModuloCase]), (A.Expression,[ModuloCase])),VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
 generateEquationInput
  = do ((items, upper),vm) <- flip runStateT Map.empty
-         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewExp False >>* fst)]
+         (do upper <- frequency' [(80, genConst >>* fst), (20, genNewExp 4 False True >>* fst)]
              itemCount <- lift $ choose (1,5)
-             items <- replicateM itemCount (genNewExp True)
+             items <- replicateM itemCount (genNewExp 2 True True)
              return (items, upper)
          )
       return (makeResults vm items upper, ParItems $ map (\((x,_),_) -> SeqItems [[x]]) items, fst upper)
