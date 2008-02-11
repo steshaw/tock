@@ -838,9 +838,9 @@ testIndexes = TestList
 -- from one to the indexes of the next.  If any of the keys in the map don't match
 -- (i.e. if (keys m0 /= keys m1)) Nothing will be returned
 
-generateMapping :: TestMonad m r => VarMap -> VarMap -> m [(CoeffIndex,CoeffIndex)]
-generateMapping m0 m1
-  = do testEqual "Keys in variable mapping" (Map.keys m0) (Map.keys m1)
+generateMapping :: TestMonad m r => String -> VarMap -> VarMap -> m [(CoeffIndex,CoeffIndex)]
+generateMapping msg m0 m1
+  = do testEqual ("Keys in variable mapping " ++ msg) (Map.keys m0) (Map.keys m1)
        return $ Map.elems $ zipMap mergeMaybe m0 m1
 
 -- | Given a forward mapping list, translates equations across
@@ -915,7 +915,7 @@ assertEquivalentProblems title exp act
                        m ( label, ((EqualityProblem, InequalityProblem), (EqualityProblem, InequalityProblem)))
     transform s (el, vmexp, (e_eq, e_ineq)) (al, vmact, (a_eq, a_ineq))
       = do testEqualCustomShow s "Labels did not match" el al
-           mapping <- generateMapping (vmexp) (vmact)
+           mapping <- generateMapping (showListCustom showOccam $ sort . nub $ map (fst . fst . fst3) exp ++ map (fst . snd . fst3) exp) (vmexp) (vmact)
            translatedExp <- translateEquations mapping (resize e_eq, resize e_ineq)
            return (el, (sortP translatedExp, sortP (resize a_eq, resize a_ineq)))
       where
