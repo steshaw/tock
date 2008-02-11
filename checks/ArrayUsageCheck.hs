@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, showFlattenedExp, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -135,7 +135,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
 
         showItem :: (CoeffIndex, Integer) -> m String
         showItem (n, a) = case find ((== n) . snd) $ Map.assocs varToIndex of
-          Just (exp,_) -> showFlattenedExp exp >>* (mult ++)
+          Just (exp,_) -> showFlattenedExp showCode exp >>* (mult ++)
           Nothing -> return "<unknown>"
           where
             mult = case a of
@@ -150,41 +150,41 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
       where
         valOfVar (varExp,k) = case Map.lookup k indexToConst of 
                                  Nothing -> return Nothing
-                                 Just val -> do varExp' <- showFlattenedExp varExp
+                                 Just val -> do varExp' <- showFlattenedExp showCode varExp
                                                 return $ Just $ varExp' ++ " = " ++ show val
 
     -- TODO this is surely defined elsewhere already?
     getRealName :: A.Name -> m String
     getRealName n = lookupName n >>* A.ndOrigName
-    
-    -- Shows a FlattenedExp legibly by looking up real names for variables, and formatting things.
-    -- The output for things involving modulo might be a bit odd, but there isn't really anything 
-    -- much that can be done about that
-    showFlattenedExp :: FlattenedExp -> m String
-    showFlattenedExp (Const n) = return $ show n
-    showFlattenedExp (Scale n (e,vi))
-      = do vn' <- showCode e >>* (++ replicate vi '\'')
-           return $ showScale vn' n
-    showFlattenedExp (Modulo n top bottom)
-      = do top' <- showFlattenedExpSet top
-           bottom' <- showFlattenedExpSet bottom
-           case onlyConst (Set.toList bottom) of
-             Just _  -> return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") (-n)
-             Nothing -> return $ showScale ("((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")") n
-    showFlattenedExp (Divide n top bottom)
-      = do top' <- showFlattenedExpSet top
-           bottom' <- showFlattenedExpSet bottom
-           return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") n
-    
-    showScale :: String -> Integer -> String
-    showScale s n =
+
+showFlattenedExpSet :: Monad m => (A.Expression -> m String) -> Set.Set FlattenedExp -> m String
+showFlattenedExpSet showExp s = liftM concat $ sequence $ intersperse (return " + ") $ map (showFlattenedExp showExp) $ Set.toList s
+
+-- Shows a FlattenedExp legibly by looking up real names for variables, and formatting things.
+-- The output for things involving modulo might be a bit odd, but there isn't really anything 
+-- much that can be done about that
+showFlattenedExp :: Monad m => (A.Expression -> m String) -> FlattenedExp -> m String
+showFlattenedExp _ (Const n) = return $ show n
+showFlattenedExp showExp (Scale n (e,vi))
+  = do vn' <- showExp e >>* (++ replicate vi '\'')
+       return $ showScale vn' n
+showFlattenedExp showExp (Modulo n top bottom)
+  = do top' <- showFlattenedExpSet showExp top
+       bottom' <- showFlattenedExpSet showExp bottom
+       case onlyConst (Set.toList bottom) of
+         Just _  -> return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") (-n)
+         Nothing -> return $ showScale ("((" ++ top' ++ " REM " ++ bottom' ++ ") - " ++ top' ++ ")") n
+showFlattenedExp showExp (Divide n top bottom)
+  = do top' <- showFlattenedExpSet showExp top
+       bottom' <- showFlattenedExpSet showExp bottom
+       return $ showScale ("(" ++ top' ++ " / " ++ bottom' ++ ")") n
+
+showScale :: String -> Integer -> String
+showScale s n =
            case n of
              1  -> s
              -1 -> "-" ++ s
              _  -> (show n) ++ "*" ++ s
-
-    showFlattenedExpSet :: Set.Set FlattenedExp -> m String
-    showFlattenedExpSet s = liftM concat $ sequence $ intersperse (return " + ") $ map showFlattenedExp $ Set.toList s
 
 -- | A type for inside makeEquations:
 data FlattenedExp
@@ -201,7 +201,6 @@ data FlattenedExp
     -- ^ A modulo, with a coefficient/scale and given top and bottom (in that order)
   | Divide Integer (Set.Set FlattenedExp) (Set.Set FlattenedExp)
     -- ^ An integer division, with a coefficient/scale and the given top and bottom (in that order)
-  deriving (Show)
 
 instance Eq FlattenedExp where
   a == b = EQ == compare a b

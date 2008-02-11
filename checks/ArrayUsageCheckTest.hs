@@ -42,6 +42,9 @@ import TestUtils hiding (m)
 import UsageCheckUtils hiding (Var)
 import Utils
 
+instance Show FlattenedExp where
+  show fexp = runIdentity $ showFlattenedExp (return . showOccam) fexp
+
 testArrayCheck :: Test
 testArrayCheck = TestList
   [
