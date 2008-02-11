@@ -496,8 +496,6 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
 --    liftM2L :: (Ord a, Ord b, Monad m) => (Set.Set a -> Set.Set b -> c) -> m [a] -> m [b] -> m [c]
     liftM2L f x y = liftM singleton $ liftM2 f (x >>= makeExpSet) (y >>= makeExpSet)
 
-    --TODO we need to handle lots more different expression types in future.
-    
     multiplyOut' :: Either String [FlattenedExp] -> Either String [FlattenedExp] -> Either String [FlattenedExp]
     multiplyOut' x y = do {x' <- x; y' <- y; multiplyOut x' y'}
     
@@ -509,11 +507,33 @@ flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatte
         mult :: FlattenedExp -> FlattenedExp -> Either String FlattenedExp
         mult (Const x) e = scale x e
         mult e (Const x) = scale x e
-        mult e e' = return $ (Scale 1 (A.Dyadic emptyMeta A.Mul (backToEq e) (backToEq e'), 0))
+        mult lhs rhs = do lhs' <- backToEq lhs
+                          rhs' <- backToEq rhs
+                          return $ (Scale 1 (A.Dyadic emptyMeta A.Mul lhs' rhs', 0))
     
-        backToEq :: FlattenedExp -> A.Expression
-        backToEq (Scale n (e,0)) = (if n == 1 then id else A.Dyadic emptyMeta A.Mul (makeConstant emptyMeta (fromInteger n))) e
-        -- TODO the other cases
+        backScale :: Integer -> A.Expression -> A.Expression
+        backScale 1 = id
+        backScale n = A.Dyadic emptyMeta A.Mul (makeConstant emptyMeta (fromInteger n))
+    
+        backToEq :: FlattenedExp -> Either String A.Expression
+        backToEq (Const c) = return $ makeConstant emptyMeta (fromInteger c)
+        backToEq (Scale n (e,0)) = return $ backScale n e
+        backToEq (Modulo n t b)
+          | Set.null t || Set.null b = throwError "Modulo had empty top or bottom"
+          | otherwise = do t' <- mapM backToEq $ Set.toList t
+                           b' <- mapM backToEq $ Set.toList b
+                           return $
+                            (backScale n $ A.Dyadic emptyMeta A.Rem
+                              (foldl1 (A.Dyadic emptyMeta A.Add) t')
+                              (foldl1 (A.Dyadic emptyMeta A.Add) b'))
+        backToEq (Divide n t b)
+          | Set.null t || Set.null b = throwError "Divide had empty top or bottom"
+          | otherwise = do t' <- mapM backToEq $ Set.toList t
+                           b' <- mapM backToEq $ Set.toList b
+                           return $
+                            (backScale n $ A.Dyadic emptyMeta A.Div
+                              (foldl1 (A.Dyadic emptyMeta A.Add) t')
+                              (foldl1 (A.Dyadic emptyMeta A.Add) b'))
     
     -- | Scales a flattened expression by the given integer scaling.
     scale :: Integer -> FlattenedExp -> Either String FlattenedExp
