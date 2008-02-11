@@ -68,7 +68,6 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
         getArrayIndex _ = Nothing
 
     -- Turns a replicator into background knowledge about that replicator
-    -- TODO we need to subtract one off (from + for)
     makeRepBounds :: A.Replicator -> [BackgroundKnowledge]
     makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Subtr (A.Dyadic m A.Add from for) (makeConstant m 1)]
       where
@@ -486,11 +485,16 @@ makeEquations otherInfo accesses bound
   
 flatten :: A.Expression -> Either String [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
-flatten (A.Dyadic m op lhs rhs) | op == A.Add   = combine' (flatten lhs) (flatten rhs)
+flatten e@(A.Dyadic m op lhs rhs)
+                                | op == A.Add   = combine' (flatten lhs) (flatten rhs)
                                 | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
                                 | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
                                 | op == A.Rem   = liftM2L (Modulo 1) (flatten lhs) (flatten rhs)
-                                | op == A.Div   = liftM2L (Divide 1) (flatten lhs) (flatten rhs)
+                                | op == A.Div   = do rhs' <- flatten rhs
+                                                     case onlyConst rhs' of
+                                                       Just _ -> liftM2L (Divide 1) (flatten lhs) (return rhs')
+                                                       -- Can't deal with variable divisors, leave expression as-is:
+                                                       Nothing -> return [Scale 1 (e,0)]
                                 | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
   where
 --    liftM2L :: (Ord a, Ord b, Monad m) => (Set.Set a -> Set.Set b -> c) -> m [a] -> m [b] -> m [c]
