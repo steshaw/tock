@@ -56,7 +56,7 @@ type OptFunc = CompState -> IO CompState
 options :: [OptDescr OptFunc]
 options =
   [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
-  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp)"
+  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
@@ -79,6 +79,7 @@ optBackend s ps
     =  do backend <- case s of
             "c" -> return BackendC
             "cppcsp" -> return BackendCPPCSP
+            "dumpast" -> return BackendDumpAST
             _ -> dieIO (Nothing, "Unknown backend: " ++ s)
           return $ ps { csBackend = backend }
 
@@ -195,6 +196,7 @@ compileFull fn        = do optsPS <- lift get
                                             
                                             -- For C++, just compile the source file directly into a binary:
                              BackendCPPCSP -> exec $ cxxCommand tempCPath destBin
+                             _ -> dieReport (Nothing, "Cannot use specified backend: " ++ show (csBackend optsPS) ++ " with full-compile mode")
                            
                            -- Finally, remove the temporary files:
                            tempFiles <- get
@@ -284,6 +286,7 @@ compile mode fn outHandle
                        = case csBackend optsPS of
                            BackendC -> generateC
                            BackendCPPCSP -> generateCPPCSP
+                           BackendDumpAST -> return . pshow
                  code <- generator ast2
                  debug "}}}"
 

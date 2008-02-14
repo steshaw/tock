@@ -50,4 +50,5 @@ getPassList optsPS     = concat [ if csFrontend optsPS == FrontendRain
                                 , case csBackend optsPS of
                                     BackendC -> genCPasses
                                     BackendCPPCSP -> genCPPCSPPasses
+                                    _ -> []
                                 ]
