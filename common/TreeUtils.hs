@@ -211,7 +211,7 @@ getMatchedItems a b
 --Therefore the whole function can be viewed as: get the constructor, and map mkPattern over the sub-elements
 
 mkPattern :: (Data a) => a -> Pattern
-mkPattern x = case ((cast x) :: Maybe Pattern) of
+mkPattern x = case cast x of
   Just x' -> x'
   Nothing -> Match (toConstr x) (gmapQ mkPattern x)
 
