@@ -46,7 +46,7 @@ import Utils
 
 --{{{  passes related to C generation
 genCPasses :: [Pass]
-genCPasses = makePasses
+genCPasses = makePasses' ((== BackendC) . csBackend)
   [ ("Identify parallel processes", identifyParProcs)
    ,("Transform wait for guards into wait until guards", transformWaitFor)
   ]

@@ -34,21 +34,20 @@ import Unnest
 commonPasses :: CompState -> [Pass]
 commonPasses opts = concat $
   [ simplifyTypes
-  ] ++ (if csUsageChecking opts then [makePasses [("Usage checking", runPassR usageCheckPass)]] else []) ++
-  [ simplifyExprs
+  , makePasses' csUsageChecking [("Usage checking", runPassR usageCheckPass)]
+  , simplifyExprs
   , simplifyProcs
   , unnest
   , simplifyComms
   ]
 
+filterPasses :: CompState -> [Pass] -> [Pass]
+filterPasses opts = filter (\p -> passEnabled p opts)
 
 getPassList :: CompState -> [Pass]
-getPassList optsPS     = concat [ if csFrontend optsPS == FrontendRain
-                                    then rainPasses
-                                    else []
+getPassList optsPS = filterPasses optsPS $ concat
+                                [ rainPasses
                                 , commonPasses optsPS
-                                , case csBackend optsPS of
-                                    BackendC -> genCPasses
-                                    BackendCPPCSP -> genCPPCSPPasses
-                                    _ -> []
+                                , genCPasses
+                                , genCPPCSPPasses
                                 ]

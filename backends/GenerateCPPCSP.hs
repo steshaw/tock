@@ -134,7 +134,7 @@ cppgenOps = cgenOps {
 --}}}
 
 genCPPCSPPasses :: [Pass]
-genCPPCSPPasses = makePasses
+genCPPCSPPasses = makePasses' ((== BackendCPPCSP) . csBackend)
   [ ("Transform channels to ANY", chansToAny)
   ]
 

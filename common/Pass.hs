@@ -57,6 +57,7 @@ data Monad m => Pass_ m = Pass {
  ,passName :: String 
  ,passPre :: Set.Set Property
  ,passPost :: Set.Set Property
+ ,passEnabled :: CompState -> Bool
 }
   
 type Pass = Pass_ PassM
@@ -82,7 +83,10 @@ runPassR p t
                   Right result -> tell w >> return result
 
 makePasses :: [(String, A.AST -> PassM A.AST)] -> [Pass]
-makePasses = map (\(s, p) -> Pass p s Set.empty Set.empty)
+makePasses = map (\(s, p) -> Pass p s Set.empty Set.empty (const True))
+
+makePasses' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST)] -> [Pass]
+makePasses' f = map (\(s, p) -> Pass p s Set.empty Set.empty f)
 
 -- | Compose a list of passes into a single pass.
 -- TODO this needs to examine dependencies rather than running them in order!
