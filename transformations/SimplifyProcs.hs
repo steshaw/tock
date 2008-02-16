@@ -28,11 +28,8 @@ import Metadata
 import Types
 import Pass
 
-simplifyProcs :: Pass
-simplifyProcs = runPasses passes
-  where
-    passes :: [(String, Pass)]
-    passes =
+simplifyProcs :: [Pass]
+simplifyProcs = makePasses
       [ ("Wrap PAR subprocesses in PROCs", parsToProcs)
       , ("Remove parallel assignment", removeParAssign)
       , ("Flatten assignment", flattenAssign)

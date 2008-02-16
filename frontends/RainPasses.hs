@@ -35,8 +35,8 @@ import TreeUtils
 import Types
 
 -- | An ordered list of the Rain-specific passes to be run.
-rainPasses :: [(String,Pass)]
-rainPasses = 
+rainPasses :: [Pass]
+rainPasses = makePasses
      [ ("AST Validity check, Rain #1", excludeNonRainFeatures)
        ,("Resolve Int -> Int64",transformInt)
        ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt

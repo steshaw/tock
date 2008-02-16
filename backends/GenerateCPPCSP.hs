@@ -133,8 +133,8 @@ cppgenOps = cgenOps {
   }
 --}}}
 
-genCPPCSPPasses :: [(String, Pass)]
-genCPPCSPPasses =
+genCPPCSPPasses :: [Pass]
+genCPPCSPPasses = makePasses
   [ ("Transform channels to ANY", chansToAny)
   ]
 

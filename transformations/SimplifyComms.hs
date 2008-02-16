@@ -30,11 +30,8 @@ import Pass
 import Types
 import Utils
 
-simplifyComms :: Pass
-simplifyComms = runPasses passes
-  where
-    passes :: [(String, Pass)]
-    passes =
+simplifyComms :: [Pass]
+simplifyComms = makePasses
       [ ("Define temporary variables for outputting expressions", outExprs)
        ,("Transform ? CASE statements/guards into plain CASE", transformInputCase)
       ]

@@ -31,18 +31,18 @@ import SimplifyProcs
 import SimplifyTypes
 import Unnest
 
-commonPasses :: CompState -> [(String, Pass)]
-commonPasses opts =
-  [ ("Simplify types", simplifyTypes)
-  ] ++ (if csUsageChecking opts then [("Usage checks", runPassR usageCheckPass)] else []) ++
-  [ ("Simplify expressions", simplifyExprs)
-  , ("Simplify processes", simplifyProcs)
-  , ("Flatten nested declarations", unnest)
-  , ("Simplify communications", simplifyComms)
+commonPasses :: CompState -> [Pass]
+commonPasses opts = concat $
+  [ simplifyTypes
+  ] ++ (if csUsageChecking opts then [makePasses [("Usage checking", runPassR usageCheckPass)]] else []) ++
+  [ simplifyExprs
+  , simplifyProcs
+  , unnest
+  , simplifyComms
   ]
 
 
-getPassList :: CompState -> [(String, Pass)]
+getPassList :: CompState -> [Pass]
 getPassList optsPS     = concat [ if csFrontend optsPS == FrontendRain
                                     then rainPasses
                                     else []

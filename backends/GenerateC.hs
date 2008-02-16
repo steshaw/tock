@@ -45,8 +45,8 @@ import Types
 import Utils
 
 --{{{  passes related to C generation
-genCPasses :: [(String, Pass)]
-genCPasses =
+genCPasses :: [Pass]
+genCPasses = makePasses
   [ ("Identify parallel processes", identifyParProcs)
    ,("Transform wait for guards into wait until guards", transformWaitFor)
   ]

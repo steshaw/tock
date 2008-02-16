@@ -25,6 +25,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics
 import Data.List
+import qualified Data.Set as Set
 import System.IO
 
 import qualified AST as A
@@ -51,10 +52,28 @@ instance Warn PassMR where
   warnReport w = tell [w]
 
 -- | The type of an AST-mangling pass.
-type Pass = A.AST -> PassM A.AST
-type PassR = A.AST -> PassMR A.AST
+data Monad m => Pass_ m = Pass {
+  passCode :: A.AST -> m A.AST
+ ,passName :: String 
+ ,passPre :: Set.Set Property
+ ,passPost :: Set.Set Property
+}
+  
+type Pass = Pass_ PassM
+type PassR = Pass_ PassMR
 
-runPassR :: PassR -> Pass
+data Property = Property {
+  propName :: String
+ ,propCheck :: A.AST -> PassMR ()
+}
+
+instance Eq Property where
+  x == y = propName x == propName y
+  
+instance Ord Property where
+  compare x y = compare (propName x) (propName y)
+
+runPassR :: (A.AST -> PassMR A.AST) -> (A.AST -> PassM A.AST)
 runPassR p t 
            = do st <- get
                 (r,w) <- liftIO $ runWriterT $ runReaderT (runErrorT (p t)) st
@@ -62,16 +81,22 @@ runPassR p t
                   Left err -> throwError err
                   Right result -> tell w >> return result
 
+makePasses :: [(String, A.AST -> PassM A.AST)] -> [Pass]
+makePasses = map (\(s, p) -> Pass p s Set.empty Set.empty)
+
 -- | Compose a list of passes into a single pass.
-runPasses :: [(String, Pass)] -> Pass
+-- TODO this needs to examine dependencies rather than running them in order!
+
+runPasses :: [Pass] -> (A.AST -> PassM A.AST)
 runPasses [] ast = return ast
-runPasses ((s, p):ps) ast
-    =  do debug $ "{{{ " ++ s
-          progress $ "- " ++ s 
-          ast' <- p ast
+runPasses (p:ps) ast
+    =  do debug $ "{{{ " ++ passName p
+          progress $ "- " ++ passName p
+          ast' <- passCode p ast
           debugAST ast'
           debug $ "}}}"
           runPasses ps ast'
+
 
 -- | Print a message if above the given verbosity level.
 verboseMessage :: (CSM m, MonadIO m) => Int -> String -> m ()

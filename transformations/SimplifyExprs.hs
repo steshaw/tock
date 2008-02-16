@@ -30,11 +30,8 @@ import Metadata
 import Pass
 import Types
 
-simplifyExprs :: Pass
-simplifyExprs = runPasses passes
-  where
-    passes :: [(String, Pass)]
-    passes =
+simplifyExprs :: [Pass]
+simplifyExprs = makePasses
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
       , ("Convert AFTER to MINUS", removeAfter)
       , ("Expand array literals", expandArrayLiterals)

@@ -28,7 +28,7 @@ import CompState
 import Pass
 
 -- | Identify processes that we'll need to compute the stack size of.
-identifyParProcs :: Pass
+identifyParProcs :: Data t => t -> PassM t
 identifyParProcs = everywhereM (mkM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process

@@ -32,11 +32,8 @@ import Metadata
 import Pass
 import Types
 
-unnest :: Pass
-unnest = runPasses passes
-  where
-    passes :: [(String, Pass)]
-    passes =
+unnest :: [Pass]
+unnest = makePasses
       [ ("Convert free names to arguments", removeFreeNames)
       , ("Pull nested definitions to top level", removeNesting)
       ]
