@@ -278,7 +278,7 @@ compile mode fn outHandle
             ModeCompile ->
               do progress "Passes:"
 
-                 let passes = getPassList optsPS
+                 passes <- calculatePassList
                  ast2 <- runPasses passes ast1
 
                  debug "{{{ Generate code"
