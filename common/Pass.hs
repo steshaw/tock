@@ -89,12 +89,6 @@ runPassR p t
                   Left err -> throwError err
                   Right result -> tell w >> return result
 
-makePasses :: [(String, A.AST -> PassM A.AST)] -> [Pass]
-makePasses = map (\(s, p) -> Pass p s Set.empty Set.empty (const True))
-
-makePasses' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST)] -> [Pass]
-makePasses' f = map (\(s, p) -> Pass p s Set.empty Set.empty f)
-
 makePassesDep :: [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
 makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) (const True))
 
