@@ -95,9 +95,13 @@ makePasses = map (\(s, p) -> Pass p s Set.empty Set.empty (const True))
 makePasses' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST)] -> [Pass]
 makePasses' f = map (\(s, p) -> Pass p s Set.empty Set.empty f)
 
--- | Compose a list of passes into a single pass.
--- TODO this needs to examine dependencies rather than running them in order!
+makePassesDep :: [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
+makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) (const True))
 
+makePassesDep' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
+makePassesDep' f = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) f)
+
+-- | Compose a list of passes into a single pass by running them in the order given.
 runPasses :: [Pass] -> (A.AST -> PassM A.AST)
 runPasses [] ast = return ast
 runPasses (p:ps) ast
