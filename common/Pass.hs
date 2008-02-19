@@ -59,7 +59,14 @@ data Monad m => Pass_ m = Pass {
  ,passPost :: Set.Set Property
  ,passEnabled :: CompState -> Bool
 }
-  
+
+instance Monad m => Eq (Pass_ m) where
+  x == y = passName x == passName y
+
+instance Monad m => Ord (Pass_ m) where
+  compare x y = compare (passName x) (passName y)
+
+
 type Pass = Pass_ PassM
 type PassR = Pass_ PassMR
 
