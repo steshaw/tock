@@ -68,7 +68,7 @@ as well.  May be worth changing in future.
 Channels of direction 'A.DirUnknown' are passed around as pointers to a One2OneChannel\<\> object.  To read I use the reader() function and to write I use the writer() function.
 For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chanin\<\> and Chanout\<\> objects as you would expect.
 -}
-module GenerateCPPCSP (generateCPPCSP, cppgenOps, genCPPCSPPasses) where
+module GenerateCPPCSP (cppcspPrereq, cppgenOps, generateCPPCSP, genCPPCSPPasses) where
 
 import Control.Monad.State
 import Control.Monad.Writer
@@ -84,6 +84,7 @@ import GenerateC
 import GenerateCBased
 import Metadata
 import Pass
+import qualified Properties as Prop
 import ShowCode
 import TLP
 import Types
@@ -134,8 +135,8 @@ cppgenOps = cgenOps {
 --}}}
 
 genCPPCSPPasses :: [Pass]
-genCPPCSPPasses = makePasses' ((== BackendCPPCSP) . csBackend)
-  [ ("Transform channels to ANY", chansToAny)
+genCPPCSPPasses = makePassesDep' ((== BackendCPPCSP) . csBackend)
+  [ ("Transform channels to ANY", chansToAny, [Prop.processTypesChecked], [Prop.allChansToAnyOrProtocol])
   ]
 
 chansToAny :: Data t => t -> PassM t
@@ -161,6 +162,10 @@ chansToAny x = do st <- get
 -- | Transforms the given AST into a pass that generates C++ code.
 generateCPPCSP :: A.AST -> PassM String
 generateCPPCSP = generate cppgenOps
+
+cppcspPrereq :: [Property]
+cppcspPrereq = cCppCommonPreReq ++ [Prop.allChansToAnyOrProtocol]
+ 
 
 -- | Generates the top-level code for an AST.
 cppgenTopLevel :: A.AST -> CGen ()

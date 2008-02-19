@@ -29,7 +29,28 @@ import CompState
 import Errors
 import Metadata
 import Pass
+import qualified Properties as Prop
 import TLP
+
+cCppCommonPreReq :: [Property]
+cCppCommonPreReq =
+ [Prop.afterRemoved
+ ,Prop.arrayLiteralsExpanded
+ ,Prop.assignFlattened
+ ,Prop.assignParRemoved
+ ,Prop.freeNamesToArgs
+ ,Prop.functionCallsRemoved
+ ,Prop.functionsRemoved
+ ,Prop.inputCaseRemoved
+ ,Prop.mainTagged
+ ,Prop.nestedPulled
+ ,Prop.outExpressionRemoved
+ ,Prop.parsWrapped
+ ,Prop.parUsageChecked
+ ,Prop.subscriptsPulledUp
+ ,Prop.typesResolvedInAST
+ ,Prop.typesResolvedInState
+ ]
 
 
 --{{{  monad definition

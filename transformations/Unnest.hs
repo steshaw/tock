@@ -30,12 +30,13 @@ import Errors
 import EvalConstants
 import Metadata
 import Pass
+import qualified Properties as Prop
 import Types
 
 unnest :: [Pass]
-unnest = makePasses
-      [ ("Convert free names to arguments", removeFreeNames)
-      , ("Pull nested definitions to top level", removeNesting)
+unnest = makePassesDep
+      [ ("Convert free names to arguments", removeFreeNames, [Prop.mainTagged, Prop.parsWrapped], [Prop.freeNamesToArgs])
+      , ("Pull nested definitions to top level", removeNesting, [Prop.freeNamesToArgs], [Prop.nestedPulled])
       ]
 
 type NameMap = Map.Map String A.Name

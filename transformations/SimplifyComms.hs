@@ -27,13 +27,14 @@ import qualified AST as A
 import CompState
 import Metadata
 import Pass
+import qualified Properties as Prop
 import Types
 import Utils
 
 simplifyComms :: [Pass]
-simplifyComms = makePasses
-      [ ("Define temporary variables for outputting expressions", outExprs)
-       ,("Transform ? CASE statements/guards into plain CASE", transformInputCase)
+simplifyComms = makePassesDep
+      [ ("Define temporary variables for outputting expressions", outExprs, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.outExpressionRemoved])
+       ,("Transform ? CASE statements/guards into plain CASE", transformInputCase, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.inputCaseRemoved])
       ]
 
 outExprs :: Data t => t -> PassM t

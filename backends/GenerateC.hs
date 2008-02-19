@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cintroduceSpec, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
+module GenerateC (cgenOps, cintroduceSpec, cPreReq, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -39,6 +39,7 @@ import EvalLiterals
 import GenerateCBased
 import Metadata
 import Pass
+import qualified Properties as Prop
 import ShowCode
 import TLP
 import Types
@@ -46,11 +47,14 @@ import Utils
 
 --{{{  passes related to C generation
 genCPasses :: [Pass]
-genCPasses = makePasses' ((== BackendC) . csBackend)
-  [ ("Identify parallel processes", identifyParProcs)
-   ,("Transform wait for guards into wait until guards", transformWaitFor)
+genCPasses = makePassesDep' ((== BackendC) . csBackend)
+  [ ("Identify parallel processes", identifyParProcs, [Prop.parsWrapped], [])
+   ,("Transform wait for guards into wait until guards", transformWaitFor, [], [Prop.waitForRemoved])
   ]
 --}}}
+
+cPreReq :: [Property]
+cPreReq = cCppCommonPreReq ++ [Prop.parsIdentified, Prop.waitForRemoved]
 
 -- | Operations for the C backend.
 cgenOps :: GenOps

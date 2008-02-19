@@ -43,11 +43,17 @@ import Utils
 commonPasses :: CompState -> [Pass]
 commonPasses opts = concat $
   [ simplifyTypes
-  , makePasses' csUsageChecking [("Usage checking", runPassR usageCheckPass)]
+  , makePassesDep' csUsageChecking [("Usage checking", runPassR usageCheckPass, Prop.agg_namesDone, [Prop.parUsageChecked])]
+  -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
+  , makePassesDep' (not . csUsageChecking) [("Usage checking turned OFF", return, Prop.agg_namesDone, [Prop.parUsageChecked])]
   , simplifyExprs
   , simplifyProcs
   , unnest
   , simplifyComms
+  -- The occam frontend does a lot of work for us, so I represent that here:
+  ,makePassesDep' ((== FrontendOccam) . csFrontend) [("Null occam pass", return, [],
+    Prop.agg_namesDone ++ [Prop.constantsFolded, Prop.expressionTypesChecked, Prop.inferredTypesRecorded, Prop.mainTagged, Prop.processTypesChecked]
+  )]
   ]
 
 filterPasses :: CompState -> [Pass] -> [Pass]

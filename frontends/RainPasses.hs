@@ -30,42 +30,46 @@ import Errors
 import Metadata
 import Pass
 import Pattern
+import qualified Properties as Prop
 import RainTypes
 import TreeUtils
 import Types
 
+
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [Pass]
-rainPasses = makePasses' ((== FrontendRain) . csFrontend)
-     [ ("AST Validity check, Rain #1", excludeNonRainFeatures)
-       ,("Resolve Int -> Int64",transformInt)
-       ,("Uniquify variable declarations, record declared types and resolve variable names",uniquifyAndResolveVars) --depends on transformInt
+rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
+     [ ("AST Validity check, Rain #1", excludeNonRainFeatures, [], []) -- TODO work out some dependencies
+       ,("Resolve Int -> Int64", transformInt, [], [Prop.noInt])
+       ,("Uniquify variable declarations, record declared types and resolve variable names",
+           uniquifyAndResolveVars, [Prop.noInt], namesDone)
+            
+       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded])
+       ,("Annotate integer literal types", annnotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
        
-       ,("Fold all constant expressions",constantFoldPass) -- depends on transformInt and possibly depends on uniquifyAndResolveVars, not sure
-       ,("Annotate integer literal types",annnotateIntLiteralTypes) --depends on transformInt and constantFoldPass
+       ,("Record inferred name types in dictionary", recordInfNameTypes, namesDone ++ [Prop.intLiteralsInBounds], [Prop.inferredTypesRecorded])
        
-       ,("Record inferred name types in dictionary",recordInfNameTypes) --depends on uniquifyAndResolveVars and annnotateIntLiteralTypes
+       ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
+       ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
+       ,("Check types in if/while conditions",checkConditionalTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
+       ,("Check types in input/output",checkCommTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
+       ,("Check types in now statements",checkGetTimeTypes, typesDone, [Prop.processTypesChecked])
+       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked])
        
-       ,("Check types in expressions",checkExpressionTypes) 
-           --depends on transformInt, uniquifyAndResolveVars, constantFoldPass, annnotateIntLiteralTypes, recordInfNameTypes
-       ,("Check types in assignments",checkAssignmentTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
-       ,("Check types in if/while conditions",checkConditionalTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
-       ,("Check types in input/output",checkCommTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes, checkExpressionTypes
-       ,("Check types in now statements",checkGetTimeTypes) --depends on uniquifyAndResolveVars, recordInfNameTypes
-       
-       ,("Find and tag the main function",findMain) --depends on uniquifyAndResolveVars
-       ,("Check parameters in process calls",matchParamPass) --depends on uniquifyAndResolveVars and recordInfNameTypes and checkExpressionTypes
-       ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange)
-         --depends on uniquifyAndResolveVars and recordInfNameTypes       
-       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach) 
-         --depends on uniquifyAndResolveVars and recordInfNameTypes, and should be done after transformEachRange
-       ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep)
-         --must be done after transformEachRange
-       ,("Transform Rain functions into the occam form",transformFunction)
-         --must be done after transformEach, depends on uniquifyAndResolveVars and recordInfNameTypes
-       ,("Pull up par declarations", pullUpParDeclarations) --doesn't depend on anything
-       ,("AST Validity check, Rain #2", (\x -> excludeNonRainFeatures x >>= excludeTransformedRainFeatures))
+       ,("Find and tag the main function", findMain, namesDone, [Prop.mainTagged])
+       ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange, typesDone, [Prop.eachRangeTransformed])
+       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach, typesDone ++ [Prop.eachRangeTransformed], [Prop.eachTransformed])
+       ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
+       ,("Transform Rain functions into the occam form",transformFunction, typesDone ++ [Prop.eachTransformed], []) -- TODO need to sort out functions anyway
+       ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
      ]
+  where
+    namesDone :: [Property]
+    namesDone = [Prop.declaredNamesResolved, Prop.declarationTypesRecorded, Prop.declarationsUnique]
+
+    typesDone :: [Property]
+    typesDone = namesDone ++ [Prop.inferredTypesRecorded]
+
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
 transformInt :: Data t => t -> PassM t
@@ -281,15 +285,6 @@ pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
           Nothing -> Just (A.Spec m spec,inner)
           Just (trans,inner') -> Just ( (A.Spec m spec) . trans,inner')
     chaseSpecs _ = Nothing
-
--- | All the items that should have been removed at the end of the Rain passes.
-excludeTransformedRainFeatures :: (Data t, CSMR m) => t -> m t
-excludeTransformedRainFeatures = excludeConstr
-  [ con0 A.Int
-   ,con0 A.Any
-   ,con3 A.RangeConstr
-   ,con3 A.ForEach
-  ]
 
 -- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
 excludeNonRainFeatures :: (Data t, CSMR m) => t -> m t

@@ -25,14 +25,15 @@ import Data.Generics
 import qualified AST as A
 import CompState
 import Metadata
-import Types
 import Pass
+import qualified Properties as Prop
+import Types
 
 simplifyProcs :: [Pass]
-simplifyProcs = makePasses
-      [ ("Wrap PAR subprocesses in PROCs", parsToProcs)
-      , ("Remove parallel assignment", removeParAssign)
-      , ("Flatten assignment", flattenAssign)
+simplifyProcs = makePassesDep
+      [ ("Wrap PAR subprocesses in PROCs", parsToProcs, [Prop.parUsageChecked], [Prop.parsWrapped])
+      , ("Remove parallel assignment", removeParAssign, [Prop.parUsageChecked], [Prop.assignParRemoved])
+      , ("Flatten assignment", flattenAssign, [Prop.assignParRemoved], [Prop.assignFlattened])
       ]
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.

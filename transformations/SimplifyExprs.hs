@@ -28,15 +28,16 @@ import CompState
 import Errors
 import Metadata
 import Pass
+import qualified Properties as Prop
 import Types
 
 simplifyExprs :: [Pass]
-simplifyExprs = makePasses
-      [ ("Convert FUNCTIONs to PROCs", functionsToProcs)
-      , ("Convert AFTER to MINUS", removeAfter)
-      , ("Expand array literals", expandArrayLiterals)
-      , ("Pull up definitions", pullUp)
-      , ("Transform array constructors into initialisation code", transformConstr)
+simplifyExprs = makePassesDep
+      [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.parUsageChecked], [Prop.functionsRemoved])
+      , ("Convert AFTER to MINUS", removeAfter, [Prop.expressionTypesChecked], [Prop.afterRemoved])
+      , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
+      , ("Pull up definitions", pullUp, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
+      , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone, [])
       ]
 
 -- | Convert FUNCTION declarations to PROCs.

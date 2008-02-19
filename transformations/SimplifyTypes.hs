@@ -25,12 +25,13 @@ import Data.Generics
 import qualified AST as A
 import Metadata
 import Pass
+import qualified Properties as Prop
 import Types
 
 simplifyTypes :: [Pass]
-simplifyTypes = makePasses
-      [ ("Resolve types in AST", resolveNamedTypes)
-      , ("Resolve types in state", rntState)
+simplifyTypes = makePassesDep
+      [ ("Resolve types in AST", resolveNamedTypes, Prop.agg_namesDone, [Prop.typesResolvedInAST])
+      , ("Resolve types in state", rntState, Prop.agg_namesDone, [Prop.typesResolvedInState])
       ]
 
 -- | Turn named data types into their underlying types.
