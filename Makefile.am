@@ -119,6 +119,7 @@ tock_SOURCES_hs += common/Pass.hs
 tock_SOURCES_hs += common/PassList.hs
 tock_SOURCES_hs += common/Pattern.hs
 tock_SOURCES_hs += common/PrettyShow.hs
+tock_SOURCES_hs += common/Properties.hs
 tock_SOURCES_hs += common/ShowCode.hs
 tock_SOURCES_hs += common/TagAST.hs
 tock_SOURCES_hs += common/TreeUtils.hs
