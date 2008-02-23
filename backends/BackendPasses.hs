@@ -28,12 +28,15 @@ import CompState
 import Pass
 
 -- | Identify processes that we'll need to compute the stack size of.
-identifyParProcs :: Data t => t -> PassM t
+identifyParProcs :: Pass
 identifyParProcs = everywhereM (mkM doProcess)
   where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric identifyParProcs
+  
     doProcess :: A.Process -> PassM A.Process
     doProcess p@(A.Par _ _ s) = findProcs s >> return p
-    doProcess p = return p
+    doProcess p = doGeneric p
 
     findProcs :: A.Structured A.Process -> PassM ()
     findProcs (A.Rep _ _ s) = findProcs s
@@ -44,15 +47,18 @@ identifyParProcs = everywhereM (mkM doProcess)
         = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
 
 transformWaitFor :: Data t => t -> PassM t
-transformWaitFor = everywhereM (mkM doAlt)
+transformWaitFor = doGeneric `extM` doAlt
   where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformWaitFor
+  
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
-      = do (a',(specs,code)) <- runStateT (everywhereM (mkM doWaitFor) a) ([],[])
+      = do (s',(specs,code)) <- runStateT (applyToOnly doWaitFor s) ([],[])
            if (null specs && null code)
              then return a
-             else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.Only m a'])) specs
-    doAlt p = return p
+             else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.Only m $ A.Alt m pri s'])) specs
+    doAlt p = doGeneric p
     
     addSpec :: Data a => (A.Structured a -> A.Structured a) -> A.Structured a -> A.Structured a
     addSpec spec inner = spec inner
