@@ -71,8 +71,8 @@ unpackMeta s = (Nothing, s)
 findMeta :: (Data t, Typeable t) => t -> Meta
 findMeta e = case cast e of
                Just m -> m
-               Nothing -> if null metaList then emptyMeta else head metaList
+               Nothing -> if null (concat metaList) then emptyMeta else head (concat metaList)
   where
-    metaList = gmapQ (mkQ emptyMeta findMeta') e
-    findMeta' :: Meta -> Meta
-    findMeta' m = m
+    metaList = gmapQ (mkQ [] findMeta') e
+    findMeta' :: Meta -> [Meta]
+    findMeta' m = [m]
