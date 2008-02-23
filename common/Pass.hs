@@ -34,6 +34,7 @@ import Errors
 import Metadata
 import PrettyShow
 import TreeUtils
+import Utils
 
 -- | The monad in which AST-mangling passes operate.
 type PassM = ErrorT ErrorReport (StateT CompState (WriterT [WarningReport]  IO))
@@ -136,6 +137,13 @@ debugAST p
           ps <- get
           veryDebug $ pshow ps
           veryDebug $ "}}}"
+
+applyToOnly :: (Monad m, Data a) => (a -> m a) -> A.Structured a -> m (A.Structured a)
+applyToOnly f (A.Rep m r s) = applyToOnly f s >>* A.Rep m r
+applyToOnly f (A.Spec m sp s) = applyToOnly f s >>* A.Spec m sp
+applyToOnly f (A.ProcThen m p s) = applyToOnly f s >>* A.ProcThen m p
+applyToOnly f (A.Several m ss) = mapM (applyToOnly f) ss >>* A.Several m
+applyToOnly f (A.Only m o) = f o >>* A.Only m
 
 -- | Make a generic rule for a pass.
 makeGeneric :: (Data t) => (forall s. Data s => s -> PassM s) -> t -> PassM t
