@@ -82,11 +82,12 @@ freeNamesIn = doGeneric
 
 -- | Replace names.
 replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
-replaceNames map p = everywhere (mkT doName
-                                   `extT` (id :: String -> String)
-                                   `extT` (id :: Meta -> Meta)
-                                ) p
+replaceNames map = doGeneric `extT` doName
   where
+    doGeneric :: Data t => t -> t
+    doGeneric = (gmapT (replaceNames map))
+                                   `extT` (id :: String -> String)
+                                   `extT` (id :: Meta -> Meta)  
     smap = [(A.nameName f, t) | (f, t) <- map]
 
     doName :: A.Name -> A.Name
