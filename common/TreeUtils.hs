@@ -130,7 +130,7 @@ checkMatch m@(Match con items) b
         else (gmapQi index (checkMatch f) d) 
       --Possibly a better way?
       where
-        numIndexes = length (gmapQ (const undefined) d)
+        numIndexes = glength d
 
 
 {-

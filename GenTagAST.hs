@@ -95,7 +95,7 @@ consFor x = map consFor' (dataTypeConstrs $ dataTypeOf x)
     -- The way I work out how many arguments a constructor takes is crazy, but
     -- I can't see a better way given the Data.Generics API
     consFor' :: Constr -> (Int, String)
-    consFor' con = (length (gmapQ (const undefined) (fromConstr con :: a)), showConstr con)
+    consFor' con = (glength (fromConstr con :: a), showConstr con)
 
 consParamsFor :: forall a. Data a => a -> [(Int, String, [String])]
 consParamsFor x = map consParamsFor' (dataTypeConstrs $ dataTypeOf x)
