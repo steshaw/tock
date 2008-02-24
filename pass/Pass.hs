@@ -146,11 +146,11 @@ applyToOnly f (A.Several m ss) = mapM (applyToOnly f) ss >>* A.Several m
 applyToOnly f (A.Only m o) = f o >>* A.Only m
 
 -- | Make a generic rule for a pass.
-makeGeneric :: (Data t) => (forall s. Data s => s -> PassM s) -> t -> PassM t
+makeGeneric :: forall m t. (Data t, Monad m) => (forall s. Data s => s -> m s) -> t -> m t
 makeGeneric top
     = (gmapM top)
-        `extM` (return :: String -> PassM String)
-        `extM` (return :: Meta -> PassM Meta)
+        `extM` (return :: String -> m String)
+        `extM` (return :: Meta -> m Meta)
 
 excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 

@@ -45,6 +45,7 @@ import Errors
 import EvalLiterals
 import Intrinsics
 import Metadata
+import Pass
 import ShowCode
 import Utils
 
@@ -309,14 +310,21 @@ abbrevModeOfSpec s
 
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
-underlyingType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-underlyingType m = everywhereM (mkM underlyingType')
+
+underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
+underlyingType m = underlyingType'
   where
-    underlyingType' :: (CSMR m, Die m) => A.Type -> m A.Type
-    underlyingType' t@(A.UserDataType _)
+    underlyingType' :: Data t => t -> m t
+    underlyingType' = doGeneric `extM` underlyingType''
+    
+    doGeneric :: Data t => t -> m t
+    doGeneric = makeGeneric underlyingType'
+  
+    underlyingType'' :: A.Type -> m A.Type
+    underlyingType'' t@(A.UserDataType _)
       = resolveUserType m t >>= underlyingType m
-    underlyingType' (A.Array ds t) = return $ addDimensions ds t
-    underlyingType' t = return t
+    underlyingType'' (A.Array ds t) = return $ addDimensions ds t
+    underlyingType'' t = doGeneric t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
