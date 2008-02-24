@@ -11,7 +11,7 @@ GHC_OPTS = \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
-	-ibackends -ichecks -icommon -ifrontends -itransformations
+	-ibackends -ichecks -icommon -ifrontends -ipass -itransformations
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
@@ -115,11 +115,8 @@ tock_SOURCES_hs += common/FlowAlgorithms.hs
 tock_SOURCES_hs += common/Intrinsics.hs
 tock_SOURCES_hs += common/Metadata.hs
 tock_SOURCES_hs += common/OrdAST.hs
-tock_SOURCES_hs += common/Pass.hs
-tock_SOURCES_hs += common/PassList.hs
 tock_SOURCES_hs += common/Pattern.hs
 tock_SOURCES_hs += common/PrettyShow.hs
-tock_SOURCES_hs += common/Properties.hs
 tock_SOURCES_hs += common/ShowCode.hs
 tock_SOURCES_hs += common/TagAST.hs
 tock_SOURCES_hs += common/TreeUtils.hs
@@ -132,6 +129,9 @@ tock_SOURCES_hs += frontends/PreprocessOccam.hs
 tock_SOURCES_hs += frontends/RainPasses.hs
 tock_SOURCES_hs += frontends/RainTypes.hs
 tock_SOURCES_hs += frontends/StructureOccam.hs
+tock_SOURCES_hs += pass/Pass.hs
+tock_SOURCES_hs += pass/PassList.hs
+tock_SOURCES_hs += pass/Properties.hs
 tock_SOURCES_hs += transformations/SimplifyComms.hs
 tock_SOURCES_hs += transformations/SimplifyExprs.hs
 tock_SOURCES_hs += transformations/SimplifyProcs.hs
