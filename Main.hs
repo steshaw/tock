@@ -61,6 +61,7 @@ options =
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
+  , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   ]
 
 optMode :: String -> OptFunc
@@ -104,6 +105,14 @@ optUsageChecking s ps
             "off" -> return False
             _ -> dieIO (Nothing, "Unknown usage checking mode: " ++ s)
           return $ ps { csUsageChecking = usageCheck }
+
+optSanityCheck :: String -> OptFunc
+optSanityCheck s ps
+    =  do sanityCheck <- case s of
+            "on" -> return True
+            "off" -> return False
+            _ -> dieIO (Nothing, "Unknown sanity checking mode: " ++ s)
+          return $ ps { csSanityCheck = sanityCheck }
 
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =

@@ -69,8 +69,9 @@ getPassList optsPS = filterPasses optsPS $ concat
 
 calculatePassList :: (Die m, CSMR m) => m [Pass]
 calculatePassList
-  = do rawList <- getCompState >>* getPassList
-       case buildGraph rawList of
+  = do st <- getCompState
+       let rawList = getPassList st
+       case buildGraph (csSanityCheck st) rawList of
          Left err -> dieReport (Nothing, "Error working out pass list: " ++ err)
          Right g -> return $ graphToList (g :: Gr Pass ())
 
@@ -82,8 +83,9 @@ calculatePassList
 graphToList :: Graph gr => gr Pass () -> [Pass]
 graphToList = topsort'
 
-buildGraph :: forall gr. Graph gr => [Pass] -> Either String (gr Pass ())
-buildGraph passes = do checked <- checkedRelations
+buildGraph :: forall gr. Graph gr => Bool -> [Pass] -> Either String (gr Pass ())
+buildGraph runProps passes
+                  = do checked <- checkedRelations
                        checkPassUnique
                        checkGraph
                        nodes <- labelledNodes
@@ -98,7 +100,7 @@ buildGraph passes = do checked <- checkedRelations
   
     propToPass :: Property -> Pass
     propToPass prop = Pass {
-      passCode = runPassR (\t -> propCheck prop t >> return t)
+      passCode = if runProps then runPassR (\t -> propCheck prop t >> return t) else return
      ,passName = prefixPropName (propName prop)
      ,passPre  = Set.empty
      ,passPost = Set.empty
