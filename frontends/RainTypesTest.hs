@@ -28,6 +28,7 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import CompState
 import Errors
+import Metadata
 import Pass
 import Pattern
 import RainTypes
@@ -36,6 +37,9 @@ import TestUtils
 import TreeUtils
 import Types
 import Utils
+
+m :: Meta
+m = emptyMeta
 
 -- | Tests that constants in expressions are folded properly.  TODO these tests could do with a lot of expanding.
 -- It may even be easiest to use QuickCheck for the testing.

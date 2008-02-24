@@ -38,12 +38,16 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import CompState
 import Errors
+import Metadata
 import Pattern
 import RainPasses
 import RainTypes
 import TagAST
 import TestUtils
 import TreeUtils
+
+m :: Meta
+m = emptyMeta
 
 -- | A helper function that returns a simple A.Structured A.Process item (A.Only m $ A.Skip m).
 skipP :: A.Structured A.Process

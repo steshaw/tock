@@ -38,7 +38,7 @@ import Omega
 import ShowCode
 import TestFramework
 import TestHarness
-import TestUtils hiding (m)
+import TestUtils
 import UsageCheckUtils hiding (Var)
 import Utils
 

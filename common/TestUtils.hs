@@ -50,7 +50,7 @@ import Test.QuickCheck
 import qualified AST as A
 import CompState
 import Errors
-import Metadata (Meta,emptyMeta)
+import Metadata (emptyMeta)
 import Pass
 import Pattern
 import PrettyShow
@@ -116,12 +116,6 @@ timeTask label (low,med,high) test level
                     let mean = average times
                     return (label, mean, Just $ average (map (\x -> (x - mean) * (x - mean)) times))
   
-
-
--- | An abbreviation for using 'emptyMeta'.  TODO: This should really be removed (and all uses of it replaced with 'emptyMeta') for clarity.
-m :: Meta
-m = emptyMeta
-
 -- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.VariableName'.
 simpleName :: String -> A.Name
 simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
@@ -423,29 +417,29 @@ data ExprHelper =
   | EHTrue
 
 buildExprPattern :: ExprHelper -> Pattern
-buildExprPattern = (stopCaringPattern m) . mkPattern . buildExpr
+buildExprPattern = (stopCaringPattern emptyMeta) . mkPattern . buildExpr
 
 buildExpr :: ExprHelper -> A.Expression
-buildExpr (Dy lhs op rhs) = A.Dyadic m op (buildExpr lhs) (buildExpr rhs)
-buildExpr (Mon op rhs) = A.Monadic m op (buildExpr rhs)
-buildExpr (Cast ty rhs) = A.Conversion m A.DefaultConversion ty (buildExpr rhs)
-buildExpr (Var n) = A.ExprVariable m $ variable n
-buildExpr (DirVar dir n) = A.ExprVariable m $ (A.DirectedVariable m dir $ variable n)
+buildExpr (Dy lhs op rhs) = A.Dyadic emptyMeta op (buildExpr lhs) (buildExpr rhs)
+buildExpr (Mon op rhs) = A.Monadic emptyMeta op (buildExpr rhs)
+buildExpr (Cast ty rhs) = A.Conversion emptyMeta A.DefaultConversion ty (buildExpr rhs)
+buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
+buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
 buildExpr (Lit e) = e
-buildExpr EHTrue = A.True m
+buildExpr EHTrue = A.True emptyMeta
 
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef
-simpleDef n sp = A.NameDef {A.ndMeta = m, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
+simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
                             A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
 -- | A simple definition of a declared variable
 simpleDefDecl :: String -> A.Type -> A.NameDef
-simpleDefDecl n t = simpleDef n (A.Declaration m t Nothing)
+simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t Nothing)
 
 -- | A simple definition of a declared variable
 simpleDefDeclInit :: String -> A.Type -> Maybe A.Expression -> A.NameDef
-simpleDefDeclInit n t init = simpleDef n (A.Declaration m t init)
+simpleDefDeclInit n t init = simpleDef n (A.Declaration emptyMeta t init)
 
 -- | A pattern that will match simpleDef, with a different abbreviation mode
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern

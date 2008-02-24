@@ -50,6 +50,8 @@ tvB = Var $ vB
 tvC = Var $ vC
 tvD = Var $ vD
 tvL = Var $ vL
+
+m = emptyMeta
    
 --These are all shorthand for some useful "building block" processes
 --The syntax is roughly: <variable list>_eq_<variable list>

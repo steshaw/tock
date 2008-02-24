@@ -63,6 +63,9 @@ fail x = ExpFail x
 pat :: Data a => a -> Pattern
 pat = (stopCaringPattern emptyMeta) . mkPattern
 
+m :: Meta
+m = emptyMeta
+
 -- | Runs a parse test, given a tuple of: (source text, parser function, assertion)
 -- There will be success if the parser succeeds, and the output succeeds against the given assertion.
 testParsePass :: Show a => (String, RP.RainParser a , (a -> Assertion)) -> Assertion

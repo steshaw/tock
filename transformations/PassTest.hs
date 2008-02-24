@@ -34,6 +34,9 @@ import TagAST
 import TestUtils
 import TreeUtils
 
+m :: Meta
+m = emptyMeta
+
 -- | A handy typed version of Nothing for use with A.Declaration
 noInit :: Maybe A.Expression
 noInit = Nothing

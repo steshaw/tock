@@ -26,10 +26,14 @@ import Test.HUnit hiding (State)
 
 import qualified AST as A
 import BackendPasses
+import Metadata
 import Pattern
 import TagAST
 import TestUtils
 import TreeUtils
+
+m :: Meta
+m = emptyMeta
 
 -- | Test WaitUntil guard (should be unchanged)
 testTransformWaitFor0 :: Test
