@@ -58,6 +58,7 @@ options =
   [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
   , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
+  , Option ['h'] ["help"] (NoArg optPrintHelp) "print this help"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
@@ -97,6 +98,9 @@ optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
+
+optPrintHelp :: OptFunc
+optPrintHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" options)
 
 optUsageChecking :: String -> OptFunc
 optUsageChecking s ps
