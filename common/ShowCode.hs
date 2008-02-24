@@ -389,11 +389,11 @@ instance ShowOccam A.Specification where
       +>> occamOutdent
       +>> (showOccamLine colon)
   --TODO use the specmode
-  showOccamM (A.Specification _ n (A.Function _ sm retTypes params el@(A.Only {})))
+  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left el@(A.Only {}))))
     = showOccamLine $
         showWithCommas retTypes +>> (return " FUNCTION ") +>> showName n +>> return "(" +>> showWithCommas params +>> return ")"
         +>> return " IS " +>> showOccamM el +>> colon
-  showOccamM (A.Specification _ n (A.Function _ sm retTypes params body))
+  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left body)))
     = (showOccamLine $ showWithCommas retTypes +>> (return " FUNCTION ") +>> showName n +>> return "(" +>> showWithCommas params +>> return ")")
       +>> occamIndent
       +>> showOccamM body

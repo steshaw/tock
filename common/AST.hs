@@ -475,7 +475,7 @@ data SpecType =
   -- | Declare a @PROC@.
   | Proc Meta SpecMode [Formal] Process
   -- | Declare a @FUNCTION@.
-  | Function Meta SpecMode [Type] [Formal] (Structured ExpressionList)
+  | Function Meta SpecMode [Type] [Formal] (Either (Structured ExpressionList) Process)
   -- | Declare a retyping abbreviation of a variable.
   | Retypes Meta AbbrevMode Type Variable
   -- | Declare a retyping abbreviation of an expression.

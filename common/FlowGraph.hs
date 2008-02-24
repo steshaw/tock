@@ -282,9 +282,11 @@ buildProcessOrFunctionSpec :: (Monad mAlter, Monad mLabel) => A.Specification ->
 buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args p)) route
  = let procRoute = (route33 route A.Specification) in
    addNewSubProcFunc m args (Left (p, route44 procRoute A.Proc)) (route34 procRoute A.Proc)
-buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args s)) route
+buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args es)) route
   = let funcRoute = (route33 route A.Specification) in
-    addNewSubProcFunc m args (Right (s, route55 funcRoute A.Function)) (route45 funcRoute A.Function)
+    case es of
+      Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (\f (Left e) -> f e >>* Left))) (route45 funcRoute A.Function)
+      Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (\f (Right p) -> f p >>* Right))) (route45 funcRoute A.Function)
 buildProcessOrFunctionSpec _ _ = return ()
 
 -- All the various types of Structured (SEQ, PAR, ALT, IF, CASE, input-CASE, VALOF) deal with their nodes so differently

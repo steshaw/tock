@@ -48,14 +48,14 @@ functionsToProcs = doGeneric `extM` doSpecification
     doGeneric = makeGeneric functionsToProcs
 
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification (A.Specification m n (A.Function mf sm rts fs vp))
+    doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
         = do -- Create new names for the return values.
              specs <- sequence [makeNonceVariable "return_formal" mf t A.VariableName A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
              -- Note the return types so we can fix calls later.
              modify $ (\ps -> ps { csFunctionReturns = Map.insert (A.nameName n) rts (csFunctionReturns ps) })
              -- Turn the value process into an assignment process.
-             let p = A.Seq mf $ vpToSeq vp [A.Variable mf n | n <- names]
+             let p = A.Seq mf $ vpToSeq evp [A.Variable mf n | n <- names]
              let st = A.Proc mf sm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
              -- Build a new specification and redefine the function.
              let spec = A.Specification m n st
@@ -72,10 +72,12 @@ functionsToProcs = doGeneric `extM` doSpecification
              doGeneric spec
     doSpecification s = doGeneric s
 
-    vpToSeq :: A.Structured A.ExpressionList -> [A.Variable] -> A.Structured A.Process
-    vpToSeq (A.Spec m spec s) vs = A.Spec m spec (vpToSeq s vs)
-    vpToSeq (A.ProcThen m p s) vs = A.ProcThen m p (vpToSeq s vs)
-    vpToSeq (A.Only m el) vs = A.Only m $ A.Assign m vs el
+    vpToSeq :: Either (A.Structured A.ExpressionList) A.Process -> [A.Variable] -> A.Structured A.Process
+    vpToSeq (Left (A.Spec m spec s)) vs = A.Spec m spec (vpToSeq (Left s) vs)
+    vpToSeq (Left (A.ProcThen m p s)) vs = A.ProcThen m p (vpToSeq (Left s) vs)
+    vpToSeq (Left (A.Only m el)) vs = A.Only m $ A.Assign m vs el
+    -- TODO test and implement:
+    -- vpToSeq (Right p) vs = 
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).

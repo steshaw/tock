@@ -61,7 +61,7 @@ assertGetItemCast k kv
 
 -- | Given a body, returns a function spec:
 singleParamFunc :: A.Structured A.ExpressionList -> A.Specification
-singleParamFunc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] body)
+singleParamFunc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] (Left body))
 
 -- | Returns the expected body of the single parameter process (when the function had valof0 as a body)
 singleParamBodyExp :: Pattern -- ^ to match: A.Process
@@ -94,7 +94,7 @@ testFunctionsToProcs1 :: Test
 testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp (functionsToProcs orig) (return ()) check
   where
     orig = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int,A.Real32] 
-      [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] (valofTwo "param0" "param1"))
+      [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] (Left $ valofTwo "param0" "param1"))
     exp = tag3 A.Specification DontCare (simpleName "foo") procBody
     procBody = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
                                                  tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
@@ -123,7 +123,7 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 testFunctionsToProcs2 :: Test
 testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs2 A" exp (functionsToProcs orig) (return ()) check
   where
-    orig = A.Specification m (simpleName "fooOuter") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0")] $
+    orig = A.Specification m (simpleName "fooOuter") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0")] $ Left $
       A.Spec m (singleParamFunc valof0) valof0)
     exp = tag3 A.Specification DontCare (simpleName "fooOuter") procBodyOuter
     procHeader body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0"), tag3 A.Formal A.Abbrev A.Int (Named "retOuter0" DontCare)] body
