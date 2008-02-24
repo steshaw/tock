@@ -21,8 +21,10 @@ module SimplifyTypes (simplifyTypes) where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
 
 import qualified AST as A
+import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -47,5 +49,13 @@ resolveNamedTypes = doGeneric `extM` doType
 
 -- | Resolve named types in CompState.
 rntState :: Data t => t -> PassM t
-rntState p = (get >>= resolveNamedTypes >>= put) >> return p
+rntState p = (get >>= nullBodies >>= resolveNamedTypes >>= put) >> return p
+  where
+    nullBodies :: CompState -> PassM CompState
+    nullBodies st = return $ st {csNames = Map.map nullProcFuncDefs (csNames st)}
+    
+    nullProcFuncDefs :: A.NameDef -> A.NameDef
+    nullProcFuncDefs (A.NameDef m n on nt (A.Proc m' sm fs _) am pl) = (A.NameDef m n on nt (A.Proc m' sm fs (A.Skip m')) am pl)
+    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs _) am pl) = (A.NameDef m n on nt (A.Function m' sm ts fs (A.Several m' [])) am pl)
+    nullProcFuncDefs x = x
 
