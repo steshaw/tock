@@ -253,23 +253,20 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
     transformRangeRep' s = return s
 
 checkFunction :: Data t => t -> PassM t
-checkFunction = return {- everywhereM (mkM transformFunction')
+checkFunction = everywhereM (mkM checkFunction')
   where
-    transformFunction' :: A.SpecType -> PassM A.SpecType
-    transformFunction' (A.Function m specMode types params body)
+    checkFunction' :: A.Specification -> PassM A.Specification
+    checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Right body)))
       = case body of 
-          (A.Only _ (A.Seq m' (A.Several m'' statements))) ->
+          (A.Seq m' (A.Several m'' statements)) ->
             if (null statements)
               then dieP m "Functions must not have empty bodies"
-              else case (last statements) of 
-                ret@(A.OnlyEL {}) -> return $
-                  (A.Function m specMode types params 
-                    (A.ProcThen m' (A.Seq m' (A.Several m'' (init statements))) ret)
-                  )
+              else case (last statements) of
+                (A.Only _ (A.Assign _ [A.Variable _ dest] _)) -> if A.nameName n == A.nameName dest then return spec else
+                  dieP m "Functions must have a return statement as their last statement."
                 _ -> dieP m "Functions must have a return statement as their last statement"
           _ -> dieP m "Functions must have seq[uential] bodies"
-    transformFunction' s = return s
--}
+    checkFunction' s = return s
 
 pullUpParDeclarations :: Data t => t -> PassM t
 pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
