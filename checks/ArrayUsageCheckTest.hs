@@ -734,6 +734,11 @@ generateEquationInput
     lookupF f@(Modulo a t b) vm = [(fromJust $ Map.lookup f vm, 1)]
     lookupF f@(Divide a t b) vm = [(fromJust $ Map.lookup f vm, 1)]
 
+--TODO deal with this counter-example (related to canonical form of expressions, I think):
+--Keys in variable mapping [((9 * x9) + (-9 * x10)),(x7 + x8),(-10 * x6),(((8 * x3) + (y4 * y4)) / 2)]
+--expected: [(y1 * ((x1 + (y2 * y2)) REM x3)),(y4 * y4),x10,x2,x3,x6,x7,x8,x9,((y4 * y4) + 8*x3 / 2)]
+-- but got: [(y1 * (((y2 * y2) + x1) REM x3)),(y4 * y4),x10,x2,x3,x6,x7,x8,x9,((y4 * y4) + 8*x3 / 2)]
+
 qcTestMakeEquations :: [LabelledQuickCheckTest]
 qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (20,100,400,1000) prop)]
   where
