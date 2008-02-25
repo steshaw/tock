@@ -36,7 +36,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "RainTypesTest"
 --
--- * "RainUsageCheckTest"
+-- * "UsageCheckTest"
 module TestMain () where
 
 import Control.Monad
@@ -54,7 +54,7 @@ import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
-import qualified RainUsageCheckTest (tests)
+import qualified UsageCheckTest (tests)
 import TestUtils
 import Utils
 
@@ -129,7 +129,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc PassTest.tests
               ,noqc RainPassesTest.tests
               ,noqc RainTypesTest.tests
-              ,noqc RainUsageCheckTest.tests
+              ,noqc UsageCheckTest.tests
             ]
 
     noqc :: Test -> IO (Test, [LabelledQuickCheckTest])

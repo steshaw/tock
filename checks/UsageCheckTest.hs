@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module RainUsageCheckTest (tests) where
+module UsageCheckTest (tests) where
 
 import Control.Monad.Identity
 import Data.Graph.Inductive
