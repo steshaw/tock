@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module UsageCheckTest (tests) where
 
 import Control.Monad.Error
-import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Graph.Inductive
 import qualified Data.Map as Map
@@ -40,19 +39,19 @@ import Utils
 
 
 --Shorthands for some variables to simplify the list of tests in this file
+vA, vB, vC, vD :: A.Variable
 vA = variable "a"
 vB = A.DerefVariable emptyMeta $ variable "b"
 vC = A.DirectedVariable emptyMeta A.DirInput $ variable "c"
 vD = variable "d"
-vL = variable "l"
+l0 :: A.Expression
 l0 = intLiteral 0
-l1 = intLiteral 1
 
+tvA, tvB, tvC, tvD :: Var
 tvA = Var $ vA
 tvB = Var $ vB
 tvC = Var $ vC
 tvD = Var $ vD
-tvL = Var $ vL
 
 m :: Meta
 m = emptyMeta
@@ -60,6 +59,7 @@ m = emptyMeta
 --These are all shorthand for some useful "building block" processes
 --The syntax is roughly: <variable list>_eq_<variable list>
 --where a variable may be <letter> or <letter'subscript>
+a_eq_0, a_eq_b, ab_eq_cd, ab_eq_ba, ab_eq_b0, a_eq_c_plus_d, a_eq_not_b :: A.Process
 a_eq_0 = A.Assign m [vA] $ A.ExpressionList m [l0]
 a_eq_b = A.Assign emptyMeta [vA] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vB]
 ab_eq_cd = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vC,A.ExprVariable m vD]
@@ -68,10 +68,6 @@ ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,l0]
    
 a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m vC) (A.ExprVariable m vD)]
 a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.ExprVariable m vB)]
-
-c_eq_b = A.Assign emptyMeta [vC] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vB]
-c_eq_d = A.Assign emptyMeta [vC] $ A.ExpressionList emptyMeta [A.ExprVariable emptyMeta vD]
-
 
 testGetVarProc :: Test
 testGetVarProc = TestList (map doTest tests)
@@ -121,12 +117,6 @@ instance Die TestM where
 instance Warn TestM where
   warnReport (_,s) = throwError s
 
-assertTestCheck :: String -> Bool -> TestM () -> Assertion
-assertTestCheck msg exp act = case (exp, runReaderT act emptyState) of
-  (True, Left err) -> assertFailure (msg ++ " expected pass but failed: " ++ show err)
-  (False, Right _) -> assertFailure (msg ++ " expected fail but passed")
-  _ -> return ()
-
 buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph TestM UsageLabel
 buildTestFlowGraph ns es start end v
   = mkGraph
@@ -135,9 +125,6 @@ buildTestFlowGraph ns es start end v
   where
     transNode :: (Int, [Var], [Var]) -> (Int, FNode TestM UsageLabel)
     transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing $ vars r w []))
-
---TODO add tests for initialising a variable before use.
---TODO especially test things like only initialising the variable in one part of an if
 
 testInitVar :: Test
 testInitVar = TestList
@@ -279,9 +266,6 @@ testReachDef = TestList
    
    loopEdges :: [(Int,Int,EdgeLabel)]
    loopEdges = [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq),(3,1,ESeq),(1,4,ESeq)]   
-   
-   blankMW :: (Int,[Var],[Var]) -> (Int, [Var], [Var], [Var])
-   blankMW (n,mr,dw) = (n,mr,[],dw)
    
    -- It is implied that 0 is the start, and the highest node number is the end, and the var is "x"
    test :: Int -> [(Int,[A.Variable],[A.Variable])] -> [(Int,Int,EdgeLabel)] -> [(Int,[Int])] -> Test
