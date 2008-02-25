@@ -63,6 +63,9 @@ assertGetItemCast k kv
 singleParamFunc :: A.Structured A.ExpressionList -> A.Specification
 singleParamFunc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] (Left body))
 
+singleParamFuncProc :: A.Process -> A.Specification
+singleParamFuncProc body = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] (Right body))
+
 -- | Returns the expected body of the single parameter process (when the function had valof0 as a body)
 singleParamBodyExp :: Pattern -- ^ to match: A.Process
 singleParamBodyExp = tag2 A.Seq DontCare $ mOnlyP $
@@ -149,6 +152,53 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs2 F" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
                              assertEqual "testFunctionsToProcs2 G" (Just [A.Int]) (Map.lookup "fooOuter" (csFunctionReturns state)) 
+
+-- | Tests a function with a single return, and a single parameter, with a Process body
+testFunctionsToProcs3 :: Test
+testFunctionsToProcs3 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs3" exp (functionsToProcs orig) (return ()) check
+  where
+    orig = singleParamFuncProc $ A.Seq m $ A.Only m $ A.Assign m [variable "foo"] $ A.ExpressionList m [intLiteral 0]
+    exp = tag3 A.Specification DontCare (simpleName "foo") procSpec
+    procSpec = singleParamSpecExp singleParamBodyExp
+                             --check return parameters were defined:
+    check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)                        
+                             assertVarDef "testFunctionsToProcs3" state (A.nameName ret0) $
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
+                             --check proc was defined:
+                             assertVarDef "testFunctionsToProcs3" state "foo" $
+                               tag7 A.NameDef DontCare ("foo") ("foo") A.ProcName procSpec A.Original A.Unplaced
+                             --check csFunctionReturns was changed:
+                             assertEqual "testFunctionsToProcs3" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
+
+-- | Tests a function with multiple returns, and multiple parameters.
+testFunctionsToProcs4 :: Test
+testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs4 A" exp (functionsToProcs orig) (return ()) check
+  where
+    orig = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int,A.Real32] 
+      [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] $
+        Right $ A.Seq m $ A.Only m $ A.Assign m [variable "foo"] $ A.ExpressionList m [exprVariable "param0", exprVariable "param1"])
+    exp = tag3 A.Specification DontCare (simpleName "foo") procBody
+    procBody = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
+                                                 tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
+                                                 tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
+                                                 tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $
+                 tag2 A.Seq DontCare $
+                   mOnlyP $ 
+                     tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare),tag2 A.Variable DontCare (Named "ret1" DontCare)] $ 
+                       tag2 A.ExpressionList DontCare [exprVariable "param0",exprVariable "param1"]
+                             --check return parameters were defined:
+    check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
+                             ret1 <- ((assertGetItemCast "ret1" items) :: IO A.Name)
+                             assertVarDef "testFunctionsToProcs4 B" state (A.nameName ret0) $
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) A.VariableName (A.Declaration m A.Int Nothing) A.Abbrev A.Unplaced
+                             assertVarDef "testFunctionsToProcs4 C" state (A.nameName ret1) $
+                               tag7 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1) A.VariableName (A.Declaration m A.Real32 Nothing) A.Abbrev A.Unplaced
+                             --check proc was defined:
+                             assertVarDef "testFunctionsToProcs4 D" state "foo" $
+                               tag7 A.NameDef DontCare ("foo") ("foo") A.ProcName procBody A.Original A.Unplaced
+                             --check csFunctionReturns was changed:
+                             assertEqual "testFunctionsToProcs4 E" (Just [A.Int,A.Real32]) (Map.lookup "foo" (csFunctionReturns state)) 
+
 
 skipP :: A.Structured A.Process
 skipP = A.Only m (A.Skip m)
@@ -471,6 +521,8 @@ tests = TestList
    testFunctionsToProcs0
    ,testFunctionsToProcs1
    ,testFunctionsToProcs2
+   ,testFunctionsToProcs3
+   ,testFunctionsToProcs4
    ,testInputCase
    ,testOutExprs
    ,testTransformConstr0
