@@ -407,11 +407,11 @@ testBlock =
   ,passBlock (5, "{ uint8: x; }", False,
     A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) emptySeveral)
 
-  ,fail("{b}",RP.innerBlock False)
+  ,fail("{b}",RP.innerBlock False Nothing)
  ]
  where
    passBlock :: (Int, String, Bool, A.Structured A.Process) -> ParseTest (A.Structured A.Process)
-   passBlock (ind, input, b, exp) = pass (input, RP.innerBlock b, assertPatternMatch ("testBlock " ++ show ind) (pat exp))
+   passBlock (ind, input, b, exp) = pass (input, RP.innerBlock b Nothing, assertPatternMatch ("testBlock " ++ show ind) (pat exp))
         
 testEach :: [ParseTest A.Process]
 testEach =
@@ -453,21 +453,19 @@ testTopLevelDecl =
   , fail ("process foo (int: x)", RP.topLevelDecl)
   , fail ("process foo (int x) {}", RP.topLevelDecl)
     
-  {- TODO get functions going again
   ,passTop (100, "function uint8: cons() {}",
-    [A.Spec m (A.Specification m (simpleName "cons") $ A.Function m A.PlainSpec [A.Byte] [] $ A.Only m emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "cons") $ A.Function m A.PlainSpec [A.Byte] [] $ Right emptyBlock) emptySeveral])
 
   ,passTop (101, "function uint8: f(uint8: x) {}",
     [A.Spec m (A.Specification m (simpleName "f") $
-      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ A.Only m emptyBlock)
+      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Right emptyBlock)
       emptySeveral])
 
   ,passTop (102, "function uint8: id(uint8: x) {return x;}",
     [A.Spec m (A.Specification m (simpleName "id") $
-      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
-        A.Only m $ A.Seq m $ A.Several m [A.Only m $ A.ExpressionList m [exprVariable "x"]])
+      A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Right $
+        A.Seq m $ A.Several m [A.Only m $ A.Assign m [variable "id"] (A.ExpressionList m [exprVariable "x"])])
       emptySeveral])
-  -}
  ]
  where
    passTop :: (Int, String, [A.AST]) -> ParseTest A.AST
