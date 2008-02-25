@@ -248,8 +248,9 @@ expression
 data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
 
 
-innerBlock :: Bool -> RainParser (A.Structured A.Process)
-innerBlock declsMustBeFirst = do m <- sLeftC 
+innerBlock :: Bool -> Maybe A.Name -> RainParser (A.Structured A.Process)
+innerBlock declsMustBeFirst funcName
+                            = do m <- sLeftC 
                                  lines <- linesToEnd (if declsMustBeFirst then Decls else Mixed)
                                  case lines of
                                    Left single -> return single
@@ -273,20 +274,24 @@ innerBlock declsMustBeFirst = do m <- sLeftC
                          Right ss -> return $ Left $ decl $ A.Several m ss 
                   else pzero)
                  <|> do {st <- statement ; rest <- linesToEnd nextState ; return $ Right $ (wrapProc st) : (makeList rest)}
-                 --Although return is technically a statement, we parse it here because it can only occur inside a block,
-                 --and we don't want to wrap it in an A.OnlyP:
-                 {- TODO parse return again
-                 <|> do {m <- sReturn ; exp <- expression ; sSemiColon ; rest <- linesToEnd nextState ; 
-                   return $ Right $ (A.OnlyEL m $ A.ExpressionList (findMeta exp) [exp]) : (makeList rest)}
-                 -}
+                 --Although return is technically a statement, we parse it here because it can only occur inside the right kind of block:
+                 <|> (case funcName of
+                        Nothing -> pzero
+                        Just actFuncName ->
+                          do m <- sReturn
+                             exp <- expression
+                             sSemiColon
+                             rest <- linesToEnd nextState
+                             return $ Right $ (A.Only m $ A.Assign m [A.Variable m actFuncName] $ A.ExpressionList (findMeta exp) [exp]) : (makeList rest)
+                     )
                  <|> do {sRightC ; return $ Right []}
                  <?> "statement, declaration, or end of block"
                  where
                    nextState = if state == Mixed then Mixed else NoMoreDecls
 
 block :: RainParser A.Process
-block = do { optionalSeq ; b <- innerBlock False ; return $ A.Seq (findMeta b) b}
-        <|> do { m <- sPar ; b <- innerBlock True ; return $ A.Par m A.PlainPar b}
+block = do { optionalSeq ; b <- innerBlock False Nothing ; return $ A.Seq (findMeta b) b}
+        <|> do { m <- sPar ; b <- innerBlock True Nothing ; return $ A.Par m A.PlainPar b}
         <?> "seq or par block"
 
 optionalSeq :: RainParser ()
@@ -413,10 +418,10 @@ processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <
   terminator}
 
 functionDecl :: RainParser A.AST
-functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- block ;
-  return {- $ A.Spec m  TODO handle functions again
-    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (A.Only (findMeta body) body))) -}
-  terminator}
+functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- innerBlock False (Just funcName) ;
+  return $ A.Spec m
+    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (Right $ A.Seq m body)))
+    terminator}
 
 topLevelDecl :: RainParser A.AST
 topLevelDecl = do decls <- many (processDecl <|> functionDecl <?> "process or function declaration")
