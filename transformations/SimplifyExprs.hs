@@ -55,7 +55,7 @@ functionsToProcs = doGeneric `extM` doSpecification
              -- Note the return types so we can fix calls later.
              modify $ (\ps -> ps { csFunctionReturns = Map.insert (A.nameName n) rts (csFunctionReturns ps) })
              -- Turn the value process into an assignment process.
-             let p = A.Seq mf $ vpToSeq evp [A.Variable mf n | n <- names]
+             let p = vpToSeq m n evp [A.Variable mf n | n <- names]
              let st = A.Proc mf sm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
              -- Build a new specification and redefine the function.
              let spec = A.Specification m n st
@@ -72,12 +72,25 @@ functionsToProcs = doGeneric `extM` doSpecification
              doGeneric spec
     doSpecification s = doGeneric s
 
-    vpToSeq :: Either (A.Structured A.ExpressionList) A.Process -> [A.Variable] -> A.Structured A.Process
-    vpToSeq (Left (A.Spec m spec s)) vs = A.Spec m spec (vpToSeq (Left s) vs)
-    vpToSeq (Left (A.ProcThen m p s)) vs = A.ProcThen m p (vpToSeq (Left s) vs)
-    vpToSeq (Left (A.Only m el)) vs = A.Only m $ A.Assign m vs el
-    -- TODO test and implement:
-    -- vpToSeq (Right p) vs = 
+    vpToSeq :: Meta -> A.Name -> Either (A.Structured A.ExpressionList) A.Process -> [A.Variable] -> A.Process
+    vpToSeq m n (Left el) vs = A.Seq m $ vpToSeq' el vs
+    vpToSeq _ n (Right p) vs = subst p
+      where
+        subst :: Data t => t -> t
+        subst = doGenericSubst `extT` doAssignSubst
+        
+        doGenericSubst :: Data t => t -> t
+        doGenericSubst = gmapT subst `extT` (id :: String -> String) `extT` (id :: Meta -> Meta)
+        
+        doAssignSubst :: A.Process -> A.Process
+        doAssignSubst ass@(A.Assign m [A.Variable _ dest] el) = if (A.nameName dest == A.nameName n) then (A.Assign m vs el) else ass
+        doAssignSubst p = doGenericSubst p
+        
+
+    vpToSeq' :: A.Structured A.ExpressionList -> [A.Variable] -> A.Structured A.Process
+    vpToSeq' (A.Spec m spec s) vs = A.Spec m spec (vpToSeq' s vs)
+    vpToSeq' (A.ProcThen m p s) vs = A.ProcThen m p (vpToSeq' s vs)
+    vpToSeq' (A.Only m el) vs = A.Only m $ A.Assign m vs el
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).

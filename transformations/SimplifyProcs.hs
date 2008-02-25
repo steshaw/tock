@@ -32,7 +32,7 @@ import Types
 simplifyProcs :: [Pass]
 simplifyProcs = makePassesDep
       [ ("Wrap PAR subprocesses in PROCs", parsToProcs, [Prop.parUsageChecked], [Prop.parsWrapped])
-      , ("Remove parallel assignment", removeParAssign, [Prop.parUsageChecked], [Prop.assignParRemoved])
+      , ("Remove parallel assignment", removeParAssign, [Prop.parUsageChecked, Prop.functionsRemoved], [Prop.assignParRemoved])
       , ("Flatten assignment", flattenAssign, [Prop.assignParRemoved], [Prop.assignFlattened])
       ]
 
