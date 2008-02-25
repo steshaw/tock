@@ -111,10 +111,22 @@ testCheckTreeForConstr = TestList
    doTest :: Data a => (Int, a, [Constr], [AnyDataItem]) -> Test
    doTest (n,testIn,testFor,testOut) = TestCase $ assertEqual ("testCheckAny " ++ (show n)) testOut (checkTreeForConstr testFor testIn)
 
+testDecomp :: Test
+testDecomp = TestList
+ [
+   doTest 0 (Just $ Just "xy") (decomp1 Just (return . (++ "y")) (Just "x"))
+  ,doTest 1 Nothing (decomp1 Right (return . (++ "y")) (Left "x"))
+ ]
+ where
+   doTest :: (Eq a, Show a) => Int -> Maybe a -> Maybe a -> Test
+   doTest n exp act = TestCase $ assertEqual ("testDecomp " ++ show n) exp act
+
+
 --Returns the list of tests:
 tests :: Test
 tests = TestLabel "CommonTest" $ TestList
  [
    testIsSafeConversion
    ,testCheckTreeForConstr
+   ,testDecomp
  ]

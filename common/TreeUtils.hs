@@ -398,21 +398,23 @@ mkM' f = GM {unGM = mkM f}
 gmapFuncs :: (Monad m, Data a) => [GenericM' m] -> a -> m a
 gmapFuncs funcs term = evalStateT (gmapM popFunc term) funcs
 
---TODO check con against the constructor
+decompCheckCons :: Monad m => Constr -> Constr -> m ()
+decompCheckCons cx cy = if (cx == cy) && (show cx == show cy) then return () else fail ("Constructors did not match: " ++ show cx ++ " and " ++ show cy)
+
 decomp1 :: (Monad m, Data a, Typeable a0) => (a0 -> a) -> (a0 -> m a0) -> (a -> m a)
-decomp1 con f0 = gmapFuncs [mkM' f0]
+decomp1 con f0 x = decompCheckCons (con1 con) (toConstr x) >> gmapFuncs [mkM' f0] x
 
 decomp2 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a -> m a)
-decomp2 con f0 f1 = gmapFuncs [mkM' f0, mkM' f1]
+decomp2 con f0 f1 x = decompCheckCons (con2 con) (toConstr x) >> gmapFuncs [mkM' f0, mkM' f1] x
 
 decomp3 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a -> m a)
-decomp3 con f0 f1 f2 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2]
+decomp3 con f0 f1 f2 x = decompCheckCons (con3 con) (toConstr x) >> gmapFuncs [mkM' f0, mkM' f1, mkM' f2] x
 
 decomp4 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
   (a0 -> a1 -> a2 -> a3 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a3 -> m a3) -> (a -> m a)
-decomp4 con f0 f1 f2 f3 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3]
+decomp4 con f0 f1 f2 f3 x = decompCheckCons (con4 con) (toConstr x) >> gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3] x
 
 decomp5 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a0 -> m a0) -> (a1 -> m a1) -> (a2 -> m a2) -> (a3 -> m a3) -> (a4 -> m a4) -> (a -> m a)
-decomp5 con f0 f1 f2 f3 f4 = gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3, mkM' f4]
+decomp5 con f0 f1 f2 f3 f4 x = decompCheckCons (con5 con) (toConstr x) >> gmapFuncs [mkM' f0, mkM' f1, mkM' f2, mkM' f3, mkM' f4] x
 
