@@ -478,27 +478,22 @@ testRangeRepPass1 = TestCase $ testPassShouldFail "testRangeRepPass1" (transform
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
 
-{-
 -- | Test a fairly standard function:
-testTransformFunction0 :: Test
-testTransformFunction0 = TestCase $ testPass "testTransformFunction0" exp (transformFunction orig) (return ())
+testCheckFunction0 :: Test
+testCheckFunction0 = TestCase $ testPass "testCheckFunction0" orig (checkFunction orig) (return ())
   where
     orig = A.Specification m (procName "id") $
-        A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
-          (A.Only m $ A.Seq m $ A.Several m [A.Only m $ A.ExpressionList m [exprVariable "x"]])
-    exp = tag3 A.Specification DontCare (procNamePattern "id") $
-        tag5 A.Function DontCare A.PlainSpec [A.Byte] [tag3 A.Formal A.ValAbbrev A.Byte (simpleNamePattern "x")] $
-          tag3 A.ProcThen DontCare (tag2 A.Seq DontCare $ mSeveralP DontCare []) $
-            mOnlyEL $ tag2 A.ExpressionList DontCare [exprVariablePattern "x"]
+        A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Right
+          (A.Seq m $ A.Several m [A.Only m $ A.Assign m [variable "id"] $ A.ExpressionList m [exprVariable "x"]])
 
 -- | Test a function without a return as the final statement:
-testTransformFunction1 :: Test
-testTransformFunction1 = TestCase $ testPassShouldFail "testTransformFunction1" (transformFunction orig) (return ())
+testCheckFunction1 :: Test
+testCheckFunction1 = TestCase $ testPassShouldFail "testCheckunction1" (checkFunction orig) (return ())
   where
     orig = A.Specification m (procName "brokenid") $
         A.Function m A.PlainSpec [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $
-          (A.Only m $ A.Seq m $ A.Several m [])
--}
+          (Right $ A.Seq m $ A.Several m [])
+
 testPullUpParDecl0 :: Test
 testPullUpParDecl0 = TestCase $ testPass "testPullUpParDecl0" orig (pullUpParDeclarations orig) (return ())
   where
@@ -556,9 +551,8 @@ tests = TestLabel "RainPassesTest" $ TestList
    ,testParamPass8
    ,testRangeRepPass0
    ,testRangeRepPass1
--- TODO get functions working again
---   ,testTransformFunction0
---   ,testTransformFunction1
+   ,testCheckFunction0
+   ,testCheckFunction1
    ,testPullUpParDecl0
    ,testPullUpParDecl1
    ,testPullUpParDecl2

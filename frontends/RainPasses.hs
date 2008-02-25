@@ -35,6 +35,7 @@ import RainTypes
 import TreeUtils
 import Types
 
+--TODO change this whole module to stop using everywhere
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [Pass]
@@ -60,7 +61,8 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange, typesDone, [Prop.eachRangeTransformed])
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach, typesDone ++ [Prop.eachRangeTransformed], [Prop.eachTransformed])
        ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
-       ,("Transform Rain functions into the occam form",transformFunction, typesDone ++ [Prop.eachTransformed], []) -- TODO need to sort out functions anyway
+       ,("Transform Rain functions into the occam form",checkFunction, typesDone ++ [Prop.eachTransformed], [])
+         --TODO add an export property.  Maybe check other things too (lack of comms etc -- but that could be combined with occam?)
        ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
      ]
   where
@@ -250,8 +252,8 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
                         ) (A.ExprVariable m $ A.Variable m rep)
     transformRangeRep' s = return s
 
-transformFunction :: Data t => t -> PassM t
-transformFunction = return {- TODO handle functions again everywhereM (mkM transformFunction')
+checkFunction :: Data t => t -> PassM t
+checkFunction = return {- everywhereM (mkM transformFunction')
   where
     transformFunction' :: A.SpecType -> PassM A.SpecType
     transformFunction' (A.Function m specMode types params body)
