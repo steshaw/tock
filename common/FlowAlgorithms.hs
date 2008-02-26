@@ -28,12 +28,9 @@ data GraphFuncs n e a = GF {
    nodeFunc :: (n,e) -> a -> Maybe a -> a
    ,prevNodes :: n -> [(n,e)]
    ,nextNodes :: n -> [(n,e)]
-   -- defVal should be the unit of the aggregation.  That is, if (nodeFunc a b) == defVal, then (nodeFunc a b defVal) == defVal too
-   -- TODO not sure if the above is still true
+   -- defVal is the default starting value for all the nodes (except the entry node)
    ,defVal :: a
   }
-
--- TODO further in the future, consider making this work nicely with the inductive graph rather than using node lists
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.  All the nodes in the list should be connected to
