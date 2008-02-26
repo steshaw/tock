@@ -359,8 +359,44 @@ testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
       
   ]
 
---TODO test replicated seq/par
---TODO test alts
+testAlt :: Test
+testAlt = TestLabel "testAlt" $ TestList
+  [
+    -- ALTs have a control-flow pattern of going through all the specs, scoping them in, then
+    -- branching to a guard, then doing the guard and body, then scoping everything out.
+    
+    testGraph "testAlt 0" [(0, m1), (1, sub m1 1), (4,m4), (5,m5)] [0]
+      [(0,4,ESeq), (4,5,ESeq), (5,1,ESeq)]
+      (A.Alt m1 False $ A.Only mU guard45)
+   ,testGraph "testAlt 1" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7)] [0]
+      [(0,4,ESeq), (0,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,1,ESeq), (7,1,ESeq)]
+      (A.Alt m1 False $ A.Several mU $ map (A.Only mU) [guard45, guard67])
+
+   ,testGraph "testAlt 2" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (8,m8), (18, sub m8 100)] [0]
+      [(0,8,ESeq), (8,4,ESeq), (4,5,ESeq), (5,18,ESeq), (18,1,ESeq)]
+      (A.Alt m1 False $ spec8 $ A.Only mU guard45)
+   ,testGraph "testAlt 3" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (8,m8), (18, sub m8 100), (9,m9), (19, sub m9 100)] [0]
+      [(0,8,ESeq), (8,9,ESeq), (9,4,ESeq), (4,5,ESeq), (5,19,ESeq), (19,18,ESeq), (18,1,ESeq)]
+      (A.Alt m1 False $ spec8 $ spec9 $ A.Only mU guard45)      
+
+   ,testGraph "testAlt 4" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7), (8,m8), (18, sub m8 100)] [0]
+      [(0,8,ESeq), (8,4,ESeq), (8,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,18,ESeq), (7,18,ESeq), (18, 1, ESeq)]
+      (A.Alt m1 False $ A.Several mU $ [A.Only mU guard45, spec8 $ A.Only mU guard67])
+
+   ,testGraph "testAlt 5" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7), (8,m8), (18, sub m8 100), (9,m9), (19, sub m9 100)] [0]
+      [(0,9,ESeq), (9,8,ESeq),(8,4,ESeq), (8,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,18,ESeq), (7,18,ESeq), (18, 19, ESeq), (19,1,ESeq)]
+      (A.Alt m1 False $ A.Several mU $ [spec9 $ A.Only mU guard45, spec8 $ A.Only mU guard67])
+
+   -- TODO test replicated ALTs
+   -- TODO test specs inside replicated ALTs
+
+  ]
+  where
+    guard45 = A.AlternativeSkip m4 (A.True mU) sm5
+    guard67 = A.Alternative m6 (variable "c") (A.InputSimple mU []) sm7
+    
+    spec8 = A.Spec mU (A.Specification m8 undefined undefined)
+    spec9 = A.Spec mU (A.Specification m9 undefined undefined)
 
 --TODO occam stuff:
 --TODO test input-case statements
@@ -758,7 +794,8 @@ testModify =
 qcTests :: (Test, [LabelledQuickCheckTest])
 qcTests = (TestLabel "FlowGraphTest" $ TestList
  [
-  testCase
+   testAlt
+  ,testCase
   ,testIf
   ,testPar
   ,testProcFuncSpec
