@@ -11,7 +11,7 @@ GHC_OPTS = \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
-	-ibackends -ichecks -icommon -ifrontends -ipass -itransformations
+	-ibackends -ichecks -icommon -idata -ifrontends -ipass -itransformations
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
@@ -80,13 +80,13 @@ else
 	mv frontends/LexRain.temphs frontends/LexRain.hs
 endif
 
-common/TagAST.hs: GenTagAST$(EXEEXT)
-	./GenTagAST$(EXEEXT) > common/TagAST.hs
+data/TagAST.hs: GenTagAST$(EXEEXT)
+	./GenTagAST$(EXEEXT) > data/TagAST.hs
 
-common/OrdAST.hs: GenOrdAST$(EXEEXT)
-	./GenOrdAST$(EXEEXT) > common/OrdAST.hs
+data/OrdAST.hs: GenOrdAST$(EXEEXT)
+	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
 
-BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs common/TagAST.hs common/OrdAST.hs
+BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs CompilerCommands.hs data/TagAST.hs data/OrdAST.hs
 CLEANFILES = $(BUILT_SOURCES)
 
 EXTRA_DIST = docextra testcases/automatic
@@ -105,23 +105,23 @@ tock_SOURCES_hs += checks/Check.hs
 tock_SOURCES_hs += checks/Omega.hs
 tock_SOURCES_hs += checks/UsageCheckAlgorithms.hs
 tock_SOURCES_hs += checks/UsageCheckUtils.hs
-tock_SOURCES_hs += common/AST.hs
-tock_SOURCES_hs += common/CompState.hs
 tock_SOURCES_hs += common/Errors.hs
 tock_SOURCES_hs += common/EvalConstants.hs
 tock_SOURCES_hs += common/EvalLiterals.hs
 tock_SOURCES_hs += common/FlowGraph.hs
 tock_SOURCES_hs += common/FlowAlgorithms.hs
 tock_SOURCES_hs += common/Intrinsics.hs
-tock_SOURCES_hs += common/Metadata.hs
-tock_SOURCES_hs += common/OrdAST.hs
 tock_SOURCES_hs += common/Pattern.hs
 tock_SOURCES_hs += common/PrettyShow.hs
 tock_SOURCES_hs += common/ShowCode.hs
-tock_SOURCES_hs += common/TagAST.hs
 tock_SOURCES_hs += common/TreeUtils.hs
 tock_SOURCES_hs += common/Types.hs
 tock_SOURCES_hs += common/Utils.hs
+tock_SOURCES_hs += data/AST.hs
+tock_SOURCES_hs += data/CompState.hs
+tock_SOURCES_hs += data/Metadata.hs
+tock_SOURCES_hs += data/OrdAST.hs
+tock_SOURCES_hs += data/TagAST.hs
 tock_SOURCES_hs += frontends/ParseOccam.hs
 tock_SOURCES_hs += frontends/ParseRain.hs
 tock_SOURCES_hs += frontends/ParseUtils.hs
