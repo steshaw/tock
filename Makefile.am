@@ -11,7 +11,7 @@ GHC_OPTS = \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
-	-ibackends -ichecks -icommon -idata -ifrontends -ipass -itransformations
+	-ibackends -ichecks -icommon -idata -iflow -ifrontends -ipass -itransformations
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
@@ -108,8 +108,6 @@ tock_SOURCES_hs += checks/UsageCheckUtils.hs
 tock_SOURCES_hs += common/Errors.hs
 tock_SOURCES_hs += common/EvalConstants.hs
 tock_SOURCES_hs += common/EvalLiterals.hs
-tock_SOURCES_hs += common/FlowGraph.hs
-tock_SOURCES_hs += common/FlowAlgorithms.hs
 tock_SOURCES_hs += common/Intrinsics.hs
 tock_SOURCES_hs += common/Pattern.hs
 tock_SOURCES_hs += common/PrettyShow.hs
@@ -122,6 +120,8 @@ tock_SOURCES_hs += data/CompState.hs
 tock_SOURCES_hs += data/Metadata.hs
 tock_SOURCES_hs += data/OrdAST.hs
 tock_SOURCES_hs += data/TagAST.hs
+tock_SOURCES_hs += flow/FlowGraph.hs
+tock_SOURCES_hs += flow/FlowAlgorithms.hs
 tock_SOURCES_hs += frontends/ParseOccam.hs
 tock_SOURCES_hs += frontends/ParseRain.hs
 tock_SOURCES_hs += frontends/ParseUtils.hs
@@ -147,10 +147,10 @@ tocktest_SOURCES += backends/GenerateCTest.hs
 tocktest_SOURCES += checks/ArrayUsageCheckTest.hs
 tocktest_SOURCES += checks/UsageCheckTest.hs
 tocktest_SOURCES += common/CommonTest.hs
-tocktest_SOURCES += common/FlowGraphTest.hs
 tocktest_SOURCES += common/TestFramework.hs
 tocktest_SOURCES += common/TestHarness.hs
 tocktest_SOURCES += common/TestUtils.hs
+tocktest_SOURCES += flow/FlowGraphTest.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs
 tocktest_SOURCES += frontends/RainPassesTest.hs
 tocktest_SOURCES += frontends/RainTypesTest.hs
