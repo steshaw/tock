@@ -36,9 +36,9 @@ GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
 
-TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath`
+TOCK_CFLAGS = @gnu89_inline@ -O2 -g -Wall `kroc --cflags` `kroc --ccincpath` -fno-strict-aliasing
 
-TOCK_CXXFLAGS = -O2 -g -Wall -ggdb3 -I.
+TOCK_CXXFLAGS = -O2 -g -Wall -ggdb3 -I. -fno-strict-aliasing
 TOCK_CXXLDFLAGS = -lcppcsp2 -pthread
 
 
