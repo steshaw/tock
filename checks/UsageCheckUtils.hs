@@ -194,6 +194,9 @@ getVarRepExp :: A.Replicator -> Vars
 getVarRepExp (A.For _ _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
 getVarRepExp (A.ForEach _ _ e) = getVarExp e
 
+getVarAlternative :: A.Alternative -> Vars
+getVarAlternative = const emptyVars -- TODO
+
 labelFunctions :: forall m. Die m => GraphLabelFuncs m UsageLabel
 labelFunctions = GLF
  {
@@ -201,6 +204,7 @@ labelFunctions = GLF
   ,labelExpressionList = single getVarExpList
   ,labelDummy = const (return $ Usage Nothing Nothing emptyVars)
   ,labelProcess = single getVarProc
+  ,labelAlternative = single getVarAlternative
   ,labelStartNode = single (uncurry getVarFormals)
   ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp x))
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)

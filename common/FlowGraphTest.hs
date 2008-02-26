@@ -114,7 +114,7 @@ testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.A
 testGraph' testName nodes roots edges str = testGraphF testName nodes roots edges (buildFlowGraph testOps str)
 
 testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
-testOps = GLF nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
+testOps = GLF nextId nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
 
 testGraphF :: Data structType => String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> State (Map.Map Meta Int) (Either String (FlowGraph' Identity Int structType, [Node])) -> Test
 testGraphF testName nodes roots edges grF
@@ -712,6 +712,7 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
   where
     getFunc (_,n) = getNodeFunc n
     
+    applyFunc (AlterAlternative f) = f return
     applyFunc (AlterProcess f) = f return
     applyFunc (AlterExpression f) = f return
     applyFunc (AlterExpressionList f) = f return
@@ -728,6 +729,7 @@ pickFuncRep gr = Map.fromList $ filter ((/= emptyMeta) . fst) $ map (helpApplyFu
     
     helpApplyFunc (m,f) = (m, applyFunc (m,f))
     
+    applyFunc (m,AlterAlternative f) = f (g m)
     applyFunc (m,AlterProcess f) = f (g m)
     applyFunc (m,AlterExpression f) = f (g m)
     applyFunc (m,AlterExpressionList f) = f (g m)

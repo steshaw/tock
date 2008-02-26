@@ -48,6 +48,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
 import Data.Graph.Inductive hiding (run)
+import Data.Maybe
 
 import qualified AST as A
 import Metadata
@@ -78,6 +79,7 @@ type ASTModifier m inner structType = (inner -> m inner) -> (A.Structured struct
 -- | A choice of AST altering functions built on ASTModifier.
 data AlterAST m structType = 
   AlterProcess (ASTModifier m A.Process structType)
+ |AlterAlternative (ASTModifier m A.Alternative structType)
  |AlterArguments (ASTModifier m [A.Formal] structType)
  |AlterExpression (ASTModifier m A.Expression structType)
  |AlterExpressionList (ASTModifier m A.ExpressionList structType)
@@ -125,6 +127,7 @@ data Monad m => GraphLabelFuncs m label = GLF {
      labelDummy :: Meta -> m label
     ,labelStartNode :: (Meta, [A.Formal]) -> m label
     ,labelProcess :: A.Process -> m label
+    ,labelAlternative :: A.Alternative -> m label
     ,labelExpression :: A.Expression -> m label
     ,labelExpressionList :: A.ExpressionList -> m label
     ,labelReplicator :: A.Replicator -> m label
@@ -155,6 +158,7 @@ joinLabelFuncs fx fy = GLF
   labelDummy = joinItem labelDummy,
   labelStartNode = joinItem labelStartNode,
   labelProcess = joinItem labelProcess,
+  labelAlternative = joinItem labelAlternative,
   labelExpression = joinItem labelExpression,
   labelExpressionList = joinItem labelExpressionList,
   labelReplicator = joinItem labelReplicator,
@@ -171,10 +175,10 @@ joinLabelFuncs fx fy = GLF
                          return (x0,x1)
 
 mkLabelFuncsConst :: Monad m => m label -> GraphLabelFuncs m label
-mkLabelFuncsConst v = GLF (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v)
+mkLabelFuncsConst v = GLF (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v)
 
 mkLabelFuncsGeneric :: Monad m => (forall t. Data t => t -> m label) -> GraphLabelFuncs m label
-mkLabelFuncsGeneric f = GLF f f f f f f f f
+mkLabelFuncsGeneric f = GLF f f f f f f f f f
 
   
 run :: forall mLabel mAlter label structType b. (Monad mLabel, Monad mAlter) => (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> GraphMaker mLabel mAlter label structType label
@@ -324,6 +328,60 @@ buildStructuredEL (A.Spec m spec str) route
        return (n, n')
 buildStructuredEL s _ = throwError $ "Unexpected element in function: " ++ show s
 
+buildStructuredAltNoSpecs :: (Monad mLabel, Monad mAlter) => (Node,Node) -> A.Structured A.Alternative -> ASTModifier mAlter (A.Structured A.Alternative) structType ->
+  GraphMaker mLabel mAlter label structType ()
+buildStructuredAltNoSpecs se (A.Spec _ _ str) route = buildStructuredAltNoSpecs se str (route33 route A.Spec)
+buildStructuredAltNoSpecs se (A.Several m ss) route
+  = mapMR (route22 route A.Several) (buildStructuredAltNoSpecs se) ss >> return ()
+buildStructuredAltNoSpecs se (A.ProcThen _ _ str) route
+  -- ProcThen is considered part of the specs, so we ignore it here
+  = buildStructuredAltNoSpecs se str (route33 route A.ProcThen)
+buildStructuredAltNoSpecs se (A.Rep m rep str) route
+  -- A replicated ALT has several guards, which will be replicated for
+  -- different values of i (or whatever).  But leaving aside the issue
+  -- of constraints on i (TODO record the replicators in ALTs somehow)
+  -- only one of the replicated guards will be chosen, so we can effectively
+  -- ignore the replication (in terms of the flow graph at least)
+  = buildStructuredAltNoSpecs se str (route33 route A.Rep)
+buildStructuredAltNoSpecs (nStart, nEnd) (A.Only _ guard) route
+  = do (s,e) <- buildOnlyAlternative (route22 route A.Only) guard
+       addEdge ESeq nStart s
+       addEdge ESeq e nEnd
+
+foldSpecs :: forall mAlter mLabel label structType. (Monad mLabel, Monad mAlter) => [Maybe ((Node, Node), (Node, Node))] -> GraphMaker mLabel mAlter label structType (Maybe ((Node, Node), (Node, Node)))
+foldSpecs sps = case catMaybes sps of
+    [] -> return Nothing
+    (x:xs) -> foldM fold x xs >>* Just
+  where
+    fold :: ((Node, Node), (Node, Node)) -> ((Node, Node), (Node, Node)) -> GraphMaker mLabel mAlter label structType ((Node, Node), (Node, Node))
+    fold ((inStartA, inEndA), (outStartA, outEndA)) ((inStartB, inEndB), (outStartB, outEndB))
+      = do addEdge ESeq inEndA inStartB
+           addEdge ESeq outEndB outEndA
+           return ((inStartA, inEndB), (outStartB, outEndA))
+
+buildJustSpecs :: (Monad mLabel, Monad mAlter, Data a) => A.Structured a -> ASTModifier mAlter (A.Structured a) structType ->
+  GraphMaker mLabel mAlter label structType (Maybe ((Node, Node), (Node, Node)))
+buildJustSpecs (A.Only {}) _ = return Nothing
+buildJustSpecs (A.Several _ ss) route = mapMR (route22 route A.Several) buildJustSpecs ss >>= foldSpecs
+buildJustSpecs (A.Spec _ spec str) route
+  = do (scopeIn, scopeOut) <- addSpecNodes spec route
+       inner <- buildJustSpecs str (route33 route A.Spec)
+       case inner of
+         Nothing -> return $ Just ((scopeIn, scopeIn), (scopeOut, scopeOut))
+         Just ((innerInStart, innerInEnd), (innerOutStart, innerOutEnd)) ->
+           do addEdge ESeq scopeIn innerInStart
+              addEdge ESeq innerOutEnd scopeOut
+              return $ Just ((scopeIn, innerInEnd), (innerOutStart, scopeOut))
+buildJustSpecs (A.ProcThen m p str) route
+  = do inner <- buildJustSpecs str (route33 route A.ProcThen)
+       (procNodeStart, procNodeEnd) <- buildProcess p (route23 route A.ProcThen)
+       case inner of
+         Nothing -> throwError "ProcThen was used without an inner specification"
+         Just ((innerInStart, innerInEnd), innerOut) ->
+           do addEdge ESeq procNodeEnd innerInStart
+              return $ Just ((procNodeStart, innerInEnd), innerOut)
+buildJustSpecs (A.Rep _ _ str) route -- TODO should probably record the replicator somehow
+  = return Nothing -- TODO
 
 buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
   GraphMaker mLabel mAlter label structType (Node, Node)
@@ -471,6 +529,19 @@ buildOnlyOption (cStart, cEnd) route opt
        addEdge ESeq e cEnd
        return ()
 
+buildOnlyAlternative :: (Monad mLabel, Monad mAlter) => ASTModifier mAlter A.Alternative structType -> A.Alternative ->
+  GraphMaker mLabel mAlter label structType (Node, Node)
+buildOnlyAlternative route alt
+  = do let (m,p,r) = case alt of
+              (A.Alternative m _ _ p) -> (m,p, route44 route A.Alternative)
+              (A.AlternativeCond m _ _ _ p) -> (m,p, route55 route A.AlternativeCond)
+              (A.AlternativeSkip m _ p) -> (m,p, route33 route A.AlternativeSkip)
+              (A.AlternativeWait m _ _ p) -> (m,p, route44 route A.AlternativeWait)
+       guardNode <- addNode' m labelAlternative alt (AlterAlternative route)
+       (bodyNodeStart, bodyNodeEnd) <- buildProcess p r
+       addEdge ESeq guardNode bodyNodeStart
+       return (guardNode, bodyNodeEnd)
+
 addNewSubProcFunc :: (Monad mLabel, Monad mAlter) => 
   Meta -> [A.Formal] -> Either (A.Process, ASTModifier mAlter A.Process structType) (A.Structured A.ExpressionList, ASTModifier mAlter (A.Structured A.ExpressionList) structType) ->
       ASTModifier mAlter [A.Formal] structType -> GraphMaker mLabel mAlter label structType ()
@@ -513,7 +584,18 @@ buildProcess (A.If m s) route
        nEnd <- addDummyNode m
        buildStructuredIf (nStart, nEnd) s (route22 route A.If)
        return (nStart, nEnd)
--- TODO Alt
+buildProcess (A.Alt m _ s) route
+  = do nStart <- addDummyNode m
+       nEnd <- addDummyNode m
+       specNodes <- buildJustSpecs s (route33 route A.Alt)
+       (nStart', nEnd') <- case specNodes of
+         Just ((nInStart, nInEnd), (nOutStart, nOutEnd)) ->
+           do addEdge ESeq nStart nInStart
+              addEdge ESeq nOutEnd nEnd
+              return (nInEnd, nOutStart)
+         Nothing -> return (nStart, nEnd)
+       buildStructuredAltNoSpecs (nStart', nEnd') s (route33 route A.Alt)
+       return (nStart, nEnd)
 buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route) >>* mkPair
 
 
