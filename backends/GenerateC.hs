@@ -445,15 +445,15 @@ cgenConversionSymbol fromT toT cm
 --}}}
 
 --{{{  literals
-cgenLiteral :: A.LiteralRepr -> CGen ()
-cgenLiteral lr
+cgenLiteral :: A.LiteralRepr -> A.Type -> CGen ()
+cgenLiteral lr t
     = if isStringLiteral lr
         then do tell ["\""]
                 let A.ArrayLiteral _ aes = lr
                 sequence_ [genByteLiteral s
                            | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ s)) <- aes]
                 tell ["\""]
-        else call genLiteralRepr lr
+        else call genLiteralRepr lr t
 
 -- | Does a LiteralRepr represent something that can be a plain string literal?
 isStringLiteral :: A.LiteralRepr -> Bool
@@ -464,16 +464,29 @@ isStringLiteral (A.ArrayLiteral _ aes)
            | ae <- aes]
 isStringLiteral _ = False
 
-cgenLiteralRepr :: A.LiteralRepr -> CGen ()
-cgenLiteralRepr (A.RealLiteral m s) = tell [s]
-cgenLiteralRepr (A.IntLiteral m s) = genDecimal s
-cgenLiteralRepr (A.HexLiteral m s) = tell ["0x", s]
-cgenLiteralRepr (A.ByteLiteral m s) = tell ["'"] >> genByteLiteral s >> tell ["'"]
-cgenLiteralRepr (A.ArrayLiteral m aes)
+genLitSuffix :: A.Type -> CGen ()
+genLitSuffix A.Int = tell ["L"]
+genLitSuffix A.Int32 = tell ["L"]
+genLitSuffix A.UInt32 = tell ["UL"]
+genLitSuffix A.Int64 = tell ["LL"]
+genLitSuffix A.UInt64 = tell ["ULL"]
+genLitSuffix A.Real32 = tell ["F"]
+genLitSuffix _ = return ()
+
+cgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
+cgenLiteralRepr (A.RealLiteral m s) t = tell [s] >> genLitSuffix t
+cgenLiteralRepr (A.IntLiteral m s) t
+  = do genDecimal s
+       genLitSuffix t
+cgenLiteralRepr (A.HexLiteral m s) t
+  = do tell ["0x", s]
+       genLitSuffix t
+cgenLiteralRepr (A.ByteLiteral m s) _ = tell ["'"] >> genByteLiteral s >> tell ["'"]
+cgenLiteralRepr (A.ArrayLiteral m aes) _
     =  do genLeftB
           call genArrayLiteralElems aes
           genRightB
-cgenLiteralRepr (A.RecordLiteral _ es)
+cgenLiteralRepr (A.RecordLiteral _ es) _
     =  do genLeftB
           seqComma $ map (call genUnfoldedExpression) es
           genRightB
@@ -488,7 +501,7 @@ cgenLiteralRepr (A.RecordLiteral _ es)
 -- Yuck!
 cgenUnfoldedExpression :: A.Expression -> CGen ()
 cgenUnfoldedExpression (A.Literal _ t lr)
-    =  do call genLiteralRepr lr
+    =  do call genLiteralRepr lr t
           case t of
             A.Array ds _ ->
               do genComma
@@ -752,7 +765,7 @@ cgenExpression (A.SizeVariable m v)
           call genSizeSuffix "0"
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
 cgenExpression (A.ExprVariable m v) = call genVariable v
-cgenExpression (A.Literal _ _ lr) = call genLiteral lr
+cgenExpression (A.Literal _ t lr) = call genLiteral lr t
 cgenExpression (A.True m) = tell ["true"]
 cgenExpression (A.False m) = tell ["false"]
 --cgenExpression (A.FunctionCall m n es)

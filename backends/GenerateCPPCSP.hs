@@ -1023,7 +1023,7 @@ cppgenArraySubscript checkValid v es
 -- | Changed to remove array size:
 cppgenUnfoldedExpression :: A.Expression -> CGen ()
 cppgenUnfoldedExpression (A.Literal _ t lr)
-    =  call genLiteralRepr lr
+    =  call genLiteralRepr lr t
 cppgenUnfoldedExpression (A.ExprVariable m var) = call genUnfoldedVariable m var
 cppgenUnfoldedExpression e = call genExpression e
 
