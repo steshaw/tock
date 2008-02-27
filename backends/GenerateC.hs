@@ -263,15 +263,6 @@ cgetScalarType A.Timer = Just "Time"
 cgetScalarType A.Time = Just "Time"
 cgetScalarType _ = Nothing
 
-cgetUnsignedType :: A.Type -> Maybe String
-cgetUnsignedType t | elem t [A.Byte, A.UInt16, A.UInt32, A.UInt64] = cgetScalarType t
-cgetUnsignedType A.Int8 = cgetScalarType A.Byte
-cgetUnsignedType A.Int = cgetScalarType A.UInt32
-cgetUnsignedType A.Int16 = cgetScalarType A.UInt16
-cgetUnsignedType A.Int32 = cgetScalarType A.UInt32
-cgetUnsignedType A.Int64 = cgetScalarType A.UInt64
-cgetUnsignedType _ = Nothing
-
 -- | Generate the C type corresponding to a variable being declared.
 -- It must be possible to use this in arrays.
 cgenType :: A.Type -> CGen ()
@@ -853,19 +844,8 @@ cgenDyadic m A.Rem e f = call genFuncDyadic m "rem" e f
 cgenDyadic _ A.Plus e f = call genSimpleDyadic "+" e f
 cgenDyadic _ A.Minus e f = call genSimpleDyadic "-" e f
 cgenDyadic _ A.Times e f = call genSimpleDyadic "*" e f
-cgenDyadic _ A.LeftShift e f = call genSimpleDyadic "<<" e f
-cgenDyadic m A.RightShift e f
-  = do t <- typeOfExpression e
-       (normalT, unsignedT) <- case (cgetScalarType t, cgetUnsignedType t) of
-         (Just x, Just y) -> return (x,y)
-         _ -> diePC m $ formatCode "Attempting to shift non-integer type: %" t
-       if (normalT == unsignedT)
-         then call genSimpleDyadic ">>" e f
-         else do tell ["((", normalT, ")(((", unsignedT, ")"]
-                 call genExpression e
-                 tell [") >> "]
-                 call genExpression f
-                 tell ["))"]
+cgenDyadic m A.LeftShift e f = call genFuncDyadic m "lshift" e f
+cgenDyadic m A.RightShift e f = call genFuncDyadic m "rshift" e f
 cgenDyadic _ A.BitAnd e f = call genSimpleDyadic "&" e f
 cgenDyadic _ A.BitOr e f = call genSimpleDyadic "|" e f
 cgenDyadic _ A.BitXor e f = call genSimpleDyadic "^" e f

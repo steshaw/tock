@@ -180,6 +180,28 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a - (i * b); \
 	}
 
+#define MAKE_SHIFT(type) \
+	static inline type occam_lshift_##type (type, int, const char*) occam_unused; \
+	static inline type occam_lshift_##type (type a, int b, const char* pos) { \
+		if (b < 0 || b > sizeof(type) * CHAR_BIT) { \
+			occam_stop (pos, "left shift by negative value or value (strictly) greater than number of bits in type"); \
+		} else if (b == sizeof(type) * CHAR_BIT) { \
+			return 0; \
+		} else { \
+			return (a << b); \
+		} \
+	} \
+	static inline type occam_rshift_##type (type, int, const char*) occam_unused; \
+	static inline type occam_rshift_##type (type a, int b, const char* pos) { \
+		if (b < 0 || b > sizeof(type) * CHAR_BIT) { \
+			occam_stop (pos, "right shift by negative value or value (strictly) greater than number of bits in type"); \
+		} else if (b == sizeof(type) * CHAR_BIT) { \
+			return 0; \
+		} else { \
+			return (type)(((u##type)a) >> b); \
+		} \
+	}
+
 #define MAKE_ALL_SIGNED(type,flag) \
 	MAKE_RANGE_CHECK(type,flag) \
 	MAKE_ADD(type) \
@@ -187,7 +209,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_MUL(type) \
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
-	MAKE_NEGATE(type)
+	MAKE_NEGATE(type) \
+	MAKE_SHIFT(type)
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
