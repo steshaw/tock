@@ -211,6 +211,12 @@ evalCompareOp f (OccInt32 a) (OccInt32 b) = return $ OccBool (f a b)
 evalCompareOp f (OccInt64 a) (OccInt64 b) = return $ OccBool (f a b)
 evalCompareOp _ v0 v1 = throwError (Nothing, "comparison operator not implemented for these types: " ++ show v0 ++ " and " ++ show v1)
 
+-- The idea is: set the lower N bits to zero,
+-- then rotate right by N.
+logicalShiftR :: Bits a => a -> Int -> a
+logicalShiftR val 0 = val
+logicalShiftR val n = rotateR (foldl clearBit val [0 .. (n - 1)]) n
+
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
 -- FIXME These should check for overflow.
 evalDyadic A.Add a b = evalDyadicOp (+) a b
@@ -228,7 +234,9 @@ evalDyadic A.BitXor a b = evalDyadicOp xor a b
 evalDyadic A.LeftShift a (OccInt b)
     = evalMonadicOp (\v -> shiftL v (fromIntegral b)) a
 evalDyadic A.RightShift a (OccInt b)
-    = evalMonadicOp (\v -> shiftR v (fromIntegral b)) a
+-- occam shifts are logical (no sign-extending) but Haskell only has the signed
+-- shift.  So we use a custom shift
+    = evalMonadicOp (\v -> logicalShiftR v (fromIntegral b)) a
 evalDyadic A.And (OccBool a) (OccBool b) = return $ OccBool (a && b)
 evalDyadic A.Or (OccBool a) (OccBool b) = return $ OccBool (a || b)
 evalDyadic A.Eq a b = evalCompareOp (==) a b
