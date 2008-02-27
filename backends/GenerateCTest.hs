@@ -552,6 +552,28 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
    testAllSameInit :: Int -> (String,String) -> A.Type -> A.Expression -> Test
    testAllSameInit n e t init = testAllInit n e e t (Just init)
 
+testRecord :: Test
+testRecord = TestList
+ [
+  --Record types:
+   testAllSame 400 ("typedef struct{#ATION_True}foo;","") foo False [(bar,A.Int)] 
+  ,testAllSame 401 ("typedef struct{#ATION_True#ATION_True} occam_struct_packed foo;","") foo True [(bar,A.Int),(bar,A.Int)] 
+  ,testAllSame 402 ("typedef struct{#ATION_True}foo;","") foo False [(bar,A.Array [A.Dimension 6, A.Dimension 7] A.Int)]
+ ]
+ where
+    testAll :: Int -> (String,String) -> (String,String) -> A.Name -> Bool -> [(A.Name, A.Type)] -> Test
+    testAll a b c0 c1 c2 d = testAllS a b c0 c1 c2 d (return ()) over
+    
+    testAllS :: Int -> (String,String) -> (String,String) -> A.Name ->  Bool -> [(A.Name, A.Type)] -> State CompState () -> (GenOps -> GenOps) -> Test
+    testAllS n (eCI,eCR) (eCPPI,eCPPR) rn rb rts st overFunc
+      = testBothS ("testRecord " ++ show n) eCI eCPPI (local overFunc (tcall genRecordTypeSpec rn rb rts)) st
+    testAllSame n e s0 s1 s2 = testAll n e e s0 s1 s2
+    over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
+                   ,declareInit = (override4 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
+                   ,genType = (\x -> tell ["$(",show x,")"])
+                   ,genVariable = override1 at
+                   }
+ 
 testSpec :: Test
 testSpec = TestList
  [
@@ -568,11 +590,6 @@ testSpec = TestList
   ,testBothFail "testAllSame 200" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
   ,testBothFail "testAllSame 300" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
   ,testAllSame 350 ("","") $ A.Protocol emptyMeta undefined
-
-  --Record types:
-  ,testAllSame 400 ("typedef struct{#ATION_True}foo;","") $ A.RecordType emptyMeta False [(bar,A.Int)] 
-  ,testAllSame 401 ("typedef struct{#ATION_True#ATION_True} occam_struct_packed foo;","") $ A.RecordType emptyMeta True [(bar,A.Int),(bar,A.Int)] 
-  ,testAll 402 ("typedef struct{#ATION_True}foo;","") ("typedef struct{#ATION_True}foo;","")$ A.RecordType emptyMeta False [(bar,A.Array [A.Dimension 6, A.Dimension 7] A.Int)]
 
   --IsChannelArray:
   ,testAll 500 
