@@ -213,7 +213,7 @@ transformInputCase = doGeneric `extM` doProcess
     doStructuredA s = return s
     
 transformProtocolInput :: Data t => t -> PassM t
-transformProtocolInput = doGeneric `extM` doProcess
+transformProtocolInput = doGeneric `extM` doProcess `extM` doAlternative
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric transformProtocolInput
@@ -224,3 +224,15 @@ transformProtocolInput = doGeneric `extM` doProcess
           map (A.Only m . A.Input m v . A.InputSimple m' . singleton) iis
     doProcess p = doGeneric p
 
+    doAlternative :: A.Alternative -> PassM A.Alternative
+    doAlternative (A.Alternative m v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
+      = do body' <- doProcess body
+           return $ A.Alternative m v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
+             map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
+             ++ [A.Only m' body']
+    doAlternative (A.AlternativeCond m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
+      = do body' <- doProcess body
+           return $ A.AlternativeCond m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
+             map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
+             ++ [A.Only m' body']
+    doAlternative s = doGeneric s
