@@ -109,6 +109,7 @@ cgenOps = GenOps {
     genPar = cgenPar,
     genProcCall = cgenProcCall,
     genProcess = cgenProcess,
+    genRecordTypeSpec = cgenRecordTypeSpec,
     genReplicator = cgenReplicator,
     genReplicatorLoop = cgenReplicatorLoop,
     genRetypeSizes = cgenRetypeSizes,
@@ -1288,13 +1289,7 @@ cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
           tell ["};"]
           call declareArraySizes (A.Array [A.Dimension $ length cs] c) n
 cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
-cintroduceSpec (A.Specification _ n (A.RecordType _ b fs))
-    =  do tell ["typedef struct{"]
-          sequence_ [call genDeclaration t n True | (n, t) <- fs]
-          tell ["}"]
-          when b $ tell [" occam_struct_packed "]
-          genName n
-          tell [";"]
+cintroduceSpec (A.Specification _ _ (A.RecordType _ _ _)) = return ()
 cintroduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
 cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum{"]
@@ -1338,6 +1333,16 @@ cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec n = call genMissing $ "introduceSpec " ++ show n
 
+cgenRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen ()
+cgenRecordTypeSpec n b fs
+    =  do tell ["typedef struct{"]
+          sequence_ [call genDeclaration t n True | (n, t) <- fs]
+          tell ["}"]
+          when b $ tell [" occam_struct_packed "]
+          genName n
+          tell [";"]
+
+
 cgenForwardDeclaration :: A.Specification -> CGen ()
 cgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
     =  do call genSpecMode sm
@@ -1346,6 +1351,8 @@ cgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
           tell [" (Process *me"]
           call genFormals fs
           tell [");"]
+cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
+    = call genRecordTypeSpec n b fs
 cgenForwardDeclaration _ = return ()
 
 cremoveSpec :: A.Specification -> CGen ()

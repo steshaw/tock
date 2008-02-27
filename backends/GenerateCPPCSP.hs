@@ -725,6 +725,8 @@ cppgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
     genConstructorList :: [A.Formal] -> CGen ()
     genConstructorList fs = mapM_ genConsItem fs
 
+cppgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
+    = call genRecordTypeSpec n b fs
 cppgenForwardDeclaration _ = return ()
 
 cppintroduceSpec :: A.Specification -> CGen ()
@@ -805,15 +807,6 @@ cppintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
 
---This clause was simplified, because we don't need separate array sizes in C++:
-cppintroduceSpec (A.Specification _ n (A.RecordType _ b fs))
-    =  do tell ["typedef struct{"]
-          sequence_ [call genDeclaration t n True
-                     | (n, t) <- fs]
-          tell ["}"]
-          when b $ tell [" occam_struct_packed "]
-          genName n
-          tell [";"]
 --Clause changed to handle array retyping
 cppintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v

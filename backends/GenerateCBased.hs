@@ -145,6 +145,7 @@ data GenOps = GenOps {
     genPar :: A.ParMode -> A.Structured A.Process -> CGen (),
     genProcCall :: A.Name -> [A.Actual] -> CGen (),
     genProcess :: A.Process -> CGen (),
+    genRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen (),
     -- | Generates a replicator loop, given the replicator and body
     genReplicator :: A.Replicator -> CGen () -> CGen (),
     -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
