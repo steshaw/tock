@@ -104,11 +104,14 @@ evalSimpleExpression e = throwError (Just $ findMeta e,"not a literal")
 
 -- | Turn the result of one of the read* functions into an OccValue,
 -- or throw an error if it didn't parse.
-fromRead :: (t -> OccValue) -> (String -> [(t, String)]) -> String -> EvalM OccValue
-fromRead cons reader s
+fromRead' :: (a -> t) -> (a -> OccValue) -> (t -> OccValue) -> (String -> [(a, String)]) -> String -> EvalM OccValue
+fromRead' mod _ cons reader s
     = case reader s of
-        [(v, "")] -> return $ cons v
+        [(v, "")] -> return $ cons (mod v)
         _ -> throwError (Nothing,"cannot parse literal: " ++ s)
+
+fromRead :: (t -> OccValue) -> (String -> [(t, String)]) -> String -> EvalM OccValue
+fromRead = fromRead' id undefined
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
@@ -133,23 +136,23 @@ evalSimpleLiteral (A.Literal _ A.UInt64 (A.HexLiteral _ s))
 evalSimpleLiteral (A.Literal _ A.Int8 (A.IntLiteral _ s))
     = fromRead OccInt8 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int8 (A.HexLiteral _ s))
-    = fromRead OccInt8 readHex s
+    = fromRead' (fromInteger . toInteger) OccByte OccInt8 readHex s
 evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s))
     = fromRead OccInt (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s))
-    = fromRead OccInt readHex s
+    = fromRead' (fromInteger . toInteger) OccUInt32 OccInt readHex s
 evalSimpleLiteral (A.Literal _ A.Int16 (A.IntLiteral _ s))
     = fromRead OccInt16 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int16 (A.HexLiteral _ s))
-    = fromRead OccInt16 readHex s
+    = fromRead' (fromInteger . toInteger) OccUInt16 OccInt16 readHex s
 evalSimpleLiteral (A.Literal _ A.Int32 (A.IntLiteral _ s))
     = fromRead OccInt32 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int32 (A.HexLiteral _ s))
-    = fromRead OccInt32 readHex s
+    = fromRead' (fromInteger . toInteger) OccUInt32 OccInt32 readHex s
 evalSimpleLiteral (A.Literal _ A.Int64 (A.IntLiteral _ s))
     = fromRead OccInt64 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int64 (A.HexLiteral _ s))
-    = fromRead OccInt64 readHex s
+    = fromRead' (fromInteger . toInteger) OccUInt64 OccInt64 readHex s
 evalSimpleLiteral l = throwError (Just $ findMeta l,"bad literal: " ++ show l)
 
 -- | Evaluate a byte literal.
