@@ -35,7 +35,7 @@ import Types
 
 unnest :: [Pass]
 unnest = makePassesDep
-      [ ("Convert free names to arguments", removeFreeNames, [Prop.mainTagged, Prop.parsWrapped], [Prop.freeNamesToArgs])
+      [ ("Convert free names to arguments", removeFreeNames, [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved], [Prop.freeNamesToArgs])
       , ("Pull nested definitions to top level", removeNesting, [Prop.freeNamesToArgs], [Prop.nestedPulled])
       ]
 
