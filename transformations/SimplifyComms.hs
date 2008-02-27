@@ -35,6 +35,7 @@ simplifyComms :: [Pass]
 simplifyComms = makePassesDep
       [ ("Define temporary variables for outputting expressions", outExprs, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.outExpressionRemoved])
        ,("Transform ? CASE statements/guards into plain CASE", transformInputCase, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.inputCaseRemoved])
+       ,("Flatten sequential protocol inputs into multiple inputs", transformProtocolInput, Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved], [Prop.seqInputsFlattened])
       ]
 
 outExprs :: Data t => t -> PassM t
@@ -211,3 +212,15 @@ transformInputCase = doGeneric `extM` doProcess
     -- Leave other guards (and parts of Structured) untouched:
     doStructuredA s = return s
     
+transformProtocolInput :: Data t => t -> PassM t
+transformProtocolInput = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformProtocolInput
+    
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.Input m v (A.InputSimple m' iis))
+      = return $ A.Seq m $ A.Several m $
+          map (A.Only m . A.Input m v . A.InputSimple m' . singleton) iis
+    doProcess p = doGeneric p
+

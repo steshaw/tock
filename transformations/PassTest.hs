@@ -33,6 +33,7 @@ import SimplifyExprs
 import TagAST
 import TestUtils
 import TreeUtils
+import Utils
 
 m :: Meta
 m = emptyMeta
@@ -513,6 +514,26 @@ testInputCase = TestList
     
     specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
     specIntPatt s = mSpecA' emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int Nothing)
+
+testTransformProtocolInput :: Test
+testTransformProtocolInput = TestList
+  [
+    TestCase $ testPass "testTransformProtocolInput0"
+      (A.Seq emptyMeta $ A.Several emptyMeta [onlySingle ii0])
+      (transformProtocolInput $ seqItems [ii0])
+      (return ())
+   ,TestCase $ testPass "testTransformProtocolInput1"
+      (A.Seq emptyMeta $ A.Several emptyMeta $ map onlySingle [ii0, ii1, ii2])
+      (transformProtocolInput $ seqItems [ii0, ii1, ii2])
+      (return ())
+  ]
+  where
+   ii0 = A.InVariable emptyMeta (variable "x")
+   ii1 = A.InCounted emptyMeta (variable "y") (variable "z")
+   ii2 = A.InVariable emptyMeta (variable "a")
+  
+   onlySingle = A.Only emptyMeta . A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta . singleton
+   seqItems = A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta
                              
 --Returns the list of tests:
 tests :: Test
@@ -526,6 +547,7 @@ tests = TestList
    ,testInputCase
    ,testOutExprs
    ,testTransformConstr0
+   ,testTransformProtocolInput
  ]
 
 

@@ -47,6 +47,7 @@ module Properties
   , processTypesChecked
   , rainParDeclarationsPulledUp
   , rangeTransformed
+  , seqInputsFlattened
   , subscriptsPulledUp
   , typesResolvedInAST
   , typesResolvedInState
@@ -325,3 +326,10 @@ mainTagged :: Property
 mainTagged = Property "mainTagged" nocheck
 -- We don't check this because not having a main process may be valid in the future
 -- so there's no easy way to check if the main process has been looked for or not
+
+seqInputsFlattened :: Property
+seqInputsFlattened = Property "seqInputsFlattened" $ checkNull "seqInputsFlattened" . listify findMultipleInputs
+  where
+    findMultipleInputs :: A.InputMode -> Bool
+    findMultipleInputs (A.InputSimple _ (_:_:_)) = True
+    findMultipleInputs _ = False
