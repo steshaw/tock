@@ -36,7 +36,7 @@ simplifyExprs = makePassesDep
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.parUsageChecked], [Prop.functionsRemoved])
       , ("Convert AFTER to MINUS", removeAfter, [Prop.expressionTypesChecked], [Prop.afterRemoved])
       , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
-      , ("Pull up definitions", pullUp, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
+      , ("Pull up definitions", pullUp, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
       , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone, [])
       ]
 
