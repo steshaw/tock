@@ -155,8 +155,11 @@ pullRepCounts = doGeneric `extM` doProcess
     doProcess p = doGeneric p
     
     pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    pullRepCountSeq (A.Only m p) = pullRepCounts p >>* A.Only m
-    pullRepCountSeq (A.Spec m sp str) = pullRepCountSeq str >>* A.Spec m sp
+    pullRepCountSeq (A.Only m p) = doProcess p >>* A.Only m
+    pullRepCountSeq (A.Spec m sp str)
+      = do sp' <- pullRepCounts sp
+           str' <- pullRepCountSeq str
+           return $ A.Spec m sp' str'
     pullRepCountSeq (A.ProcThen m p s)
       = do p' <- doProcess p
            s' <- pullRepCountSeq s
