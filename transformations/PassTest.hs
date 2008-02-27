@@ -519,7 +519,7 @@ testTransformProtocolInput :: Test
 testTransformProtocolInput = TestList
   [
     TestCase $ testPass "testTransformProtocolInput0"
-      (A.Seq emptyMeta $ A.Several emptyMeta [onlySingle ii0])
+      (seqItems [ii0])
       (transformProtocolInput $ seqItems [ii0])
       (return ())
    ,TestCase $ testPass "testTransformProtocolInput1"

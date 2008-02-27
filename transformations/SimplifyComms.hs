@@ -219,7 +219,7 @@ transformProtocolInput = doGeneric `extM` doProcess
     doGeneric = makeGeneric transformProtocolInput
     
     doProcess :: A.Process -> PassM A.Process
-    doProcess (A.Input m v (A.InputSimple m' iis))
+    doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))
       = return $ A.Seq m $ A.Several m $
           map (A.Only m . A.Input m v . A.InputSimple m' . singleton) iis
     doProcess p = doGeneric p
