@@ -63,6 +63,7 @@ options =
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
+  , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   ]
 
 optMode :: String -> OptFunc
@@ -95,6 +96,9 @@ optFrontend s ps
 
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
+
+optKeepTemporaries :: OptFunc
+optKeepTemporaries ps = return $ ps { csKeepTemporaries = True }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
@@ -177,7 +181,9 @@ instance Die (StateT [FilePath] PassM) where
   dieReport err = do files <- get
                      -- If removing the files fails, we don't want to die with that error; we want the user to see the original error,
                      -- so ignore errors arising from removing the files:
-                     liftIO $ removeFiles files
+                     optsPS <- lift $ getCompState
+                     when (not $ csKeepTemporaries optsPS) $
+                       liftIO $ removeFiles files
                      lift $ dieReport err
 
 compileFull :: String -> StateT [FilePath] PassM ()

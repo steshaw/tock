@@ -61,6 +61,7 @@ data CompState = CompState {
     csUsageChecking :: Bool,
     csVerboseLevel :: Int,
     csOutputFile :: String,
+    csKeepTemporaries :: Bool,
 
     -- Set by preprocessor
     csCurrentFile :: String,
@@ -94,6 +95,7 @@ emptyState = CompState {
     csUsageChecking = False, -- For now!  TODO turn this on by default
     csVerboseLevel = 0,
     csOutputFile = "-",
+    csKeepTemporaries = False,
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
