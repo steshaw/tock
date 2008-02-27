@@ -30,6 +30,7 @@ import Metadata
 import Pass
 import qualified Properties as Prop
 import Types
+import Utils
 
 simplifyExprs :: [Pass]
 simplifyExprs = makePassesDep
@@ -38,6 +39,7 @@ simplifyExprs = makePassesDep
       , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
       , ("Pull up definitions", pullUp, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
       , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone, [])
+      , ("Pull up replicator counts for SEQs", pullRepCounts, Prop.agg_namesDone ++ Prop.agg_typesDone,  [])
       ]
 
 -- | Convert FUNCTION declarations to PROCs.
@@ -132,6 +134,40 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
     expand (A.Dimension n:ds) e
         = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
       where m = findMeta e
+
+-- | We pull up the loop (Rep) counts into a temporary expression, whenever the loop
+-- count could be modified within the loop.  Here are all things that can be replicated:
+-- SEQ -- can be altered during the loop, must pull up
+-- PAR -- count cannot be modified by code inside the loop (it is used before any PAR branches are run)
+-- IF  -- cannot be altered during loop; once body executes, loop is effectively broken
+-- ALT -- same as IF
+-- Therefore, we only need to pull up the counts for sequential replicators
+--
+-- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
+pullRepCounts :: Data t => t -> PassM t
+pullRepCounts = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric pullRepCounts
+    
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
+    doProcess p = doGeneric p
+    
+    pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
+    pullRepCountSeq (A.Only m p) = pullRepCounts p >>* A.Only m
+    pullRepCountSeq (A.Spec m sp str) = pullRepCountSeq str >>* A.Spec m sp
+    pullRepCountSeq (A.ProcThen m p s)
+      = do p' <- doProcess p
+           s' <- pullRepCountSeq s
+           return $ A.ProcThen m p' s'
+    pullRepCountSeq (A.Several m ss) = mapM pullRepCountSeq ss >>* A.Several m
+    pullRepCountSeq (A.Rep m (A.For m' n from for) s)
+      = do t <- typeOfExpression for
+           spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" m' t for
+           s' <- pullRepCountSeq s
+           return $ A.Spec m spec $ A.Rep m (A.For m' n from (A.ExprVariable m' $ A.Variable m' nonceName)) s'
+    
 
 transformConstr :: Data t => t -> PassM t
 transformConstr = doGeneric `ext1M` doStructured

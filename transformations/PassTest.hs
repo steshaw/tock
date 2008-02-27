@@ -553,7 +553,47 @@ testTransformProtocolInput = TestList
    onlySingleAlt = A.Only emptyMeta . flip (A.Alternative emptyMeta (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta . singleton
    seqItems = A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta
    altItems = flip (A.Alternative emptyMeta (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta
-                             
+
+
+testPullRepCounts :: Test
+testPullRepCounts = TestList
+  [
+    testUnchanged 0 $ A.Par emptyMeta A.PlainPar
+   ,testUnchanged 1 $ A.Par emptyMeta A.PriPar
+   ,testUnchanged 2 $ A.Alt emptyMeta False
+   ,testUnchanged 3 $ A.Alt emptyMeta True
+   ,testUnchanged 4 $ A.If emptyMeta
+   
+   ,TestCase $ testPass "testPullRepCounts 5"
+     (nameAndStopCaringPattern "nonce" "nonce" $ mkPattern $ A.Seq emptyMeta $
+       A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
+         A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (exprVariable "nonce")) $ A.Several emptyMeta [])
+       
+     (pullRepCounts $ A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $ A.Several emptyMeta [])
+     (return ())
+
+   ,TestCase $ testPass "testPullRepCounts 6"
+     (nameAndStopCaringPattern "nonce" "nonce" $ nameAndStopCaringPattern "nonce2" "nonce2" $ mkPattern $ A.Seq emptyMeta $
+       A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
+         A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (exprVariable "nonce")) $
+           A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce2") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8)) $
+             A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (exprVariable "nonce2")) $ A.Several emptyMeta [])
+       
+     (pullRepCounts $ A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $
+        A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (intLiteral 8)) $ A.Several emptyMeta [])
+     (return ())
+  ]
+  where
+    testUnchanged :: Data a => Int -> (A.Structured a -> A.Process) -> Test
+    testUnchanged n f = TestCase $ testPass
+      ("testPullRepCounts/testUnchanged " ++ show n)
+      code
+      (pullRepCounts code)
+      (return ())
+      where 
+        code = (f $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 5)) $ A.Several emptyMeta [])
+
+
 --Returns the list of tests:
 tests :: Test
 tests = TestList
@@ -565,6 +605,7 @@ tests = TestList
    ,testFunctionsToProcs4
    ,testInputCase
    ,testOutExprs
+   ,testPullRepCounts
    ,testTransformConstr0
    ,testTransformProtocolInput
  ]
