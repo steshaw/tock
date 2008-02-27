@@ -457,9 +457,7 @@ isStringLiteral (A.ArrayLiteral _ aes)
 isStringLiteral _ = False
 
 genLitSuffix :: A.Type -> CGen ()
-genLitSuffix A.Int = tell ["L"]
-genLitSuffix A.Int32 = tell ["L"]
-genLitSuffix A.UInt32 = tell ["UL"]
+genLitSuffix A.UInt32 = tell ["U"]
 genLitSuffix A.Int64 = tell ["LL"]
 genLitSuffix A.UInt64 = tell ["ULL"]
 genLitSuffix A.Real32 = tell ["F"]
