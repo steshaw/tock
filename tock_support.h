@@ -222,7 +222,7 @@ MAKE_ALL_SIGNED(int64_t, "%lld")
 //}}}
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
-MAKE_RANGE_CHECK(float, "%d")
+MAKE_RANGE_CHECK(float, "%f")
 MAKE_ADD(float)
 MAKE_SUBTR(float)
 MAKE_MUL(float)
@@ -231,7 +231,7 @@ MAKE_NEGATE(float)
 MAKE_DUMB_REM(float)
 //}}}
 //{{{ double
-MAKE_RANGE_CHECK(double, "%d")
+MAKE_RANGE_CHECK(double, "%f")
 MAKE_ADD(double)
 MAKE_SUBTR(double)
 MAKE_MUL(double)
