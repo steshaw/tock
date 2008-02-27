@@ -479,8 +479,13 @@ cgenLiteralRepr (A.IntLiteral m s) t
   = do genDecimal s
        genLitSuffix t
 cgenLiteralRepr (A.HexLiteral m s) t
-  = do tell ["0x", s]
+  = do f <- fget getScalarType
+       ct <- case f t of
+         Just ct -> return ct
+         Nothing -> diePC m $ formatCode "Non-scalar type for hex literal: " t
+       tell ["((",ct,")0x", s]
        genLitSuffix t
+       tell [")"]
 cgenLiteralRepr (A.ByteLiteral m s) _ = tell ["'"] >> genByteLiteral s >> tell ["'"]
 cgenLiteralRepr (A.ArrayLiteral m aes) _
     =  do genLeftB
