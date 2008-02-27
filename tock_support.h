@@ -176,7 +176,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		if (b == 0) { \
 			occam_stop (pos, "modulo by zero"); \
 		} \
-		type i = trunc (a / b); \
+		type i = round (a / b); \
 		return a - (i * b); \
 	}
 
