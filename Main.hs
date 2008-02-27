@@ -219,7 +219,8 @@ compileFull fn        = do optsPS <- lift get
                            
                            -- Finally, remove the temporary files:
                            tempFiles <- get
-                           liftIO $ removeFiles tempFiles
+                           when (not $ csKeepTemporaries optsPS) $
+                             liftIO $ removeFiles tempFiles
     
   where
     noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
