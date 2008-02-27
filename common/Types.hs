@@ -323,7 +323,8 @@ underlyingType m = underlyingType'
     underlyingType'' :: A.Type -> m A.Type
     underlyingType'' t@(A.UserDataType _)
       = resolveUserType m t >>= underlyingType m
-    underlyingType'' (A.Array ds t) = return $ addDimensions ds t
+    underlyingType'' (A.Array ds t)
+      = underlyingType m t >>* addDimensions ds
     underlyingType'' t = doGeneric t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
