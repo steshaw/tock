@@ -137,6 +137,7 @@ doPattern p@(Match c ps) =
 doAny :: (forall a. Data a => (a -> Doc) -> (a -> Doc)) -> GenericQ Doc
 doAny extFunc = extFunc (
   (doGeneral anyFunc) `ext1Q` (doList anyFunc) `extQ` doString `extQ` doMeta `extQ` doPattern
+          `extQ` (doMap anyFunc :: Map.Map String PreprocDef -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String String -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String A.NameDef -> Doc)
           `extQ` (doMap anyFunc :: Map.Map String [A.Type] -> Doc)

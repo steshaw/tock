@@ -152,6 +152,7 @@ tocktest_SOURCES += common/TestHarness.hs
 tocktest_SOURCES += common/TestUtils.hs
 tocktest_SOURCES += flow/FlowGraphTest.hs
 tocktest_SOURCES += frontends/ParseRainTest.hs
+tocktest_SOURCES += frontends/PreprocessOccamTest.hs
 tocktest_SOURCES += frontends/RainPassesTest.hs
 tocktest_SOURCES += frontends/RainTypesTest.hs
 tocktest_SOURCES += transformations/PassTest.hs

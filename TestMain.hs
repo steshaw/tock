@@ -52,6 +52,7 @@ import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
+import qualified PreprocessOccamTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
 import qualified UsageCheckTest (tests)
@@ -127,6 +128,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc GenerateCTest.tests
               ,noqc ParseRainTest.tests
               ,noqc PassTest.tests
+              ,noqc PreprocessOccamTest.tests
               ,noqc RainPassesTest.tests
               ,noqc RainTypesTest.tests
               ,noqc UsageCheckTest.tests

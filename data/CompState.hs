@@ -46,6 +46,16 @@ data CompBackend = BackendC | BackendCPPCSP | BackendDumpAST
 data CompFrontend = FrontendOccam | FrontendRain
   deriving (Show, Data, Typeable, Eq)
 
+-- | Preprocessor definitions.
+data PreprocDef =
+  PreprocNothing
+  | PreprocInt String
+  | PreprocString String
+  deriving (Show, Data, Typeable, Eq)
+
+-- | An item that has been pulled up.
+type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
+
 -- | State necessary for compilation.
 data CompState = CompState {
     -- This structure needs to be printable with pshow.
@@ -66,6 +76,7 @@ data CompState = CompState {
     -- Set by preprocessor
     csCurrentFile :: String,
     csUsedFiles :: Set String,
+    csDefinitions :: Map String PreprocDef,
 
     -- Set by Parse
     csLocalNames :: [(String, A.Name)],
@@ -84,8 +95,6 @@ data CompState = CompState {
   }
   deriving (Data, Typeable)
 
-type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
-
 emptyState :: CompState
 emptyState = CompState {
     csMode = ModeFull,
@@ -99,6 +108,7 @@ emptyState = CompState {
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
+    csDefinitions = Map.insert "COMPILER.TOCK" PreprocNothing Map.empty,
 
     csLocalNames = [],
     csMainLocals = [],
