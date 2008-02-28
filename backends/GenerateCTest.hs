@@ -503,9 +503,9 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   -- Plain records:
   ,testAllR 100 ("","") ("","") A.Int id
   -- Records containing an array:
-  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;(&foo)->bar_sizes[1]=5;","") ("(&foo)->bar=tockArrayView((&foo)->bar_actual,tockDims(4,5));","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;(&foo)->bar_sizes[1]=5;","") ("(&foo)->bar=tockArrayView<int,2>((&foo)->bar_actual,tockDims(4,5));","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
   -- Arrays of records containing an array:
-  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;(&foo[0])->bar_sizes[1]=5;^","") ("^(&foo[0].access())->bar=tockArrayView((&foo[0].access())->bar_actual,tockDims(4,5));^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;(&foo[0])->bar_sizes[1]=5;^","") ("^(&foo[0].access())->bar=tockArrayView<int,2>((&foo[0].access())->bar_actual,tockDims(4,5));^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
 
   -- Mobile versions
   ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [A.Dimension 4] A.Int

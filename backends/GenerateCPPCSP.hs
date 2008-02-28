@@ -610,9 +610,11 @@ cppdeclareInit m rt@(A.Record _) var _
   where
     initField :: A.Type -> A.Variable -> CGen ()
     -- An array as a record field; we must initialise the sizes.
-    initField t@(A.Array ds _) v
+    initField t@(A.Array ds ts) v
         =  do call genVariableUnchecked v
-              tell ["=tockArrayView("]
+              tell ["=tockArrayView<"]
+              call genType ts
+              tell [",",show (length ds),">("]
               call genVariableUnchecked v
               tell ["_actual,tockDims("]
               infixComma [tell [show n] | (A.Dimension n) <- ds]
