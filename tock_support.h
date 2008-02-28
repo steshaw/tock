@@ -180,7 +180,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a - (i * b); \
 	}
 
-#define MAKE_SHIFT(type) \
+#define MAKE_SHIFT(utype, type) \
 	static inline type occam_lshift_##type (type, int, const char*) occam_unused; \
 	static inline type occam_lshift_##type (type a, int b, const char* pos) { \
 		if (b < 0 || b > sizeof(type) * CHAR_BIT) { \
@@ -198,7 +198,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} else if (b == sizeof(type) * CHAR_BIT) { \
 			return 0; \
 		} else { \
-			return (type)(((u##type)a) >> b); \
+			return (type)(((utype)a) >> b); \
 		} \
 	}
 
@@ -210,7 +210,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
 	MAKE_NEGATE(type) \
-	MAKE_SHIFT(type)
+	MAKE_SHIFT(u##type, type)
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
@@ -218,6 +218,7 @@ MAKE_ADD(uint8_t)
 MAKE_SUBTR(uint8_t)
 MAKE_MUL(uint8_t)
 MAKE_DIV(uint8_t)
+MAKE_SHIFT(uint8_t,uint8_t)
 
 // occam's only unsigned type, so we can use % directly.
 static inline uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
