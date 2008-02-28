@@ -773,6 +773,9 @@ testGenVariable = TestList
   ,testSameA 200 ("(&foo)->x","foo->x","foo->x") fieldX (A.Record bar)
   ,testSameA2 210 ("foo->x","(*foo)->x") (fieldX . deref) (A.Mobile $ A.Record bar)
   
+  ,testSameA 220 ("(&(&foo)->y)","(&foo->y)","(&foo->y)") fieldY (A.Record $ simpleName "barbar")
+  ,testSameA 230 ("(&(&foo)->y)->x","(&foo->y)->x","(&foo->y)->x") (fieldX . fieldY) (A.Record $ simpleName "barbar")
+  
   -- Fully subscripted array:
   ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
   ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int)
@@ -798,6 +801,7 @@ testGenVariable = TestList
    deref = A.DerefVariable emptyMeta
    dir = A.DirectedVariable emptyMeta A.DirInput
    fieldX = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "x")
+   fieldY = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "y")
    sub n = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral n)
  
    test :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
@@ -809,6 +813,7 @@ testGenVariable = TestList
      where
        state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t Nothing) am A.Unplaced
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
+                  defRecord "barbar" "y" $ A.Record bar
        over :: Override
        over = local $ \ops -> ops {genArraySubscript = (\b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
                       ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
