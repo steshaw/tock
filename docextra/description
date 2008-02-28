@@ -1,0 +1,7 @@
+This is the generated API documentation for the Tock compiler.
+
+Below is a rough diagram of the structure of Tock.  On the left are the
+front-ends, in the middle are the common passes, and on the right are the
+back-ends.
+
+_tock_svg(tock-passes, 800, 400)

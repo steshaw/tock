@@ -183,18 +183,12 @@ make-cgtests-cpp: tock cgtests/cgtest00.occ clean-cgtests
 clean-cgtests:
 	rm -f cgtests/cgtest??
 
-#Haddock does allow you to customise the description section of a file, but only with more Haskell comments
-#Since I want to use an HTML description (with links to SVG using object tags) I have to perform the following hack
-#to use my own custom HTML description.  Fixes to make the hack nicer are welcome :-)
-
+# We post-process the Haddock output with M4 so that we can include SVG images.
 haddock:
-	@mkdir -p doc
-	@echo "putmycustomdocumentationhere" > .temp-haddock-file
-	haddock -o doc --html -p .temp-haddock-file -t Tock $(tock_SOURCES_hs)
+	@MKDIR_P@ doc
+	haddock -o doc --html -p docextra/description -t Tock $(tock_SOURCES_hs)
 	cp docextra/*.svg doc/
-	@rm .temp-haddock-file
-	@grep -B 10000 putmycustomdocumentationhere doc/index.html | sed "s/putmycustomdocumentationhere//" > doc/index.html-2
-	@cat docextra/description.html >> doc/index.html-2
-	@grep -A 10000 putmycustomdocumentationhere doc/index.html | tail -n +2 >> doc/index.html-2
-	@rm doc/index.html
-	@mv doc/index.html-2 doc/index.html
+	@for x in doc/*.html; do \
+		echo ">>> Post-processing $$x"; \
+		cat docextra/tock-docs.m4 $$x | m4 -P >$${x}_ && mv $${x}_ $$x; \
+	done
