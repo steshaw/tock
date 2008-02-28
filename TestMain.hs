@@ -40,6 +40,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TestMain () where
 
 import Control.Monad
+import Data.List
 import System.Console.GetOpt
 import System.Environment
 import System.IO
@@ -62,6 +63,9 @@ import Utils
 data TestOption =
   QC (Either String (Maybe QuickCheckLevel))
   | OutputType Bool -- True is plain, False is erasing
+  | ListTests
+  | RunJust String
+  deriving (Eq)
 
 -- We run all the HUnit tests before all the QuickCheck tests.
 -- We run them apart so that the output from QuickCheck doesn't get
@@ -78,20 +82,30 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
           let testType = case findType opts of
                            Just True -> True
                            _ -> False
-
-          hunitTests >>= if testType
-                           then liftM fst . runTestText (putTextToHandle stdout False)
-                           else runTestTT
-          case qcLevel of
-            -- Monadic mess!
-            Just level -> mapM_ (runQCTest level) =<< qcTests
-            Nothing -> return ()
+          tests' <- sequence tests
+          testsToRun <- case (find (== ListTests) opts, findJust opts) of
+            (Just _, _) -> do mapM_ putStrLn $ "Possible test names: " : map fst (getLabels $ map fst tests')
+                              return []
+            (_,Just name) -> return $ map snd (filter ((isInfixOf name) . fst) (getLabels $ map fst tests'))
+            (_,Nothing) -> return $ map fst tests'
+          (if testType
+             then liftM fst . runTestText (putTextToHandle stdout False)
+             else runTestTT) (TestList testsToRun)
+          
+          when (not $ null testsToRun) $
+            case qcLevel of
+              -- Monadic mess!
+              Just level -> mapM_ (runQCTest level) $ concatMap snd tests'
+              Nothing -> return ()
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
     header = "Usage: tocktest [OPTION..]"
     options = [Option [] ["qc","quickcheck"]
                  (ReqArg matchLevel "LEVEL (off, low, medium, high, extensive)") "QuickCheck level"
-              ,Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"]
+              ,Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"
+              ,Option ['l'] ["list-tests"] (NoArg (ListTests)) "Show the top-level test names"
+              ,Option ['f'] ["filter"] (ReqArg RunJust "PARTOFTESTNAME (See output --list-tests for possible test)") "Run just the tests that have this in their name"
+              ]
     
     findLevel :: [TestOption] -> Either String (Maybe QuickCheckLevel)
     findLevel (QC qc:_) = qc
@@ -102,6 +116,11 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     findType (OutputType t:_) = Just t
     findType (_:os) = findType os
     findType [] = Nothing
+    
+    findJust :: [TestOption] -> Maybe String
+    findJust (RunJust s:_) = Just s
+    findJust (_:os) = findJust os
+    findJust [] = Nothing
 
     matchLevel :: String -> TestOption
     matchLevel s = QC $ case s of
@@ -115,11 +134,14 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     runQCTest :: QuickCheckLevel -> LabelledQuickCheckTest -> IO ()
     runQCTest level (label, test) = putStr (label ++ ": ") >> test level
 
-    hunitTests :: IO Test
-    hunitTests = sequence tests >>* (TestList . fst . unzip)
-    qcTests :: IO [LabelledQuickCheckTest]
-    qcTests = concatMapM (liftM snd) tests
+    getLabels :: [Test] -> [(String, Test)]
+    getLabels = map (uncurry getLabel) . zip [0..]
+      where
+        getLabel :: Int -> Test -> (String, Test)
+        getLabel _ t@(TestLabel label _) = (label, t)
+        getLabel n t = ("Unknown test: " ++ show n, t)
 
+    tests :: [IO (Test, [LabelledQuickCheckTest])]
     tests = [
               ArrayUsageCheckTest.ioqcTests
               ,noqc BackendPassesTest.tests
