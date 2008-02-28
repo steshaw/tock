@@ -291,11 +291,14 @@ testPassGetItems testName expected actualPass startStateTrans =
        --passResult :: Either String b
     do passResult <- runPass actualPass startState
        case passResult of
-         (st,Left (_,err)) -> return (st, Left $ assertFailure (testName ++ "; pass actually failed: " ++ err)) 
-         (st,Right resultItem) -> return (st, transformEither (sequence_ . map (assertFailure . ((++) testName))) (id) $ getMatchedItems expected resultItem )
+         (st, Left (_, err)) -> return (st, Left $ assertFailure (prefixErr $ "pass actually failed: " ++ err)) 
+         (st, Right resultItem) -> return (st, transformEither (mapM_ (assertFailure . prefixErr)) (id) $ getMatchedItems expected resultItem)
        where
          startState :: CompState
          startState = execState startStateTrans emptyState
+
+         prefixErr :: String -> String
+         prefixErr err = testName ++ ": " ++ err
 
 -- | Runs a given AST pass and returns the subsequent state, along with either an error or the result.  This function is primarily intended for internal use by this module.
 runPass :: 
