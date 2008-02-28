@@ -1160,6 +1160,7 @@ tests = TestList
    ,testMobile
    ,testOutput
    ,testOverArray
+   ,testRecord
    ,testReplicator
    ,testRetypeSizes
    ,testSpec
