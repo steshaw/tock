@@ -88,7 +88,7 @@ checkPar getRep f g = mapM f =<< allParItems
     -- | We need to follow all edges out of a particular node until we reach
     -- an edge that matches the given edge.  So what we effectively need
     -- is a depth-first or breadth-first search (DFS or BFS), that terminates
-    -- on a given edge, not on a given node.  Therefore the DFS/BFS algorithms
+    -- on a given edge, not on a given node.  Therefore the DFS\/BFS algorithms
     -- that come with the inductive graph package are not very suitable as
     -- they return node lists or edge lists, but we need a node list terminated
     -- on a particular edge.
@@ -96,6 +96,7 @@ checkPar getRep f g = mapM f =<< allParItems
     -- So, we shall attempt our own algorithm!  The algorithm for DFS given in 
     -- the library is effectively:
     --
+    -- @
     -- dfs :: Graph gr => [Node] -> gr a b -> [Node]
     -- dfs [] _ = []
     -- dfs _ g | isEmpty g = []
@@ -103,9 +104,10 @@ checkPar getRep f g = mapM f =<< allParItems
     --                  (Just c,g')  -> node' c:dfs (suc' c++vs) g'
     --                  (Nothing,g') -> dfs vs g'
     -- where node' :: Context a b -> Node and suc' :: Context a b -> [Node]
+    -- @
     --
     -- We want to stop the DFS branch either when we find no nodes following the current
-    -- one (already effectively taken care of in the algorithm above; suc' will return
+    -- one (already effectively taken care of in the algorithm above; suc\' will return
     -- the empty list) or when the edge we are meant to take matches the given edge.
     followUntilEdge :: Node -> EdgeLabel -> [a]
     followUntilEdge startNode endEdge = customDFS [startNode] g

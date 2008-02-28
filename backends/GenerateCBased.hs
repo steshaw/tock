@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | The function dictionary and various types/helper functions for backends based around C
+-- | The function dictionary and various types and helper functions for backends based around C
 module GenerateCBased where
 
 import Control.Monad.Error
@@ -148,7 +148,7 @@ data GenOps = GenOps {
     genRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen (),
     -- | Generates a replicator loop, given the replicator and body
     genReplicator :: A.Replicator -> CGen () -> CGen (),
-    -- | Generates the three bits of a for loop (e.g. "int i=0;i<10;i++" for the given replicator
+    -- | Generates the three bits of a for loop (e.g. @int i = 0; i < 10; i++@ for the given replicator)
     genReplicatorLoop :: A.Replicator -> CGen (),
     genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: A.Structured A.Process -> CGen (),

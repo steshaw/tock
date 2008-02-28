@@ -109,7 +109,7 @@ type NodesEdges m a b = ([LNode (FNode' m a b)],[LEdge EdgeLabel])
 
 -- | The state carried around when building up the graph.  In order they are:
 -- * The next node identifier
--- * The next identifier for a PAR item (for the EStartPar/EEndPar edges)
+-- * The next identifier for a PAR item (for the EStartPar\/EEndPar edges)
 -- * The list of nodes and edges to put into the graph
 -- * The list of root nodes thus far (those with no links to them)
 type GraphMakerState mAlter a b = (Node, Int, NodesEdges mAlter a b, [Node])

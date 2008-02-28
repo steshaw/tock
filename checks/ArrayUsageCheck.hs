@@ -197,16 +197,16 @@ data FlattenedExp
     -- is what differentiates i from i', given that they are technically the
     -- same A.Variable
   | Modulo Integer (Set.Set FlattenedExp) (Set.Set FlattenedExp)
-    -- ^ A modulo, with a coefficient/scale and given top and bottom (in that order)
+    -- ^ A modulo, with a coefficient\/scale and given top and bottom (in that order)
   | Divide Integer (Set.Set FlattenedExp) (Set.Set FlattenedExp)
-    -- ^ An integer division, with a coefficient/scale and the given top and bottom (in that order)
+    -- ^ An integer division, with a coefficient\/scale and the given top and bottom (in that order)
 
 instance Eq FlattenedExp where
   a == b = EQ == compare a b
 
--- | A Straight forward comparison for FlattenedExp that compares while ignoring
--- the value of a const (Const 3 == Const 5) and the value of a scale
--- (Scale 1 (v,0)) == (Scale 3 (v,0)), although note that (Scale 1 (v,0)) /= (Scale 1 (v,1))
+-- | A straightforward comparison for FlattenedExp that compares while ignoring
+-- the value of a const @(Const 3 == Const 5)@ and the value of a scale
+-- @(Scale 1 (v,0)) == (Scale 3 (v,0))@, although note that @(Scale 1 (v,0)) \/= (Scale 1 (v,1))@.
 instance Ord FlattenedExp where
   compare (Const _) (Const _) = EQ
   compare (Const _) _ = LT
@@ -261,7 +261,7 @@ parItemToArrayAccessM f (RepParItem rep p)
 
 -- | Turns a list of expressions (which may contain many constants, or duplicated variables)
 -- into a set of expressions with at most one constant term, and at most one appearance
--- of a any variable, or distinct modulo/division of variables.
+-- of a any variable, or distinct modulo\/division of variables.
 -- If there is any problem (specifically, nested modulo or divisions) an error will be returned instead
 makeExpSet :: [FlattenedExp] -> Either String (Set.Set FlattenedExp)
 makeExpSet = foldM makeExpSet' Set.empty
@@ -294,7 +294,7 @@ makeExpSet = foldM makeExpSet' Set.empty
       | otherwise = Nothing
     addScale _ _ _ _ = Nothing
 
--- | A map from an item (a FlattenedExp, which may be a variable, or modulo/divide item) to its coefficient in the problem.
+-- | A map from an item (a FlattenedExp, which may be a variable, or modulo\/divide item) to its coefficient in the problem.
 type VarMap = Map.Map FlattenedExp CoeffIndex
 
 -- | Background knowledge about a problem; either an equality or an inequality.
@@ -317,18 +317,18 @@ data ModuloCase =
 --
 -- The general strategy is as follows.
 -- For every array index (here termed an "access"), we transform it into
--- the usual [FlattenedExp] using the flatten function.  Then we also transform
+-- the usual @[FlattenedExp]@ using the flatten function.  Then we also transform
 -- any access that is in the mirror-side of a Replicated item into its mirrored version
--- where each i is changed into i'.  This is done by using vi=(variable "i",0)
--- (in Scale _ vi) for the plain (normal) version, and vi=(variable "i",1)
+-- where each i is changed into i\'.  This is done by using @vi=(variable "i",0)@
+-- (in @Scale _ vi@) for the plain (normal) version, and @vi=(variable "i",1)@
 -- for the prime (mirror) version.
 --
 -- Then the equations have bounds added.  The rules are fairly simple; if
 -- any of the transformed EqualityConstraintEquation (or related equalities or inequalities) representing an access
--- have a non-zero i (and/or i'), the bound for that variable is added.
--- So for example, an expression like "i = i' + 3" would have the bounds for
--- both i and i' added (which would be near-identical, e.g. 1 <= i <= 6 and
--- 1 <= i' <= 6).  We have to check the equalities and inequalities because
+-- have a non-zero i (and\/or i\'), the bound for that variable is added.
+-- So for example, an expression like i = i\' + 3 would have the bounds for
+-- both i and i\' added (which would be near-identical, e.g. 1 <= i <= 6 and
+-- 1 <= i\' <= 6).  We have to check the equalities and inequalities because
 -- when processing modulo, for the i REM y == 0 option, i will not appear in
 -- the index itself (which will be 0) but will appear in the surrounding
 -- constraints, and we still want to add the replication bounds.
@@ -438,7 +438,7 @@ makeEquations otherInfo accesses bound
             newMin = minimum [fst $ bounds a, ind]
             newMax = maximum [snd $ bounds a, ind]        
 
-    -- | Given a list of replicators (marked enabled/disabled by a flag), the writes and reads, 
+    -- | Given a list of replicators (marked enabled\/disabled by a flag), the writes and reads, 
     -- turns them into a single list of accesses with all the relevant information.  The writes and reads
     -- can be grouped together because they are differentiated by the ArrayAccessType in the result
     mkEq :: [(A.Replicator, Bool)] ->
@@ -625,7 +625,7 @@ getSingleAccessItem :: MonadTrans m => String -> ArrayAccess label -> m (Either 
 getSingleAccessItem _ (Group [(_,_,(acc,_,_))]) = lift $ return acc
 getSingleAccessItem err _ = lift $ throwError err
 
--- | Odd helper function for getting/asserting the first item of a triple from a singleton list inside a monad transformer (!)
+-- | Odd helper function for getting\/asserting the first item of a triple from a singleton list inside a monad transformer (!)
 getSingleItem :: MonadTrans m => String -> [(a,b,c)] -> m (Either String) a
 getSingleItem _ [(item,_,_)] = lift $ return item
 getSingleItem err _ = lift $ throwError err
