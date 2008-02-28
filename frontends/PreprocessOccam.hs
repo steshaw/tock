@@ -189,25 +189,12 @@ handleUse m [modName]
 -- | Handle the @#DEFINE@ directive.
 handleDefine :: DirectiveFunc
 handleDefine m [definition]
-    =  do (var, value) <- lookup definition definitionTypes
+    =  do (var, value) <- runPreprocParser m defineDirective definition
           st <- get
           when (Map.member var $ csDefinitions st) $
             dieP m $ "Preprocessor symbol is already defined: " ++ var
           put $ st { csDefinitions = Map.insert var value $ csDefinitions st }
           return (return, id)
-  where
-    definitionTypes :: [(Regex, [String] -> (String, PreprocDef))]
-    definitionTypes =
-      [ (mkRegex "^([^ ]+)$",           (\[name]      -> (name, PreprocNothing)))
-      , (mkRegex "^([^ ]+) +([0-9]+)$", (\[name, num] -> (name, PreprocInt num)))
-      , (mkRegex "^([^ ]+) \"(.*)\"$",  (\[name, str] -> (name, PreprocString str)))
-      ]
-
-    lookup s [] = dieP m "Invalid definition syntax"
-    lookup s ((re, func):ds)
-        = case matchRegex re s of
-            Just fields -> return $ func fields
-            Nothing -> lookup s ds
 
 -- | Handle the @#UNDEF@ directive.
 handleUndef :: DirectiveFunc
@@ -218,7 +205,7 @@ handleUndef m [var]
 -- | Handle the @#IF@ directive.
 handleIf :: DirectiveFunc
 handleIf m [condition]
-    =  do b <- evalExpression m condition
+    =  do b <- runPreprocParser m expression condition
           return (skipCondition b 0, id)
   where
     skipCondition :: Bool -> Int -> [Token] -> PassM [Token]
@@ -255,6 +242,15 @@ ppLexer = P.makeTokenParser (haskellDef
   , P.identLetter = letter <|> digit <|> char '.'
   })
 
+lexeme :: PreprocParser a -> PreprocParser a
+lexeme = P.lexeme ppLexer
+
+whiteSpace :: PreprocParser ()
+whiteSpace = P.whiteSpace ppLexer
+
+identifier :: PreprocParser String
+identifier = P.identifier ppLexer
+
 parens :: PreprocParser a -> PreprocParser a
 parens = P.parens ppLexer
 
@@ -265,10 +261,25 @@ symbol = P.symbol ppLexer
 tryVX :: PreprocParser a -> PreprocParser b -> PreprocParser a
 tryVX a b = try (do { av <- a; b; return av })
 
+literal :: PreprocParser PreprocDef
+literal
+    =   do { ds <- lexeme $ many1 digit; return $ PreprocInt ds }
+    <|> do { char '"'; s <- manyTill anyChar $ char '"'; return $ PreprocString s }
+    <?> "preprocessor literal"
+
+defineDirective :: PreprocParser (String, PreprocDef)
+defineDirective
+    =  do whiteSpace
+          var <- identifier
+          value <- option PreprocNothing literal
+          eof
+          return (var, value)
+    <?> "preprocessor definition"
+
 defined :: PreprocParser Bool
 defined
     =  do symbol "DEFINED"
-          i <- parens $ P.identifier ppLexer
+          i <- parens identifier
           definitions <- getState
           return $ Map.member i definitions
 
@@ -288,20 +299,19 @@ expression
     <|> operand
     <?> "preprocessor expression"
 
-fullExpression :: PreprocParser Bool
-fullExpression
-    =  do P.whiteSpace ppLexer
-          e <- expression
-          eof
-          return e
-
--- | Evaluate a preprocessor expression.
-evalExpression :: Meta -> String -> PassM Bool
-evalExpression m s
+-- | Match a 'PreprocParser' production.
+runPreprocParser :: Meta -> PreprocParser a -> String -> PassM a
+runPreprocParser m prod s
     =  do st <- get
-          case runParser fullExpression (csDefinitions st) (show m) s of
-            Left err -> dieP m $ "Error parsing expression: " ++ show err
+          case runParser wrappedProd (csDefinitions st) (show m) s of
+            Left err -> dieP m $ "Error parsing preprocessor instruction: " ++ show err
             Right b -> return b
+  where
+    wrappedProd
+       = do whiteSpace
+            v <- prod
+            eof
+            return v
 --}}}
 
 -- | Load and preprocess an occam program.
