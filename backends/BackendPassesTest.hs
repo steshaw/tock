@@ -144,7 +144,7 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
 
 ---Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "BackendPassesTest" $ TestList
  [
    testTransformWaitFor0
   ,testTransformWaitFor1

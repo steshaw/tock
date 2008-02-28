@@ -1146,7 +1146,7 @@ testMobile = TestList
 
 ---Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "GenerateCTest" $ TestList
  [
    testActuals
    ,testArraySizes

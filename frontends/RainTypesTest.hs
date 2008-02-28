@@ -414,7 +414,7 @@ checkExpressionTest = TestList
              markRainTest
 
 tests :: Test
-tests = TestList
+tests = TestLabel "RainTypesTest" $ TestList
  [
   constantFoldTest
   ,annotateIntTest

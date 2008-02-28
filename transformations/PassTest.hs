@@ -596,7 +596,7 @@ testPullRepCounts = TestList
 
 --Returns the list of tests:
 tests :: Test
-tests = TestList
+tests = TestLabel "PassTest" $ TestList
  [
    testFunctionsToProcs0
    ,testFunctionsToProcs1
