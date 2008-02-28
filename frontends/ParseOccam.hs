@@ -1113,7 +1113,7 @@ operand'
     <|> do m <- md
            sBYTESIN
            sLeftR
-           do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }
+           (try (do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }))
              <|> do { t <- dataType; sRightR; return $ A.BytesInType m t }
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
     <|> do { m <- md; sTRUE; return $ A.True m }
