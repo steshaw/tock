@@ -75,6 +75,7 @@ import Control.Monad.Writer
 import Data.Char
 import Data.Generics
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 
 import qualified AST as A
@@ -113,10 +114,12 @@ cppgenOps = cgenOps {
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
     genInputItem = cppgenInputItem,
+    genLiteralRepr = cppgenLiteralRepr,
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
+    genRecordTypeSpec = cppgenRecordTypeSpec,
     genRetypeSizes = cppgenRetypeSizes,
     genSizeSuffix = cppgenSizeSuffix,
     genSlice = cppgenSlice,
@@ -1027,10 +1030,6 @@ cppgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
 cppgenUnfoldedVariable m var
     =  do t <- typeOfVariable var
           case t of
-            A.Array ds _ ->
-              do genLeftB
-                 unfoldArray ds var
-                 genRightB
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
@@ -1138,3 +1137,103 @@ cppgenClearMobile _ v
        tell ["=NULL;}"]
   where
     genVar = call genVariable v
+
+cppgenRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen ()
+cppgenRecordTypeSpec recordName b fs
+    =  do tell ["struct "]
+          genName recordName
+          tell [" {"]
+          sequence_ [call genDeclaration t n True | (n, t) <- fs]
+          genConstructor
+          tell ["}"]
+          when b $ tell [" occam_struct_packed "]
+          tell [";"]
+  where
+    -- A tweaked version of genFormals that makes the record type not be a pointer:
+    
+    genParams :: (A.Name -> A.Name) -> [(A.Name, A.Type)] -> CGen ()
+    genParams nameFunc list = infixComma (map (genParam nameFunc) list)
+    
+    genParam :: (A.Name -> A.Name) -> (A.Name, A.Type) -> CGen ()
+    genParam nameFunc (n, t)
+      = do case t of
+             A.Array {} -> cppgenArrayType True t 0
+             _ -> call genType t
+           tell [" "]
+           genName (nameFunc n)
+  
+    genConstructor :: CGen ()
+    genConstructor
+       = do tell ["inline "]
+            genName recordName
+            tell ["(){}"]
+            tell ["inline explicit "]
+            genName recordName
+            tell ["("]
+            genParams prefixUnderscore fs
+            tell ["):"]
+            sequence_ $ intersperse (tell [","]) $ map genConsItem fs
+            tell ["{"]
+            mapM_ genBodyItem fs
+            tell ["}"]
+            
+    genConsItem :: (A.Name, A.Type) -> CGen ()
+    genConsItem (n,at)
+      = case at of
+          A.Array ds t ->
+            do genName n
+               tell ["("]
+               cppgenArraySizesLiteral n at
+               tell [")"]
+          _ ->
+            do genName n
+               tell["(_"]
+               genName n
+               tell[")"]
+
+    genBodyItem :: (A.Name, A.Type) -> CGen ()
+    genBodyItem (n,at)
+      = case at of
+          A.Array ds t ->
+               -- Nasty.  We temporarily define the field name to be a variable (and similarly
+               -- the constructor-parameter we are assigning from), then generate the assignment
+               -- then remove the things we inserted into csNames.
+            do modify (\cs -> cs { csNames = flip (Map.insert (A.nameName n)) (csNames cs) $
+                 A.NameDef (A.nameMeta n) (A.nameName n) (A.nameName n) A.VariableName
+                 (A.Declaration (A.nameMeta n) at Nothing)
+                 A.Original A.Unplaced})
+               let n_ = "_" ++ A.nameName n
+               modify (\cs -> cs { csNames = flip (Map.insert n_) (csNames cs) $
+                 A.NameDef (A.nameMeta n) n_ n_ A.VariableName
+                 (A.Declaration (A.nameMeta n) at Nothing)
+                 A.Original A.Unplaced})
+               call genOverArray (A.nameMeta n) fieldV (genElemCopy t)
+               modify (\cs -> cs { csNames = Map.delete (A.nameName n) (csNames cs)})
+               modify (\cs -> cs { csNames = Map.delete n_ (csNames cs)})
+            
+          _ -> return ()
+      where
+        m = A.nameMeta n
+        fieldV = A.Variable m (A.Name m A.VariableName (A.nameName n))
+      
+        genElemCopy :: A.Type -> (A.Variable -> A.Variable) -> Maybe (CGen ())
+        genElemCopy t f = Just $
+          case t of
+            A.Record recordName ->
+              do tell ["copy_"]
+                 genName recordName
+                 tell ["("]
+                 call genVariable (f $ fieldV)
+                 tell [","]
+                 call genVariable (f $ A.Variable m (prefixUnderscore n))
+                 tell [");"]
+            _ -> call genAssign m [f $ fieldV] $ A.ExpressionList m [A.ExprVariable m $ f $ A.Variable m (prefixUnderscore n)]
+
+cppgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
+cppgenLiteralRepr (A.RecordLiteral _ es) (A.Record n)
+    =  do genName n
+          tell["("]
+          seqComma $ map (call genUnfoldedExpression) es
+          tell[")"]
+cppgenLiteralRepr lit t = cgenLiteralRepr lit t
+
