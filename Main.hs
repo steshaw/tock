@@ -55,25 +55,25 @@ type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
-  , Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast)"
-  , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
+  [ Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast)"
   , Option ['h'] ["help"] (NoArg optPrintHelp) "print this help"
-  , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
-  , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
-  , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
-  , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
+  , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
+  , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
+  , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
+  , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
+  , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
+  , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   ]
 
 optMode :: String -> OptFunc
 optMode s ps
     =  do mode <- case s of
-            "flowgraph" -> return ModeFlowGraph
-            "parse" -> return ModeParse
             "compile" -> return ModeCompile
-            "post-c" -> return ModePostC
+            "flowgraph" -> return ModeFlowGraph
             "full" -> return ModeFull
+            "parse" -> return ModeParse
+            "post-c" -> return ModePostC
             _ -> dieIO (Nothing, "Unknown mode: " ++ s)
           return $ ps { csMode = mode }
 
@@ -87,7 +87,7 @@ optBackend s ps
           return $ ps { csBackend = backend }
 
 optFrontend :: String -> OptFunc
-optFrontend s ps 
+optFrontend s ps
     =  do frontend <- case s of
             "occam" -> return FrontendOccam
             "rain" -> return FrontendRain
@@ -175,78 +175,90 @@ removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)
     doNothing :: IOError -> IO ()
     doNothing _ = return ()
 
--- When we die inside the StateT [FilePath] monad, we should delete all the temporary files listed in the state, then die in the PassM monad:
--- TODO Not totally sure this technique works if functions inside the PassM monad die, but there will only be temp files to clean up if postCAnalyse dies
+-- When we die inside the StateT [FilePath] monad, we should delete all the
+-- temporary files listed in the state, then die in the PassM monad:
+-- TODO: Not totally sure this technique works if functions inside the PassM
+-- monad die, but there will only be temp files to clean up if postCAnalyse
+-- dies
 instance Die (StateT [FilePath] PassM) where
-  dieReport err = do files <- get
-                     -- If removing the files fails, we don't want to die with that error; we want the user to see the original error,
-                     -- so ignore errors arising from removing the files:
-                     optsPS <- lift $ getCompState
-                     when (not $ csKeepTemporaries optsPS) $
-                       liftIO $ removeFiles files
-                     lift $ dieReport err
+  dieReport err
+      =  do files <- get
+            -- If removing the files fails, we don't want to die with that
+            -- error; we want the user to see the original error, so ignore
+            -- errors arising from removing the files:
+            optsPS <- lift $ getCompState
+            when (not $ csKeepTemporaries optsPS) $
+              liftIO $ removeFiles files
+            lift $ dieReport err
 
 compileFull :: String -> StateT [FilePath] PassM ()
-compileFull fn        = do optsPS <- lift get
-                           destBin <- case csOutputFile optsPS of
-                                        "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
-                                        file -> return file
+compileFull fn
+    =  do optsPS <- lift get
+          destBin <- case csOutputFile optsPS of
+                       "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
+                       file -> return file
 
-                           -- First, compile the code into C/C++:
-                           tempCPath <- execWithTempFile "tock-temp-c" (compile ModeCompile fn)
+          -- First, compile the code into C/C++:
+          tempCPath <- execWithTempFile "tock-temp-c" (compile ModeCompile fn)
 
-                           -- Then, compile the C/C++:
-                           case csBackend optsPS of
-                                            -- Compile the C into an object file:
-                             BackendC -> do exec $ cCommand tempCPath (tempCPath ++ ".o")
-                                            noteFile (tempCPath ++ ".o")
-                                            -- Compile the same C into assembly:
-                                            exec $ cAsmCommand tempCPath (tempCPath ++ ".s")
-                                            noteFile (tempCPath ++ ".s")
-                                            -- Analyse the assembly for stack sizes, and output a "post" C file:
-                                            tempCPathPost <- execWithTempFile "tock-temp-post-c" (postCAnalyse (tempCPath ++ ".s"))
-                                            -- Compile this new "post" C file into an object file:
-                                            exec $ cCommand tempCPathPost (tempCPathPost ++  ".o")
-                                            noteFile (tempCPathPost ++  ".o")
-                                            -- Create a temporary occam file, and write the standard occam wrapper into it:
-                                            tempPathOcc <- execWithTempFile "tock-temp-occ.occ" (liftIO . writeOccamWrapper)
-                                            -- Use kroc to compile and link the occam file with the two object files from the C compilation:
-                                            exec $ krocLinkCommand tempPathOcc [(tempCPath ++ ".o"),(tempCPathPost ++ ".o")] destBin
-                                            
-                                            -- For C++, just compile the source file directly into a binary:
-                             BackendCPPCSP -> exec $ cxxCommand tempCPath destBin
-                             _ -> dieReport (Nothing, "Cannot use specified backend: " ++ show (csBackend optsPS) ++ " with full-compile mode")
-                           
-                           -- Finally, remove the temporary files:
-                           tempFiles <- get
-                           when (not $ csKeepTemporaries optsPS) $
-                             liftIO $ removeFiles tempFiles
-    
+          -- Then, compile the C/C++:
+          case csBackend optsPS of
+            BackendC ->
+              do -- Compile the C into an object file:
+                 exec $ cCommand tempCPath (tempCPath ++ ".o")
+                 noteFile (tempCPath ++ ".o")
+                 -- Compile the same C into assembly:
+                 exec $ cAsmCommand tempCPath (tempCPath ++ ".s")
+                 noteFile (tempCPath ++ ".s")
+                 -- Analyse the assembly for stack sizes, and output a
+                 -- "post" C file:
+                 tempCPathPost <- execWithTempFile "tock-temp-post-c" (postCAnalyse (tempCPath ++ ".s"))
+                 -- Compile this new "post" C file into an object file:
+                 exec $ cCommand tempCPathPost (tempCPathPost ++  ".o")
+                 noteFile (tempCPathPost ++  ".o")
+                 -- Create a temporary occam file, and write the standard
+                 -- occam wrapper into it:
+                 tempPathOcc <- execWithTempFile "tock-temp-occ.occ" (liftIO . writeOccamWrapper)
+                 -- Use kroc to compile and link the occam file with the two
+                 -- object files from the C compilation:
+                 exec $ krocLinkCommand tempPathOcc [(tempCPath ++ ".o"), (tempCPathPost ++ ".o")] destBin
+            -- For C++, just compile the source file directly into a binary:
+            BackendCPPCSP -> exec $ cxxCommand tempCPath destBin
+            _ -> dieReport (Nothing, "Cannot use specified backend: "
+                                     ++ show (csBackend optsPS)
+                                     ++ " with full-compile mode")
+
+          -- Finally, remove the temporary files:
+          tempFiles <- get
+          when (not $ csKeepTemporaries optsPS) $
+            liftIO $ removeFiles tempFiles
+
   where
     noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
     noteFile fp = modify (\fps -> (fp:fps))
-  
-    -- Takes a temporary file pattern, a function to do something with that file, and returns the path of the now-closed temporary file
+
+    -- Takes a temporary file pattern, a function to do something with that
+    -- file, and returns the path of the now-closed temporary file
     execWithTempFile' :: String -> (Handle -> PassM ()) -> PassM FilePath
     execWithTempFile' pat func
       = do (path,handle) <- liftIO $ openTempFile "." pat
            func handle
            liftIO $ hClose handle
            return path
-    
+
     execWithTempFile :: String -> (Handle -> PassM ()) -> StateT [FilePath] PassM FilePath
     execWithTempFile pat func
       = do file <- lift $ execWithTempFile' pat func
            noteFile file
            return file
-             
+
     exec :: String -> StateT [FilePath] PassM ()
     exec cmd = do lift $ progress $ "Executing command: " ++ cmd
                   p <- liftIO $ runCommand cmd
                   exitCode <- liftIO $ waitForProcess p
                   case exitCode of
                     ExitSuccess -> return ()
-                    ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed, exiting with code: " ++ show n)
+                    ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
 -- | Picks out the handle from the options and passes it to the function:
 useOutputOptions :: (Handle -> PassM ()) -> PassM ()
@@ -286,14 +298,13 @@ compile mode fn outHandle
                  graphs <- mapM
                       ((liftM $ either (const Nothing) Just) . (buildFlowGraphP labelFuncs) )
                       (map (A.Only emptyMeta) (snd $ unzip $ procs))
-                      
-                      
+
                  -- We need this line to enforce the type of the mAlter monad (Identity)
                  -- since it is never used.  Then we used graphsTyped (rather than graphs)
                  -- to prevent a compiler warning at graphsTyped being unused;
                  -- graphs is of course identical to graphsTyped, as you can see here:
                  let (graphsTyped :: [Maybe (FlowGraph' Identity String A.Process)]) = map (transformMaybe fst) graphs
-                 --TODO output each process to a separate file, rather than just taking the first:
+                 -- TODO: output each process to a separate file, rather than just taking the first:
                  return $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
             ModeCompile ->
               do progress "Passes:"
