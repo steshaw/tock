@@ -56,6 +56,7 @@ import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (tests)
+import qualified StructureOccamTest (tests)
 import qualified UsageCheckTest (tests)
 import TestUtils
 import Utils
@@ -153,6 +154,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc PreprocessOccamTest.tests
               ,noqc RainPassesTest.tests
               ,noqc RainTypesTest.tests
+              ,noqc StructureOccamTest.tests
               ,noqc UsageCheckTest.tests
             ]
 
