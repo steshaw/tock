@@ -202,6 +202,25 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} \
 	}
 
+// The main purpose of these three - since they don't need to check for overflow -
+// is to constrain the types of the results to prevent unexpected integer promotions
+#define MAKE_PLUS(type) \
+	static inline type occam_plus_##type (type, type, const char *) occam_unused; \
+	static inline type occam_plus_##type (type a, type b, const char *pos) { \
+		return a + b; \
+	}
+#define MAKE_MINUS(type) \
+	static inline type occam_minus_##type (type, type, const char *) occam_unused; \
+	static inline type occam_minus_##type (type a, type b, const char *pos) { \
+		return a - b; \
+	}
+#define MAKE_TIMES(type) \
+	static inline type occam_times_##type (type, type, const char *) occam_unused; \
+	static inline type occam_times_##type (type a, type b, const char *pos) { \
+		return a * b; \
+	}
+
+
 #define MAKE_ALL_SIGNED(type,flag) \
 	MAKE_RANGE_CHECK(type,flag) \
 	MAKE_ADD(type) \
@@ -210,7 +229,10 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
 	MAKE_NEGATE(type) \
-	MAKE_SHIFT(u##type, type)
+	MAKE_SHIFT(u##type, type) \
+	MAKE_PLUS(type) \
+	MAKE_MINUS(type) \
+	MAKE_TIMES(type)
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
@@ -219,6 +241,9 @@ MAKE_SUBTR(uint8_t)
 MAKE_MUL(uint8_t)
 MAKE_DIV(uint8_t)
 MAKE_SHIFT(uint8_t,uint8_t)
+MAKE_PLUS(uint8_t)
+MAKE_MINUS(uint8_t)
+MAKE_TIMES(uint8_t)
 
 // occam's only unsigned type, so we can use % directly.
 static inline uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
