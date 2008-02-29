@@ -183,9 +183,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_SHIFT(utype, type) \
 	static inline type occam_lshift_##type (type, int, const char*) occam_unused; \
 	static inline type occam_lshift_##type (type a, int b, const char* pos) { \
-		if (b < 0 || b > sizeof(type) * CHAR_BIT) { \
+		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, "left shift by negative value or value (strictly) greater than number of bits in type"); \
-		} else if (b == sizeof(type) * CHAR_BIT) { \
+		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
 			return 0; \
 		} else { \
 			return (a << b); \
@@ -193,9 +193,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	} \
 	static inline type occam_rshift_##type (type, int, const char*) occam_unused; \
 	static inline type occam_rshift_##type (type a, int b, const char* pos) { \
-		if (b < 0 || b > sizeof(type) * CHAR_BIT) { \
+		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, "right shift by negative value or value (strictly) greater than number of bits in type"); \
-		} else if (b == sizeof(type) * CHAR_BIT) { \
+		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
 			return 0; \
 		} else { \
 			return (type)(((utype)a) >> b); \
