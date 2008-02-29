@@ -221,7 +221,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 
 
-#define MAKE_ALL_SIGNED(type,flag) \
+#define MAKE_ALL_SIGNED(type,flag,utype) \
 	MAKE_RANGE_CHECK(type,flag) \
 	MAKE_ADD(type) \
 	MAKE_SUBTR(type) \
@@ -229,7 +229,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
 	MAKE_NEGATE(type) \
-	MAKE_SHIFT(u##type, type) \
+	MAKE_SHIFT(utype, type) \
 	MAKE_PLUS(type) \
 	MAKE_MINUS(type) \
 	MAKE_TIMES(type)
@@ -258,16 +258,16 @@ static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) 
 
 //}}}
 //{{{ int16_t
-MAKE_ALL_SIGNED(int16_t, "%d")
+MAKE_ALL_SIGNED(int16_t, "%d", uint16_t)
 //}}}
 //{{{ int
-MAKE_ALL_SIGNED(int, "%d")
+MAKE_ALL_SIGNED(int, "%d", unsigned int)
 //}}}
 //{{{ int32_t
-MAKE_ALL_SIGNED(int32_t, "%d")
+MAKE_ALL_SIGNED(int32_t, "%d", uint32_t)
 //}}}
 //{{{ int64_t
-MAKE_ALL_SIGNED(int64_t, "%lld")
+MAKE_ALL_SIGNED(int64_t, "%lld", uint64_t)
 //}}}
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
