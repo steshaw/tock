@@ -79,16 +79,18 @@ AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
 AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
 
 AC_LANG(C)
-CFLAGS=$kroc_incpath
-CPPFLAGS=$kroc_incpath
+old_CFLAGS="$CFLAGS"
+old_CPPFLAGS="$CPPFLAGS"
+CFLAGS="$kroc_incpath"
+CPPFLAGS="$kroc_incpath"
 AC_CHECK_HEADER([cifccsp.h],[HAVE_CIFCCSP=true],[HAVE_CIFCCSP=false])
 
 if test "x$HAVE_CIFCCSP" = "xfalse"; then
   AC_MSG_WARN([cifccsp.h not found; you will not be able to compile output from the C backend on this machine])
   ccsp_kroc_available=false
 fi
-CFLAGS=
-CPPFLAGS=
+CFLAGS="$old_CFLAGS"
+CPPFLAGS="$old_CPPFLAGS"
 
 #Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
@@ -108,6 +110,7 @@ fi
 #Must use the C language for this:
 AC_LANG(C)
 AC_MSG_CHECKING([whether -fgnu89-inline flag is accepted])
+old_CFLAGS="$CFLAGS"
 CFLAGS="-fgnu89-inline"
 AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   AC_MSG_RESULT([yes])
@@ -116,7 +119,7 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   AC_MSG_RESULT([no])
   gnu89_inline=
 )
-CFLAGS=
+CFLAGS="$old_CFLAGS"
 
 AC_MSG_CHECKING([Checking GHC version])
 
