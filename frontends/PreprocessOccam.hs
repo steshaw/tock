@@ -24,6 +24,7 @@ import Control.Monad.State
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Numeric
 import System.IO
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language (haskellDef)
@@ -236,10 +237,14 @@ handleIf m [condition]
 type PreprocParser = GenParser Char (Map.Map String PreprocDef)
 
 --{{{  lexer
+reservedOps :: [String]
+reservedOps = ["=", "<>", "<", "<=", ">", ">="]
+
 ppLexer :: P.TokenParser (Map.Map String PreprocDef)
 ppLexer = P.makeTokenParser (haskellDef
   { P.identStart = letter <|> digit
   , P.identLetter = letter <|> digit <|> char '.'
+  , P.reservedOpNames = reservedOps
   })
 
 lexeme :: PreprocParser a -> PreprocParser a
@@ -256,15 +261,21 @@ parens = P.parens ppLexer
 
 symbol :: String -> PreprocParser String
 symbol = P.symbol ppLexer
+
+reservedOp :: String -> PreprocParser ()
+reservedOp = P.reservedOp ppLexer
 --}}}
 
 tryVX :: PreprocParser a -> PreprocParser b -> PreprocParser a
 tryVX a b = try (do { av <- a; b; return av })
 
+tryVV :: PreprocParser a -> PreprocParser b -> PreprocParser (a, b)
+tryVV a b = try (do { av <- a; bv <- b; return (av, bv) })
+
 literal :: PreprocParser PreprocDef
 literal
-    =   do { ds <- lexeme $ many1 digit; return $ PreprocInt ds }
-    <|> do { char '"'; s <- manyTill anyChar $ char '"'; return $ PreprocString s }
+    =   (lexeme $ do { ds <- many1 digit; return $ PreprocInt ds })
+    <|> (lexeme $ do { char '"'; s <- manyTill anyChar $ char '"'; return $ PreprocString s })
     <?> "preprocessor literal"
 
 defineDirective :: PreprocParser (String, PreprocDef)
@@ -279,25 +290,68 @@ defineDirective
 defined :: PreprocParser Bool
 defined
     =  do symbol "DEFINED"
-          i <- parens identifier
+          var <- parens identifier
           definitions <- getState
-          return $ Map.member i definitions
+          return $ Map.member var definitions
 
-operand :: PreprocParser Bool
-operand
+simpleExpression :: PreprocParser Bool
+simpleExpression
     =   do { try $ symbol "NOT"; e <- expression; return $ not e }
     <|> do { try $ symbol "TRUE"; return True }
     <|> do { try $ symbol "FALSE"; return False }
     <|> defined
     <|> parens expression
+    <?> "preprocessor simple expression"
+
+operand :: PreprocParser PreprocDef
+operand
+    =   literal
+    <|> do var <- identifier
+           definitions <- getState
+           case Map.lookup var definitions of
+             Nothing             -> fail $ var ++ " is not defined"
+             Just PreprocNothing -> fail $ var ++ " is defined, but has no value"
+             Just value          -> return value
     <?> "preprocessor operand"
+
+comparisonOp :: PreprocParser String
+comparisonOp
+    = choice [do { try $ reservedOp op; return op } | op <- reservedOps]
+    <?> "preprocessor comparison operator"
+
+-- | Apply a comparison operator to two values, checking the types are
+-- appropriate.
+applyComparison :: String -> PreprocDef -> PreprocDef -> PreprocParser Bool
+applyComparison op (PreprocString l) (PreprocString r)
+    = case op of
+        "="  -> return $ l == r
+        "<>" -> return $ l /= r
+        _    -> fail "Invalid operator for string comparison"
+applyComparison op (PreprocInt l) (PreprocInt r)
+    =  do lv <- getInt l
+          rv <- getInt r
+          case op of
+            "="  -> return $ lv == rv
+            "<>" -> return $ lv /= rv
+            "<"  -> return $ lv < rv
+            "<=" -> return $ lv <= rv
+            ">"  -> return $ lv > rv
+            ">=" -> return $ lv >= rv
+  where
+    getInt :: String -> PreprocParser Int
+    getInt s
+        = case readDec s of
+            [(v, "")] -> return v
+            _ -> fail $ "Bad integer literal: " ++ s
+applyComparison _ _ _ = fail "Invalid types for comparison"
 
 expression :: PreprocParser Bool
 expression
-    =   do { l <- tryVX operand (symbol "AND"); r <- operand; return $ l && r }
-    <|> do { l <- tryVX operand (symbol "OR"); r <- operand; return $ l || r }
-    <|> operand
-    <?> "preprocessor expression"
+    =   do { l <- tryVX simpleExpression (symbol "AND"); r <- simpleExpression; return $ l && r }
+    <|> do { l <- tryVX simpleExpression (symbol "OR"); r <- simpleExpression; return $ l || r }
+    <|> do { (l, op) <- tryVV operand comparisonOp; r <- operand; applyComparison op l r }
+    <|> simpleExpression
+    <?> "preprocessor complex expression"
 
 -- | Match a 'PreprocParser' production.
 runPreprocParser :: Meta -> PreprocParser a -> String -> PassM a

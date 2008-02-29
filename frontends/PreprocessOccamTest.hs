@@ -113,6 +113,19 @@ testIf = TestLabel "testIf" $ TestList
   , testPPCond 1280 "(TRUE AND FALSE) OR (FALSE AND TRUE)"       False
   , testPPCond 1290 "(TRUE OR FALSE) AND (FALSE OR TRUE)"        True
   , testPPCond 1300 "NOT (FALSE AND TRUE)"                       True
+  , testPPCond 1310 "3 < 4"                                      True
+  , testPPCond 1320 "3 > 4"                                      False
+  , testPPCond 1330 "3 <> 4"                                     True
+  , testPPCond 1340 "3 = 4"                                      False
+  , testPPCond 1350 "4 <= 4"                                     True
+  , testPPCond 1360 "3 <= 4"                                     True
+  , testPPCond 1370 "4 >= 4"                                     True
+  , testPPCond 1380 "5 >= 4"                                     True
+  , testPPCond 1390 "\"foo\" = \"foo\""                          True
+  , testPPCond 1400 "\"foo\" <> \"foo\""                         False
+  , testPPCond 1410 "\"foo\" = \"bar\""                          False
+  , testPPCond 1420 "\"foo\" <> \"bar\""                         True
+  , testPPCond 1430 "((3 > 4) OR (42 = 24)) AND (1 <= 2)"        False
 
   -- Invalid conditionals
   , testPPFail 1900 [tp "#IF you can keep your head when all about you...", eol]
@@ -122,6 +135,8 @@ testIf = TestLabel "testIf" $ TestList
   , testPPFail 1940 [tp "#IF (TRUE", eol, tp "#ENDIF", eol]
   , testPPFail 1950 [tp "#ELSE", eol]
   , testPPFail 1960 [tp "#ENDIF", eol]
+  , testPPFail 1970 [tp "#IF 3 = \"foo\"", eol, tp "#ENDIF", eol]
+  , testPPFail 1980 [tp "#IF \"foo\" > \"bar\"", eol, tp "#ENDIF", eol]
   ]
   where
     ti = TokIdentifier
@@ -148,9 +163,15 @@ testDefine = TestLabel "testDefine" $ TestList
   , testPPCond 2140 "DEFINED (COMPILER.TOCK)"                                True
   , testPPCond 2150 "NOT DEFINED (COMPILER.TOCK)"                            False
 
+  -- Conditions involving macros
+  , testPPCondAfter 2200 [tp "#DEFINE FOO 42", eol] "FOO = 42"               True
+  , testPPCondAfter 2210 [tp "#DEFINE FOO 42", eol] "FOO <> 42"              False
+  , testPPCondAfter 2220 [tp "#DEFINE FOO \"bar\"", eol] "FOO = \"bar\""     True
+  , testPPCondAfter 2230 [tp "#DEFINE FOO \"baz\"", eol] "FOO = \"bar\""     False
+
   -- Expansion
-  , testPP 2200 [tp "#DEFINE FOO \"bar\"", eol, hh, ti "FOO"] [TokStringLiteral "bar"]
-  , testPP 2210 [tp "#DEFINE FOO 1234", eol, hh, ti "FOO"] [TokIntLiteral "1234"]
+  , testPP 2600 [tp "#DEFINE FOO \"bar\"", eol, hh, ti "FOO"] [TokStringLiteral "bar"]
+  , testPP 2610 [tp "#DEFINE FOO 1234", eol, hh, ti "FOO"] [TokIntLiteral "1234"]
 
   -- Invalid definitions
   , testPPFail 2900 [tp "#DEFINE FOO", eol, tp "#DEFINE FOO", eol]
