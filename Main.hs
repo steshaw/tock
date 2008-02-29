@@ -192,38 +192,51 @@ instance Die (StateT [FilePath] PassM) where
             lift $ dieReport err
 
 compileFull :: String -> StateT [FilePath] PassM ()
-compileFull fn
+compileFull inputFile
     =  do optsPS <- lift get
-          destBin <- case csOutputFile optsPS of
-                       "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
-                       file -> return file
+          outputFile <- case csOutputFile optsPS of
+                          "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
+                          file -> return file
 
-          -- First, compile the code into C/C++:
-          tempCPath <- execWithTempFile "tock-temp-c" (compile ModeCompile fn)
+          let extension = case csBackend optsPS of
+                            BackendC -> ".c"
+                            BackendCPPCSP -> ".cpp"
+                            _ -> ""
 
-          -- Then, compile the C/C++:
+          -- Translate input file to C/C++
+          let cFile = outputFile ++ extension
+          withOutputFile cFile $ compile ModeCompile inputFile
+          noteFile cFile
+
           case csBackend optsPS of
             BackendC ->
-              do -- Compile the C into an object file:
-                 exec $ cCommand tempCPath (tempCPath ++ ".o")
-                 noteFile (tempCPath ++ ".o")
-                 -- Compile the same C into assembly:
-                 exec $ cAsmCommand tempCPath (tempCPath ++ ".s")
-                 noteFile (tempCPath ++ ".s")
+              let sFile = outputFile ++ ".s"
+                  oFile = outputFile ++ ".o"
+                  postCFile = outputFile ++ "_post.c"
+                  postOFile = outputFile ++ "_post.o"
+                  occFile = outputFile ++ "_wrapper.occ"
+              in
+              do sequence_ $ map noteFile [sFile, oFile, postCFile, postOFile, occFile]
+
+                 -- Compile the C into assembly, and assembly into an object file
+                 exec $ cAsmCommand cFile sFile
+                 exec $ cCommand sFile oFile
                  -- Analyse the assembly for stack sizes, and output a
-                 -- "post" C file:
-                 tempCPathPost <- execWithTempFile "tock-temp-post-c" (postCAnalyse (tempCPath ++ ".s"))
-                 -- Compile this new "post" C file into an object file:
-                 exec $ cCommand tempCPathPost (tempCPathPost ++  ".o")
-                 noteFile (tempCPathPost ++  ".o")
+                 -- "post" C file
+                 withOutputFile postCFile $ postCAnalyse sFile
+                 -- Compile this new "post" C file into an object file
+                 exec $ cCommand postCFile postOFile
                  -- Create a temporary occam file, and write the standard
-                 -- occam wrapper into it:
-                 tempPathOcc <- execWithTempFile "tock-temp-occ.occ" (liftIO . writeOccamWrapper)
+                 -- occam wrapper into it
+                 withOutputFile occFile $ liftIO . writeOccamWrapper
                  -- Use kroc to compile and link the occam file with the two
-                 -- object files from the C compilation:
-                 exec $ krocLinkCommand tempPathOcc [(tempCPath ++ ".o"), (tempCPathPost ++ ".o")] destBin
-            -- For C++, just compile the source file directly into a binary:
-            BackendCPPCSP -> exec $ cxxCommand tempCPath destBin
+                 -- object files from the C compilation
+                 exec $ krocLinkCommand occFile [oFile, postOFile] outputFile
+
+            -- For C++, just compile the source file directly into a binary
+            BackendCPPCSP ->
+              exec $ cxxCommand cFile outputFile
+
             _ -> dieReport (Nothing, "Cannot use specified backend: "
                                      ++ show (csBackend optsPS)
                                      ++ " with full-compile mode")
@@ -237,20 +250,11 @@ compileFull fn
     noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
     noteFile fp = modify (\fps -> (fp:fps))
 
-    -- Takes a temporary file pattern, a function to do something with that
-    -- file, and returns the path of the now-closed temporary file
-    execWithTempFile' :: String -> (Handle -> PassM ()) -> PassM FilePath
-    execWithTempFile' pat func
-      = do (path,handle) <- liftIO $ openTempFile "." pat
-           func handle
-           liftIO $ hClose handle
-           return path
-
-    execWithTempFile :: String -> (Handle -> PassM ()) -> StateT [FilePath] PassM FilePath
-    execWithTempFile pat func
-      = do file <- lift $ execWithTempFile' pat func
-           noteFile file
-           return file
+    withOutputFile :: FilePath -> (Handle -> PassM ()) -> StateT [FilePath] PassM ()
+    withOutputFile path func
+        =  do handle <- liftIO $ openFile path WriteMode
+              lift $ func handle
+              liftIO $ hClose handle
 
     exec :: String -> StateT [FilePath] PassM ()
     exec cmd = do lift $ progress $ "Executing command: " ++ cmd

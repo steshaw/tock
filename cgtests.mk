@@ -8,7 +8,7 @@ checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
 
 cgtests/%: cgtests/%.occ
-	./tock -v --backend=cppcsp -o $@ $<
+	./tock -vk --backend=cppcsp -o $@ $<
 
 run-all: $(addprefix run-,$(tests))
 
