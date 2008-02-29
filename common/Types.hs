@@ -72,9 +72,9 @@ typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)
 typeOfSpec st
         = case st of
             A.Declaration _ t _ -> return $ Just t
-            A.Is _ _ _ v -> (liftM Just) (typeOfVariable v)
-            A.IsExpr _ _ _ e -> (liftM Just) (typeOfExpression e)
-            A.IsChannelArray _ _ (c:_) -> liftM (Just . (A.Array [A.UnknownDimension])) $ typeOfVariable c
+            A.Is _ _ t _ -> return $ Just t
+            A.IsExpr _ _ t _ -> return $ Just t
+            A.IsChannelArray _ t _ -> return $ Just t
             A.Retypes _ _ t _ -> return $ Just t
             A.RetypesExpr _ _ t _ -> return $ Just t
             _ -> return Nothing
