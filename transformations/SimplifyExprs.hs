@@ -37,10 +37,11 @@ simplifyExprs = makePassesDep
       [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.parUsageChecked], [Prop.functionsRemoved])
       , ("Convert AFTER to MINUS", removeAfter, [Prop.expressionTypesChecked], [Prop.afterRemoved])
       , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
-      , ("Pull up definitions", pullUp, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
       , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone, [])
       , ("Pull up replicator counts for SEQs", pullRepCounts, Prop.agg_namesDone ++ Prop.agg_typesDone,  [])
       ]
+      ++ makePassesDep' ((== BackendC) . csBackend) [("Pull up definitions (C)", pullUp False, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])]
+      ++ makePassesDep' ((== BackendCPPCSP) . csBackend) [("Pull up definitions (C++)", pullUp True, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])]
 
 -- | Convert FUNCTION declarations to PROCs.
 functionsToProcs :: Data t => t -> PassM t
@@ -199,8 +200,9 @@ transformConstr = doGeneric `ext1M` doStructured
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
-pullUp :: Data t => t -> PassM t
-pullUp = doGeneric
+pullUp :: Data t => Bool -> t -> PassM t
+pullUp pullUpArraysInsideRecords
+       = doGeneric
           `ext1M` doStructured
           `extM` doProcess
           `extM` doSpecification
@@ -209,8 +211,11 @@ pullUp = doGeneric
           `extM` doVariable
           `extM` doExpressionList
   where
+    pullUpRecur :: Data t => t -> PassM t
+    pullUpRecur = pullUp pullUpArraysInsideRecords
+  
     doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric pullUp
+    doGeneric = makeGeneric pullUpRecur
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
@@ -261,7 +266,7 @@ pullUp = doGeneric
     -- for nested array literals.
     -- Don't pull up array expressions that are fields of record literals.
     doLiteralRepr (A.RecordLiteral m es)
-        =  do es' <- mapM doExpression' es    -- note doExpression' rather than pullUp
+        =  do es' <- mapM (if pullUpArraysInsideRecords then doExpression else doExpression') es    -- note doExpression' rather than pullUp
               return $ A.RecordLiteral m es'
     doLiteralRepr lr = doGeneric lr
 
@@ -304,7 +309,7 @@ pullUp = doGeneric
     -- | Convert a FUNCTION call into some variables and a PROC call.
     convertFuncCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Variable]
     convertFuncCall m n es
-        = do es' <- pullUp es
+        = do es' <- pullUpRecur es
              ets <- sequence [typeOfExpression e | e <- es']
 
              ps <- get
@@ -326,8 +331,8 @@ pullUp = doGeneric
              return $ A.ExprVariable m v
     -- Convert SubscriptedExprs into SubscriptedVariables.
     doExpression' (A.SubscriptedExpr m s e)
-        = do e' <- pullUp e
-             s' <- pullUp s
+        = do e' <- pullUpRecur e
+             s' <- pullUpRecur s
              t <- typeOfExpression e'
              spec@(A.Specification _ n _) <- makeNonceIsExpr "subscripted_expr" m t e'
              addPulled $ (m, Left spec)
