@@ -70,6 +70,7 @@ $vertSpace = [\r\n]
           | "VAL" | "VALOF"
           | "WHILE" | "WORKSPACE"
           | "VECSPACE"
+          | ".STATIC" | ".VSPTR" | ".WSSIZE"
 
 @identifier = [a-z A-Z] [a-z A-Z 0-9 \.]*
 
