@@ -51,6 +51,10 @@ testSimple = TestLabel "testSimple" $ TestList
   , testS      50 [(m 1 1, foo), (m 2 3, foo), (m 3 3, foo), (m 4 3, foo)]
                   [fooP, eolP, inP, fooP, eolP, fooP, eolP, fooP, eolP, outP]
 
+  -- Ignoring include markers
+  , testS     100 [(m 1 1, IncludeFile "bar"), (m 2 1, foo)]
+                  [tag1 IncludeFile "bar", eolP, fooP, eolP]
+
   -- Things that should fail
   , testSFail  900 [(m 1 1, foo), (m 2 2, foo)]
   , testSFail  910 [(m 1 1, foo), (m 2 5, foo)]

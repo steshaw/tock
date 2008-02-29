@@ -138,6 +138,7 @@ data TokenType =
   | TokHexLiteral String
   | TokRealLiteral String
   | TokPreprocessor String
+  | IncludeFile String                 -- ^ Include a file
   | Indent                             -- ^ Indentation increase
   | Outdent                            -- ^ Indentation decrease
   | EndOfLine                          -- ^ End of line

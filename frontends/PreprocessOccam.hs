@@ -18,7 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Preprocess occam code.
-module PreprocessOccam (preprocessOccamProgram, preprocessOccamSource, preprocessOccam) where
+module PreprocessOccam (preprocessOccamProgram, preprocessOccamSource,
+                        preprocessOccam, expandIncludes) where
 
 import Control.Monad.State
 import Data.List
@@ -69,7 +70,7 @@ preprocessFile m filename
           toks <- preprocessSource m realFilename s
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
-          
+
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
 preprocessSource :: Meta -> String -> String -> PassM [Token]
 preprocessSource m realFilename s
@@ -77,32 +78,38 @@ preprocessSource m realFilename s
           veryDebug $ "{{{ lexer tokens"
           veryDebug $ pshow toks
           veryDebug $ "}}}"
-          toks' <- structureOccam toks
-          veryDebug $ "{{{ structured tokens"
+          toks' <- preprocessOccam toks
+          veryDebug $ "{{{ preprocessed tokens"
           veryDebug $ pshow toks'
           veryDebug $ "}}}"
-          toks'' <- preprocessOccam toks'
-          veryDebug $ "{{{ preprocessed tokens"
+          toks'' <- structureOccam toks'
+          veryDebug $ "{{{ structured tokens"
           veryDebug $ pshow toks''
           veryDebug $ "}}}"
-          return toks''
+          expandIncludes toks''
+
+-- | Expand 'IncludeFile' markers in a token stream.
+expandIncludes :: [Token] -> PassM [Token]
+expandIncludes [] = return []
+expandIncludes ((m, IncludeFile filename) : (_, EndOfLine) : ts)
+    =  do contents <- preprocessFile m filename
+          rest <- expandIncludes ts
+          return $ contents ++ rest
+expandIncludes ((m, IncludeFile _):_) = error "IncludeFile token should be followed by EndOfLine"
+expandIncludes (t:ts) = expandIncludes ts >>* (t :)
 
 -- | Preprocess a token stream.
 preprocessOccam :: [Token] -> PassM [Token]
 preprocessOccam [] = return []
-preprocessOccam ((m, TokPreprocessor s):(_, EndOfLine):ts)
-    =  do (beforeRest, afterRest) <- handleDirective m (stripPrefix s)
-          rest <- beforeRest ts >>= preprocessOccam
-          return $ afterRest rest
+preprocessOccam ((m, TokPreprocessor s):ts)
+    =  do beforeRest <- handleDirective m (stripPrefix s)
+          beforeRest ts >>= preprocessOccam
   where
     stripPrefix :: String -> String
     stripPrefix (' ':cs) = stripPrefix cs
     stripPrefix ('\t':cs) = stripPrefix cs
     stripPrefix ('#':cs) = cs
     stripPrefix _ = error "bad TokPreprocessor prefix"
--- Check the above case didn't miss something.
-preprocessOccam ((_, TokPreprocessor _):_)
-    = error "bad TokPreprocessor token"
 preprocessOccam ((_, TokReserved "##") : (m, TokIdentifier var) : ts)
     =  do st <- get
           case Map.lookup var (csDefinitions st) of
@@ -121,10 +128,10 @@ preprocessOccam (t:ts)
           return $ t : rest
 
 --{{{  preprocessor directive handlers
-type DirectiveFunc = Meta -> [String] -> PassM ([Token] -> PassM [Token], [Token] -> [Token])
+type DirectiveFunc = Meta -> [String] -> PassM ([Token] -> PassM [Token])
 
 -- | Call the handler for a preprocessor directive.
-handleDirective :: Meta -> String -> PassM ([Token] -> PassM [Token], [Token] -> [Token])
+handleDirective :: Meta -> String -> PassM ([Token] -> PassM [Token])
 handleDirective m s = lookup s directives
   where
     -- FIXME: This should really be an error rather than a warning, but
@@ -132,7 +139,7 @@ handleDirective m s = lookup s directives
     -- useful.
     lookup s []
         =  do addWarning m "Unknown preprocessor directive ignored"
-              return (return, id)
+              return return
     lookup s ((re, func):ds)
         = case matchRegex re s of
             Just fields -> func m fields
@@ -155,7 +162,7 @@ directives =
 
 -- | Handle a directive that can be ignored.
 handleIgnorable :: DirectiveFunc
-handleIgnorable _ _ = return (return, id)
+handleIgnorable _ _ = return return
 
 -- | Handle a directive that should have been removed as part of handling an
 -- earlier directive.
@@ -165,8 +172,7 @@ handleUnmatched m _ = dieP m "Unmatched #ELSE/#ENDIF"
 -- | Handle the @#INCLUDE@ directive.
 handleInclude :: DirectiveFunc
 handleInclude m [incName]
-    =  do toks <- preprocessFile m incName
-          return (return, \ts -> toks ++ ts)
+    = return (\ts -> return $ (m, IncludeFile incName) : ts)
 
 -- | Handle the @#USE@ directive.
 -- This is a bit of a hack at the moment, since it just includes the file
@@ -177,7 +183,7 @@ handleUse m [modName]
           cs <- get
           put $ cs { csUsedFiles = Set.insert incName (csUsedFiles cs) }
           if Set.member incName (csUsedFiles cs)
-            then return (return, id)
+            then return return
             else handleInclude m [incName]
   where
     -- | If a module name doesn't already have a suffix, add one.
@@ -195,41 +201,41 @@ handleDefine m [definition]
           when (Map.member var $ csDefinitions st) $
             dieP m $ "Preprocessor symbol is already defined: " ++ var
           put $ st { csDefinitions = Map.insert var value $ csDefinitions st }
-          return (return, id)
+          return return
 
 -- | Handle the @#UNDEF@ directive.
 handleUndef :: DirectiveFunc
 handleUndef m [var]
     =  do modify $ \st -> st { csDefinitions = Map.delete var $ csDefinitions st }
-          return (return, id)
+          return return
 
 -- | Handle the @#IF@ directive.
 handleIf :: DirectiveFunc
 handleIf m [condition]
     =  do b <- runPreprocParser m expression condition
-          return (skipCondition b 0, id)
+          return $ skipCondition b 0
   where
     skipCondition :: Bool -> Int -> [Token] -> PassM [Token]
     skipCondition _ _ [] = dieP m "Couldn't find a matching #ENDIF"
 
     -- At level 0, we flip state on ELSE and finish on ENDIF.
-    skipCondition b 0 (t1@(_, TokPreprocessor pp) : t2@(_, EndOfLine) : ts)
-        | "#IF" `isPrefixOf` pp       = skipCondition b 1 ts >>* (\ts -> t1 : t2 : ts)
+    skipCondition b 0 (t@(_, TokPreprocessor pp):ts)
+        | "#IF" `isPrefixOf` pp       = skipCondition b 1 ts >>* (t :)
         | "#ELSE" `isPrefixOf` pp     = skipCondition (not b) 0 ts
         | "#ENDIF" `isPrefixOf` pp    = return ts
-        | otherwise                   = copyThrough b 0 ((t1 :) . (t2 :)) ts
+        | otherwise                   = copyThrough b 0 t ts
 
     -- At higher levels, we just count up and down on IF and ENDIF.
-    skipCondition b n (t1@(_, TokPreprocessor pp) : t2@(_, EndOfLine) : ts)
-        | "#IF" `isPrefixOf` pp       = skipCondition b (n + 1) ts >>* (\ts -> t1 : t2 : ts)
-        | "#ENDIF" `isPrefixOf` pp    = skipCondition b (n - 1) ts >>* (\ts -> t1 : t2 : ts)
-        | otherwise                   = copyThrough b n ((t1 :) . (t2 :)) ts
+    skipCondition b n (t@(_, TokPreprocessor pp):ts)
+        | "#IF" `isPrefixOf` pp       = skipCondition b (n + 1) ts >>* (t :)
+        | "#ENDIF" `isPrefixOf` pp    = skipCondition b (n - 1) ts >>* (t :)
+        | otherwise                   = copyThrough b n t ts
 
     -- And otherwise we copy through tokens if the condition's true.
-    skipCondition b n (t:ts) = copyThrough b n (t :) ts
+    skipCondition b n (t:ts) = copyThrough b n t ts
 
-    copyThrough :: Bool -> Int -> ([Token] -> [Token]) -> [Token] -> PassM [Token]
-    copyThrough True n f ts = skipCondition True n ts >>* f
+    copyThrough :: Bool -> Int -> Token -> [Token] -> PassM [Token]
+    copyThrough True n t ts = skipCondition True n ts >>* (t :)
     copyThrough False n _ ts = skipCondition False n ts
 --}}}
 

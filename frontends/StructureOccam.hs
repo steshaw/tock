@@ -49,11 +49,12 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
     analyse prevCol _ [] _ = return $ (emptyMeta, EndOfLine) : out
       where out = replicate (prevCol `div` 2) (emptyMeta, Outdent)
     analyse prevCol prevLine (t@(m, tokType):ts) prevTok
-        = if (line /= prevLine) && (not isContinuation)
-             then do rest <- analyse col line ts t
-                     newLine $ t : rest
-             else do rest <- analyse prevCol line ts t
-                     return $ t : rest
+      | line /= prevLine && not isContinuation
+        = do rest <- analyse col line ts t
+             newLine $ t : rest
+      | otherwise
+        = do rest <- analyse prevCol line ts t
+             return $ t : rest
       where
         col = metaColumn m
         line = metaLine m

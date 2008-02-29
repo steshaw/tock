@@ -36,9 +36,9 @@ testPP n itts etts = TestCase $ testPass ("testPP " ++ show n) (makeTokens etts)
 -- | Test a preprocessor condition string after a series of tokens.
 testPPCondAfter :: Int -> [TokenType] -> String -> Bool -> Test
 testPPCondAfter n tts condition exp
-    = testPP n (tts ++ [TokPreprocessor $ "#IF " ++ condition, EndOfLine,
+    = testPP n (tts ++ [TokPreprocessor $ "#IF " ++ condition,
                         TokIdentifier "abc",
-                        TokPreprocessor $ "#ENDIF", EndOfLine])
+                        TokPreprocessor $ "#ENDIF"])
                (if exp then [TokIdentifier "abc"] else [])
 
 -- | Test a preprocessor condition string.
@@ -52,54 +52,67 @@ testPPFail n itts = TestCase $ testPassShouldFail ("testPPFail " ++ show n) pass
     makeTokens = zip (repeat emptyMeta)
     pass = preprocessOccam (makeTokens itts)
 
+-- | Test 'expandIncludes' when we're expecting it to succeed.
+testEI :: Int -> [TokenType] -> [TokenType] -> Test
+testEI n itts etts = TestCase $ testPass ("testEI " ++ show n) (makeTokens etts) pass (return ())
+  where
+    makeTokens = zip (repeat emptyMeta)
+    pass = expandIncludes (makeTokens itts)
+
+-- | Test 'expandIncludes' when we're expecting it to fail.
+testEIFail :: Int -> [TokenType] -> Test
+testEIFail n itts = TestCase $ testPassShouldFail ("testEIFail " ++ show n) pass (return ())
+  where
+    makeTokens = zip (repeat emptyMeta)
+    pass = expandIncludes (makeTokens itts)
+
 --{{{  0xxx  simple stuff
 testSimple :: Test
 testSimple = TestLabel "testSimple" $ TestList
   [ testPP       0 [] []
-  , testPP      10 [tp "#COMMENT blah", eol] []
+  , testPP      10 [tp "#COMMENT blah"] []
   , testPP      20 arbitrary arbitrary
-  , testPPFail 900 [tp "#INCLUDE \"this-should-not-exist.inc\"", eol]
+  , testPP      30 [tp "#INCLUDE \"foo\""] [IncludeFile "foo"]
   ]
   where
     tp = TokPreprocessor
-    eol = EndOfLine
     arbitrary = [Indent, Outdent, EndOfLine, TokReserved "blah", TokIdentifier "bleh"]
 --}}}
 --{{{  1xxx  #IF/#ELSE/#ENDIF
 testIf :: Test
 testIf = TestLabel "testIf" $ TestList
   -- Simple conditionals
-  [ testPP 1000 [tp "#IF TRUE",  eol, ti "abc", tp "#ENDIF", eol]                                        [ti "abc"]
-  , testPP 1010 [tp "#IF FALSE", eol, ti "abc", tp "#ENDIF", eol]                                        []
-  , testPP 1020 [tp "#IF TRUE",  eol, ti "abc", tp "#ELSE",  eol, ti "def", tp "#ENDIF", eol]            [ti "abc"]
-  , testPP 1030 [tp "#IF FALSE", eol, ti "abc", tp "#ELSE",  eol, ti "def", tp "#ENDIF", eol]            [ti "def"]
-  , testPP 1040 [tp "#IF FALSE", eol, tp "#INCLUDE \"does-not-exist.inc\"", eol, tp "#ENDIF", eol]       []
+  [ testPP 1000 [tp "#IF TRUE", ti "abc", tp "#ENDIF"]                                [ti "abc"]
+  , testPP 1010 [tp "#IF FALSE", ti "abc", tp "#ENDIF"]                               []
+  , testPP 1020 [tp "#IF TRUE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF"]          [ti "abc"]
+  , testPP 1030 [tp "#IF FALSE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF"]         [ti "def"]
+  , testPP 1040 [tp "#IF FALSE", tp "#INCLUDE \"does-not-exist.inc\"", tp "#ENDIF"]   []
 
   -- Nested conditionals
-  , testPP 1100 [tp "#IF FALSE", eol, tp "#IF FALSE", eol, ti "abc", tp "#ENDIF", eol, tp "#ENDIF", eol] []
-  , testPP 1110 [tp "#IF FALSE", eol, tp "#IF TRUE",  eol, ti "abc", tp "#ENDIF", eol, tp "#ENDIF", eol] []
-  , testPP 1120 [tp "#IF TRUE",  eol, tp "#IF FALSE", eol, ti "abc", tp "#ENDIF", eol, tp "#ENDIF", eol] []
-  , testPP 1130 [tp "#IF TRUE",  eol, tp "#IF TRUE",  eol, ti "abc", tp "#ENDIF", eol, tp "#ENDIF", eol] [ti "abc"]
-  , testPP 1140 [tp "#IF FALSE", eol,
-                   tp "#IF FALSE", eol, ti "abc", tp "#ELSE", eol, ti "def", tp "#ENDIF", eol,
-                 tp "#ELSE", eol,
+  , testPP 1100 [tp "#IF FALSE", tp "#IF FALSE", ti "abc", tp "#ENDIF", tp "#ENDIF"]  []
+  , testPP 1110 [tp "#IF FALSE", tp "#IF TRUE", ti "abc", tp "#ENDIF", tp "#ENDIF"]   []
+  , testPP 1120 [tp "#IF TRUE", tp "#IF FALSE", ti "abc", tp "#ENDIF", tp "#ENDIF"]   []
+  , testPP 1130 [tp "#IF TRUE", tp "#IF TRUE", ti "abc", tp "#ENDIF", tp "#ENDIF"]    [ti "abc"]
+  , testPP 1140 [tp "#IF FALSE",
+                   tp "#IF FALSE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF",
+                 tp "#ELSE",
                    ti "ghi",
-                 tp "#ENDIF", eol] [ti "ghi"]
-  , testPP 1150 [tp "#IF FALSE", eol,
-                   tp "#IF TRUE", eol, ti "abc", tp "#ELSE", eol, ti "def", tp "#ENDIF", eol,
-                 tp "#ELSE", eol,
+                 tp "#ENDIF"] [ti "ghi"]
+  , testPP 1150 [tp "#IF FALSE",
+                   tp "#IF TRUE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF",
+                 tp "#ELSE",
                    ti "ghi",
-                 tp "#ENDIF", eol] [ti "ghi"]
-  , testPP 1160 [tp "#IF TRUE", eol,
-                   tp "#IF FALSE", eol, ti "abc", tp "#ELSE", eol, ti "def", tp "#ENDIF", eol,
-                 tp "#ELSE", eol,
+                 tp "#ENDIF"] [ti "ghi"]
+  , testPP 1160 [tp "#IF TRUE",
+                   tp "#IF FALSE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF",
+                 tp "#ELSE",
                    ti "ghi",
-                 tp "#ENDIF", eol] [ti "def"]
-  , testPP 1170 [tp "#IF TRUE", eol,
-                   tp "#IF TRUE", eol, ti "abc", tp "#ELSE", eol, ti "def", tp "#ENDIF", eol,
-                 tp "#ELSE", eol,
+                 tp "#ENDIF"] [ti "def"]
+  , testPP 1170 [tp "#IF TRUE",
+                   tp "#IF TRUE", ti "abc", tp "#ELSE", ti "def", tp "#ENDIF",
+                 tp "#ELSE",
                    ti "ghi",
-                 tp "#ENDIF", eol] [ti "abc"]
+                 tp "#ENDIF"] [ti "abc"]
 
   -- Expressions
   , testPPCond 1200 "FALSE AND FALSE"                            False
@@ -128,57 +141,56 @@ testIf = TestLabel "testIf" $ TestList
   , testPPCond 1430 "((3 > 4) OR (42 = 24)) AND (1 <= 2)"        False
 
   -- Invalid conditionals
-  , testPPFail 1900 [tp "#IF you can keep your head when all about you...", eol]
-  , testPPFail 1910 [tp "#IF TRUE", eol]
-  , testPPFail 1920 [tp "#IF TRUE love comes but once in a lifetime...", eol]
-  , testPPFail 1930 [tp "#IF TRUE", eol, tp "#IF FALSE", eol, tp "#ENDIF", eol]
-  , testPPFail 1940 [tp "#IF (TRUE", eol, tp "#ENDIF", eol]
-  , testPPFail 1950 [tp "#ELSE", eol]
-  , testPPFail 1960 [tp "#ENDIF", eol]
-  , testPPFail 1970 [tp "#IF 3 = \"foo\"", eol, tp "#ENDIF", eol]
-  , testPPFail 1980 [tp "#IF \"foo\" > \"bar\"", eol, tp "#ENDIF", eol]
+  , testPPFail 1900 [tp "#IF you can keep your head when all about you..."]
+  , testPPFail 1910 [tp "#IF TRUE"]
+  , testPPFail 1920 [tp "#IF TRUE love comes but once in a lifetime..."]
+  , testPPFail 1930 [tp "#IF TRUE", tp "#IF FALSE", tp "#ENDIF"]
+  , testPPFail 1940 [tp "#IF (TRUE", tp "#ENDIF"]
+  , testPPFail 1950 [tp "#ELSE"]
+  , testPPFail 1960 [tp "#ENDIF"]
+  , testPPFail 1970 [tp "#IF 3 = \"foo\"", tp "#ENDIF"]
+  , testPPFail 1980 [tp "#IF \"foo\" > \"bar\"", tp "#ENDIF"]
   ]
   where
     ti = TokIdentifier
     tp = TokPreprocessor
-    eol = EndOfLine
 --}}}
 --{{{  2xxx  #DEFINE/#UNDEF/##
 testDefine :: Test
 testDefine = TestLabel "testDefine" $ TestList
   -- Basic defining
-  [ testPP 2000 [tp "#DEFINE FOO", eol] []
-  , testPP 2010 [tp "#DEFINE FOO \"bar\"", eol] []
-  , testPP 2020 [tp "#DEFINE FOO 42", eol] []
-  , testPP 2030 [tp "#UNDEF BAR", eol] []
-  , testPP 2040 [tp "#DEFINE FOO", eol, tp "#UNDEF FOO", eol] []
+  [ testPP 2000 [tp "#DEFINE FOO"] []
+  , testPP 2010 [tp "#DEFINE FOO \"bar\""] []
+  , testPP 2020 [tp "#DEFINE FOO 42"] []
+  , testPP 2030 [tp "#UNDEF BAR"] []
+  , testPP 2040 [tp "#DEFINE FOO", tp "#UNDEF FOO"] []
 
   -- DEFINED
-  , testPPCondAfter 2100 [tp "#DEFINE FOO", eol] "DEFINED (FOO)"             True
-  , testPPCondAfter 2110 [tp "#UNDEF FOO", eol] "DEFINED (FOO)"              False
-  , testPPCondAfter 2120 [tp "#DEFINE FOO", eol, tp "#UNDEF FOO", eol]
-                         "DEFINED (FOO)"                                     False
-  , testPPCondAfter 2130 [tp "#UNDEF FOO", eol, tp "#DEFINE FOO", eol]
-                         "DEFINED (FOO)"                                     True
-  , testPPCond 2140 "DEFINED (COMPILER.TOCK)"                                True
-  , testPPCond 2150 "NOT DEFINED (COMPILER.TOCK)"                            False
+  , testPPCondAfter 2100 [tp "#DEFINE FOO"] "DEFINED (FOO)"             True
+  , testPPCondAfter 2110 [tp "#UNDEF FOO"] "DEFINED (FOO)"              False
+  , testPPCondAfter 2120 [tp "#DEFINE FOO", tp "#UNDEF FOO"]
+                         "DEFINED (FOO)"                                False
+  , testPPCondAfter 2130 [tp "#UNDEF FOO", tp "#DEFINE FOO"]
+                         "DEFINED (FOO)"                                True
+  , testPPCond 2140 "DEFINED (COMPILER.TOCK)"                           True
+  , testPPCond 2150 "NOT DEFINED (COMPILER.TOCK)"                       False
 
   -- Conditions involving macros
-  , testPPCondAfter 2200 [tp "#DEFINE FOO 42", eol] "FOO = 42"               True
-  , testPPCondAfter 2210 [tp "#DEFINE FOO 42", eol] "FOO <> 42"              False
-  , testPPCondAfter 2220 [tp "#DEFINE FOO \"bar\"", eol] "FOO = \"bar\""     True
-  , testPPCondAfter 2230 [tp "#DEFINE FOO \"baz\"", eol] "FOO = \"bar\""     False
+  , testPPCondAfter 2200 [tp "#DEFINE FOO 42"] "FOO = 42"               True
+  , testPPCondAfter 2210 [tp "#DEFINE FOO 42"] "FOO <> 42"              False
+  , testPPCondAfter 2220 [tp "#DEFINE FOO \"bar\""] "FOO = \"bar\""     True
+  , testPPCondAfter 2230 [tp "#DEFINE FOO \"baz\""] "FOO = \"bar\""     False
 
   -- Expansion
-  , testPP 2600 [tp "#DEFINE FOO \"bar\"", eol, hh, ti "FOO"] [TokStringLiteral "bar"]
-  , testPP 2610 [tp "#DEFINE FOO 1234", eol, hh, ti "FOO"] [TokIntLiteral "1234"]
+  , testPP 2600 [tp "#DEFINE FOO \"bar\"", hh, ti "FOO"] [TokStringLiteral "bar"]
+  , testPP 2610 [tp "#DEFINE FOO 1234", hh, ti "FOO"] [TokIntLiteral "1234"]
 
   -- Invalid definitions
-  , testPPFail 2900 [tp "#DEFINE FOO", eol, tp "#DEFINE FOO", eol]
-  , testPPFail 2910 [tp "#DEFINE FOO !!*!%*!", eol]
+  , testPPFail 2900 [tp "#DEFINE FOO", tp "#DEFINE FOO"]
+  , testPPFail 2910 [tp "#DEFINE FOO !!*!%*!"]
 
   -- Invalid expansions
-  , testPPFail 2950 [tp "#DEFINE FOO", eol, hh, ti "FOO"]
+  , testPPFail 2950 [tp "#DEFINE FOO", hh, ti "FOO"]
   , testPPFail 2960 [hh, ti "FOO"]
   , testPPFail 2970 [hh, hh]
   ]
@@ -186,7 +198,17 @@ testDefine = TestLabel "testDefine" $ TestList
     tp = TokPreprocessor
     ti = TokIdentifier
     hh = TokReserved "##"
-    eol = EndOfLine
+--}}}
+--{{{  3xxx  expandIncludes
+testExpand :: Test
+testExpand = TestLabel "testExpand" $ TestList
+  [ testEI     3000 [] []
+  , testEI     3010 arbitrary arbitrary
+
+  , testEIFail 3900 [IncludeFile "this-does-not-exist", EndOfLine]
+  ]
+  where
+    arbitrary = [Indent, Outdent, EndOfLine, TokReserved "blah", TokIdentifier "bleh"]
 --}}}
 
 tests :: Test
@@ -194,4 +216,5 @@ tests = TestLabel "PreprocessOccamTest" $ TestList
   [ testSimple
   , testIf
   , testDefine
+  , testExpand
   ]
