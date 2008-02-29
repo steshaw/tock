@@ -89,7 +89,7 @@ removeParAssign = doGeneric `extM` doProcess
 
 -- | Turn assignment of arrays and records into multiple assignments.
 flattenAssign :: Data t => t -> PassM t
-flattenAssign = doGeneric `extM` doProcess
+flattenAssign = doGeneric `extM` doProcess `ext1M` doStructured
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric flattenAssign
@@ -99,6 +99,13 @@ flattenAssign = doGeneric `extM` doProcess
         =  do t <- typeOfVariable v
               assign m t v m' e
     doProcess p = doGeneric p
+    
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured (A.Spec m (A.Specification m' n t@(A.RecordType _ _ fs)) s)
+      = do procSpec <- recordCopyProc n m fs
+           s' <- doStructured s
+           return $ A.Spec m (A.Specification m' n t) (procSpec s')
+    doStructured s = doGeneric s
 
     assign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
     assign m t@(A.Array _ _) v m' e = complexAssign m t v m' e
@@ -133,19 +140,30 @@ flattenAssign = doGeneric `extM` doProcess
                                          (A.ExprVariable m'
                                            (A.SubscriptedVariable m' sub srcV))
                          return $ A.Rep m rep $ A.Only m inner
-                    A.Record _ ->
-                      -- Record assignments become a sequence of
-                      -- assignments, one for each field.
-                      do 
-                         fs <- recordFields m t
-                         assigns <-
-                           sequence [do let sub = A.SubscriptField m fName
-                                        assign m fType
-                                          (A.SubscriptedVariable m sub destV) m'
-                                          (A.ExprVariable m'
-                                            (A.SubscriptedVariable m' sub srcV))
-                                     | (fName, fType) <- fs]
-                         return $ A.Several m $ map (A.Only m) assigns
+                    A.Record n ->
+                      return $ A.Only m $ A.ProcCall m (n {A.nameName = "copy_" ++ A.nameName n})
+                        [A.ActualVariable A.Abbrev t destV, A.ActualVariable A.ValAbbrev t srcV]
 
           return $ A.Seq m $ A.Spec m src $ A.Spec m dest body
 
+    -- TODO could make this a separate pass if we wanted (to be run first)
+    recordCopyProc :: Data a => A.Name -> Meta -> [(A.Name, A.Type)] -> PassM (A.Structured a -> A.Structured a)
+    recordCopyProc n m fs
+                      -- Record assignments become a sequence of
+                      -- assignments, one for each field.
+                    = do let t = A.Record n
+                         (A.Specification _ nonceLHS _) <- makeNonceVariable "record_copy_arg" m t A.VariableName A.Abbrev 
+                         let destV = A.Variable m nonceLHS
+                         (A.Specification _ nonceRHS _) <- makeNonceVariable "record_copy_arg" m t A.VariableName A.Abbrev 
+                         let srcV = A.Variable m nonceRHS
+                         assigns <-
+                           sequence [do let sub = A.SubscriptField m fName
+                                        assign m fType
+                                          (A.SubscriptedVariable m sub destV) m
+                                          (A.ExprVariable m
+                                            (A.SubscriptedVariable m sub srcV))
+                                     | (fName, fType) <- fs]
+                         let code = A.Seq m $ A.Several m $ map (A.Only m) assigns
+                         
+                         return (A.Spec m (A.Specification m (n {A.nameName = "copy_" ++ A.nameName n})
+                           (A.Proc m A.InlineSpec [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS] code)))
