@@ -699,7 +699,8 @@ cgenVariable' checkValid v
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               t <- typeOfVariable sv
-              let outerInd = if indirectedType t then -1 else 0
+              let outerInd :: Int
+                  outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
     inner ind (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
         = inner ind (A.SubscriptedVariable m (A.Subscript m' start) v) mt
