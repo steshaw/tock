@@ -87,7 +87,7 @@ data GenOps = GenOps {
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
     genArrayLiteralElems :: [A.ArrayElem] -> CGen (),
     -- | Declares a constant array for the sizes (dimensions) of a C array.
-    genArraySize :: Bool -> CGen () -> A.Name -> CGen (),
+    genArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen (),
     -- | Writes out the dimensions of an array, that can be used to initialise the sizes of an array.  Fails if there is an 'A.UnknownDimension' present.
     genArraySizesLiteral :: A.Name -> A.Type -> CGen (),
     -- | Writes out the actual data storage array name.

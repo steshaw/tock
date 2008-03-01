@@ -293,8 +293,8 @@ testArraySizes = TestList
   testBoth "genArraySizesLiteral 0" "{3}" "tockArrayView<int,1>(foo_actual,tockDims(3))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3] A.Int) 
   ,testBoth "genArraySizesLiteral 1" "{3,6,8}" "tockArrayView<int,3>(foo_actual,tockDims(3,6,8))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3, A.Dimension 6, A.Dimension 8] A.Int) 
   ,testBothFail "genArraySizesLiteral 2" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 6, A.UnknownDimension] A.Int) 
-  ,testBothSame "genArraySize 0" "const int*foo_sizes=@;" (tcall3 genArraySize True at foo)
-  ,testBothSame "genArraySize 1" "const int foo_sizes[]=@;" (tcall3 genArraySize False at foo)
+  ,testBothSame "genArraySizeDecl 0" "const int*foo_sizes=@;" (tcall3 genArraySizeDecl True at foo)
+  ,testBothSame "genArraySizeDecl 1" "const int foo_sizes[]=@;" (tcall3 genArraySizeDecl False at foo)
   ,testBothSame "genArrayLiteralElems 0" "$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined])
   ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined, A.ArrayElemExpr undefined])
   ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]])
@@ -737,7 +737,7 @@ testRetypeSizes = TestList
    showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
    showArrSize _ sz _ = tell ["^("] >> sz >> tell [")"]
    over :: Override
-   over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySize = showArrSize}
+   over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySizeDecl = showArrSize}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
 defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced

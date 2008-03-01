@@ -67,7 +67,7 @@ cgenOps = GenOps {
     genAlt = cgenAlt,
     genAllocMobile = cgenAllocMobile,
     genArrayLiteralElems = cgenArrayLiteralElems,
-    genArraySize = cgenArraySize,
+    genArraySizeDecl = cgenArraySizeDecl,
     genArraySizesLiteral = cgenArraySizesLiteral,
     genArrayStoreName = genName,
     genArraySubscript = cgenArraySubscript,
@@ -1003,7 +1003,7 @@ cgenSlice v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
        -- We need to disable the index check here because we might be taking
        -- element 0 of a 0-length array -- which is valid.
     = (tell ["&"] >> call genVariableUnchecked v,
-       call genArraySize False
+       call genArraySizeDecl False
                     (do genLeftB
                         tell ["occam_check_slice("]
                         call genExpression start
@@ -1021,8 +1021,8 @@ cgenSlice v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
                         genRightB
                     ))
 
-cgenArraySize :: Bool -> CGen () -> A.Name -> CGen ()
-cgenArraySize isPtr size n
+cgenArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen ()
+cgenArraySizeDecl isPtr size n
     = if isPtr
         then do tell ["const int*"]
                 genName n
@@ -1052,7 +1052,7 @@ abbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
         genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
             = genAASize v (arg + 1)
         genAASize (A.Variable _ on) arg
-            = call genArraySize True
+            = call genArraySizeDecl True
                        (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
         genAASize (A.DirectedVariable _ _ v)  arg
             = const $ call genMissing "Cannot abbreviate a directed variable as an array"
@@ -1064,7 +1064,7 @@ abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ s
 abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
     = call genSlice v (makeConstant m 0) count ds
 abbrevVariable am (A.Array _ _) v
-    = (call genVariable v, call genArraySize True (call genVariable v >> tell ["_sizes"]))
+    = (call genVariable v, call genArraySizeDecl True (call genVariable v >> tell ["_sizes"]))
 abbrevVariable am (A.Chan {}) v
     = (call genVariable v, noSize)
 abbrevVariable am (A.Record _) v
@@ -1106,7 +1106,7 @@ cgenRetypeSizes m destT destN srcT srcV
                                      dieP m "genRetypeSizes expecting free dimension"
                                A.Dimension n -> tell [show n]
                              | d <- destDS]
-                 call genArraySize False (genLeftB >> seqComma dims >> genRightB) destN
+                 call genArraySizeDecl False (genLeftB >> seqComma dims >> genRightB) destN
 
             -- Not array; just check the size is 1.
             _ ->
@@ -1181,7 +1181,7 @@ cgenFlatArraySize ds
 -- | Declare an _sizes array for a variable.
 cdeclareArraySizes :: A.Type -> A.Name -> CGen ()
 cdeclareArraySizes t name
-    = call genArraySize False (call genArraySizesLiteral name t) name
+    = call genArraySizeDecl False (call genArraySizesLiteral name t) name
 
 -- | Generate a C literal to initialise an _sizes array with, where all the
 -- dimensions are fixed.
