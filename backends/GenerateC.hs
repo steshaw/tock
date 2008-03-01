@@ -740,17 +740,20 @@ cgenArraySubscript checkValid v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
-          sequence_ $ intersperse (tell ["+"]) $ genPlainSub v es [0..(numDims - 1)]
+          sequence_ $ intersperse (tell ["+"]) $ genPlainSub (genDynamicDim v) es [0..(numDims - 1)]
           tell ["]"]
   where
+    genDynamicDim :: A.Variable -> Int -> CGen ()
+    genDynamicDim v i = call genVariable v >> call genSizeSuffix (show i)
+    
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
     -- FIXME This is obviously not the best way to factor this, but I figure a
     -- smart C compiler should be able to work it out...
-    genPlainSub :: A.Variable -> [A.Expression] -> [Int] -> [CGen ()]
+    genPlainSub :: (Int -> CGen ()) -> [A.Expression] -> [Int] -> [CGen ()]
     genPlainSub _ [] _ = []
-    genPlainSub v (e:es) (sub:subs)
-        = gen : genPlainSub v es subs
+    genPlainSub genDim (e:es) (sub:subs)
+        = gen : genPlainSub genDim es subs
       where
         gen = sequence_ $ intersperse (tell ["*"]) $ genSub : genChunks
         genSub
@@ -758,13 +761,12 @@ cgenArraySubscript checkValid v es
                 then do tell ["occam_check_index("]
                         call genExpression e
                         tell [","]
-                        call genVariable v
-                        call genSizeSuffix (show sub)
+                        genDim sub
                         tell [","]
                         genMeta (findMeta e)
                         tell [")"]
                 else call genExpression e
-        genChunks = [call genVariable v >> call genSizeSuffix (show i) | i <- subs]
+        genChunks = map genDim subs
 --}}}
 
 --{{{  expressions
