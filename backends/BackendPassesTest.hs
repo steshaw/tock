@@ -22,7 +22,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module BackendPassesTest (tests) where
 
 import Control.Monad.State
-import Data.Generics
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
@@ -147,70 +146,66 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
 testDeclareSizes :: Test
 testDeclareSizes = TestList
   [
-    testFooVal 0 [4]
-   ,testFooVal 1 [4,5]
-   ,testFooVal 2 [4,5,6,7,8]
+    testFoo 0 $ declFoo [4]
+   ,testFoo 1 $ declFoo [4,5]
+   ,testFoo 2 $ declFoo [4,5,6,7,8]
    
+   ,testFoo 10 $ isChanArrFoo 1
+   ,testFoo 11 $ isChanArrFoo 2
+   ,testFoo 12 $ isChanArrFoo 3
+   
+{-   
    ,testFooDecl 10 [Nothing]
    ,testFooDecl 11 [Just 4, Nothing]
    ,testFooDecl 12 [Nothing, Nothing]  
    ,testFooDecl 13 [Nothing, Nothing, Nothing, Nothing]
    ,testFooDecl 14 [Nothing, Just 5, Just 6]
    ,testFooDecl 15 [Just 4, Nothing, Just 5, Nothing, Nothing]
+-}   
+   --TODO test that arrays that are abbreviations (Is and IsExpr) also get _sizes arrays, and that they are initialised correctly
+   --TODO test records getting sizes arrays
+   --TODO test reshapes/retypes abbreviations
   ]
   where
-    -- Tests static arrays (where the _sizes will be a val abbrev)
-    testFooVal :: Int -> [Int] -> Test
-    testFooVal n ns = test n (declFoo t $ valFooSizes ns $ term) (declFoo t term) (checkValFooSizes ns)
+    -- spectype of foo, spectype of foo_sizes
+    testFoo :: Int -> (A.SpecType, A.SpecType, State CompState ()) -> Test
+    testFoo n (fooSpec, fooSizesSpec, st) = test n
+      (strFoo $ strFooSizes term)
+      (strFoo term) st (checkFooSizes fooSizesSpec)
+      where
+        strFoo = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo") fooSpec)
+        strFooSizes = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") fooSizesSpec)
+
+    isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
+    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [A.Dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
+                     ,valFoo [n], return ())
+
+    declFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
+    declFoo ns = (A.Declaration emptyMeta t Nothing, valFoo ns, return ())
       where
         t = A.Array (map A.Dimension ns) A.Byte
-
-    -- Tests non-static arrays (where the _sizes will be declared but not initialised)
-    testFooDecl :: Int -> [Maybe Int] -> Test
-    testFooDecl n ns = test n (declFoo t $ declFooSizes (length ns) $ term) (declFoo t term) (checkDeclFooSizes $ length ns)
-      where
-        t = A.Array (map (maybe A.UnknownDimension A.Dimension) ns) A.Byte
-  
-    declFoo :: Data a => A.Type -> (A.Structured a -> A.Structured a)
-    declFoo t = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo") $ A.Declaration emptyMeta t Nothing)
 
     valFoo :: [Int] -> A.SpecType
     valFoo ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $ makeSizesLiteral ds
 
-    valFooSizes :: Data a => [Int] -> (A.Structured a -> A.Structured a)
-    valFooSizes ds = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") $ valFoo ds)
-    
-    declFooSizes :: Data a => Int -> (A.Structured a -> A.Structured a)
-    declFooSizes x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") $ A.Declaration emptyMeta (A.Array [A.Dimension x] A.Int) Nothing)
-    
     makeSizesLiteral :: [Int] -> A.Expression
     makeSizesLiteral xs = A.Literal emptyMeta (A.Array [A.Dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
       map (A.ArrayElemExpr . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show) xs
     
-    checkValFooSizes :: [Int] -> CompState -> Assertion
-    checkValFooSizes ns cs
+    checkFooSizes :: A.SpecType -> CompState -> Assertion
+    checkFooSizes spec cs
       = do nd <- case Map.lookup "foo_sizes" (csNames cs) of
              Just nd -> return nd
              Nothing -> assertFailure "Could not find foo_sizes" >> return undefined
            assertEqual "ndName" "foo_sizes" (A.ndName nd)
            assertEqual "ndOrigName" "foo_sizes" (A.ndOrigName nd)
-           assertEqual "ndType" (valFoo ns) (A.ndType nd)
-           assertEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
-
-    checkDeclFooSizes :: Int -> CompState -> Assertion
-    checkDeclFooSizes x cs
-      = do nd <- case Map.lookup "foo_sizes" (csNames cs) of
-             Just nd -> return nd
-             Nothing -> assertFailure "Could not find foo_sizes" >> return undefined
-           assertEqual "ndName" "foo_sizes" (A.ndName nd)
-           assertEqual "ndOrigName" "foo_sizes" (A.ndOrigName nd)
-           assertEqual "ndType" (A.Declaration emptyMeta (A.Array [A.Dimension x] A.Int) Nothing) (A.ndType nd)
+           assertEqual "ndType" spec (A.ndType nd)
            assertEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
   
     term = A.Only emptyMeta ()
     
-    test :: Int -> A.Structured () -> A.Structured () -> (CompState -> Assertion) -> Test
-    test n exp inp chk = TestLabel label $ TestCase $ testPassWithStateCheck label exp (declareSizesArray inp) (return ()) chk
+    test :: Int -> A.Structured () -> A.Structured () -> State CompState () -> (CompState -> Assertion) -> Test
+    test n exp inp st chk = TestLabel label $ TestCase $ testPassWithStateCheck label exp (declareSizesArray inp) st chk
       where
         label = "testDeclareSizes " ++ show n
 ---Returns the list of tests:

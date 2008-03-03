@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 import qualified AST as A
 import CompState
 import Pass
+import Types
 
 -- | Identify processes that we'll need to compute the stack size of.
 identifyParProcs :: Data t => t -> PassM t
@@ -77,8 +78,45 @@ transformWaitFor = doGeneric `extM` doAlt
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
+
+-- TODO must make sure that each expression is already pulled out into a variable
+
 declareSizesArray :: Data t => t -> PassM t
-declareSizesArray = return -- TODO
+declareSizesArray = doGeneric `ext1M` doStructured
+  where
+    append_sizes :: A.Name -> A.Name
+    append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
+  
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric declareSizesArray
+
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
+      = do t <- typeOfSpec spec
+           case t of
+             Just (A.Array ds _) -> if elem A.UnknownDimension ds
+               then do let sizeSpec = A.Specification m' (append_sizes n) (A.Declaration m' (A.Array [A.Dimension $ length ds] A.Int) Nothing)
+                       return (A.Spec m sp $ A.Spec m sizeSpec $ s) -- TODO fix this
+               else do let n_sizes = append_sizes n
+                           sizeType = A.Array [A.Dimension $ length ds] A.Int
+                           sizeLit = A.Literal m' sizeType $ A.ArrayLiteral m' $
+                             map (A.ArrayElemExpr . A.Literal m' A.Int . A.IntLiteral m' . show . \(A.Dimension d) -> d) ds
+                           sizeSpecType = A.IsExpr m' A.ValAbbrev sizeType sizeLit
+                           sizeSpec = A.Specification m' n_sizes sizeSpecType
+                       defineName n_sizes $ A.NameDef {
+                         A.ndMeta = m'
+                        ,A.ndName = A.nameName n_sizes
+                        ,A.ndOrigName = A.nameName n_sizes
+                        ,A.ndNameType = A.VariableName
+                        ,A.ndType = sizeSpecType
+                        ,A.ndAbbrevMode = A.ValAbbrev
+                        ,A.ndPlacement = A.Unplaced}
+                       return (A.Spec m sp $ A.Spec m sizeSpec $ s)
+                             
+             _ -> return str
+    doStructured s = doGeneric s
+
+--TODO add a pass for adding _sizes parameters to PROC arguments
 
 -- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
 -- as appropriate.
