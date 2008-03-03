@@ -22,10 +22,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module BackendPassesTest (tests) where
 
 import Control.Monad.State
+import Data.Generics
+import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
 import qualified AST as A
 import BackendPasses
+import CompState
 import Metadata
 import Pattern
 import TagAST
@@ -141,12 +144,81 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
     var1 = tag2 A.Variable DontCare varName1
     evar1 = tag2 A.ExprVariable DontCare var1
 
+testDeclareSizes :: Test
+testDeclareSizes = TestList
+  [
+    testFooVal 0 [4]
+   ,testFooVal 1 [4,5]
+   ,testFooVal 2 [4,5,6,7,8]
+   
+   ,testFooDecl 10 [Nothing]
+   ,testFooDecl 11 [Just 4, Nothing]
+   ,testFooDecl 12 [Nothing, Nothing]  
+   ,testFooDecl 13 [Nothing, Nothing, Nothing, Nothing]
+   ,testFooDecl 14 [Nothing, Just 5, Just 6]
+   ,testFooDecl 15 [Just 4, Nothing, Just 5, Nothing, Nothing]
+  ]
+  where
+    -- Tests static arrays (where the _sizes will be a val abbrev)
+    testFooVal :: Int -> [Int] -> Test
+    testFooVal n ns = test n (declFoo t $ valFooSizes ns $ term) (declFoo t term) (checkValFooSizes ns)
+      where
+        t = A.Array (map A.Dimension ns) A.Byte
 
+    -- Tests non-static arrays (where the _sizes will be declared but not initialised)
+    testFooDecl :: Int -> [Maybe Int] -> Test
+    testFooDecl n ns = test n (declFoo t $ declFooSizes (length ns) $ term) (declFoo t term) (checkDeclFooSizes $ length ns)
+      where
+        t = A.Array (map (maybe A.UnknownDimension A.Dimension) ns) A.Byte
+  
+    declFoo :: Data a => A.Type -> (A.Structured a -> A.Structured a)
+    declFoo t = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo") $ A.Declaration emptyMeta t Nothing)
+
+    valFoo :: [Int] -> A.SpecType
+    valFoo ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $ makeSizesLiteral ds
+
+    valFooSizes :: Data a => [Int] -> (A.Structured a -> A.Structured a)
+    valFooSizes ds = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") $ valFoo ds)
+    
+    declFooSizes :: Data a => Int -> (A.Structured a -> A.Structured a)
+    declFooSizes x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") $ A.Declaration emptyMeta (A.Array [A.Dimension x] A.Int) Nothing)
+    
+    makeSizesLiteral :: [Int] -> A.Expression
+    makeSizesLiteral xs = A.Literal emptyMeta (A.Array [A.Dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
+      map (A.ArrayElemExpr . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show) xs
+    
+    checkValFooSizes :: [Int] -> CompState -> Assertion
+    checkValFooSizes ns cs
+      = do nd <- case Map.lookup "foo_sizes" (csNames cs) of
+             Just nd -> return nd
+             Nothing -> assertFailure "Could not find foo_sizes" >> return undefined
+           assertEqual "ndName" "foo_sizes" (A.ndName nd)
+           assertEqual "ndOrigName" "foo_sizes" (A.ndOrigName nd)
+           assertEqual "ndType" (valFoo ns) (A.ndType nd)
+           assertEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
+
+    checkDeclFooSizes :: Int -> CompState -> Assertion
+    checkDeclFooSizes x cs
+      = do nd <- case Map.lookup "foo_sizes" (csNames cs) of
+             Just nd -> return nd
+             Nothing -> assertFailure "Could not find foo_sizes" >> return undefined
+           assertEqual "ndName" "foo_sizes" (A.ndName nd)
+           assertEqual "ndOrigName" "foo_sizes" (A.ndOrigName nd)
+           assertEqual "ndType" (A.Declaration emptyMeta (A.Array [A.Dimension x] A.Int) Nothing) (A.ndType nd)
+           assertEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
+  
+    term = A.Only emptyMeta ()
+    
+    test :: Int -> A.Structured () -> A.Structured () -> (CompState -> Assertion) -> Test
+    test n exp inp chk = TestLabel label $ TestCase $ testPassWithStateCheck label exp (declareSizesArray inp) (return ()) chk
+      where
+        label = "testDeclareSizes " ++ show n
 ---Returns the list of tests:
 tests :: Test
 tests = TestLabel "BackendPassesTest" $ TestList
  [
-   testTransformWaitFor0
+   testDeclareSizes
+  ,testTransformWaitFor0
   ,testTransformWaitFor1
   ,testTransformWaitFor2
   ,testTransformWaitFor3

@@ -74,3 +74,13 @@ transformWaitFor = doGeneric `extM` doAlt
            return $ A.AlternativeWait m A.WaitUntil (A.ExprVariable m var) p
                
     doWaitFor a = return a
+
+-- | Declares a _sizes array for every array, statically sized or dynamically sized.
+-- For each record type it declares a _sizes array too.
+declareSizesArray :: Data t => t -> PassM t
+declareSizesArray = return -- TODO
+
+-- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
+-- as appropriate.
+flattenArrays :: Data t => t -> PassM t
+flattenArrays = return -- TODO
