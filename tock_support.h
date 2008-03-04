@@ -368,18 +368,4 @@ static inline double occam_DSQRT (double v, const char *pos) {
 }
 //}}}
 
-//{{{ lists
-
-#define DECLARE_LIST_TYPE(type, name) struct name { struct name * next; type data; }; \
-	name * array_to_list_##name (const type * _array, const int _size) { \
-		if (_size <= 0) return NULL; name * r = (name *)malloc(sizeof(name)); \
-		r->next = NULL; r->data = _array[0]; name * p = r; \
-		for (int i = 1;i < _size;i++) p = append_data_to_list_##name (p,&_array[i]); \
-		return r; } \
-	name * append_data_to_list_##name (const name * p, const type* data) { \
-		p->next = (name *)malloc(sizeof(name));p = p->next; \
-		p->next = NULL; p->data = *data; return p; }
-
-//}}}
-
 #endif
