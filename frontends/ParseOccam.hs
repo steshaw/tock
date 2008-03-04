@@ -2006,7 +2006,9 @@ sourceFile
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
     =  do case runParser prod ([], cs) "" toks of
-            Left err -> dieReport (Nothing, "Parse error: " ++ show err)
+            Left err ->
+              let m = sourcePosToMeta $ errorPos err
+                in dieReport (Just m, "Parse error: " ++ show err)
             Right r -> return r
 
 -- | Parse an occam program.
