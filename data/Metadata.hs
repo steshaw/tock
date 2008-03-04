@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -22,8 +22,9 @@ module Metadata where
 {-! global : Haskell2Xml !-}
 
 import Data.Generics
+import Numeric
 import Text.Printf
-import Text.Read
+import Text.Regex
 
 data Meta = Meta {
     metaFile :: Maybe String,
@@ -50,22 +51,23 @@ packMeta :: Meta -> String -> String
 packMeta m s
     = case metaFile m of
         Nothing -> s
-        Just fn -> printf "~%d\0%d\0%s\0%s"
-                          (metaLine m) (metaColumn m) fn s
+        Just fn -> printf "//pos:%d:%d:%s//%s"
+                          (metaLine m) (metaColumn m) (unslash fn) s
+  where
+    -- | Remove doubled slashes from a string, so we can unambiguously encode it.
+    unslash :: String -> String
+    unslash s = subRegex (mkRegex "//+") s "/"
 
 -- | Extract a Meta (encoded by packMeta) from a String.
 unpackMeta :: String -> (Maybe Meta, String)
-unpackMeta ('~':s) = (Just m, rest)
+unpackMeta s
+    = case matchRegex metaRE s of
+        Just [before, line, col, file, after] ->
+          (Just $ Meta (Just file) (getInt line) (getInt col), before ++ after)
+        Nothing -> (Nothing, s)
   where
-    (ls, _:s') = break (== '\0') s
-    (cs, _:s'') = break (== '\0') s'
-    (fn, _:rest) = break (== '\0') s''
-    m = emptyMeta {
-          metaFile = Just fn,
-          metaLine = read ls,
-          metaColumn = read cs
-        }
-unpackMeta s = (Nothing, s)
+    metaRE = mkRegex "^(.*)//pos:([0-9]*):([0-9]*):(.*)//(.*)$"
+    getInt s = case readDec s of [(v, "")] -> v
 
 -- | Find the first Meta value in some part of the AST.
 findMeta :: (Data t, Typeable t) => t -> Meta

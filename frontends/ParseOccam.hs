@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -2007,8 +2007,12 @@ runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
     =  do case runParser prod ([], cs) "" toks of
             Left err ->
-              let m = sourcePosToMeta $ errorPos err
-                in dieReport (Just m, "Parse error: " ++ show err)
+              -- If a position was encoded into the message, use that;
+              -- else use the parser position.
+              let errMeta = sourcePosToMeta $ errorPos err
+                  (msgMeta, msg) = unpackMeta $ show err
+                  m = Just errMeta >> msgMeta
+                in dieReport (m, "Parse error: " ++ msg)
             Right r -> return r
 
 -- | Parse an occam program.
