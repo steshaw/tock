@@ -25,6 +25,7 @@ import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
+import Metadata
 import Pass
 import Types
 
@@ -86,6 +87,17 @@ declareSizesArray = doGeneric `ext1M` doStructured
   where
     append_sizes :: A.Name -> A.Name
     append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
+    
+    defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
+    defineSizesName m n spec
+      = defineName n $ A.NameDef {
+                         A.ndMeta = m
+                        ,A.ndName = A.nameName n
+                        ,A.ndOrigName = A.nameName n
+                        ,A.ndNameType = A.VariableName
+                        ,A.ndType = spec
+                        ,A.ndAbbrevMode = A.ValAbbrev
+                        ,A.ndPlacement = A.Unplaced}
   
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric declareSizesArray
@@ -93,28 +105,34 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
-           case t of
-             Just (A.Array ds _) -> if elem A.UnknownDimension ds
+           case (spec,t) of
+             (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
                then do let sizeSpec = A.Specification m' (append_sizes n) (A.Declaration m' (A.Array [A.Dimension $ length ds] A.Int) Nothing)
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s) -- TODO fix this
                else do let n_sizes = append_sizes n
-                           sizeType = A.Array [A.Dimension $ length ds] A.Int
-                           sizeLit = A.Literal m' sizeType $ A.ArrayLiteral m' $
-                             map (A.ArrayElemExpr . A.Literal m' A.Int . A.IntLiteral m' . show . \(A.Dimension d) -> d) ds
-                           sizeSpecType = A.IsExpr m' A.ValAbbrev sizeType sizeLit
+                           sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
-                       defineName n_sizes $ A.NameDef {
-                         A.ndMeta = m'
-                        ,A.ndName = A.nameName n_sizes
-                        ,A.ndOrigName = A.nameName n_sizes
-                        ,A.ndNameType = A.VariableName
-                        ,A.ndType = sizeSpecType
-                        ,A.ndAbbrevMode = A.ValAbbrev
-                        ,A.ndPlacement = A.Unplaced}
+                       defineSizesName m' n_sizes sizeSpecType
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s)
-                             
+             (A.RecordType m _ fs, _) -> liftM (A.Spec m sp) $ foldM (declareFieldSizes (A.nameName n) m) s fs
              _ -> return str
     doStructured s = doGeneric s
+
+    makeStaticSizeSpec :: Meta -> A.Name -> [A.Dimension] -> A.SpecType
+    makeStaticSizeSpec m n ds = sizeSpecType
+      where
+        sizeType = A.Array [A.Dimension $ length ds] A.Int
+        sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $
+          map (A.ArrayElemExpr . A.Literal m A.Int . A.IntLiteral m . show . \(A.Dimension d) -> d) ds
+        sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
+
+    declareFieldSizes :: Data a => String -> Meta -> A.Structured a -> (A.Name, A.Type) -> PassM (A.Structured a)
+    declareFieldSizes prep m inner (n, A.Array ds _)
+      = do let n_sizes = n {A.nameName = prep ++ A.nameName n}
+               sizeSpecType = makeStaticSizeSpec m n_sizes ds
+           defineSizesName m n_sizes sizeSpecType
+           return $ A.Spec m (A.Specification m n_sizes sizeSpecType) inner
+    declareFieldSizes _ _ s _ = return s
 
 --TODO add a pass for adding _sizes parameters to PROC arguments
 
