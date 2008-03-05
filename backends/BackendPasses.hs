@@ -21,6 +21,7 @@ module BackendPasses where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -77,6 +78,10 @@ transformWaitFor = doGeneric `extM` doAlt
                
     doWaitFor a = return a
 
+append_sizes :: A.Name -> A.Name
+append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
+
+
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
 
@@ -85,9 +90,6 @@ transformWaitFor = doGeneric `extM` doAlt
 declareSizesArray :: Data t => t -> PassM t
 declareSizesArray = doGeneric `ext1M` doStructured
   where
-    append_sizes :: A.Name -> A.Name
-    append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
-    
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
       = defineName n $ A.NameDef {
@@ -136,7 +138,40 @@ declareSizesArray = doGeneric `ext1M` doStructured
 
 -- | A pass for adding _sizes parameters to PROC arguments
 addSizesFormalParameters :: Data t => t -> PassM t
-addSizesFormalParameters = return
+addSizesFormalParameters = doGeneric `extM` doSpecification
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric addSizesFormalParameters
+    
+    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification (A.Specification m n (A.Proc m' sm args body))
+      = do (args', newargs) <- transformFormals args
+           let newspec = A.Proc m' sm args' body
+           modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndType = newspec }) (A.nameName n) (csNames cs)})
+           mapM_ (recordArg m') newargs
+           return $ A.Specification m n newspec
+    doSpecification st = doGeneric st
+    
+    recordArg :: Meta -> A.Formal -> PassM ()
+    recordArg m (A.Formal am t n)
+      =  defineName n $ A.NameDef {
+                         A.ndMeta = m
+                        ,A.ndName = A.nameName n
+                        ,A.ndOrigName = A.nameName n
+                        ,A.ndNameType = A.VariableName
+                        ,A.ndType = A.Declaration m t Nothing
+                        ,A.ndAbbrevMode = A.ValAbbrev
+                        ,A.ndPlacement = A.Unplaced}
+    
+    transformFormals :: [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals [] = return ([],[])
+    transformFormals ((f@(A.Formal am t n)):fs)
+      = case t of
+          A.Array ds _ -> do let newf = A.Formal A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) (append_sizes n)
+                             (rest, moreNew) <- transformFormals fs
+                             return (f : newf : rest, newf : moreNew)
+          _ -> do (rest, new) <- transformFormals fs
+                  return (f : rest, new)
 
 -- TODO add a pass for adding _sizes parameters to actuals in PROC calls
 
