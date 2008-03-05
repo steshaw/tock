@@ -102,8 +102,7 @@ expandIncludes (t:ts) = expandIncludes ts >>* (t :)
 preprocessOccam :: [Token] -> PassM [Token]
 preprocessOccam [] = return []
 preprocessOccam ((m, TokPreprocessor s):ts)
-    =  do beforeRest <- handleDirective m (stripPrefix s)
-          beforeRest ts >>= preprocessOccam
+    = handleDirective m (stripPrefix s) ts >>= preprocessOccam
   where
     stripPrefix :: String -> String
     stripPrefix (' ':cs) = stripPrefix cs
@@ -131,9 +130,12 @@ preprocessOccam (t:ts)
 type DirectiveFunc = Meta -> [String] -> PassM ([Token] -> PassM [Token])
 
 -- | Call the handler for a preprocessor directive.
-handleDirective :: Meta -> String -> PassM ([Token] -> PassM [Token])
-handleDirective m s = lookup s directives
+handleDirective :: Meta -> String -> [Token] -> PassM [Token]
+handleDirective m s x
+  = do f <- lookup s directives
+       f x
   where
+    lookup :: String -> [(Regex, DirectiveFunc)] -> PassM ([Token] -> PassM [Token])
     -- FIXME: This should really be an error rather than a warning, but
     -- currently we support so few preprocessor directives that this is more
     -- useful.
