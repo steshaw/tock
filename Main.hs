@@ -129,21 +129,6 @@ getOpts argv =
     (_,_,errs) -> error (concat errs ++ usageInfo header options)
   where header = "Usage: tock [OPTION...] SOURCEFILE"
 
-writeOccamWrapper :: Handle -> IO ()
-writeOccamWrapper h = do
-  write "#INCLUDE \"cifccsp.inc\"\n"
-  write "#PRAGMA EXTERNAL \"PROC C.tock.main.init (INT raddr, CHAN BYTE in?, out!, err!) = 0\"\n"
-  write "#PRAGMA EXTERNAL \"PROC C.tock.main.free (VAL INT raddr) = 0\"\n"
-  write "PROC kroc.main (CHAN BYTE in?, out!, err!)\n"
-  write "  INT addr:\n"
-  write "  SEQ\n"
-  write "    C.tock.main.init (addr, in?, out!, err!)\n"
-  write "    cifccsp.startprocess (addr)\n"
-  write "    C.tock.main.free (addr)\n"
-  write ":\n"
-  where
-    write = hPutStr h
-
 main :: IO ()
 main = do
   argv <- getArgs
@@ -226,12 +211,8 @@ compileFull inputFile
                  withOutputFile postCFile $ postCAnalyse sFile
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile
-                 -- Create a temporary occam file, and write the standard
-                 -- occam wrapper into it
-                 withOutputFile occFile $ liftIO . writeOccamWrapper
-                 -- Use kroc to compile and link the occam file with the two
-                 -- object files from the C compilation
-                 exec $ krocLinkCommand occFile [oFile, postOFile] outputFile
+                 -- Link the object files into a binary
+                 exec $ cLinkCommand [oFile, postOFile] outputFile
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->

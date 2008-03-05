@@ -1,6 +1,6 @@
 /*
  * C99 support code for Tock programs
- * Copyright (C) 2007  University of Kent
+ * Copyright (C) 2007, 2008  University of Kent
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -27,14 +27,8 @@
 #include <stdio.h>
 #include <math.h>
 
-//For C++CSP:
-#ifndef NO_CIFCCSP
-#include <cifccsp.h>
-#else
-#define EXTERNAL_CALLN(F,I,args...)     (F)((I),##args)
-#define EXTERNAL_CALL(F)                (F)()
-#define SetErr()                        
-#define Channel int
+#ifndef BACKEND_CPPCSP
+#include <cif.h>
 #endif
 
 //{{{ mostneg/mostpos
@@ -67,26 +61,23 @@
 #endif
 //}}}
 
-//{{{ helper functions to simplify the code generation
-static inline void tock_init_chan_array(Channel*, Channel**, int) occam_unused;
-static inline void tock_init_chan_array(Channel* pointTo, Channel** pointFrom, int count) {
+//{{{ channel array initialisation
+static inline void tock_init_chan_array (Channel *, Channel **, int) occam_unused;
+static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, int count) {
 	for (int i = 0; i < count; i++) {
 		pointFrom[i] = &(pointTo[i]);
-	}	
+	}
 }
-
 //}}}
 
 //{{{ runtime check functions
-
-//C++CSP may have defined this function already:
-#ifndef occam_stop
-#define occam_stop(pos, format, args...) \
+#ifndef BACKEND_CPPCSP
+#define occam_stop(pos, nargs, format, args...) \
 	do { \
-		EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
+		ExternalCallN (fprintf, 3 + nargs, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
 		SetErr (); \
 	} while (0)
-#endif //occam_stop
+#endif
 
 static inline int occam_check_slice (int, int, int, const char *) occam_unused;
 static inline int occam_check_slice (int start, int count, int limit, const char *pos) {
@@ -94,21 +85,21 @@ static inline int occam_check_slice (int start, int count, int limit, const char
 	if (count != 0 && (start < 0 || start >= limit
 	                   || end < 0 || end > limit
 	                   || count < 0)) {
-		occam_stop (pos, "invalid array slice from %d to %d (should be 0 <= i <= %d)", start, end, limit);
+		occam_stop (pos, 4, "invalid array slice from %d to %d (should be 0 <= i <= %d)", start, end, limit);
 	}
 	return count;
 }
 static inline int occam_check_index (int, int, const char *) occam_unused;
 static inline int occam_check_index (int i, int limit, const char *pos) {
 	if (i < 0 || i >= limit) {
-		occam_stop (pos, "invalid array index %d (should be 0 <= i < %d)", i, limit);
+		occam_stop (pos, 3, "invalid array index %d (should be 0 <= i < %d)", i, limit);
 	}
 	return i;
 }
 static inline int occam_check_retype (int, int, const char *) occam_unused;
 static inline int occam_check_retype (int src, int dest, const char *pos) {
 	if (src % dest != 0) {
-		occam_stop (pos, "invalid size for RETYPES/RESHAPES (%d does not divide into %d)", dest, src);
+		occam_stop (pos, 3, "invalid size for RETYPES/RESHAPES (%d does not divide into %d)", dest, src);
 	}
 	return src / dest;
 }
@@ -119,7 +110,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_range_check_##type (type, type, type, const char *) occam_unused; \
 	static inline type occam_range_check_##type (type lower, type upper, type n, const char *pos) { \
 		if (n < lower || n > upper) { \
-			occam_stop (pos, "invalid value in conversion " format " (should be " format " <= i <= " format ")", n, lower, upper); \
+			occam_stop (pos, 4, "invalid value in conversion " format " (should be " format " <= i <= " format ")", n, lower, upper); \
 		} \
 		return n; \
 	}
@@ -143,7 +134,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_div_##type (type, type, const char *) occam_unused; \
 	static inline type occam_div_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
-			occam_stop (pos, "divide by zero"); \
+			occam_stop (pos, 1, "divide by zero"); \
 		} \
 		return a / b; \
 	}
@@ -159,7 +150,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
 	static inline type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
-			occam_stop (pos, "modulo by zero"); \
+			occam_stop (pos, 1, "modulo by zero"); \
 		} \
 		if (a < 0) { \
 			return -((-a) % (b < 0 ? -b : b)); \
@@ -174,7 +165,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
 	static inline type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
-			occam_stop (pos, "modulo by zero"); \
+			occam_stop (pos, 1, "modulo by zero"); \
 		} \
 		type i = round (a / b); \
 		return a - (i * b); \
@@ -184,7 +175,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_lshift_##type (type, int, const char*) occam_unused; \
 	static inline type occam_lshift_##type (type a, int b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
-			occam_stop (pos, "left shift by negative value or value (strictly) greater than number of bits in type"); \
+			occam_stop (pos, 1, "left shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
 			return 0; \
 		} else { \
@@ -194,7 +185,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_rshift_##type (type, int, const char*) occam_unused; \
 	static inline type occam_rshift_##type (type a, int b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
-			occam_stop (pos, "right shift by negative value or value (strictly) greater than number of bits in type"); \
+			occam_stop (pos, 1, "right shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
 			return 0; \
 		} else { \
@@ -249,7 +240,7 @@ MAKE_TIMES(uint8_t)
 static inline uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
 static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) {
 	if (b == 0) {
-		occam_stop (pos, "modulo by zero");
+		occam_stop (pos, 1, "modulo by zero");
 	}
 	return a % b;
 }

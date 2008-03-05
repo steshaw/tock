@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -157,24 +157,43 @@ cgenTopLevel :: A.AST -> CGen ()
 cgenTopLevel s
     =  do tell ["#include <tock_support.h>\n"]
           cs <- get
+          (tlpName, chans) <- tlpInterface
+
           tell ["extern int " ++ nameString n ++ "_stack_size;\n"
-                | n <- Set.toList $ csParProcs cs]
+                | n <- tlpName : (Set.toList $ csParProcs cs)]
+
           sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
-          (name, chans) <- tlpInterface
-          tell ["void tock_main (Process *me, Channel *in, Channel *out, Channel *err) {\n"]
-          genName name
-          tell [" (me"]
-          sequence_ [tell [", "] >> call genTLPChannel c | (_,c) <- chans]
-          tell [");\n"]
-          tell ["}\n"]
-          
-          tell ["void _tock_main_init (int *ws) {"]
-          tell ["Process *p = ProcAlloc (tock_main, 65536, 3,"]
-          tell ["(Channel *) ws[1], (Channel *) ws[2], (Channel *) ws[3]);"]
-          tell ["*((int *) ws[0]) = (int) p;"]
-          tell ["}"]
-          tell ["void _tock_main_free (int *ws) {ProcAllocClean ((Process *) ws[0]);}"]
+
+          tell ["void tock_main (Workspace wptr) {\n\
+                \    Workspace tlp = ProcAlloc (wptr, ", show $ length chans, ", "]
+          genName tlpName
+          tell ["_stack_size);\n"]
+          sequence_ [do tell ["    ProcParam (wptr, tlp, " ++ show i ++ ", "]
+                        call genTLPChannel c
+                        tell [");\n"]
+                     | (i, (_, c)) <- zip [(0 :: Int)..] chans]
+
+          tell ["\n\
+                \    LightProcBarrier bar;\n\
+                \    LightProcBarrierInit (wptr, &bar, 1);\n\
+                \    LightProcStart (wptr, &bar, tlp, (Process) "]
+          genName tlpName
+          tell [");\n\
+                \    LightProcBarrierWait (wptr, &bar);\n\
+                \    Shutdown (wptr);\n\
+                \}\n\
+                \\n\
+                \int main (int argc, char *argv[]) {\n\
+                \    if (!ccsp_init ())\n\
+                \        return 1;\n\
+                \\n\
+                \    Workspace p = ProcAllocInitial (0, 512);\n\
+                \    ProcStartInitial (p, tock_main);\n\
+                \\n\
+                \    // NOTREACHED\n\
+                \    return 0;\n\
+                \}\n"]
 --}}}
 
 --{{{  utilities

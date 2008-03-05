@@ -83,10 +83,10 @@ old_CFLAGS="$CFLAGS"
 old_CPPFLAGS="$CPPFLAGS"
 CFLAGS="$kroc_incpath"
 CPPFLAGS="$kroc_incpath"
-AC_CHECK_HEADER([cifccsp.h],[HAVE_CIFCCSP=true],[HAVE_CIFCCSP=false])
+AC_CHECK_HEADER([cif.h],[HAVE_CIF=true],[HAVE_CIF=false])
 
-if test "x$HAVE_CIFCCSP" = "xfalse"; then
-  AC_MSG_WARN([cifccsp.h not found; you will not be able to compile output from the C backend on this machine])
+if test "x$HAVE_CIF" = "xfalse"; then
+  AC_MSG_WARN([cif.h not found; you will not be able to compile output from the C backend on this machine])
   ccsp_kroc_available=false
 fi
 CFLAGS="$old_CFLAGS"

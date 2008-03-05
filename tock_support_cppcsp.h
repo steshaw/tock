@@ -1,6 +1,6 @@
 /*
  * C++ support code for Tock programs
- * Copyright (C) 2007  University of Kent
+ * Copyright (C) 2007, 2008  University of Kent
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
@@ -31,14 +31,14 @@ public:
 	}
 };
 
-#define occam_stop(pos, format, args...) \
+#define occam_stop(pos, nargs, format, args...) \
     do { \
-        EXTERNAL_CALLN (fprintf, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
-        SetErr (); \
+        fprintf(stderr, "Program stopped at %s: " format "\n", pos, ##args); \
         throw StopException(""); \
     } while (0)
 
-#define NO_CIFCCSP
+#define BACKEND_CPPCSP
+#define Channel int
 
 #include "tock_support.h"
 
@@ -195,7 +195,7 @@ class tockArrayView
 			//Check it fits exactly:
 			if ((totalSourceBytes / totalDim) % sizeof(T) != 0)
 			{
-				occam_stop ("","invalid size for RETYPES/RESHAPES (%d does not divide into %d)", (totalSourceBytes / totalDim), sizeof(T));
+				occam_stop ("", 3, "invalid size for RETYPES/RESHAPES (%d does not divide into %d)", (totalSourceBytes / totalDim), sizeof(T));
 			}
 			
 			//Set the size of the unknown dimension:
