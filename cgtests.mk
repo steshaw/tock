@@ -1,5 +1,6 @@
 # GNUmakefile for compiling the cgtests using Tock.
 
+BACKEND ?= cppcsp
 tests = $(patsubst %.occ,%,$(wildcard cgtests/cgtest??.occ))
 
 all: $(tests)
@@ -7,8 +8,8 @@ all: $(tests)
 checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
 
-cgtests/%: cgtests/%.occ
-	./tock -vk --backend=cppcsp -o $@ $<
+%: %.occ
+	./tock -vk --backend=$(BACKEND) -o $@ $<
 
 run-all: $(addprefix run-,$(tests))
 
