@@ -36,11 +36,13 @@ GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
 
-TOCK_CFLAGS = @gnu89_inline@ @CPPFLAGS@ @CFLAGS@ -Wall `kroc --cflags` `kroc --ccincpath` -fno-strict-aliasing
+common_cflags = -Wall -ggdb3 -Isupport -I$(pkgincludedir) -fno-strict-aliasing
+
+TOCK_CFLAGS = @gnu89_inline@ @CPPFLAGS@ @CFLAGS@ $(common_cflags) `kroc --cflags` `kroc --ccincpath`
 # FIXME: -ldl is only necessary on some platforms for CCSP
 TOCK_CLDFLAGS = @LDFLAGS@ `kroc --cclibpath` -lccsp -lpthread -ldl -lm
 
-TOCK_CXXFLAGS = @CPPFLAGS@ @CXXFLAGS@ -Wall -ggdb3 -I. -fno-strict-aliasing
+TOCK_CXXFLAGS = @CPPFLAGS@ @CXXFLAGS@ $(common_cflags)
 TOCK_CXXLDFLAGS = @LDFLAGS@ -lcppcsp2 -pthread
 
 CompilerCommands.hs: Makefile
@@ -166,6 +168,8 @@ GenOrdAST_SOURCES = GenOrdAST.hs
 bin_PROGRAMS = tock
 noinst_PROGRAMS = tocktest GenTagAST GenOrdAST
 
+pkginclude_HEADERS = support/tock_support.h
+pkginclude_HEADERS += support/tock_support_cppcsp.h
 
 clean-local:
 	rm -f obj/*.o obj/*.hi
