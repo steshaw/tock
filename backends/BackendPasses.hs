@@ -29,6 +29,7 @@ import CompState
 import Metadata
 import Pass
 import Types
+import Utils
 
 -- | Identify processes that we'll need to compute the stack size of.
 identifyParProcs :: Data t => t -> PassM t
@@ -137,6 +138,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
     declareFieldSizes _ _ s _ = return s
 
 -- | A pass for adding _sizes parameters to PROC arguments
+-- TODO in future, only add _sizes for variable-sized parameters
 addSizesFormalParameters :: Data t => t -> PassM t
 addSizesFormalParameters = doGeneric `extM` doSpecification
   where
@@ -173,7 +175,22 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
           _ -> do (rest, new) <- transformFormals fs
                   return (f : rest, new)
 
--- TODO add a pass for adding _sizes parameters to actuals in PROC calls
+-- | A pass for adding _sizes parameters to actuals in PROC calls
+addSizesActualParameters :: Data t => t -> PassM t
+addSizesActualParameters = doGeneric `extM` doProcess
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric addSizesActualParameters
+    
+    doProcess :: A.Process -> PassM A.Process
+    doProcess (A.ProcCall m n params) = concatMapM transformActual params >>* A.ProcCall m n
+    doProcess p = doGeneric p
+    
+    transformActual :: A.Actual -> PassM [A.Actual]
+    transformActual a@(A.ActualVariable am (A.Array ds _) (A.Variable m n))
+      = do let a_sizes = A.Variable m (append_sizes n)
+           return [a, A.ActualVariable A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) a_sizes]
+    transformActual a = return [a]
 
 -- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
 -- as appropriate.
