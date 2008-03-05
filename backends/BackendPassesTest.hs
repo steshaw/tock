@@ -189,7 +189,9 @@ qcTestDeclareSizes =
       (strFoo $ strFooSizes term)
       (strFoo term) st (checkFooSizes fooSizesSpec)
       where
+        strFoo :: Data a => A.Structured a -> A.Structured a
         strFoo = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo") fooSpec)
+        strFooSizes :: Data a => A.Structured a -> A.Structured a
         strFooSizes = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") fooSizesSpec)
 
     isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
