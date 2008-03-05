@@ -33,8 +33,9 @@ public:
 
 #define occam_stop(pos, nargs, format, args...) \
     do { \
-        fprintf(stderr, "Program stopped at %s: " format "\n", pos, ##args); \
-        throw StopException(""); \
+        char buffer[1024]; \
+        snprintf(buffer, sizeof(buffer), "Program stopped at %s: " format "\n", pos, ##args); \
+        throw StopException(buffer); \
     } while (0)
 
 #include <tock_support.h>
