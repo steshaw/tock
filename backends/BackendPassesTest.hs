@@ -270,11 +270,27 @@ checkName n spec am cs
 qcTestSizeParameters :: [LabelledQuickCheckTest]
 qcTestSizeParameters =
   [
-    ("Test Adding _sizes parameters to PROC formals", scaleQC (20, 100, 500, 1000) (runQCTest . test . \(StaticTypeList ts) -> ts))
+    ("Test Adding _sizes parameters to PROC formals", scaleQC (20, 100, 500, 1000) (runQCTest . testFormal . \(StaticTypeList ts) -> ts))
+   ,("Test Adding _sizes parameters to PROC actuals", scaleQC (20, 100, 500, 1000) (runQCTest . testActual . \(StaticTypeList ts) -> ts))
   ]
   where
-    test :: TestMonad m r => [A.Type] -> m ()
-    test ts = testPassWithStateCheck "qcTestSizeParameters"
+    -- TODO need to test both with dynamically sized arrays
+  
+    testActual :: TestMonad m r => [A.Type] -> m ()
+    testActual ts = testPassWithStateCheck "qcTestSizeParameters Actual"
+      (procCall "p" argsWithSizes)
+      (addSizesActualParameters $ procCall "p" args)
+      (return ()) (const $ return ())
+      where
+        args = [("x" ++ show n, t, A.Abbrev) | (n, t) <- zip [(0::Integer)..] ts]
+        argsWithSizes = concat [
+          case t of
+            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [A.Dimension $ length ds] A.Int, A.ValAbbrev)]
+            _ -> [("x" ++ show n, t, A.Abbrev)]
+          | (n, t) <- zip [(0::Integer)..] ts]
+
+    testFormal :: TestMonad m r => [A.Type] -> m ()
+    testFormal ts = testPassWithStateCheck "qcTestSizeParameters Formal"
       (wrapSpec "p" $ makeProcDef argsWithSizes)
       (addSizesFormalParameters $ wrapSpec "p" $ makeProcDef args)
       (do recordProcDef args
@@ -308,6 +324,9 @@ qcTestSizeParameters =
 
     wrapSpec :: String -> A.SpecType -> A.Structured ()
     wrapSpec n spec = A.Spec emptyMeta (A.Specification emptyMeta (simpleName n) spec) (A.Only emptyMeta ())
+    
+    procCall :: String -> [(String, A.Type, A.AbbrevMode)] -> A.Process
+    procCall p nts = A.ProcCall emptyMeta (simpleName p) [A.ActualVariable am t (variable n) | (n, t, am) <- nts]
 
 ---Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])
