@@ -740,7 +740,7 @@ generateEquationInput
 -- but got: [(y1 * (((y2 * y2) + x1) REM x3)),(y4 * y4),x10,x2,x3,x6,x7,x8,x9,((y4 * y4) + 8*x3 / 2)]
 
 qcTestMakeEquations :: [LabelledQuickCheckTest]
-qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (20,100,400,1000) prop)]
+qcTestMakeEquations = [("Turning Code Into Equations", scaleQC (20,100,400,1000) (runQCTest . prop))]
   where
     prop :: MakeEquationInput -> QCProp
     prop (MEI mei) = testMakeEquation mei
@@ -1056,7 +1056,7 @@ instance Arbitrary OmegaTestInput where
   arbitrary = generateProblem >>* OMI
 
 qcOmegaEquality :: [LabelledQuickCheckTest]
-qcOmegaEquality = [("Omega Test Equality Solving", scaleQC (40,200,2000,10000) prop)]
+qcOmegaEquality = [("Omega Test Equality Solving", scaleQC (40,200,2000,10000) (runQCTest . prop))]
   where
     prop :: OmegaTestInput -> QCProp
     prop (OMI (ans,(eq,ineq))) = omegaCheck actAnswer

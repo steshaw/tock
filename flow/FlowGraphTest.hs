@@ -759,9 +759,9 @@ deepCheck test level = (flip check) test $ configForSize $
 testModify :: [LabelledQuickCheckTest]
 testModify =
  [
-   ("Control-Flow Graph Identity Transformations", deepCheck prop_Id)
-  ,("Control-Flow Graph Replacement Transformations", deepCheck prop_Rep)
-  ,("Random List Generation", deepCheck prop_gennums)
+   ("Control-Flow Graph Identity Transformations", deepCheck (runTest . prop_Id))
+  ,("Control-Flow Graph Replacement Transformations", deepCheck (runTest . prop_Rep))
+  ,("Random List Generation", deepCheck (runTest . prop_gennums))
  ]
   where
     -- | Checks that applying any set (from the powerset of identity functions) of identity functions

@@ -55,10 +55,11 @@ compareForResult msg showFunc cmpFunc exp act
 (*&&*) :: TestMonad m r => m () -> m () -> m ()
 (*&&*) = (>>)
 
-instance (TestMonad m r, Testable r) => Testable (m ()) where
-  property = property . runTest
-
 type QCProp = Either Result ()
+
+-- | A type-constrained version of runTest for QuickCheck Testable things:
+runQCTest :: QCProp -> Result
+runQCTest = runTest
 
 testEqual :: (Show a, Eq a, TestMonad m r) => String -> a -> a -> m ()
 testEqual msg = compareForResult msg show (==)
