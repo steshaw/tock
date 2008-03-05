@@ -19,12 +19,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | Currently contains tests just for the transformWaitFor pass that is run for the C backend.
-module BackendPassesTest (tests) where
+module BackendPassesTest (qcTests) where
 
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
+import Test.QuickCheck
 
 import qualified AST as A
 import BackendPasses
@@ -32,6 +33,7 @@ import CompState
 import Metadata
 import Pattern
 import TagAST
+import TestFramework
 import TestUtils
 import TreeUtils
 import Utils
@@ -145,39 +147,44 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
     var1 = tag2 A.Variable DontCare varName1
     evar1 = tag2 A.ExprVariable DontCare var1
 
-testDeclareSizes :: Test
-testDeclareSizes = TestList
-  [
-    testFoo 0 $ declFoo [4]
-   ,testFoo 1 $ declFoo [4,5]
-   ,testFoo 2 $ declFoo [4,5,6,7,8]
-   
-   ,testFoo 10 $ isChanArrFoo 1
-   ,testFoo 11 $ isChanArrFoo 2
-   ,testFoo 12 $ isChanArrFoo 3
-   
-   ,testRecordFoo 20 []
-   ,testRecordFoo 21 [A.Int]
-   ,testRecordFoo 22 [A.Array [A.Dimension 3] A.Int]
-   ,testRecordFoo 23 [A.Array (map A.Dimension [3,4,5,6]) A.Int]
+newtype PosInts = PosInts [Int] deriving (Show)
 
-   ,testRecordFoo 24 [A.Int, A.Array [A.Dimension 3] A.Int]
-   ,testRecordFoo 25 [A.Byte, A.Int, A.Array [A.Dimension 3] A.Int, A.Array (map A.Dimension [3,4,5,6]) A.Int, A.Array (map A.Dimension [1,2]) A.Int]
-   
-{-   
-   ,testFooDecl 10 [Nothing]
-   ,testFooDecl 11 [Just 4, Nothing]
-   ,testFooDecl 12 [Nothing, Nothing]  
-   ,testFooDecl 13 [Nothing, Nothing, Nothing, Nothing]
-   ,testFooDecl 14 [Nothing, Just 5, Just 6]
-   ,testFooDecl 15 [Just 4, Nothing, Just 5, Nothing, Nothing]
--}   
+instance Arbitrary PosInts where
+  arbitrary = do len <- choose (1, 10)
+                 replicateM len (choose (1,1000)) >>* PosInts
+
+newtype PosInt = PosInt Int deriving (Show)
+
+instance Arbitrary PosInt where
+  arbitrary = choose (1,20) >>* PosInt
+
+newtype StaticTypeList = StaticTypeList [A.Type] deriving (Show)
+
+instance Arbitrary StaticTypeList where
+  arbitrary = do len <- choose (1,10)
+                 tl <- replicateM len $ frequency
+                   [ (10, return A.Int)
+                   , (10, return A.Byte)
+                   , (20, do len <- choose (1,5)
+                             ns <- replicateM len $ choose (1,1000)
+                             t <- oneof [return A.Int, return A.Byte]
+                             return $ A.Array (map A.Dimension ns) t)
+                   ]
+                 return $ StaticTypeList tl
+
+qcTestDeclareSizes :: [LabelledQuickCheckTest]
+qcTestDeclareSizes =
+  [
+   ("Test Adding _sizes For Declarations", scaleQC (20, 100, 500, 1000) (runQCTest . testFoo 0 . declFoo . \(PosInts xs) -> xs))
+  ,("Test Adding _sizes For IsChannelArray", scaleQC (20, 100, 500, 1000) (runQCTest . testFoo 1 . isChanArrFoo . \(PosInt x) -> x))
+  ,("Test Adding _sizes For RecordType", scaleQC (20, 100, 500, 1000) (runQCTest . testRecordFoo 2 . \(StaticTypeList ts) -> ts))
+
    --TODO test that arrays that are abbreviations (Is and IsExpr) also get _sizes arrays, and that they are initialised correctly
    --TODO test reshapes/retypes abbreviations
   ]
   where
     -- spectype of foo, spectype of foo_sizes
-    testFoo :: Int -> (A.SpecType, A.SpecType, State CompState ()) -> Test
+    testFoo :: TestMonad m r => Int -> (A.SpecType, A.SpecType, State CompState ()) -> m ()
     testFoo n (fooSpec, fooSizesSpec, st) = test n
       (strFoo $ strFooSizes term)
       (strFoo term) st (checkFooSizes fooSizesSpec)
@@ -189,7 +196,7 @@ testDeclareSizes = TestList
     isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [A.Dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
                      ,valSize [n], return ())
 
-    testRecordFoo :: Int -> [A.Type] -> Test
+    testRecordFoo :: forall m r. TestMonad m r => Int -> [A.Type] -> m ()
     -- Give fields arbitrary names (for testing), then check that all ones that are array types
     -- do get _sizes array (concat of array name, field name and _sizes)
     testRecordFoo n ts = test n
@@ -208,7 +215,7 @@ testDeclareSizes = TestList
           valSize $ map (\(A.Dimension n) -> n) ds)
         declSizeItems _ = id
         
-        checkSizeItems :: (String, A.Type) -> CompState -> Assertion
+        checkSizeItems :: (String, A.Type) -> CompState -> m ()
         checkSizeItems (n, A.Array ds _) = checkSizes ("foo" ++ n) (valSize $ map (\(A.Dimension n) -> n) ds)
         checkSizeItems _ = const (return ())
 
@@ -224,35 +231,37 @@ testDeclareSizes = TestList
     makeSizesLiteral xs = A.Literal emptyMeta (A.Array [A.Dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
       map (A.ArrayElemExpr . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show) xs
     
+    checkFooSizes :: TestMonad m r => A.SpecType -> CompState -> m ()
     checkFooSizes = checkSizes "foo_sizes"
     
-    checkSizes :: String -> A.SpecType -> CompState -> Assertion
+    checkSizes :: TestMonad m r => String -> A.SpecType -> CompState -> m ()
     checkSizes n spec cs
       = do nd <- case Map.lookup n (csNames cs) of
              Just nd -> return nd
-             Nothing -> assertFailure ("Could not find " ++ n) >> return undefined
-           assertEqual "ndName" n (A.ndName nd)
-           assertEqual "ndOrigName" n (A.ndOrigName nd)
-           assertEqual "ndType" spec (A.ndType nd)
-           assertEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
+             Nothing -> testFailure ("Could not find " ++ n) >> return undefined
+           testEqual "ndName" n (A.ndName nd)
+           testEqual "ndOrigName" n (A.ndOrigName nd)
+           testEqual "ndType" spec (A.ndType nd)
+           testEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
   
     term = A.Only emptyMeta ()
     
-    test :: Int -> A.Structured () -> A.Structured () -> State CompState () -> (CompState -> Assertion) -> Test
-    test n exp inp st chk = TestLabel label $ TestCase $ testPassWithStateCheck label exp (declareSizesArray inp) st chk
+    test :: TestMonad m r => Int -> A.Structured () -> A.Structured () -> State CompState () -> (CompState -> m ()) -> m ()
+    test n exp inp st chk = testPassWithStateCheck label exp (declareSizesArray inp) st chk
       where
         label = "testDeclareSizes " ++ show n
 ---Returns the list of tests:
-tests :: Test
-tests = TestLabel "BackendPassesTest" $ TestList
+qcTests :: (Test, [LabelledQuickCheckTest])
+qcTests = (TestLabel "BackendPassesTest" $ TestList
  [
-   testDeclareSizes
-  ,testTransformWaitFor0
+--  ,testSizeParameters
+   testTransformWaitFor0
   ,testTransformWaitFor1
   ,testTransformWaitFor2
   ,testTransformWaitFor3
   ,testTransformWaitFor4
   ,testTransformWaitFor5
  ]
+ ,qcTestDeclareSizes)
 
 

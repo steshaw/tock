@@ -47,7 +47,7 @@ import System.IO
 import Test.HUnit
 
 import qualified ArrayUsageCheckTest (ioqcTests)
-import qualified BackendPassesTest (tests)
+import qualified BackendPassesTest (qcTests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
@@ -145,7 +145,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     tests :: [IO (Test, [LabelledQuickCheckTest])]
     tests = [
               ArrayUsageCheckTest.ioqcTests
-              ,noqc BackendPassesTest.tests
+              ,return BackendPassesTest.qcTests
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
