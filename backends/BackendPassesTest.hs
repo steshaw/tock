@@ -218,7 +218,7 @@ qcTestDeclareSizes =
         declSizeItems _ = id
         
         checkSizeItems :: (String, A.Type) -> CompState -> m ()
-        checkSizeItems (n, A.Array ds _) = checkSizes ("foo" ++ n) (valSize $ map (\(A.Dimension n) -> n) ds)
+        checkSizeItems (n, A.Array ds _) = checkName ("foo" ++ n) (valSize $ map (\(A.Dimension n) -> n) ds) A.ValAbbrev
         checkSizeItems _ = const (return ())
 
     declFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
@@ -234,18 +234,8 @@ qcTestDeclareSizes =
       map (A.ArrayElemExpr . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show) xs
     
     checkFooSizes :: TestMonad m r => A.SpecType -> CompState -> m ()
-    checkFooSizes = checkSizes "foo_sizes"
-    
-    checkSizes :: TestMonad m r => String -> A.SpecType -> CompState -> m ()
-    checkSizes n spec cs
-      = do nd <- case Map.lookup n (csNames cs) of
-             Just nd -> return nd
-             Nothing -> testFailure ("Could not find " ++ n) >> return undefined
-           testEqual "ndName" n (A.ndName nd)
-           testEqual "ndOrigName" n (A.ndOrigName nd)
-           testEqual "ndType" spec (A.ndType nd)
-           testEqual "ndAbbrevMode" A.ValAbbrev (A.ndAbbrevMode nd)
-  
+    checkFooSizes sp = checkName "foo_sizes" sp A.ValAbbrev
+
     term = A.Only emptyMeta ()
     
     test :: TestMonad m r => Int -> A.Structured () -> A.Structured () -> State CompState () -> (CompState -> m ()) -> m ()
@@ -265,6 +255,17 @@ defineTestName n sp am
          ,A.ndAbbrevMode = am
          ,A.ndPlacement = A.Unplaced
          }
+
+checkName :: TestMonad m r => String -> A.SpecType -> A.AbbrevMode -> CompState -> m ()
+checkName n spec am cs
+      = do nd <- case Map.lookup n (csNames cs) of
+             Just nd -> return nd
+             Nothing -> testFailure ("Could not find " ++ n) >> return undefined
+           testEqual "ndName" n (A.ndName nd)
+           testEqual "ndOrigName" n (A.ndOrigName nd)
+           testEqual "ndType" spec (A.ndType nd)
+           testEqual "ndAbbrevMode" am (A.ndAbbrevMode nd)
+
 
 qcTestSizeParameters :: [LabelledQuickCheckTest]
 qcTestSizeParameters =
@@ -301,9 +302,9 @@ qcTestSizeParameters =
         rec (n, t, am) = defineTestName n (A.Declaration emptyMeta t Nothing) am
 
     checkProcDef :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
-    checkProcDef nts cs = return () --TODO
+    checkProcDef nts cs = checkName "p" (makeProcDef nts) A.Original cs
     checkProcFormals :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
-    checkProcFormals nts cs = return () --TODO
+    checkProcFormals nts cs = mapM_ (\(n,t,am) -> checkName n (A.Declaration emptyMeta t Nothing) am cs) nts
 
     wrapSpec :: String -> A.SpecType -> A.Structured ()
     wrapSpec n spec = A.Spec emptyMeta (A.Specification emptyMeta (simpleName n) spec) (A.Only emptyMeta ())
