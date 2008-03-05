@@ -22,6 +22,7 @@ module TestFramework where
 
 import Control.Monad.Error
 import Data.Generics
+import System.IO.Unsafe
 import Test.HUnit hiding (Testable)
 import Test.QuickCheck hiding (check)
 
@@ -34,14 +35,17 @@ instance Error Result where
 class Monad m => TestMonad m r | m -> r where
   runTest :: m () -> r
   testFailure :: String -> m ()
+  runIO :: IO a -> m a
 
 instance TestMonad IO Assertion where
   runTest = id
   testFailure = assertFailure
+  runIO = id
   
 instance TestMonad (Either Result) Result where
   runTest = either id (const $ Result (Just True) [] [])
   testFailure s = Left $ Result (Just False) [] [s]
+  runIO f = return (unsafePerformIO f)
 
 compareForResult :: TestMonad m r => String -> (a -> String) -> (a -> a -> Bool) -> a -> a -> m ()
 compareForResult msg showFunc cmpFunc exp act
