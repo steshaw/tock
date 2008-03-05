@@ -134,7 +134,11 @@ declareSizesArray = doGeneric `ext1M` doStructured
            return $ A.Spec m (A.Specification m n_sizes sizeSpecType) inner
     declareFieldSizes _ _ s _ = return s
 
---TODO add a pass for adding _sizes parameters to PROC arguments
+-- | A pass for adding _sizes parameters to PROC arguments
+addSizesFormalParameters :: Data t => t -> PassM t
+addSizesFormalParameters = return
+
+-- TODO add a pass for adding _sizes parameters to actuals in PROC calls
 
 -- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
 -- as appropriate.

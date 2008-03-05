@@ -250,11 +250,66 @@ qcTestDeclareSizes =
     test n exp inp st chk = testPassWithStateCheck label exp (declareSizesArray inp) st chk
       where
         label = "testDeclareSizes " ++ show n
+
+
+defineTestName :: String -> A.SpecType -> A.AbbrevMode -> State CompState ()
+defineTestName n sp am
+  = defineName (simpleName n) $ A.NameDef {
+          A.ndMeta = emptyMeta
+         ,A.ndName = n
+         ,A.ndOrigName = n
+         ,A.ndNameType = A.VariableName
+         ,A.ndType = sp
+         ,A.ndAbbrevMode = am
+         ,A.ndPlacement = A.Unplaced
+         }
+
+qcTestSizeParameters :: [LabelledQuickCheckTest]
+qcTestSizeParameters =
+  [
+    ("Test Adding _sizes parameters to PROC formals", scaleQC (20, 100, 500, 1000) (runQCTest . test . \(StaticTypeList ts) -> ts))
+  ]
+  where
+    test :: TestMonad m r => [A.Type] -> m ()
+    test ts = testPassWithStateCheck "qcTestSizeParameters"
+      (wrapSpec "p" $ makeProcDef argsWithSizes)
+      (addSizesFormalParameters $ wrapSpec "p" $ makeProcDef args)
+      (do recordProcDef args
+          recordProcFormals args)
+      (\x -> do checkProcDef argsWithSizes x
+                checkProcFormals argsWithSizes x)
+      where
+        args = [("x" ++ show n, t, A.Abbrev) | (n, t) <- zip [(0::Integer)..] ts]
+        argsWithSizes = concat [
+          case t of
+            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [A.Dimension $ length ds] A.Int, A.ValAbbrev)]
+            _ -> [("x" ++ show n, t, A.Abbrev)]
+          | (n, t) <- zip [(0::Integer)..] ts]
+    
+    makeProcDef :: [(String, A.Type, A.AbbrevMode)] -> A.SpecType
+    makeProcDef nts = A.Proc emptyMeta A.PlainSpec [A.Formal am t (simpleName n) | (n, t, am) <- nts] (A.Skip emptyMeta)
+    
+    recordProcDef :: [(String, A.Type, A.AbbrevMode)] -> State CompState ()
+    recordProcDef nts = defineTestName "p" (makeProcDef nts) A.Original
+    
+    recordProcFormals :: [(String, A.Type, A.AbbrevMode)] -> State CompState ()
+    recordProcFormals = mapM_ rec
+      where
+        rec :: (String, A.Type, A.AbbrevMode) -> State CompState ()
+        rec (n, t, am) = defineTestName n (A.Declaration emptyMeta t Nothing) am
+
+    checkProcDef :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
+    checkProcDef nts cs = return () --TODO
+    checkProcFormals :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
+    checkProcFormals nts cs = return () --TODO
+
+    wrapSpec :: String -> A.SpecType -> A.Structured ()
+    wrapSpec n spec = A.Spec emptyMeta (A.Specification emptyMeta (simpleName n) spec) (A.Only emptyMeta ())
+
 ---Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])
 qcTests = (TestLabel "BackendPassesTest" $ TestList
  [
---  ,testSizeParameters
    testTransformWaitFor0
   ,testTransformWaitFor1
   ,testTransformWaitFor2
@@ -262,6 +317,6 @@ qcTests = (TestLabel "BackendPassesTest" $ TestList
   ,testTransformWaitFor4
   ,testTransformWaitFor5
  ]
- ,qcTestDeclareSizes)
+ ,qcTestDeclareSizes ++ qcTestSizeParameters)
 
 
