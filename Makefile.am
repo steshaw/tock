@@ -169,6 +169,7 @@ bin_PROGRAMS = tock
 noinst_PROGRAMS = tocktest GenTagAST GenOrdAST
 
 pkginclude_HEADERS = support/tock_support.h
+pkginclude_HEADERS += support/tock_support_cif.h
 pkginclude_HEADERS += support/tock_support_cppcsp.h
 
 clean-local:

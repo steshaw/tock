@@ -155,7 +155,7 @@ cgenTLPChannel TLPError = tell ["err"]
 
 cgenTopLevel :: A.AST -> CGen ()
 cgenTopLevel s
-    =  do tell ["#include <tock_support.h>\n"]
+    =  do tell ["#include <tock_support_cif.h>\n"]
           cs <- get
           (tlpName, chans) <- tlpInterface
 

@@ -1,5 +1,5 @@
 /*
- * C++ support code for Tock programs
+ * C++CSP support code for Tock programs
  * Copyright (C) 2007, 2008  University of Kent
  *
  * This library is free software; you can redistribute it and/or modify it
@@ -37,10 +37,7 @@ public:
         throw StopException(""); \
     } while (0)
 
-#define BACKEND_CPPCSP
-#define Channel int
-
-#include "tock_support.h"
+#include <tock_support.h>
 
 #include <cppcsp/cppcsp.h>
 #include <cppcsp/common/basic.h>

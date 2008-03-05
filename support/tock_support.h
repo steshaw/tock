@@ -1,5 +1,5 @@
 /*
- * C99 support code for Tock programs
+ * C99/C++ common support code for Tock programs
  * Copyright (C) 2007, 2008  University of Kent
  *
  * This library is free software; you can redistribute it and/or modify it
@@ -26,10 +26,6 @@
 #include <float.h>
 #include <stdio.h>
 #include <math.h>
-
-#ifndef BACKEND_CPPCSP
-#include <cif.h>
-#endif
 
 //{{{ mostneg/mostpos
 #define occam_mostneg_bool false
@@ -61,24 +57,7 @@
 #endif
 //}}}
 
-//{{{ channel array initialisation
-static inline void tock_init_chan_array (Channel *, Channel **, int) occam_unused;
-static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, int count) {
-	for (int i = 0; i < count; i++) {
-		pointFrom[i] = &(pointTo[i]);
-	}
-}
-//}}}
-
 //{{{ runtime check functions
-#ifndef BACKEND_CPPCSP
-#define occam_stop(pos, nargs, format, args...) \
-	do { \
-		ExternalCallN (fprintf, 3 + nargs, stderr, "Program stopped at %s: " format "\n", pos, ##args); \
-		SetErr (); \
-	} while (0)
-#endif
-
 static inline int occam_check_slice (int, int, int, const char *) occam_unused;
 static inline int occam_check_slice (int start, int count, int limit, const char *pos) {
 	int end = start + count;
