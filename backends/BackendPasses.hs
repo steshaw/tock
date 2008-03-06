@@ -29,6 +29,7 @@ import CompState
 import Errors
 import Metadata
 import Pass
+import PrettyShow
 import qualified Properties as Prop
 import Types
 import Utils
@@ -125,9 +126,12 @@ declareSizesArray = doGeneric `ext1M` doStructured
       = do t <- typeOfSpec spec
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
-               then case spec of
-                 A.Is _ _ _ outerV ->
-                    do let innerV = findInnerVar outerV
+               then do outerV <- case spec of
+                         A.Is _ _ _ v -> return v
+                         A.IsExpr _ _ _ (A.ExprVariable _ v) -> return v
+                         -- TODO reshapes
+                         _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
+                       let innerV = findInnerVar outerV
                        varSrcSizes <- case innerV of
                          A.Variable _ srcN -> return (A.Variable m' $ append_sizes srcN)
                          A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
@@ -141,7 +145,6 @@ declareSizesArray = doGeneric `ext1M` doStructured
                        s' <- doStructured s
                        defineSizesName m' (append_sizes n) sizeSpecType
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s')
-                 _ -> doGeneric str --TODO IsExpr and Reshapes
                else do let n_sizes = append_sizes n
                            sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
