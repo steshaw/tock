@@ -125,18 +125,19 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
            case (spec,t) of
-             (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
+             (_,Just (A.Array ds elemT)) -> if elem A.UnknownDimension ds
                then 
                  case spec of
                    (A.Retypes _ _ _ v) ->
                     do let otherDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
+                       BIJust biElem <- bytesInType elemT
                        t <- typeOfVariable v
                        birhs <- bytesInType t
                        case birhs of
-                         BIJust bytes -> case bytes `mod` otherDimsTotal of
+                         BIJust bytes -> case bytes `mod` (otherDimsTotal * biElem) of
                            0 -> do let n_sizes = append_sizes n
                                        sizeSpecType = makeStaticSizeSpec m' n_sizes
-                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` otherDimsTotal) else d | d <- ds]
+                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` (otherDimsTotal * biElem)) else d | d <- ds]
                                        sizeSpec = A.Specification m' n_sizes sizeSpecType
                                    defineSizesName m' n_sizes sizeSpecType
                                    s' <- doStructured s
