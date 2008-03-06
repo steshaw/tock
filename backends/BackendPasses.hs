@@ -131,13 +131,19 @@ declareSizesArray = doGeneric `ext1M` doStructured
                          A.IsExpr _ _ _ (A.ExprVariable _ v) -> return v
                          -- TODO reshapes
                          _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
+                       -- Find the inner most variable (i.e. strip all the array subscripts)
                        let innerV = findInnerVar outerV
+                       -- Figure out the _sizes variable to abbreviate; either the _sizes variable corresponding
+                       -- to the abbreviation source (for everything but record fields)
+                       -- or the globally declared record field _sizes constant
                        varSrcSizes <- case innerV of
                          A.Variable _ srcN -> return (A.Variable m' $ append_sizes srcN)
                          A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
                            do A.Record recordName <- typeOfVariable recordV
                               return (A.Variable m' $ A.Name m' A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+                       -- Get the dimensions of the source variable:
                        (A.Array srcDs _) <- typeOfVariable innerV
+                       -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
                        let sizeDiff = length srcDs - length ds
                            subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) varSrcSizes
                            sizeSpecType = A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
@@ -145,6 +151,8 @@ declareSizesArray = doGeneric `ext1M` doStructured
                        s' <- doStructured s
                        defineSizesName m' (append_sizes n) sizeSpecType
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+
+                       -- Sizes are statically known; very straight-forward
                else do let n_sizes = append_sizes n
                            sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
