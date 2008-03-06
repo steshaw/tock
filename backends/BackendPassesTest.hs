@@ -188,6 +188,24 @@ instance Arbitrary DynTypeList where
                    ]
                  return $ DynTypeList tl
 
+-- types of thing being abbreviated, types of abbreviation, subscripts
+newtype AbbrevTypesIs = AbbrevTypesIs ([A.Dimension], [A.Dimension], [A.Subscript]) deriving (Show)
+
+instance Arbitrary AbbrevTypesIs where
+  arbitrary = do lenSrc <- choose (1,10)
+                 lenDest <- choose (1, lenSrc)
+                 srcDims <- replicateM lenSrc $ oneof [return A.UnknownDimension, choose (1,1000) >>* A.Dimension]
+                 destDims <- flip mapM (take lenDest srcDims) $ \d ->
+                   case d of
+                     A.UnknownDimension -> return A.UnknownDimension
+                     _ -> oneof [return d, return A.UnknownDimension]
+                 subs <- replicateM (length srcDims - length destDims) $ oneof
+                   [return $ A.Subscript emptyMeta (A.True emptyMeta)
+                   ,return $ A.SubscriptFromFor emptyMeta (A.True emptyMeta) (A.True emptyMeta)
+                   ,return $ A.SubscriptFrom emptyMeta (A.True emptyMeta)
+                   ,return $ A.SubscriptFor emptyMeta (A.True emptyMeta)
+                   ]
+                 return $ AbbrevTypesIs (srcDims, destDims, subs)
 
 qcTestDeclareSizes :: [LabelledQuickCheckTest]
 qcTestDeclareSizes =
@@ -196,7 +214,10 @@ qcTestDeclareSizes =
   ,("Test Adding _sizes For IsChannelArray", scaleQC (20, 100, 500, 1000) (runQCTest . testFoo 1 . isChanArrFoo . \(PosInt x) -> x))
   ,("Test Adding _sizes For RecordType", scaleQC (20, 100, 500, 1000) (runQCTest . testRecordFoo 2 . \(StaticTypeList ts) -> ts))
 
-   --TODO test that arrays that are abbreviations (Is and IsExpr) also get _sizes arrays, and that they are initialised correctly
+  ,("Test Adding _sizes For Is", scaleQC (20, 100, 500, 1000)
+    (\(AbbrevTypesIs dds@(_,dds',_)) -> A.UnknownDimension `elem` dds' ==> (runQCTest $ testFoo 3 $ isIsFoo dds)))
+
+   --TODO test that arrays that are abbreviations (IsExpr left to do) also get _sizes arrays, and that they are initialised correctly
    --TODO test reshapes/retypes abbreviations
   ]
   where
@@ -214,6 +235,18 @@ qcTestDeclareSizes =
     isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
     isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [A.Dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
                      ,valSize [n], return ())
+
+    isIsFoo :: ([A.Dimension], [A.Dimension], [A.Subscript]) -> (A.SpecType, A.SpecType, State CompState ())
+    isIsFoo (srcDims, destDims, subs)
+      = (A.Is emptyMeta A.Abbrev (A.Array destDims A.Byte)
+          (foldr (A.SubscriptedVariable emptyMeta) (variable "src") subs)
+        ,specSizes, defSrc)
+      where
+        specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length destDims] A.Int) $
+          A.SubscriptedVariable emptyMeta (A.SubscriptFrom emptyMeta (intLiteral $ toInteger $ length srcDims - length destDims)) (variable "src_sizes")
+        defSrc = do defineTestName "src" (A.Declaration emptyMeta (A.Array srcDims A.Byte) Nothing) A.Original
+                    defineTestName "src_sizes" (A.IsExpr emptyMeta A.ValAbbrev (A.Array srcDims A.Byte) dummyExpr) A.ValAbbrev
+        dummyExpr = A.True emptyMeta
 
     testRecordFoo :: forall m r. TestMonad m r => Int -> [A.Type] -> m ()
     -- Give fields arbitrary names (for testing), then check that all ones that are array types
