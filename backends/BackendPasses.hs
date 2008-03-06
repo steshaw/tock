@@ -110,6 +110,13 @@ declareSizesArray = doGeneric `ext1M` doStructured
                         ,A.ndAbbrevMode = A.ValAbbrev
                         ,A.ndPlacement = A.Unplaced}
   
+    -- Strips all the array subscripts from a variable:
+    findInnerVar :: A.Variable -> A.Variable
+    findInnerVar wv@(A.SubscriptedVariable _ sub v) = case sub of
+      A.SubscriptField {} -> wv
+      _ -> findInnerVar v
+    findInnerVar v = v
+  
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric declareSizesArray
 
@@ -119,10 +126,16 @@ declareSizesArray = doGeneric `ext1M` doStructured
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
                then case spec of
-                 A.Is _ _ _ v@(A.Variable _ srcN) ->
-                    do (A.Array srcDs _) <- typeOfVariable v
+                 A.Is _ _ _ outerV ->
+                    do let innerV = findInnerVar outerV
+                       varSrcSizes <- case innerV of
+                         A.Variable _ srcN -> return (A.Variable m' $ append_sizes srcN)
+                         A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
+                           do A.Record recordName <- typeOfVariable recordV
+                              return (A.Variable m' $ A.Name m' A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+                       (A.Array srcDs _) <- typeOfVariable innerV
                        let sizeDiff = length srcDs - length ds
-                           subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) (A.Variable m' $ append_sizes srcN)
+                           subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) varSrcSizes
                            sizeSpecType = A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
                            sizeSpec = A.Specification m' (append_sizes n) sizeSpecType
                        s' <- doStructured s
