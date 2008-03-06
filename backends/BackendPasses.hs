@@ -108,17 +108,18 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
+           s' <- doStructured s
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
                then do let sizeSpec = A.Specification m' (append_sizes n) (A.Declaration m' (A.Array [A.Dimension $ length ds] A.Int) Nothing)
-                       return (A.Spec m sp $ A.Spec m sizeSpec $ s) -- TODO fix this
+                       return (A.Spec m sp $ A.Spec m sizeSpec $ s') -- TODO fix this
                else do let n_sizes = append_sizes n
                            sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
                        defineSizesName m' n_sizes sizeSpecType
-                       return (A.Spec m sp $ A.Spec m sizeSpec $ s)
-             (A.RecordType m _ fs, _) -> liftM (A.Spec m sp) $ foldM (declareFieldSizes (A.nameName n) m) s fs
-             _ -> return str
+                       return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+             (A.RecordType m _ fs, _) -> liftM (A.Spec m sp) $ foldM (declareFieldSizes (A.nameName n) m) s' fs
+             _ -> doGeneric str
     doStructured s = doGeneric s
 
     makeStaticSizeSpec :: Meta -> A.Name -> [A.Dimension] -> A.SpecType
@@ -148,7 +149,8 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
       = do (args', newargs) <- transformFormals args
-           let newspec = A.Proc m' sm args' body
+           body' <- doGeneric body
+           let newspec = A.Proc m' sm args' body'
            modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndType = newspec }) (A.nameName n) (csNames cs)})
            mapM_ (recordArg m') newargs
            return $ A.Specification m n newspec
