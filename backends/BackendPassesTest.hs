@@ -172,6 +172,23 @@ instance Arbitrary StaticTypeList where
                    ]
                  return $ StaticTypeList tl
 
+newtype DynTypeList = DynTypeList [A.Type] deriving (Show)
+
+instance Arbitrary DynTypeList where
+  arbitrary = do len <- choose (1,10)
+                 tl <- replicateM len $ frequency
+                   [ (10, return A.Int)
+                   , (10, return A.Byte)
+                   , (20, do len <- choose (1,5)
+                             ds <- replicateM len $ oneof
+                               [choose (1,1000) >>* A.Dimension
+                               ,return A.UnknownDimension]
+                             t <- oneof [return A.Int, return A.Byte]
+                             return $ A.Array ds t)
+                   ]
+                 return $ DynTypeList tl
+
+
 qcTestDeclareSizes :: [LabelledQuickCheckTest]
 qcTestDeclareSizes =
   [
@@ -270,8 +287,10 @@ checkName n spec am cs
 qcTestSizeParameters :: [LabelledQuickCheckTest]
 qcTestSizeParameters =
   [
-    ("Test Adding _sizes parameters to PROC formals", scaleQC (20, 100, 500, 1000) (runQCTest . testFormal . \(StaticTypeList ts) -> ts))
-   ,("Test Adding _sizes parameters to PROC actuals", scaleQC (20, 100, 500, 1000) (runQCTest . testActual . \(StaticTypeList ts) -> ts))
+    ("Test Adding _sizes parameters to PROC formals (static)", scaleQC (20, 100, 500, 1000) (runQCTest . testFormal . \(StaticTypeList ts) -> ts))
+   ,("Test Adding _sizes parameters to PROC actuals (static)", scaleQC (20, 100, 500, 1000) (runQCTest . testActual . \(StaticTypeList ts) -> ts))
+   ,("Test Adding _sizes parameters to PROC formals (dynamic)", scaleQC (20, 100, 500, 1000) (runQCTest . testFormal . \(DynTypeList ts) -> ts))
+   ,("Test Adding _sizes parameters to PROC actuals (dynamic)", scaleQC (20, 100, 500, 1000) (runQCTest . testActual . \(DynTypeList ts) -> ts))
   ]
   where
     -- TODO need to test both with dynamically sized arrays
