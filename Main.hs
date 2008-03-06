@@ -298,6 +298,7 @@ compile mode fn outHandle
                  ast2 <- runPasses passes ast1
 
                  debug "{{{ Generate code"
+                 progress $ "- Backend: " ++ (show $ csBackend optsPS)
                  let generator
                        = case csBackend optsPS of
                            BackendC -> generateC
