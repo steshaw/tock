@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cintroduceSpec, cPreReq, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
+module GenerateC (cgenLiteralRepr, cgenOps, cgenSlice, cgenType, cintroduceSpec, cPreReq, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -1028,8 +1028,10 @@ cgenSlice v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
                         genRightB
                     ))
 
+-- TODO remove this function altogether (and from the dictionary) in future
 cgenArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen ()
-cgenArraySizeDecl isPtr size n
+cgenArraySizeDecl isPtr size n = return ()
+{-
     = if isPtr
         then do tell ["const int*"]
                 genName n
@@ -1041,7 +1043,7 @@ cgenArraySizeDecl isPtr size n
                 tell ["_sizes[]="]
                 size
                 tell [";"]
-
+-}
 noSize :: A.Name -> CGen ()
 noSize n = return ()
 
@@ -1051,6 +1053,7 @@ cgenVariableAM v am
           call genVariable v
 
 -- | Generate the right-hand side of an abbreviation of a variable.
+-- TODO the array _sizes code here is going to be redundant
 abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
 abbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
     = (tell ["&"] >> call genVariable v, genAASize v 0)
@@ -1170,7 +1173,6 @@ cgenDeclaration (A.Array ds t) n True
           tell ["int "]
           genName n
           tell ["_sizes[",show $ length ds,"];"]
-cgenDeclaration A.Timer _ _ = return ()
 cgenDeclaration t n _
     =  do call genType t
           tell [" "]
@@ -1405,7 +1407,30 @@ cgenActuals :: [A.Actual] -> CGen ()
 cgenActuals as = prefixComma (map (call genActual) as)
 
 cgenActual :: A.Actual -> CGen ()
-cgenActual actual = seqComma $ realActuals actual
+cgenActual actual
+    = case actual of
+        A.ActualExpression t e ->
+          case (t, e) of
+            (A.Array _ _, A.ExprVariable _ v) ->
+              do call genVariable v
+                 tell [","]
+                 call genVariable v
+                 tell ["_sizes"]
+            _ -> call genExpression e
+        A.ActualVariable am t v ->
+          case t of
+            A.Array _ _ ->
+              do call genVariable v
+                 tell [","]
+                 call genVariable v
+                 tell ["_sizes"]
+            _ -> fst $ abbrevVariable am t v
+
+numCArgs :: [A.Actual] -> Int
+numCArgs [] = 0
+numCArgs (A.ActualVariable _ (A.Array _ _) _:fs) = 2 + numCArgs fs
+numCArgs (A.ActualExpression (A.Array _ _) _:fs) = 2 + numCArgs fs
+numCArgs (_:fs) = 1 + numCArgs fs
 
 cgenFormals :: [A.Formal] -> CGen ()
 cgenFormals fs = prefixComma (map (call genFormal) fs)
@@ -1435,58 +1460,11 @@ realFormals :: A.Formal -> [(CGen (), CGen ())]
 realFormals (A.Formal am t n)
     = case t of
         A.Array _ t' ->
-          [(mainType, mainName),
-           (tell ["const int *"], genName n >> tell ["_sizes"])]
-        _ -> [(mainType, mainName)]
-  where
-    mainType = cgenDeclType am t
-    mainName = genName n
-
--- | Generate a wrapper function for a PAR subprocess.
-cgenProcWrapper :: A.Name -> CGen ()
-cgenProcWrapper n
-    =  do st <- specTypeOfName n
-          let fs = case st of A.Proc _ _ fs _ -> fs
-          let rfs = concatMap realFormals fs
-
-          tell ["static void "]
-          genName n
-          tell ["_wrapper (Workspace wptr) {\n"]
-
-          sequence_ [unpackParam num rf | (num, rf) <- zip [0..] rfs]
-          genName n
-          tell [" (wptr"]
-          prefixComma [n | (_, n) <- rfs]
-          tell [");\n"]
-
-          tell ["}\n"]
-  where
-    unpackParam :: Int -> (CGen (), CGen ()) -> CGen ()
-    unpackParam num (t, n)
-        =  do t
-              tell [" "]
-              n
-              tell [" = ProcGetParam (wptr, " ++ show num ++ ", "]
-              t
-              tell [");\n"]
-
--- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
--- workspace pointer and the name of the function to call.
-cgenProcAlloc :: A.Name -> [A.Actual] -> CGen (String, CGen ())
-cgenProcAlloc n as
-    =  do let ras = concatMap realActuals as
-
-          ws <- makeNonce "workspace"
-          tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
-          genName n
-          tell ["_wrapper_stack_size);\n"]
-
-          sequence_ [do tell ["ProcParam (wptr, ", ws, ", ", show num, ", "]
-                        ra
-                        tell [");\n"]
-                     | (num, ra) <- zip [(0 :: Int)..] ras]
-
-          return (ws, genName n >> tell ["_wrapper"])
+          do call genDecl am t n
+             tell [", const int *"]
+             genName n
+             tell ["_sizes"]
+        _ -> call genDecl am t n
 --}}}
 
 --{{{  processes

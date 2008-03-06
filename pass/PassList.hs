@@ -25,6 +25,7 @@ import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import BackendPasses
 import Check
 import CompState
 import Errors
@@ -50,6 +51,7 @@ commonPasses opts = concat $
   , simplifyProcs
   , unnest
   , simplifyComms
+  , squashArrays
   -- The occam frontend does a lot of work for us, so I represent that here:
   ,makePassesDep' ((== FrontendOccam) . csFrontend) [("Null occam pass", return, [],
     Prop.agg_namesDone ++ [Prop.constantsFolded, Prop.expressionTypesChecked, Prop.inferredTypesRecorded, Prop.mainTagged, Prop.processTypesChecked]

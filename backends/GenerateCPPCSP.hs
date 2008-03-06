@@ -95,18 +95,13 @@ import Utils
 -- Most of this is inherited directly from the C backend in the "GenerateC" module.
 cppgenOps :: GenOps
 cppgenOps = cgenOps {
-    declareArraySizes = cppdeclareArraySizes,
     declareFree = cppdeclareFree,
     declareInit = cppdeclareInit,
     genActual = cppgenActual,
     genActuals = cppgenActuals,
     genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
-    genArraySizesLiteral = cppgenArraySizesLiteral,
-    genArrayStoreName = cppgenArrayStoreName,
-    genArraySubscript = cppgenArraySubscript,
     genClearMobile = cppgenClearMobile,
-    genDeclType = cppgenDeclType,
     genDeclaration = cppgenDeclaration,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
@@ -118,8 +113,6 @@ cppgenOps = cgenOps {
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
     genRetypeSizes = cppgenRetypeSizes,
-    genSizeSuffix = cppgenSizeSuffix,
-    genSlice = cppgenSlice,
     genStop = cppgenStop,
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
@@ -529,6 +522,7 @@ cppgenProcCall n as
 --The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
 --I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
 --but I will worry about that later
+-- TODO this probably needs changing to reflect the new array system
 cppgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
 cppgenDeclaration arrType@(A.Array ds t) n False
     =  do call genType t
@@ -546,46 +540,11 @@ cppgenDeclaration arrType@(A.Array ds t) n False
           call genFlatArraySize ds
           tell [";"]
           call declareArraySizes arrType n
-cppgenDeclaration arrType@(A.Array ds t) n True
-    =  do call genType t
-          tell [" "]
-          call genArrayStoreName n
-          call genFlatArraySize ds
-          tell [";"]
-          call genType arrType
-          tell [" "]
-          genName n;
-          tell [";"]
 cppgenDeclaration t n _
     =  do call genType t
           tell [" "]
           genName n
           tell [";"]
-
-cppdeclareArraySizes :: A.Type -> A.Name -> CGen ()
-cppdeclareArraySizes arrType@(A.Array ds _) n = do
-          tell ["const "]
-          call genType arrType
-          tell [" "]
-          genName n
-          tell ["="]
-          call genArraySizesLiteral n arrType
-          tell [";"]
-
-cppgenArraySizesLiteral :: A.Name -> A.Type -> CGen ()
-cppgenArraySizesLiteral n t@(A.Array ds _) = 
-  do call genType t
-     tell ["("]
-     genName n
-     tell ["_actual,tockDims("]
-     seqComma dims
-     tell ["))"]
-  where
-    dims :: [CGen ()]
-    dims = [case d of
-              A.Dimension n -> tell [show n]
-              _ -> dieP (findMeta n) "unknown dimension in array type"
-            | d <- ds]
 
 -- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
@@ -609,18 +568,6 @@ cppdeclareInit m rt@(A.Record _) var _
                            | (n, t) <- fs]
   where
     initField :: A.Type -> A.Variable -> CGen ()
-    -- An array as a record field; we must initialise the sizes.
-    initField t@(A.Array ds ts) v
-        =  do call genVariableUnchecked v
-              tell ["=tockArrayView<"]
-              call genType ts
-              tell [",",show (length ds),">("]
-              call genVariableUnchecked v
-              tell ["_actual,tockDims("]
-              infixComma [tell [show n] | (A.Dimension n) <- ds]
-              tell ["));"]
-              fdeclareInit <- fget declareInit
-              doMaybe $ fdeclareInit m t v Nothing
     initField t v = do fdeclareInit <- fget declareInit
                        doMaybe $ fdeclareInit m t v Nothing
 cppdeclareInit m _ v (Just e)
@@ -641,30 +588,6 @@ cppremoveSpec (A.Specification m n (A.Declaration _ t _))
   where
     var = A.Variable m n
 cppremoveSpec _ = return ()
-
-
-cppgenArrayStoreName :: A.Name -> CGen()
-cppgenArrayStoreName n = genName n >> tell ["_actual"]
-
---Changed from GenerateC because we don't need the extra code for array sizes
-cppabbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
-cppabbrevExpression am t@(A.Array _ _) e
-    = case e of
-        A.ExprVariable _ v -> cppabbrevVariable am t v
-        A.Literal _ (A.Array ds _) r -> call genExpression e
-        _ -> bad
-  where
-    bad = call genMissing "array expression abbreviation"
-cppabbrevExpression am _ e = call genExpression e
-
--- | Takes a list of dimensions and outputs a comma-seperated list of the numerical values
---Unknown dimensions have value 0 (which is treated specially by the tockArrayView class)
-genDims:: [A.Dimension] -> CGen()
-genDims dims = infixComma $ map genDim dims
-  where
-    genDim :: A.Dimension -> CGen()
-    genDim (A.Dimension n) = tell [show n]
-    genDim (A.UnknownDimension) = tell ["0"]
 
 --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
 --and also changed to use infixComma.
@@ -770,84 +693,9 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t v))
           tell ["="]
           rhs
           tell [";"]
---Clause only changed to use C++ rather than C arrays:
-cppintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
-    =  do let rhs = cppabbrevExpression am t e
-          case (am, t, e) of
-            (A.ValAbbrev, A.Array _ ts, A.Literal _ (A.Array dims _)  _) ->
-              -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
-              -- declaration, since you can't say "int *foo = {vs};" in C.
-              do tmp <- makeNonce "array_literal"
-                 tell ["const "]
-                 call genType ts
-                 tell [" ",tmp, " [] = "]
-                 rhs
-                 tell [" ; "]
-                 tell ["const tockArrayView< const "]
-                 call genType ts
-                 tell [" , ",show (length dims)," /**/>/**/ "]
-                 genName n
-                 tell ["(("]
-                 call genType ts 
-                 tell [" *)",tmp,",tockDims("]
-                 genDims dims
-                 tell ["));\n"]
-            (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
-              -- Record literals are even trickier, because there's no way of
-              -- directly writing a struct literal in C that you can use -> on.
-              do tmp <- makeNonce "record_literal"
-                 tell ["const "]
-                 call genType t
-                 tell [" ", tmp, " = "]
-                 rhs
-                 tell [";\n"]
-                 call genDecl am t n
-                 tell [" = &", tmp, ";\n"]
-            _ ->
-              do call genDecl am t n
-                 tell [" = "]
-                 rhs
-                 tell [";\n"]
-
---Clause changed to handle array retyping
-cppintroduceSpec (A.Specification _ n (A.Retypes m am t v))
-    =  do origT <- typeOfVariable v
-          let rhs = cppabbrevVariable A.Abbrev origT v
-          call genDecl am t n
-          tell ["="]
-          case t of 
-            (A.Array dims _) ->
-              --Arrays need to be handled differently because we need to feed the sizes in, not just perform a straight cast
-              do call genDeclType am t
-                 tell ["(tockDims("]
-                 genDims dims
-                 tell ["),"]
-                 rhs
-                 tell [");"]
-            _ ->      
-              -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
-              -- we need to dereference the pointer that cppabbrevVariable gives us.
-              do let deref = case (am, t) of
-                               (_, A.Chan A.DirUnknown _ _) -> False
-                               (_, A.Record {}) -> False
-                               (A.ValAbbrev, _) -> True
-                               _ -> False
-                 when deref $ tell ["*"]
-                 tell ["("]
-                 call genDeclType am t
-                 when deref $ tell ["*"]
-                 tell [")"]
-                 case origT of 
-                     --We must be retyping from an array, but not to an array (so to a primitive type or something):
-                   (A.Array _ _) -> tell ["("] >> rhs >> tell [".data())"]
-                   _ -> rhs
-                 tell [";"]
-          call genRetypeSizes m t n origT v
 --For all other cases, use the C implementation:
 cppintroduceSpec n = cintroduceSpec n
 
-cppgenSizeSuffix :: String -> CGen ()
-cppgenSizeSuffix dim = tell [".extent(", dim, ")"]
 --}}}
 
 
@@ -872,24 +720,11 @@ cppgetScalarType A.Timer = Just "csp::Time"
 cppgetScalarType A.Time = Just "csp::Time"
 cppgetScalarType _ = Nothing
 
--- | Generates an array type, giving the Blitz++ array the correct dimensions
-cppgenArrayType :: Bool -> A.Type -> Int -> CGen ()
-cppgenArrayType const (A.Array dims t) rank
-    =  cppgenArrayType const t (rank + (max 1 (length dims)))
-cppgenArrayType const t rank
-    =  do tell ["tockArrayView<"]
-          when (const) (tell ["const "])
-          call genType t
-          case t of
-            A.Chan A.DirUnknown _ _ -> tell ["*"]
-            _ -> return ()
-          tell [",",show rank, ">/**/"]
-    
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
 cppgenType :: A.Type -> CGen ()
 cppgenType arr@(A.Array _ _)
-    =  cppgenArrayType False arr 0    
+    =  cgenType arr
 cppgenType (A.Record n) = genName n
 cppgenType (A.Chan dir attr t)
     = do let chanType = case dir of
@@ -933,17 +768,17 @@ prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 
 
 -- | Generate the right-hand side of an abbreviation of a variable.
---Changed from GenerateC because we no longer need the A.Name -> CGen() function returned that dealt with array sizes
---I also pass the type of the array through to cppgenSlice
+-- Changed from GenerateC because we no longer need the A.Name -> CGen() function returned that dealt with array sizes
+-- TODO I might be able to remove this once the C side has been changed too (now that _sizes arrays are declared elsewhere)
 cppabbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
 cppabbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
     = call genVariable v
 cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
-    = fst (cppgenSlice v start count ds)
+    = fst (cgenSlice v start count ds)
 cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = fst (cppgenSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
+    = fst (cgenSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
 cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
-    = fst (cppgenSlice v (makeConstant m 0) count ds)
+    = fst (cgenSlice v (makeConstant m 0) count ds)
 cppabbrevVariable am (A.Array _ _) v
     = call genVariable v
 cppabbrevVariable am (A.Chan {}) v
@@ -954,66 +789,8 @@ cppabbrevVariable am t v
     = call genVariableAM v am
 
 
--- | Use C++ array slices:
---TODO put index checking back:
-cppgenSlice :: A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
-cppgenSlice (A.SubscriptedVariable _ _ v) start count ds
-       -- We need to disable the index check here because we might be taking
-       -- element 0 of a 0-length array -- which is valid.
-    = (do call genVariableUnchecked v
-          tell [".sliceFromFor("]
-          genStart
-          tell [",occam_check_slice("]
-          genStart
-          tell [","]
-          call genExpression count
-          tell [","]
-          call genVariableUnchecked v
-          call genSizeSuffix "0"
-          tell [","]
-          genMeta (findMeta count)
-          tell ["))"]
-      , const (return ())
-      )
-  where
-    genStart = call genExpression start
-         
--- | Changed from GenerateC to use multiple subscripting (e.g. [1][2][3]) rather than the combined indexing of the C method (e.g. [1*x*y+2*y+3])
-cppgenArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
-cppgenArraySubscript checkValid v es
-    =  do t <- typeOfVariable v
-          let numDims = case t of A.Array ds _ -> length ds
-          sequence_ $ genPlainSub v es [0..(numDims - 1)]
-          --To index an actual element of an array we must use the .access() function
-          --Only needed when we have applied enough subscripts to get out an element:
-          when (numDims == (length es)) (tell [".access()"])          
-  where
-    -- | Generate the individual offsets that need adding together to find the
-    -- right place in the array.
-    -- FIXME This is obviously not the best way to factor this, but I figure a
-    -- smart C compiler should be able to work it out...
-    
-    --Subtly changed this function so that empty dimensions have blitz::Range::all() in the C++ version:
-    --TODO doc
-    
-    genPlainSub :: A.Variable -> [A.Expression] -> [Int] -> [CGen ()]
-    genPlainSub _ _ [] = []
-    genPlainSub v [] (sub:subs) = (return ()) : (genPlainSub v [] subs)
-    genPlainSub v (e:es) (sub:subs)
-        = (tell ["["] >> genSub >> tell ["]"]) : genPlainSub v es subs
-      where
-        genSub
-            = if checkValid
-                then do tell ["occam_check_index("]
-                        call genExpression e
-                        tell [","]
-                        call genVariable v
-                        call genSizeSuffix (show sub)
-                        tell [","]
-                        genMeta (findMeta e)
-                        tell [")"]
-                else call genExpression e
---}}}
+-- TODO I think I can remove both these unfolded expression things now that
+-- I've changed the arrays
 
 -- | Changed to remove array size:
 cppgenUnfoldedExpression :: A.Expression -> CGen ()
@@ -1027,10 +804,6 @@ cppgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
 cppgenUnfoldedVariable m var
     =  do t <- typeOfVariable var
           case t of
-            A.Array ds _ ->
-              do genLeftB
-                 unfoldArray ds var
-                 genRightB
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
@@ -1072,21 +845,6 @@ cppgenIf m s
                  tell ["throw ",ifExc, "();}"]
 --}}}
 
-
--- | Changed to make array VAL abbreviations have constant data:
-cppgenDeclType :: A.AbbrevMode -> A.Type -> CGen ()
-cppgenDeclType am t
-    =  do case t of
-            A.Array _ _ -> cppgenArrayType (am == A.ValAbbrev) t 0
-            _ ->
-              do when (am == A.ValAbbrev) $ tell ["const "]
-                 call genType t
-                 case t of
-                   A.Chan A.DirInput _ _ -> return ()
-                   A.Chan A.DirOutput _ _ -> return ()
-                   A.Record _ -> tell ["*const"]
-                   _ -> when (am == A.Abbrev) $ tell ["*const"]
-
 -- | Changed because C++CSP has channel-ends as concepts (whereas CCSP does not)
 cppgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
 cppgenDirectedVariable v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
@@ -1108,6 +866,8 @@ cppgenRetypeSizes m destT destN srcT srcV
                         call genStop m "size mismatch in RETYPES"
                         tell ["}"] in
           case destT of
+            -- TODO we should be able to remove this check now that arrays have changed
+          
             -- An array -- figure out the genMissing dimension, if there is one.
             A.Array destDS _ ->
                 case (indexOfFreeDimensions destDS) of
