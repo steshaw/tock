@@ -217,8 +217,9 @@ qcTestDeclareSizes =
   ,("Test Adding _sizes For Is", scaleQC (20, 100, 500, 1000)
     (\(AbbrevTypesIs dds@(_,dds',_)) -> A.UnknownDimension `elem` dds' ==> (runQCTest $ testFoo 3 $ isIsFoo dds)))
 
-   --TODO test that arrays that are abbreviations (IsExpr left to do) also get _sizes arrays, and that they are initialised correctly
-   --TODO test reshapes/retypes abbreviations
+  ,("Test Adding _sizes For IsExpr (static)", scaleQC (20, 100, 500, 1000) (runQCTest . testFoo 4 . isExprStaticFoo . \(PosInts xs) -> xs))
+   --TODO add tests for dynamic IsExpr
+   --TODO test reshapes/retypes abbreviations (and add checks)
   ]
   where
     -- spectype of foo, spectype of foo_sizes
@@ -270,6 +271,11 @@ qcTestDeclareSizes =
         checkSizeItems :: (String, A.Type) -> CompState -> m ()
         checkSizeItems (n, A.Array ds _) = checkName ("foo" ++ n) (valSize $ map (\(A.Dimension n) -> n) ds) A.ValAbbrev
         checkSizeItems _ = const (return ())
+
+    isExprStaticFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
+    isExprStaticFoo ns = (A.IsExpr emptyMeta A.ValAbbrev t (A.True emptyMeta), valSize ns, return ())
+      where
+        t = A.Array (map A.Dimension ns) A.Byte
 
     declFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
     declFoo ns = (A.Declaration emptyMeta t Nothing, valSize ns, return ())
