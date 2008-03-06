@@ -117,17 +117,21 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
-           s' <- doStructured s
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
                then do let sizeSpec = A.Specification m' (append_sizes n) (A.Declaration m' (A.Array [A.Dimension $ length ds] A.Int) Nothing)
+                       s' <- doStructured s
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s') -- TODO fix this
                else do let n_sizes = append_sizes n
                            sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
                        defineSizesName m' n_sizes sizeSpecType
+                       s' <- doStructured s            
                        return (A.Spec m sp $ A.Spec m sizeSpec $ s')
-             (A.RecordType m _ fs, _) -> liftM (A.Spec m sp) $ foldM (declareFieldSizes (A.nameName n) m) s' fs
+             (A.RecordType m _ fs, _) ->
+                do s' <- doStructured s
+                   fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s' fs
+                   return $ A.Spec m sp fieldDeclarations
              _ -> doGeneric str
     doStructured s = doGeneric s
 
