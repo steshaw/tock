@@ -128,16 +128,20 @@ declareSizesArray = doGeneric `ext1M` doStructured
              (_,Just (A.Array ds elemT)) -> if elem A.UnknownDimension ds
                then 
                  case spec of
+                   -- TODO does retyping a channel array end up here (if that's possible)?
                    (A.Retypes _ _ _ v) ->
-                    do let otherDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
+                       -- Multiply together all known dimensions
+                    do let knownDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
+                       -- Get the number of bytes in each element (must be known at compile-time)
                        BIJust biElem <- bytesInType elemT
                        t <- typeOfVariable v
                        birhs <- bytesInType t
                        case birhs of
-                         BIJust bytes -> case bytes `mod` (otherDimsTotal * biElem) of
+                         -- Statically known size; we can check right here whether it fits:
+                         BIJust bytes -> case bytes `mod` (knownDimsTotal * biElem) of
                            0 -> do let n_sizes = append_sizes n
                                        sizeSpecType = makeStaticSizeSpec m' n_sizes
-                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` (otherDimsTotal * biElem)) else d | d <- ds]
+                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` (knownDimsTotal * biElem)) else d | d <- ds]
                                        sizeSpec = A.Specification m' n_sizes sizeSpecType
                                    defineSizesName m' n_sizes sizeSpecType
                                    s' <- doStructured s
