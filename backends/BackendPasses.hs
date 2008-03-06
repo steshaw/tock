@@ -41,8 +41,6 @@ squashArrays = makePassesDep
   where
     prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
 
--- Prop.subscriptsPulledUp
-
 -- | Identify processes that we'll need to compute the stack size of.
 identifyParProcs :: Data t => t -> PassM t
 identifyParProcs = doGeneric `extM` doProcess
@@ -119,9 +117,17 @@ declareSizesArray = doGeneric `ext1M` doStructured
       = do t <- typeOfSpec spec
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
-               then do let sizeSpec = A.Specification m' (append_sizes n) (A.Declaration m' (A.Array [A.Dimension $ length ds] A.Int) Nothing)
+               then case spec of
+                 A.Is _ _ _ v@(A.Variable _ srcN) ->
+                    do (A.Array srcDs _) <- typeOfVariable v
+                       let sizeDiff = length srcDs - length ds
+                           subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) (A.Variable m' $ append_sizes srcN)
+                           sizeSpecType = A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
+                           sizeSpec = A.Specification m' (append_sizes n) sizeSpecType
                        s' <- doStructured s
-                       return (A.Spec m sp $ A.Spec m sizeSpec $ s') -- TODO fix this
+                       defineSizesName m' (append_sizes n) sizeSpecType
+                       return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+                 _ -> doGeneric str --TODO IsExpr and Reshapes
                else do let n_sizes = append_sizes n
                            sizeSpecType = makeStaticSizeSpec m' n_sizes ds
                            sizeSpec = A.Specification m' n_sizes sizeSpecType
