@@ -28,8 +28,20 @@ import qualified AST as A
 import CompState
 import Metadata
 import Pass
+import qualified Properties as Prop
 import Types
 import Utils
+
+squashArrays :: [Pass]
+squashArrays = makePassesDep
+  [ ("Declare array-size arrays", declareSizesArray, prereq, [])
+  , ("Add array-size arrays to PROC headers", addSizesFormalParameters, prereq, [])
+  , ("Add array-size arrays to PROC calls", addSizesActualParameters, prereq, [])
+  ]
+  where
+    prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
+
+-- Prop.subscriptsPulledUp
 
 -- | Identify processes that we'll need to compute the stack size of.
 identifyParProcs :: Data t => t -> PassM t
@@ -85,9 +97,6 @@ append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-
--- TODO must make sure that each expression is already pulled out into a variable
-
 declareSizesArray :: Data t => t -> PassM t
 declareSizesArray = doGeneric `ext1M` doStructured
   where

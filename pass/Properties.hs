@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Properties
   ( agg_namesDone
+  , agg_functionsGone
   , agg_typesDone
   , afterRemoved
   , allChansToAnyOrProtocol
@@ -78,6 +79,9 @@ agg_namesDone = [declarationsUnique, declarationTypesRecorded, inferredTypesReco
 
 agg_typesDone :: [Property]
 agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState]
+
+agg_functionsGone :: [Property]
+agg_functionsGone = [functionCallsRemoved, functionsRemoved]
 
 -- Mark out all the checks I still need to implement:
 checkTODO :: Monad m => A.AST -> m ()
