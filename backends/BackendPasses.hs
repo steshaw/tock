@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
+import Errors
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -211,7 +212,15 @@ addSizesActualParameters = doGeneric `extM` doProcess
     transformActual a@(A.ActualVariable am (A.Array ds _) (A.Variable m n))
       = do let a_sizes = A.Variable m (append_sizes n)
            return [a, A.ActualVariable A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) a_sizes]
-    transformActual a = return [a]
+    transformActual a@(A.ActualExpression (A.Array ds _) (A.ExprVariable _ (A.Variable m n)))
+      = do let a_sizes = A.Variable m (append_sizes n)
+           return [a, A.ActualVariable A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) a_sizes]
+    transformActual a = let t = case a of
+                                  A.ActualVariable _ t _ -> t
+                                  A.ActualExpression t _ -> t
+                        in case t of
+                             A.Array {} -> dieP (findMeta a) "Untransformed actual parameter of type array: "
+                             _ -> return [a]
 
 -- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
 -- as appropriate.
