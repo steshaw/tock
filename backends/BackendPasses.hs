@@ -126,10 +126,28 @@ declareSizesArray = doGeneric `ext1M` doStructured
       = do t <- typeOfSpec spec
            case (spec,t) of
              (_,Just (A.Array ds _)) -> if elem A.UnknownDimension ds
-               then do outerV <- case spec of
+               then 
+                 case spec of
+                   (A.Retypes _ _ _ v) ->
+                    do let otherDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
+                       t <- typeOfVariable v
+                       birhs <- bytesInType t
+                       case birhs of
+                         BIJust bytes -> case bytes `mod` otherDimsTotal of
+                           0 -> do let n_sizes = append_sizes n
+                                       sizeSpecType = makeStaticSizeSpec m' n_sizes
+                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` otherDimsTotal) else d | d <- ds]
+                                       sizeSpec = A.Specification m' n_sizes sizeSpecType
+                                   defineSizesName m' n_sizes sizeSpecType
+                                   s' <- doStructured s
+                                   return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+                           _ -> dieP m "RETYPES has sizes that do not fit"
+                         _ -> dieP m $ "Cannot handle RETYPES sizes: " ++ show birhs
+                   _ ->
+                      -- Get the variable being abbreviated
+                    do outerV <- case spec of
                          A.Is _ _ _ v -> return v
                          A.IsExpr _ _ _ (A.ExprVariable _ v) -> return v
-                         -- TODO reshapes
                          _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
                        -- Find the inner most variable (i.e. strip all the array subscripts)
                        let innerV = findInnerVar outerV
