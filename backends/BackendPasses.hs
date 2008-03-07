@@ -40,8 +40,8 @@ identifyParProcs = doGeneric `extM` doProcess
 
     findProcs :: A.Structured A.Process -> PassM ()
     findProcs (A.Rep _ _ s) = findProcs s
-    findProcs (A.Spec _ _ s) = findProcs s
-    findProcs (A.ProcThen _ _ s) = findProcs s
+    findProcs (A.Spec _ spec s) = doGeneric spec >> findProcs s
+    findProcs (A.ProcThen _ p s) = doGeneric p >> findProcs s
     findProcs (A.Several _ ss) = sequence_ $ map findProcs ss
     findProcs (A.Only _ (A.ProcCall _ n _))
         = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
