@@ -135,15 +135,19 @@ declareSizesArray = doGeneric `ext1M` doStructured
                0 -> return $ makeStaticSizeSpec m n_sizes
                                [if d == A.UnknownDimension then A.Dimension (bytes `div` (knownDimsTotal * biElem)) else d | d <- ds]
                _ -> dieP m "RETYPES has sizes that do not fit"
+             -- TODO apply a dynamic check for this part:
              BIUnknown -> dieP m $ "Cannot handle RETYPES sizes: " ++ show birhs
                -- Some array dimensions are not known at compile-time:
-             _ ->  do let A.Array _ elemSrcT = t
+             _ ->  do let A.Array srcDs elemSrcT = t
                       BIJust biSrcElem <- bytesInType elemSrcT
+                      let A.Variable _ srcN = v
+                          multipliedDimsV = foldl (A.Dyadic m A.Mul) (makeConstant m biSrcElem)
+                            [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) (A.Variable m $ append_sizes srcN)  | i <- [0 .. length srcDs - 1]]
                       return $ makeDynamicSizeSpec m n_sizes
                             [case d of
                                -- TODO add a run-time check here for invalid retypes
-                               A.UnknownDimension -> (A.Dyadic m A.Div (A.Dyadic m A.Mul (makeConstant m biSrcElem) (A.SizeVariable m v))
-                                 (makeConstant m $ knownDimsTotal * biElem))
+                               A.UnknownDimension -> A.Dyadic m A.Div multipliedDimsV
+                                 (makeConstant m $ knownDimsTotal * biElem)
                                A.Dimension n -> makeConstant m n
                             | d <- ds]
            defineSizesName m n_sizes sizeSpecType

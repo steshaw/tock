@@ -766,6 +766,10 @@ cgenArraySubscript checkValid v es
         gen = sequence_ $ intersperse (tell ["*"]) $ genSub : genChunks
         genSub
             = if checkValid
+                 -- Total, complete and utter horrible hack until we have
+                 -- some way of expressing unchecked subscripting in the AST:
+                 -- TODO fix this
+                 && (not $ "_sizes" `isSuffixOf` (let A.Variable _ (A.Name _ _ n) = v in n))
                 then do tell ["occam_check_index("]
                         call genExpression e
                         tell [","]
