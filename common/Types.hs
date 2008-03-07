@@ -47,6 +47,7 @@ import Intrinsics
 import Metadata
 import Pass
 import ShowCode
+import TypeSizes
 import Utils
 
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
@@ -531,15 +532,23 @@ data BytesInResult =
   | BIUnknown           -- ^ We can't tell the size at compile time.
   deriving (Show, Eq)
 
+-- | Given the C and C++ values (in that order), selects according to the backend
+-- If the backend is not recognised, the C sizes are used
+sizeByBackend :: CSMR m => Int -> Int -> m Int
+sizeByBackend c cxx = do backend <- getCompState >>* csBackend
+                         return $ case backend of
+                           BackendCPPCSP -> cxx
+                           _ -> c
+
 -- | Return the size in bytes of a data type.
 bytesInType :: (CSMR m, Die m) => A.Type -> m BytesInResult
+bytesInType A.Bool = sizeByBackend cBoolSize cxxBoolSize >>* BIJust
 bytesInType A.Byte = return $ BIJust 1
 bytesInType A.UInt16 = return $ BIJust 2
 bytesInType A.UInt32 = return $ BIJust 4
 bytesInType A.UInt64 = return $ BIJust 8
 bytesInType A.Int8 = return $ BIJust 1
--- FIXME This is tied to the backend we're using (as is the constant folder).
-bytesInType A.Int = return $ BIJust 4
+bytesInType A.Int = sizeByBackend cIntSize cxxIntSize >>* BIJust
 bytesInType A.Int16 = return $ BIJust 2
 bytesInType A.Int32 = return $ BIJust 4
 bytesInType A.Int64 = return $ BIJust 8
