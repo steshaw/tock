@@ -79,7 +79,6 @@ import Data.Maybe
 
 import qualified AST as A
 import CompState
-import Errors
 import GenerateC
 import GenerateCBased
 import Metadata
@@ -97,7 +96,6 @@ cppgenOps :: GenOps
 cppgenOps = cgenOps {
     declareFree = cppdeclareFree,
     declareInit = cppdeclareInit,
-    genActual = cppgenActual,
     genActuals = cppgenActuals,
     genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
@@ -501,13 +499,6 @@ cppgenAlt _ s
 cppgenActuals :: [A.Actual] -> CGen ()
 cppgenActuals as = infixComma (map (call genActual) as)
 
--- | In GenerateC this has special code for passing array sizes around, which we don't need.
-cppgenActual :: A.Actual -> CGen ()
-cppgenActual actual
-    = case actual of
-        A.ActualExpression t e -> call genExpression e
-        A.ActualVariable am t v -> cppabbrevVariable am t v
-
 -- | The only change from GenerateC is that passing "me" is not necessary in C++CSP
 cppgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cppgenProcCall n as 
@@ -686,13 +677,6 @@ cppintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
     genParamList :: [A.Formal] -> CGen()
     genParamList fs = infixComma $ map genParam fs
 
--- Changed because we use cppabbrevVariable instead of abbrevVariable:
-cppintroduceSpec (A.Specification _ n (A.Is _ am t v))
-    =  do let rhs = cppabbrevVariable am t v
-          call genDecl am t n
-          tell ["="]
-          rhs
-          tell [";"]
 --For all other cases, use the C implementation:
 cppintroduceSpec n = cintroduceSpec n
 
@@ -767,28 +751,6 @@ prefixUnderscore :: A.Name -> A.Name
 prefixUnderscore n = n { A.nameName = "_" ++ A.nameName n }
 
 
--- | Generate the right-hand side of an abbreviation of a variable.
--- Changed from GenerateC because we no longer need the A.Name -> CGen() function returned that dealt with array sizes
--- TODO I might be able to remove this once the C side has been changed too (now that _sizes arrays are declared elsewhere)
-cppabbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> CGen ()
-cppabbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = call genVariable v
-cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
-    = fst (cgenSlice v start count ds)
-cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = fst (cgenSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds)
-cppabbrevVariable am ty@(A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
-    = fst (cgenSlice v (makeConstant m 0) count ds)
-cppabbrevVariable am (A.Array _ _) v
-    = call genVariable v
-cppabbrevVariable am (A.Chan {}) v
-    = call genVariable v
-cppabbrevVariable am (A.Record _) v
-    = call genVariable v
-cppabbrevVariable am t v
-    = call genVariableAM v am
-
-
 -- TODO I think I can remove both these unfolded expression things now that
 -- I've changed the arrays
 
@@ -814,14 +776,6 @@ cppgenUnfoldedVariable m var
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
             _ -> call genVariableUnchecked var
-  where
-    unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
-    unfoldArray [] v = call genUnfoldedVariable m v
-    unfoldArray (A.Dimension n:ds) v
-      = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
-                    | i <- [0..(n - 1)]]
-    unfoldArray _ _ = dieP m "trying to unfold array with unknown dimension"
-
 
 --{{{  if
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
