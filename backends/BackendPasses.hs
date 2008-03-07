@@ -121,6 +121,61 @@ declareSizesArray = doGeneric `ext1M` doStructured
       A.Subscript {} -> findInnerVar v
     findInnerVar v = (Nothing, v)
   
+    retypesSizes :: Meta -> A.Name -> [A.Dimension] -> A.Type -> A.Variable -> PassM A.Specification
+    retypesSizes m n_sizes ds elemT v
+           -- Multiply together all known dimensions
+      = do let knownDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
+           -- Get the number of bytes in each element (must be known at compile-time)
+           BIJust biElem <- bytesInType elemT
+           t <- typeOfVariable v
+           birhs <- bytesInType t
+           sizeSpecType <- case birhs of
+             -- Statically known size; we can check right here whether it fits:
+             BIJust bytes -> case bytes `mod` (knownDimsTotal * biElem) of
+               0 -> return $ makeStaticSizeSpec m n_sizes
+                               [if d == A.UnknownDimension then A.Dimension (bytes `div` (knownDimsTotal * biElem)) else d | d <- ds]
+               _ -> dieP m "RETYPES has sizes that do not fit"
+             BIUnknown -> dieP m $ "Cannot handle RETYPES sizes: " ++ show birhs
+               -- Some array dimensions are not known at compile-time:
+             _ ->  do let A.Array _ elemSrcT = t
+                      BIJust biSrcElem <- bytesInType elemSrcT
+                      return $ makeDynamicSizeSpec m n_sizes
+                            [case d of
+                               -- TODO add a run-time check here for invalid retypes
+                               A.UnknownDimension -> (A.Dyadic m A.Div (A.Dyadic m A.Mul (makeConstant m biSrcElem) (A.SizeVariable m v))
+                                 (makeConstant m $ knownDimsTotal * biElem))
+                               A.Dimension n -> makeConstant m n
+                            | d <- ds]
+           defineSizesName m n_sizes sizeSpecType
+           return $ A.Specification m n_sizes sizeSpecType
+
+    abbrevVarSizes :: Meta -> A.Name -> [A.Dimension] -> A.Variable -> PassM A.Specification
+    abbrevVarSizes m n_sizes ds outerV
+      = do -- Find the inner most variable (i.e. strip all the array subscripts)
+           let (sliceSize, innerV) = findInnerVar outerV
+           -- Figure out the _sizes variable to abbreviate; either the _sizes variable corresponding
+           -- to the abbreviation source (for everything but record fields)
+           -- or the globally declared record field _sizes constant
+           varSrcSizes <- case innerV of
+             A.Variable _ srcN -> return (A.Variable m $ append_sizes srcN)
+             A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
+               do A.Record recordName <- typeOfVariable recordV
+                  return (A.Variable m $ A.Name m A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+           -- Get the dimensions of the source variable:
+           (A.Array srcDs _) <- typeOfVariable innerV
+           -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
+           let sizeDiff = length srcDs - length ds
+               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFrom m $ makeConstant m sizeDiff) varSrcSizes
+               sizeSpecType = case sliceSize of
+                 Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
+                   A.IsExpr m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
+                     A.Literal m (A.Array [A.Dimension $ length ds] A.Int) $ A.ArrayLiteral m $
+                       [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims
+                 Nothing -> A.Is m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
+           defineSizesName m n_sizes sizeSpecType
+           return $ A.Specification m n_sizes sizeSpecType
+
+
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric declareSizesArray
 
@@ -128,66 +183,32 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
            case (spec,t) of
-             (_,Just (A.Array ds elemT)) -> if elem A.UnknownDimension ds
-               then 
-                 case spec of
-                   -- TODO does retyping a channel array end up here (if that's possible)?
-                   (A.Retypes _ _ _ v) ->
-                       -- Multiply together all known dimensions
-                    do let knownDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
-                       -- Get the number of bytes in each element (must be known at compile-time)
-                       BIJust biElem <- bytesInType elemT
-                       t <- typeOfVariable v
-                       birhs <- bytesInType t
-                       case birhs of
-                         -- Statically known size; we can check right here whether it fits:
-                         BIJust bytes -> case bytes `mod` (knownDimsTotal * biElem) of
-                           0 -> do let n_sizes = append_sizes n
-                                       sizeSpecType = makeStaticSizeSpec m' n_sizes
-                                         [if d == A.UnknownDimension then A.Dimension (bytes `div` (knownDimsTotal * biElem)) else d | d <- ds]
-                                       sizeSpec = A.Specification m' n_sizes sizeSpecType
-                                   defineSizesName m' n_sizes sizeSpecType
-                                   s' <- doStructured s
-                                   return (A.Spec m sp $ A.Spec m sizeSpec $ s')
-                           _ -> dieP m "RETYPES has sizes that do not fit"
-                         _ -> dieP m $ "Cannot handle RETYPES sizes: " ++ show birhs
-                   _ ->
-                      -- Get the variable being abbreviated
-                    do outerV <- case spec of
-                         A.Is _ _ _ v -> return v
-                         A.IsExpr _ _ _ (A.ExprVariable _ v) -> return v
-                         _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
-                       -- Find the inner most variable (i.e. strip all the array subscripts)
-                       let (sliceSize, innerV) = findInnerVar outerV
-                       -- Figure out the _sizes variable to abbreviate; either the _sizes variable corresponding
-                       -- to the abbreviation source (for everything but record fields)
-                       -- or the globally declared record field _sizes constant
-                       varSrcSizes <- case innerV of
-                         A.Variable _ srcN -> return (A.Variable m' $ append_sizes srcN)
-                         A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
-                           do A.Record recordName <- typeOfVariable recordV
-                              return (A.Variable m' $ A.Name m' A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
-                       -- Get the dimensions of the source variable:
-                       (A.Array srcDs _) <- typeOfVariable innerV
-                       -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
-                       let sizeDiff = length srcDs - length ds
-                           subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) varSrcSizes
-                           sizeSpecType = case sliceSize of
-                             Just exp -> A.IsExpr m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
-                               A.Literal m' (A.Array [A.Dimension $ length ds] A.Int) $ A.ArrayLiteral m' [A.ArrayElemExpr exp]
-                             Nothing -> A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
-                           sizeSpec = A.Specification m' (append_sizes n) sizeSpecType
-                       s' <- doStructured s
-                       defineSizesName m' (append_sizes n) sizeSpecType
-                       return (A.Spec m sp $ A.Spec m sizeSpec $ s')
-
-                       -- Sizes are statically known; very straight-forward
-               else do let n_sizes = append_sizes n
-                           sizeSpecType = makeStaticSizeSpec m' n_sizes ds
-                           sizeSpec = A.Specification m' n_sizes sizeSpecType
-                       defineSizesName m' n_sizes sizeSpecType
-                       s' <- doStructured s            
-                       return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+             (_,Just (A.Array ds elemT)) -> 
+               do sizeSpec <- if elem A.UnknownDimension ds
+                    then 
+                      -- At least one unknown dimension:
+                      case spec of
+                        -- TODO I think retyping a channel array ends up here, and probably isn't handled right
+                        (A.Retypes _ _ _ v) -> retypesSizes m' (append_sizes n) ds elemT v
+                        _ ->
+                          let n_sizes = append_sizes n in
+                          case spec of
+                            A.Is _ _ _ v -> abbrevVarSizes m n_sizes ds v
+                            A.IsExpr _ _ _ (A.ExprVariable _ v) -> abbrevVarSizes m n_sizes ds v
+                            -- The dimensions in a literal should all be static:
+                            A.IsExpr _ _ _ (A.Literal _ (A.Array ds _) _) ->
+                              do let sizeSpecType = makeStaticSizeSpec m' n_sizes ds
+                                 defineSizesName m' n_sizes sizeSpecType
+                                 return $ A.Specification m' n_sizes sizeSpecType
+                            _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
+                    -- Everything is statically sized:
+                    else do let n_sizes = append_sizes n
+                                sizeSpecType = makeStaticSizeSpec m' n_sizes ds
+                                sizeSpec = A.Specification m' n_sizes sizeSpecType
+                            defineSizesName m' n_sizes sizeSpecType
+                            return sizeSpec
+                  s' <- doStructured s
+                  return (A.Spec m sp $ A.Spec m sizeSpec $ s')
              (A.RecordType m _ fs, _) ->
                 do s' <- doStructured s
                    fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s' fs
@@ -201,6 +222,13 @@ declareSizesArray = doGeneric `ext1M` doStructured
         sizeType = A.Array [A.Dimension $ length ds] A.Int
         sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $
           map (A.ArrayElemExpr . A.Literal m A.Int . A.IntLiteral m . show . \(A.Dimension d) -> d) ds
+        sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
+
+    makeDynamicSizeSpec :: Meta -> A.Name -> [A.Expression] -> A.SpecType
+    makeDynamicSizeSpec m n es = sizeSpecType
+      where
+        sizeType = A.Array [A.Dimension $ length es] A.Int
+        sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $ map A.ArrayElemExpr es
         sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
 
     declareFieldSizes :: Data a => String -> Meta -> A.Structured a -> (A.Name, A.Type) -> PassM (A.Structured a)
