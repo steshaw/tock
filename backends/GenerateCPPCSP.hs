@@ -135,18 +135,24 @@ chansToAny x = do st <- get
                   case csFrontend st of
                     FrontendOccam ->
                       do chansToAnyInCompState
-                         everywhereM (mkM $ return . chansToAny') x
+                         chansToAnyM x
                     _ -> return x
   where
-    chansToAny' :: A.Type -> A.Type
-    chansToAny' c@(A.Chan _ _ (A.UserProtocol {})) = c
-    chansToAny' (A.Chan a b _) = A.Chan a b A.Any
-    chansToAny' t = t
+    chansToAny' :: A.Type -> PassM A.Type
+    chansToAny' c@(A.Chan _ _ (A.UserProtocol {})) = return c
+    chansToAny' (A.Chan a b _) = return $ A.Chan a b A.Any
+    chansToAny' t = doGeneric t
     
-    chansToAnyInCompState :: CSM m => m ()
+    chansToAnyM :: Data t => t -> PassM t
+    chansToAnyM = doGeneric `extM` chansToAny'
+    
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric chansToAnyM
+    
+    chansToAnyInCompState :: PassM ()
     chansToAnyInCompState = do st <- get
-                               let st' = st {csNames = everywhere (mkT chansToAny') (csNames st)}
-                               put st'
+                               csn <- chansToAnyM (csNames st)
+                               put $ st {csNames = csn}
                                return ()
 
 --{{{  top-level
