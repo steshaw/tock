@@ -199,12 +199,7 @@ instance Arbitrary AbbrevTypesIs where
                    case d of
                      A.UnknownDimension -> return A.UnknownDimension
                      _ -> oneof [return d, return A.UnknownDimension]
-                 subs <- replicateM (length srcDims - length destDims) $ oneof
-                   [return $ A.Subscript emptyMeta (A.True emptyMeta)
-                   ,return $ A.SubscriptFromFor emptyMeta (A.True emptyMeta) (A.True emptyMeta)
-                   ,return $ A.SubscriptFrom emptyMeta (A.True emptyMeta)
-                   ,return $ A.SubscriptFor emptyMeta (A.True emptyMeta)
-                   ]
+                 subs <- replicateM (length srcDims - length destDims) $ return $ A.Subscript emptyMeta (A.True emptyMeta)
                  return $ AbbrevTypesIs (srcDims, destDims, subs)
 
 qcTestDeclareSizes :: [LabelledQuickCheckTest]
