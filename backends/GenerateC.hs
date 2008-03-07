@@ -696,9 +696,11 @@ cgenVariable' checkValid v
     inner ind (A.DirectedVariable _ dir v) mt
       = do (cg,n) <- (inner ind v mt)           
            return (call genDirectedVariable (addPrefix cg n) dir, 0)
-    inner ind sv@(A.SubscriptedVariable _ (A.Subscript _ _) _) mt
-      = do let (es, v) = collectSubs sv
-           t <- typeOfVariable sv
+    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ _) _) mt
+      = do (es, v, t') <- collectSubs sv
+           t <- if checkValid
+                  then typeOfVariable sv
+                  else return t'
            (cg, n) <- inner ind v (Just t)
            return (cg >> call genArraySubscript checkValid v es, n)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
@@ -729,12 +731,13 @@ cgenVariable' checkValid v
     getPrefix n = if n > 0 then replicate n '*' else "#error Negative prefix lower than -1"
 
     -- | Collect all the plain subscripts on a variable, so we can combine them.
-    collectSubs :: A.Variable -> ([A.Expression], A.Variable)
-    collectSubs (A.SubscriptedVariable _ (A.Subscript _ e) v)
-        = (es' ++ [e], v')
-      where
-        (es', v') = collectSubs v
-    collectSubs v = ([], v)
+    collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
+    collectSubs (A.SubscriptedVariable m (A.Subscript _ e) v)
+        = do (es', v', t') <- collectSubs v
+             t <- trivialSubscriptType m t'
+             return (es' ++ [e], v', t)
+    collectSubs v = do t <- typeOfVariable v
+                       return ([], v, t)
 
 
 cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
