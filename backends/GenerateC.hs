@@ -56,6 +56,7 @@ genCPasses = makePassesDep' ((== BackendC) . csBackend)
 cPreReq :: [Property]
 cPreReq = cCppCommonPreReq ++ [Prop.parsIdentified, Prop.waitForRemoved]
 
+--{{{  generator ops
 -- | Operations for the C backend.
 cgenOps :: GenOps
 cgenOps = GenOps {
