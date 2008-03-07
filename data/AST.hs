@@ -366,8 +366,6 @@ data Variant = Variant Meta Name [InputItem] Process
   deriving (Show, Eq, Typeable, Data)
 
 -- | This represents something that can contain local replicators and specifications.
--- (This ought to be a parametric type, @Structured Variant@ etc., but doing so
--- makes using generic functions across it hard.)
 data Data a => Structured a =
   Rep Meta Replicator (Structured a)
   | Spec Meta Specification (Structured a)
