@@ -8,7 +8,7 @@ all: $(tests)
 checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
 
-%: %.occ
+%: %.occ tock
 	./tock -vk --backend=$(BACKEND) -o $@ $<
 
 run-all: $(addprefix run-,$(tests))
