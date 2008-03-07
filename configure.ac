@@ -140,6 +140,24 @@ fi
 
 AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8])
 
+# Check the sizes of certain constructs.  We'll need to be cleverer if in future
+# we want to allow cross-compilation.
+AC_LANG(C++)
+AC_CHECK_SIZEOF(bool)
+AC_COMPUTE_INT(CXX_BOOL_SIZE,SIZEOF_BOOL)
+AC_SUBST(CXX_BOOL_SIZE)
+AC_CHECK_SIZEOF(int)
+AC_COMPUTE_INT(CXX_INT_SIZE,SIZEOF_INT)
+AC_SUBST(CXX_INT_SIZE)
+AC_LANG(C)
+AC_CHECK_SIZEOF(_Bool)
+AC_COMPUTE_INT(C_BOOL_SIZE,SIZEOF__BOOL)
+AC_SUBST(C_BOOL_SIZE)
+AC_CHECK_SIZEOF(int)
+AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
+AC_SUBST(C_INT_SIZE)
+
+
 AC_SUBST(gnu89_inline)
 AC_SUBST(ccsp_kroc_available)
 AC_SUBST(cppcsp_available)
