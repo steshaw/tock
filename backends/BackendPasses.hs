@@ -112,11 +112,14 @@ declareSizesArray = doGeneric `ext1M` doStructured
                         ,A.ndPlacement = A.Unplaced}
   
     -- Strips all the array subscripts from a variable:
-    findInnerVar :: A.Variable -> A.Variable
-    findInnerVar wv@(A.SubscriptedVariable _ sub v) = case sub of
-      A.SubscriptField {} -> wv
-      _ -> findInnerVar v
-    findInnerVar v = v
+    findInnerVar :: A.Variable -> (Maybe A.Expression, A.Variable)
+    findInnerVar wv@(A.SubscriptedVariable m sub v) = case sub of
+      A.SubscriptField {} -> (Nothing, wv)
+      A.SubscriptFromFor _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
+      A.SubscriptFor _ for -> (Just for, snd $ findInnerVar v)
+      A.SubscriptFrom _ from -> (Just $ A.Dyadic m A.Subtr (A.SizeVariable m v) from, snd $ findInnerVar v)
+      A.Subscript {} -> findInnerVar v
+    findInnerVar v = (Nothing, v)
   
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric declareSizesArray
@@ -155,7 +158,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
                          A.IsExpr _ _ _ (A.ExprVariable _ v) -> return v
                          _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
                        -- Find the inner most variable (i.e. strip all the array subscripts)
-                       let innerV = findInnerVar outerV
+                       let (sliceSize, innerV) = findInnerVar outerV
                        -- Figure out the _sizes variable to abbreviate; either the _sizes variable corresponding
                        -- to the abbreviation source (for everything but record fields)
                        -- or the globally declared record field _sizes constant
@@ -169,7 +172,10 @@ declareSizesArray = doGeneric `ext1M` doStructured
                        -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
                        let sizeDiff = length srcDs - length ds
                            subSrcSizeVar = A.SubscriptedVariable m' (A.SubscriptFrom m' $ makeConstant m' sizeDiff) varSrcSizes
-                           sizeSpecType = A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
+                           sizeSpecType = case sliceSize of
+                             Just exp -> A.IsExpr m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
+                               A.Literal m' (A.Array [A.Dimension $ length ds] A.Int) $ A.ArrayLiteral m' [A.ArrayElemExpr exp]
+                             Nothing -> A.Is m' A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
                            sizeSpec = A.Specification m' (append_sizes n) sizeSpecType
                        s' <- doStructured s
                        defineSizesName m' (append_sizes n) sizeSpecType
