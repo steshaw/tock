@@ -160,16 +160,20 @@ cgenTopLevel s
           cs <- get
           (tlpName, chans) <- tlpInterface
 
-          tell ["extern int " ++ nameString n ++ "_stack_size;\n"
-                | n <- tlpName : (Set.toList $ csParProcs cs)]
+          sequence_ $ map (call genForwardDeclaration)
+                          (listify (const True :: A.Specification -> Bool) s)
 
-          sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
+          tell ["/* ", show $ csParProcs cs, " */\n"]
+          sequence_ [do tell ["extern int " ++ nameString n ++ "_wrapper_stack_size;\n"]
+                        cgenProcWrapper n
+                     | n <- tlpName : (Set.toList $ csParProcs cs)]
+
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
           tell ["void tock_main (Workspace wptr) {\n\
                 \    Workspace tlp = ProcAlloc (wptr, ", show $ length chans, ", "]
           genName tlpName
-          tell ["_stack_size);\n"]
+          tell ["_wrapper_stack_size);\n"]
           sequence_ [do tell ["    ProcParam (wptr, tlp, " ++ show i ++ ", "]
                         call genTLPChannel c
                         tell [");\n"]
@@ -180,7 +184,7 @@ cgenTopLevel s
                 \    LightProcBarrierInit (wptr, &bar, 1);\n\
                 \    LightProcStart (wptr, &bar, tlp, (Process) "]
           genName tlpName
-          tell [");\n\
+          tell ["_wrapper);\n\
                 \    LightProcBarrierWait (wptr, &bar);\n\
                 \    Shutdown (wptr);\n\
                 \}\n\
@@ -280,7 +284,7 @@ cgetScalarType A.Int32 = Just "int32_t"
 cgetScalarType A.Int64 = Just "int64_t"
 cgetScalarType A.Real32 = Just "float"
 cgetScalarType A.Real64 = Just "double"
-cgetScalarType A.Timer = Just "Time"
+cgetScalarType A.Timer = Just "Time"   -- Not used in the C backend.
 cgetScalarType A.Time = Just "Time"
 cgetScalarType _ = Nothing
 
@@ -888,7 +892,7 @@ cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
 cgenInputItem c (A.InCounted m cv av)
     =  do call genInputItem c (A.InVariable m cv)
           t <- typeOfVariable av
-          tell ["ChanIn("]
+          tell ["ChanIn(wptr,"]
           call genVariable c
           tell [","]
           fst $ abbrevVariable A.Abbrev t av
@@ -903,13 +907,13 @@ cgenInputItem c (A.InVariable m v)
           let rhs = fst $ abbrevVariable A.Abbrev t v
           case t of
             A.Int ->
-              do tell ["ChanInInt("]
+              do tell ["ChanInInt(wptr,"]
                  call genVariable c
                  tell [","]
                  rhs
                  tell [");"]
             _ ->
-              do tell ["ChanIn("]
+              do tell ["ChanIn(wptr,"]
                  call genVariable c
                  tell [","]
                  rhs
@@ -923,7 +927,7 @@ cgenOutputItem c (A.OutCounted m ce ae)
           t <- typeOfExpression ae
           case ae of
             A.ExprVariable m v ->
-              do tell ["ChanOut("]
+              do tell ["ChanOut(wptr,"]
                  call genVariable c
                  tell [","]
                  fst $ abbrevVariable A.Abbrev t v
@@ -937,13 +941,13 @@ cgenOutputItem c (A.OutExpression m e)
     =  do t <- typeOfExpression e
           case (t, e) of
             (A.Int, _) ->
-              do tell ["ChanOutInt("]
+              do tell ["ChanOutInt(wptr,"]
                  call genVariable c
                  tell [","]
                  call genExpression e
                  tell [");"]
             (_, A.ExprVariable _ v) ->
-              do tell ["ChanOut("]
+              do tell ["ChanOut(wptr,"]
                  call genVariable c
                  tell [","]
                  fst $ abbrevVariable A.Abbrev t v
@@ -1166,6 +1170,7 @@ cgenDeclaration (A.Array ds t) n True
           tell ["int "]
           genName n
           tell ["_sizes[",show $ length ds,"];"]
+cgenDeclaration A.Timer _ _ = return ()
 cgenDeclaration t n _
     =  do call genType t
           tell [" "]
@@ -1201,7 +1206,7 @@ cgenArraySizesLiteral n (A.Array ds _)
 -- | Initialise an item being declared.
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
 cdeclareInit _ (A.Chan A.DirUnknown _ _) var _
-    = Just $ do tell ["ChanInit("]
+    = Just $ do tell ["ChanInit(wptr,"]
                 call genVariableUnchecked var
                 tell [");"]
 cdeclareInit m t@(A.Array ds t') var _
@@ -1327,7 +1332,7 @@ cintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
     =  do call genSpecMode sm
           tell ["void "]
           genName n
-          tell [" (Process *me"]
+          tell [" (Workspace wptr"]
           call genFormals fs
           tell [") {\n"]
           call genProcess p
@@ -1365,13 +1370,12 @@ cgenRecordTypeSpec n b fs
           genName n
           tell [";"]
 
-
 cgenForwardDeclaration :: A.Specification -> CGen ()
 cgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
     =  do call genSpecMode sm
           tell ["void "]
           genName n
-          tell [" (Process *me"]
+          tell [" (Workspace wptr"]
           call genFormals fs
           tell [");"]
 cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
@@ -1401,43 +1405,88 @@ cgenActuals :: [A.Actual] -> CGen ()
 cgenActuals as = prefixComma (map (call genActual) as)
 
 cgenActual :: A.Actual -> CGen ()
-cgenActual actual
-    = case actual of
-        A.ActualExpression t e ->
-          case (t, e) of
-            (A.Array _ _, A.ExprVariable _ v) ->
-              do call genVariable v
-                 tell [","]
-                 call genVariable v
-                 tell ["_sizes"]
-            _ -> call genExpression e
-        A.ActualVariable am t v ->
-          case t of
-            A.Array _ _ ->
-              do call genVariable v
-                 tell [","]
-                 call genVariable v
-                 tell ["_sizes"]
-            _ -> fst $ abbrevVariable am t v
-
-numCArgs :: [A.Actual] -> Int
-numCArgs [] = 0
-numCArgs (A.ActualVariable _ (A.Array _ _) _:fs) = 2 + numCArgs fs
-numCArgs (A.ActualExpression (A.Array _ _) _:fs) = 2 + numCArgs fs
-numCArgs (_:fs) = 1 + numCArgs fs
+cgenActual actual = seqComma $ realActuals actual
 
 cgenFormals :: [A.Formal] -> CGen ()
 cgenFormals fs = prefixComma (map (call genFormal) fs)
 
 cgenFormal :: A.Formal -> CGen ()
-cgenFormal (A.Formal am t n)
+cgenFormal f = seqComma [t >> tell [" "] >> n | (t, n) <- realFormals f]
+
+-- | Return generators for all the real actuals corresponding to a single
+-- actual.
+realActuals :: A.Actual -> [CGen ()]
+realActuals (A.ActualExpression t e)
+    = case (t, e) of
+        (A.Array _ _, A.ExprVariable _ v) ->
+          [call genVariable v,
+           call genVariable v >> tell ["_sizes"]]
+        _ -> [call genExpression e]
+realActuals (A.ActualVariable am t v)
+    = case t of
+        A.Array _ _ ->
+          [call genVariable v,
+           call genVariable v >> tell ["_sizes"]]
+        _ -> [fst $ abbrevVariable am t v]
+
+-- | Return (type, name) generator pairs for all the real formals corresponding
+-- to a single formal.
+realFormals :: A.Formal -> [(CGen (), CGen ())]
+realFormals (A.Formal am t n)
     = case t of
         A.Array _ t' ->
-          do call genDecl am t n
-             tell [", const int *"]
-             genName n
-             tell ["_sizes"]
-        _ -> call genDecl am t n
+          [(mainType, mainName),
+           (tell ["const int *"], genName n >> tell ["_sizes"])]
+        _ -> [(mainType, mainName)]
+  where
+    mainType = cgenDeclType am t
+    mainName = genName n
+
+-- | Generate a wrapper function for a PAR subprocess.
+cgenProcWrapper :: A.Name -> CGen ()
+cgenProcWrapper n
+    =  do st <- specTypeOfName n
+          let fs = case st of A.Proc _ _ fs _ -> fs
+          let rfs = concatMap realFormals fs
+
+          tell ["static void "]
+          genName n
+          tell ["_wrapper (Workspace wptr) {\n"]
+
+          sequence_ [unpackParam num rf | (num, rf) <- zip [0..] rfs]
+          genName n
+          tell [" (wptr"]
+          prefixComma [n | (_, n) <- rfs]
+          tell [");\n"]
+
+          tell ["}\n"]
+  where
+    unpackParam :: Int -> (CGen (), CGen ()) -> CGen ()
+    unpackParam num (t, n)
+        =  do t
+              tell [" "]
+              n
+              tell [" = ProcGetParam (wptr, " ++ show num ++ ", "]
+              t
+              tell [");\n"]
+
+-- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
+-- workspace pointer and the name of the function to call.
+cgenProcAlloc :: A.Name -> [A.Actual] -> CGen (String, CGen ())
+cgenProcAlloc n as
+    =  do let ras = concatMap realActuals as
+
+          ws <- makeNonce "workspace"
+          tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
+          genName n
+          tell ["_wrapper_stack_size);\n"]
+
+          sequence_ [do tell ["ProcParam (wptr, ", ws, ", ", show num, ", "]
+                        ra
+                        tell [");\n"]
+                     | (num, ra) <- zip [(0 :: Int)..] ras]
+
+          return (ws, genName n >> tell ["_wrapper"])
 --}}}
 
 --{{{  processes
@@ -1447,7 +1496,7 @@ cgenProcess p = case p of
   A.Input m c im -> call genInput c im
   A.Output m c ois -> call genOutput c ois
   A.OutputCase m c t ois -> call genOutputCase c t ois
-  A.GetTime m v -> call genGetTime m v
+  A.GetTime m v -> call genGetTime v
   A.Wait m wm e -> call genWait wm e
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop m "STOP process"
@@ -1494,31 +1543,23 @@ cgenInput c im
             _ -> call genMissing $ "genInput " ++ show im
 
 cgenTimerRead :: A.Variable -> A.Variable -> CGen ()
-cgenTimerRead c v
-    =  do tell ["ProcTime (&"]
-          call genVariable c
-          tell [");\n"]
-          call genVariable v
-          tell [" = "]
-          call genVariable c
-          tell [";\n"]
+cgenTimerRead _ v = cgenGetTime v
 
 cgenTimerWait :: A.Expression -> CGen ()
 cgenTimerWait e
-    =  do tell ["ProcTimeAfter("]
+    =  do tell ["TimerWait(wptr,"]
           call genExpression e
           tell [");"]
 
-cgenGetTime :: Meta -> A.Variable -> CGen ()
-cgenGetTime m v
-    =  do tell ["ProcTime(&"]
-          call genVariable v
-          tell [");"]
+cgenGetTime :: A.Variable -> CGen ()
+cgenGetTime v
+    =  do call genVariable v
+          tell [" = TimerRead(wptr);"]
 
 cgenWait :: A.WaitMode -> A.Expression -> CGen ()
 cgenWait A.WaitUntil e = call genTimerWait e
 cgenWait A.WaitFor e
-    =  do tell ["ProcAfter("]
+    =  do tell ["TimerDelay(wptr,"]
           call genExpression e
           tell [");"]
 
@@ -1531,7 +1572,7 @@ cgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase c tag ois
     =  do t <- typeOfVariable c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
-          tell ["ChanOutInt("]
+          tell ["ChanOutInt(wptr,"]
           call genVariable c
           tell [","]
           genName tag
@@ -1545,7 +1586,7 @@ cgenStop :: Meta -> String -> CGen ()
 cgenStop m s
     =  do tell ["occam_stop("]
           genMeta m
-          tell [",\"", s, "\");"]
+          tell [",1,\"", s, "\");"]
 --}}}
 --{{{  seq
 cgenSeq :: A.Structured A.Process -> CGen ()
@@ -1616,66 +1657,46 @@ cgenWhile e p
           tell ["}"]
 --}}}
 --{{{  par
+-- FIXME: The ParMode is now ignored (as it is in occ21), so PRI PAR behaves
+-- the same as PAR.
 cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar pm s
-    =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
-          pids <- makeNonce "pids"
-          pris <- makeNonce "priorities"
-          index <- makeNonce "i"
-          when (pm == A.PriPar) $
-            do tell ["int ", pris, "["]
-               call genExpression size
-               tell ["];\n"]
-          tell ["Process *", pids, "["]
-          call genExpression size
-          tell ["];\n"]
-          tell ["int ", index, " = 0;\n"]
-          call genStructured s (createP pids pris index)
-          tell [pids, "[", index, "] = NULL;\n"]
-          tell ["if(",pids,"[0] != NULL){"] -- CIF seems to deadlock when you give ProcParList a list 
-                                            -- beginning with NULL (i.e. with no processes)
-          case pm of
-            A.PriPar -> tell ["ProcPriParList (", pids, ", ", pris, ");\n"]
-            _ -> tell ["ProcParList (", pids, ");\n"]
-          tell ["}"]
-          tell [index, " = 0;\n"]
-          call genStructured s (freeP pids index)
-  where
-    createP pids pris index _ p
-        = do when (pm == A.PriPar) $
-               tell [pris, "[", index, "] = ", index, ";\n"]
-             tell [pids, "[", index, "++] = "]
-             genProcAlloc p
-             tell [";\n"]
-    freeP pids index _ _
-        = do tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
+    =  do (count, _, _) <- constantFold $ countStructured s
 
-    genProcAlloc :: A.Process -> CGen ()
-    genProcAlloc (A.ProcCall m n as)
-        =  do tell ["ProcAlloc ("]
-              genName n
-              let stackSize = nameString n ++ "_stack_size"
-              tell [", ", stackSize, ", ", show $ numCArgs as]
-              call genActuals as
-              tell [")"]
-    genProcAlloc p = call genMissing $ "genProcAlloc " ++ show p
+          bar <- makeNonce "par_barrier"
+          tell ["LightProcBarrier ", bar, ";\n"]
+          tell ["LightProcBarrierInit (wptr, &", bar, ", "]
+          call genExpression count
+          tell [");\n"]
+
+          call genStructured s (startP bar)
+
+          tell ["LightProcBarrierWait (wptr, &", bar, ");\n"]
+
+  where
+    startP :: String -> Meta -> A.Process -> CGen ()
+    startP bar _ (A.ProcCall _ n as)
+        =  do (ws, func) <- cgenProcAlloc n as
+              tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
+              func
+              tell [");\n"]
 --}}}
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
 cgenAlt isPri s
-    =  do tell ["AltStart ();\n"]
+    =  do tell ["Alt (wptr);\n"]
           tell ["{\n"]
           genAltEnable s
           tell ["}\n"]
           -- Like occ21, this is always a PRI ALT, so we can use it for both.
-          tell ["AltWait ();\n"]
+          tell ["AltWait (wptr);\n"]
           id <- makeNonce "alt_id"
           tell ["int ", id, " = 0;\n"]
           tell ["{\n"]
           genAltDisable id s
           tell ["}\n"]
           fired <- makeNonce "alt_fired"
-          tell ["int ", fired, " = AltEnd ();\n"]
+          tell ["int ", fired, " = AltEnd (wptr);\n"]
           tell [id, " = 0;\n"]
           label <- makeNonce "alt_end"
           tell ["{\n"]
@@ -1690,10 +1711,10 @@ cgenAlt isPri s
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip ();\n"]
+                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip (wptr);\n"]
                 --transformWaitFor should have removed all A.WaitFor guards (transforming them into A.WaitUntil):
                 A.AlternativeWait _ A.WaitUntil e _ ->
-                  do tell ["AltEnableTimer ( "]
+                  do tell ["AltEnableTimer (wptr,"]
                      call genExpression e
                      tell [" );\n"]
 
@@ -1701,11 +1722,11 @@ cgenAlt isPri s
             = do case im of
                    A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
-                     do tell ["AltEnableTimer ("]
+                     do tell ["AltEnableTimer (wptr,"]
                         call genExpression time
                         tell [");\n"]
                    _ ->
-                     do tell ["AltEnableChannel ("]
+                     do tell ["AltEnableChannel (wptr,"]
                         call genVariable c
                         tell [");\n"]
 
@@ -1716,20 +1737,20 @@ cgenAlt isPri s
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (", id, "++);\n"]
+                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (wptr,", id, "++);\n"]
                 A.AlternativeWait _ A.WaitUntil e _ ->
-                     do tell ["AltDisableTimer (", id, "++, "]
+                     do tell ["AltDisableTimer (wptr,", id, "++, "]
                         call genExpression e
                         tell [");\n"]
         doIn c im
             = do case im of
                    A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
-                     do tell ["AltDisableTimer (", id, "++, "]
+                     do tell ["AltDisableTimer (wptr,", id, "++, "]
                         call genExpression time
                         tell [");\n"]
                    _ ->
-                     do tell ["AltDisableChannel (", id, "++, "]
+                     do tell ["AltDisableChannel (wptr,", id, "++, "]
                         call genVariable c
                         tell [");\n"]
 
@@ -1767,7 +1788,7 @@ withIf cond body
 cgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cgenProcCall n as
     =  do genName n
-          tell [" (me"]
+          tell [" (wptr"]
           call genActuals as
           tell [");\n"]
 --}}}

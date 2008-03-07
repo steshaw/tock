@@ -22,7 +22,7 @@ module Types
     specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
-    , BytesInResult(..), bytesInType, sizeOfReplicator, sizeOfStructured
+    , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
     , makeAbbrevAM, makeConstant, addOne
     , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
@@ -261,7 +261,7 @@ typeOfExpression e
                else typeOfArrayList [A.UnknownDimension] bt
         A.ExprConstr m (A.RepConstr _ rep e) -> 
           do t <- typeOfExpression e 
-             count <- evalIntExpression $ sizeOfReplicator rep
+             count <- evalIntExpression $ countReplicator rep
              typeOfArrayList [A.Dimension count] t
         A.AllocMobile _ t _ -> return t
 --}}}
@@ -577,20 +577,24 @@ bytesInType _ = return $ BIUnknown
 --}}}
 
 -- | Get the number of items a replicator produces.
-sizeOfReplicator :: A.Replicator -> A.Expression
-sizeOfReplicator (A.For _ _ _ count) = count
+countReplicator :: A.Replicator -> A.Expression
+countReplicator (A.For _ _ _ count) = count
 
 -- | Get the number of items in a Structured as an expression.
-sizeOfStructured :: Data a => A.Structured a -> A.Expression
-sizeOfStructured (A.Rep m rep s)
-    = A.Dyadic m A.Times (sizeOfReplicator rep) (sizeOfStructured s)
-sizeOfStructured (A.Spec _ _ s) = sizeOfStructured s
-sizeOfStructured (A.ProcThen _ _ s) = sizeOfStructured s
-sizeOfStructured (A.Several m ss)
+countStructured :: Data a => A.Structured a -> A.Expression
+countStructured = computeStructured (\m _ -> makeConstant m 1)
+
+-- | Compute an expression over a Structured.
+computeStructured :: Data a => (Meta -> a -> A.Expression) -> A.Structured a -> A.Expression
+computeStructured f (A.Rep m rep s)
+    = A.Dyadic m A.Times (countReplicator rep) (computeStructured f s)
+computeStructured f (A.Spec _ _ s) = computeStructured f s
+computeStructured f (A.ProcThen _ _ s) = computeStructured f s
+computeStructured f (A.Only m x) = f m x
+computeStructured f (A.Several m ss)
     = case ss of
         [] -> makeConstant m 0
-        _ -> foldl1 (A.Dyadic m A.Plus) (map sizeOfStructured ss)
-sizeOfStructured s = makeConstant (findMeta s) 1
+        _ -> foldl1 (A.Dyadic m A.Plus) (map (computeStructured f) ss)
 
 -- | Add one to an expression.
 addOne :: A.Expression -> A.Expression

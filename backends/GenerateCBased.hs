@@ -122,7 +122,7 @@ data GenOps = GenOps {
     genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen (),
     genFuncMonadic :: Meta -> String -> A.Expression -> CGen (),
     -- | Gets the current time into the given variable
-    genGetTime :: Meta -> A.Variable -> CGen (),
+    genGetTime :: A.Variable -> CGen (),
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
     genIf :: Meta -> A.Structured A.Choice -> CGen (),
     genInput :: A.Variable -> A.InputMode -> CGen (),
