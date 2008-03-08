@@ -515,10 +515,7 @@ cppgenProcCall n as
 -- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
 cppdeclareInit m t@(A.Array ds t') var _
-    = Just $ do fdeclareInit <- fget declareInit
-                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
-                call genOverArray m var init
-                case t' of
+    = Just $ do case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tockInitChanArray("]
                        call genVariableUnchecked var

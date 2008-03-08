@@ -1229,9 +1229,6 @@ cdeclareInit m t@(A.Array ds t') var _
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-                fdeclareInit <- fget declareInit
-                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
-                call genOverArray m var init
 cdeclareInit m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
