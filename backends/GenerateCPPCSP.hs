@@ -39,7 +39,7 @@ import Data.Maybe
 
 import qualified AST as A
 import CompState
-import GenerateC
+import GenerateC (cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, indexOfFreeDimensions, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass
