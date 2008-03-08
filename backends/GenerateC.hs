@@ -230,12 +230,15 @@ cgenOverArray m var func
                                tell ["=0;"]
                                call genVariable i
                                tell ["<"]
-                               call genVariable var
-                               call genSizeSuffix (show v)
+                               case d of
+                                 A.UnknownDimension ->
+                                      do call genVariable var
+                                         call genSizeSuffix (show v)
+                                 A.Dimension n -> tell [show n]
                                tell [";"]
                                call genVariable i
                                tell ["++){"]
-                            | (v :: Integer, i) <- zip [0..] indices]
+                            | (v :: Integer, i, d) <- zip3 [0..] indices ds]
                  p
                  sequence_ [tell ["}"] | _ <- indices]
             Nothing -> return ()
@@ -1126,6 +1129,9 @@ cdeclareInit m t@(A.Array ds t') var _
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
+                fdeclareInit <- fget declareInit
+                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
+                call genOverArray m var init
 cdeclareInit m rt@(A.Record _) var _
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)

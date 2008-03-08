@@ -370,6 +370,7 @@ testArraySlice = TestList
    
    checkSlice s e sub = "occam_check_slice(" ++ s ++ "," ++ e ++ "," ++ sub ++ "," ++ m ++ ")"
 
+-- TODO fix this test so that it tests fixed dimensions properly
 testOverArray :: Test
 testOverArray = TestList $ map testOverArray'
   [(cSize,cIndex,"", cgenOps)
@@ -491,7 +492,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   -- Records containing an array:
   ,testAllR 101 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
   -- Arrays of records containing an array:
-  ,testAllRA 200 ("^^","") ("^^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllRA 200 ("^^","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
 
   -- Mobile versions
   ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [A.Dimension 4] A.Int
