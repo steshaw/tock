@@ -100,7 +100,6 @@ cppgenOps = cgenOps {
     genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
     genClearMobile = cppgenClearMobile,
-    genDeclaration = cppgenDeclaration,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
@@ -512,36 +511,6 @@ cppgenProcCall n as
          tell ["("]
          call genActuals as
          tell [");"]
-
-
--- | Removed the channel part from GenerateC (not necessary in C++CSP, I think), and also changed the arrays.
---An array is actually stored as a std::vector, but an array-view object is automatically created with the array
---The vector has the suffix _actual, whereas the array-view is what is actually used in place of the array
---I think it may be possible to use boost::array instead of std::vector (which would be more efficient),
---but I will worry about that later
--- TODO this probably needs changing to reflect the new array system
-cppgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
-cppgenDeclaration arrType@(A.Array ds t) n False
-    =  do call genType t
-          tell [" "]
-          case t of
-            A.Chan A.DirUnknown _ _ ->
-              do genName n
-                 tell ["_storage"]
-                 call genFlatArraySize ds
-                 tell [";"]
-                 call genType t
-                 tell ["* "]
-            _ -> return ()
-          call genArrayStoreName n
-          call genFlatArraySize ds
-          tell [";"]
-          call declareArraySizes arrType n
-cppgenDeclaration t n _
-    =  do call genType t
-          tell [" "]
-          genName n
-          tell [";"]
 
 -- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
