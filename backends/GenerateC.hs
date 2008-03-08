@@ -1090,9 +1090,7 @@ cgenDeclaration (A.Array ds t) n True
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
-          tell ["int "]
-          genName n
-          tell ["_sizes[",show $ length ds,"];"]
+cgenDeclaration A.Timer _ _ = return ()
 cgenDeclaration t n _
     =  do call genType t
           tell [" "]
@@ -1297,30 +1295,7 @@ cgenActuals :: [A.Actual] -> CGen ()
 cgenActuals as = prefixComma (map (call genActual) as)
 
 cgenActual :: A.Actual -> CGen ()
-cgenActual actual
-    = case actual of
-        A.ActualExpression t e ->
-          case (t, e) of
-            (A.Array _ _, A.ExprVariable _ v) ->
-              do call genVariable v
-                 tell [","]
-                 call genVariable v
-                 tell ["_sizes"]
-            _ -> call genExpression e
-        A.ActualVariable am t v ->
-          case t of
-            A.Array _ _ ->
-              do call genVariable v
-                 tell [","]
-                 call genVariable v
-                 tell ["_sizes"]
-            _ -> fst $ abbrevVariable am t v
-
-numCArgs :: [A.Actual] -> Int
-numCArgs [] = 0
-numCArgs (A.ActualVariable _ (A.Array _ _) _:fs) = 2 + numCArgs fs
-numCArgs (A.ActualExpression (A.Array _ _) _:fs) = 2 + numCArgs fs
-numCArgs (_:fs) = 1 + numCArgs fs
+cgenActual actual = seqComma $ realActuals actual
 
 cgenFormals :: [A.Formal] -> CGen ()
 cgenFormals fs = prefixComma (map (call genFormal) fs)
@@ -1332,29 +1307,61 @@ cgenFormal f = seqComma [t >> tell [" "] >> n | (t, n) <- realFormals f]
 -- actual.
 realActuals :: A.Actual -> [CGen ()]
 realActuals (A.ActualExpression t e)
-    = case (t, e) of
-        (A.Array _ _, A.ExprVariable _ v) ->
-          [call genVariable v,
-           call genVariable v >> tell ["_sizes"]]
-        _ -> [call genExpression e]
+    = [call genExpression e]
 realActuals (A.ActualVariable am t v)
-    = case t of
-        A.Array _ _ ->
-          [call genVariable v,
-           call genVariable v >> tell ["_sizes"]]
-        _ -> [fst $ abbrevVariable am t v]
+    = [call genVariableAM v am]
 
 -- | Return (type, name) generator pairs for all the real formals corresponding
 -- to a single formal.
 realFormals :: A.Formal -> [(CGen (), CGen ())]
 realFormals (A.Formal am t n)
-    = case t of
-        A.Array _ t' ->
-          do call genDecl am t n
-             tell [", const int *"]
-             genName n
-             tell ["_sizes"]
-        _ -> call genDecl am t n
+    = [(call genDeclType am t, genName n)]
+
+-- | Generate a wrapper function for a PAR subprocess.
+cgenProcWrapper :: A.Name -> CGen ()
+cgenProcWrapper n
+    =  do st <- specTypeOfName n
+          let fs = case st of A.Proc _ _ fs _ -> fs
+          let rfs = concatMap realFormals fs
+
+          tell ["static void "]
+          genName n
+          tell ["_wrapper (Workspace wptr) {\n"]
+
+          sequence_ [unpackParam num rf | (num, rf) <- zip [0..] rfs]
+          genName n
+          tell [" (wptr"]
+          prefixComma [n | (_, n) <- rfs]
+          tell [");\n"]
+
+          tell ["}\n"]
+  where
+    unpackParam :: Int -> (CGen (), CGen ()) -> CGen ()
+    unpackParam num (t, n)
+        =  do t
+              tell [" "]
+              n
+              tell [" = ProcGetParam (wptr, " ++ show num ++ ", "]
+              t
+              tell [");\n"]
+
+-- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
+-- workspace pointer and the name of the function to call.
+cgenProcAlloc :: A.Name -> [A.Actual] -> CGen (String, CGen ())
+cgenProcAlloc n as
+    =  do let ras = concatMap realActuals as
+
+          ws <- csmLift $ makeNonce "workspace"
+          tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
+          genName n
+          tell ["_wrapper_stack_size);\n"]
+
+          sequence_ [do tell ["ProcParam (wptr, ", ws, ", ", show num, ", "]
+                        ra
+                        tell [");\n"]
+                     | (num, ra) <- zip [(0 :: Int)..] ras]
+
+          return (ws, genName n >> tell ["_wrapper"])
 --}}}
 
 --{{{  processes
@@ -1529,39 +1536,9 @@ cgenWhile e p
 -- the same as PAR.
 cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar pm s
-    =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
-          pids <- makeNonce "pids"
-          pris <- makeNonce "priorities"
-          index <- makeNonce "i"
-          when (pm == A.PriPar) $
-            do tell ["int ", pris, "["]
-               call genExpression size
-               tell ["];\n"]
-          tell ["Process *", pids, "["]
-          call genExpression size
-          tell ["];\n"]
-          tell ["int ", index, " = 0;\n"]
-          call genStructured s (createP pids pris index)
-          tell [pids, "[", index, "] = NULL;\n"]
-          tell ["if(",pids,"[0] != NULL){"] -- CIF seems to deadlock when you give ProcParList a list 
-                                            -- beginning with NULL (i.e. with no processes)
-          case pm of
-            A.PriPar -> tell ["ProcPriParList (", pids, ", ", pris, ");\n"]
-            _ -> tell ["ProcParList (", pids, ");\n"]
-          tell ["}"]
-          tell [index, " = 0;\n"]
-          call genStructured s (freeP pids index)
-  where
-    createP pids pris index _ p
-        = do when (pm == A.PriPar) $
-               tell [pris, "[", index, "] = ", index, ";\n"]
-             tell [pids, "[", index, "++] = "]
-             genProcAlloc p
-             tell [";\n"]
-    freeP pids index _ _
-        = do tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
+    =  do (count, _, _) <- constantFold $ countStructured s
 
-          bar <- makeNonce "par_barrier"
+          bar <- csmLift $ makeNonce "par_barrier"
           tell ["LightProcBarrier ", bar, ";\n"]
           tell ["LightProcBarrierInit (wptr, &", bar, ", "]
           call genExpression count
