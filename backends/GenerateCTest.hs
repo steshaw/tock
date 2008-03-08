@@ -226,16 +226,16 @@ testGenType = TestList
   ,testBothSame "GenType 22" "float*" (tcall genType $ A.Mobile A.Real32)
   
   
-  ,testBoth "GenType 100" "int*" "tockArrayView<int,1>" (tcall genType $ A.Array [A.Dimension 5] A.Int) 
-  ,testBoth "GenType 101" "int*" "tockArrayView<int,3>" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
-  ,testBoth "GenType 102" "int*" "tockArrayView<int,2>" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 100" "int*" (tcall genType $ A.Array [A.Dimension 5] A.Int) 
+  ,testBothSame "GenType 101" "int*" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
+  ,testBothSame "GenType 102" "int*" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
   ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
   
-  ,testBoth "GenType 250" "int*" "tockArrayView<int,3>" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
-  ,testBoth "GenType 251" "int*" "tockArrayView<int,2>" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
-  ,testBoth "GenType 251" "int*" "tockArrayView<int,1>" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 250" "int*" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
+  ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
 
@@ -257,8 +257,8 @@ testGenType = TestList
   ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
   ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int A.Int) 
    
-  ,testBoth "GenType 700" "Channel**" "tockArrayView<csp::One2OneChannel<int>*,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testBoth "GenType 701" "Channel**" "tockArrayView<csp::Chanin<int>,1>" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int>**" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int>*" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   --Test types that can only occur inside channels:
   --ANY:
@@ -290,12 +290,7 @@ testStop =
 testArraySizes :: Test
 testArraySizes = TestList
  [
-  testBoth "genArraySizesLiteral 0" "{3}" "tockArrayView<int,1>(foo_actual,tockDims(3))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3] A.Int) 
-  ,testBoth "genArraySizesLiteral 1" "{3,6,8}" "tockArrayView<int,3>(foo_actual,tockDims(3,6,8))" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 3, A.Dimension 6, A.Dimension 8] A.Int) 
-  ,testBothFail "genArraySizesLiteral 2" (tcall2 genArraySizesLiteral foo $ A.Array [A.Dimension 6, A.UnknownDimension] A.Int) 
-  ,testBothSame "genArraySizeDecl 0" "const int*foo_sizes=@;" (tcall3 genArraySizeDecl True at foo)
-  ,testBothSame "genArraySizeDecl 1" "const int foo_sizes[]=@;" (tcall3 genArraySizeDecl False at foo)
-  ,testBothSame "genArrayLiteralElems 0" "$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined])
+   testBothSame "genArrayLiteralElems 0" "$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined])
   ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined, A.ArrayElemExpr undefined])
   ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]])
  ]
@@ -313,9 +308,9 @@ testActuals = TestList
   --For expressions, genExpression should be called:
   ,testBothSame "genActual 0" "$" $ over (tcall genActual $ A.ActualExpression A.Bool (A.True undefined))
   
-  --For abbreviating arrays, C++ should call genExpression/genVariable, whereas C should do its foo,foo_sizes thing:
-  ,testBoth "genActual 1" "@,@_sizes" "$" $ over (tcall genActual $ A.ActualExpression (A.Array undefined undefined) (A.ExprVariable undefined $ A.Variable undefined foo))
-  ,testBoth "genActual 2" "@,@_sizes" "@" $ over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo))
+  --For abbreviating arrays, nothing special should happen any more:
+  ,testBothSame "genActual 1" "$" $ over (tcall genActual $ A.ActualExpression (A.Array undefined undefined) (A.Literal undefined undefined undefined))
+  ,testBothSame "genActual 2" "@" $ over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo))
  ]
  where
    overActual :: Override
@@ -326,22 +321,20 @@ testActuals = TestList
 testArraySubscript :: Test
 testArraySubscript = TestList
  [
-  testBothS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]" "[5]"
+  testBothSameS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]"
     (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
-  ,testBothS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]" "[5][6]"
+  ,testBothSameS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]"
     (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
-  ,testBothS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]" "[5][6][7].access()"
+  ,testBothSameS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]"
     (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
   
-  ,testBothS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]") ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")]")
+  ,testBothSameS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]")
     (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
-  ,testBothS "genArraySubscript 4"
+  ,testBothSameS "genArraySubscript 4"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]]")
-    ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")][occam_check_index(6,foo.extent(1)," ++ m ++ ")]")
     (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
-  ,testBothS "genArraySubscript 5"
+  ,testBothSameS "genArraySubscript 5"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]+occam_check_index(7,foo_sizes[2]," ++ m ++ ")]")
-    ("[occam_check_index(5,foo.extent(0)," ++ m ++ ")][occam_check_index(6,foo.extent(1)," ++ m ++ ")][occam_check_index(7,foo.extent(2)," ++ m ++ ")].access()")
     (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
     
  ]
@@ -354,28 +347,25 @@ testArraySlice :: Test
 testArraySlice = TestList
  [
   -- Slice from a one-dimensional array:
-  testSlice 0 ("&arr[4]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ "};") 
-    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12]
+  testSlice 0 ("&arr[" ++ checkSlice "4" "5" "12" ++ "]") "arr" 4 5 [A.Dimension 12]
     
   -- Slice from a two-dimensional array:
-  ,testSlice 1 ("&arr[4*arr_sizes[1]]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ ",arr_sizes[1]};")
-    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
+  ,testSlice 1 ("&arr[4*arr_sizes[1]]") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
     
   -- Slice from a three-dimensional array:
-  ,testSlice 2 ("&arr[4*arr_sizes[1]*arr_sizes[2]]","const int foo_sizes[]={" ++ checkSlice "4" "5" "arr_sizes[0]" ++ ",arr_sizes[1],arr_sizes[2]};")
-    ("arr.sliceFromFor(4," ++ checkSlice "4" "5" "arr.extent(0)" ++ ")") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
+  ,testSlice 2 ("&arr[4*arr_sizes[1]*arr_sizes[2]]") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
+  
+  -- TODO test with unknown dimensions
  ]
  where
-   testSlice :: Int -> (String,String) -> String -> String -> Integer -> Integer -> [A.Dimension] -> Test
-   testSlice index eC eCPP nm start count ds
-     = testBothS ("genSlice " ++ show index) (smerge eC) (smerge (eCPP,""))
-      (merge $ tcall4 genSlice
+   testSlice :: Int -> String -> String -> Integer -> Integer -> [A.Dimension] -> Test
+   testSlice index exp nm start count ds
+     = testBothSameS ("genSlice " ++ show index) exp
+      (tcall genVariable
         (A.SubscriptedVariable undefined (A.SubscriptFromFor undefined (intLiteral start) (intLiteral count)) (variable nm))
-       (intLiteral start) (intLiteral count) ds)
+      )
       (defineName (simpleName nm) $ simpleDefDecl nm (A.Array ds A.Int))
 
-   merge (arr,sizes) = arr >> tell ["|"] >> sizes (simpleName "foo")
-   smerge (arr,sizes) = arr ++ "|" ++ sizes
    m = "\"" ++ show emptyMeta ++ "\""
    
    checkSlice s e sub = "occam_check_slice(" ++ s ++ "," ++ e ++ "," ++ sub ++ "," ++ m ++ ")"
@@ -383,14 +373,10 @@ testArraySlice = TestList
 testOverArray :: Test
 testOverArray = TestList $ map testOverArray'
   [(cSize,cIndex,"", cgenOps)
-  ,((\n -> "\\.extent\\(" ++ show n ++ "\\)"),cppIndex,"\\.access\\(\\)", cppgenOps)
+  ,(cSize,cIndex,"", cppgenOps)
   ]
   where
     cSize n = "_sizes\\[" ++ show n ++ "\\]"
-
-    cppIndex = concat . (map cppIndex')
-    cppIndex' :: (String,[Int]) -> String
-    cppIndex' (s,_) = "\\[" ++ s ++ "\\]"
 
     cIndex x = "\\[" ++ concat (intersperse "\\+" $ map cIndex' x) ++ "\\]"
     cIndex' :: (String,[Int]) -> String
@@ -437,36 +423,36 @@ testDeclaration = TestList
   ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int) foo False)  
   
   --Arrays (of simple):
-  ,testBoth "genDeclaration 100" "int foo[8];const int foo_sizes[]={8};" "int foo_actual[8];const tockArrayView<int,1> foo=tockArrayView<int,1>(foo_actual,tockDims(8));"
+  ,testBothSame "genDeclaration 100" "int foo[8];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo False)
-  ,testBoth "genDeclaration 101" "int foo[8*9];const int foo_sizes[]={8,9};" "int foo_actual[8*9];const tockArrayView<int,2> foo=tockArrayView<int,2>(foo_actual,tockDims(8,9));"
+  ,testBothSame "genDeclaration 101" "int foo[8*9];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo False)
-  ,testBoth "genDeclaration 102" "int foo[8*9*10];const int foo_sizes[]={8,9,10};" "int foo_actual[8*9*10];const tockArrayView<int,3> foo=tockArrayView<int,3>(foo_actual,tockDims(8,9,10));"
+  ,testBothSame "genDeclaration 102" "int foo[8*9*10];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo False)
 
   --Arrays (of simple) inside records:
-  ,testBoth "genDeclaration 110" "int foo[8];int foo_sizes[1];" "int foo_actual[8];tockArrayView<int,1> foo;"
+  ,testBothSame "genDeclaration 110" "int foo[8];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo True)
-  ,testBoth "genDeclaration 111" "int foo[8*9];int foo_sizes[2];" "int foo_actual[8*9];tockArrayView<int,2> foo;"
+  ,testBothSame "genDeclaration 111" "int foo[8*9];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo True)
-  ,testBoth "genDeclaration 112" "int foo[8*9*10];int foo_sizes[3];" "int foo_actual[8*9*10];tockArrayView<int,3> foo;"
+  ,testBothSame "genDeclaration 112" "int foo[8*9*10];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo True)
   
   --Arrays of channels and channel-ends:
-  ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];const int foo_sizes[]={8};"
-    "csp::One2OneChannel<int> foo_storage[8];csp::One2OneChannel<int>* foo_actual[8];const tockArrayView<csp::One2OneChannel<int>*,1> foo=tockArrayView<csp::One2OneChannel<int>*,1>(foo_actual,tockDims(8));"
+  ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];"
+    "csp::One2OneChannel<int> foo_storage[8];csp::One2OneChannel<int>* foo[8];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
 
-  ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::One2OneChannel<int> foo_storage[8*9];csp::One2OneChannel<int>* foo_actual[8*9];const tockArrayView<csp::One2OneChannel<int>*,2> foo=tockArrayView<csp::One2OneChannel<int>*,2>(foo_actual,tockDims(8,9));"
+  ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];"
+    "csp::One2OneChannel<int> foo_storage[8*9];csp::One2OneChannel<int>* foo[8*9];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
     
-  ,testBoth "genDeclaration 202" "Channel* foo[8];const int foo_sizes[]={8};"
-    "csp::Chanin<int> foo_actual[8];const tockArrayView<csp::Chanin<int>,1> foo=tockArrayView<csp::Chanin<int>,1>(foo_actual,tockDims(8));"
+  ,testBoth "genDeclaration 202" "Channel* foo[8];"
+    "csp::Chanin<int> foo[8];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
 
-  ,testBoth "genDeclaration 203" "Channel* foo[8*9];const int foo_sizes[]={8,9};"
-    "csp::Chanout<int> foo_actual[8*9];const tockArrayView<csp::Chanout<int>,2> foo=tockArrayView<csp::Chanout<int>,2>(foo_actual,tockDims(8,9));"
+  ,testBoth "genDeclaration 203" "Channel* foo[8*9];"
+    "csp::Chanout<int> foo[8*9];"
     (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
     
     
@@ -494,18 +480,18 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo_actual,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(foo[0]);^","") ("tockInitChanArray(foo_storage,foo_actual,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   -- The subscripting on this test is incomplete; it should probably be fixed at some point:
-  ,testAll 5 ("tock_init_chan_array(foo_storage,foo,4*5*6);^ChanInit(wptr,foo[0*foo_sizes[1]*foo_sizes[2]]);^","") ("tockInitChanArray(foo_storage,foo_actual,4*5*6);","") $ 
+  ,testAll 5 ("tock_init_chan_array(foo_storage,foo,4*5*6);^ChanInit(foo[0*foo_sizes[1]*foo_sizes[2]]);^","") ("tockInitChanArray(foo_storage,foo_actual,4*5*6);","") $ 
     A.Array [A.Dimension 4,A.Dimension 5,A.Dimension 6] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllSame 6 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain records:
   ,testAllR 100 ("","") ("","") A.Int id
   -- Records containing an array:
-  ,testAllR 101 ("(&foo)->bar_sizes[0]=4;(&foo)->bar_sizes[1]=5;","") ("(&foo)->bar=tockArrayView<int,2>((&foo)->bar_actual,tockDims(4,5));","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllR 101 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
   -- Arrays of records containing an array:
-  ,testAllRA 200 ("^(&foo[0])->bar_sizes[0]=4;(&foo[0])->bar_sizes[1]=5;^","") ("^(&foo[0].access())->bar=tockArrayView<int,2>((&foo[0].access())->bar_actual,tockDims(4,5));^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllRA 200 ("^^","") ("^^","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
 
   -- Mobile versions
   ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [A.Dimension 4] A.Int
@@ -592,25 +578,23 @@ testSpec = TestList
   ,testAllSame 350 ("","") $ A.Protocol emptyMeta undefined
 
   --IsChannelArray:
-  ,testAll 500 
-    ("$(" ++ show chanInt ++ ")*foo[]={@,@};const int foo_sizes[]={2};","")
-    ("$(" ++ show chanInt ++ ")*foo_actual[]={@,@};const $(" ++ show (A.Array [A.Dimension 2] $ chanInt) ++ ") foo=$("
-      ++  show (A.Array [A.Dimension 2] $ chanInt) ++ ")(foo_actual,tockDims(2));","")
+  ,testAllSame 500 
+    ("$(" ++ show chanInt ++ ")*foo[]={@,@};","")
     $ A.IsChannelArray emptyMeta (A.Array [A.Dimension 2] $ chanInt) 
     [A.Variable undefined undefined,A.Variable undefined undefined]
 
   --Is:
   
   -- Plain types require you to take an address to get the pointer:
-  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [A.Int,A.Time]
+  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [A.Int,A.Time]
   -- Arrays and records are already pointers, so no need to take the address:
-  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [chanInt,A.Record foo]
+  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [chanInt,A.Record foo]
   --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
   --C abbreviations will be of type Channel*, so they can just copy the channel address.
-  ,testAllSameForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (A.Variable undefined undefined)) [chanIntIn,chanIntOut]
+  ,testAllSameForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [chanIntIn,chanIntOut]
   
-  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (A.Variable undefined undefined)) [A.Int,A.Time]
-  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (A.Variable undefined undefined)) [A.Record foo]
+  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "TODO")) [A.Int,A.Time]
+  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "TODO")) [A.Record foo]
   -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
   
   --TODO test Is more (involving subscripts, arrays and slices)
@@ -641,28 +625,28 @@ testSpec = TestList
       
   -- Plain-to-array retyping:
   -- single (unknown) dimension:
-  ,testAllS 1100 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(0),&y);@","")
+  ,testAllSameS 1100 ("uint8_t* foo=(uint8_t*)&y;@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension:
-  ,testAllS 1101 ("uint8_t* foo=(uint8_t*)&y;@","") ("tockArrayView<uint8_t,1> foo=tockArrayView<uint8_t,1>(tockDims(4),&y);@","")
+  ,testAllSameS 1101 ("uint8_t* foo=(uint8_t*)&y;@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (unknown) dimension, VAL:
-  ,testAllS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(0),&y);@","")
+  ,testAllSameS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension, VAL:
-  ,testAllS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","") ("tockArrayView<const uint8_t,1> foo=tockArrayView<const uint8_t,1>(tockDims(4),&y);@","")
+  ,testAllSameS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- TODO test multiple dimensions plain-to-array (mainly for C++)
     
   -- Array-to-plain retyping:
-  ,testAllS 1200 ("int32_t*const foo=(int32_t*const)y;@","") ("int32_t*const foo=(int32_t*const)(y.data());@","")
+  ,testAllSameS 1200 ("int32_t*const foo=(int32_t*const)y;@","")
     (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
-  ,testAllS 1201 ("const int32_t foo=*(const int32_t*)y;@","") ("const int32_t foo=*(const int32_t*)(y.data());@","")
+  ,testAllSameS 1201 ("const int32_t foo=*(const int32_t*)y;@","")
     (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
   
@@ -700,31 +684,29 @@ testRetypeSizes :: Test
 testRetypeSizes = TestList
  [
   -- Channel retyping doesn't need size check:
-  test 0 "" "" (A.Chan undefined undefined undefined) (A.Chan undefined undefined undefined)
+  test 0 "" (A.Chan undefined undefined undefined) (A.Chan undefined undefined undefined)
   
   -- Plain types just need to check the return of occam_check_retype:
-  ,test 1 "if(occam_check_retype(#S,#D,#M)!=1){@}" "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  ,test 1 "if(occam_check_retype(#S,#D,#M)!=1){@}"
     A.Int A.Int32
-  ,test 2 "if(occam_check_retype(#S,#D,#M)!=1){@}" "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  ,test 2 "if(occam_check_retype(#S,#D,#M)!=1){@}"
     (A.Record foo) (A.Record bar)
     
   -- Array types where both sizes are fixed should act like the plain types:
-  ,test 3 "if(occam_check_retype(#S,#D,#M)!=1){@}^({2})"
-          "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  ,test 3 "if(occam_check_retype(#S,#D,#M)!=1){@}"
           (A.Array [A.Dimension 2] A.Int) (A.Array [A.Dimension 8] A.Byte)
-  ,test 4 "if(occam_check_retype(#S,#D,#M)!=1){@}^({2,3,4})"
-          "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  ,test 4 "if(occam_check_retype(#S,#D,#M)!=1){@}"
           (A.Array [A.Dimension 2,A.Dimension 3,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
     
   -- Array types with a free dimension in the destination type must calculate it and used it:
-  ,test 100 "^({occam_check_retype(#S,#D,#M)})" ""
+  ,test 100 "^({occam_check_retype(#S,#D,#M)})"
     (A.Array [A.UnknownDimension] A.Int) (A.Array [A.Dimension 8] A.Byte)
-  ,test 101 "^({2,occam_check_retype(#S,#D,#M),4})" ""
+  ,test 101 "^({2,occam_check_retype(#S,#D,#M),4})"
     (A.Array [A.Dimension 2,A.UnknownDimension,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
  ]
  where
-   test :: Int -> String -> String -> A.Type -> A.Type -> Test
-   test n eC eCPP destT srcT = testBoth ("testRetypeSizes " ++ show n) (repAll eC) (repAll eCPP) 
+   test :: Int -> String -> A.Type -> A.Type -> Test
+   test n exp destT srcT = testBothSame ("testRetypeSizes " ++ show n) (repAll exp) 
      (over (tcall5 genRetypeSizes emptyMeta destT undefined srcT undefined))
      where
        repAll = (rep "#S" ("$(" ++ show srcT ++ " Right)")) .
@@ -735,9 +717,8 @@ testRetypeSizes = TestList
  
    showBytesInParams _ t (Right _) = tell ["$(" ++ show t ++ " Right)"]
    showBytesInParams _ t v = tell ["$(" ++ show t ++ " " ++ show v ++ ")"]
-   showArrSize _ sz _ = tell ["^("] >> sz >> tell [")"]
    over :: Override
-   over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at, genArraySizeDecl = showArrSize}
+   over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
 defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec A.RecordName (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
