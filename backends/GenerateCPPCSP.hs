@@ -25,46 +25,6 @@ In order to compile the generated code, you will need:
  
 * The C++CSP2 library (>= 2.0.2), available from <http://www.cppcsp.net/>, and any appropriate dependencies (e.g. Boost).
 
-For the array handling I am currently using a combination of std::vector and an array view class (tockArrayView) I built myself.
-
-I considered the following options:
-
-1. in-built C arrays
-
-2. boost::array
-
-3. std::vector
-
-4. boost::multi_array
-
-5. Blitz++
-
-6. Roll my own.
-
-Option 1 is what Adam used in GenerateC, but it involves carrying around the array sizes, which is a real pain.
-Options 2 and 3 are fairly similar (boost::array is possible because arrays are of constant size in occam) but neither supports multiple dimensions
-nor array slicing, so that would have been awkward.
-Option 4 does support multiple dimensions and array slicing - but the latter would involve keeping tabs of the dimensions of the *original* array
-(that was sliced *from*), even through multiple slices and indexes, which would have been a nightmare.
-Option 5 makes slicing nice and simple, and multiple dimensions are easy too.  However, things like retyping are still a big problem, so in the end 
-it became untenable.
-
-Therefore the only remaining option was 6.  I use std::vector (although this may become boost::array) to actually store each array, and then
-use tockArrayView to work with the array.  tockArrayView represents a view of an array, and never allocates or deallocates any memory.  Thus they
-can be passed around freely, which makes them easy to work with.
-
-For the ANY type I am currently using boost::any.  However, this is not a correct solution because the type that occam pulls out is not
-necessarily the type that was put in.  Therefore ANY probably needs some serialisation of types (akin to what used to happen in C++CSP.NET)
-to work properly.
-
-For the variant protocols I am using boost::variant.  But when there are more than 9 cases, I have to chain several variants together.
-This is perfectly legal C++, but I think it is causing excessive memory usage in g++ (or possibly the tuples that work similarly...)
-
-For the sequential protocols (including those after a tag in variant protocols) I am using boost::tuple for convenience (along with the handy
-boost::tie function to extract the values).  However I suspect this (or the variants -- see above) is causing a lot of memory usage in g++.  Plus,
-when more than 9 items are present in the protocol (including variant-tag) I have to chain the tuples together, which means chaining the tie function
-as well.  May be worth changing in future.
-
 Channels of direction 'A.DirUnknown' are passed around as pointers to a One2OneChannel\<\> object.  To read I use the reader() function and to write I use the writer() function.
 For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chanin\<\> and Chanout\<\> objects as you would expect.
 -}
@@ -793,13 +753,13 @@ cppgenRetypeSizes m destT destN srcT srcV
                         tell ["}"] in
           case destT of
             -- TODO we should be able to remove this check now that arrays have changed
+            -- TODO or at least it needs fixing in some way...
           
             -- An array -- figure out the genMissing dimension, if there is one.
             A.Array destDS _ ->
                 case (indexOfFreeDimensions destDS) of
                    -- No free dimensions; check the complete array matches in size.
                    [] -> checkSize
-                   -- Free dimensions; tockArrayView will check at run-time instead
                    _ -> return ()
             -- Not array; just check the size is 1.
             _ -> checkSize
