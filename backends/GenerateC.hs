@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenLiteralRepr, cgenOps, cgenSlice, cgenType, cintroduceSpec, cPreReq, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
+module GenerateC (cgenLiteralRepr, cgenOps, cgenType, cintroduceSpec, cPreReq, fget, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, GenOps(..), indexOfFreeDimensions, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -118,7 +118,6 @@ cgenOps = GenOps {
     genSimpleDyadic = cgenSimpleDyadic,
     genSimpleMonadic = cgenSimpleMonadic,
     genSizeSuffix = cgenSizeSuffix,
-    genSlice = cgenSlice,
     genSpec = cgenSpec,
     genSpecMode = cgenSpecMode,
     genStop = cgenStop,
@@ -696,31 +695,35 @@ cgenVariable' checkValid v
     inner ind (A.DirectedVariable _ dir v) mt
       = do (cg,n) <- (inner ind v mt)           
            return (call genDirectedVariable (addPrefix cg n) dir, 0)
-    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ _) _) mt
+    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ _) v) mt
       = do (es, v, t') <- collectSubs sv
            t <- if checkValid
                   then typeOfVariable sv
                   else return t'
+           A.Array ds _ <- typeOfVariable v
            (cg, n) <- inner ind v (Just t)
-           return (cg >> call genArraySubscript checkValid v es, n)
+           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg >> call genArraySubscript checkValid v es, n)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               t <- typeOfVariable sv
               let outerInd :: Int
                   outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
-    inner ind (A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
-        = inner ind (A.SubscriptedVariable m (A.Subscript m' start) v) mt
-    inner ind (A.SubscriptedVariable m (A.SubscriptFrom m' start) v) mt
-        = inner ind (A.SubscriptedVariable m (A.Subscript m' start) v) mt
-    inner ind (A.SubscriptedVariable m (A.SubscriptFor m' _) v) mt
-        = inner ind (A.SubscriptedVariable m (A.Subscript m' (makeConstant m' 0)) v) mt
-   
-    indirectedType :: A.Type -> Bool
-    indirectedType (A.Record {}) = True
-    indirectedType (A.Chan A.DirUnknown _ _) = True
-    indirectedType _ = False
-
+    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
+        = return (
+           do tell ["(&"]
+              join $ liftM fst $ inner ind v mt
+              call genArraySubscript checkValid v [start]
+              tell [")"], 0)
+    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFrom m' start) v) mt
+        = return (
+           do tell ["(&"]
+              join $ liftM fst $ inner ind v mt
+              call genArraySubscript checkValid v [start]
+              tell [")"], 0)
+    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFor m' _) v) mt
+        = inner ind v mt
+    
     addPrefix :: CGen () -> Int -> CGen ()
     addPrefix cg 0 = cg
     addPrefix cg n = tell ["(", getPrefix n] >> cg >> tell [")"]
@@ -739,6 +742,11 @@ cgenVariable' checkValid v
     collectSubs v = do t <- typeOfVariable v
                        return ([], v, t)
 
+
+indirectedType :: A.Type -> Bool
+indirectedType (A.Record {}) = True
+indirectedType (A.Chan A.DirUnknown _ _) = True
+indirectedType _ = False
 
 cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
 cgenDirectedVariable var _ = var
@@ -902,7 +910,7 @@ cgenInputItem c (A.InCounted m cv av)
           tell ["ChanIn(wptr,"]
           call genVariable c
           tell [","]
-          fst $ abbrevVariable A.Abbrev t av
+          call genVariableAM av A.Abbrev
           tell [","]
           subT <- trivialSubscriptType m t
           call genVariable cv
@@ -911,7 +919,7 @@ cgenInputItem c (A.InCounted m cv av)
           tell [");"]
 cgenInputItem c (A.InVariable m v)
     =  do t <- typeOfVariable v
-          let rhs = fst $ abbrevVariable A.Abbrev t v
+          let rhs = call genVariableAM v A.Abbrev
           case t of
             A.Int ->
               do tell ["ChanInInt(wptr,"]
@@ -937,7 +945,7 @@ cgenOutputItem c (A.OutCounted m ce ae)
               do tell ["ChanOut(wptr,"]
                  call genVariable c
                  tell [","]
-                 fst $ abbrevVariable A.Abbrev t v
+                 call genVariableAM v A.Abbrev
                  tell [","]
                  subT <- trivialSubscriptType m t
                  call genExpression ce
@@ -957,7 +965,7 @@ cgenOutputItem c (A.OutExpression m e)
               do tell ["ChanOut(wptr,"]
                  call genVariable c
                  tell [","]
-                 fst $ abbrevVariable A.Abbrev t v
+                 call genVariableAM v A.Abbrev
                  tell [","]
                  call genBytesIn m t (Right v)
                  tell [");"]
@@ -1010,30 +1018,6 @@ cgenReplicatorLoop (A.For m index base count)
 --}}}
 
 --{{{  abbreviations
--- FIXME: This code is horrible, and I can't easily convince myself that it's correct.
-
-cgenSlice :: A.Variable -> A.Expression -> A.Expression -> [A.Dimension] -> (CGen (), A.Name -> CGen ())
-cgenSlice v@(A.SubscriptedVariable _ _ (A.Variable _ on)) start count ds
-       -- We need to disable the index check here because we might be taking
-       -- element 0 of a 0-length array -- which is valid.
-    = (tell ["&"] >> call genVariableUnchecked v,
-       call genArraySizeDecl False
-                    (do genLeftB
-                        tell ["occam_check_slice("]
-                        call genExpression start
-                        tell [","]
-                        call genExpression count
-                        tell [","]
-                        genName on
-                        tell ["_sizes[0],"]
-                        genMeta (findMeta count)
-                        tell [")"]
-                        sequence_ [do tell [","]
-                                      genName on
-                                      tell ["_sizes[", show i, "]"]
-                                   | i <- [1..(length ds - 1)]]
-                        genRightB
-                    ))
 
 -- TODO remove this function altogether (and from the dictionary) in future
 cgenArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen ()
@@ -1056,38 +1040,13 @@ noSize n = return ()
 
 cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
 cgenVariableAM v am
-    =  do when (am == A.Abbrev) $ tell ["&"]
+    =  do when (am == A.Abbrev) $
+            do t <- typeOfVariable v
+               case (indirectedType t, t) of
+                 (True, _) -> return ()
+                 (False, A.Array {}) -> return ()
+                 _ -> tell ["&"]
           call genVariable v
-
--- | Generate the right-hand side of an abbreviation of a variable.
--- TODO the array _sizes code here is going to be redundant
-abbrevVariable :: A.AbbrevMode -> A.Type -> A.Variable -> (CGen (), A.Name -> CGen ())
-abbrevVariable am (A.Array _ _) v@(A.SubscriptedVariable _ (A.Subscript _ _) _)
-    = (tell ["&"] >> call genVariable v, genAASize v 0)
-  where
-        genAASize :: A.Variable -> Integer -> A.Name -> CGen ()
-        genAASize (A.SubscriptedVariable _ (A.Subscript _ _) v) arg
-            = genAASize v (arg + 1)
-        genAASize (A.Variable _ on) arg
-            = call genArraySizeDecl True
-                       (tell ["&"] >> genName on >> tell ["_sizes[", show arg, "]"])
-        genAASize (A.DirectedVariable _ _ v)  arg
-            = const $ call genMissing "Cannot abbreviate a directed variable as an array"
-                
-abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable _ (A.SubscriptFromFor _ start count) _)
-    = call genSlice v start count ds
-abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFrom _ start) v')
-    = call genSlice v start (A.Dyadic m A.Minus (A.SizeExpr m (A.ExprVariable m v')) start) ds
-abbrevVariable am (A.Array ds _) v@(A.SubscriptedVariable m (A.SubscriptFor _ count) _)
-    = call genSlice v (makeConstant m 0) count ds
-abbrevVariable am (A.Array _ _) v
-    = (call genVariable v, call genArraySizeDecl True (call genVariable v >> tell ["_sizes"]))
-abbrevVariable am (A.Chan {}) v
-    = (call genVariable v, noSize)
-abbrevVariable am (A.Record _) v
-    = (call genVariable v, noSize)
-abbrevVariable am t v
-    = (call genVariableAM v am, noSize)
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 cgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
@@ -1137,7 +1096,7 @@ cgenRetypeSizes m destT destN srcT srcV
 abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
 abbrevExpression am t@(A.Array _ _) e
     = case e of
-        A.ExprVariable _ v -> abbrevVariable am t v
+        A.ExprVariable _ v -> (call genVariableAM v am, noSize)
         A.Literal _ t@(A.Array _ _) r -> (call genExpression e, call declareArraySizes t)
         _ -> bad
   where
@@ -1276,12 +1235,11 @@ cintroduceSpec (A.Specification m n (A.Declaration _ t init))
            Just p -> p
            Nothing -> return ()
 cintroduceSpec (A.Specification _ n (A.Is _ am t v))
-    =  do let (rhs, rhsSizes) = abbrevVariable am t v
+    =  do let rhs = call genVariableAM v am
           call genDecl am t n
           tell ["="]
           rhs
           tell [";"]
-          rhsSizes n
 cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
     =  do let (rhs, rhsSizes) = abbrevExpression am t e
           case (am, t, e) of
@@ -1345,7 +1303,7 @@ cintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
           tell ["}\n"]
 cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
-          let (rhs, _) = abbrevVariable A.Abbrev origT v
+          let rhs = call genVariableAM v A.Abbrev
           call genDecl am t n
           tell ["="]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
