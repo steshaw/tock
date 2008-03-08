@@ -60,7 +60,6 @@ cPreReq = cCppCommonPreReq ++ [Prop.parsIdentified, Prop.waitForRemoved]
 -- | Operations for the C backend.
 cgenOps :: GenOps
 cgenOps = GenOps {
-    declareArraySizes = cdeclareArraySizes,
     declareFree = cdeclareFree,
     declareInit = cdeclareInit,
     genActual = cgenActual,
@@ -68,8 +67,6 @@ cgenOps = GenOps {
     genAlt = cgenAlt,
     genAllocMobile = cgenAllocMobile,
     genArrayLiteralElems = cgenArrayLiteralElems,
-    genArraySizeDecl = cgenArraySizeDecl,
-    genArraySizesLiteral = cgenArraySizesLiteral,
     genArrayStoreName = genName,
     genArraySubscript = cgenArraySubscript,
     genAssert = cgenAssert,
@@ -520,11 +517,6 @@ cgenLiteralRepr (A.RecordLiteral _ es) _
 cgenUnfoldedExpression :: A.Expression -> CGen ()
 cgenUnfoldedExpression (A.Literal _ t lr)
     =  do call genLiteralRepr lr t
-          case t of
-            A.Array ds _ ->
-              do genComma
-                 call genArraySizesLiteral undefined t --TODO work this out for C++
-            _ -> return ()
 cgenUnfoldedExpression (A.ExprVariable m var) = call genUnfoldedVariable m var
 cgenUnfoldedExpression e = call genExpression e
 
@@ -537,8 +529,6 @@ cgenUnfoldedVariable m var
               do genLeftB
                  unfoldArray ds var
                  genRightB
-                 genComma
-                 call genArraySizesLiteral undefined t --TODO work this out for C++
             A.Record _ ->
               do genLeftB
                  fs <- recordFields m t
@@ -1019,25 +1009,6 @@ cgenReplicatorLoop (A.For m index base count)
 
 --{{{  abbreviations
 
--- TODO remove this function altogether (and from the dictionary) in future
-cgenArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen ()
-cgenArraySizeDecl isPtr size n = return ()
-{-
-    = if isPtr
-        then do tell ["const int*"]
-                genName n
-                tell ["_sizes="]
-                size
-                tell [";"]
-        else do tell ["const int "]
-                genName n
-                tell ["_sizes[]="]
-                size
-                tell [";"]
--}
-noSize :: A.Name -> CGen ()
-noSize n = return ()
-
 cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
 cgenVariableAM v am
     =  do when (am == A.Abbrev) $
@@ -1072,18 +1043,6 @@ cgenRetypeSizes m destT destN srcT srcV
                         call genStop m "array size mismatch in RETYPES"
                         tell ["}"]
                    _ -> return ()
-
-                 let dims = [case d of
-                               A.UnknownDimension ->
-                                 -- Unknown dimension -- insert it.
-                                 case free of
-                                   Just _ -> size
-                                   Nothing ->
-                                     dieP m "genRetypeSizes expecting free dimension"
-                               A.Dimension n -> tell [show n]
-                             | d <- destDS]
-                 call genArraySizeDecl False (genLeftB >> seqComma dims >> genRightB) destN
-
             -- Not array; just check the size is 1.
             _ ->
               do tell ["if("]
@@ -1093,16 +1052,13 @@ cgenRetypeSizes m destT destN srcT srcV
                  tell ["}"]
 
 -- | Generate the right-hand side of an abbreviation of an expression.
-abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> (CGen (), A.Name -> CGen ())
+abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
 abbrevExpression am t@(A.Array _ _) e
     = case e of
-        A.ExprVariable _ v -> (call genVariableAM v am, noSize)
-        A.Literal _ t@(A.Array _ _) r -> (call genExpression e, call declareArraySizes t)
-        _ -> bad
-  where
-    bad = (call genMissing "array expression abbreviation", noSize)
-abbrevExpression am _ e
-    = (call genExpression e, noSize)
+        A.ExprVariable _ v -> call genVariableAM v am
+        A.Literal _ t@(A.Array _ _) r -> call genExpression e
+        _ -> call genMissing "array expression abbreviation"
+abbrevExpression am _ e = call genExpression e
 --}}}
 
 --{{{  specifications
@@ -1129,7 +1085,6 @@ cgenDeclaration at@(A.Array ds t) n False
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
-          call declareArraySizes at n
 cgenDeclaration (A.Array ds t) n True
     =  do call genType t
           tell [" "]
@@ -1154,23 +1109,6 @@ cgenFlatArraySize ds
                                  [case d of A.Dimension n -> tell [show n] | d <- ds]
           tell ["]"]
 
--- | Declare an _sizes array for a variable.
-cdeclareArraySizes :: A.Type -> A.Name -> CGen ()
-cdeclareArraySizes t name
-    = call genArraySizeDecl False (call genArraySizesLiteral name t) name
-
--- | Generate a C literal to initialise an _sizes array with, where all the
--- dimensions are fixed.
-cgenArraySizesLiteral :: A.Name -> A.Type -> CGen ()
-cgenArraySizesLiteral n (A.Array ds _)
-    = genLeftB >> seqComma dims >> genRightB
-  where
-    dims :: [CGen ()]
-    dims = [case d of
-              A.Dimension n -> tell [show n]
-              _ -> dieP (findMeta n) "unknown dimension in array type"
-            | d <- ds]
-
 -- | Initialise an item being declared.
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
 cdeclareInit _ (A.Chan A.DirUnknown _ _) var _
@@ -1194,14 +1132,6 @@ cdeclareInit m rt@(A.Record _) var _
                            | (n, t) <- fs]
   where
     initField :: A.Type -> A.Variable -> CGen ()
-    -- An array as a record field; we must initialise the sizes.
-    initField t@(A.Array ds _) v
-        =  do sequence_ [do call genVariableUnchecked v
-                            call genSizeSuffix (show i) 
-                            tell ["=", show n, ";"]
-                         | (i, A.Dimension n) <- zip [0..(length ds - 1)] ds]
-              fdeclareInit <- fget declareInit
-              doMaybe $ fdeclareInit m t v Nothing
     initField t v = do fdeclareInit <- fget declareInit
                        doMaybe $ fdeclareInit m t v Nothing
 cdeclareInit m _ v (Just e)
@@ -1241,7 +1171,7 @@ cintroduceSpec (A.Specification _ n (A.Is _ am t v))
           rhs
           tell [";"]
 cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
-    =  do let (rhs, rhsSizes) = abbrevExpression am t e
+    =  do let rhs = abbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
@@ -1253,7 +1183,6 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell ["[] = "]
                  rhs
                  tell [";\n"]
-                 rhsSizes n
             (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
               -- Record literals are even trickier, because there's no way of
               -- directly writing a struct literal in C that you can use -> on.
@@ -1265,13 +1194,11 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [";\n"]
                  call genDecl am t n
                  tell [" = &", tmp, ";\n"]
-                 rhsSizes n
             _ ->
               do call genDecl am t n
                  tell [" = "]
                  rhs
                  tell [";\n"]
-                 rhsSizes n
 cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
     =  do call genType c        
           tell ["*"]
@@ -1279,7 +1206,6 @@ cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
           tell ["[]={"]
           seqComma (map (call genVariable) cs)
           tell ["};"]
-          call declareArraySizes (A.Array [A.Dimension $ length cs] c) n
 cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec (A.Specification _ _ (A.RecordType _ _ _)) = return ()
 cintroduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()

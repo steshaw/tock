@@ -72,8 +72,6 @@ type SubscripterFunction = A.Variable -> A.Variable
 -- These are in a structure so that we can reuse operations in other
 -- backends without breaking the mutual recursion.
 data GenOps = GenOps {
-    -- | Declares the C array of sizes for an occam array.
-    declareArraySizes :: A.Type -> A.Name -> CGen (),
     -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
     declareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
@@ -86,10 +84,6 @@ data GenOps = GenOps {
     genAlt :: Bool -> A.Structured A.Alternative -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
     genArrayLiteralElems :: [A.ArrayElem] -> CGen (),
-    -- | Declares a constant array for the sizes (dimensions) of a C array.
-    genArraySizeDecl :: Bool -> CGen () -> A.Name -> CGen (),
-    -- | Writes out the dimensions of an array, that can be used to initialise the sizes of an array.  Fails if there is an 'A.UnknownDimension' present.
-    genArraySizesLiteral :: A.Name -> A.Type -> CGen (),
     -- | Writes out the actual data storage array name.
     genArrayStoreName :: A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking if the Bool is True), using the given expression list as subscripts
