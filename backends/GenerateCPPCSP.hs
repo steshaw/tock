@@ -31,11 +31,11 @@ For channels of direction 'A.DirInput' or 'A.DirOutput' I actually pass the Chan
 module GenerateCPPCSP (cppcspPrereq, cppgenOps, generateCPPCSP, genCPPCSPPasses) where
 
 import Control.Monad.State
-import Control.Monad.Writer
 import Data.Char
 import Data.Generics
 import Data.List
 import Data.Maybe
+import System.IO
 
 import qualified AST as A
 import CompState
@@ -116,7 +116,7 @@ chansToAny x = do st <- get
 
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
-generateCPPCSP :: A.AST -> PassM String
+generateCPPCSP :: Handle -> A.AST -> PassM ()
 generateCPPCSP = generate cppgenOps
 
 cppcspPrereq :: [Property]
@@ -133,7 +133,7 @@ cppgenTopLevel s
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           (chanType,writer) <- 
-                      do st <- get
+                      do st <- getCompState
                          case csFrontend st of
                            FrontendOccam -> return ("tockSendableArrayOfBytes","StreamWriterByteArray")
                            _ -> return ("uint8_t","StreamWriter")
@@ -246,14 +246,14 @@ Otherwise, it must not have.
 -}
 genCPPCSPTime :: A.Expression -> CGen String
 genCPPCSPTime e
-    = do  time <- makeNonce "time_exp"
+    = do  time <- csmLift $ makeNonce "time_exp"
           tell ["unsigned ",time," = (unsigned)"]
           call genExpression e
           tell [" ; "]
-          curTime <- makeNonce "time_exp"
-          curTimeLow <- makeNonce "time_exp"
-          curTimeHigh <- makeNonce "time_exp"
-          retTime <- makeNonce "time_exp"
+          curTime <- csmLift $ makeNonce "time_exp"
+          curTimeLow <- csmLift $ makeNonce "time_exp"
+          curTimeHigh <- csmLift $ makeNonce "time_exp"
+          retTime <- csmLift $ makeNonce "time_exp"
           tell ["double ",curTime," = csp::GetSeconds(csp::CurrentTime());"]
           tell ["unsigned ",curTimeLow," = (unsigned)remainder(1000000.0 * ",curTime,",4294967296.0);"]
           tell ["unsigned ",curTimeHigh," = (unsigned)((1000000.0 * ",curTime,") / 4294967296.0);"]
@@ -373,7 +373,7 @@ cppgenOutputCase c tag ois
 --We use forking instead of Run\/InParallelOneThread, because it is easier to use forking with replication.
 cppgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cppgenPar _ s
-  = do forking <- makeNonce "forking"
+  = do forking <- csmLift $ makeNonce "forking"
        tell ["{ csp::ScopedForking ",forking," ; "]
        call genStructured s (genPar' forking)
        tell [" }"]
@@ -394,17 +394,17 @@ cppgenPar _ s
 -- | Changed to use C++CSP's Alternative class:
 cppgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
 cppgenAlt _ s 
-  = do guards <- makeNonce "alt_guards"
+  = do guards <- csmLift $ makeNonce "alt_guards"
        tell ["std::list< csp::Guard* > ", guards, " ; "]
        initAltGuards guards s
-       alt <- makeNonce "alt"
+       alt <- csmLift $ makeNonce "alt"
        tell ["csp::Alternative ",alt, " ( ", guards, " ); "]
 
-       id <- makeNonce "alt_id"
+       id <- csmLift $ makeNonce "alt_id"
        tell ["int ", id, " = 0;\n"]
-       fired <- makeNonce "alt_fired"
+       fired <- csmLift $ makeNonce "alt_fired"
        tell ["int ", fired, " = ", alt, " .priSelect();"]
-       label <- makeNonce "alt_end"
+       label <- csmLift $ makeNonce "alt_end"
        tell ["{\n"]
        genAltProcesses id fired label s
        tell ["}\n"]
@@ -714,7 +714,7 @@ cppgenUnfoldedVariable m var
 
 cppgenIf :: Meta -> A.Structured A.Choice -> CGen ()
 cppgenIf m s
-    =  do ifExc <- makeNonce "if_exc"
+    =  do ifExc <- csmLift $ makeNonce "if_exc"
           tell ["class ",ifExc, "{};try{"]
           genIfBody ifExc s
           call genStop m "no choice matched in IF process"

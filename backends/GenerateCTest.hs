@@ -34,7 +34,7 @@ module GenerateCTest (tests) where
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (tell)
 import Data.Generics
 import Data.List (isInfixOf, intersperse)
 import Data.Maybe (fromMaybe)
@@ -109,7 +109,7 @@ evalCGen :: CGen () -> GenOps -> CompState -> IO (Either Errors.ErrorReport [Str
 evalCGen act ops state = evalCGen' (runReaderT act ops) state
 
 evalCGen' :: CGen' () -> CompState -> IO (Either Errors.ErrorReport [String])
-evalCGen' act state = runWriterT (evalStateT (runErrorT $ execWriterT act) state) >>* fst
+evalCGen' act state = runWriterT (evalStateT (runErrorT $ execStateT act (Left []) >>* (\(Left x) -> x)) state) >>* fst
 
 -- | Checks that running the test for the C and C++ backends produces the right output for each.
 testBothS :: 

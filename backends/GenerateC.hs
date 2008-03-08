@@ -24,9 +24,8 @@ import Data.Generics
 import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
-import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Writer
+import System.IO
 import Text.Printf
 import Text.Regex
 
@@ -139,10 +138,7 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generate :: GenOps -> A.AST -> PassM String
-generate ops ast = execWriterT (runReaderT (call genTopLevel ast) ops) >>* concat
-
-generateC :: A.AST -> PassM String
+generateC :: Handle -> A.AST -> PassM ()
 generateC = generate cgenOps
 
 cgenTLPChannel :: TLPChannel -> CGen ()
@@ -153,7 +149,7 @@ cgenTLPChannel TLPError = tell ["err"]
 cgenTopLevel :: A.AST -> CGen ()
 cgenTopLevel s
     =  do tell ["#include <tock_support_cif.h>\n"]
-          cs <- get
+          cs <- getCompState
           (tlpName, chans) <- tlpInterface
 
           sequence_ $ map (call genForwardDeclaration)
@@ -219,7 +215,7 @@ genRightB = tell ["}"]
 cgenOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 cgenOverArray m var func
     =  do A.Array ds _ <- typeOfVariable var
-          specs <- sequence [makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
+          specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
           let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m $ A.ExprVariable m i | i <- indices])
@@ -997,7 +993,7 @@ cgenReplicatorLoop (A.For m index base count)
 
     general :: CGen ()
     general
-        =  do counter <- makeNonce "replicator_count"
+        =  do counter <- csmLift $ makeNonce "replicator_count"
               tell ["int ", counter, "="]
               call genExpression count
               tell [","]
@@ -1192,7 +1188,7 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
             (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
               -- Record literals are even trickier, because there's no way of
               -- directly writing a struct literal in C that you can use -> on.
-              do tmp <- makeNonce "record_literal"
+              do tmp <- csmLift $ makeNonce "record_literal"
                  tell ["const "]
                  call genType t
                  tell [" ", tmp, " = "]
@@ -1469,7 +1465,7 @@ cgenSeq s = call genStructured s doP
 --{{{  if
 cgenIf :: Meta -> A.Structured A.Choice -> CGen ()
 cgenIf m s
-    =  do label <- makeNonce "if_end"
+    =  do label <- csmLift $ makeNonce "if_end"
           tell ["/*",label,"*/"]
           genIfBody label s
           call genStop m "no choice matched in IF process"
@@ -1533,7 +1529,37 @@ cgenWhile e p
 -- the same as PAR.
 cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar pm s
-    =  do (count, _, _) <- constantFold $ countStructured s
+    =  do (size, _, _) <- constantFold $ addOne (sizeOfStructured s)
+          pids <- makeNonce "pids"
+          pris <- makeNonce "priorities"
+          index <- makeNonce "i"
+          when (pm == A.PriPar) $
+            do tell ["int ", pris, "["]
+               call genExpression size
+               tell ["];\n"]
+          tell ["Process *", pids, "["]
+          call genExpression size
+          tell ["];\n"]
+          tell ["int ", index, " = 0;\n"]
+          call genStructured s (createP pids pris index)
+          tell [pids, "[", index, "] = NULL;\n"]
+          tell ["if(",pids,"[0] != NULL){"] -- CIF seems to deadlock when you give ProcParList a list 
+                                            -- beginning with NULL (i.e. with no processes)
+          case pm of
+            A.PriPar -> tell ["ProcPriParList (", pids, ", ", pris, ");\n"]
+            _ -> tell ["ProcParList (", pids, ");\n"]
+          tell ["}"]
+          tell [index, " = 0;\n"]
+          call genStructured s (freeP pids index)
+  where
+    createP pids pris index _ p
+        = do when (pm == A.PriPar) $
+               tell [pris, "[", index, "] = ", index, ";\n"]
+             tell [pids, "[", index, "++] = "]
+             genProcAlloc p
+             tell [";\n"]
+    freeP pids index _ _
+        = do tell ["ProcAllocClean (", pids, "[", index, "++]);\n"]
 
           bar <- makeNonce "par_barrier"
           tell ["LightProcBarrier ", bar, ";\n"]
@@ -1562,15 +1588,15 @@ cgenAlt isPri s
           tell ["}\n"]
           -- Like occ21, this is always a PRI ALT, so we can use it for both.
           tell ["AltWait (wptr);\n"]
-          id <- makeNonce "alt_id"
+          id <- csmLift $ makeNonce "alt_id"
           tell ["int ", id, " = 0;\n"]
           tell ["{\n"]
           genAltDisable id s
           tell ["}\n"]
-          fired <- makeNonce "alt_fired"
+          fired <- csmLift $ makeNonce "alt_fired"
           tell ["int ", fired, " = AltEnd (wptr);\n"]
           tell [id, " = 0;\n"]
-          label <- makeNonce "alt_end"
+          label <- csmLift $ makeNonce "alt_end"
           tell ["{\n"]
           genAltProcesses id fired label s
           tell ["}\n"]

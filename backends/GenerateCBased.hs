@@ -21,8 +21,10 @@ module GenerateCBased where
 
 import Control.Monad.Error
 import Control.Monad.Reader
+import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics
+import System.IO
 
 import qualified AST as A
 import CompState
@@ -54,14 +56,26 @@ cCppCommonPreReq =
 
 
 --{{{  monad definition
-type CGen' = WriterT [String] PassM
+type CGen' = StateT (Either [String] Handle) PassM
 type CGen = ReaderT GenOps CGen'
 
 instance Die CGen where
   dieReport = throwError
   
-instance CSMR m => CSMR (ReaderT GenOps m) where
+instance CSMR CGen' where
   getCompState = lift getCompState
+
+instance CSMR CGen where
+  getCompState = lift getCompState
+
+tell :: [String] -> CGen ()
+tell x = do st <- get
+            case st of
+                Left prev -> put $ Left (prev ++ x)
+                Right h -> liftIO $ mapM_ (hPutStr h) x
+
+csmLift :: PassM a -> CGen a
+csmLift = lift . lift
 --}}}
 
 -- | A function that applies a subscript to a variable.
@@ -218,3 +232,5 @@ instance CGenCall (a -> b -> c -> d -> (CGen x, y -> CGen z)) where
 fget :: (GenOps -> a) -> CGen a
 fget = asks
 
+generate :: GenOps -> Handle -> A.AST -> PassM ()
+generate ops h ast = evalStateT (runReaderT (call genTopLevel ast) ops) (Right h)

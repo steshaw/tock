@@ -272,9 +272,8 @@ compile mode fn outHandle
         debugAST ast1
         debug "}}}"
 
-        output <-
-          case mode of
-            ModeParse -> return $ pshow ast1
+        case mode of
+            ModeParse -> liftIO $ hPutStr outHandle $ pshow ast1
             ModeFlowGraph ->
               do procs <- findAllProcesses
                  let fs :: Data t => t -> PassM String
@@ -290,7 +289,7 @@ compile mode fn outHandle
                  -- graphs is of course identical to graphsTyped, as you can see here:
                  let (graphsTyped :: [Maybe (FlowGraph' Identity String A.Process)]) = map (transformMaybe fst) graphs
                  -- TODO: output each process to a separate file, rather than just taking the first:
-                 return $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
+                 liftIO $ hPutStr outHandle $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
             ModeCompile ->
               do progress "Passes:"
 
@@ -301,15 +300,11 @@ compile mode fn outHandle
                  progress $ "- Backend: " ++ (show $ csBackend optsPS)
                  let generator
                        = case csBackend optsPS of
-                           BackendC -> generateC
-                           BackendCPPCSP -> generateCPPCSP
-                           BackendDumpAST -> return . pshow
-                 code <- generator ast2
+                           BackendC -> generateC outHandle
+                           BackendCPPCSP -> generateCPPCSP outHandle
+                           BackendDumpAST -> liftIO . hPutStr outHandle . pshow
+                 generator ast2
                  debug "}}}"
-
-                 return code
-
-        liftIO $ hPutStr outHandle output
 
         progress "Done"
 
