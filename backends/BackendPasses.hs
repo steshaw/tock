@@ -36,9 +36,10 @@ import Utils
 
 squashArrays :: [Pass]
 squashArrays = makePassesDep
-  [ ("Declare array-size arrays", declareSizesArray, prereq, [])
-  , ("Add array-size arrays to PROC headers", addSizesFormalParameters, prereq, [])
-  , ("Add array-size arrays to PROC calls", addSizesActualParameters, prereq, [])
+  [ ("Declare array-size arrays", declareSizesArray, prereq ++ [Prop.slicesSimplified], [Prop.arraySizesDeclared])
+  , ("Add array-size arrays to PROC headers", addSizesFormalParameters, prereq ++ [Prop.arraySizesDeclared], [])
+  , ("Add array-size arrays to PROC calls", addSizesActualParameters, prereq ++ [Prop.arraySizesDeclared], [])
+  , ("Simplify array slices", simplifySlices, prereq, [Prop.slicesSimplified])
   ]
   where
     prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
@@ -116,8 +117,6 @@ declareSizesArray = doGeneric `ext1M` doStructured
     findInnerVar wv@(A.SubscriptedVariable m sub v) = case sub of
       A.SubscriptField {} -> (Nothing, wv)
       A.SubscriptFromFor _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
-      A.SubscriptFor _ for -> (Just for, snd $ findInnerVar v)
-      A.SubscriptFrom _ from -> (Just $ A.Dyadic m A.Subtr (A.SizeVariable m v) from, snd $ findInnerVar v)
       A.Subscript {} -> findInnerVar v
     findInnerVar v = (Nothing, v)
   
@@ -170,7 +169,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
            (A.Array srcDs _) <- typeOfVariable innerV
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
-               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFrom m $ makeConstant m sizeDiff) varSrcSizes
+               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
                sizeSpecType = case sliceSize of
                  Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
                    A.IsExpr m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
@@ -308,7 +307,26 @@ addSizesActualParameters = doGeneric `extM` doProcess
                              A.Array {} -> dieP (findMeta a) "Untransformed actual parameter of type array: "
                              _ -> return [a]
 
--- | Flattens all multi-dimensional arrays into one-dimensional arrays, transforming all indexes
--- as appropriate.
-flattenArrays :: Data t => t -> PassM t
-flattenArrays = return -- TODO
+-- | Transforms all slices into the FromFor form.
+simplifySlices :: Data t => t -> PassM t
+simplifySlices = doGeneric `extM` doVariable
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric simplifySlices
+    
+    -- We recurse into the subscripts in case they contain subscripts:    
+    doVariable :: A.Variable -> PassM A.Variable
+    doVariable (A.SubscriptedVariable m (A.SubscriptFor m' for) v)
+      = do for' <- doGeneric for
+           v' <- doGeneric v
+           return (A.SubscriptedVariable m (A.SubscriptFromFor m' (makeConstant m' 0) for') v')
+    doVariable (A.SubscriptedVariable m (A.SubscriptFrom m' from) v)
+      = do v' <- doGeneric v
+           A.Array (d:_) _ <- typeOfVariable v'
+           limit <- case d of
+             A.Dimension n -> return $ makeConstant m' n
+             A.UnknownDimension -> return $ A.SizeVariable m' v'
+           from' <- doGeneric from
+           return (A.SubscriptedVariable m (A.SubscriptFromFor m' from' (A.Dyadic m A.Subtr limit from')) v')
+    -- We must recurse, to handle nested variables, and variables inside subscripts!
+    doVariable v = doGeneric v

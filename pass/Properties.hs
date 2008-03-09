@@ -23,6 +23,7 @@ module Properties
   , afterRemoved
   , allChansToAnyOrProtocol
   , arrayLiteralsExpanded
+  , arraySizesDeclared
   , assignFlattened
   , assignParRemoved
   , constantsFolded
@@ -49,6 +50,7 @@ module Properties
   , rainParDeclarationsPulledUp
   , rangeTransformed
   , seqInputsFlattened
+  , slicesSimplified
   , subscriptsPulledUp
   , typesResolvedInAST
   , typesResolvedInState
@@ -337,3 +339,15 @@ seqInputsFlattened = Property "seqInputsFlattened" $ checkNull "seqInputsFlatten
     findMultipleInputs :: A.InputMode -> Bool
     findMultipleInputs (A.InputSimple _ (_:_:_)) = True
     findMultipleInputs _ = False
+
+arraySizesDeclared :: Property
+arraySizesDeclared = Property "arraySizesDeclared" nocheck
+
+slicesSimplified :: Property
+slicesSimplified = Property "slicesSimplified" $
+  checkNull "slicesSimplified" . listify findJustFromOrFor
+  where
+    findJustFromOrFor :: A.Subscript -> Bool
+    findJustFromOrFor (A.SubscriptFrom {}) = True
+    findJustFromOrFor (A.SubscriptFor {}) = True
+    findJustFromOrFor _ = False
