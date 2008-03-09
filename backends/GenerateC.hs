@@ -1047,7 +1047,13 @@ cgenRetypeSizes m destT destN srcT srcV
                         call genBytesIn m destT (Left True)
                         tell [","]
                         genMeta m
-                        tell [")"] in
+                        tell [")"]
+              isVarArray = case destT of
+                A.Array ds _ -> A.UnknownDimension `elem` ds
+                _ -> False in
+          if isVarArray
+            then size >> tell [";"]
+            else
               do tell ["if("]
                  size
                  tell ["!=1){"]
