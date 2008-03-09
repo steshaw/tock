@@ -310,7 +310,12 @@ testActuals = TestList
   
   --For abbreviating arrays, nothing special should happen any more:
   ,testBothSame "genActual 1" "$" $ over (tcall genActual $ A.ActualExpression (A.Array undefined undefined) (A.Literal undefined undefined undefined))
-  ,testBothSame "genActual 2" "@" $ over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo))
+  ,testBothSameS "genActual 2" "@" (over (tcall genActual $ A.ActualVariable A.Original (A.Array undefined undefined) (A.Variable undefined foo)))
+    (defineName foo $ simpleDefDecl "foo" A.Int)
+  ,testBothSameS "genActual 3" "&@" (over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo)))
+    (defineName foo $ simpleDefDecl "foo" A.Int)
+  ,testBothSameS "genActual 4" "@" (over (tcall genActual $ A.ActualVariable A.ValAbbrev (A.Array undefined undefined) (A.Variable undefined foo)))
+    (defineName foo $ simpleDefDecl "foo" A.Int)
  ]
  where
    overActual :: Override
@@ -600,15 +605,15 @@ testSpec = TestList
   --Is:
   
   -- Plain types require you to take an address to get the pointer:
-  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [A.Int,A.Time]
-  -- Arrays and records are already pointers, so no need to take the address:
-  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [chanInt,A.Record foo]
+  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&bar;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "bar")) [A.Int,A.Time]
+  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=(&bar);","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "bar")) [chanInt,A.Record foo]
   --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
   --C abbreviations will be of type Channel*, so they can just copy the channel address.
-  ,testAllSameForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "TODO")) [chanIntIn,chanIntOut]
+  ,testAllForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=&bar;","")) (\t -> ("$(" ++ show t ++ ") foo=bar;",""))
+    (\t -> A.Is emptyMeta A.Abbrev t (variable "bar")) [chanIntIn,chanIntOut]
   
-  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "TODO")) [A.Int,A.Time]
-  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=@;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "TODO")) [A.Record foo]
+  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=bar;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "bar")) [A.Int,A.Time]
+  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=(&bar);","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "bar")) [A.Record foo]
   -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
   
   --TODO test Is more (involving subscripts, arrays and slices)
@@ -671,7 +676,10 @@ testSpec = TestList
  ]
   where
     testAllSameForTypes :: Int -> (A.Type -> (String, String)) -> (A.Type -> A.SpecType) -> [A.Type] -> Test
-    testAllSameForTypes n te spec ts = TestList [testAllSame (n+i) (te t) (spec t) | (i,t) <- zip [0..] ts]
+    testAllSameForTypes n te spec ts = testAllForTypes n te te spec ts
+
+    testAllForTypes :: Int -> (A.Type -> (String, String)) -> (A.Type -> (String, String)) -> (A.Type -> A.SpecType) -> [A.Type] -> Test
+    testAllForTypes n teC teCPP spec ts = TestList [testAllS (n+i) (teC t) (teCPP t) (spec t) (defineName (simpleName "bar") $ simpleDefDecl "bar" t) over' | (i,t) <- zip [0..] ts]
   
     chanInt = A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
     chanIntIn = A.Chan A.DirInput (A.ChanAttributes False False) A.Int
@@ -688,12 +696,11 @@ testSpec = TestList
      ]
     testAllSame n e s = testAll n e e s
     testAllSameS n e s st o = testAllS n e e s st o
-    over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
+    over' ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,genType = (\x -> tell ["$(",show x,")"])
-                   ,genVariable = override1 at
                    }
-
+    over ops = (over' ops) { genVariable = override1 at }
 testRetypeSizes :: Test
 testRetypeSizes = TestList
  [
