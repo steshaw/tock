@@ -323,26 +323,29 @@ testArraySubscript :: Test
 testArraySubscript = TestList
  [
   testBothSameS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]"
-    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5]) stateTrans
   ,testBothSameS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]"
-    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5, lit 6]) stateTrans
   ,testBothSameS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]"
-    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5, lit 6, lit 7]) stateTrans
   
   ,testBothSameS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]")
-    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5]) stateTrans
   ,testBothSameS "genArraySubscript 4"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]]")
-    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5, lit 6]) stateTrans
   ,testBothSameS "genArraySubscript 5"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]+occam_check_index(7,foo_sizes[2]," ++ m ++ ")]")
-    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5, lit 6, lit 7]) stateTrans
     
  ]
  where
    stateTrans :: CSM m => m ()
    stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
+   
+   lit :: Int -> (Meta, CGen ())
+   lit n = (emptyMeta, tell [show n])
 
 testArraySlice :: Test
 testArraySlice = TestList
@@ -797,7 +800,7 @@ testGenVariable = TestList
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
                   defRecord "barbar" "y" $ A.Record bar
        over :: Override
-       over = local $ \ops -> ops {genArraySubscript = (\c _ subs -> at >> (tell [if c /= A.NoCheck then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
+       over = local $ \ops -> ops {genArraySubscript = (\c _ subs -> at >> (tell [if c /= A.NoCheck then "C" else "U"]) >> (seqComma $ map snd subs))
                       ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
    
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
