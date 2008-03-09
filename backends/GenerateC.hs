@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cgenDeclaration, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
+module GenerateC (cgenOps, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
