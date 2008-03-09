@@ -108,8 +108,12 @@ removeAfter = doGeneric `extM` doExpression
         =  do a' <- removeAfter a
               b' <- removeAfter b
               t <- typeOfExpression a'
-              let zero = A.Literal m t $ A.IntLiteral m "0"
-              return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
+              case t of
+                A.Byte -> do let one = A.Literal m t $ A.IntLiteral m "1"
+                                 oneTwoSeven = A.Literal m t $ A.IntLiteral m "127"
+                             return $ A.Dyadic m A.Less (A.Dyadic m A.Minus (A.Dyadic m A.Minus a' b') one) oneTwoSeven
+                _ -> do let zero = A.Literal m t $ A.IntLiteral m "0"
+                        return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
     doExpression e = doGeneric e
 
 -- | For array literals that include other arrays, burst them into their elements.
