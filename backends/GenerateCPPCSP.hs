@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, indexOfFreeDimensions, seqComma, withIf)
+import GenerateC (cgenDeclaration, cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, indexOfFreeDimensions, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass
@@ -60,6 +60,7 @@ cppgenOps = cgenOps {
     genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
     genClearMobile = cppgenClearMobile,
+    genDeclaration = cppgenDeclaration,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
@@ -471,6 +472,14 @@ cppgenProcCall n as
          tell ["("]
          call genActuals as
          tell [");"]
+
+cppgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
+cppgenDeclaration A.Timer n _
+    =  do call genType A.Timer
+          tell [" "]
+          genName n
+          tell [";"]
+cppgenDeclaration t n b = cgenDeclaration t n b
 
 -- | Changed because we initialise channels and arrays differently in C++
 cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
