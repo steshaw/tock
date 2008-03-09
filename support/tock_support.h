@@ -66,7 +66,7 @@ static inline int occam_check_slice (int start, int count, int limit, const char
 	                   || count < 0)) {
 		occam_stop (pos, 4, "invalid array slice from %d to %d (should be 0 <= i <= %d)", start, end, limit);
 	}
-	return count;
+	return start;
 }
 static inline int occam_check_index (int, int, const char *) occam_unused;
 static inline int occam_check_index (int i, int limit, const char *pos) {

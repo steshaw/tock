@@ -692,7 +692,8 @@ cgenVariable' checkValid v
            A.Array ds _ <- typeOfVariable v
            (cg, n) <- inner ind v (Just t)
            let check = if checkValid then subCheck else A.NoCheck
-           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg >> call genArraySubscript check v es, n)
+           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg
+                    >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), n)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               t <- typeOfVariable sv
@@ -700,21 +701,22 @@ cgenVariable' checkValid v
                   outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
 
---TODO check the bounds of slices, at both ends
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
+    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' start count) v) mt
         = return (
            do tell ["(&"]
               join $ liftM fst $ inner ind v mt
-              call genArraySubscript A.NoCheck v [start]
+              call genArraySubscript A.NoCheck v [(m',
+                do tell ["occam_check_slice("]
+                   call genExpression start
+                   genComma
+                   call genExpression count
+                   genComma
+                   call genExpression (A.SizeVariable m' v)
+                   genComma
+                   genMeta m'
+                   tell [")"]
+                )]
               tell [")"], 0)
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFrom m' start) v) mt
-        = return (
-           do tell ["(&"]
-              join $ liftM fst $ inner ind v mt
-              call genArraySubscript A.NoCheck v [start]
-              tell [")"], 0)
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFor m' _) v) mt
-        = inner ind v mt
     
     addPrefix :: CGen () -> Int -> CGen ()
     addPrefix cg 0 = cg
@@ -743,7 +745,7 @@ indirectedType _ = False
 cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
 cgenDirectedVariable var _ = var
 
-cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [A.Expression] -> CGen ()
+cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen ()
 cgenArraySubscript check v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
@@ -758,36 +760,36 @@ cgenArraySubscript check v es
     -- right place in the array.
     -- FIXME This is obviously not the best way to factor this, but I figure a
     -- smart C compiler should be able to work it out...
-    genPlainSub :: (Int -> CGen ()) -> [A.Expression] -> [Int] -> [CGen ()]
+    genPlainSub :: (Int -> CGen ()) -> [(Meta, CGen ())] -> [Int] -> [CGen ()]
     genPlainSub _ [] _ = []
-    genPlainSub genDim (e:es) (sub:subs)
+    genPlainSub genDim ((m,e):es) (sub:subs)
         = gen : genPlainSub genDim es subs
       where
         gen = sequence_ $ intersperse (tell ["*"]) $ genSub : genChunks
         genSub
             = case check of
-                A.NoCheck -> call genExpression e
+                A.NoCheck -> e
                 A.CheckBoth ->
                      do tell ["occam_check_index("]
-                        call genExpression e
+                        e
                         tell [","]
                         genDim sub
                         tell [","]
-                        genMeta (findMeta e)
+                        genMeta m
                         tell [")"]
                 A.CheckUpper ->
                      do tell ["occam_check_index_upper("]
-                        call genExpression e
+                        e
                         tell [","]
                         genDim sub
                         tell [","]
-                        genMeta (findMeta e)
+                        genMeta m
                         tell [")"]
                 A.CheckLower ->
                      do tell ["occam_check_index_lower("]
-                        call genExpression e
+                        e
                         tell [","]
-                        genMeta (findMeta e)
+                        genMeta m
                         tell [")"]
         genChunks = map genDim subs
 --}}}

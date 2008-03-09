@@ -101,7 +101,7 @@ data GenOps = GenOps {
     -- | Writes out the actual data storage array name.
     genArrayStoreName :: A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking according to the first variable), using the given expression list as subscripts
-    genArraySubscript :: A.SubscriptCheck -> A.Variable -> [A.Expression] -> CGen (),
+    genArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen (),
     genAssert :: Meta -> A.Expression -> CGen (),
     -- | Generates an assignment statement with a single destination and single source.
     genAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen (),
