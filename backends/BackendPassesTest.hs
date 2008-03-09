@@ -239,7 +239,10 @@ qcTestDeclareSizes =
         ,specSizes, defSrc)
       where
         specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length destDims] A.Int) $
-          A.SubscriptedVariable emptyMeta (A.SubscriptFrom emptyMeta (intLiteral $ toInteger $ length srcDims - length destDims)) (variable "src_sizes")
+          A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta
+            (intLiteral $ toInteger $ length srcDims - length destDims)
+            (intLiteral $ toInteger $ length destDims)
+            ) (variable "src_sizes")
         defSrc = do defineTestName "src" (A.Declaration emptyMeta (A.Array srcDims A.Byte)) A.Original
                     defineTestName "src_sizes" (A.IsExpr emptyMeta A.ValAbbrev (A.Array srcDims A.Byte) dummyExpr) A.ValAbbrev
         dummyExpr = A.True emptyMeta
