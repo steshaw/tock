@@ -712,10 +712,10 @@ testRetypeSizes = TestList
   ,test 4 "if(occam_check_retype(#S,#D,#M)!=1){@}"
           (A.Array [A.Dimension 2,A.Dimension 3,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
     
-  -- Array types with a free dimension should also act like the free type:
-  ,test 100 "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  -- Array types with a free dimension should not check the return:
+  ,test 100 "occam_check_retype(#S,#D,#M);"
     (A.Array [A.UnknownDimension] A.Int) (A.Array [A.Dimension 8] A.Byte)
-  ,test 101 "if(occam_check_retype(#S,#D,#M)!=1){@}"
+  ,test 101 "occam_check_retype(#S,#D,#M);"
     (A.Array [A.Dimension 2,A.UnknownDimension,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
  ]
  where
