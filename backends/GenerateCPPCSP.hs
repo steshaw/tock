@@ -473,8 +473,8 @@ cppgenProcCall n as
          tell [");"]
 
 -- | Changed because we initialise channels and arrays differently in C++
-cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
-cppdeclareInit m t@(A.Array ds t') var _
+cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cppdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tockInitChanArray("]
@@ -485,17 +485,15 @@ cppdeclareInit m t@(A.Array ds t') var _
                        sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
                        tell [");"]
                   _ -> return ()
-cppdeclareInit m rt@(A.Record _) var _
+cppdeclareInit m rt@(A.Record _) var
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
   where
     initField :: A.Type -> A.Variable -> CGen ()
     initField t v = do fdeclareInit <- fget declareInit
-                       doMaybe $ fdeclareInit m t v Nothing
-cppdeclareInit m _ v (Just e)
-    = Just $ call genAssign m [v] $ A.ExpressionList m [e]
-cppdeclareInit _ _ _ _ = Nothing
+                       doMaybe $ fdeclareInit m t v
+cppdeclareInit _ _ _ = Nothing
 
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
 cppdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
@@ -503,7 +501,7 @@ cppdeclareFree _ _ _ = Nothing
 
 -- | Changed to work properly with declareFree to free channel arrays.
 cppremoveSpec :: A.Specification -> CGen ()
-cppremoveSpec (A.Specification m n (A.Declaration _ t _))
+cppremoveSpec (A.Specification m n (A.Declaration _ t))
     = do fdeclareFree <- fget declareFree
          case fdeclareFree m t var of
                Just p -> p

@@ -450,8 +450,8 @@ data Specification =
 data SpecType =
   -- | Set placement for an existing variable.
   Place Meta Expression
-  -- | Declare a variable, with an optional value to initialise it to.
-  | Declaration Meta Type (Maybe Expression)
+  -- | Declare a variable
+  | Declaration Meta Type
   -- | Declare an abbreviation of a variable.
   | Is Meta AbbrevMode Type Variable
   -- | Declare an abbreviation of an expression.

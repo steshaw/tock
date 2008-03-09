@@ -42,7 +42,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
              A.List t -> return t
              _ -> diePC m $ formatCode "Cannot do a foreach loop over a non-list type: %" arrType
            defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT Nothing), 
+                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return input
     recordInfNameTypes' r = return r

@@ -103,10 +103,6 @@ emptySeveralAST = emptySeveral
 emptyBlock :: A.Process
 emptyBlock = A.Seq m emptySeveral
 
--- | A handy, properly typed, synonym for Nothing to use with Declarations.
-noInit :: Maybe A.Expression
-noInit = Nothing
-
 --You are allowed to chain arithmetic operators without brackets, but not comparison operators
 -- (the meaning of "b == c == d" is obscure enough to be dangerous, even if it passes the type checker)
 --All arithmetic operators bind at the same level, which is a closer binding than all comparison operators.
@@ -366,13 +362,13 @@ testPar =
   --Rain only allows declarations at the beginning of a par block:
 
   ,passPar (2, "par {int:x; {} }", A.Par m A.PlainPar $ 
-    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int Nothing) $
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Int) $
     A.Several m [A.Only m $ A.Seq m $ A.Several m []] )
       
 
   ,passPar (3, "par {uint16:x; uint32:y; {} }", A.Par m A.PlainPar $ 
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16 Nothing) $ 
-      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32 Nothing) $ 
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.UInt16) $ 
+      A.Spec m (A.Specification m (simpleName "y") $ A.Declaration m A.UInt32) $ 
       A.Several m [A.Only m $ A.Seq m $ A.Several m []] )
       
   ,fail ("par { {} int: x; }",RP.statement)
@@ -391,21 +387,21 @@ testBlock =
     A.Several m [A.Only m $ makeSimpleAssign "a" "b",A.Only m $ makeSimpleAssign "b" "c"])
     
   ,passBlock (2, "{ uint8: x; a = b; }", False,
-    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte) $
       A.Several m [A.Only m $ makeSimpleAssign "a" "b"])
   
   ,passBlock (3, "{ uint8: x; a = b; b = c; }", False,
-    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte) $
       A.Several m [A.Only m $ makeSimpleAssign "a" "b",A.Only m $ makeSimpleAssign "b" "c"])
 
   ,passBlock (4, "{ b = c; uint8: x; a = b; }", False,
     A.Several m [A.Only m $ makeSimpleAssign "b" "c",
-      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) $
+      A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte) $
         A.Several m [A.Only m $ makeSimpleAssign "a" "b"]
     ])
 
   ,passBlock (5, "{ uint8: x; }", False,
-    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit) emptySeveral)
+    A.Spec m (A.Specification m (simpleName "x") $ A.Declaration m A.Byte) emptySeveral)
 
   ,fail("{b}",RP.innerBlock False Nothing)
  ]
@@ -519,13 +515,13 @@ instance Data a => Show (A.Structured a -> A.Structured a) where
 testDecl :: [ParseTest (Meta, A.AST -> A.AST)]
 testDecl =
  [
-  passd ("bool: b;",0,pat $ A.Specification m (simpleName "b") $ A.Declaration m A.Bool noInit)
-  ,passd ("uint8: x;",1,pat $ A.Specification m (simpleName "x") $ A.Declaration m A.Byte noInit)
-  ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.Chan A.DirInput nonShared A.Bool) noInit)
-  ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m A.DataTypeName "a") noInit)
+  passd ("bool: b;",0,pat $ A.Specification m (simpleName "b") $ A.Declaration m A.Bool)
+  ,passd ("uint8: x;",1,pat $ A.Specification m (simpleName "x") $ A.Declaration m A.Byte)
+  ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.Chan A.DirInput nonShared A.Bool))
+  ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m A.DataTypeName "a"))
 
-  ,passd2 ("bool: b0,b1;",100,pat $ A.Specification m (simpleName "b0") $ A.Declaration m A.Bool noInit,
-                              pat $ A.Specification m (simpleName "b1") $ A.Declaration m A.Bool noInit)
+  ,passd2 ("bool: b0,b1;",100,pat $ A.Specification m (simpleName "b0") $ A.Declaration m A.Bool,
+                              pat $ A.Specification m (simpleName "b1") $ A.Declaration m A.Bool)
   
   
   ,fail ("bool:;",RP.declaration)

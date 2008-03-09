@@ -72,7 +72,7 @@ typeOfName n
 typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)
 typeOfSpec st
         = case st of
-            A.Declaration _ t _ -> return $ Just t
+            A.Declaration _ t -> return $ Just t
             A.Is _ _ t _ -> return $ Just t
             A.IsExpr _ _ t _ -> return $ Just t
             A.IsChannelArray _ t _ -> return $ Just t

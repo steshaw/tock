@@ -52,7 +52,7 @@ testTransformWaitFor1 :: Test
 testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)
-    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ tag2 A.GetTime DontCare var
@@ -69,8 +69,8 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transfo
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t0") (A.Skip m),
                                        A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t1") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
-          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time) $
+          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ tag2 A.GetTime DontCare var0
@@ -93,7 +93,7 @@ testTransformWaitFor3 :: Test
 testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.Only m $ A.AlternativeWait m A.WaitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
-    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ tag2 A.GetTime DontCare var
@@ -110,7 +110,7 @@ testTransformWaitFor4 :: Test
 testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transformWaitFor orig) (return ())
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time Nothing) $
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ tag2 A.GetTime DontCare var
@@ -128,8 +128,8 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m),
                                        A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") (A.Skip m)]
-    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time Nothing) $
-          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time Nothing) $
+    exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName0 $ A.Declaration m A.Time) $
+          mSpecP (tag3 A.Specification DontCare varName1 $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ tag2 A.GetTime DontCare var0
@@ -240,7 +240,7 @@ qcTestDeclareSizes =
       where
         specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length destDims] A.Int) $
           A.SubscriptedVariable emptyMeta (A.SubscriptFrom emptyMeta (intLiteral $ toInteger $ length srcDims - length destDims)) (variable "src_sizes")
-        defSrc = do defineTestName "src" (A.Declaration emptyMeta (A.Array srcDims A.Byte) Nothing) A.Original
+        defSrc = do defineTestName "src" (A.Declaration emptyMeta (A.Array srcDims A.Byte)) A.Original
                     defineTestName "src_sizes" (A.IsExpr emptyMeta A.ValAbbrev (A.Array srcDims A.Byte) dummyExpr) A.ValAbbrev
         dummyExpr = A.True emptyMeta
 
@@ -273,7 +273,7 @@ qcTestDeclareSizes =
         t = A.Array (map A.Dimension ns) A.Byte
 
     declFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
-    declFoo ns = (A.Declaration emptyMeta t Nothing, valSize ns, return ())
+    declFoo ns = (A.Declaration emptyMeta t, valSize ns, return ())
       where
         t = A.Array (map A.Dimension ns) A.Byte
 
@@ -368,12 +368,12 @@ qcTestSizeParameters =
     recordProcFormals = mapM_ rec
       where
         rec :: (String, A.Type, A.AbbrevMode) -> State CompState ()
-        rec (n, t, am) = defineTestName n (A.Declaration emptyMeta t Nothing) am
+        rec (n, t, am) = defineTestName n (A.Declaration emptyMeta t) am
 
     checkProcDef :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
     checkProcDef nts cs = checkName "p" (makeProcDef nts) A.Original cs
     checkProcFormals :: TestMonad m r => [(String, A.Type, A.AbbrevMode)] -> CompState -> m ()
-    checkProcFormals nts cs = mapM_ (\(n,t,am) -> checkName n (A.Declaration emptyMeta t Nothing) am cs) nts
+    checkProcFormals nts cs = mapM_ (\(n,t,am) -> checkName n (A.Declaration emptyMeta t) am cs) nts
 
     wrapSpec :: String -> A.SpecType -> A.Structured ()
     wrapSpec n spec = A.Spec emptyMeta (A.Specification emptyMeta (simpleName n) spec) (A.Only emptyMeta ())

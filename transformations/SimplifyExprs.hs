@@ -183,7 +183,7 @@ transformConstr = doGeneric `ext1M` doStructured
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ t (A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
       = do indexVarSpec@(A.Specification _ indexVar _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
            scope' <- doGeneric scope
-           return $ A.Spec m (A.Specification m' n (A.Declaration m' t Nothing)) $ A.ProcThen m''
+           return $ A.Spec m (A.Specification m' n (A.Declaration m' t)) $ A.ProcThen m''
              (A.Seq m'' $ A.Spec m'' (indexVarSpec) $ A.Several m'' [
                A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
                A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m'' 

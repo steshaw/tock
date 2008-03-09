@@ -471,7 +471,7 @@ scopeOut n@(A.Name m nt s)
 -- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep (A.For m n b c)
-    =  do n' <- scopeIn n (A.Declaration m A.Int Nothing) A.ValAbbrev
+    =  do n' <- scopeIn n (A.Declaration m A.Int) A.ValAbbrev
           return $ A.For m n' b c
 
 scopeOutRep :: A.Replicator -> OccParser ()
@@ -487,7 +487,7 @@ scopeOutSpec (A.Specification _ n _) = scopeOut n
 
 scopeInFormal :: A.Formal -> OccParser A.Formal
 scopeInFormal (A.Formal am t n)
-    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t Nothing) am
+    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t) am
           return (A.Formal am t n')
 
 scopeInFormals :: [A.Formal] -> OccParser [A.Formal]
@@ -1267,7 +1267,7 @@ declOf spec newName
     =  do m <- md
           (d, ns) <- tryVVX spec (sepBy1 newName sComma) sColon
           eol
-          return (ns, A.Declaration m d Nothing)
+          return (ns, A.Declaration m d)
 
 abbreviation :: OccParser A.Specification
 abbreviation

@@ -406,7 +406,7 @@ declaration = try $ do {t <- dataType; sColon ; ns <- name `sepBy1` sComma ; sSe
                           return (findMeta t, \x -> foldr (foldSpec t) x ns) }
   where
     foldSpec :: Data a => A.Type -> A.Name -> (A.Structured a -> A.Structured a)
-    foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t Nothing
+    foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t
 
 terminator :: Data a => A.Structured a
 terminator = A.Several emptyMeta []

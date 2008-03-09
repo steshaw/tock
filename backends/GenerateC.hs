@@ -1106,12 +1106,12 @@ cgenFlatArraySize ds
           tell ["]"]
 
 -- | Initialise an item being declared.
-cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ())
-cdeclareInit _ (A.Chan A.DirUnknown _ _) var _
+cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cdeclareInit _ (A.Chan A.DirUnknown _ _) var
     = Just $ do tell ["ChanInit(wptr,"]
                 call genVariableUnchecked var
                 tell [");"]
-cdeclareInit m t@(A.Array ds t') var _
+cdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
                   A.Chan A.DirUnknown _ _ ->
                     do tell ["tock_init_chan_array("]
@@ -1123,19 +1123,17 @@ cdeclareInit m t@(A.Array ds t') var _
                        tell [");"]
                   _ -> return ()
                 fdeclareInit <- fget declareInit
-                init <- return (\sub -> fdeclareInit m t' (sub var) Nothing)
+                init <- return (\sub -> fdeclareInit m t' (sub var))
                 call genOverArray m var init
-cdeclareInit m rt@(A.Record _) var _
+cdeclareInit m rt@(A.Record _) var
     = Just $ do fs <- recordFields m rt
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
   where
     initField :: A.Type -> A.Variable -> CGen ()
     initField t v = do fdeclareInit <- fget declareInit
-                       doMaybe $ fdeclareInit m t v Nothing
-cdeclareInit m _ v (Just e)
-    = Just $ call genAssign m [v] $ A.ExpressionList m [e]
-cdeclareInit _ _ _ _ = Nothing
+                       doMaybe $ fdeclareInit m t v
+cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
 cdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
@@ -1157,10 +1155,10 @@ CHAN OF INT c IS d:       Channel *c = d;
                           const int *ds_sizes = cs_sizes;
 -}
 cintroduceSpec :: A.Specification -> CGen ()
-cintroduceSpec (A.Specification m n (A.Declaration _ t init))
+cintroduceSpec (A.Specification m n (A.Declaration _ t))
     = do call genDeclaration t n False
          fdeclareInit <- fget declareInit
-         case fdeclareInit m t (A.Variable m n) init of
+         case fdeclareInit m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
 cintroduceSpec (A.Specification _ n (A.Is _ am t v))
@@ -1272,7 +1270,7 @@ cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
 cgenForwardDeclaration _ = return ()
 
 cremoveSpec :: A.Specification -> CGen ()
-cremoveSpec (A.Specification m n (A.Declaration _ t _))
+cremoveSpec (A.Specification m n (A.Declaration _ t))
  = do fdeclareFree <- fget declareFree
       case fdeclareFree m t var of
         Just p -> p

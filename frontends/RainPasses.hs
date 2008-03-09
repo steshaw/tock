@@ -128,7 +128,7 @@ uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
                     let newName = (n {A.nameName = n'})
                     let m = A.nameMeta n
                     defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
-                                                  A.ndNameType = A.VariableName, A.ndType = (A.Declaration m t Nothing),
+                                                  A.ndNameType = A.VariableName, A.ndType = (A.Declaration m t),
                                                   A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
                     let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
                     return (A.Formal am t newName, scope')

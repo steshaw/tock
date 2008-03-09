@@ -89,7 +89,7 @@ data GenOps = GenOps {
     -- | Generates code when a variable goes out of scope (e.g. deallocating memory).
     declareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
-    declareInit :: Meta -> A.Type -> A.Variable -> Maybe A.Expression -> Maybe (CGen ()),
+    declareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates an individual parameter to a function\/proc.
     genActual :: A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
