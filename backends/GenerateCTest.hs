@@ -462,6 +462,12 @@ testDeclaration = TestList
   
   --Records of arrays of int (the sizes are set by declareInit):
   ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [A.Dimension 8] A.Int)
+
+  --Timers:
+  ,testBoth "genDeclaration 500" "Time foo;" "csp::Time foo;"
+   (tcall3 genDeclaration A.Timer foo False)
+  ,testBoth "genDeclaration 501" "Time foo[20];" "csp::Time foo[20];"
+   (tcall3 genDeclaration (A.Array [A.Dimension 20] A.Timer) foo False)
  ]
  where
    stateR t = defRecord "REC" "bar" t
