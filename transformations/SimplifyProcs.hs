@@ -133,7 +133,8 @@ flattenAssign = doGeneric `extM` doProcess `ext1M` doStructured
                          let rep = A.For m counter zero
                                                    (A.SizeVariable m srcV)
                          itemT <- trivialSubscriptType m t
-                         let sub = A.Subscript m (A.ExprVariable m
+                         -- Don't need to check bounds, as we'll always be within bounds
+                         let sub = A.Subscript m A.NoCheck (A.ExprVariable m
                                                    (A.Variable m counter))
                          inner <- assign m itemT
                                          (A.SubscriptedVariable m sub destV) m'

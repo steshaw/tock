@@ -142,7 +142,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
                                 BIJust biSrcElem <- bytesInType elemSrcT
                                 let A.Variable _ srcN = v
                                     multipliedDimsV = foldl (A.Dyadic m A.Mul) (makeConstant m biSrcElem)
-                                      [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) (A.Variable m $ append_sizes srcN)  | i <- [0 .. length srcDs - 1]]
+                                      [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) (A.Variable m $ append_sizes srcN)  | i <- [0 .. length srcDs - 1]]
                                 return multipliedDimsV
                      return $ makeDynamicSizeSpec m n_sizes
                             [case d of
@@ -172,7 +172,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
            let sizeDiff = length srcDs - length ds
                subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFrom m $ makeConstant m sizeDiff) varSrcSizes
                sizeSpecType = case sliceSize of
-                 Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
+                 Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
                    A.IsExpr m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
                      A.Literal m (A.Array [A.Dimension $ length ds] A.Int) $ A.ArrayLiteral m $
                        [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims

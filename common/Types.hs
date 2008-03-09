@@ -151,7 +151,7 @@ subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
 subscriptType (A.SubscriptFor m count) t
     = sliceType m (makeConstant emptyMeta 0) count t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
-subscriptType (A.Subscript m sub) t = plainSubscriptType m sub t
+subscriptType (A.Subscript m _ sub) t = plainSubscriptType m sub t
 subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %" t
 
 -- | The inverse of 'subscriptType': given a type that we know is the result of
@@ -165,7 +165,7 @@ unsubscriptType (A.SubscriptFor _ _) t
     = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptField m _) t
     = dieP m $ "unsubscript of record type (but we can't tell which one)"
-unsubscriptType (A.Subscript _ sub) t
+unsubscriptType (A.Subscript _ _ sub) t
     = return $ addDimensions [A.UnknownDimension] t
 
 -- | Just remove the first dimension from an array type -- like doing

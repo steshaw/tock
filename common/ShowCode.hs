@@ -310,7 +310,7 @@ instance ShowOccam A.LiteralRepr where
   --TODO record literals
 
 instance ShowOccam A.Subscript where
-  showOccamM (A.Subscript _ e) = getTempItem +>> return "[" +>> showOccamM e +>> return "]"
+  showOccamM (A.Subscript _ _ e) = getTempItem +>> return "[" +>> showOccamM e +>> return "]"
   showOccamM (A.SubscriptField _ n) = getTempItem +>> return "[" +>> showName n +>> return "]"
   showOccamM (A.SubscriptFromFor _ start count)
     = return "[" +>> getTempItem +>> return " FROM " +>> showOccamM start +>> return " FOR " +>> showOccamM count +>> return "]"

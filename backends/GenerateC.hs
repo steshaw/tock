@@ -218,7 +218,7 @@ cgenOverArray m var func
           specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
-          let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m $ A.ExprVariable m i | i <- indices])
+          let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m A.NoCheck $ A.ExprVariable m i | i <- indices])
           case func arg of
             Just p ->
               do sequence_ [do tell ["for(int "]
@@ -542,7 +542,7 @@ cgenUnfoldedVariable m var
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = call genUnfoldedVariable m v
     unfoldArray (A.Dimension n:ds) v
-      = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m $ makeConstant m i) v)
+      = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) v)
                     | i <- [0..(n - 1)]]
     unfoldArray _ _ = dieP m "trying to unfold array with unknown dimension"
 
@@ -684,31 +684,34 @@ cgenVariable' checkValid v
     inner ind (A.DirectedVariable _ dir v) mt
       = do (cg,n) <- (inner ind v mt)           
            return (call genDirectedVariable (addPrefix cg n) dir, 0)
-    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ _) v) mt
+    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ subCheck _) v) mt
       = do (es, v, t') <- collectSubs sv
            t <- if checkValid
                   then typeOfVariable sv
                   else return t'
            A.Array ds _ <- typeOfVariable v
            (cg, n) <- inner ind v (Just t)
-           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg >> call genArraySubscript checkValid v es, n)
+           let check = if checkValid then subCheck else A.NoCheck
+           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg >> call genArraySubscript check v es, n)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               t <- typeOfVariable sv
               let outerInd :: Int
                   outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
+
+--TODO check the bounds of slices, at both ends
     inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' start _) v) mt
         = return (
            do tell ["(&"]
               join $ liftM fst $ inner ind v mt
-              call genArraySubscript checkValid v [start]
+              call genArraySubscript A.NoCheck v [start]
               tell [")"], 0)
     inner ind sv@(A.SubscriptedVariable m (A.SubscriptFrom m' start) v) mt
         = return (
            do tell ["(&"]
               join $ liftM fst $ inner ind v mt
-              call genArraySubscript checkValid v [start]
+              call genArraySubscript A.NoCheck v [start]
               tell [")"], 0)
     inner ind sv@(A.SubscriptedVariable m (A.SubscriptFor m' _) v) mt
         = inner ind v mt
@@ -724,7 +727,7 @@ cgenVariable' checkValid v
 
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
-    collectSubs (A.SubscriptedVariable m (A.Subscript _ e) v)
+    collectSubs (A.SubscriptedVariable m (A.Subscript _ _ e) v)
         = do (es', v', t') <- collectSubs v
              t <- trivialSubscriptType m t'
              return (es' ++ [e], v', t)
@@ -740,8 +743,8 @@ indirectedType _ = False
 cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
 cgenDirectedVariable var _ = var
 
-cgenArraySubscript :: Bool -> A.Variable -> [A.Expression] -> CGen ()
-cgenArraySubscript checkValid v es
+cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [A.Expression] -> CGen ()
+cgenArraySubscript check v es
     =  do t <- typeOfVariable v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
@@ -762,19 +765,30 @@ cgenArraySubscript checkValid v es
       where
         gen = sequence_ $ intersperse (tell ["*"]) $ genSub : genChunks
         genSub
-            = if checkValid
-                 -- Total, complete and utter horrible hack until we have
-                 -- some way of expressing unchecked subscripting in the AST:
-                 -- TODO fix this
-                 && (not $ "_sizes" `isSuffixOf` (let A.Variable _ (A.Name _ _ n) = v in n))
-                then do tell ["occam_check_index("]
+            = case check of
+                A.NoCheck -> call genExpression e
+                A.CheckBoth ->
+                     do tell ["occam_check_index("]
                         call genExpression e
                         tell [","]
                         genDim sub
                         tell [","]
                         genMeta (findMeta e)
                         tell [")"]
-                else call genExpression e
+                A.CheckUpper ->
+                     do tell ["occam_check_index_upper("]
+                        call genExpression e
+                        tell [","]
+                        genDim sub
+                        tell [","]
+                        genMeta (findMeta e)
+                        tell [")"]
+                A.CheckLower ->
+                     do tell ["occam_check_index_lower("]
+                        call genExpression e
+                        tell [","]
+                        genMeta (findMeta e)
+                        tell [")"]
         genChunks = map genDim subs
 --}}}
 

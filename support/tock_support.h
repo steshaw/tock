@@ -75,6 +75,20 @@ static inline int occam_check_index (int i, int limit, const char *pos) {
 	}
 	return i;
 }
+static inline int occam_check_index_lower (int, const char *) occam_unused;
+static inline int occam_check_index_lower (int i, const char *pos) {
+	if (i < 0) {
+		occam_stop (pos, 3, "invalid array index %d (should be 0 <= i)", i);
+	}
+	return i;
+}
+static inline int occam_check_index_upper (int, int, const char *) occam_unused;
+static inline int occam_check_index_upper (int i, int limit, const char *pos) {
+	if (i >= limit) {
+		occam_stop (pos, 3, "invalid array index %d (should be i < %d)", i, limit);
+	}
+	return i;
+}
 static inline int occam_check_retype (int, int, const char *) occam_unused;
 static inline int occam_check_retype (int src, int dest, const char *pos) {
 	if (src % dest != 0) {

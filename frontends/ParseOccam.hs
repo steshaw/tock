@@ -282,7 +282,7 @@ postSubscript t
             A.Array _ _ ->
               do e <- tryXV sLeft intExpr
                  sRight
-                 return $ A.Subscript m e
+                 return $ A.Subscript m A.CheckBoth e
             _ -> pzero
 
 maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a

@@ -169,10 +169,22 @@ data ConversionMode =
   | Trunc
   deriving (Show, Eq, Ord, Typeable, Data)
 
+-- | Which ends (or both) of an array dimension to check the subscript against.
+-- By default, all subscripts in occam have the CheckBoth mode, but control-flow analysis
+-- may reduce the checking.  Also, the user will have the ability to turn off checks.
+-- Finally, checks introduced by passes may well use NoCheck if the array index is known
+-- to be within bounds.
+data SubscriptCheck =
+  NoCheck
+  | CheckLower
+  | CheckUpper
+  | CheckBoth
+  deriving (Show, Eq, Ord, Typeable, Data)
+
 -- | A subscript that can be applied to a variable or an expression.
 data Subscript =
   -- | Select a single element of an array.
-  Subscript Meta Expression
+  Subscript Meta SubscriptCheck Expression
   -- | Select a named field of a record type.
   | SubscriptField Meta Name
   -- | Select a slice of an array.

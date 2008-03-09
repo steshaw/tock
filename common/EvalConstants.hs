@@ -101,8 +101,10 @@ evalIndex e
             OccInt n -> return $ fromIntegral n
             _ -> throwError (Just $ findMeta e, "index has non-INT type")
 
+-- TODO should we obey the no-checking here, or not?
+-- If it's not in bounds, we can't constant fold it, so no-checking would preclude constant folding...
 evalSubscript :: A.Subscript -> OccValue -> EvalM OccValue
-evalSubscript (A.Subscript m e) (OccArray vs)
+evalSubscript (A.Subscript m _ e) (OccArray vs)
     =  do index <- evalIndex e
           if index >= 0 && index < length vs
             then return $ vs !! index

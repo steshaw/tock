@@ -63,7 +63,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
         -- Gets the (array-name, indexes) from a Var.
         -- TODO this is quite hacky, and doesn't yet deal with slices and so on:
         getArrayIndex :: Var -> Maybe (String, [A.Expression])
-        getArrayIndex (Var (A.SubscriptedVariable _ (A.Subscript _ e) (A.Variable _ n)))
+        getArrayIndex (Var (A.SubscriptedVariable _ (A.Subscript _ _ e) (A.Variable _ n)))
           = Just (A.nameName n, [e])
         getArrayIndex _ = Nothing
 

@@ -213,7 +213,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
       (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int)) $
           A.Several m [A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
             A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.Only m $ A.Seq m $ A.Several m
-            [A.Only m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
+            [A.Only m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
             A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [A.Dyadic m A.Plus (exprVariable "i") (intLiteral 1)]]
           ]
       )

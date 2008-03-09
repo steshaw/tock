@@ -133,7 +133,7 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
     expand (A.UnknownDimension:_) e
         = dieP (findMeta e) "array literal containing non-literal array of unknown size"
     expand (A.Dimension n:ds) e
-        = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
+        = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m A.NoCheck $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
       where m = findMeta e
 
 -- | We pull up the loop (Rep) counts into a temporary expression, whenever the loop
@@ -188,7 +188,7 @@ transformConstr = doGeneric `ext1M` doStructured
                A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
                A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m'' 
                    [A.Only m'' $ A.Assign m'' 
-                     [A.SubscriptedVariable m'' (A.Subscript m'' $ A.ExprVariable m'' $ A.Variable m'' indexVar) $ A.Variable m'' n]
+                     [A.SubscriptedVariable m'' (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' $ A.Variable m'' indexVar) $ A.Variable m'' n]
                      $ A.ExpressionList m'' [exp]
                    ,A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus 
                      (A.ExprVariable m'' $ A.Variable m'' indexVar)

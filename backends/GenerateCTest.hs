@@ -317,25 +317,26 @@ testActuals = TestList
    overActual = local (\ops -> ops {genActual = override1 at})
    over :: Override
    over = local (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
-   
+
+-- TODO test the other two array checking methods   
 testArraySubscript :: Test
 testArraySubscript = TestList
  [
   testBothSameS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]"
-    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
   ,testBothSameS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]"
-    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
   ,testBothSameS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]"
-    (tcall3 genArraySubscript False (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+    (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
   
   ,testBothSameS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]")
-    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5]) stateTrans
   ,testBothSameS "genArraySubscript 4"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]]")
-    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6]) stateTrans
   ,testBothSameS "genArraySubscript 5"
     ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]+occam_check_index(7,foo_sizes[2]," ++ m ++ ")]")
-    (tcall3 genArraySubscript True (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
+    (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [intLiteral 5, intLiteral 6, intLiteral 7]) stateTrans
     
  ]
  where
@@ -529,7 +530,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
      ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareFree ops emptyMeta t (A.Variable emptyMeta foo))) state
     ]
      where
-       overArray _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral 0) v) of
+       overArray _ v f = case f (\v -> A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta A.NoCheck $ intLiteral 0) v) of
          Just p -> caret >> p >> caret
          Nothing -> return ()
        over :: Override
@@ -783,7 +784,7 @@ testGenVariable = TestList
    dir = A.DirectedVariable emptyMeta A.DirInput
    fieldX = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "x")
    fieldY = A.SubscriptedVariable emptyMeta (A.SubscriptField emptyMeta $ simpleName "y")
-   sub n = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta $ intLiteral n)
+   sub n = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta A.CheckBoth $ intLiteral n)
  
    test :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
    test n (eC,eUC) (eCPP,eUCPP) sub am t = TestList
@@ -796,7 +797,7 @@ testGenVariable = TestList
                   defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
                   defRecord "barbar" "y" $ A.Record bar
        over :: Override
-       over = local $ \ops -> ops {genArraySubscript = (\b _ subs -> at >> (tell [if b then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
+       over = local $ \ops -> ops {genArraySubscript = (\c _ subs -> at >> (tell [if c /= A.NoCheck then "C" else "U"]) >> (seqComma $ map (call genExpression) subs))
                       ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
    
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
@@ -959,7 +960,7 @@ testInput = TestList
 
  ]
  where
-   sub0 = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta (intLiteral 0))
+   sub0 = A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta A.NoCheck (intLiteral 0))
  
    testInputItem :: Int -> String -> String -> A.InputItem -> A.Type -> Test
    testInputItem n eC eCPP oi t = testInputItem' n eC eCPP oi t t

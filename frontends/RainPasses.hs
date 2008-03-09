@@ -222,7 +222,7 @@ transformEach = everywhereM (mk1M transformEach')
            let s' = A.Spec m'
                  (A.Specification m' loopVar
                    (A.Is m' am loopVarType
-                     (A.SubscriptedVariable m' (A.Subscript m' (A.ExprVariable m' (A.Variable m' loopIndexName)))  var)
+                     (A.SubscriptedVariable m' (A.Subscript m' A.NoCheck (A.ExprVariable m' (A.Variable m' loopIndexName)))  var)
                    )
                  )
                  s
