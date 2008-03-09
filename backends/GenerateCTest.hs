@@ -389,20 +389,33 @@ testOverArray = TestList $ map testOverArray'
 
     testOverArray' :: ((Int -> String),[(String,[Int])] -> String,String, GenOps) -> Test
     testOverArray' (sz,f',suff,ops) = TestCase $
-      do testRS "testOverArray'" rx1 (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state1
-         testRS "testOverArray'" rx3 (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state3
+      do testRS "testOverArray'" rx1Static (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state1Static
+         testRS "testOverArray'" rx1Dynamic (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state1Dynamic
+         testRS "testOverArray'" rx3Static (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state3Static
+         testRS "testOverArray'" rx3Dynamic (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state3Dynamic
          return ()
       where
         func f = Just $ call genVariableUnchecked (f $ A.Variable emptyMeta foo) >> tell [";"]
-        rx1 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
-        rx3 = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{" ++
-              "for\\(int ([[:alnum:]_]+)=0;\\2<foo" ++ sz 1 ++ ";\\2\\+\\+)\\{" ++
+        rx1Static = "^for\\(int ([[:alnum:]_]+)=0;\\1<7;\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
+        rx1Dynamic = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
+        rx3Static
+           = "^for\\(int ([[:alnum:]_]+)=0;\\1<7;\\1\\+\\+)\\{" ++
+              "for\\(int ([[:alnum:]_]+)=0;\\2<8;\\2\\+\\+)\\{" ++
+              "for\\(int ([[:alnum:]_]+)=0;\\3<9;\\3\\+\\+)\\{" ++
+              "foo" ++ (f' [("\\1",[1,2]),("\\2",[2]),("\\3",[])]) ++ suff ++ ";\\}\\}\\}$"
+        rx3Dynamic
+           = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{" ++
+              "for\\(int ([[:alnum:]_]+)=0;\\2<8;\\2\\+\\+)\\{" ++
               "for\\(int ([[:alnum:]_]+)=0;\\3<foo" ++ sz 2 ++ ";\\3\\+\\+)\\{" ++
               "foo" ++ (f' [("\\1",[1,2]),("\\2",[2]),("\\3",[])]) ++ suff ++ ";\\}\\}\\}$"
-        state1 :: CSM m => m ()
-        state1 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
-        state3 :: CSM m => m ()
-        state3 = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
+        state1Static :: CSM m => m ()
+        state1Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
+        state1Dynamic :: CSM m => m ()
+        state1Dynamic = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.UnknownDimension] A.Int)
+        state3Static :: CSM m => m ()
+        state3Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
+        state3Dynamic :: CSM m => m ()
+        state3Dynamic = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.UnknownDimension, A.Dimension 8, A.UnknownDimension] A.Int)
 
 testReplicator :: Test
 testReplicator = TestList
