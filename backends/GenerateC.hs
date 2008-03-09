@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cgenDeclaration, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, indexOfFreeDimensions, seqComma, withIf ) where
+module GenerateC (cgenOps, cgenDeclaration, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -1048,21 +1048,6 @@ cgenRetypeSizes m destT destN srcT srcV
                         tell [","]
                         genMeta m
                         tell [")"] in
-          case destT of
-            -- An array -- figure out the genMissing dimension, if there is one.
-            A.Array destDS _ ->
-              do let free = listToMaybe (indexOfFreeDimensions destDS)
-                 case free of
-                   -- No free dimensions; check the complete array matches in size.
-                   Nothing ->
-                     do tell ["if("]
-                        size
-                        tell ["!=1){"]
-                        call genStop m "array size mismatch in RETYPES"
-                        tell ["}"]
-                   _ -> return ()
-            -- Not array; just check the size is 1.
-            _ ->
               do tell ["if("]
                  size
                  tell ["!=1){"]

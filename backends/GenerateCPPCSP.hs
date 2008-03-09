@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenDeclaration, cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, indexOfFreeDimensions, seqComma, withIf)
+import GenerateC (cgenDeclaration, cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass
@@ -70,7 +70,6 @@ cppgenOps = cgenOps {
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
-    genRetypeSizes = cppgenRetypeSizes,
     genStop = cppgenStop,
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
@@ -743,34 +742,6 @@ cppgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
 cppgenDirectedVariable v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
 cppgenDirectedVariable v A.DirOutput = tell ["(("] >> v >> tell [")->writer())"]
 cppgenDirectedVariable v dir = call genMissing $ "Cannot direct variable to direction: " ++ show dir
-
--- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
-cppgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
-cppgenRetypeSizes _ (A.Chan {}) _ (A.Chan {}) _ = return ()
-cppgenRetypeSizes m destT destN srcT srcV
-    =     let checkSize 
-                   = do tell ["if(occam_check_retype("]
-                        call genBytesIn m srcT (Right srcV)
-                        tell [","]
-                        call genBytesIn m destT (Left True)
-                        tell [","]
-                        genMeta m
-                        tell [")!=1){"] 
-                        call genStop m "size mismatch in RETYPES"
-                        tell ["}"] in
-          case destT of
-            -- TODO we should be able to remove this check now that arrays have changed
-            -- TODO or at least it needs fixing in some way...
-          
-            -- An array -- figure out the genMissing dimension, if there is one.
-            A.Array destDS _ ->
-                case (indexOfFreeDimensions destDS) of
-                   -- No free dimensions; check the complete array matches in size.
-                   [] -> checkSize
-                   _ -> return ()
-            -- Not array; just check the size is 1.
-            _ -> checkSize
-              
 
 cppgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen ()
 cppgenAllocMobile m (A.Mobile t) me
