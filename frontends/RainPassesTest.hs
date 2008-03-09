@@ -83,7 +83,7 @@ testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
                      --ValAbbrev because we are abbreviating an expression:
                      (mIs A.ValAbbrev A.Byte 
                        (mSubscriptedVariable
-                         (mSubscript (mExprVariable (mVariable indexVar)))
+                         (mSubscript A.NoCheck (mExprVariable (mVariable indexVar)))
                          listVar
                        )
                      )
@@ -127,7 +127,7 @@ testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (tran
                  (tag3 A.Specification DontCare (simpleName "c")
                    (tag4 A.Is DontCare A.Abbrev A.Byte
                      (tag3 A.SubscriptedVariable DontCare
-                       (tag2 A.Subscript DontCare (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
+                       (mSubscript A.NoCheck (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
                        (variable "d")
                      )
                    )
