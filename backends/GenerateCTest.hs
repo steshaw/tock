@@ -351,13 +351,13 @@ testArraySlice :: Test
 testArraySlice = TestList
  [
   -- Slice from a one-dimensional array:
-  testSlice 0 ("&arr[" ++ checkSlice "4" "5" "12" ++ "]") "arr" 4 5 [A.Dimension 12]
+  testSlice 0 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "])") "arr" 4 5 [A.Dimension 12]
     
   -- Slice from a two-dimensional array:
-  ,testSlice 1 ("&arr[4*arr_sizes[1]]") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
+  ,testSlice 1 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]])") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
     
   -- Slice from a three-dimensional array:
-  ,testSlice 2 ("&arr[4*arr_sizes[1]*arr_sizes[2]]") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
+  ,testSlice 2 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]*arr_sizes[2]])") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
   
   -- TODO test with unknown dimensions
  ]
@@ -366,7 +366,7 @@ testArraySlice = TestList
    testSlice index exp nm start count ds
      = testBothSameS ("genSlice " ++ show index) exp
       (tcall genVariable
-        (A.SubscriptedVariable undefined (A.SubscriptFromFor undefined (intLiteral start) (intLiteral count)) (variable nm))
+        (A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta (intLiteral start) (intLiteral count)) (variable nm))
       )
       (defineName (simpleName nm) $ simpleDefDecl nm (A.Array ds A.Int))
 
