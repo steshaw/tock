@@ -28,11 +28,11 @@ tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
-GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
+GenTagAST$(EXEEXT): $(GenTagAST_SOURCES) data/AST.hs
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
 
-GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
+GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES) data/AST.hs
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
 
