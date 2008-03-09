@@ -803,8 +803,11 @@ cgenExpression (A.SizeExpr m e)
     =  do call genExpression e
           call genSizeSuffix "0"
 cgenExpression (A.SizeVariable m v)
-    =  do call genVariable v
-          call genSizeSuffix "0"
+    =  do A.Array (d:_) _  <- typeOfVariable v
+          case d of
+            A.Dimension n -> tell [show n]
+            A.UnknownDimension -> do call genVariable v
+                                     call genSizeSuffix "0"
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
 cgenExpression (A.ExprVariable m v) = call genVariable v
 cgenExpression (A.Literal _ t lr) = call genLiteral lr t
