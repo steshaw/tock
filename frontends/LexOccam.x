@@ -56,7 +56,7 @@ $vertSpace = [\r\n]
           | "DATA"
           | "ELSE"
           | "FALSE" | "FOR" | "FROM" | "FUNCTION"
-          | "IF" | "IN" | "INLINE" | "INT" | "INT16" | "INT32" | "INT64"
+          | "IF" | "IN" | "INITIAL" | "INLINE" | "INT" | "INT16" | "INT32" | "INT64"
           | "IS"
           | "MINUS" | "MOSTNEG" | "MOSTPOS"
           | "NOT"

@@ -109,13 +109,12 @@ sRightR = reserved ")"
 sSemi = reserved ";"
 --}}}
 --{{{ keywords
-sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
-  sBYTESIN, sCASE, sCHAN, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
-  sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG, sMOSTPOS,
-  sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT,
-  sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM,
-  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER,
-  sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
+sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE, sBYTESIN, sCASE, sCHAN, sDATA,
+  sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS,
+  sMINUS, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, 
+  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM, sRESHAPES, sRESULT,
+  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
+  sWHILE, sWORKSPACE, sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -140,6 +139,7 @@ sFUNCTION = reserved "FUNCTION"
 sIF = reserved "IF"
 sINLINE = reserved "INLINE"
 sIN = reserved "IN"
+sINITIAL = reserved "INITIAL"
 sINT = reserved "INT"
 sINT16 = reserved "INT16"
 sINT32 = reserved "INT32"
@@ -1272,6 +1272,7 @@ declOf spec newName
 abbreviation :: OccParser A.Specification
 abbreviation
     =   valIsAbbrev
+    <|> initialIsAbbrev
     <|> isAbbrev newVariableName variable
     <|> isAbbrev newChannelName channel
     <|> chanArrayAbbrev
@@ -1289,6 +1290,16 @@ valIsAbbrev
           (e', _, _) <- constantFold e
           return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e'
     <?> "VAL IS abbreviation"
+
+initialIsAbbrev :: OccParser A.Specification
+initialIsAbbrev
+    =   do m <- md
+           (t, n) <- tryXVVX sINITIAL dataSpecifier newVariableName sIS
+           e <- expressionOfType t
+           sColon
+           eol
+           (e', _, _) <- constantFold e
+           return $ A.Specification m n $ A.IsExpr m A.Original t e'
 
 isAbbrev :: OccParser A.Name -> OccParser A.Variable -> OccParser A.Specification
 isAbbrev newName oldVar
