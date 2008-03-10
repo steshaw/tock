@@ -287,13 +287,13 @@ testPassGetItems ::
   -> a                                       -- ^ The expected outcome of the pass.  Will be used as a 'Pattern', to find the named items in the result of the pass.
   -> PassM b                                 -- ^ The actual pass.
   -> (State CompState ())                    -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
-  -> m (CompState, Either (m ()) Items)        -- ^ Returns the state, along with either an 'Assertion' (if the pass fails) or the 'Items' (if the pass succeeds).
+  -> m (Either (m ()) (CompState, Items))    -- ^ Returns the state, along with either an 'Assertion' (if the pass fails) or the 'Items' (if the pass succeeds).
 testPassGetItems testName expected actualPass startStateTrans = 
        --passResult :: Either String b
     do passResult <- runPass actualPass startState
        case passResult of
-         (st, Left (_, err)) -> return (st, Left $ testFailure (prefixErr $ "pass actually failed: " ++ err)) 
-         (st, Right resultItem) -> return (st, transformEither (mapM_ (testFailure . prefixErr)) (id) $ getMatchedItems expected resultItem)
+         Left err -> return (Left $ testFailure (prefixErr $ "pass actually failed: " ++ show err)) 
+         Right (st, resultItem) -> return (transformEither (mapM_ (testFailure . prefixErr)) (\y -> (st,y)) $ getMatchedItems expected resultItem)
        where
          startState :: CompState
          startState = execState startStateTrans emptyState
@@ -305,8 +305,8 @@ testPassGetItems testName expected actualPass startStateTrans =
 runPass :: TestMonad m r =>
   PassM b                            -- ^ The actual pass.
   -> CompState                       -- ^ The state to use to run the pass.
-  -> m (CompState, Either ErrorReport b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
-runPass actualPass startState = liftM (\((x,y),_) -> (y,x)) $ runIO (runWriterT $ runStateT (runErrorT actualPass) startState)
+  -> m (Either ErrorReport (CompState, b)) -- ^ The resultant state, and either an error or the successful outcome of the pass.
+runPass actualPass startState = liftM (liftM (\(x,y,_) -> (y,x))) $ runIO (runPassM actualPass startState)
 
 -- | A test that runs a given AST pass and checks that it succeeds.
 testPass ::
@@ -317,7 +317,7 @@ testPass ::
   -> (State CompState ())   -- ^ A function to transform a 'CompState'.  Will be used on the 'emptyState' to get the initial state for the pass.
   -> m ()
 --If Items are returned by testPassGetItems we return () [i.e. give an empty assertion], otherwise give back the assertion:
-testPass w x y z = join $ liftM (either (id) (\x -> return ())) $ (liftM snd) $ (testPassGetItems w x y z)
+testPass w x y z = join $ liftM (either (id) (\x -> return ())) $ testPassGetItems w x y z
 
 -- | A test that runs a given AST pass and checks that it succeeds, and performs an additional check on the result
 testPassWithCheck ::
@@ -330,9 +330,9 @@ testPassWithCheck ::
   -> m ()
 testPassWithCheck testName expected actualPass startStateTrans checkFunc =
   do passResult <- runPass actualPass (execState startStateTrans emptyState)
-     case snd passResult of
-       Left (_,err) -> testFailure (testName ++ "; pass actually failed: " ++ err)
-       Right result -> (testPatternMatch testName expected result) >> (checkFunc result)
+     case passResult of
+       Left err -> testFailure (testName ++ "; pass actually failed: " ++ show err)
+       Right (_, result) -> (testPatternMatch testName expected result) >> (checkFunc result)
 
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'Items' with a given function.
 testPassWithItemsCheck :: 
@@ -344,11 +344,11 @@ testPassWithItemsCheck ::
   -> (Items -> m ())      -- ^ A function to check the 'Items' once the pass succeeds.
   -> m ()
 testPassWithItemsCheck testName expected actualPass startStateTrans checkFunc =
-  ((liftM snd) (testPassGetItems testName expected actualPass startStateTrans))
+  testPassGetItems testName expected actualPass startStateTrans
   >>= (\res ->
     case res of 
       Left assert -> assert
-      Right items -> checkFunc items
+      Right (_, items) -> checkFunc items
   )
 
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'CompState' with a given function.
@@ -361,11 +361,11 @@ testPassWithStateCheck ::
   -> (CompState -> m ())      -- ^ A function to check the 'CompState' once the pass succeeds.
   -> m ()
 testPassWithStateCheck testName expected actualPass startStateTrans checkFunc =
-  (testPassGetItems testName expected actualPass startStateTrans)
+  testPassGetItems testName expected actualPass startStateTrans
   >>= (\x ->
     case x of 
-      (_,Left assert) -> assert
-      (st,Right _) -> checkFunc st
+      Left assert -> assert
+      Right (st, _) -> checkFunc st
   )
 
 -- | A test that runs a given AST pass, checks that it succeeds, and checks the resulting 'CompState' and 'Items' with a given function.
@@ -378,11 +378,11 @@ testPassWithItemsStateCheck ::
   -> ((Items,CompState) -> m ())      -- ^ A function to check the 'Items' and 'CompState' once the pass succeeds.
   -> m ()
 testPassWithItemsStateCheck testName expected actualPass startStateTrans checkFunc =
-  (testPassGetItems testName expected actualPass startStateTrans)
+  testPassGetItems testName expected actualPass startStateTrans
   >>= (\x ->
     case x of 
-      (_,Left assert) -> assert
-      (st,Right items) -> checkFunc (items,st)
+      Left assert -> assert
+      Right (st, items) -> checkFunc (items,st)
   )
   
 -- | A test that checks that a given AST pass fails.  If the pass fails, the test succeeds.  If the pass succeeds, the test fails.
@@ -395,7 +395,7 @@ testPassShouldFail ::
 testPassShouldFail testName actualPass startStateTrans =
     do ret <- runPass actualPass (execState startStateTrans emptyState)
        case ret of
-         (_,Left err) -> return ()
+         Left err -> return ()
          _ -> testFailure $ testName ++ " pass succeeded when expected to fail, data: " ++ (pshow ret)
 
 -- | Asserts that a particular variable is defined in the given 'CompState'.
