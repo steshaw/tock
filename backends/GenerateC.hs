@@ -1566,17 +1566,21 @@ cgenPar pm s
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
 cgenAlt isPri s
-    =  do tell ["Alt (wptr);\n"]
+    =  do id <- csmLift $ makeNonce "alt_id"
+          tell ["int ", id, " = 0;\n"]
+
+          tell ["Alt (wptr);\n"]
           tell ["{\n"]
-          genAltEnable s
+          genAltEnable id s
           tell ["}\n"]
+
           -- Like occ21, this is always a PRI ALT, so we can use it for both.
           tell ["AltWait (wptr);\n"]
-          id <- csmLift $ makeNonce "alt_id"
-          tell ["int ", id, " = 0;\n"]
+          tell [id, " = 0;\n"]
           tell ["{\n"]
           genAltDisable id s
           tell ["}\n"]
+
           fired <- csmLift $ makeNonce "alt_fired"
           tell ["int ", fired, " = AltEnd (wptr);\n"]
           tell [id, " = 0;\n"]
@@ -1586,17 +1590,17 @@ cgenAlt isPri s
           tell ["}\n"]
           tell [label, ":\n;\n"]
   where
-    genAltEnable :: A.Structured A.Alternative -> CGen ()
-    genAltEnable s = call genStructured s doA
+    genAltEnable :: String -> A.Structured A.Alternative -> CGen ()
+    genAltEnable id s = call genStructured s doA
       where
         doA _ alt
             = case alt of
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
-                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip (wptr);\n"]
+                A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip (wptr,", id, "++);\n"]
                 --transformWaitFor should have removed all A.WaitFor guards (transforming them into A.WaitUntil):
                 A.AlternativeWait _ A.WaitUntil e _ ->
-                  do tell ["AltEnableTimer (wptr,"]
+                  do tell ["AltEnableTimer (wptr,", id, "++,"]
                      call genExpression e
                      tell [" );\n"]
 
@@ -1604,11 +1608,11 @@ cgenAlt isPri s
             = do case im of
                    A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
                    A.InputTimerAfter _ time ->
-                     do tell ["AltEnableTimer (wptr,"]
+                     do tell ["AltEnableTimer (wptr,", id, "++,"]
                         call genExpression time
                         tell [");\n"]
                    _ ->
-                     do tell ["AltEnableChannel (wptr,"]
+                     do tell ["AltEnableChannel (wptr,", id, "++,"]
                         call genVariable c
                         tell [");\n"]
 
