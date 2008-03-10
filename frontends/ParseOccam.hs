@@ -2021,7 +2021,7 @@ parseOccamProgram toks
     =  do cs <- get
           (p, ws, cs') <- runTockParser toks sourceFile cs
           put cs'
-          tell ws
+          mapM_ warnReport ws
           return p
 --}}}
 

@@ -60,7 +60,7 @@ type CGen' = StateT (Either [String] Handle) PassM
 type CGen = ReaderT GenOps CGen'
 
 instance Die CGen where
-  dieReport = throwError
+  dieReport err = lift $ lift $ dieReport err
   
 instance CSMR CGen' where
   getCompState = lift getCompState
