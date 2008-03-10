@@ -597,10 +597,9 @@ dataType
     <|> do { n <- try recordName; return $ A.Record n }
     <?> "data type"
 
--- FIXME should probably make CHAN INT work, since that'd be trivial...
 channelType :: OccParser A.Type
 channelType
-    =   do { sCHAN; sOF; p <- protocol; return $ A.Chan A.DirUnknown A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
+    =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.DirUnknown A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
     <|> arrayType channelType
     <?> "channel type"
 
