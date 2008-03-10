@@ -50,6 +50,7 @@ $vertSpace = [\r\n]
           | "<" | ">"
           | "~"
           | "##"
+          | "|"
           | "AFTER" | "ALT" | "AND" | "ANY" | "AT"
           | "BITAND" | "BITNOT" | "BITOR" | "BOOL" | "BYTE" | "BYTESIN"
           | "CASE" | "CHAN"

@@ -90,13 +90,12 @@ plainToken t = genToken test
     test (_, t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
-sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest,
-  sRight, sRightR, sSemi
-    :: OccParser ()
+sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest, sRight, sRightR, sSemi :: OccParser ()
 
 sAmp = reserved "&"
 sAssign = reserved ":="
 sBang = reserved "!"
+sBar = reserved "|"
 sColon = reserved ":"
 sColons = reserved "::"
 sComma = reserved ","
@@ -900,6 +899,16 @@ expression
     <|> operand
     <?> "expression"
 
+arrayConstructor :: OccParser A.Expression
+arrayConstructor
+ = do m <- md
+      sLeft
+      r <- replicator
+      sBar
+      e <- expression
+      sRight
+      return $ A.ExprConstr m $ A.RepConstr m r e      
+
 associativeOpExpression :: OccParser A.Expression
 associativeOpExpression
     =  do m <- md
@@ -1119,6 +1128,7 @@ operand'
     <|> do { m <- md; sTRUE; return $ A.True m }
     <|> do { m <- md; sFALSE; return $ A.False m }
     <|> table
+    <|> arrayConstructor
     <?> "operand"
 --}}}
 --{{{ variables, channels, timers, ports
