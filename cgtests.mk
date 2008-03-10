@@ -12,7 +12,7 @@ checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
 
 %: %.occ
-	./tock -vk --backend=$(BACKEND) -o $@ $< +RTS -c
+	./tock -vk --backend=$(BACKEND) -o $@ $<
 
 run-all: $(addprefix run-,$(tests))
 
