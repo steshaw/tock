@@ -38,9 +38,7 @@ If they are not equal, it shows them (using 'show') with the given message prefi
 
 module TestUtils where
 
-import Control.Monad.Error
 import Control.Monad.State
-import Control.Monad.Writer
 import Data.Generics
 import qualified Data.Map as Map
 import System.Time

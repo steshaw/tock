@@ -34,8 +34,6 @@ The file is terminated by a single percent on its own line.
 module TestHarness (automaticTest, automaticTimeTest) where
 
 import Control.Monad.Error
-import Control.Monad.State
-import Control.Monad.Writer
 import Data.List
 import Data.Maybe
 import System.IO

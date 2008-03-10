@@ -21,7 +21,6 @@ module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (liftM, when)
 import Control.Monad.State (MonadState, modify, get, put)
-import Control.Monad.Writer (tell)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe

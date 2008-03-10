@@ -19,10 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Common definitions for passes over the AST.
 module Pass where
 
-import Control.Monad.Error
-import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Writer
 import Data.Generics
 import Data.List
 import qualified Data.Set as Set

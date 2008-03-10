@@ -31,10 +31,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- do a similar trick.
 module GenerateCTest (tests) where
 
-import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Writer hiding (tell)
 import Data.Generics
 import Data.List (isInfixOf, intersperse)
 import Data.Maybe (fromMaybe)
