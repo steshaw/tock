@@ -448,7 +448,7 @@ checkExpressionTest = TestList
                               if (e /= act) then pass' (10000 + n) t (mkPattern e) e else return ()
             where
               errorOrType :: IO (Either ErrorReport A.Type)
-              errorOrType = runPassM (typeOfExpression e) (execState state emptyState) >>* transformEither id (\(x,_,_) -> x)
+              errorOrType = ((runWriterT (evalStateT (runErrorT $ typeOfExpression e) (execState state emptyState))) :: IO (Either ErrorReport A.Type, [WarningReport])) >>* fst
   
   
   fail :: Int -> ExprHelper -> Test
