@@ -19,8 +19,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | The function dictionary and various types and helper functions for backends based around C
 module GenerateCBased where
 
+import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Generics
 import System.IO
 

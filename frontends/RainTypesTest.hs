@@ -20,6 +20,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module RainTypesTest where
 
 import Control.Monad.State
+import Control.Monad.Error
+import Control.Monad.Writer
 import Data.Generics
 import Test.HUnit hiding (State)
 

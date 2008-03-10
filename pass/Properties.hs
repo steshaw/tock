@@ -64,7 +64,7 @@ module Properties
   )
   where
 
-import Control.Monad
+import Control.Monad.Writer
 import Data.Generics
 import Data.Int
 import Data.List

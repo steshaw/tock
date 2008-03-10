@@ -19,8 +19,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Driver for the compiler.
 module Main (main) where
 
+import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Either
 import Data.Generics
 import Data.Maybe
