@@ -1597,13 +1597,13 @@ cgenAlt isPri s
     =  do id <- csmLift $ makeNonce "alt_id"
           tell ["int ", id, " = 0;\n"]
 
-          tell ["Alt (wptr);\n"]
+          tell ["TimerAlt (wptr);\n"]
           tell ["{\n"]
           genAltEnable id s
           tell ["}\n"]
 
           -- Like occ21, this is always a PRI ALT, so we can use it for both.
-          tell ["AltWait (wptr);\n"]
+          tell ["TimerAltWait (wptr);\n"]
           tell [id, " = 0;\n"]
           tell ["{\n"]
           genAltDisable id s
