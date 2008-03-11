@@ -20,6 +20,7 @@
 #define TOCK_SUPPORT_CIF_H
 
 #include <cif.h>
+#include <stdio.h>
 
 //{{{  occam_stop
 #define occam_stop(pos, nargs, format, args...) \
@@ -38,6 +39,42 @@ static inline void tock_init_chan_array (Channel *, Channel **, int) occam_unuse
 static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, int count) {
 	for (int i = 0; i < count; i++) {
 		pointFrom[i] = &(pointTo[i]);
+	}
+}
+//}}}
+
+//{{{  top-level process interface
+static void tock_tlp_input (Workspace wptr) occam_unused;
+static void tock_tlp_input (Workspace wptr) {
+	Channel *out	= ProcGetParam (wptr, 0, Channel *);
+	Channel *kill	= ProcGetParam (wptr, 1, Channel *);
+	FILE *in	= ProcGetParam (wptr, 2, FILE *);
+
+	// FIXME: Implement using killable BSC
+}
+
+static void tock_tlp_output (Workspace wptr) occam_unused;
+static void tock_tlp_output (Workspace wptr) {
+	Channel *in	= ProcGetParam (wptr, 0, Channel *);
+	Channel *kill	= ProcGetParam (wptr, 1, Channel *);
+	FILE *out	= ProcGetParam (wptr, 2, FILE *);
+
+	while (true) {
+		switch (ProcAlt (wptr, in, kill, NULL)) {
+			case 0: {
+				uint8_t ch;
+				ChanIn (wptr, in, &ch, sizeof ch);
+				ExternalCallN (fputc, 2, ch, out);
+
+				break;
+			}
+			case 1: {
+				bool b;
+				ChanIn (wptr, kill, &b, sizeof b);
+
+				return;
+			}
+		}
 	}
 }
 //}}}

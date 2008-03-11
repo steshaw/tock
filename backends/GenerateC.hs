@@ -118,7 +118,6 @@ cgenOps = GenOps {
     genSpecMode = cgenSpecMode,
     genStop = cgenStop,
     genStructured = cgenStructured,
-    genTLPChannel = cgenTLPChannel,
     genTimerRead = cgenTimerRead,
     genTimerWait = cgenTimerWait,
     genTopLevel = cgenTopLevel,
@@ -141,42 +140,54 @@ cgenOps = GenOps {
 generateC :: Handle -> A.AST -> PassM ()
 generateC = generate cgenOps
 
-cgenTLPChannel :: TLPChannel -> CGen ()
-cgenTLPChannel TLPIn = tell ["in"]
-cgenTLPChannel TLPOut = tell ["out"]
-cgenTLPChannel TLPError = tell ["err"]
-
 cgenTopLevel :: A.AST -> CGen ()
 cgenTopLevel s
     =  do tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
-          (tlpName, chans) <- tlpInterface
+          (tlpName, tlpChans) <- tlpInterface
+          chans <- sequence [csmLift $ makeNonce "tlp_channel" | _ <- tlpChans]
+          killChans <- sequence [csmLift $ makeNonce "tlp_channel_kill" | _ <- tlpChans]
+          workspaces <- sequence [csmLift $ makeNonce "tlp_channel_ws" | _ <- tlpChans]
 
           sequence_ $ map (call genForwardDeclaration)
                           (listify (const True :: A.Specification -> Bool) s)
 
-          sequence_ [do tell ["extern int " ++ nameString n ++ "_wrapper_stack_size;\n"]
+          sequence_ [do tell ["extern int ", nameString n, "_wrapper_stack_size;\n"]
                         cgenProcWrapper n
-                     | n <- tlpName : (Set.toList $ csParProcs cs)]
+                     | n <- Set.toList $ csParProcs cs]
+          tell ["extern int "]
+          genName tlpName
+          tell ["_stack_size;\n"]
 
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
-          tell ["void tock_main (Workspace wptr) {\n\
-                \    Workspace tlp = ProcAlloc (wptr, ", show $ length chans, ", "]
-          genName tlpName
-          tell ["_wrapper_stack_size);\n"]
-          sequence_ [do tell ["    ProcParam (wptr, tlp, " ++ show i ++ ", "]
-                        call genTLPChannel c
-                        tell [");\n"]
-                     | (i, (_, c)) <- zip [(0 :: Int)..] chans]
+          tell ["void tock_main (Workspace wptr) {\n"]
+          sequence_ [do tell ["    Channel ", c, ";\n"]
+                        tell ["    ChanInit (wptr, &", c, ");\n"]
+                     | c <- chans ++ killChans]
+          tell ["\n"]
+
+          funcs <- sequence [genTLPHandler tc c kc ws
+                             | (tc, c, kc, ws) <- zip4 tlpChans chans killChans workspaces]
+
+          tell ["    LightProcBarrier bar;\n\
+                \    LightProcBarrierInit (wptr, &bar, ", show $ length chans, ");\n"]
+
+          sequence_ [tell ["    LightProcStart (wptr, &bar, ", ws, ", (Process) ", func, ");\n"]
+                     | (ws, func) <- zip workspaces funcs]
 
           tell ["\n\
-                \    LightProcBarrier bar;\n\
-                \    LightProcBarrierInit (wptr, &bar, 1);\n\
-                \    LightProcStart (wptr, &bar, tlp, (Process) "]
+                 \    "]
           genName tlpName
-          tell ["_wrapper);\n\
-                \    LightProcBarrierWait (wptr, &bar);\n\
+          tell [" (wptr"]
+          sequence_ [tell [", &", c] | c <- chans]
+          tell [");\n\
+                \\n\
+                \    bool b = true;\n"]
+          sequence_ [tell ["    ChanOut (wptr, &", kc, ", &b, sizeof b);\n"]
+                     | kc <- killChans]
+
+          tell ["    LightProcBarrierWait (wptr, &bar);\n\
                 \    Shutdown (wptr);\n\
                 \}\n\
                 \\n\
@@ -184,12 +195,30 @@ cgenTopLevel s
                 \    if (!ccsp_init ())\n\
                 \        return 1;\n\
                 \\n\
-                \    Workspace p = ProcAllocInitial (0, 512);\n\
+                \    Workspace p = ProcAllocInitial (0, "]
+          genName tlpName
+          tell ["_stack_size + 512);\n\
                 \    ProcStartInitial (p, tock_main);\n\
                 \\n\
                 \    // NOTREACHED\n\
                 \    return 0;\n\
                 \}\n"]
+  where
+    -- | Allocate a TLP channel handler process, and return the function that
+    -- implements it.
+    genTLPHandler :: (A.Direction, TLPChannel) -> String -> String -> String -> CGen String
+    genTLPHandler (_, tc) c kc ws
+        =  do tell ["    Workspace ", ws, " = ProcAlloc (wptr, 3, 1024);\n\
+                    \    ProcParam (wptr, ", ws, ", 0, &", c, ");\n\
+                    \    ProcParam (wptr, ", ws, ", 1, &", kc, ");\n\
+                    \    ProcParam (wptr, ", ws, ", 2, ", fp, ");\n\
+                    \\n"]
+              return func
+      where
+        (fp, func) = case tc of
+                       TLPIn -> ("stdin", "tock_tlp_input")
+                       TLPOut -> ("stdout", "tock_tlp_output")
+                       TLPError -> ("stderr", "tock_tlp_output")
 --}}}
 
 --{{{  utilities

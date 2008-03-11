@@ -30,7 +30,6 @@ import Errors
 import Metadata
 import Pass
 import qualified Properties as Prop
-import TLP
 
 cCppCommonPreReq :: [Property]
 cCppCommonPreReq =
@@ -166,7 +165,6 @@ data GenOps = GenOps {
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
     genStop :: Meta -> String -> CGen (),
     genStructured :: forall a. Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen (),
-    genTLPChannel :: TLPChannel -> CGen (),
     genTimerRead :: A.Variable -> A.Variable -> CGen (),
     genTimerWait :: A.Expression -> CGen (),
     genTopLevel :: A.AST -> CGen (),

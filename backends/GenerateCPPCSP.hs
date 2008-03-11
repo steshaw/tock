@@ -146,11 +146,14 @@ cppgenTopLevel s
   where
     tlpChannel :: (A.Direction,TLPChannel) -> CGen()
     tlpChannel (dir,c) = case dir of
-                               A.DirUnknown -> tell ["&"] >> chanName
-                               A.DirInput -> chanName >> tell [" .reader() "]
-                               A.DirOutput -> chanName >> tell [" .writer() "]
+                               A.DirUnknown -> tell ["&", chanName]
+                               A.DirInput -> tell [chanName, ".reader() "]
+                               A.DirOutput -> tell [chanName, ".writer() "]
                              where
-                               chanName = call genTLPChannel c
+                               chanName = case c of
+                                            TLPIn -> "in"
+                                            TLPOut -> "out"
+                                            TLPError -> "err"
 
 --}}}
 
