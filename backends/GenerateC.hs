@@ -155,7 +155,6 @@ cgenTopLevel s
           sequence_ $ map (call genForwardDeclaration)
                           (listify (const True :: A.Specification -> Bool) s)
 
-          tell ["/* ", show $ csParProcs cs, " */\n"]
           sequence_ [do tell ["extern int " ++ nameString n ++ "_wrapper_stack_size;\n"]
                         cgenProcWrapper n
                      | n <- tlpName : (Set.toList $ csParProcs cs)]
