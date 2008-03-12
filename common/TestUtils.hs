@@ -56,7 +56,10 @@ import TreeUtils
 import Types
 import Utils
 
-data QuickCheckLevel = QC_Low | QC_Medium | QC_High | QC_Extensive deriving (Show, Eq, Ord)
+--{{{  utilities for QuickCheck tests
+
+data QuickCheckLevel = QC_Low | QC_Medium | QC_High | QC_Extensive
+  deriving (Show, Eq, Ord)
 
 type QuickCheckTest = QuickCheckLevel -> IO ()
 
@@ -72,6 +75,9 @@ scaleQC (low,med,high,ext) test level
   where
     run :: Testable a => Int -> a -> IO ()
     run n = check (defaultConfig { configMaxTest = n })
+
+--}}}
+--{{{  building AST fragments and patterns
 
 -- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.VariableName'.
 simpleName :: String -> A.Name
@@ -200,6 +206,43 @@ makeLiteralStringRainPattern = (stopCaringPattern emptyMeta) . mkPattern . makeL
 makeLiteralCharPattern :: Char -> Pattern
 makeLiteralCharPattern c = tag3 A.Literal DontCare A.Byte (tag2 A.ByteLiteral DontCare [c])
 
+data ExprHelper = 
+  Dy ExprHelper A.DyadicOp ExprHelper
+  | Mon A.MonadicOp ExprHelper
+  | Cast A.Type ExprHelper
+  | Var String
+  | DirVar A.Direction String
+  | Lit A.Expression
+  | EHTrue
+
+buildExprPattern :: ExprHelper -> Pattern
+buildExprPattern = (stopCaringPattern emptyMeta) . mkPattern . buildExpr
+
+buildExpr :: ExprHelper -> A.Expression
+buildExpr (Dy lhs op rhs) = A.Dyadic emptyMeta op (buildExpr lhs) (buildExpr rhs)
+buildExpr (Mon op rhs) = A.Monadic emptyMeta op (buildExpr rhs)
+buildExpr (Cast ty rhs) = A.Conversion emptyMeta A.DefaultConversion ty (buildExpr rhs)
+buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
+buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
+buildExpr (Lit e) = e
+buildExpr EHTrue = A.True emptyMeta
+
+-- | A simple definition of a variable
+simpleDef :: String -> A.SpecType -> A.NameDef
+simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
+                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+
+-- | A simple definition of a declared variable
+simpleDefDecl :: String -> A.Type -> A.NameDef
+simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t)
+
+-- | A pattern that will match simpleDef, with a different abbreviation mode
+simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
+simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+
+--}}}
+--{{{  custom assertions
+
 -- | Asserts a comparison using a custom comparison function.
 -- @'assertCompareCustom' msg (==) x y@ will function the same (except for slightly different messages on failure) as @'assertEqual' msg x y@.
 assertCompareCustom :: 
@@ -233,6 +276,45 @@ assertItemNotSame ::
   -> String    -- ^ The key of the new transformed item
   -> Assertion
 assertItemNotSame msg items key0 key1 = assertNotEqual msg ((Map.lookup key0 items) :: Maybe AnyDataItem) ((Map.lookup key1 items) :: Maybe AnyDataItem)
+
+-- | Asserts that a particular variable is defined in the given 'CompState'.
+assertVarDef :: 
+  String        -- ^ The message\/test name to prefix on failure.
+  -> CompState  -- ^ The 'CompState' in which to check for the variable being defined
+  -> String     -- ^ The name of the variable to check for.
+  -> Pattern    -- ^ The expected value of the definition.  Expected to be a 'Pattern' that will match a 'A.NameDef'.
+  -> Assertion
+assertVarDef prefix state varName varDef 
+  = case (Map.lookup varName (csNames state)) of
+      Nothing -> assertFailure $ prefix ++ " variable was not recorded: " ++ varName
+      Just actVarDef -> assertPatternMatch (prefix ++ " variable definition not as expected for " ++ varName) varDef actVarDef
+
+checkTempVarTypes :: String -> [(String, A.Type)] -> (Items, CompState) -> Assertion
+checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
+  where
+    checkTempVarType :: String -> (Items, CompState) -> (String, A.Type) -> Assertion
+    checkTempVarType testName (items, state) (key, t)
+      = do (A.Name _ _ nm) <- castOrFail testName key items
+           case Map.lookup nm (csNames state) of
+             Nothing -> assertFailure (testName ++ ": item with key \"" ++ key ++ "\" was not recorded in the state")
+             Just nd -> evalStateT (
+                          do mtSpec <- typeOfSpec (A.ndType nd)
+                             case mtSpec of
+                               Just tSpec -> liftIO $ assertEqual (testName ++ ": type not as expected for key \"" ++ key ++ "\"") t tSpec
+                               Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndType nd))
+                          ) state
+
+assertEither :: (Eq a, Show a) => String -> a -> Either String a -> Assertion
+assertEither testName exp = assertEqual testName (Right exp)
+   
+assertEitherFail :: String -> Either String a -> Assertion
+assertEitherFail testName result
+     = case result of
+         Left _ -> return ()
+         Right _ -> assertFailure $ testName ++ "; test expected to fail but passed"
+
+--}}}
+--{{{  canned tests
 
 -- | Tests a given AST pass.  This function is primarily intended for internal use by this module.
 -- It takes an expected value, a transformed value (wrapped in the 'PassM' monad), an initial state-changing function, and returns the subsequent
@@ -354,52 +436,8 @@ testPassShouldFail testName actualPass startStateTrans =
          Left err -> return ()
          _ -> testFailure $ testName ++ " pass succeeded when expected to fail, data: " ++ (pshow ret)
 
--- | Asserts that a particular variable is defined in the given 'CompState'.
-assertVarDef :: 
-  String        -- ^ The message\/test name to prefix on failure.
-  -> CompState  -- ^ The 'CompState' in which to check for the variable being defined
-  -> String     -- ^ The name of the variable to check for.
-  -> Pattern    -- ^ The expected value of the definition.  Expected to be a 'Pattern' that will match a 'A.NameDef'.
-  -> Assertion
-assertVarDef prefix state varName varDef 
-  = case (Map.lookup varName (csNames state)) of
-      Nothing -> assertFailure $ prefix ++ " variable was not recorded: " ++ varName
-      Just actVarDef -> assertPatternMatch (prefix ++ " variable definition not as expected for " ++ varName) varDef actVarDef
-
-
-data ExprHelper = 
-  Dy ExprHelper A.DyadicOp ExprHelper
-  | Mon A.MonadicOp ExprHelper
-  | Cast A.Type ExprHelper
-  | Var String
-  | DirVar A.Direction String
-  | Lit A.Expression
-  | EHTrue
-
-buildExprPattern :: ExprHelper -> Pattern
-buildExprPattern = (stopCaringPattern emptyMeta) . mkPattern . buildExpr
-
-buildExpr :: ExprHelper -> A.Expression
-buildExpr (Dy lhs op rhs) = A.Dyadic emptyMeta op (buildExpr lhs) (buildExpr rhs)
-buildExpr (Mon op rhs) = A.Monadic emptyMeta op (buildExpr rhs)
-buildExpr (Cast ty rhs) = A.Conversion emptyMeta A.DefaultConversion ty (buildExpr rhs)
-buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
-buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
-buildExpr (Lit e) = e
-buildExpr EHTrue = A.True emptyMeta
-
--- | A simple definition of a variable
-simpleDef :: String -> A.SpecType -> A.NameDef
-simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
-                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
-
--- | A simple definition of a declared variable
-simpleDefDecl :: String -> A.Type -> A.NameDef
-simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t)
-
--- | A pattern that will match simpleDef, with a different abbreviation mode
-simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
-simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+--}}}
+--{{{  miscellaneous utilities
 
 markRainTest :: State CompState ()
 markRainTest = modify (\cs -> cs { csFrontend = FrontendRain })
@@ -416,26 +454,4 @@ instance Die (StateT CompState IO) where
   dieReport (_,s) = liftIO $ do assertFailure s 
                                 fail s
 
-checkTempVarTypes :: String -> [(String, A.Type)] -> (Items, CompState) -> Assertion
-checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
-  where
-    checkTempVarType :: String -> (Items, CompState) -> (String, A.Type) -> Assertion
-    checkTempVarType testName (items, state) (key, t)
-      = do (A.Name _ _ nm) <- castOrFail testName key items
-           case Map.lookup nm (csNames state) of
-             Nothing -> assertFailure (testName ++ ": item with key \"" ++ key ++ "\" was not recorded in the state")
-             Just nd -> evalStateT (
-                          do mtSpec <- typeOfSpec (A.ndType nd)
-                             case mtSpec of
-                               Just tSpec -> liftIO $ assertEqual (testName ++ ": type not as expected for key \"" ++ key ++ "\"") t tSpec
-                               Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndType nd))
-                          ) state
-
-assertEither :: (Eq a, Show a) => String -> a -> Either String a -> Assertion
-assertEither testName exp = assertEqual testName (Right exp)
-   
-assertEitherFail :: String -> Either String a -> Assertion
-assertEitherFail testName result
-     = case result of
-         Left _ -> return ()
-         Right _ -> assertFailure $ testName ++ "; test expected to fail but passed"
+--}}}
