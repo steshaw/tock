@@ -21,6 +21,10 @@
 
 #include <cif.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
 
 //{{{  occam_stop
 #define occam_stop(pos, nargs, format, args...) \
@@ -106,6 +110,62 @@ static void tock_tlp_output_kill (Workspace wptr, Channel *kill) {
 	bool b = true;
 
 	ChanOut (wptr, kill, &b, sizeof b);
+}
+//}}}
+
+//{{{  CCSP startup and terminal handling
+static bool tock_uses_tty;
+static struct termios tock_saved_termios;
+
+static void tock_exit_handler (int status, word core) occam_unused;
+static void tock_exit_handler (int status, word core) {
+	//{{{  restore terminal
+	if (tock_uses_tty) {
+		if (tcsetattr (0, TCSAFLUSH, &tock_saved_termios) != 0) {
+			fprintf (stderr, "Tock: tcsetattr failed\n");
+			exit (1);
+		}
+
+		tock_uses_tty = false;
+	}
+	//}}}
+
+	ccsp_default_exit_handler (status, core);
+}
+
+static void tock_init_ccsp (bool uses_stdin) occam_unused;
+static void tock_init_ccsp (bool uses_stdin) {
+	ccsp_set_branding ("Tock");
+
+	//{{{  configure terminal
+	tock_uses_tty = uses_stdin && isatty (0);
+	if (tock_uses_tty) {
+		struct termios term;
+
+		if (tcgetattr (0, &term) != 0) {
+			fprintf (stderr, "Tock: tcgetattr failed\n");
+			exit (1);
+		}
+		tock_saved_termios = term;
+
+		// Disable canonicalised input and echoing.
+		term.c_lflag &= ~(ICANON | ECHO);
+		// Satisfy a read request when one character is available.
+		term.c_cc[VMIN] = 1;
+		// Block read requests until VMIN characters are available.
+		term.c_cc[VTIME] = 0;
+
+		if (tcsetattr (0, TCSANOW, &term) != 0) {
+			fprintf (stderr, "Tock: tcsetattr failed\n");
+			exit (1);
+		}
+	}
+	//}}}
+
+	if (!ccsp_init ())
+		exit (1);
+
+	ccsp_set_exit_handler (tock_exit_handler);
 }
 //}}}
 

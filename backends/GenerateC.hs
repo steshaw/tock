@@ -186,14 +186,14 @@ cgenTopLevel s
           sequence_ [tell ["    ", func, "_kill (wptr, &", kc, ");\n"]
                      | (func, kc) <- zip funcs killChans]
 
+          let uses_stdin = if TLPIn `elem` (map snd tlpChans) then "true" else "false"
           tell ["    LightProcBarrierWait (wptr, &bar);\n\
                 \\n\
                 \    Shutdown (wptr);\n\
                 \}\n\
                 \\n\
                 \int main (int argc, char *argv[]) {\n\
-                \    if (!ccsp_init ())\n\
-                \        return 1;\n\
+                \    tock_init_ccsp (", uses_stdin, ");\n\
                 \\n\
                 \    Workspace p = ProcAllocInitial (0, "]
           genName tlpName
