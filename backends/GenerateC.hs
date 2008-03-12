@@ -182,12 +182,12 @@ cgenTopLevel s
           tell [" (wptr"]
           sequence_ [tell [", &", c] | c <- chans]
           tell [");\n\
-                \\n\
-                \    bool b = true;\n"]
-          sequence_ [tell ["    ChanOut (wptr, &", kc, ", &b, sizeof b);\n"]
-                     | kc <- killChans]
+                \\n"]
+          sequence_ [tell ["    ", func, "_kill (wptr, &", kc, ");\n"]
+                     | (func, kc) <- zip funcs killChans]
 
           tell ["    LightProcBarrierWait (wptr, &bar);\n\
+                \\n\
                 \    Shutdown (wptr);\n\
                 \}\n\
                 \\n\

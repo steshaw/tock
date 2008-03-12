@@ -53,6 +53,11 @@ static void tock_tlp_input (Workspace wptr) {
 	// FIXME: Implement using killable BSC
 }
 
+static void tock_tlp_input_kill (Workspace wptr, Channel *kill) occam_unused;
+static void tock_tlp_input_kill (Workspace wptr, Channel *kill) {
+	// FIXME: Implement
+}
+
 static void tock_tlp_output (Workspace wptr) occam_unused;
 static void tock_tlp_output (Workspace wptr) {
 	Channel *in	= ProcGetParam (wptr, 0, Channel *);
@@ -76,6 +81,13 @@ static void tock_tlp_output (Workspace wptr) {
 			}
 		}
 	}
+}
+
+static void tock_tlp_output_kill (Workspace wptr, Channel *kill) occam_unused;
+static void tock_tlp_output_kill (Workspace wptr, Channel *kill) {
+	bool b = true;
+
+	ChanOut (wptr, kill, &b, sizeof b);
 }
 //}}}
 
