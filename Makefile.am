@@ -176,6 +176,7 @@ GenOrdAST_SOURCES = GenOrdAST.hs
 #The programs to actually build:	
 bin_PROGRAMS = tock
 noinst_PROGRAMS = tocktest GenTagAST GenOrdAST
+TESTS = tocktest
 
 pkginclude_HEADERS = support/tock_support.h
 pkginclude_HEADERS += support/tock_support_cif.h
