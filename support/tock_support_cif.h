@@ -48,6 +48,11 @@ static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, 
 //}}}
 
 //{{{  top-level process interface
+static void tock_tlp_input_bcall (FILE *in, int *ch) occam_unused;
+static void tock_tlp_input_bcall (FILE *in, int *ch) {
+	*ch = fgetc (in);
+}
+
 static void tock_tlp_input (Workspace wptr) occam_unused;
 static void tock_tlp_input (Workspace wptr) {
 	Channel *out	= ProcGetParam (wptr, 0, Channel *);
@@ -55,16 +60,14 @@ static void tock_tlp_input (Workspace wptr) {
 	FILE *in	= ProcGetParam (wptr, 2, FILE *);
 
 	while (true) {
-		uint8_t ch;
-		KillableBlockingCallN (wptr, fread, kill, 4, &ch, sizeof ch, 1, in);
-
-		// Check if the call was killed.
-		// FIXME: This is a hack; it should be a proper CCSP function.
-		const word killval = *kill;
-		if (killval == 1 || killval == 2)
+		int ch = -1;
+		KillableBlockingCallN (wptr, tock_tlp_input_bcall, kill, 2, in, &ch);
+		if (ch == -1) {
+			// The call was killed -- exit.
 			break;
+		}
 
-		ChanOut (wptr, out, &ch, sizeof ch);
+		ChanOutChar (wptr, out, ch);
 	}
 }
 
