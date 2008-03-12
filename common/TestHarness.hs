@@ -31,7 +31,7 @@ The file is terminated by a single percent on its own line.
 
 -}
 
-module TestHarness (automaticTest, automaticTimeTest) where
+module TestHarness (automaticTest) where
 
 import Control.Monad.Error
 import Data.List
@@ -45,14 +45,10 @@ import ParseOccam
 import Pass
 import PassList
 import PreprocessOccam
-import TestUtils
 import Utils
 
 automaticTest :: FilePath -> IO Test
 automaticTest fileName = readFile fileName >>* performTest fileName
-
-automaticTimeTest :: (Int, Int, Int) -> FilePath -> IO [TimedTask]
-automaticTimeTest scale fileName = readFile fileName >>* performTimeTest scale fileName
 
 -- Bit of a hard-hack, until usage-checking is on by default:
 defaultState :: CompState
@@ -88,17 +84,6 @@ performTest fileName fileContents
            case result of
              Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ err) else return ()
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")
-
-performTimeTest :: (Int, Int, Int) -> String -> String -> [TimedTask]
-performTimeTest scale fileName fileContents
-  = case parseTestFile fileContents of
-      Left err -> error $ "Error processing file \"" ++ fileName ++ "\": " ++ err
-      Right (prologue,tests) -> mapMaybe performTimeTest' (substitute prologue tests)
-  
-  where
-    performTimeTest' :: (Bool, Bool, String, String) -> Maybe TimedTask
-    performTimeTest' (_, False, _, _) = Nothing
-    performTimeTest' (_, True, testName, testText) = Just $ timeTask testName scale (testOccam testText >> return ())
 
 -- | Splits a file's contents into the prologue, and subsequent testcases
 parseTestFile :: String -> Either String (String, [(Bool, Bool, String, String)])

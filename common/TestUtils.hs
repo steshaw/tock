@@ -41,7 +41,6 @@ module TestUtils where
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
-import System.Time
 import Test.HUnit hiding (State,Testable)
 import Test.QuickCheck
 
@@ -74,47 +73,6 @@ scaleQC (low,med,high,ext) test level
     run :: Testable a => Int -> a -> IO ()
     run n = check (defaultConfig { configMaxTest = n })
 
-data TimedTaskLevel = TT_Low | TT_Medium | TT_High
-
--- | The numbers are mean, variance
-type TimedTask = TimedTaskLevel -> IO (String, Integer, Maybe Integer)
-
-timeTask :: String -> (Int,Int,Int) -> IO () -> TimedTask
-timeTask label (low,med,high) test level
-  = case level of
-      TT_Low    -> runLow low test
-      TT_Medium -> run med test
-      TT_High   -> run high test
-  where
-    average :: [Integer] -> Integer
-    average xs = sum xs `div` (toInteger $ length xs)
-    
-    -- Despite what you might expect, there is no equivalent to this function provided
-    -- by the standard libraries
-    timeDiffToMicros :: TimeDiff -> Integer
-    timeDiffToMicros (TimeDiff _ _ day hour min sec pico)
-      = toInteger (((((((day * 24) + hour) * 60) + min) * 60) + sec) * 1000000) + (pico `div` 1000000)
-    
-    -- Times a task in microseconds
-    time :: IO () -> IO Integer
-    time task = do startTime <- getClockTime
-                   task
-                   endTime <- getClockTime
-                   let duration = diffClockTimes endTime startTime
-                   return $ timeDiffToMicros duration
-  
-    -- Run all tests together then estimate mean and set variance to Nothing:
-    runLow :: Int -> IO () -> IO (String, Integer, Maybe Integer)
-    runLow n task = do time <- time $ replicateM_ n task
-                       return (label, time `div` toInteger n, Nothing)
-    
-    
-    -- Run each test separately and calculate mean and variance
-    run :: Int -> IO () -> IO (String, Integer, Maybe Integer)
-    run n task = do times <- replicateM n (time task)
-                    let mean = average times
-                    return (label, mean, Just $ average (map (\x -> (x - mean) * (x - mean)) times))
-  
 -- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.VariableName'.
 simpleName :: String -> A.Name
 simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
