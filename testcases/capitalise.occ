@@ -1,3 +1,5 @@
+#USE "course"
+
 PROC main (CHAN OF BYTE in, out)
   BOOL running:
   SEQ
@@ -13,4 +15,5 @@ PROC main (CHAN OF BYTE in, out)
             out ! b - ('a' - 'A')
           TRUE
             out ! b
+        out ! FLUSH
 :

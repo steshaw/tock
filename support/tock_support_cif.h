@@ -91,7 +91,11 @@ static void tock_tlp_output (Workspace wptr) {
 			case 0: {
 				uint8_t ch;
 				ChanIn (wptr, in, &ch, sizeof ch);
-				ExternalCallN (fputc, 2, ch, out);
+				if (ch == 255) { // FLUSH
+					fflush (out);
+				} else {
+					ExternalCallN (fputc, 2, ch, out);
+				}
 
 				break;
 			}
