@@ -32,9 +32,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "PassTest"
 --
+-- * "PreprocessOccamTest"
+--
 -- * "RainPassesTest"
 --
 -- * "RainTypesTest"
+--
+-- * "StructureOccamTest"
 --
 -- * "UsageCheckTest"
 module TestMain () where
