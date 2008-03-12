@@ -47,6 +47,7 @@ import Control.Monad
 import Data.List
 import System.Console.GetOpt
 import System.Environment
+import System.Exit
 import System.IO
 import Test.HUnit
 
@@ -84,24 +85,28 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
           qcLevel <- case findLevel opts of
                        Right level -> return level
                        Left unknownLevel -> err ("Unknown level: " ++ unknownLevel)
-          let testType = case findType opts of
-                           Just True -> True
-                           _ -> False
           tests' <- sequence tests
           testsToRun <- case (find (== ListTests) opts, findJust opts) of
             (Just _, _) -> do mapM_ putStrLn $ "Possible test names: " : map fst (getLabels $ map fst tests')
                               return []
             (_,Just name) -> return $ map snd (filter ((isInfixOf name) . fst) (getLabels $ map fst tests'))
             (_,Nothing) -> return $ map fst tests'
-          (if testType
-             then liftM fst . runTestText (putTextToHandle stdout False)
-             else runTestTT) (TestList testsToRun)
-          
+
+          (counts, _) <- let (h, reps) = case findType opts of
+                                           Just True -> (stdout, False)
+                                           _ -> (stderr, True)
+                             test = TestList testsToRun
+                         in runTestText (putTextToHandle h reps) test
+          let hunitFailed = errors counts + failures counts
+
           when (not $ null testsToRun) $
             case qcLevel of
               -- Monadic mess!
               Just level -> mapM_ (runQCTest level) $ concatMap snd tests'
               Nothing -> return ()
+
+          when (hunitFailed /= 0) $
+            exitWith $ ExitFailure 1
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
     header = "Usage: tocktest [OPTION..]"
