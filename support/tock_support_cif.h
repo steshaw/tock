@@ -50,12 +50,30 @@ static void tock_tlp_input (Workspace wptr) {
 	Channel *kill	= ProcGetParam (wptr, 1, Channel *);
 	FILE *in	= ProcGetParam (wptr, 2, FILE *);
 
-	// FIXME: Implement using killable BSC
+	while (true) {
+		uint8_t ch;
+		KillableBlockingCallN (wptr, fread, kill, 4, &ch, sizeof ch, 1, in);
+
+		// Check if the call was killed.
+		// FIXME: This is a hack; it should be a proper CCSP function.
+		const word killval = *kill;
+		if (killval == 1 || killval == 2)
+			break;
+
+		ChanOut (wptr, out, &ch, sizeof ch);
+	}
 }
 
 static void tock_tlp_input_kill (Workspace wptr, Channel *kill) occam_unused;
 static void tock_tlp_input_kill (Workspace wptr, Channel *kill) {
-	// FIXME: Implement
+	while (true) {
+		// If KillBlockingCall returns -1, the call hasn't started yet,
+		// so we reschedule and try again. (If tock_tlp_input is
+		// blocked on output we should deadlock anyway.)
+		if (KillBlockingCall (wptr, kill) != -1)
+			break;
+		Reschedule (wptr);
+	}
 }
 
 static void tock_tlp_output (Workspace wptr) occam_unused;

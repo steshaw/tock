@@ -1,0 +1,16 @@
+PROC main (CHAN OF BYTE in, out)
+  BOOL running:
+  SEQ
+    running := TRUE
+    WHILE running
+      BYTE b:
+      SEQ
+        in ? b
+        IF
+          b = 27 -- ESC
+            running := FALSE
+          (b >= 'a') AND (b <= 'z')
+            out ! b - ('a' - 'A')
+          TRUE
+            out ! b
+:
