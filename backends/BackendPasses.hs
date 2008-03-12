@@ -212,7 +212,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
                             defineSizesName m' n_sizes sizeSpecType
                             return sizeSpec
                   s' <- doStructured s
-                  return (A.Spec m sp $ A.Spec m sizeSpec $ s')
+                  return (A.Spec m sizeSpec $ A.Spec m sp $ s')
              (A.RecordType m _ fs, _) ->
                 do s' <- doStructured s
                    fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s' fs
