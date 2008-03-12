@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -41,6 +41,7 @@ module TestUtils where
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
+import System.Random
 import Test.HUnit hiding (State,Testable)
 import Test.QuickCheck
 
@@ -61,10 +62,11 @@ import Utils
 data QuickCheckLevel = QC_Low | QC_Medium | QC_High | QC_Extensive
   deriving (Show, Eq, Ord)
 
-type QuickCheckTest = QuickCheckLevel -> IO ()
+type QuickCheckTest = QuickCheckLevel -> Test
 
 type LabelledQuickCheckTest = (String, QuickCheckTest)
 
+-- | Adjust the size of a QuickCheck test depending on the check level.
 scaleQC :: Testable a => (Int,Int,Int,Int) -> a -> QuickCheckTest
 scaleQC (low,med,high,ext) test level
   = case level of
@@ -73,8 +75,38 @@ scaleQC (low,med,high,ext) test level
       QC_High      -> run high test
       QC_Extensive -> run ext test
   where
-    run :: Testable a => Int -> a -> IO ()
-    run n = check (defaultConfig { configMaxTest = n })
+    run :: Testable a => Int -> a -> Test
+    run n = testCheck $ defaultConfig { configMaxTest = n }
+
+-- | Run a QuickCheck test as an HUnit test.
+testCheck :: Testable a => Config -> a -> Test
+testCheck config property =
+    TestCase $ do rnd <- newStdGen
+                  tests config (evaluate property) rnd 0 0 []
+  where
+    -- | The 'tests' function from QuickCheck, modified to throw assertion
+    -- failures when something goes wrong. (This is taken from MissingH.)
+    tests :: Config -> Gen Result -> StdGen -> Int -> Int -> [[String]] -> IO ()
+    tests config gen rnd0 ntest nfail stamps
+      | ntest == configMaxTest config = return ()
+      | nfail == configMaxFail config =
+          assertFailure $ "Arguments exhausted after " ++ show ntest ++ " tests"
+      | otherwise               =
+          do putStr (configEvery config ntest (arguments result))
+             case ok result of
+               Nothing    ->
+                 tests config gen rnd1 ntest (nfail+1) stamps
+               Just True  ->
+                 tests config gen rnd1 (ntest+1) nfail (stamp result:stamps)
+               Just False ->
+                 assertFailure $  ( "Falsifiable, after "
+                       ++ show ntest
+                       ++ " tests:\n"
+                       ++ unlines (arguments result)
+                        )
+         where
+          result      = generate (configSize config ntest) rnd2 gen
+          (rnd1,rnd2) = split rnd0
 
 --}}}
 --{{{  building AST fragments and patterns

@@ -73,6 +73,8 @@ data TestOption =
   | RunJust String
   deriving (Eq)
 
+type TestSet = (Test, [LabelledQuickCheckTest])
+
 -- We run all the HUnit tests before all the QuickCheck tests.
 -- We run them apart so that the output from QuickCheck doesn't get
 -- confusing by being amongst the HUnit output,
@@ -80,32 +82,41 @@ data TestOption =
 -- interesting (and most worked on tests) so we see failures earlier.
 main :: IO ()
 main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
-          when (not $ null errs) $ err (concat errs)
-          when (not $ null nonOpts) $ err ("Options not recognised: " ++ concat nonOpts)
+          when (not $ null errs) $
+            err $ concat errs
+          when (not $ null nonOpts) $
+            err $ "Options not recognised: " ++ concat nonOpts
+
           qcLevel <- case findLevel opts of
                        Right level -> return level
-                       Left unknownLevel -> err ("Unknown level: " ++ unknownLevel)
-          tests' <- sequence tests
-          testsToRun <- case (find (== ListTests) opts, findJust opts) of
-            (Just _, _) -> do mapM_ putStrLn $ "Possible test names: " : map fst (getLabels $ map fst tests')
-                              return []
-            (_,Just name) -> return $ map snd (filter ((isInfixOf name) . fst) (getLabels $ map fst tests'))
-            (_,Nothing) -> return $ map fst tests'
+                       Left unknown -> err $ "Unknown level: " ++ unknown
+
+          allSets <- sequence tests
+          let labelled = getLabels allSets
+          selectedSets <-
+            case (find (== ListTests) opts, findJust opts) of
+              (Just _, _) ->
+                do mapM_ putStrLn $ "Possible test names: " : map fst labelled
+                   return []
+              (_, Just name) ->
+                return [t | (n, t) <- labelled, name `isInfixOf` n]
+              _ -> return allSets
+
+          let hunitTests = map fst selectedSets
+          let qcTests = case qcLevel of
+                          Just level ->
+                            map (makeQCTest level . snd) selectedSets
+                          Nothing -> []
+          let testsToRun = hunitTests ++ qcTests
 
           (counts, _) <- let (h, reps) = case findType opts of
                                            Just True -> (stdout, False)
                                            _ -> (stderr, True)
                              test = TestList testsToRun
                          in runTestText (putTextToHandle h reps) test
-          let hunitFailed = errors counts + failures counts
 
-          when (not $ null testsToRun) $
-            case qcLevel of
-              -- Monadic mess!
-              Just level -> mapM_ (runQCTest level) $ concatMap snd tests'
-              Nothing -> return ()
-
-          when (hunitFailed /= 0) $
+          let numFailed = errors counts + failures counts
+          when (numFailed /= 0) $
             exitWith $ ExitFailure 1
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
@@ -141,17 +152,18 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
                      "extensive" -> Right $ Just QC_Extensive
                      unknown -> Left unknown
 
-    runQCTest :: QuickCheckLevel -> LabelledQuickCheckTest -> IO ()
-    runQCTest level (label, test) = putStr (label ++ ": ") >> test level
+    makeQCTest :: QuickCheckLevel -> [LabelledQuickCheckTest] -> Test
+    makeQCTest level ts =
+        TestList [TestLabel s $ t level | (s, t) <- ts]
 
-    getLabels :: [Test] -> [(String, Test)]
-    getLabels = map (uncurry getLabel) . zip [0..]
+    getLabels :: [TestSet] -> [(String, TestSet)]
+    getLabels tss = [getLabel n t | (n, t) <- zip [0..] tss]
       where
-        getLabel :: Int -> Test -> (String, Test)
-        getLabel _ t@(TestLabel label _) = (label, t)
+        getLabel :: Int -> TestSet -> (String, TestSet)
+        getLabel _ t@(TestLabel label _, _) = (label, t)
         getLabel n t = ("Unknown test: " ++ show n, t)
 
-    tests :: [IO (Test, [LabelledQuickCheckTest])]
+    tests :: [IO TestSet]
     tests = [
               ArrayUsageCheckTest.ioqcTests
               ,return BackendPassesTest.qcTests

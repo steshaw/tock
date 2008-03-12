@@ -749,7 +749,7 @@ configForSize n = defaultConfig { configMaxTest = n, configSize = \x -> x `div` 
     scale = n `div` 10
 
 deepCheck :: Testable a => a -> QuickCheckTest
-deepCheck test level = (flip check) test $ configForSize $
+deepCheck test level = (flip testCheck) test $ configForSize $
   case level of 
     QC_Low -> 100
     QC_Medium -> 1000
