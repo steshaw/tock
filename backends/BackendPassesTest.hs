@@ -220,7 +220,7 @@ qcTestDeclareSizes =
     -- spectype of foo, spectype of foo_sizes
     testFoo :: TestMonad m r => Int -> (A.SpecType, A.SpecType, State CompState ()) -> m ()
     testFoo n (fooSpec, fooSizesSpec, st) = test n
-      (strFoo $ strFooSizes term)
+      (strFooSizes $ strFoo term)
       (strFoo term) st (checkFooSizes fooSizesSpec)
       where
         strFoo :: Data a => A.Structured a -> A.Structured a
