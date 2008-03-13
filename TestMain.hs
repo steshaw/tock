@@ -121,11 +121,11 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
   where
     err msg = ioError (userError (msg ++ usageInfo header options))
     header = "Usage: tocktest [OPTION..]"
-    options = [Option [] ["qc","quickcheck"]
-                 (ReqArg matchLevel "LEVEL (off, low, medium, high, extensive)") "QuickCheck level"
-              ,Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"
-              ,Option ['l'] ["list-tests"] (NoArg (ListTests)) "Show the top-level test names"
-              ,Option ['f'] ["filter"] (ReqArg RunJust "PARTOFTESTNAME (See output --list-tests for possible test)") "Run just the tests that have this in their name"
+    options = [ Option [] ["qc", "quickcheck"]
+                  (ReqArg matchLevel "LEVEL") "QuickCheck level (options: off, low, medium, high, extensive)"
+              , Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"
+              , Option ['l'] ["list-tests"] (NoArg (ListTests)) "Show the top-level test names"
+              , Option ['f'] ["filter"] (ReqArg RunJust "TESTNAME") "Run just the tests that have this in their name (use -l to list)"
               ]
     
     findLevel :: [TestOption] -> Either String (Maybe QuickCheckLevel)
