@@ -21,6 +21,7 @@ module SimplifyProcs (simplifyProcs) where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
@@ -66,6 +67,7 @@ parsToProcs = doGeneric `extM` doProcess
     doStructured (A.Only m p)
         =  do p' <- parsToProcs p
               s@(A.Specification _ n _) <- makeNonceProc m p'
+              modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
               return $ A.Spec m s (A.Only m (A.ProcCall m n []))
     doStructured (A.Several m ss)
         = liftM (A.Several m) $ mapM doStructured ss

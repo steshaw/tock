@@ -22,7 +22,6 @@ module BackendPasses where
 import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
@@ -43,25 +42,6 @@ squashArrays = makePassesDep
   ]
   where
     prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
-
--- | Identify processes that we'll need to compute the stack size of.
-identifyParProcs :: Data t => t -> PassM t
-identifyParProcs = doGeneric `extM` doProcess
-  where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric identifyParProcs
-  
-    doProcess :: A.Process -> PassM A.Process
-    doProcess p@(A.Par _ _ s) = findProcs s >> return p
-    doProcess p = doGeneric p
-
-    findProcs :: A.Structured A.Process -> PassM ()
-    findProcs (A.Rep _ _ s) = findProcs s
-    findProcs (A.Spec _ spec s) = doGeneric spec >> findProcs s
-    findProcs (A.ProcThen _ p s) = doGeneric p >> findProcs s
-    findProcs (A.Several _ ss) = sequence_ $ map findProcs ss
-    findProcs (A.Only _ (A.ProcCall _ n _))
-        = modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
 
 transformWaitFor :: Data t => t -> PassM t
 transformWaitFor = doGeneric `extM` doAlt

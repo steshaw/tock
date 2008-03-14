@@ -47,8 +47,7 @@ import Utils
 --{{{  passes related to C generation
 genCPasses :: [Pass]
 genCPasses = makePassesDep' ((== BackendC) . csBackend)
-  [ ("Identify parallel processes", identifyParProcs, [Prop.parsWrapped], [])
-   ,("Transform wait for guards into wait until guards", transformWaitFor, [], [Prop.waitForRemoved])
+  [ ("Transform wait for guards into wait until guards", transformWaitFor, [], [Prop.waitForRemoved])
   ]
 --}}}
 
