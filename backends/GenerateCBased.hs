@@ -121,8 +121,6 @@ data GenOps = GenOps {
     genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: A.Expression -> CGen (),
     genFlatArraySize :: [A.Dimension] -> CGen (),
-    genFormal :: A.Formal -> CGen (),
-    genFormals :: [A.Formal] -> CGen (),
     genForwardDeclaration :: A.Specification -> CGen(),
     genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen (),
     genFuncMonadic :: Meta -> String -> A.Expression -> CGen (),

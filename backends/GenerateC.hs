@@ -82,8 +82,6 @@ cgenOps = GenOps {
     genDyadic = cgenDyadic,
     genExpression = cgenExpression,
     genFlatArraySize = cgenFlatArraySize,
-    genFormal = cgenFormal,
-    genFormals = cgenFormals,
     genForwardDeclaration = cgenForwardDeclaration,
     genFuncDyadic = cgenFuncDyadic,
     genFuncMonadic = cgenFuncMonadic,
@@ -151,8 +149,7 @@ cgenTopLevel s
           sequence_ $ map (call genForwardDeclaration)
                           (listify (const True :: A.Specification -> Bool) s)
 
-          sequence_ [do tell ["extern int ", nameString n, "_wrapper_stack_size;\n"]
-                        cgenProcWrapper n
+          sequence_ [tell ["extern int ", nameString n, "_stack_size;\n"]
                      | n <- Set.toList $ csParProcs cs]
           tell ["extern int "]
           genName tlpName
@@ -1252,15 +1249,8 @@ cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
           tell ["}"]
           genName n
           tell [";"]
-cintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
-    =  do call genSpecMode sm
-          tell ["void "]
-          genName n
-          tell [" (Workspace wptr"]
-          call genFormals fs
-          tell [") {\n"]
-          call genProcess p
-          tell ["}\n"]
+cintroduceSpec (A.Specification _ n st@(A.Proc _ _ _ _))
+    = genProcSpec n st False
 cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- typeOfVariable v
           let rhs = call genVariableAM v A.Abbrev
@@ -1295,13 +1285,8 @@ cgenRecordTypeSpec n b fs
           tell [";"]
 
 cgenForwardDeclaration :: A.Specification -> CGen ()
-cgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
-    =  do call genSpecMode sm
-          tell ["void "]
-          genName n
-          tell [" (Workspace wptr"]
-          call genFormals fs
-          tell [");"]
+cgenForwardDeclaration (A.Specification _ n st@(A.Proc _ _ _ _))
+    = genProcSpec n st True
 cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
     = call genRecordTypeSpec n b fs
 cgenForwardDeclaration _ = return ()
@@ -1321,7 +1306,7 @@ cgenSpecMode A.PlainSpec = return ()
 cgenSpecMode A.InlineSpec = tell ["inline "]
 --}}}
 
---{{{  actuals/formals
+--{{{  formals, actuals, and calling conventions
 prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
@@ -1330,12 +1315,6 @@ cgenActuals as = prefixComma (map (call genActual) as)
 
 cgenActual :: A.Actual -> CGen ()
 cgenActual actual = seqComma $ realActuals actual
-
-cgenFormals :: [A.Formal] -> CGen ()
-cgenFormals fs = prefixComma (map (call genFormal) fs)
-
-cgenFormal :: A.Formal -> CGen ()
-cgenFormal f = seqComma [t >> tell [" "] >> n | (t, n) <- realFormals f]
 
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
@@ -1351,33 +1330,55 @@ realFormals :: A.Formal -> [(CGen (), CGen ())]
 realFormals (A.Formal am t n)
     = [(call genDeclType am t, genName n)]
 
--- | Generate a wrapper function for a PAR subprocess.
-cgenProcWrapper :: A.Name -> CGen ()
-cgenProcWrapper n
-    =  do st <- specTypeOfName n
-          let fs = case st of A.Proc _ _ fs _ -> fs
-          let rfs = concatMap realFormals fs
-
-          tell ["static void "]
-          genName n
-          tell ["_wrapper (Workspace wptr) {\n"]
-
-          sequence_ [unpackParam num rf | (num, rf) <- zip [0..] rfs]
-          genName n
-          tell [" (wptr"]
-          prefixComma [n | (_, n) <- rfs]
-          tell [");\n"]
-
-          tell ["}\n"]
+-- | Generate a Proc specification, which maps to a C function.
+-- This will use ProcGetParam if the Proc is in csParProcs, or the normal C
+-- calling convention otherwise.
+genProcSpec :: A.Name -> A.SpecType -> Bool -> CGen ()
+genProcSpec n (A.Proc _ sm fs p) forwardDecl
+    =  do cs <- getCompState
+          let (header, params) = if n `Set.member` csParProcs cs
+                                   then (genParHeader, genParParams)
+                                   else (genNormalHeader, return ())
+          header
+          if forwardDecl
+            then tell [";\n"]
+            else do tell ["{\n"]
+                    params
+                    call genProcess p
+                    tell ["}\n"]
   where
-    unpackParam :: Int -> (CGen (), CGen ()) -> CGen ()
-    unpackParam num (t, n)
-        =  do t
-              tell [" "]
-              n
-              tell [" = ProcGetParam (wptr, " ++ show num ++ ", "]
-              t
-              tell [");\n"]
+    rfs = concatMap realFormals fs
+
+    genParHeader :: CGen ()
+    genParHeader
+        =  do -- These can't be inlined, since they're only used as function
+              -- pointers.
+              tell ["void "]
+              genName n
+              tell [" (Workspace wptr)"]
+
+    genParParams :: CGen ()
+    genParParams
+        = sequence_ [do t
+                        tell [" "]
+                        n
+                        tell [" = ProcGetParam (wptr, " ++ show num ++ ", "]
+                        t
+                        tell [");\n"]
+                     | (num, (t, n)) <- zip [(0 :: Int) ..] rfs]
+
+    genNormalHeader :: CGen ()
+    genNormalHeader
+        =  do call genSpecMode sm
+              tell ["void "]
+              genName n
+              tell [" (Workspace wptr"]
+              sequence_ [do tell [", "]
+                            t
+                            tell [" "]
+                            n
+                         | (t, n) <- rfs]
+              tell [")"]
 
 -- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
 -- workspace pointer and the name of the function to call.
@@ -1388,14 +1389,14 @@ cgenProcAlloc n as
           ws <- csmLift $ makeNonce "workspace"
           tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
           genName n
-          tell ["_wrapper_stack_size);\n"]
+          tell ["_stack_size);\n"]
 
           sequence_ [do tell ["ProcParam (wptr, ", ws, ", ", show num, ", "]
                         ra
                         tell [");\n"]
                      | (num, ra) <- zip [(0 :: Int)..] ras]
 
-          return (ws, genName n >> tell ["_wrapper"])
+          return (ws, genName n)
 --}}}
 
 --{{{  processes
