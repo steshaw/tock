@@ -71,23 +71,18 @@ parseAsmLine s
     matchInc :: String -> Maybe AsmItem
     matchInc s
         = case matchRegex incdecRE s of
-            Just [v] -> Just $ AsmStackInc (parseVal v)
+            Just [_, v] -> Just $ AsmStackInc (parseVal v)
             _ -> Nothing
       where
         -- The x86 stack goes downwards, so subl makes the stack deeper.
-        incdecRE = mkRegex "^subl (.*), %esp$"
+        -- GCC will sometimes generate "addl $-n" rather than "subl $n".
+        incdecRE = mkRegex "^(subl \\$|addl \\$-)([0-9]+), %esp$"
 
         parseVal :: String -> Int
-        -- The numbers can be negative:
-        parseVal ('$':'-':s)
-            = case readDec s of
-                [(v, "")] -> -v
-                _ -> error $ "Don't know how to parse assembly literal: -" ++ s
-        parseVal ('$':s)
+        parseVal s
             = case readDec s of
                 [(v, "")] -> v
                 _ -> error $ "Don't know how to parse assembly literal: " ++ s
-        parseVal s = error $ "Really don't know how to parse assembly literal: " ++ s
 
     matchPush :: String -> Maybe AsmItem
     matchPush s
