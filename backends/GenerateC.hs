@@ -1709,6 +1709,7 @@ cgenProcCall n as
 --{{{  intrinsic procs
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression A.Bool e] = call genAssert m e
+cgenIntrinsicProc _ "RESCHEDULE" [] = tell ["Reschedule (wptr);\n"]
 cgenIntrinsicProc _ s _ = call genMissing $ "intrinsic PROC " ++ s
 
 cgenAssert :: Meta -> A.Expression -> CGen ()

@@ -30,5 +30,6 @@ intrinsicFunctions =
 intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =
     [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
+    , ("RESCHEDULE", [])
     ]
 
