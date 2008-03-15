@@ -1597,13 +1597,14 @@ cgenAlt isPri s
     =  do id <- csmLift $ makeNonce "alt_id"
           tell ["int ", id, " = 0;\n"]
 
-          tell ["TimerAlt (wptr);\n"]
+          let isTimerAlt = containsTimers s
+          tell [if isTimerAlt then "TimerAlt" else "Alt", " (wptr);\n"]
           tell ["{\n"]
           genAltEnable id s
           tell ["}\n"]
 
           -- Like occ21, this is always a PRI ALT, so we can use it for both.
-          tell ["TimerAltWait (wptr);\n"]
+          tell [if isTimerAlt then "TimerAltWait" else "AltWait", " (wptr);\n"]
           tell [id, " = 0;\n"]
           tell ["{\n"]
           genAltDisable id s
@@ -1618,6 +1619,18 @@ cgenAlt isPri s
           tell ["}\n"]
           tell [label, ":\n;\n"]
   where
+    containsTimers :: A.Structured A.Alternative -> Bool
+    containsTimers (A.Rep _ _ s) = containsTimers s
+    containsTimers (A.Spec _ _ s) = containsTimers s
+    containsTimers (A.ProcThen _ _ s) = containsTimers s
+    containsTimers (A.Only _ a)
+        = case a of
+            A.Alternative _ _ (A.InputTimerRead _ _) _ -> True
+            A.Alternative _ _ (A.InputTimerAfter _ _) _ -> True
+            A.AlternativeWait _ _ _ _ -> True
+            _ -> False
+    containsTimers (A.Several _ ss) = or $ map containsTimers ss
+
     genAltEnable :: String -> A.Structured A.Alternative -> CGen ()
     genAltEnable id s = call genStructured s doA
       where
