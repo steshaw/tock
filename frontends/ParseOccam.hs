@@ -90,7 +90,9 @@ plainToken t = genToken test
     test (_, t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
-sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest, sRight, sRightR, sSemi :: OccParser ()
+sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest,
+  sRight, sRightR, sSemi
+    :: OccParser ()
 
 sAmp = reserved "&"
 sAssign = reserved ":="
@@ -107,12 +109,13 @@ sRightR = reserved ")"
 sSemi = reserved ";"
 --}}}
 --{{{ keywords
-sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE, sBYTESIN, sCASE, sCHAN, sDATA,
-  sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS,
-  sMINUS, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, 
-  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM, sRESHAPES, sRESULT,
-  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
-  sWHILE, sWORKSPACE, sVECSPACE
+sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
+  sBYTESIN, sCASE, sCHAN, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
+  sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG, sMOSTPOS,
+  sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT,
+  sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM,
+  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER,
+  sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -467,7 +470,6 @@ scopeOut n@(A.Name m nt s)
                        otherwise -> dieInternal (Just m, "scopeOut trying to scope out the wrong name")
           put $ st { csLocalNames = lns' }
 
--- FIXME: Do these with generics? (going carefully to avoid nested code blocks)
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep (A.For m n b c)
     =  do n' <- scopeIn n (A.Declaration m A.Int) A.ValAbbrev
@@ -1976,22 +1978,23 @@ intrinsicProc
 --}}}
 --{{{ top-level forms
 
+-- | An item at the top level is either a specification, or the end of the
+-- file.
 topLevelItem :: OccParser A.AST
-topLevelItem = handleSpecs (allocation <|> specification) topLevelItem
-                        (\m s inner -> A.Spec m s inner)
-               <|> do m <- md
-                      eof
-                      -- Stash the current locals so that we can either restore them
-                      -- when we get back to the file we included this one from, or
-                      -- pull the TLP name from them at the end.
-                      modify $ (\ps -> ps { csMainLocals = csLocalNames ps })
-                      return $ A.Several m []
-                      
+topLevelItem
+    =   handleSpecs (allocation <|> specification) topLevelItem
+                    (\m s inner -> A.Spec m s inner)
+    <|> do m <- md
+           eof
+           -- Stash the current locals so that we can either restore them
+           -- when we get back to the file we included this one from, or
+           -- pull the TLP name from them at the end.
+           modify $ (\ps -> ps { csMainLocals = csLocalNames ps })
+           return $ A.Several m []
 
--- | A source file consists of a structured.
--- A source file is really a series of specifications, but the later ones need to
--- have the earlier ones in scope, so we can't parse them separately.
--- Instead, we nest the specifications
+-- | A source file is a series of nested specifications.
+-- The later specifications must be in scope for the earlier ones.
+-- We represent this as an 'AST' -- a @Structured ()@.
 sourceFile :: OccParser (A.AST, [WarningReport], CompState)
 sourceFile
     =   do p <- topLevelItem
