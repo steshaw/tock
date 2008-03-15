@@ -134,6 +134,7 @@ tock_SOURCES_hs += data/OrdAST.hs
 tock_SOURCES_hs += data/TagAST.hs
 tock_SOURCES_hs += flow/FlowGraph.hs
 tock_SOURCES_hs += flow/FlowAlgorithms.hs
+tock_SOURCES_hs += frontends/OccamPasses.hs
 tock_SOURCES_hs += frontends/ParseOccam.hs
 tock_SOURCES_hs += frontends/ParseRain.hs
 tock_SOURCES_hs += frontends/ParseUtils.hs

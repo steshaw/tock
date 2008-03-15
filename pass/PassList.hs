@@ -31,6 +31,7 @@ import CompState
 import Errors
 import GenerateC
 import GenerateCPPCSP
+import OccamPasses
 import Pass
 import qualified Properties as Prop
 import RainPasses
@@ -52,10 +53,6 @@ commonPasses opts = concat $
   , unnest
   , simplifyComms
   , squashArrays
-  -- The occam frontend does a lot of work for us, so I represent that here:
-  ,makePassesDep' ((== FrontendOccam) . csFrontend) [("Null occam pass", return, [],
-    Prop.agg_namesDone ++ [Prop.constantsFolded, Prop.expressionTypesChecked, Prop.inferredTypesRecorded, Prop.mainTagged, Prop.processTypesChecked]
-  )]
   ]
 
 filterPasses :: CompState -> [Pass] -> [Pass]
@@ -63,7 +60,8 @@ filterPasses opts = filter (\p -> passEnabled p opts)
 
 getPassList :: CompState -> [Pass]
 getPassList optsPS = filterPasses optsPS $ concat
-                                [ rainPasses
+                                [ occamPasses
+                                , rainPasses
                                 , commonPasses optsPS
                                 , genCPasses
                                 , genCPPCSPPasses
