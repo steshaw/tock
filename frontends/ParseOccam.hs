@@ -1318,8 +1318,8 @@ initialIsAbbrev
            e <- expressionOfType t
            sColon
            eol
-           (e', _, _) <- constantFold e
-           return $ A.Specification m n $ A.IsExpr m A.Original t e'
+           return $ A.Specification m n $ A.IsExpr m A.Original t e
+    <?> "INITIAL IS abbreviation"
 
 isAbbrev :: OccParser A.Name -> OccParser A.Variable -> OccParser A.Specification
 isAbbrev newName oldVar
