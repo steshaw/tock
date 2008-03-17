@@ -142,12 +142,18 @@ AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8]
 
 # Check the sizes of certain constructs.  We'll need to be cleverer if in future
 # we want to allow cross-compilation.
+
+#There is a subtle trick below.  If you ask autoconf for the size of int
+#in both C and C++, it caches the result from one to the other.
+#To allow for the possibility of the C and C++ compilers having a
+#different size int (seems unlikely, but perhaps possible with cross
+#compilation) we use unsigned int in C++ and int in C.
 AC_LANG(C++)
 AC_CHECK_SIZEOF(bool)
 AC_COMPUTE_INT(CXX_BOOL_SIZE,SIZEOF_BOOL)
 AC_SUBST(CXX_BOOL_SIZE)
-AC_CHECK_SIZEOF(int)
-AC_COMPUTE_INT(CXX_INT_SIZE,SIZEOF_INT)
+AC_CHECK_SIZEOF(unsigned int)
+AC_COMPUTE_INT(CXX_INT_SIZE,SIZEOF_UNSIGNED_INT)
 AC_SUBST(CXX_INT_SIZE)
 AC_LANG(C)
 AC_CHECK_SIZEOF(_Bool)
