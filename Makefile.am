@@ -188,21 +188,6 @@ clean-local:
 	rm -f obj/*.o obj/*.hi
 	rmdir obj
 
-cgtests/cgtest00.occ:
-	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/cgtests/branches/tock@4200 cgtests
-
-# We must clean the cgtests every time at the moment, because if someone makes make-cgtests-c then make-cgtests-cpp, they'll need a clean inbetween:
-# In future we should give the version compiled using the C++ backend a different extension:
-
-make-cgtests-c: tock cgtests/cgtest00.occ clean-cgtests
-	sh ./compile-cgtests --backend=c -v
-
-make-cgtests-cpp: tock cgtests/cgtest00.occ clean-cgtests
-	sh ./compile-cgtests --backend=cppcsp -v
-
-clean-cgtests:
-	rm -f cgtests/cgtest??
-
 # We post-process the Haddock output with M4 so that we can include SVG images.
 haddock:
 	@MKDIR_P@ doc
