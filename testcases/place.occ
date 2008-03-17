@@ -7,5 +7,7 @@ PROC P ()
   PLACE w IN WORKSPACE:
   INT v:
   PLACE v IN VECSPACE:
+  INT new:
+  PLACE new #123456:
   SKIP
 :

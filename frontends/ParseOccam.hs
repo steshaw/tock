@@ -1258,8 +1258,7 @@ allocation
 
 placement :: OccParser A.Placement
 placement
-    =   do sAT
-           e <- intExpr
+    =   do e <- tryXV (optional sAT) intExpr
            return $ A.PlaceAt e
     <|> do tryXX sIN sWORKSPACE
            return $ A.PlaceInWorkspace
