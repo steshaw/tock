@@ -904,13 +904,20 @@ expression
 
 arrayConstructor :: OccParser A.Expression
 arrayConstructor
- = do m <- md
-      sLeft
-      r <- replicator
-      sBar
-      e <- expression
-      sRight
-      return $ A.ExprConstr m $ A.RepConstr m r e      
+    =  do m <- md
+          sLeft
+          r <- replicator
+          sBar
+          r' <- scopeInRep r
+          ctx <- getTypeContext
+          subCtx <- case ctx of
+                      Just t@(A.Array _ _) -> trivialSubscriptType m t >>* Just
+                      _ -> return Nothing
+          e <- inTypeContext subCtx expression
+          scopeOutRep r'
+          sRight
+          return $ A.ExprConstr m $ A.RepConstr m r' e
+    <?> "array constructor expression"
 
 associativeOpExpression :: OccParser A.Expression
 associativeOpExpression

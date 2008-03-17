@@ -1,0 +1,7 @@
+PROC P ()
+  VAL []INT array IS [1, 2, 3, 4]:
+  VAL []INT zeros IS [i = 0 FOR 20 | 0]:
+  VAL []INT nums IS [i = 0 FOR 20 | i]:
+  VAL []INT squares IS [i = 0 FOR 20 | i * i]:
+  SKIP
+:
