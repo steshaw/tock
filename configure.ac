@@ -92,6 +92,11 @@ fi
 CFLAGS="$old_CFLAGS"
 CPPFLAGS="$old_CPPFLAGS"
 
+PKG_CHECK_MODULES(CPPCSP2,cppcsp2-2.0 >= 2.0.4,,
+	AC_MSG_WARN([C++CSP2 backend not located using pkg-config; you will not be able to compile output from the C++ backend on this machine: ] $CPPCSP2_PKG_ERRORS)
+	cppcsp_available=false
+)
+
 #Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
 AC_CHECK_HEADERS([cppcsp/cppcsp.h],[HAVE_CPPCSP=true],[HAVE_CPPCSP=false])
