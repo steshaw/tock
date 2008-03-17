@@ -90,7 +90,9 @@ plainToken t = genToken test
     test (_, t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
-sAmp, sAssign, sBang, sColon, sColons, sComma, sEq, sLeft, sLeftR, sQuest, sRight, sRightR, sSemi :: OccParser ()
+sAmp, sAssign, sBang, sBar, sColon, sColons, sComma, sEq, sLeft, sLeftR,
+  sQuest, sRight, sRightR, sSemi
+    :: OccParser ()
 
 sAmp = reserved "&"
 sAssign = reserved ":="
@@ -108,12 +110,13 @@ sRightR = reserved ")"
 sSemi = reserved ";"
 --}}}
 --{{{ keywords
-sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE, sBYTESIN, sCASE, sCHAN, sDATA,
-  sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINT, sINT16, sINT32, sINT64, sIS,
-  sMINUS, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, 
-  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM, sRESHAPES, sRESULT,
-  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
-  sWHILE, sWORKSPACE, sVECSPACE
+sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
+  sBYTESIN, sCASE, sCHAN, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
+  sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG,
+  sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS,
+  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM,
+  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER,
+  sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
