@@ -39,7 +39,7 @@ simplifyExprs = makePassesDep
       , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
       , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone, [])
       , ("Pull up replicator counts for SEQs", pullRepCounts, Prop.agg_namesDone ++ Prop.agg_typesDone,  [])
-      , ("Pull up definitions", pullUp False, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
+      , ("Pull up definitions", pullUp False, Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.functionsRemoved, Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
       ]
 --      ++ makePassesDep' ((== BackendCPPCSP) . csBackend) [("Pull up definitions (C++)", pullUp True, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])]
 
