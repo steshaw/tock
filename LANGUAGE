@@ -17,3 +17,7 @@ Intrinsics:
 - DSQRT
 
 PLACE IN WORKSPACE and PLACE IN VECSPACE, both currently ignored.
+
+INITIAL variables.
+
+Array constructors.
