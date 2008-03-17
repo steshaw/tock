@@ -182,20 +182,39 @@ transformConstr = doGeneric `ext1M` doStructured
   where
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric transformConstr
-    
+
+    -- This takes a constructor expression:
+    --   VAL type name IS [i = rep | expr]:
+    --   ...
+    -- and produces this:
+    --   type name:
+    --   PROCTHEN
+    --     INT indexvar:
+    --     SEQ
+    --       indexvar := 0
+    --       SEQ i = rep
+    --         SEQ
+    --           name[indexvar] := expr
+    --           indexvar := indexvar + 1
+    --     ...
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ t (A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
-      = do indexVarSpec@(A.Specification _ indexVar _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
+    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
+      = do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
+           let indexVar = A.Variable m'' indexName
            scope' <- doGeneric scope
+
+           -- Recompute the type, in order to get the array dimension into it.
+           t <- typeOfExpression expr
+
            return $ A.Spec m (A.Specification m' n (A.Declaration m' t)) $ A.ProcThen m''
-             (A.Seq m'' $ A.Spec m'' (indexVarSpec) $ A.Several m'' [
-               A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
-               A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m'' 
-                   [A.Only m'' $ A.Assign m'' 
-                     [A.SubscriptedVariable m'' (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' $ A.Variable m'' indexVar) $ A.Variable m'' n]
+             (A.Seq m'' $ A.Spec m'' indexVarSpec $ A.Several m'' [
+               A.Only m'' $ A.Assign m'' [indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
+               A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m''
+                   [ A.Only m'' $ A.Assign m''
+                     [A.SubscriptedVariable m'' (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' indexVar) $ A.Variable m'' n]
                      $ A.ExpressionList m'' [exp]
-                   ,A.Only m'' $ A.Assign m'' [A.Variable m'' indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus 
-                     (A.ExprVariable m'' $ A.Variable m'' indexVar)
+                   , A.Only m'' $ A.Assign m'' [indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus
+                     (A.ExprVariable m'' indexVar)
                      (A.Literal m'' A.Int $ A.IntLiteral m'' "1")]
                    ]
              ])
