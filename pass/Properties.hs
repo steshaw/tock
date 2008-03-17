@@ -80,7 +80,7 @@ agg_namesDone :: [Property]
 agg_namesDone = [declarationsUnique, declarationTypesRecorded, inferredTypesRecorded, declaredNamesResolved]
 
 agg_typesDone :: [Property]
-agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState]
+agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState, constantsFolded]
 
 agg_functionsGone :: [Property]
 agg_functionsGone = [functionCallsRemoved, functionsRemoved]
