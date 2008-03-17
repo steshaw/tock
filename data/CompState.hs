@@ -168,6 +168,13 @@ defineName :: CSM m => A.Name -> A.NameDef -> m ()
 defineName n nd
     = modify $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
 
+-- | Modify the definition of a name.
+modifyName :: CSM m => A.Name -> (A.NameDef -> A.NameDef) -> m ()
+modifyName n f
+    = modify $ (\ps -> ps { csNames = modifyName $ csNames ps })
+  where
+    modifyName = Map.adjust f (A.nameName n)
+
 -- | Find the definition of a name.
 lookupName :: (CSMR m, Die m) => A.Name -> m A.NameDef
 lookupName n = lookupNameOrError n (dieP (findMeta n) $ "cannot find name " ++ A.nameName n)

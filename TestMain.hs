@@ -28,6 +28,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "GenerateCTest"
 --
+-- * "OccamPassesTest"
+--
 -- * "ParseRainTest"
 --
 -- * "PassTest"
@@ -56,6 +58,7 @@ import qualified BackendPassesTest (qcTests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
+import qualified OccamPassesTest (tests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
@@ -170,6 +173,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
+              ,noqc OccamPassesTest.tests
               ,noqc ParseRainTest.tests
               ,noqc PassTest.tests
               ,noqc PreprocessOccamTest.tests

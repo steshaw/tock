@@ -17,23 +17,54 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam-specific frontend passes.
-module OccamPasses (occamPasses) where
+module OccamPasses (occamPasses, foldConstants) where
 
 import Data.Generics
 
+import qualified AST as A
 import CompState
+import EvalConstants
 import Pass
 import qualified Properties as Prop
 
 -- | Occam-specific frontend passes.
 occamPasses :: [Pass]
 occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
-    [ ("Dummy occam pass", dummyOccamPass,
+    [ ("Fold constants", foldConstants,
        [],
-       Prop.agg_namesDone ++ [Prop.constantsFolded, Prop.expressionTypesChecked,
+       [Prop.constantsFolded])
+    , ("Dummy occam pass", dummyOccamPass,
+       [],
+       Prop.agg_namesDone ++ [Prop.expressionTypesChecked,
                               Prop.inferredTypesRecorded, Prop.mainTagged,
                               Prop.processTypesChecked])
     ]
+
+-- | Fold constant expressions.
+foldConstants :: Data t => t -> PassM t
+foldConstants = doGeneric `extM` doSpecification `extM` doExpression
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric foldConstants
+
+    -- When an expression is abbreviated, try to fold it, and update its
+    -- definition so that it can be used when folding later expressions.
+    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification s@(A.Specification m n (A.IsExpr m' am t e))
+        =  do e' <- doExpression e
+              let st' = A.IsExpr m' am t e'
+              modifyName n (\nd -> nd { A.ndType = st' })
+              return $ A.Specification m n st'
+    doSpecification s = doGeneric s
+
+    -- For all other expressions, just try to fold them.
+    -- We recurse into the expression first so that we fold subexpressions of
+    -- non-constant expressions too.
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression e
+        =  do e' <- doGeneric e
+              (e'', _, _) <- constantFold e'
+              return e''
 
 -- | A dummy pass for things that haven't been separated out into passes yet.
 dummyOccamPass :: Data t => t -> PassM t
