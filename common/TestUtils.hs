@@ -111,6 +111,10 @@ testCheck config property =
 --}}}
 --{{{  building AST fragments and patterns
 
+-- | Helper function to generate an array dimension.
+dimension :: Int -> A.Dimension
+dimension n = makeDimension emptyMeta n
+
 -- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.VariableName'.
 simpleName :: String -> A.Name
 simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }

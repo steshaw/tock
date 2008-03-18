@@ -225,15 +225,15 @@ testGenType = TestList
   ,testBothSame "GenType 22" "float*" (tcall genType $ A.Mobile A.Real32)
   
   
-  ,testBothSame "GenType 100" "int*" (tcall genType $ A.Array [A.Dimension 5] A.Int) 
-  ,testBothSame "GenType 101" "int*" (tcall genType $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
-  ,testBothSame "GenType 102" "int*" (tcall genType $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 100" "int*" (tcall genType $ A.Array [dimension 5] A.Int) 
+  ,testBothSame "GenType 101" "int*" (tcall genType $ A.Array [dimension 5, dimension 2, dimension 9] A.Int) 
+  ,testBothSame "GenType 102" "int*" (tcall genType $ A.Array [dimension 5, A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
   ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
   
-  ,testBothSame "GenType 250" "int*" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.Dimension 2, A.Dimension 9] A.Int) 
-  ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [A.Dimension 5, A.UnknownDimension] A.Int) 
+  ,testBothSame "GenType 250" "int*" (tcall genType $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int) 
+  ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
@@ -256,8 +256,8 @@ testGenType = TestList
   ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
   ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int A.Int) 
    
-  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int>**" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int>*" (tcall genType $ A.Array [A.Dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int>**" (tcall genType $ A.Array [dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int>*" (tcall genType $ A.Array [dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   --Test types that can only occur inside channels:
   --ANY:
@@ -269,9 +269,9 @@ testGenType = TestList
   
   --Channels of arrays are special in C++:
   ,testBoth "GenType 1100" "Channel" "csp::One2OneChannel<tockSendableArray<int,6>>" 
-    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [A.Dimension 6] A.Int)
+    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [dimension 6] A.Int)
   ,testBoth "GenType 1101" "Channel" "csp::One2OneChannel<tockSendableArray<int,6*7*8>>" 
-    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [A.Dimension 6,A.Dimension 7,A.Dimension 8] A.Int)
+    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [dimension 6,dimension 7,dimension 8] A.Int)
 
 
   -- List types:
@@ -345,7 +345,7 @@ testArraySubscript = TestList
  ]
  where
    stateTrans :: CSM m => m ()
-   stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7,A.Dimension 8,A.Dimension 8] A.Int)
+   stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [dimension 7,dimension 8,dimension 8] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
    
    lit :: Int -> (Meta, CGen ())
@@ -355,13 +355,13 @@ testArraySlice :: Test
 testArraySlice = TestList
  [
   -- Slice from a one-dimensional array:
-  testSlice 0 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "])") "arr" 4 5 [A.Dimension 12]
+  testSlice 0 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "])") "arr" 4 5 [dimension 12]
     
   -- Slice from a two-dimensional array:
-  ,testSlice 1 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]])") "arr" 4 5 [A.Dimension 12,A.Dimension 12]
+  ,testSlice 1 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]])") "arr" 4 5 [dimension 12,dimension 12]
     
   -- Slice from a three-dimensional array:
-  ,testSlice 2 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]*arr_sizes[2]])") "arr" 4 5 [A.Dimension 12,A.Dimension 12,A.Dimension 12]
+  ,testSlice 2 ("(&arr[" ++ checkSlice "4" "5" "12" ++ "*arr_sizes[1]*arr_sizes[2]])") "arr" 4 5 [dimension 12,dimension 12,dimension 12]
   
   -- TODO test with unknown dimensions
  ]
@@ -413,13 +413,13 @@ testOverArray = TestList $ map testOverArray'
               "for\\(int ([[:alnum:]_]+)=0;\\3<foo" ++ sz 2 ++ ";\\3\\+\\+)\\{" ++
               "foo" ++ (f' [("\\1",[1,2]),("\\2",[2]),("\\3",[])]) ++ suff ++ ";\\}\\}\\}$"
         state1Static :: CSM m => m ()
-        state1Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7] A.Int)
+        state1Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [dimension 7] A.Int)
         state1Dynamic :: CSM m => m ()
         state1Dynamic = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.UnknownDimension] A.Int)
         state3Static :: CSM m => m ()
-        state3Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.Dimension 7, A.Dimension 8, A.Dimension 9] A.Int)
+        state3Static = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [dimension 7, dimension 8, dimension 9] A.Int)
         state3Dynamic :: CSM m => m ()
-        state3Dynamic = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.UnknownDimension, A.Dimension 8, A.UnknownDimension] A.Int)
+        state3Dynamic = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [A.UnknownDimension, dimension 8, A.UnknownDimension] A.Int)
 
 testReplicator :: Test
 testReplicator = TestList
@@ -446,49 +446,49 @@ testDeclaration = TestList
   
   --Arrays (of simple):
   ,testBothSame "genDeclaration 100" "int foo[8];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8] A.Int) foo False)
   ,testBothSame "genDeclaration 101" "int foo[8*9];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9] A.Int) foo False)
   ,testBothSame "genDeclaration 102" "int foo[8*9*10];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9,dimension 10] A.Int) foo False)
 
   --Arrays (of simple) inside records:
   ,testBothSame "genDeclaration 110" "int foo[8];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8] A.Int) foo True)
+    (tcall3 genDeclaration (A.Array [dimension 8] A.Int) foo True)
   ,testBothSame "genDeclaration 111" "int foo[8*9];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9] A.Int) foo True)
+    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9] A.Int) foo True)
   ,testBothSame "genDeclaration 112" "int foo[8*9*10];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int) foo True)
+    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9,dimension 10] A.Int) foo True)
   
   --Arrays of channels and channel-ends:
   ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];"
     "csp::One2OneChannel<int> foo_storage[8];csp::One2OneChannel<int>* foo[8];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];"
     "csp::One2OneChannel<int> foo_storage[8*9];csp::One2OneChannel<int>* foo[8*9];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];"
     "csp::Chanin<int> foo[8];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];"
     "csp::Chanout<int> foo[8*9];"
-    (tcall3 genDeclaration (A.Array [A.Dimension 8, A.Dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int) foo False)
     
     
   --Records of simple:
   ,testBothSameS "genDeclaration 300" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR A.Int)
   
   --Records of arrays of int (the sizes are set by declareInit):
-  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [A.Dimension 8] A.Int)
+  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [dimension 8] A.Int)
 
   --Timers:
   ,testBoth "genDeclaration 500" "Time foo;" "csp::Time foo;"
    (tcall3 genDeclaration A.Timer foo False)
   ,testBoth "genDeclaration 501" "Time foo[20];" "csp::Time foo[20];"
-   (tcall3 genDeclaration (A.Array [A.Dimension 20] A.Timer) foo False)
+   (tcall3 genDeclaration (A.Array [dimension 20] A.Timer) foo False)
  ]
  where
    stateR t = defRecord "REC" "bar" t
@@ -504,27 +504,27 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   ,testAllSame 2 ("","") $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain arrays:
-  ,testAllSame 3 ("","") $ A.Array [A.Dimension 4] A.Int
+  ,testAllSame 3 ("","") $ A.Array [dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 6 ("","") $ A.Array [A.Dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 6 ("","") $ A.Array [dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain records:
   ,testAllR 100 ("","") ("","") A.Int id
   -- Records containing an array:
-  ,testAllR 101 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllR 101 ("","") ("","") (A.Array [dimension 4,dimension 5] A.Int) id
   -- Arrays of records containing an array:
-  ,testAllRA 200 ("^^","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) id
+  ,testAllRA 200 ("^^","") ("","") (A.Array [dimension 4,dimension 5] A.Int) id
 
   -- Mobile versions
-  ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [A.Dimension 4] A.Int
-  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [A.Dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [dimension 4] A.Int
+  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
   ,testAllR 1100 ("","") ("","") A.Int A.Mobile
   -- Records containing an array:
-  ,testAllR 1101 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) A.Mobile
+  ,testAllR 1101 ("","") ("","") (A.Array [dimension 4,dimension 5] A.Int) A.Mobile
   -- Arrays of records containing an array:
-  ,testAllRA 1200 ("","") ("","") (A.Array [A.Dimension 4,A.Dimension 5] A.Int) A.Mobile
+  ,testAllRA 1200 ("","") ("","") (A.Array [dimension 4,dimension 5] A.Int) A.Mobile
   
 
  ]
@@ -536,7 +536,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
    testAllR n eC eCPP t f = testAll' n eC eCPP (f $ A.Record $ simpleName "REC") ((defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Record (simpleName "REC")))
 
    testAllRA :: Int -> (String,String) -> (String,String) -> A.Type -> (A.Type -> A.Type) -> Test
-   testAllRA n eC eCPP t f = testAll' n eC eCPP (A.Array [A.Dimension 5] $ f $ A.Record $ simpleName "REC") ((defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [A.Dimension 5] $ A.Record (simpleName "REC")))
+   testAllRA n eC eCPP t f = testAll' n eC eCPP (A.Array [dimension 5] $ f $ A.Record $ simpleName "REC") ((defRecord "REC" "bar" t) >> (defineName (simpleName "foo") $ simpleDefDecl "foo" $ A.Array [dimension 5] $ A.Record (simpleName "REC")))
 
    testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
    testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
@@ -562,7 +562,7 @@ testRecord = TestList
   --Record types:
    testAllSame 400 ("typedef struct{#ATION_True}foo;","") foo False [(bar,A.Int)] 
   ,testAllSame 401 ("typedef struct{#ATION_True#ATION_True} occam_struct_packed foo;","") foo True [(bar,A.Int),(bar,A.Int)] 
-  ,testAllSame 402 ("typedef struct{#ATION_True}foo;","") foo False [(bar,A.Array [A.Dimension 6, A.Dimension 7] A.Int)]
+  ,testAllSame 402 ("typedef struct{#ATION_True}foo;","") foo False [(bar,A.Array [dimension 6, dimension 7] A.Int)]
  ]
  where
     testAll :: Int -> (String,String) -> (String,String) -> A.Name -> Bool -> [(A.Name, A.Type)] -> Test
@@ -584,8 +584,8 @@ testSpec = TestList
   --Declaration:
   testAllSame 0 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta A.Int
   ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [A.Dimension 3] A.Int)
-  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [A.Dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [dimension 3] A.Int)
+  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
 
   -- TODO test declarations with initialisers
 
@@ -598,7 +598,7 @@ testSpec = TestList
   --IsChannelArray:
   ,testAllSame 500 
     ("$(" ++ show chanInt ++ ")*foo[]={@,@};","")
-    $ A.IsChannelArray emptyMeta (A.Array [A.Dimension 2] $ chanInt) 
+    $ A.IsChannelArray emptyMeta (A.Array [dimension 2] $ chanInt) 
     [A.Variable undefined undefined,A.Variable undefined undefined]
 
   --Is:
@@ -648,7 +648,7 @@ testSpec = TestList
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension:
   ,testAllSameS 1101 ("uint8_t* foo=(uint8_t*)&y;@","")
-    (A.Retypes emptyMeta A.Abbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
+    (A.Retypes emptyMeta A.Abbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (unknown) dimension, VAL:
   ,testAllSameS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","")
@@ -656,7 +656,7 @@ testSpec = TestList
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension, VAL:
   ,testAllSameS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","")
-    (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.Dimension 4] A.Byte) (variable "y"))
+    (A.Retypes emptyMeta A.ValAbbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- TODO test multiple dimensions plain-to-array (mainly for C++)
     
@@ -714,15 +714,15 @@ testRetypeSizes = TestList
     
   -- Array types where both sizes are fixed should act like the plain types:
   ,test 3 "if(occam_check_retype(#S,#D,#M)!=1){@}"
-          (A.Array [A.Dimension 2] A.Int) (A.Array [A.Dimension 8] A.Byte)
+          (A.Array [dimension 2] A.Int) (A.Array [dimension 8] A.Byte)
   ,test 4 "if(occam_check_retype(#S,#D,#M)!=1){@}"
-          (A.Array [A.Dimension 2,A.Dimension 3,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
+          (A.Array [dimension 2,dimension 3,dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
     
   -- Array types with a free dimension should not check the return:
   ,test 100 "occam_check_retype(#S,#D,#M);"
-    (A.Array [A.UnknownDimension] A.Int) (A.Array [A.Dimension 8] A.Byte)
+    (A.Array [A.UnknownDimension] A.Int) (A.Array [dimension 8] A.Byte)
   ,test 101 "occam_check_retype(#S,#D,#M);"
-    (A.Array [A.Dimension 2,A.UnknownDimension,A.Dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
+    (A.Array [dimension 2,A.UnknownDimension,dimension 4] A.Int) (A.Array [A.UnknownDimension] A.Byte)
  ]
  where
    test :: Int -> String -> A.Type -> A.Type -> Test
@@ -759,16 +759,16 @@ testGenVariable = TestList
   ,testSameA2 55 ("foo","(*foo)") deref (A.Mobile $ A.Record bar)
   
   -- Arrays of the previous types, unsubscripted:
-  ,testSameA 100 ("foo","foo","foo") id (A.Array [A.Dimension 8] A.Int)
-  ,testSameA 110 ("foo","foo","foo") id (A.Array [A.Dimension 8] $ A.Record bar)
-  ,testSameA2 120 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testSameA2 130 ("foo","foo") id (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testSameA 100 ("foo","foo","foo") id (A.Array [dimension 8] A.Int)
+  ,testSameA 110 ("foo","foo","foo") id (A.Array [dimension 8] $ A.Record bar)
+  ,testSameA2 120 ("foo","foo") id (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testSameA2 130 ("foo","foo") id (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Mobile arrays of the previous types:
-  ,testSameA2 140 ("foo","(*foo)") id (A.Mobile $ A.Array [A.Dimension 8] A.Int)
-  ,testSameA2 145 ("foo","(*foo)") deref (A.Mobile $ A.Array [A.Dimension 8] A.Int)
-  ,testSameA2 150 ("foo","(*foo)") id (A.Mobile $ A.Array [A.Dimension 8] $ A.Record bar)  
-  ,testSameA2 155 ("foo","(*foo)") deref (A.Mobile $ A.Array [A.Dimension 8] $ A.Record bar)  
+  ,testSameA2 140 ("foo","(*foo)") id (A.Mobile $ A.Array [dimension 8] A.Int)
+  ,testSameA2 145 ("foo","(*foo)") deref (A.Mobile $ A.Array [dimension 8] A.Int)
+  ,testSameA2 150 ("foo","(*foo)") id (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
+  ,testSameA2 155 ("foo","(*foo)") deref (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
   
   -- Subscripted record:
   ,testSameA 200 ("(&foo)->x","foo->x","foo->x") fieldX (A.Record bar)
@@ -778,17 +778,17 @@ testGenVariable = TestList
   ,testSameA 230 ("(&(&foo)->y)->x","(&foo->y)->x","(&foo->y)->x") (fieldX . fieldY) (A.Record $ simpleName "barbar")
   
   -- Fully subscripted array:
-  ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] A.Int)
-  ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [A.Dimension 8,A.Dimension 9,A.Dimension 10] A.Int)
-  ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [A.Dimension 8] $ A.Record bar)
+  ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] A.Int)
+  ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [dimension 8,dimension 9,dimension 10] A.Int)
+  ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [dimension 8] $ A.Record bar)
   -- Original channel arrays are Channel*[], abbreviated channel arrays are Channel*[]:
-  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [A.Dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Fully subscripted array, and record field reference:
-  ,testAC 400 ("(&foo@C4)->x","(&foo@U4)->x") (fieldX . (sub 4)) (A.Array [A.Dimension 8] $ A.Record bar)
+  ,testAC 400 ("(&foo@C4)->x","(&foo@U4)->x") (fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
   -- As above, but then with an index too:
-  ,testAC 410 ("(&foo@C4)->x@C4","(&foo@U4)->x@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [A.Dimension 8] $ A.Record bar)
+  ,testAC 410 ("(&foo@C4)->x@C4","(&foo@U4)->x@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
   
   --TODO come back to slices later
   
@@ -796,7 +796,7 @@ testGenVariable = TestList
   ,testSameA2 500 ("$(&foo)$","$foo$") dir (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
   -- Test for mobile channels (in future)
   --,testSameA2 510 ("$foo$","$(*foo)$") (dir . deref) (A.Mobile $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testAC2 520 ("$foo@C4$","$foo@U4$") ("$foo@C4$","$foo@U4$") (dir . (sub 4)) (A.Array [A.Dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAC2 520 ("$foo@C4$","$foo@U4$") ("$foo@C4$","$foo@U4$") (dir . (sub 4)) (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
  ]
  where
    deref = A.DerefVariable emptyMeta
@@ -813,7 +813,7 @@ testGenVariable = TestList
     ]
      where
        state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" A.VariableName (A.Declaration emptyMeta t) am A.Unplaced
-                  defRecord "bar" "x" $ A.Array [A.Dimension 7] A.Int
+                  defRecord "bar" "x" $ A.Array [dimension 7] A.Int
                   defRecord "barbar" "y" $ A.Record bar
        over :: Override
        over = local $ \ops -> ops {genArraySubscript = (\c _ subs -> at >> (tell [if c /= A.NoCheck then "C" else "U"]) >> (seqComma $ map snd subs))
@@ -942,7 +942,7 @@ testInput = TestList
   ,testInputItem 101 "ChanIn(wptr,#,&x,^(Int8));" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int8
   ,testInputItem 102 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));") "#>>*(&x);" (A.InVariable emptyMeta $ variable "x") (A.Record foo)
   -- Reading into a fixed size array:
-  ,testInputItem 103 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));" "tockRecvArray(#,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
+  ,testInputItem 103 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));" "tockRecvArray(#,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
     
   -- Reading into subscripted variables:
   ,testInputItem 110 "ChanInInt(wptr,#,&xs$);" "#>>xs$;" (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int
@@ -969,7 +969,7 @@ testInput = TestList
   ,testInputItemProt 302 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));") ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&x)));")
     (A.InVariable emptyMeta $ variable "x") (A.Record foo)
   ,testInputItemProt 303 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Array [Dimension 8] Int),x));"
-    (A.InVariable emptyMeta $ variable "x") $ A.Array [A.Dimension 8] A.Int
+    (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
   ,testInputItemProt 400 "ChanInInt(wptr,#,&x);ChanIn(wptr,#,xs,x*^(Int));"
     "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&x));tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(x*^(Int),xs));"
     (A.InCounted emptyMeta (variable "x") (variable "xs")) (A.Counted A.Int A.Int)
@@ -1002,8 +1002,8 @@ testInput = TestList
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
                         _ -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                 defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t)
-       mkArray (A.Array ds t) = A.Array (A.Dimension 6:ds) t
-       mkArray t = A.Array [A.Dimension 6] t
+       mkArray (A.Array ds t) = A.Array (dimension 6:ds) t
+       mkArray t = A.Array [dimension 6] t
  
 --   chan = simpleName "c"
 --   chanIn = simpleName "cIn"
@@ -1012,7 +1012,12 @@ testInput = TestList
 
    overInputItemCase, over :: Override
    overInputItemCase = local $ \ops -> ops {genInputItem = override2 caret}
-   over = local $ \ops -> ops {genBytesIn = (\_ t _ -> tell ["^(",show t,")"]) , genArraySubscript = override3 dollar}
+   over = local $ \ops -> ops {genBytesIn = (\_ t _ -> tell ["^(", showSimplerType t, ")"]) , genArraySubscript = override3 dollar}
+
+   -- | Show a type, simplifying how Dimensions are show.
+   showSimplerType :: A.Type -> String
+   showSimplerType t = subRegex re (show t) "Dimension \\1"
+     where re = mkRegex "Dimension [^\"]*\"([^\"]*)\"\\)\\)"
 
 testOutput :: Test
 testOutput = TestList
@@ -1031,17 +1036,17 @@ testOutput = TestList
   --A record type on the channel of the right type (because records are always referenced by pointer):
   ,testOutputItem 203 "ChanOut(wptr,#,(&x),^);" "#<<*(&x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
   --A fixed size array on the channel of the right type:
-  ,testOutputItem 204 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
-  ,testOutputItem 205 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
+  ,testOutputItem 204 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
+  ,testOutputItem 205 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
 
   --A counted array:
   ,testOutputItem 206 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
   --A counted array of arrays:
   ,testOutputItem 207 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
-    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 5] A.Int))
   ,testOutputItem 208 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
-    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 4,dimension 5] A.Int))
 
   -- Test counted arrays that do not have Int as the count type:
   ,testOutputItem 209 "ChanOut(wptr,#,&x,^);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
@@ -1054,14 +1059,14 @@ testOutput = TestList
   ,testOutputItemProt 301 "ChanOutInt(wptr,#,x);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int
   ,testOutputItemProt 302 "ChanOut(wptr,#,&x,^);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
   ,testOutputItemProt 303 "ChanOut(wptr,#,(&x),^);" "#<<tockSendableArrayOfBytes((&x));" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
-  ,testOutputItemProt 304 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6] A.Int)
-  ,testOutputItemProt 305 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [A.Dimension 6, A.Dimension 7, A.Dimension 8] A.Int)
+  ,testOutputItemProt 304 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
+  ,testOutputItemProt 305 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
   ,testOutputItemProt 306 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
   ,testOutputItemProt 307 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
-    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 5] A.Int))
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 5] A.Int))
   ,testOutputItemProt 308 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
-    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [A.Dimension 4,A.Dimension 5] A.Int))
+    (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 4,dimension 5] A.Int))
     
     
   --TODO add tests for sending on channels that are part of (normal, and abbreviated) channel arrays.
@@ -1087,8 +1092,8 @@ testOutput = TestList
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
                         _ -> defineName (simpleName "x") $ simpleDefDecl "x" t
-       mkArray (A.Array ds t) = A.Array (A.Dimension 6:ds) t
-       mkArray t = A.Array [A.Dimension 6] t
+       mkArray (A.Array ds t) = A.Array (dimension 6:ds) t
+       mkArray t = A.Array [dimension 6] t
  
    chan = simpleName "c"
    chanOut = simpleName "cOut"
@@ -1109,7 +1114,7 @@ testBytesIn = TestList
   ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int>)" (tcall3 genBytesIn undefined (A.Chan A.DirInput (A.ChanAttributes False False) A.Int) undefined)
   
   --Array with a single known dimension:
-  ,testBothSame "testBytesIn 100" "5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5] A.Int) (Left False))
+  ,testBothSame "testBytesIn 100" "5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [dimension 5] A.Int) (Left False))
   --single unknown dimension, no variable, no free dimension allowed:
   ,testBothFail "testBytesIn 101a" (tcall3 genBytesIn undefined (A.Array [A.UnknownDimension] A.Int) (Left False))
   --single unknown dimension, no variable, free dimension allowed:
@@ -1118,13 +1123,13 @@ testBytesIn = TestList
   ,testBothSame "testBytesIn 102" "$(@0)*sizeof(int)" (over (tcall3 genBytesIn undefined (A.Array [A.UnknownDimension] A.Int) (Right undefined)))
   
   --Array with all known dimensions:
-  ,testBothSame "testBytesIn 200" "7*6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6, A.Dimension 7] A.Int) (Left False))
+  ,testBothSame "testBytesIn 200" "7*6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [dimension 5,dimension 6, dimension 7] A.Int) (Left False))
   --single unknown dimension, no variable, no free dimension allowed:
-  ,testBothFail "testBytesIn 201a" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left False))
+  ,testBothFail "testBytesIn 201a" (tcall3 genBytesIn undefined (A.Array [dimension 5,dimension 6,A.UnknownDimension] A.Int) (Left False))
   --single unknown dimension, no variable, free dimension allowed:
-  ,testBothSame "testBytesIn 201b" "6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Left True))
+  ,testBothSame "testBytesIn 201b" "6*5*sizeof(int)" (tcall3 genBytesIn undefined (A.Array [dimension 5,dimension 6,A.UnknownDimension] A.Int) (Left True))
   --single unknown dimension, with variable:
-  ,testBothSame "testBytesIn 202" "$(@2)*6*5*sizeof(int)" (over (tcall3 genBytesIn undefined (A.Array [A.Dimension 5,A.Dimension 6,A.UnknownDimension] A.Int) (Right undefined)))
+  ,testBothSame "testBytesIn 202" "$(@2)*6*5*sizeof(int)" (over (tcall3 genBytesIn undefined (A.Array [dimension 5,dimension 6,A.UnknownDimension] A.Int) (Right undefined)))
   
  ]
  where

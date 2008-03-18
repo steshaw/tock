@@ -200,10 +200,12 @@ instance ShowOccam A.Type where
 
   showOccamM (A.Mobile t) = return "MOBILE " +>> showOccamM t
   showOccamM (A.Array ds t)
-      = (return $ concat [case d of
-                  A.Dimension n -> "[" ++ show n ++ "]"
-                  A.UnknownDimension -> "[]"
-                | d <- ds]) +>> showOccamM t
+      = (liftM concat $ sequence dims) +>> showOccamM t
+    where
+      dims = [case d of
+                A.Dimension n -> return "[" +>> showOccamM n +>> return "]"
+                A.UnknownDimension -> return "[]"
+              | d <- ds]
   showOccamM (A.Chan _ _ t) = return "CHAN OF " +>> showOccamM t
   showOccamM (A.Counted ct et) = showOccamM ct +>> return "::" +>> showOccamM et
   showOccamM (A.Port t) = return "PORT OF " +>> showOccamM t

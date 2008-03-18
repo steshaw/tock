@@ -86,10 +86,10 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
            arrLength <- case arrType of
              A.Array (A.Dimension d:_) _ -> return d
              -- Unknown dimension, use the maximum value for a (assumed 32-bit for INT) integer:
-             A.Array (A.UnknownDimension:_) _ -> return $ fromInteger $ toInteger (maxBound :: Int32)
+             A.Array (A.UnknownDimension:_) _ -> return $ makeConstant m $ fromInteger $ toInteger (maxBound :: Int32)
              -- It's not an array:
              _ -> dieP m $ "Cannot usage check array \"" ++ userArrName ++ "\"; found to be of type: " ++ show arrType
-           case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes (makeConstant emptyMeta arrLength) of
+           case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes arrLength of
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
                Right problems ->

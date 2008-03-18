@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import qualified AST as A
 import CompState
 import Errors
+import EvalLiterals
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -137,7 +138,13 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
     expand (A.UnknownDimension:_) e
         = dieP (findMeta e) "array literal containing non-literal array of unknown size"
     expand (A.Dimension n:ds) e
-        = liftM A.ArrayElemArray $ sequence [expand ds (A.SubscriptedExpr m (A.Subscript m A.NoCheck $ makeConstant m i) e) | i <- [0 .. (n - 1)]]
+        =  do -- Because it's an array literal, we must know the size.
+              size <- evalIntExpression n
+              elems <- sequence [expand ds (A.SubscriptedExpr m
+                                             (A.Subscript m A.NoCheck $
+                                               makeConstant m i) e)
+                                 | i <- [0 .. size - 1]]
+              return $ A.ArrayElemArray elems
       where m = findMeta e
 
 -- | We pull up the loop (Rep) counts into a temporary expression, whenever the loop

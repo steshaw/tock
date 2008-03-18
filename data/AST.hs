@@ -138,9 +138,9 @@ data Type =
 
 -- | An array dimension.
 -- Depending on the context, an array type may have empty dimensions, which is
--- why this isn't just an Int.
+-- why this isn't just an Expression.
 data Dimension =
-  Dimension Int
+  Dimension Expression
   | UnknownDimension
   deriving (Show, Eq, Typeable, Data)
 

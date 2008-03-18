@@ -140,7 +140,7 @@ evalExpression (A.MostNeg _ A.Int64) = return $ OccInt64 minBound
 evalExpression (A.SizeExpr m e)
     =  do t <- typeOfExpression e >>= underlyingType m
           case t of
-            A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
+            A.Array (A.Dimension n:_) _ -> evalExpression n
             _ ->
               do v <- evalExpression e
                  case v of
@@ -149,7 +149,7 @@ evalExpression (A.SizeExpr m e)
 evalExpression (A.SizeVariable m v)
     =  do t <- typeOfVariable v >>= underlyingType m
           case t of
-            A.Array (A.Dimension n:_) _ -> return $ OccInt (fromIntegral n)
+            A.Array (A.Dimension n:_) _ -> evalExpression n
             _ -> throwError (Just m, "size of non-fixed-size variable " ++ show v ++ " used")
 evalExpression e@(A.Literal _ _ _) = evalLiteral e
 evalExpression (A.ExprVariable _ v) = evalVariable v
@@ -159,12 +159,12 @@ evalExpression (A.SubscriptedExpr _ sub e) = evalExpression e >>= evalSubscript 
 evalExpression (A.BytesInExpr m e)
     =  do b <- typeOfExpression e >>= underlyingType m >>= bytesInType
           case b of
-            BIJust n -> return $ OccInt (fromIntegral $ n)
+            BIJust n -> evalExpression n
             _ -> throwError (Just m, "BYTESIN non-constant-size expression " ++ show e ++ " used")
 evalExpression (A.BytesInType m t)
     =  do b <- underlyingType m t >>= bytesInType
           case b of
-            BIJust n -> return $ OccInt (fromIntegral $ n)
+            BIJust n -> evalExpression n
             _ -> throwErrorC (Just m, formatCode "BYTESIN non-constant-size type % used" t)
 evalExpression e = throwError (Just $ findMeta e, "bad expression")
 
@@ -272,7 +272,7 @@ renderLiteral m (OccInt64 i) = (A.Int64, A.IntLiteral m $ show i)
 renderLiteral m (OccArray vs)
     = (t, A.ArrayLiteral m aes)
   where
-    t = addDimensions [A.Dimension $ length vs] (head ts)
+    t = addDimensions [makeDimension m $ length vs] (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
 renderLiteral m (OccRecord n vs)
     = (A.Record n, A.RecordLiteral m (map (snd . renderValue m) vs))
@@ -293,7 +293,7 @@ renderLiteralArray :: Meta -> OccValue -> (A.Type, A.ArrayElem)
 renderLiteralArray m (OccArray vs)
     = (t, A.ArrayElemArray aes)
   where
-    t = addDimensions [A.Dimension $ length vs] (head ts)
+    t = addDimensions [makeDimension m $ length vs] (head ts)
     (ts, aes) = unzip $ map (renderLiteralArray m) vs
 renderLiteralArray m v
     = (t, A.ArrayElemExpr e)

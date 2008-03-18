@@ -36,6 +36,7 @@ import TagAST
 import TestFramework
 import TestUtils
 import TreeUtils
+import Types
 import Utils
 
 m :: Meta
@@ -168,7 +169,7 @@ instance Arbitrary StaticTypeList where
                    , (20, do len <- choose (1,5)
                              ns <- replicateM len $ choose (1,1000)
                              t <- oneof [return A.Int, return A.Byte]
-                             return $ A.Array (map A.Dimension ns) t)
+                             return $ A.Array (map dimension ns) t)
                    ]
                  return $ StaticTypeList tl
 
@@ -181,7 +182,7 @@ instance Arbitrary DynTypeList where
                    , (10, return A.Byte)
                    , (20, do len <- choose (1,5)
                              ds <- replicateM len $ oneof
-                               [choose (1,1000) >>* A.Dimension
+                               [choose (1,1000) >>* dimension
                                ,return A.UnknownDimension]
                              t <- oneof [return A.Int, return A.Byte]
                              return $ A.Array ds t)
@@ -194,7 +195,7 @@ newtype AbbrevTypesIs = AbbrevTypesIs ([A.Dimension], [A.Dimension], [A.Subscrip
 instance Arbitrary AbbrevTypesIs where
   arbitrary = do lenSrc <- choose (1,10)
                  lenDest <- choose (1, lenSrc)
-                 srcDims <- replicateM lenSrc $ oneof [return A.UnknownDimension, choose (1,1000) >>* A.Dimension]
+                 srcDims <- replicateM lenSrc $ oneof [return A.UnknownDimension, choose (1,1000) >>* dimension]
                  destDims <- flip mapM (take lenDest srcDims) $ \d ->
                    case d of
                      A.UnknownDimension -> return A.UnknownDimension
@@ -229,8 +230,8 @@ qcTestDeclareSizes =
         strFooSizes = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") fooSizesSpec)
 
     isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
-    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [A.Dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
-                     ,valSize [n], return ())
+    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
+                     ,valSize [makeConstant emptyMeta n], return ())
 
     isIsFoo :: ([A.Dimension], [A.Dimension], [A.Subscript]) -> (A.SpecType, A.SpecType, State CompState ())
     isIsFoo (srcDims, destDims, subs)
@@ -238,7 +239,7 @@ qcTestDeclareSizes =
           (foldr (A.SubscriptedVariable emptyMeta) (variable "src") subs)
         ,specSizes, defSrc)
       where
-        specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length destDims] A.Int) $
+        specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [dimension $ length destDims] A.Int) $
           A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta
             (intLiteral $ toInteger $ length srcDims - length destDims)
             (intLiteral $ toInteger $ length destDims)
@@ -271,21 +272,21 @@ qcTestDeclareSizes =
         checkSizeItems _ = const (return ())
 
     isExprStaticFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
-    isExprStaticFoo ns = (A.IsExpr emptyMeta A.ValAbbrev t (A.True emptyMeta), valSize ns, return ())
+    isExprStaticFoo ns = (A.IsExpr emptyMeta A.ValAbbrev t (A.True emptyMeta), valSize (map (makeConstant emptyMeta) ns), return ())
       where
-        t = A.Array (map A.Dimension ns) A.Byte
+        t = A.Array (map dimension ns) A.Byte
 
     declFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
-    declFoo ns = (A.Declaration emptyMeta t, valSize ns, return ())
+    declFoo ns = (A.Declaration emptyMeta t, valSize (map (makeConstant emptyMeta) ns), return ())
       where
-        t = A.Array (map A.Dimension ns) A.Byte
+        t = A.Array (map dimension ns) A.Byte
 
-    valSize :: [Int] -> A.SpecType
-    valSize ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $ makeSizesLiteral ds
+    valSize :: [A.Expression] -> A.SpecType
+    valSize ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [dimension $ length ds] A.Int) $ makeSizesLiteral ds
 
-    makeSizesLiteral :: [Int] -> A.Expression
-    makeSizesLiteral xs = A.Literal emptyMeta (A.Array [A.Dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
-      map (A.ArrayElemExpr . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show) xs
+    makeSizesLiteral :: [A.Expression] -> A.Expression
+    makeSizesLiteral xs = A.Literal emptyMeta (A.Array [dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
+      map A.ArrayElemExpr xs
     
     checkFooSizes :: TestMonad m r => A.SpecType -> CompState -> m ()
     checkFooSizes sp = checkName "foo_sizes" sp A.ValAbbrev
@@ -341,7 +342,7 @@ qcTestSizeParameters =
         args = [("x" ++ show n, t, A.Abbrev) | (n, t) <- zip [(0::Integer)..] ts]
         argsWithSizes = concat [
           case t of
-            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [A.Dimension $ length ds] A.Int, A.ValAbbrev)]
+            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [dimension $ length ds] A.Int, A.ValAbbrev)]
             _ -> [("x" ++ show n, t, A.Abbrev)]
           | (n, t) <- zip [(0::Integer)..] ts]
 
@@ -357,7 +358,7 @@ qcTestSizeParameters =
         args = [("x" ++ show n, t, A.Abbrev) | (n, t) <- zip [(0::Integer)..] ts]
         argsWithSizes = concat [
           case t of
-            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [A.Dimension $ length ds] A.Int, A.ValAbbrev)]
+            (A.Array ds _) -> [("x" ++ show n, t, A.Abbrev), ("x" ++ show n ++ "_sizes", A.Array [dimension $ length ds] A.Int, A.ValAbbrev)]
             _ -> [("x" ++ show n, t, A.Abbrev)]
           | (n, t) <- zip [(0::Integer)..] ts]
     

@@ -99,39 +99,51 @@ declareSizesArray = doGeneric `ext1M` doStructured
       A.SubscriptFromFor _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
       A.Subscript {} -> findInnerVar v
     findInnerVar v = (Nothing, v)
-  
+
+    -- | Generate the @_sizes@ array for a 'Retypes' expression.
     retypesSizes :: Meta -> A.Name -> [A.Dimension] -> A.Type -> A.Variable -> PassM A.Specification
-    retypesSizes m n_sizes ds elemT v
-           -- Multiply together all known dimensions
-      = do let knownDimsTotal = foldl (*) 1 [n | A.Dimension n <- ds]
-           -- Get the number of bytes in each element (must be known at compile-time)
-           BIJust biElem <- bytesInType elemT
-           t <- typeOfVariable v
-           birhs <- bytesInType t
-           sizeSpecType <- case birhs of
-             -- Statically known size; we can check right here whether it fits:
-             BIJust bytes -> case bytes `mod` (knownDimsTotal * biElem) of
-               0 -> return $ makeStaticSizeSpec m n_sizes
-                               [if d == A.UnknownDimension then A.Dimension (bytes `div` (knownDimsTotal * biElem)) else d | d <- ds]
-               _ -> dieP m "RETYPES has sizes that do not fit"
-             _ -> do totalSizeExpr <- case birhs of
-                       BIUnknown -> return $ A.BytesInType m t
-                       -- An array with a dimension are not known at compile-time:
-                       _ ->  do let A.Array srcDs elemSrcT = t
-                                BIJust biSrcElem <- bytesInType elemSrcT
-                                let A.Variable _ srcN = v
-                                    multipliedDimsV = foldl (A.Dyadic m A.Mul) (makeConstant m biSrcElem)
-                                      [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) (A.Variable m $ append_sizes srcN)  | i <- [0 .. length srcDs - 1]]
-                                return multipliedDimsV
-                     return $ makeDynamicSizeSpec m n_sizes
-                            [case d of
-                               -- TODO add a run-time check here for invalid retypes
-                               A.UnknownDimension -> A.Dyadic m A.Div totalSizeExpr
-                                 (makeConstant m $ knownDimsTotal * biElem)
-                               A.Dimension n -> makeConstant m n
-                            | d <- ds]
-           defineSizesName m n_sizes sizeSpecType
-           return $ A.Specification m n_sizes sizeSpecType
+    retypesSizes m n_sizes ds elemT v@(A.Variable _ nSrc)
+      =  do biDest <- bytesInType (A.Array ds elemT)
+            tSrc <- typeOfVariable v
+            biSrc <- bytesInType tSrc
+
+            -- Figure out the size of the source.
+            srcSize <-
+              case (biSrc, tSrc) of
+                -- Fixed-size source -- easy.
+                (BIJust size, _) -> return size
+                -- Variable-size source -- it must be an array, so multiply
+                -- together the dimensions.
+                (_, A.Array ds t) ->
+                    do BIJust elementSize <- bytesInType t
+                       return $ foldl mulExprs elementSize dSizes
+                  where
+                    srcSizes = A.Variable m $ append_sizes nSrc
+                    dSizes = [case d of
+                                -- Fixed dimension.
+                                A.Dimension e -> e
+                                -- Variable dimension -- use the corresponding
+                                -- element of its _sizes array.
+                                A.UnknownDimension ->
+                                  A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) srcSizes
+                              | (d, i) <- zip ds [0..]]
+                _ -> dieP m "Cannot compute size of source type"
+
+            -- Build the _sizes array for the destination.
+            sizeSpecType <-
+              case biDest of
+                -- Destination size is fixed -- so we must know the dimensions.
+                BIJust _ ->
+                  return $ makeStaticSizeSpec m n_sizes ds
+                -- Destination has one free dimension, so we need to compute
+                -- it.
+                BIOneFree destSize n ->
+                  let newDim = A.Dimension $ divExprs srcSize destSize
+                      ds' = replaceAt n newDim ds in
+                  return $ makeStaticSizeSpec m n_sizes ds'
+
+            defineSizesName m n_sizes sizeSpecType
+            return $ A.Specification m n_sizes sizeSpecType
 
     abbrevVarSizes :: Meta -> A.Name -> [A.Dimension] -> A.Variable -> PassM A.Specification
     abbrevVarSizes m n_sizes ds outerV
@@ -150,12 +162,13 @@ declareSizesArray = doGeneric `ext1M` doStructured
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
                subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
+               sizeType = A.Array [makeDimension m $ length ds] A.Int
                sizeSpecType = case sliceSize of
                  Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
-                   A.IsExpr m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) $
-                     A.Literal m (A.Array [A.Dimension $ length ds] A.Int) $ A.ArrayLiteral m $
+                   A.IsExpr m A.ValAbbrev sizeType $
+                     A.Literal m sizeType $ A.ArrayLiteral m $
                        [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims
-                 Nothing -> A.Is m A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) subSrcSizeVar
+                 Nothing -> A.Is m A.ValAbbrev sizeType subSrcSizeVar
            defineSizesName m n_sizes sizeSpecType
            return $ A.Specification m n_sizes sizeSpecType
 
@@ -201,17 +214,14 @@ declareSizesArray = doGeneric `ext1M` doStructured
     doStructured s = doGeneric s
 
     makeStaticSizeSpec :: Meta -> A.Name -> [A.Dimension] -> A.SpecType
-    makeStaticSizeSpec m n ds = sizeSpecType
+    makeStaticSizeSpec m n ds = makeDynamicSizeSpec m n es
       where
-        sizeType = A.Array [A.Dimension $ length ds] A.Int
-        sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $
-          map (A.ArrayElemExpr . A.Literal m A.Int . A.IntLiteral m . show . \(A.Dimension d) -> d) ds
-        sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
+        es = [e | A.Dimension e <- ds]
 
     makeDynamicSizeSpec :: Meta -> A.Name -> [A.Expression] -> A.SpecType
     makeDynamicSizeSpec m n es = sizeSpecType
       where
-        sizeType = A.Array [A.Dimension $ length es] A.Int
+        sizeType = A.Array [makeDimension m $ length es] A.Int
         sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $ map A.ArrayElemExpr es
         sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
 
@@ -233,7 +243,7 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
     
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
-      = do (args', newargs) <- transformFormals args
+      = do (args', newargs) <- transformFormals m args
            body' <- doGeneric body
            let newspec = A.Proc m' sm args' body'
            modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndType = newspec }) (A.nameName n) (csNames cs)})
@@ -252,14 +262,15 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
                         ,A.ndAbbrevMode = A.ValAbbrev
                         ,A.ndPlacement = A.Unplaced}
     
-    transformFormals :: [A.Formal] -> PassM ([A.Formal], [A.Formal])
-    transformFormals [] = return ([],[])
-    transformFormals ((f@(A.Formal am t n)):fs)
+    transformFormals :: Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals _ [] = return ([],[])
+    transformFormals m ((f@(A.Formal am t n)):fs)
       = case t of
-          A.Array ds _ -> do let newf = A.Formal A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) (append_sizes n)
-                             (rest, moreNew) <- transformFormals fs
+          A.Array ds _ -> do let sizeType = A.Array [makeDimension m $ length ds] A.Int
+                             let newf = A.Formal A.ValAbbrev sizeType (append_sizes n)
+                             (rest, moreNew) <- transformFormals m fs
                              return (f : newf : rest, newf : moreNew)
-          _ -> do (rest, new) <- transformFormals fs
+          _ -> do (rest, new) <- transformFormals m fs
                   return (f : rest, new)
 
 -- | A pass for adding _sizes parameters to actuals in PROC calls
@@ -276,10 +287,12 @@ addSizesActualParameters = doGeneric `extM` doProcess
     transformActual :: A.Actual -> PassM [A.Actual]
     transformActual a@(A.ActualVariable am (A.Array ds _) (A.Variable m n))
       = do let a_sizes = A.Variable m (append_sizes n)
-           return [a, A.ActualVariable A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) a_sizes]
+           let sizeType = A.Array [makeDimension m $ length ds] A.Int
+           return [a, A.ActualVariable A.ValAbbrev sizeType a_sizes]
     transformActual a@(A.ActualExpression (A.Array ds _) (A.ExprVariable _ (A.Variable m n)))
       = do let a_sizes = A.Variable m (append_sizes n)
-           return [a, A.ActualVariable A.ValAbbrev (A.Array [A.Dimension $ length ds] A.Int) a_sizes]
+           let sizeType = A.Array [makeDimension m $ length ds] A.Int
+           return [a, A.ActualVariable A.ValAbbrev sizeType a_sizes]
     transformActual a = let t = case a of
                                   A.ActualVariable _ t _ -> t
                                   A.ActualExpression t _ -> t
@@ -304,7 +317,7 @@ simplifySlices = doGeneric `extM` doVariable
       = do v' <- doGeneric v
            A.Array (d:_) _ <- typeOfVariable v'
            limit <- case d of
-             A.Dimension n -> return $ makeConstant m' n
+             A.Dimension n -> return n
              A.UnknownDimension -> return $ A.SizeVariable m' v'
            from' <- doGeneric from
            return (A.SubscriptedVariable m (A.SubscriptFromFor m' from' (A.Dyadic m A.Subtr limit from')) v')

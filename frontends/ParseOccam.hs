@@ -353,46 +353,69 @@ intersperseP (f:fs) sep
           as <- intersperseP fs sep
           return $ a : as
 
+-- | Are two types the same?
+sameType :: A.Type -> A.Type -> OccParser Bool
+sameType (A.Array (A.Dimension e1 : ds1) t1)
+         (A.Array (A.Dimension e2 : ds2) t2)
+    =  do n1 <- evalIntExpression e1
+          n2 <- evalIntExpression e2
+          same <- sameType (A.Array ds1 t1) (A.Array ds2 t2)
+          return $ (n1 == n2) && same
+sameType (A.Array (A.UnknownDimension : ds1) t1)
+         (A.Array (A.UnknownDimension : ds2) t2)
+    = sameType (A.Array ds1 t1) (A.Array ds2 t2)
+sameType a b = return $ a == b
+
 -- | Find the type of a table literal given the types of its components.
 -- This'll always return an Array; the inner type will either be the type of
 -- the elements if they're all the same (in which case it's either an array
 -- literal, or a record where all the fields are the same type), or Any if
 -- they're not (i.e. if it's a record literal or an empty array).
 tableType :: Meta -> [A.Type] -> OccParser A.Type
-tableType m l = tableType' m (length l) l
+tableType m l = tableType' m (makeConstant m $ length l) l
   where
+    tableType' :: Meta -> A.Expression -> [A.Type] -> OccParser A.Type
     tableType' m len [t] = return $ addDimensions [A.Dimension len] t
     tableType' m len (t1 : rest@(t2 : _))
-        = if t1 == t2 then tableType' m len rest
-                      else return $ addDimensions [A.Dimension len] A.Any
-    tableType' m len [] = return $ addDimensions [A.Dimension 0] A.Any
+        =  do same <- sameType t1 t2
+              if same
+                then tableType' m len rest
+                else return $ addDimensions [A.Dimension len] A.Any
+    tableType' m len [] = return $ addDimensions [A.Dimension zero] A.Any
+
+    zero = makeConstant m 0
 
 -- | Check that the second dimension can be used in a context where the first
 -- is expected.
-isValidDimension :: A.Dimension -> A.Dimension -> Bool
-isValidDimension A.UnknownDimension A.UnknownDimension = True
-isValidDimension A.UnknownDimension (A.Dimension _) = True
-isValidDimension (A.Dimension n1) (A.Dimension n2) = n1 == n2
-isValidDimension _ _ = False
+isValidDimension :: A.Dimension -> A.Dimension -> OccParser Bool
+isValidDimension A.UnknownDimension A.UnknownDimension = return True
+isValidDimension A.UnknownDimension (A.Dimension _) = return True
+isValidDimension (A.Dimension e1) (A.Dimension e2)
+    =  do n1 <- evalIntExpression e1
+          n2 <- evalIntExpression e2
+          return $ n1 == n2
+isValidDimension _ _ = return False
 
 -- | Check that the second second of dimensions can be used in a context where
 -- the first is expected.
-areValidDimensions :: [A.Dimension] -> [A.Dimension] -> Bool
-areValidDimensions [] [] = True
+areValidDimensions :: [A.Dimension] -> [A.Dimension] -> OccParser Bool
+areValidDimensions [] [] = return True
 areValidDimensions (d1:ds1) (d2:ds2)
-    = if isValidDimension d1 d2
-        then areValidDimensions ds1 ds2
-        else False
-areValidDimensions _ _ = False
+    = do valid <- isValidDimension d1 d2
+         if valid
+           then areValidDimensions ds1 ds2
+           else return False
+areValidDimensions _ _ = return False
 
 -- | Check that a type we've inferred matches the type we expected.
 matchType :: Meta -> A.Type -> A.Type -> OccParser ()
 matchType m et rt
     = case (et, rt) of
         ((A.Array ds t), (A.Array ds' t')) ->
-          if areValidDimensions ds ds'
-            then matchType m t t'
-            else bad
+          do valid <- areValidDimensions ds ds'
+             if valid
+               then matchType m t t'
+               else bad
         _ -> if rt == et then return () else bad
   where
     bad :: OccParser ()
@@ -574,8 +597,7 @@ newTagName = unscopedName A.TagName
 arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
     =  do (s, t) <- tryXVXV sLeft constIntExpr sRight element
-          sVal <- evalIntExpression s
-          return $ addDimensions [A.Dimension sVal] t
+          return $ addDimensions [A.Dimension s] t
 
 -- | Either a sized or unsized array of a production.
 specArrayType :: OccParser A.Type -> OccParser A.Type
@@ -629,20 +651,22 @@ isValidLiteralType m rawT wantT
             (A.Real32, _) -> return $ isRealType underT
             (A.Int, _) -> return $ isIntegerType underT
             (A.Byte, _) -> return $ isIntegerType underT
-            (A.Array (A.Dimension nf:_) _, A.Record _) ->
+            (A.Array (A.Dimension e:_) _, A.Record _) ->
               -- We can't be sure without looking at the literal itself,
               -- so we need to do that below.
               do fs <- recordFields m wantT
+                 nf <- evalIntExpression e
                  return $ nf == length fs
             (A.Array (d1:ds1) t1, A.Array (d2:ds2) t2) ->
               -- Check the outermost dimension is OK, then recurse.
               -- We can't just look at all the dimensions because this
               -- might be an array of a record type, or similar.
-              if isValidDimension d2 d1
-                then do rawT' <- trivialSubscriptType m rawT
-                        underT' <- trivialSubscriptType m underT
-                        isValidLiteralType m rawT' underT'
-                else return False
+              do valid <- isValidDimension d2 d1
+                 if valid
+                   then do rawT' <- trivialSubscriptType m rawT
+                           underT' <- trivialSubscriptType m underT
+                           isValidLiteralType m rawT' underT'
+                   else return False
             _ -> return $ rawT == wantT
 
 -- | Apply dimensions from one type to another as far as possible.
@@ -822,7 +846,7 @@ stringLiteral
           cs <- stringCont <|> stringLit
           let aes = [A.ArrayElemExpr $ A.Literal m' A.Byte c
                      | c@(A.ByteLiteral m' _) <- cs]
-          return (A.ArrayLiteral m aes, A.Dimension $ length cs)
+          return (A.ArrayLiteral m aes, makeDimension m $ length cs)
     <?> "string literal"
   where
     stringCont :: OccParser [A.LiteralRepr]
@@ -1412,6 +1436,8 @@ retypesReshapes :: OccParser ()
 retypesReshapes
     = sRETYPES <|> sRESHAPES
 
+-- FIXME: Retypes checking is currently disabled; it will be moved into a
+-- separate pass.
 retypesAbbrev :: OccParser A.Specification
 retypesAbbrev
     =   do m <- md
@@ -1420,7 +1446,7 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable v
-           checkRetypes m origT s
+           --checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
@@ -1428,7 +1454,7 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable c
-           checkRetypes m origT s
+           --checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s c
     <|> do m <- md
            (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
@@ -1436,10 +1462,11 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfExpression e
-           checkRetypes m origT s
+           --checkRetypes m origT s
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
 
+{-
 -- | Check that a RETYPES\/RESHAPES is safe.
 checkRetypes :: Meta -> A.Type -> A.Type -> OccParser ()
 -- Retyping channels is always "safe".
@@ -1456,6 +1483,7 @@ checkRetypes m fromT toT
               dieP m "multiple free dimensions in RETYPES/RESHAPES type"
             -- Otherwise we have to do a runtime check.
             _ -> return ()
+-}
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier

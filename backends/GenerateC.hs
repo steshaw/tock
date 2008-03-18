@@ -254,7 +254,7 @@ cgenOverArray m var func
                                  A.UnknownDimension ->
                                       do call genVariable var
                                          call genSizeSuffix (show v)
-                                 A.Dimension n -> tell [show n]
+                                 A.Dimension n -> call genExpression n
                                tell [";"]
                                call genVariable i
                                tell ["++){"]
@@ -379,8 +379,13 @@ cgenBytesIn m t v
              Just s -> tell ["sizeof(", s, ")"]
              Nothing -> diePC m $ formatCode "genBytesIn' %" t
 
+    -- FIXME: This could be done by generating an expression for the size,
+    -- which is what declareSizesPass has to do -- they should share a helper
+    -- function.
     genBytesInArrayDim :: (A.Dimension,Int) -> CGen ()
-    genBytesInArrayDim (A.Dimension n, _) = tell [show n, "*"]
+    genBytesInArrayDim (A.Dimension n, _)
+        =  do call genExpression n
+              tell ["*"]
     genBytesInArrayDim (A.UnknownDimension, i)
         = case v of
             Right rv ->
@@ -565,9 +570,10 @@ cgenUnfoldedVariable m var
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = call genUnfoldedVariable m v
-    unfoldArray (A.Dimension n:ds) v
-      = seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) v)
-                    | i <- [0..(n - 1)]]
+    unfoldArray (A.Dimension e:ds) v
+      = do n <- evalIntExpression e
+           seqComma $ [unfoldArray ds (A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m i) v)
+                       | i <- [0..(n - 1)]]
     unfoldArray _ _ = dieP m "trying to unfold array with unknown dimension"
 
 -- | Generate a decimal literal -- removing leading zeroes to avoid producing
@@ -831,7 +837,7 @@ cgenExpression (A.SizeExpr m e)
 cgenExpression (A.SizeVariable m v)
     =  do A.Array (d:_) _  <- typeOfVariable v
           case d of
-            A.Dimension n -> tell [show n]
+            A.Dimension n -> call genExpression n
             A.UnknownDimension -> do call genVariable v
                                      call genSizeSuffix "0"
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
@@ -1136,8 +1142,9 @@ cgenFlatArraySize :: [A.Dimension] -> CGen ()
 cgenFlatArraySize ds
     =  do tell ["["]
           sequence $ intersperse (tell ["*"])
-                                 [case d of A.Dimension n -> tell [show n] | d <- ds]
+                                 [call genExpression n | A.Dimension n <- ds]
           tell ["]"]
+-- FIXME: genBytesInArrayDim could share with this
 
 -- | Initialise an item being declared.
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
@@ -1153,7 +1160,9 @@ cdeclareInit m t@(A.Array ds t') var
                        tell ["_storage,"]
                        call genVariableUnchecked var
                        tell [","]
-                       sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
+                       sequence_ $ intersperse (tell ["*"])
+                                   [call genExpression n | A.Dimension n <- ds]
+                       -- FIXME: and again
                        tell [");"]
                   _ -> return ()
                 fdeclareInit <- fget declareInit

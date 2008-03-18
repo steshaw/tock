@@ -484,7 +484,9 @@ cppdeclareInit m t@(A.Array ds t') var
                        tell ["_storage,"]
                        call genVariableUnchecked var
                        tell [","]
-                       sequence_ $ intersperse (tell ["*"]) [case dim of A.Dimension d -> tell [show d] | dim <- ds]
+                       sequence_ $ intersperse (tell ["*"])
+                                               [call genExpression n
+                                                | A.Dimension n <- ds]
                        tell [");"]
                   _ -> return ()
 cppdeclareInit m rt@(A.Record _) var
@@ -664,7 +666,7 @@ cppgenType (A.Chan dir attr t)
       = do tell ["tockSendableArray<"]
            call genType t
            tell [","]
-           tell $ intersperse "*" [case d of A.Dimension n -> show n | d <- ds]
+           sequence_ $ intersperse (tell ["*"]) [call genExpression n | A.Dimension n <- ds]
            tell [">/**/"]
     cppTypeInsideChannel t = call genType t
 cppgenType (A.Mobile t@(A.Array {})) = call genType t

@@ -24,7 +24,7 @@ module Types
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, addOne
+    , makeAbbrevAM, makeConstant, makeDimension, addOne, addExprs, mulExprs, divExprs
     , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
 
@@ -81,27 +81,6 @@ typeOfSpec st
             _ -> return Nothing
 
 --{{{  identifying types
--- | Apply a slice to a type.
-sliceType :: (CSMR m, Die m) => Meta -> A.Expression -> A.Expression -> A.Type -> m A.Type
-sliceType m base count (A.Array (d:ds) t)
-    = case (isConstant base, isConstant count) of
-        (True, True) ->
-          do b <- evalIntExpression base
-             c <- evalIntExpression count
-             case d of
-               A.Dimension size ->
-                 if (size - b) < c
-                   then dieP m $ "invalid slice " ++ show b ++ " -> " ++ show c ++ " of " ++ show size
-                   else return $ A.Array (A.Dimension c : ds) t
-               A.UnknownDimension ->
-                 return $ A.Array (A.Dimension c : ds) t
-        (True, False) -> return $ A.Array (A.UnknownDimension : ds) t
-        (False, True) ->
-          do c <- evalIntExpression count
-             return $ A.Array (A.Dimension c : ds) t
-        (False, False) -> return $ A.Array (A.UnknownDimension : ds) t
-sliceType m _ _ _ = dieP m "slice of non-array type"
-
 -- | Get the fields of a record type.
 recordFields :: (CSMR m, Die m) => Meta -> A.Type -> m [(A.Name, A.Type)]
 recordFields m (A.Record rec)
@@ -119,37 +98,36 @@ typeOfRecordField m t field
 
 -- | Apply a plain subscript to a type.
 plainSubscriptType :: (CSMR m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
-plainSubscriptType m sub (A.Array (d:ds) t)
-    = case (isConstant sub, d) of
-        (True, A.Dimension size) ->
-          do i <- evalIntExpression sub
-             if (i < 0) || (i >= size)
-               then dieP m $ "invalid subscript " ++ show i ++ " of " ++ show size
-               else return ok
-        _ -> return ok
-  where
-    ok = case ds of
-           [] -> t
-           _ -> A.Array ds t
+plainSubscriptType m sub (A.Array (_:ds) t)
+    = return $ case ds of
+                 [] -> t
+                 _ -> A.Array ds t
 plainSubscriptType m _ t = diePC m $ formatCode "subscript of non-array type: %" t
+
+-- | Turn an expression into a 'Dimension'.
+-- If the expression is constant, it'll produce 'Dimension'; if not, it'll
+-- produce 'UnknownDimension'.
+dimensionFromExpr :: A.Expression -> A.Dimension
+dimensionFromExpr e
+    = if isConstant e
+        then A.Dimension $ e
+        else A.UnknownDimension
 
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
 subscriptType :: (CSMR m, Die m) => A.Subscript -> A.Type -> m A.Type
 subscriptType sub t@(A.UserDataType _)
     = resolveUserType (findMeta sub) t >>= subscriptType sub
-subscriptType (A.SubscriptFromFor m base count) t
-    = sliceType m base count t
+subscriptType (A.SubscriptFromFor m _ count) (A.Array (_:ds) t)
+    = return $ A.Array (dimensionFromExpr count : ds) t
 subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
-    = case (isConstant base, d) of
-        (True, A.Dimension size) ->
-          do b <- evalIntExpression base
-             if (size - b) < 0
-               then dieP m $ "invalid slice " ++ show b ++ " -> end of " ++ show size
-               else return $ A.Array (A.Dimension (size - b) : ds) t
-        _ -> return $ A.Array (A.UnknownDimension : ds) t
-subscriptType (A.SubscriptFor m count) t
-    = sliceType m (makeConstant emptyMeta 0) count t
+    = return $ A.Array (dim : ds) t
+  where
+    dim = case d of
+            A.Dimension size -> dimensionFromExpr $ A.Dyadic m A.Subtr size base
+            _ -> A.UnknownDimension
+subscriptType (A.SubscriptFor m count) (A.Array (_:ds) t)
+    = return $ A.Array (dimensionFromExpr count : ds) t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
 subscriptType (A.Subscript m _ sub) t = plainSubscriptType m sub t
 subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %" t
@@ -262,8 +240,7 @@ typeOfExpression e
                else typeOfArrayList [A.UnknownDimension] bt
         A.ExprConstr m (A.RepConstr _ rep e) -> 
           do t <- typeOfExpression e 
-             count <- evalIntExpression $ countReplicator rep
-             typeOfArrayList [A.Dimension count] t
+             typeOfArrayList [A.Dimension $ countReplicator rep] t
         A.AllocMobile _ t _ -> return t
 --}}}
 
@@ -367,9 +344,14 @@ makeAbbrevAM :: A.AbbrevMode -> A.AbbrevMode
 makeAbbrevAM A.Original = A.Abbrev
 makeAbbrevAM am = am
 
--- | Generate a constant expression from an integer -- for array sizes and the like.
+-- | Generate a constant expression from an integer -- for array sizes and the
+-- like.
 makeConstant :: Meta -> Int -> A.Expression
 makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
+
+-- | Generate a constant dimension from an integer.
+makeDimension :: Meta -> Int -> A.Dimension
+makeDimension m n = A.Dimension $ makeConstant m n
 
 -- | Checks whether a given conversion can be done implicitly in Rain
 -- Parameters are src dest
@@ -526,34 +508,39 @@ isCaseableType t = isIntegerType t
 --{{{ sizes of types
 -- | The size in bytes of a data type.
 data BytesInResult =
-  BIJust Int            -- ^ Just that many bytes.
-  | BIOneFree Int Int   -- ^ An array type; A bytes, times unknown dimension B.
-  | BIManyFree          -- ^ An array type with multiple unknown dimensions.
-  | BIUnknown           -- ^ We can't tell the size at compile time.
+  BIJust A.Expression          -- ^ Just that many bytes.
+  | BIOneFree A.Expression Int -- ^ An array type; A bytes, times unknown dimension B.
+  | BIManyFree                 -- ^ An array type with multiple unknown dimensions.
+  | BIUnknown                  -- ^ We can't tell the size at compile time.
   deriving (Show, Eq)
 
--- | Given the C and C++ values (in that order), selects according to the backend
--- If the backend is not recognised, the C sizes are used
-sizeByBackend :: CSMR m => Int -> Int -> m Int
-sizeByBackend c cxx = do backend <- getCompState >>* csBackend
-                         return $ case backend of
-                           BackendCPPCSP -> cxx
-                           _ -> c
+-- | Make a fixed-size 'BytesInResult'.
+justSize :: CSMR m => Int -> m BytesInResult
+justSize n = return $ BIJust $ makeConstant emptyMeta n
+
+-- | Given the C and C++ values (in that order), selects according to the
+-- backend. If the backend is not recognised, the C sizes are used.
+justSizeBackends :: CSMR m => Int -> Int -> m BytesInResult
+justSizeBackends c cxx
+    =  do backend <- getCompState >>* csBackend
+          case backend of
+            BackendCPPCSP -> justSize c
+            _ -> justSize cxx
 
 -- | Return the size in bytes of a data type.
 bytesInType :: (CSMR m, Die m) => A.Type -> m BytesInResult
-bytesInType A.Bool = sizeByBackend cBoolSize cxxBoolSize >>* BIJust
-bytesInType A.Byte = return $ BIJust 1
-bytesInType A.UInt16 = return $ BIJust 2
-bytesInType A.UInt32 = return $ BIJust 4
-bytesInType A.UInt64 = return $ BIJust 8
-bytesInType A.Int8 = return $ BIJust 1
-bytesInType A.Int = sizeByBackend cIntSize cxxIntSize >>* BIJust
-bytesInType A.Int16 = return $ BIJust 2
-bytesInType A.Int32 = return $ BIJust 4
-bytesInType A.Int64 = return $ BIJust 8
-bytesInType A.Real32 = return $ BIJust 4
-bytesInType A.Real64 = return $ BIJust 8
+bytesInType A.Bool = justSizeBackends cBoolSize cxxBoolSize
+bytesInType A.Byte = justSize 1
+bytesInType A.UInt16 = justSize 2
+bytesInType A.UInt32 = justSize 4
+bytesInType A.UInt64 = justSize 8
+bytesInType A.Int8 = justSize 1
+bytesInType A.Int = justSizeBackends cIntSize cxxIntSize
+bytesInType A.Int16 = justSize 2
+bytesInType A.Int32 = justSize 4
+bytesInType A.Int64 = justSize 8
+bytesInType A.Real32 = justSize 4
+bytesInType A.Real64 = justSize 8
 bytesInType a@(A.Array _ _) = bytesInArray 0 a
   where
     bytesInArray :: (CSMR m, Die m) => Int -> A.Type -> m BytesInResult
@@ -561,8 +548,8 @@ bytesInType a@(A.Array _ _) = bytesInArray 0 a
     bytesInArray num (A.Array (d:ds) t)
         =  do ts <- bytesInArray (num + 1) (A.Array ds t)
               case (d, ts) of
-                (A.Dimension n, BIJust m) -> return $ BIJust (n * m)
-                (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (n * m) x
+                (A.Dimension n, BIJust m) -> return $ BIJust (mulExprs n m)
+                (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (mulExprs n m) x
                 (A.UnknownDimension, BIJust m) -> return $ BIOneFree m num
                 (A.UnknownDimension, BIOneFree _ _) -> return BIManyFree
                 (_, _) -> return ts
@@ -575,12 +562,12 @@ bytesInType (A.Record n)
             _ -> return $ BIUnknown
   where
     bytesInList :: (CSMR m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
-    bytesInList [] = return $ BIJust 0
+    bytesInList [] = justSize 0
     bytesInList ((_, t):rest)
         =  do bi <- bytesInType t
               br <- bytesInList rest
               case (bi, br) of
-                (BIJust a, BIJust b) -> return $ BIJust (a + b)
+                (BIJust a, BIJust b) -> return $ BIJust (addExprs a b)
                 (_, _) -> return BIUnknown
 bytesInType _ = return $ BIUnknown
 --}}}
@@ -610,3 +597,17 @@ addOne :: A.Expression -> A.Expression
 addOne e = A.Dyadic m A.Plus (makeConstant m 1) e
   where m = findMeta e
 
+-- | Add two expressions.
+addExprs :: A.Expression -> A.Expression -> A.Expression
+addExprs a b = A.Dyadic m A.Add a b
+  where m = findMeta a
+
+-- | Multiply two expressions.
+mulExprs :: A.Expression -> A.Expression -> A.Expression
+mulExprs a b = A.Dyadic m A.Mul a b
+  where m = findMeta a
+
+-- | Divide two expressions.
+divExprs :: A.Expression -> A.Expression -> A.Expression
+divExprs a b = A.Dyadic m A.Div a b
+  where m = findMeta a

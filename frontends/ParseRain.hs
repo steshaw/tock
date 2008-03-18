@@ -34,6 +34,7 @@ import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
+import Types
 
 
 
@@ -174,7 +175,7 @@ stringLiteral
     =  do (m,str) <- getToken testToken
           let processed = replaceEscapes str
           let aes = [A.ArrayElemExpr $ A.Literal m A.Byte $ A.ByteLiteral m [c] | c <- processed]
-          return (A.ArrayLiteral m aes, A.Dimension $ length processed)
+          return (A.ArrayLiteral m aes, makeDimension m $ length processed)
     <?> "string literal"
   where
     testToken (L.TokStringLiteral str) = Just str

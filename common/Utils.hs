@@ -291,3 +291,8 @@ applyPairM f = seqPair . transformPair f f
 
 makeArraySize :: (IArray a e, Ix i, Enum i) => (i,i) -> e -> a i e -> a i e
 makeArraySize size def arr = array size [(i,arrayLookupWithDefault def arr i) | i <- [fst size .. snd size]]
+
+-- | Replace one item in a list by index.
+-- This is like '(//)'.
+replaceAt :: Int -> a -> [a] -> [a]
+replaceAt n rep es = [if i == n then rep else e | (e, i) <- zip es [0..]]
