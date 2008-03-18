@@ -507,6 +507,11 @@ testDataType =
   
   ,pass ("time",RP.dataType,assertEqual "testDataType 300" A.Time)
   ,pass ("timer",RP.dataType,assertEqual "testDataType 301" $ A.UserDataType $ typeName "timer")
+
+  ,pass ("[int]",RP.dataType, assertEqual "testDataType 400" $ A.List A.Int)
+  ,pass ("[uint8]",RP.dataType, assertEqual "testDataType 401" $ A.List A.Byte)
+  ,pass ("[foo]",RP.dataType, assertEqual "testDataType 402" $ A.List
+    $ A.UserDataType $ typeName "foo")
  ]
  
 instance Data a => Show (A.Structured a -> A.Structured a) where
