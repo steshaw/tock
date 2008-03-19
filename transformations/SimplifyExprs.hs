@@ -205,13 +205,10 @@ transformConstr = doGeneric `ext1M` doStructured
     --           indexvar := indexvar + 1
     --     ...
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ rep exp)))) scope)
+    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
       = do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
            let indexVar = A.Variable m'' indexName
            scope' <- doGeneric scope
-
-           -- Recompute the type, in order to get the array dimension into it.
-           t <- typeOfExpression expr
 
            return $ A.Spec m (A.Specification m' n (A.Declaration m' t)) $ A.ProcThen m''
              (A.Seq m'' $ A.Spec m'' indexVarSpec $ A.Several m'' [
