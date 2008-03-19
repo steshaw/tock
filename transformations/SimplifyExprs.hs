@@ -182,7 +182,10 @@ pullRepCounts = doGeneric `extM` doProcess
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" m' t for
            s' <- pullRepCountSeq s
            return $ A.Spec m spec $ A.Rep m (A.For m' n from (A.ExprVariable m' $ A.Variable m' nonceName)) s'
-    
+    -- Other replicators (such as ForEach)
+    pullRepCountSeq (A.Rep m rep s)
+      = do s' <- pullRepCountSeq s
+           return $ A.Rep m rep s'
 
 transformConstr :: Data t => t -> PassM t
 transformConstr = doGeneric `ext1M` doStructured
