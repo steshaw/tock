@@ -234,10 +234,10 @@ makeAssignPattern v e = tag3 A.Assign DontCare [v] $ tag2 A.ExpressionList DontC
  
 -- | Creates a literal string expression from the given 'String'.
 makeLiteralStringRain :: String -> A.Expression
-makeLiteralStringRain str = A.Literal emptyMeta (A.List A.Byte) (A.ArrayLiteral emptyMeta (map makeLiteralChar str))
+makeLiteralStringRain str = A.Literal emptyMeta (A.List A.Byte) (A.ListLiteral emptyMeta (map makeLiteralChar str))
   where
-    makeLiteralChar :: Char -> A.ArrayElem
-    makeLiteralChar c = A.ArrayElemExpr $ A.Literal emptyMeta A.Byte (A.ByteLiteral emptyMeta [c] {-(show (fromEnum c))-})
+    makeLiteralChar :: Char -> A.Expression
+    makeLiteralChar c = A.Literal emptyMeta A.Byte (A.ByteLiteral emptyMeta [c] {-(show (fromEnum c))-})
     
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- @'assertPatternMatch' ('makeLiteralStringPattern' x) ('makeLiteralString' x)@ will always succeed.

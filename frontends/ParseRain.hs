@@ -171,12 +171,12 @@ variable = do {v <- name ; return $ A.Variable (findMeta v) v}
 lvalue :: RainParser A.Variable
 lvalue = variable
 
-stringLiteral :: RainParser (A.LiteralRepr, A.Dimension)
+stringLiteral :: RainParser A.LiteralRepr
 stringLiteral
     =  do (m,str) <- getToken testToken
           let processed = replaceEscapes str
           let aes = [A.ArrayElemExpr $ A.Literal m A.Byte $ A.ByteLiteral m [c] | c <- processed]
-          return (A.ArrayLiteral m aes, makeDimension m $ length processed)
+          return (A.ArrayLiteral m aes, A.Dimension $ length processed)
     <?> "string literal"
   where
     testToken (L.TokStringLiteral str) = Just str
@@ -207,7 +207,7 @@ integerLiteral :: RainParser A.Expression
 integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
 
 literal :: RainParser A.Expression
-literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.List A.Byte) lr }
+literal = do {lr <- stringLiteral ; return $ A.Literal (findMeta lr) (A.List A.Byte) lr }
           <|> do {c <- literalCharacter ; return $ A.Literal (findMeta c) A.Byte c}
           <|> integerLiteral
           <|> do {m <- reserved "true" ; return $ A.True m}
