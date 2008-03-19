@@ -93,6 +93,9 @@ transformInt = everywhereM (mkM transformInt')
 --
 -- This may seem like three passes in one, but if you try to separate them out, it just ends up
 -- with more confusion and more code.
+--
+-- This pass works because everywhereM goes bottom-up, so declarations are
+--resolved from the bottom upwards.
 uniquifyAndResolveVars :: Data t => t -> PassM t
 uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
   where
@@ -134,6 +137,13 @@ uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
                                                   A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
                     let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
                     return (A.Formal am t newName, scope')
+
+    -- replicator names have their types recorded later, but are
+    -- uniquified and resolved here
+    uniquifyAndResolveVars' (A.Rep m (A.ForEach m' n e) scope)
+      = do n' <- makeNonce $ A.nameName n
+           let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
+           return $ A.Rep m (A.ForEach m' (n {A.nameName = n'}) e) scope'
     --Other:
     uniquifyAndResolveVars' s = return s
 
