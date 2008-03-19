@@ -224,23 +224,28 @@ public:
 	
 	typedef typename std::list<T>::iterator iterator;
 	
-	inline iterator beginSeqEach()
+	inline iterator beginSeqEach() const
 	{
 		return data.begin();
 	}
 	
-	inline iterator limitIterator()
+	inline iterator limitIterator() const
 	{
 		return data.end();
 	}
 	
-	inline void endSeqEach()
+	inline void endSeqEach() const
 	{
 	}
 	
 	inline void remove(const iterator& _it)
 	{
 		data.erase(_it);
+	}
+
+	inline unsigned size()
+	{
+	    return data.size();
 	}
 	
 	//TODO add beginParEach
@@ -256,7 +261,7 @@ public:
 	class derefTockList
 	{
 	private:
-		tockList<T>* ref;
+		tockList<T>* const ref;
 	public:
 		inline explicit derefTockList(tockList<T>* _ref)
 			:	ref(_ref)
@@ -264,7 +269,7 @@ public:
 		}
 
 		//If you dereference both sides, you get a proper copy-assignment:
-		void operator=(const derefTockList& _rhs)
+		inline void operator=(const derefTockList& _rhs)
 		{
 			ref->data = _rhs.ref->data;
 		}

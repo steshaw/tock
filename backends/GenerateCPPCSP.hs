@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cintroduceSpec, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
+import GenerateC (cgenOps, cintroduceSpec, cgenReplicatorLoop, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass
@@ -65,10 +65,13 @@ cppgenOps = cgenOps {
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
     genInputItem = cppgenInputItem,
+    genListSize = cppgenListSize,
+    genListLiteral = cppgenListLiteral,
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
     genProcCall = cppgenProcCall,
+    genReplicatorLoop = cppgenReplicatorLoop,
     genStop = cppgenStop,
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
@@ -679,6 +682,34 @@ cppgenType t
         Just s -> tell [s]
         Nothing -> call genMissingC $ formatCode "genType %" t
 
+cppgenListSize :: A.Variable -> CGen ()
+cppgenListSize v
+ = do call genVariable v
+      tell [".size()"]
+
+cppgenListLiteral :: [A.Expression] -> A.Type -> CGen ()
+cppgenListLiteral es t
+ = do call genType t
+      tell ["()"]
+      mapM_ (\e -> tell ["("] >> call genExpression e >> tell [")"]) es
+
+cppgenReplicatorLoop :: A.Replicator -> CGen ()
+cppgenReplicatorLoop rep@(A.For {}) = cgenReplicatorLoop rep
+cppgenReplicatorLoop (A.ForEach m n (A.ExprVariable _ v))
+  = do t <- typeOfVariable v
+       call genType t
+       tell ["::iterator "]
+       genName n
+       tell ["="]
+       call genVariable v
+       tell [".beginSeqEach();"] --TODO what if this is a pareach?
+       genName n
+       tell ["!="]
+       call genVariable v
+       tell [".limitIterator();"]
+       genName n
+       tell ["++"]
+       -- TODO call endSeqEach
 
 -- | Helper function for prefixing an underscore to a name.
 prefixUnderscore :: A.Name -> A.Name

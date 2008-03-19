@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
+module GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
 
 import Data.Char
 import Data.Generics
@@ -91,6 +91,8 @@ cgenOps = GenOps {
     genInputItem = cgenInputItem,
     genIntrinsicFunction = cgenIntrinsicFunction,
     genIntrinsicProc = cgenIntrinsicProc,
+    genListLiteral = cgenListLiteral,
+    genListSize = cgenListSize,
     genLiteral = cgenLiteral,
     genLiteralRepr = cgenLiteralRepr,
     genMissing = cgenMissing,
@@ -511,6 +513,12 @@ genLitSuffix A.UInt64 = tell ["ULL"]
 genLitSuffix A.Real32 = tell ["F"]
 genLitSuffix _ = return ()
 
+cgenListLiteral :: [A.Expression] -> A.Type -> CGen()
+cgenListLiteral _ _ = call genMissing "C backend does not yet support lists"
+
+cgenListSize :: A.Variable -> CGen ()
+cgenListSize _ = call genMissing "C backend does not yet support lists"
+
 cgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
 cgenLiteralRepr (A.RealLiteral m s) t = tell [s] >> genLitSuffix t
 cgenLiteralRepr (A.IntLiteral m s) t
@@ -533,7 +541,8 @@ cgenLiteralRepr (A.RecordLiteral _ es) _
     =  do genLeftB
           seqComma $ map (call genUnfoldedExpression) es
           genRightB
-
+cgenLiteralRepr (A.ListLiteral _ es) t = call genListLiteral es t
+          
 -- | Generate an expression inside a record literal.
 --
 -- This is awkward: the sort of literal that this produces when there's a
@@ -837,7 +846,7 @@ cgenExpression (A.SizeExpr m e)
 cgenExpression (A.SizeVariable m v)
     =  do A.Array (d:_) _  <- typeOfVariable v
           case d of
-            A.Dimension n -> call genExpression n
+            A.Dimension n -> tell [show n]
             A.UnknownDimension -> do call genVariable v
                                      call genSizeSuffix "0"
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
@@ -1052,7 +1061,7 @@ cgenReplicatorLoop (A.For m index base count)
               tell [";", counter, ">0;", counter, "--,"]
               genName index
               tell ["++"]
-
+cgenReplicatorLoop _ = cgenMissing "ForEach loops not yet supported in the C backend"
 --}}}
 
 --{{{  abbreviations
