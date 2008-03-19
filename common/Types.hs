@@ -240,7 +240,8 @@ typeOfExpression e
                else typeOfArrayList [A.UnknownDimension] bt
         A.ExprConstr m (A.RepConstr _ rep e) -> 
           do t <- typeOfExpression e 
-             typeOfArrayList [A.Dimension $ countReplicator rep] t
+             count <- evalIntExpression $ countReplicator rep
+             typeOfArrayList [A.Dimension count] t
         A.AllocMobile _ t _ -> return t
 --}}}
 
