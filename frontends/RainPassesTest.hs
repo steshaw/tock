@@ -148,7 +148,8 @@ testEachRangePass0 :: Test
 testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp (transformEachRange orig) (return ())
   where
     orig = A.Par m A.PlainPar $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 0) (intLiteral 9))))
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m
+                 undefined (intLiteral 0) (intLiteral 9))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Rep m
                (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10))
@@ -158,7 +159,8 @@ testEachRangePass1 :: Test
 testEachRangePass1 = TestCase $ testPass "testEachRangePass1" exp (transformEachRange orig) (return ())
   where
     orig = A.Par m A.PlainPar $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral (-5)) (intLiteral (-2)))))
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral (-5)) (intLiteral (-2)))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Rep m
                (A.For m (simpleName "x") (intLiteral (-5)) (intLiteral 4))
@@ -168,7 +170,8 @@ testEachRangePass2 :: Test
 testEachRangePass2 = TestCase $ testPass "testEachRangePass2" exp (transformEachRange orig) (return ())
   where
     orig = A.Seq m $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 6))))
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral 6) (intLiteral 6))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Rep m
                (A.For m (simpleName "x") (intLiteral 6) (intLiteral 1))
@@ -178,7 +181,8 @@ testEachRangePass3 :: Test
 testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp (transformEachRange orig) (return ())
   where
     orig = A.Seq m $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m (intLiteral 6) (intLiteral 0))))
+               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral 6) (intLiteral 0))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Rep m
                (A.For m (simpleName "x") (intLiteral 6) (intLiteral (-5)))
@@ -466,15 +470,15 @@ testParamPass8 = TestList [TestCase $ testPassShouldFail "testParamPass8/process
 testRangeRepPass0 :: Test
 testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
   where
-    orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 0) (intLiteral 1)
-    exp = tag2 A.ExprConstr DontCare $ tag3 A.RepConstr DontCare (tag4 A.For DontCare ("repIndex"@@DontCare) (intLiteral 0) (intLiteral 2)) 
+    orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 0) (intLiteral 1)
+    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte (tag4 A.For DontCare ("repIndex"@@DontCare) (intLiteral 0) (intLiteral 2)) 
       (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ "repIndex"@@DontCare)
 
 -- | Lists with negative counts should give an error
 testRangeRepPass1 :: Test
 testRangeRepPass1 = TestCase $ testPassShouldFail "testRangeRepPass1" (transformRangeRep orig) (return())
   where
-    orig = A.ExprConstr m $ A.RangeConstr m (intLiteral 1) (intLiteral 0)
+    orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 1) (intLiteral 0)
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
 

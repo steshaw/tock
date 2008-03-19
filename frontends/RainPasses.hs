@@ -29,7 +29,6 @@ import CompState
 import Errors
 import Metadata
 import Pass
-import Pattern
 import qualified Properties as Prop
 import RainTypes
 import TreeUtils
@@ -58,7 +57,8 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked])
        
        ,("Find and tag the main function", findMain, namesDone, [Prop.mainTagged])
-       ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",transformEachRange, typesDone, [Prop.eachRangeTransformed])
+       ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
+         transformEachRange, typesDone ++ [Prop.constantsFolded], [Prop.eachRangeTransformed])
        ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach, typesDone ++ [Prop.eachRangeTransformed], [Prop.eachTransformed])
        ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
        ,("Transform Rain functions into the occam form",checkFunction, typesDone ++ [Prop.eachTransformed], [])
@@ -170,37 +170,22 @@ checkIntegral _ = Nothing
 
 -- | Transforms seqeach\/pareach loops over things like [0..99] into SEQ i = 0 FOR 100 loops
 transformEachRange :: Data t => t -> PassM t
-transformEachRange = everywhereM (mk1M transformEachRange')
+transformEachRange = doGeneric `ext1M` doStructured
   where
-    transformEachRange' :: forall a. Data a => A.Structured a -> PassM (A.Structured a)
-    transformEachRange' s@(A.Rep m _ _)
-      = case getMatchedItems patt s of 
-          Left _ -> return s --Doesn't match, return the original 
-          Right items ->
-            do repMeta <- castOrDie "repMeta" items
-               eachMeta <- castOrDie "eachMeta" items
-               loopVar <- castOrDie "loopVar" items
-               begin <- castOrDie "begin" items
-               end <- castOrDie "end" items
-               body <- castOrDie "body" items
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformEachRange
+    
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
+      _ (A.RangeConstr _ _ (A.Literal _ _ begin) (A.Literal _ _ end)))) body)
+        =   do body' <- doStructured body
+               -- TODO should probably not do mini-constant-folding here:
                if (isJust $ checkIntegral begin) && (isJust $ checkIntegral end)
                  then return $ A.Rep repMeta (A.For eachMeta loopVar (A.Literal eachMeta A.Int begin) 
                    (A.Literal eachMeta A.Int $ A.IntLiteral eachMeta $ show ((fromJust $ checkIntegral end) - (fromJust $ checkIntegral begin) + 1))
-                   ) body
+                   ) body'
                  else dieP eachMeta "Items in range constructor (x..y) are not integer literals"
-      where
-        patt :: Pattern
-        patt = tag3 (A.Rep :: Meta -> A.Replicator -> A.Structured a -> A.Structured a) (Named "repMeta" DontCare) (
-                 tag3 A.ForEach (Named "eachMeta" DontCare) (Named "loopVar" DontCare) $ 
-                   tag2 A.ExprConstr DontCare $ 
-                     tag3 A.RangeConstr DontCare (tag3 A.Literal DontCare DontCare $ Named "begin" DontCare) 
-                                              (tag3 A.Literal DontCare DontCare $ Named "end" DontCare)
-               ) (Named "body" DontCare)
-        castOrDie :: (Typeable b) => String -> Items -> PassM b
-        castOrDie key items = case castADI (Map.lookup key items) of
-          Just y -> return y
-          Nothing -> dieP m "Internal error in transformEachRange"
-    transformEachRange' s = return s
+    doStructured s = doGeneric s
 
 -- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
 transformEach :: Data t => t -> PassM t
@@ -231,10 +216,13 @@ transformEach = everywhereM (mk1M transformEach')
 
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
 transformRangeRep :: Data t => t -> PassM t
-transformRangeRep = everywhereM (mkM transformRangeRep')
+transformRangeRep = doGeneric `extM` doExpression
   where
-    transformRangeRep' :: A.Expression -> PassM A.Expression
-    transformRangeRep' (A.ExprConstr _ (A.RangeConstr m (A.Literal _ _ beginLit) (A.Literal _ _ endLit)))
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric transformRangeRep
+    
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression (A.ExprConstr _ (A.RangeConstr m t (A.Literal _ _ beginLit) (A.Literal _ _ endLit)))
       = if (isJust $ checkIntegral beginLit) && (isJust $ checkIntegral endLit)
           then transformRangeRep'' m (fromJust $ checkIntegral beginLit) (fromJust $ checkIntegral endLit)
           else dieP m "Items in range constructor (x..y) are not integer literals"
@@ -245,12 +233,12 @@ transformRangeRep = everywhereM (mkM transformRangeRep')
               then dieP m $ "End of range is before beginning: " ++ show begin ++ " > " ++ show end
               else do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
                       let count = end - begin + 1
-                      return $ A.ExprConstr m $ A.RepConstr m 
+                      return $ A.ExprConstr m $ A.RepConstr m t
                         (A.For m rep 
                           (A.Literal m A.Int (A.IntLiteral m $ show begin)) 
                           (A.Literal m A.Int (A.IntLiteral m $ show count))
                         ) (A.ExprVariable m $ A.Variable m rep)
-    transformRangeRep' s = return s
+    doExpression e = doGeneric e
 
 checkFunction :: Data t => t -> PassM t
 checkFunction = everywhereM (mkM checkFunction')

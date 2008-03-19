@@ -208,7 +208,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
     startState = defineConst "x" A.Int (intLiteral 42)
 
     orig = A.Spec m (A.Specification m (simpleName "arr") $ A.IsExpr m A.ValAbbrev (A.Array [dimension 10] A.Int) $ A.ExprConstr m $
-      A.RepConstr m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
+      A.RepConstr m undefined (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
       ) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
     exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Array [dimension 10] A.Int))) $ 
