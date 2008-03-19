@@ -231,17 +231,8 @@ typeOfExpression e
         A.BytesInExpr m e -> return A.Int
         A.BytesInType m t -> return A.Int
         A.OffsetOf m t n -> return A.Int
-        A.ExprConstr m (A.RangeConstr _ b e) -> 
-          do bt <- typeOfExpression b
-             et <- typeOfExpression e
-             st <- getCompState
-             if bt /= et
-               then dieP m "Types did not match for beginning and end of range"
-               else typeOfArrayList [A.UnknownDimension] bt
-        A.ExprConstr m (A.RepConstr _ rep e) -> 
-          do t <- typeOfExpression e 
-             count <- evalIntExpression $ countReplicator rep
-             typeOfArrayList [A.Dimension count] t
+        A.ExprConstr m (A.RangeConstr _ t _ _) -> return t
+        A.ExprConstr m (A.RepConstr _ t _ _) -> return t
         A.AllocMobile _ t _ -> return t
 --}}}
 
