@@ -219,13 +219,25 @@ logicalShiftR :: Bits a => a -> Int -> a
 logicalShiftR val 0 = val
 logicalShiftR val n = rotateR (foldl clearBit val [0 .. (n - 1)]) n
 
+-- | Equivalent to 'div', but handles @minBound `div` (-1)@ correctly.
+-- (GHC's doesn't, at least as of 6.8.1.)
+safeDiv :: Integral a => a -> a -> a
+safeDiv a (-1) = 0
+safeDiv a b = div a b
+
+-- | Equivalent to 'rem', but handles @minBound `rem` (-1)@ correctly.
+-- (GHC's doesn't, at least as of 6.8.1.)
+safeRem :: Integral a => a -> a -> a
+safeRem a (-1) = 0
+safeRem a b = rem a b
+
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
 -- FIXME These should check for overflow.
 evalDyadic A.Add a b = evalDyadicOp (+) a b
 evalDyadic A.Subtr a b = evalDyadicOp (-) a b
 evalDyadic A.Mul a b = evalDyadicOp (*) a b
-evalDyadic A.Div a b = evalDyadicOp div a b
-evalDyadic A.Rem a b = evalDyadicOp rem a b
+evalDyadic A.Div a b = evalDyadicOp safeDiv a b
+evalDyadic A.Rem a b = evalDyadicOp safeRem a b
 -- ... end FIXME
 evalDyadic A.Plus a b = evalDyadicOp (+) a b
 evalDyadic A.Minus a b = evalDyadicOp (-) a b
