@@ -59,9 +59,11 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Find and tag the main function", findMain, namesDone, [Prop.mainTagged])
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
          transformEachRange, typesDone ++ [Prop.constantsFolded], [Prop.eachRangeTransformed])
-       ,("Convert seqeach/pareach loops into classic replicated SEQ/PAR",transformEach, typesDone ++ [Prop.eachRangeTransformed], [Prop.eachTransformed])
+       ,("Pull up foreach-expressions", pullUpForEach,
+         typesDone ++ [Prop.constantsFolded],
+         [Prop.eachTransformed])
        ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
-       ,("Transform Rain functions into the occam form",checkFunction, typesDone ++ [Prop.eachTransformed], [])
+       ,("Transform Rain functions into the occam form",checkFunction, typesDone, [])
          --TODO add an export property.  Maybe check other things too (lack of comms etc -- but that could be combined with occam?)
        ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
      ]
@@ -187,33 +189,6 @@ transformEachRange = doGeneric `ext1M` doStructured
                  else dieP eachMeta "Items in range constructor (x..y) are not integer literals"
     doStructured s = doGeneric s
 
--- | A pass that changes all the 'A.ForEach' replicators in the AST into 'A.For' replicators.
-transformEach :: Data t => t -> PassM t
-transformEach = everywhereM (mk1M transformEach')
-  where
-    transformEach' :: Data a => A.Structured a -> PassM (A.Structured a)
-    transformEach' (A.Rep m (A.ForEach m' loopVar loopExp) s)
-      = do (spec,var,am) <- case loopExp of
-             (A.ExprVariable _ v) -> return (id,v,A.Abbrev)
-             _ -> do t <- typeOfExpression loopExp
-                     spec@(A.Specification _ n' _) <- makeNonceIsExpr "loopVar" m t loopExp 
-                     return (A.Spec m spec,A.Variable m n',A.ValAbbrev)
-           --spec is a function A.Structured -> A.Structured, var is an A.Variable
-           
-           loopVarType <- typeOfName loopVar
-           A.Specification _ loopIndexName _ <- makeNonceVariable "loopIndex" m' A.Int64 A.VariableName A.Original
-
-           let newRep = A.For m' loopIndexName (makeConstant m' 0) (A.SizeVariable m' var)
-           let s' = A.Spec m'
-                 (A.Specification m' loopVar
-                   (A.Is m' am loopVarType
-                     (A.SubscriptedVariable m' (A.Subscript m' A.NoCheck (A.ExprVariable m' (A.Variable m' loopIndexName)))  var)
-                   )
-                 )
-                 s
-           return (spec (A.Rep m newRep s'))
-    transformEach' s = return s
-
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
 transformRangeRep :: Data t => t -> PassM t
 transformRangeRep = doGeneric `extM` doExpression
@@ -256,6 +231,30 @@ checkFunction = everywhereM (mkM checkFunction')
           _ -> dieP m "Functions must have seq[uential] bodies"
     checkFunction' s = return s
 
+-- | Pulls up the list expression into a variable.
+-- This is done no matter how simple the expression is; when we reach the
+-- backend we need it to be a variable so we can use begin() and end() (in
+-- C++); these will only be valid if exactly the same list is used
+-- throughout the loop.
+pullUpForEach :: Data t => t -> PassM t
+pullUpForEach = doGeneric `ext1M` doStructured
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric pullUpForEach
+
+    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured (A.Rep m (A.ForEach m' loopVar loopExp) s)
+     = do (extra, loopExp') <- case loopExp of
+            A.ExprVariable {} -> return (id, loopExp)
+            _ -> do t <- typeOfExpression loopExp
+                    spec@(A.Specification _ n _) <- makeNonceIsExpr
+                      "loop_expr" m' t loopExp
+                    return (A.Spec m' spec, A.ExprVariable m' (A.Variable m' n))
+          s' <- doStructured s
+          return $ extra $ A.Rep m (A.ForEach m' loopVar loopExp') s'
+    doStructured s = doGeneric s
+      
+    
 pullUpParDeclarations :: Data t => t -> PassM t
 pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
   where
