@@ -53,12 +53,12 @@ import Utils
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 specTypeOfName :: (CSMR m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
-    = liftM A.ndType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find type in specTypeOfName for: " ++ (show $ A.nameName n))
+    = liftM A.ndType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find type in specTypeOfName for: " ++ (show $ A.nameName n))
 
 -- | Gets the 'A.AbbrevMode' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 abbrevModeOfName :: (CSMR m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
-    = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
+    = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
 
 -- | Gets the 'A.Type' for a given 'A.Name' by looking at its definition in the 'CompState'.  Dies with an error if the name is unknown.
 typeOfName :: (CSMR m, Die m) => A.Name -> m A.Type
