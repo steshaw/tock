@@ -17,15 +17,19 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam-specific frontend passes.
-module OccamPasses (occamPasses, foldConstants) where
+module OccamPasses (occamPasses, foldConstants, checkConstants) where
 
+import Control.Monad
 import Data.Generics
 
 import qualified AST as A
 import CompState
 import EvalConstants
+import EvalLiterals
+import Metadata
 import Pass
 import qualified Properties as Prop
+import ShowCode
 
 -- | Occam-specific frontend passes.
 occamPasses :: [Pass]
@@ -33,6 +37,9 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     [ ("Fold constants", foldConstants,
        [],
        [Prop.constantsFolded])
+    , ("Check mandatory constants", checkConstants,
+       [Prop.constantsFolded],
+       [Prop.constantsChecked])
     , ("Dummy occam pass", dummyOccamPass,
        [],
        Prop.agg_namesDone ++ [Prop.expressionTypesChecked,
@@ -65,6 +72,30 @@ foldConstants = doGeneric `extM` doSpecification `extM` doExpression
         =  do e' <- doGeneric e
               (e'', _, _) <- constantFold e'
               return e''
+
+-- | Check that things that must be constant are.
+checkConstants :: Data t => t -> PassM t
+checkConstants = doGeneric `extM` doDimension `extM` doOption
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric checkConstants
+
+    -- Check array dimensions are constant.
+    doDimension :: A.Dimension -> PassM A.Dimension
+    doDimension d@(A.Dimension e)
+        =  do when (not $ isConstant e) $
+                diePC (findMeta e) $ formatCode "Array dimension must be constant: %" e
+              doGeneric d
+    doDimension d = doGeneric d
+
+    -- Check case options are constant.
+    doOption :: A.Option -> PassM A.Option
+    doOption o@(A.Option _ es _)
+        =  do sequence_ [when (not $ isConstant e) $
+                           diePC (findMeta e) $ formatCode "Case option must be constant: %" e
+                         | e <- es]
+              doGeneric o
+    doOption o = doGeneric o
 
 -- | A dummy pass for things that haven't been separated out into passes yet.
 dummyOccamPass :: Data t => t -> PassM t

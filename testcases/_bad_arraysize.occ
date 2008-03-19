@@ -1,0 +1,7 @@
+PROC p ()
+  INT x:
+  SEQ
+    x := 42
+    [x]INT blah:
+    SKIP
+:

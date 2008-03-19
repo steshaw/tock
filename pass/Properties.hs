@@ -26,6 +26,7 @@ module Properties
   , arraySizesDeclared
   , assignFlattened
   , assignParRemoved
+  , constantsChecked
   , constantsFolded
   , declarationsUnique
   , declarationTypesRecorded
@@ -80,7 +81,7 @@ agg_namesDone :: [Property]
 agg_namesDone = [declarationsUnique, declarationTypesRecorded, inferredTypesRecorded, declaredNamesResolved]
 
 agg_typesDone :: [Property]
-agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState, constantsFolded]
+agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState, constantsFolded, constantsChecked]
 
 agg_functionsGone :: [Property]
 agg_functionsGone = [functionCallsRemoved, functionsRemoved]
@@ -139,6 +140,9 @@ declarationsUnique = Property "declarationsUnique" $
       = do when (A.nameName n == A.nameName n') $
              dieP (A.nameMeta n) $ "Duplicate definition of name (names not uniquified successfully?) " ++ show (A.nameName n) ++ " with: " ++ show (A.nameMeta n')
            checkDupes (n':ns)
+
+constantsChecked :: Property
+constantsChecked = Property "constantsChecked" checkTODO
 
 constantsFolded :: Property
 constantsFolded = Property "constantsFolded" checkTODO

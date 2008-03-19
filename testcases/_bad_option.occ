@@ -1,0 +1,10 @@
+PROC p ()
+  INT x, y:
+  SEQ
+    x, y := 42, 43
+    CASE x
+      12
+        SKIP
+      y
+        SKIP
+:

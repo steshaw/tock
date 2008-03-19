@@ -108,7 +108,58 @@ testFoldConstants = TestList
     four = intLiteral 4
     six = intLiteral 6
 
+-- | Test 'OccamPasses.checkConstants'.
+testCheckConstants :: Test
+testCheckConstants = TestList
+    [
+    -- Valid dimensions in array types
+      testOK 0 (A.Int)
+    , testOK 1 (A.Array [dim10] A.Int)
+    , testOK 2 (A.Array [dimU] A.Int)
+    , testOK 3 (A.Array [dim10, dim10] A.Int)
+    , testOK 4 (A.Array [dim10, dimU] A.Int)
+
+    -- Invalid dimensions in array types
+    , testFail 10 (A.Array [dimVar] A.Int)
+    , testFail 11 (A.Array [dimVar, dimVar] A.Int)
+    , testFail 12 (A.Array [dim10, dimVar] A.Int)
+    , testFail 13 (A.Array [dimU, dimVar] A.Int)
+    , testFail 14 (A.Array [dim10, dim10, dimU, dimU, dimVar] A.Int)
+
+    -- Valid Case options
+    , testOK 20 (A.Option m [lit10] skip)
+    , testOK 21 (A.Option m [lit10, lit10] skip)
+    , testOK 22 (A.Option m [lit10, lit10, lit10] skip)
+
+    -- Invalid Case options
+    , testFail 30 (A.Option m [var] skip)
+    , testFail 31 (A.Option m [lit10, var] skip)
+    , testFail 32 (A.Option m [var, lit10] skip)
+    , testFail 33 (A.Option m [lit10, lit10, lit10, var] skip)
+    ]
+  where
+    testOK :: (Show a, Data a) => Int -> a -> Test
+    testOK n orig
+        = TestCase $ testPass ("testCheckConstants" ++ show n)
+                              orig (OccamPasses.checkConstants orig)
+                              (return ())
+
+    testFail :: (Show a, Data a) => Int -> a -> Test
+    testFail n orig
+        = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)
+                                        (OccamPasses.checkConstants orig)
+                                        (return ())
+
+    dim10 = A.Dimension $ intLiteral 10
+    dimU = A.UnknownDimension
+    dimVar = A.Dimension $ exprVariable "var"
+
+    lit10 = intLiteral 10
+    var = exprVariable "var"
+    skip = A.Skip m
+
 tests :: Test
 tests = TestLabel "OccamPassesTest" $ TestList
     [ testFoldConstants
+    , testCheckConstants
     ]

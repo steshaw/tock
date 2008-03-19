@@ -29,7 +29,6 @@ import Text.ParserCombinators.Parsec
 import qualified AST as A
 import CompState
 import Errors
-import EvalConstants
 import EvalLiterals
 import Intrinsics
 import LexOccam
@@ -596,7 +595,7 @@ newTagName = unscopedName A.TagName
 -- | A sized array of a production.
 arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
-    =  do (s, t) <- tryXVXV sLeft constIntExpr sRight element
+    =  do (s, t) <- tryXVXV sLeft intExpr sRight element
           return $ addDimensions [A.Dimension s] t
 
 -- | Either a sized or unsized array of a production.
@@ -832,12 +831,9 @@ tableElems
            return (lr, A.Array [dim] A.Byte)
     <|> do m <- md
            es <- tryXVX sLeft (noTypeContext $ sepBy1 expression sComma) sRight
-           -- Constant fold early, so that tables have a better chance of
-           -- becoming constants.
-           (es', _, _) <- liftM unzip3 $ sequence [constantFold e | e <- es]
-           ets <- mapM typeOfExpression es'
+           ets <- mapM typeOfExpression es
            defT <- tableType m ets
-           return (A.ArrayLiteral m (map A.ArrayElemExpr es'), defT)
+           return (A.ArrayLiteral m (map A.ArrayElemExpr es), defT)
     <?> "table elements"
 
 stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
@@ -977,17 +973,6 @@ intExpr :: OccParser A.Expression
 intExpr = expressionOfType A.Int <?> "integer expression"
 booleanExpr :: OccParser A.Expression
 booleanExpr = expressionOfType A.Bool <?> "boolean expression"
-
-constExprOfType :: A.Type -> OccParser A.Expression
-constExprOfType wantT
-    =  do e <- expressionOfType wantT
-          (e', isConst, (m,msg)) <- constantFold e
-          when (not isConst) $
-            dieReport (m,"expression is not constant (" ++ msg ++ ")")
-          return e'
-
-constIntExpr :: OccParser A.Expression
-constIntExpr = constExprOfType A.Int <?> "constant integer expression"
 
 operandOfType :: A.Type -> OccParser A.Expression
 operandOfType wantT
@@ -1328,10 +1313,7 @@ valIsAbbrev
     =  do m <- md
           (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
                        <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
-          -- Do constant folding early, so that we can use names defined this
-          -- way as constants elsewhere.
-          (e', _, _) <- constantFold e
-          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e'
+          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
     <?> "VAL IS abbreviation"
 
 initialIsAbbrev :: OccParser A.Specification
@@ -1857,7 +1839,7 @@ caseProcess
 caseOption :: A.Type -> OccParser (A.Structured A.Option)
 caseOption t
     =   do m <- md
-           ces <- tryVX (sepBy (constExprOfType t) sComma) eol
+           ces <- tryVX (sepBy (expressionOfType t) sComma) eol
            indent
            p <- process
            outdent
