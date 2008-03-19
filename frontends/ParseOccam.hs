@@ -936,7 +936,11 @@ arrayConstructor
           e <- inTypeContext subCtx expression
           scopeOutRep r'
           sRight
-          return $ A.ExprConstr m $ A.RepConstr m r' e
+          innerT <- typeOfExpression e
+          let t = case ctx of
+                    Just t -> t
+                    Nothing -> A.Array [A.UnknownDimension] innerT
+          return $ A.ExprConstr m $ A.RepConstr m t r' e
     <?> "array constructor expression"
 
 associativeOpExpression :: OccParser A.Expression

@@ -215,7 +215,8 @@ literal = do {(lr, dim) <- stringLiteral ; return $ A.Literal (findMeta lr) (A.L
           <?> "literal"
 
 range :: RainParser A.Expression
-range = try $ do {m <- sLeftQ ; begin <- integerLiteral; sDots ; end <- integerLiteral ; sRightQ ; return $ A.ExprConstr m $ A.RangeConstr m begin end}
+range = try $ do {m <- sLeftQ ; begin <- integerLiteral; sDots ; end <- integerLiteral ;
+  sRightQ ; return $ A.ExprConstr m $ A.RangeConstr m A.Any begin end}
 
 expression :: RainParser A.Expression
 expression
