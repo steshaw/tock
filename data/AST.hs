@@ -202,12 +202,17 @@ data Subscript =
   deriving (Show, Eq, Typeable, Data)
 
 -- | The representation of a literal.
+--
+-- Note that ListLiteral is distinct from ArrayLiteral.  Array literals can
+-- be multi-dimensional whereas list literals are always single-dimension (lists
+-- of lists are valid)
 data LiteralRepr =
   RealLiteral Meta String
   | IntLiteral Meta String
   | HexLiteral Meta String
   | ByteLiteral Meta String
   | ArrayLiteral Meta [ArrayElem]
+  | ListLiteral Meta [Expression]
   | RecordLiteral Meta [Expression]
   deriving (Show, Eq, Typeable, Data)
 
