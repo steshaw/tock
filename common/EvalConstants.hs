@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Evaluate constant expressions.
-module EvalConstants (constantFold, isConstantName) where
+module EvalConstants (constantFold, maybeEvalIntExpression, isConstantName) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -34,6 +34,7 @@ import EvalLiterals
 import Metadata
 import ShowCode
 import Types
+import Utils
 
 -- | Simplify an expression by constant folding, and also return whether it's a
 -- constant after that.
@@ -44,6 +45,15 @@ constantFold e
                             Left err -> (e, err)
                             Right val -> (val, (Nothing, "already folded"))
           return (e', isConstant e', msg)
+
+-- | Try to fold and evaluate an integer expression.
+-- If it's not a constant, return 'Nothing'.
+maybeEvalIntExpression :: (CSMR m, Die m) => A.Expression -> m (Maybe Int)
+maybeEvalIntExpression e
+    =  do (e', isConst, _) <- constantFold e
+          if isConst
+            then evalIntExpression e' >>* Just
+            else return Nothing
 
 -- | Is a name defined as a constant expression? If so, return its definition.
 getConstantName :: (CSMR m, Die m) => A.Name -> m (Maybe A.Expression)

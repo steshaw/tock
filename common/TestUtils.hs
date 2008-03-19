@@ -168,8 +168,16 @@ exprVariablePattern :: String -> Pattern
 exprVariablePattern e = tag2 A.ExprVariable DontCare $ variablePattern e
 
 -- | Creates an integer literal 'A.Expression' with the given integer.
+integerLiteral :: A.Type -> Integer -> A.Expression
+integerLiteral t n = A.Literal emptyMeta t $ A.IntLiteral emptyMeta (show n)
+
+-- | Creates an 'A.Int' literal with the given integer.
 intLiteral :: Integer -> A.Expression
-intLiteral n = A.Literal emptyMeta A.Int $ A.IntLiteral emptyMeta (show n)
+intLiteral n = integerLiteral A.Int n
+
+-- | Creates an 'A.Byte' literal with the given integer.
+byteLiteral :: Integer -> A.Expression
+byteLiteral n = integerLiteral A.Byte n
 
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- @'assertPatternMatch' ('intLiteralPattern' x) ('intLiteral' x)@ will always succeed.
@@ -275,6 +283,19 @@ simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t)
 -- | A pattern that will match simpleDef, with a different abbreviation mode
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
 simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+
+-- | Define a @VAL IS@ constant.
+defineConst :: String -> A.Type -> A.Expression -> State CompState ()
+defineConst s t e = defineName (simpleName s) $
+    A.NameDef {
+      A.ndMeta = emptyMeta,
+      A.ndName = s,
+      A.ndOrigName = s,
+      A.ndNameType = A.VariableName,
+      A.ndType = A.IsExpr emptyMeta A.ValAbbrev t e,
+      A.ndAbbrevMode = A.ValAbbrev,
+      A.ndPlacement = A.Unplaced
+    }
 
 --}}}
 --{{{  custom assertions

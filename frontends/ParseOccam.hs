@@ -1428,7 +1428,6 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable v
-           --checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
@@ -1436,7 +1435,6 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfVariable c
-           --checkRetypes m origT s
            return $ A.Specification m n $ A.Retypes m A.Abbrev s c
     <|> do m <- md
            (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
@@ -1444,28 +1442,8 @@ retypesAbbrev
            sColon
            eol
            origT <- typeOfExpression e
-           --checkRetypes m origT s
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
-
-{-
--- | Check that a RETYPES\/RESHAPES is safe.
-checkRetypes :: Meta -> A.Type -> A.Type -> OccParser ()
--- Retyping channels is always "safe".
-checkRetypes _ (A.Chan {}) (A.Chan {}) = return ()
-checkRetypes m fromT toT
-    =  do bf <- bytesInType fromT
-          bt <- bytesInType toT
-          case (bf, bt) of
-            (BIJust a, BIJust b) ->
-              when (a /= b) $ dieP m "size mismatch in RETYPES"
-            (BIJust a, BIOneFree b _) ->
-              when (not ((b <= a) && (a `mod` b == 0))) $ dieP m "size mismatch in RETYPES"
-            (_, BIManyFree) ->
-              dieP m "multiple free dimensions in RETYPES/RESHAPES type"
-            -- Otherwise we have to do a runtime check.
-            _ -> return ()
--}
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier

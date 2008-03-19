@@ -50,6 +50,7 @@ module Properties
   , processTypesChecked
   , rainParDeclarationsPulledUp
   , rangeTransformed
+  , retypesChecked
   , seqInputsFlattened
   , slicesSimplified
   , subscriptsPulledUp
@@ -78,13 +79,30 @@ import Types
 import Utils
 
 agg_namesDone :: [Property]
-agg_namesDone = [declarationsUnique, declarationTypesRecorded, inferredTypesRecorded, declaredNamesResolved]
+agg_namesDone =
+    [ declarationTypesRecorded
+    , declarationsUnique
+    , declaredNamesResolved
+    , inferredTypesRecorded
+    ]
 
 agg_typesDone :: [Property]
-agg_typesDone = [expressionTypesChecked, inferredTypesRecorded, processTypesChecked, typesResolvedInAST, typesResolvedInState, constantsFolded, constantsChecked]
+agg_typesDone =
+    [ constantsChecked
+    , constantsFolded
+    , expressionTypesChecked
+    , inferredTypesRecorded
+    , processTypesChecked
+    , retypesChecked
+    , typesResolvedInAST
+    , typesResolvedInState
+    ]
 
 agg_functionsGone :: [Property]
-agg_functionsGone = [functionCallsRemoved, functionsRemoved]
+agg_functionsGone =
+    [ functionCallsRemoved
+    , functionsRemoved
+    ]
 
 -- Mark out all the checks I still need to implement:
 checkTODO :: Monad m => A.AST -> m ()
@@ -142,10 +160,13 @@ declarationsUnique = Property "declarationsUnique" $
            checkDupes (n':ns)
 
 constantsChecked :: Property
-constantsChecked = Property "constantsChecked" checkTODO
+constantsChecked = Property "constantsChecked" nocheck
 
 constantsFolded :: Property
-constantsFolded = Property "constantsFolded" checkTODO
+constantsFolded = Property "constantsFolded" nocheck
+
+retypesChecked :: Property
+retypesChecked = Property "retypesChecked" nocheck
 
 intLiteralsInBounds :: Property
 intLiteralsInBounds = Property "intLiteralsInBounds" $

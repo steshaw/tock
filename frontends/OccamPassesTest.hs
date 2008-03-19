@@ -35,6 +35,17 @@ import TestUtils
 m :: Meta
 m = emptyMeta
 
+-- | Initial state for the tests.
+startState :: State CompState ()
+startState
+    =  do defineConst "const" A.Int (intLiteral 2)
+          defineConst "someInt" A.Int (intLiteral 42)
+          defineConst "someByte" A.Byte (byteLiteral 24)
+          defineConst "someInts" (A.Array [A.UnknownDimension] A.Int)
+                                 undefined
+          defineConst "someBytes" (A.Array [A.UnknownDimension] A.Byte)
+                                  undefined
+
 -- | Test 'OccamPasses.foldConstants'.
 testFoldConstants :: Test
 testFoldConstants = TestList
@@ -80,21 +91,6 @@ testFoldConstants = TestList
     test n orig exp = TestCase $ testPass ("testFoldConstants" ++ show n)
                                           exp (OccamPasses.foldConstants orig)
                                           startState
-
-    startState :: State CompState ()
-    startState = defineConst "const" A.Int two
-
-    defineConst :: String -> A.Type -> A.Expression -> State CompState ()
-    defineConst s t e = defineName (simpleName s) $
-        A.NameDef {
-          A.ndMeta = m,
-          A.ndName = "const",
-          A.ndOrigName = "const",
-          A.ndNameType = A.VariableName,
-          A.ndType = A.IsExpr m A.ValAbbrev t e,
-          A.ndAbbrevMode = A.ValAbbrev,
-          A.ndPlacement = A.Unplaced
-        }
 
     testSame :: Int -> A.Expression -> Test
     testSame n orig = test n orig orig
@@ -158,8 +154,64 @@ testCheckConstants = TestList
     var = exprVariable "var"
     skip = A.Skip m
 
+-- | Test 'OccamPasses.checkRetypes'.
+testCheckRetypes :: Test
+testCheckRetypes = TestList
+    [
+    -- Definitely OK at compile time
+      testOK 0 $ retypesV A.Int intV
+    , testOK 1 $ retypesE A.Int intE
+    , testOK 2 $ retypesV A.Byte byteV
+    , testOK 3 $ retypesE A.Byte byteE
+    , testOK 4 $ retypesV known1 intV
+    , testOK 5 $ retypesV known2 intV
+    , testOK 6 $ retypesV both intV
+    , testOK 7 $ retypesV unknown1 intV
+
+    -- Definitely wrong at compile time
+    , testFail 100 $ retypesV A.Byte intV
+    , testFail 101 $ retypesV A.Int byteV
+    , testFail 102 $ retypesV unknown2 intV
+    , testFail 103 $ retypesV unknown2 intsV
+    , testFail 104 $ retypesV A.Byte intsV
+
+    -- Can't tell; need a runtime check
+    , testOK 200 $ retypesV unknown1 intsV
+    , testOK 201 $ retypesV A.Int intsV
+    , testOK 202 $ retypesV known2 intsV
+    , testOK 203 $ retypesV unknown1 bytesV
+    ]
+  where
+    testOK :: (Show a, Data a) => Int -> a -> Test
+    testOK n orig
+        = TestCase $ testPass ("testCheckRetypes" ++ show n)
+                              orig (OccamPasses.checkRetypes orig)
+                              startState
+
+    testFail :: (Show a, Data a) => Int -> a -> Test
+    testFail n orig
+        = TestCase $ testPassShouldFail ("testCheckRetypes" ++ show n)
+                                        (OccamPasses.checkRetypes orig)
+                                        startState
+
+    retypesV = A.Retypes m A.ValAbbrev
+    retypesE = A.RetypesExpr m A.ValAbbrev
+
+    intV = variable "someInt"
+    intE = intLiteral 42
+    byteV = variable "someByte"
+    byteE = byteLiteral 42
+    intsV = variable "someInts"
+    bytesV = variable "someBytes"
+    known1 = A.Array [dimension 4] A.Byte
+    known2 = A.Array [dimension 2, dimension 2] A.Byte
+    both = A.Array [dimension 2, A.UnknownDimension] A.Byte
+    unknown1 = A.Array [A.UnknownDimension] A.Int
+    unknown2 = A.Array [A.UnknownDimension, A.UnknownDimension] A.Int
+
 tests :: Test
 tests = TestLabel "OccamPassesTest" $ TestList
     [ testFoldConstants
     , testCheckConstants
+    , testCheckRetypes
     ]
