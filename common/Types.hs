@@ -24,7 +24,8 @@ module Types
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, makeDimension, addOne, addExprs, mulExprs, divExprs
+    , makeAbbrevAM, makeConstant, makeDimension, addOne, addExprs, subExprs,
+      mulExprs, divExprs
     , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
 
@@ -592,6 +593,11 @@ addOne e = A.Dyadic m A.Plus (makeConstant m 1) e
 -- | Add two expressions.
 addExprs :: A.Expression -> A.Expression -> A.Expression
 addExprs a b = A.Dyadic m A.Add a b
+  where m = findMeta a
+
+-- | Add two expressions.
+subExprs :: A.Expression -> A.Expression -> A.Expression
+subExprs a b = A.Dyadic m A.Subtr a b
   where m = findMeta a
 
 -- | Multiply two expressions.
