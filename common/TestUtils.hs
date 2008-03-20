@@ -192,7 +192,10 @@ intLiteralPattern = (stopCaringPattern emptyMeta) . mkPattern . intLiteral
 
 -- | Creates an integer literal 'A.Expression' with the given integer.
 int64Literal :: Integer -> A.Expression
-int64Literal n = A.Literal emptyMeta A.Int64 $ A.IntLiteral emptyMeta (show n)
+int64Literal = integerLiteral A.Int64
+
+int32Literal :: Integer -> A.Expression
+int32Literal = integerLiteral A.Int32
 
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- @'assertPatternMatch' ('intLiteralPattern' x) ('intLiteral' x)@ will always succeed.

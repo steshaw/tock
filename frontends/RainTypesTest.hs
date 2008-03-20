@@ -104,20 +104,20 @@ annotateIntTest = TestList
 annotateListLiteralTest :: Test
 annotateListLiteralTest = TestList
   [
-   testList 0 A.Int [intLiteral 0, intLiteral 1]
+   testList 0 A.Int32 [int32Literal 0, int32Literal 1]
   ,testList 1 A.Any []
-  ,testList 2 A.Int [charLiteral 'c', intLiteral 6]
-  ,testList 3 A.Int64 [intLiteral 3, intLiteral 5, int64Literal 2,
-    intLiteral 2]
+  ,testList 2 A.Int32 [charLiteral 'c', int32Literal 6]
+  ,testList 3 A.Int64 [int32Literal 3, int32Literal 5, int64Literal 2,
+    int32Literal 2]
    -- TODO test with variables (and implicit upcasting)
 
    -- TODO test the type for lists of lists
    -- TODO test ranges with variables too
-  ,testRange 1000 A.Int (intLiteral 0) (intLiteral 1)
-  ,testRange 1001 A.Int64 (intLiteral 0) (int64Literal 1)
-  ,testRange 1002 A.Int64 (int64Literal 0) (intLiteral 1)
-  ,testRange 1003 A.Int (charLiteral 'a') (intLiteral 1)
-  ,testRange 1004 A.Int (intLiteral 0) (charLiteral 'b')
+  ,testRange 1000 A.Int32 (int32Literal 0) (int32Literal 1)
+  ,testRange 1001 A.Int64 (int32Literal 0) (int64Literal 1)
+  ,testRange 1002 A.Int64 (int64Literal 0) (int32Literal 1)
+  ,testRange 1003 A.Int32 (charLiteral 'a') (int32Literal 1)
+  ,testRange 1004 A.Int32 (int32Literal 0) (charLiteral 'b')
   ,testRange 1005 A.Int64 (charLiteral 'e') (int64Literal 1)
   ,testRange 1006 A.Int64 (int64Literal 0) (charLiteral 'f')
   ,testRange 1007 A.Byte (charLiteral 'd') (charLiteral 'f')
