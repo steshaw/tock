@@ -94,9 +94,10 @@ annotateListLiteralTypes = everywhereASTM doExpression
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m _ (A.ListLiteral m' es))
       = do ts <- mapM typeOfExpression es
-           sharedT <- case leastGeneralSharedTypeRain ts of
-             Just t -> return t
-             Nothing -> diePC m' 
+           sharedT <- case (ts, leastGeneralSharedTypeRain ts) of
+             (_, Just t) -> return t
+             ([], Nothing) -> return A.Any
+             (_, Nothing) -> diePC m' 
                $ formatCode
                    "Can't determine a common type for the list literal from: %"
                    ts
