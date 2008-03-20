@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Contains test for various shared passes.
 module PassTest (tests) where
 
-import Control.Monad.Identity
+import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
@@ -33,7 +33,6 @@ import SimplifyExprs
 import TagAST
 import TestUtils
 import TreeUtils
-import Types
 import Utils
 
 m :: Meta
@@ -203,8 +202,11 @@ skipP = A.Only m (A.Skip m)
 
 -- | Tests that a simple constructor (with no expression, nor function call) gets converted into the appropriate initialisation code
 testTransformConstr0 :: Test
-testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformConstr orig) (return ())
+testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformConstr orig) startState
   where
+    startState :: State CompState ()
+    startState = defineConst "x" A.Int (intLiteral 42)
+
     orig = A.Spec m (A.Specification m (simpleName "arr") $ A.IsExpr m A.ValAbbrev (A.Array [dimension 10] A.Int) $ A.ExprConstr m $
       A.RepConstr m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
       ) skipP
