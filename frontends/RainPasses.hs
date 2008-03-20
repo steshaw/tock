@@ -46,9 +46,11 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
             
        ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded, Prop.constantsChecked])
        ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
-
+       ,("Annotate list literal and range types", annotateListLiteralTypes,
+         namesDone ++ [Prop.noInt, Prop.intLiteralsInBounds], [Prop.listsGivenType])         
        
-       ,("Record inferred name types in dictionary", recordInfNameTypes, namesDone ++ [Prop.intLiteralsInBounds], [Prop.inferredTypesRecorded])
+       ,("Record inferred name types in dictionary", recordInfNameTypes,
+         namesDone ++ [Prop.intLiteralsInBounds, Prop.listsGivenType], [Prop.inferredTypesRecorded])
        
        ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
        ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])

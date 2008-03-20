@@ -40,6 +40,7 @@ module Properties
   , inferredTypesRecorded
   , inputCaseRemoved
   , intLiteralsInBounds
+  , listsGivenType
   , mainTagged
   , nestedPulled
   , noInt
@@ -376,3 +377,6 @@ slicesSimplified = Property "slicesSimplified" $
     findJustFromOrFor (A.SubscriptFrom {}) = True
     findJustFromOrFor (A.SubscriptFor {}) = True
     findJustFromOrFor _ = False
+
+listsGivenType :: Property
+listsGivenType = Property "listsGivenType" checkTODO
