@@ -587,7 +587,7 @@ computeStructured f (A.Several m ss)
 
 -- | Add one to an expression.
 addOne :: A.Expression -> A.Expression
-addOne e = A.Dyadic m A.Plus (makeConstant m 1) e
+addOne e = A.Dyadic m A.Add (makeConstant m 1) e
   where m = findMeta e
 
 -- | Add two expressions.
