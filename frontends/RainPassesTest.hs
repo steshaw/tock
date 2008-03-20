@@ -60,89 +60,9 @@ castAssertADI x = case (castADI x) of
   Just y -> return y
   Nothing -> dieInternal (Nothing, "Pattern successfully matched but did not find item afterwards")
 
-testEachPass0 :: Test
-testEachPass0 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
-    
-    orig = A.Seq m 
-             (A.Rep m 
-               (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) 
-               (A.Only m (makeAssign (variable "c") (intLiteral 7)))              
-             )
-    exp = mSeq
-             (mSpecP
-               (mSpecification listVarName
-                 (mIsExpr A.ValAbbrev (A.List A.Byte) (makeLiteralStringRain "1"))
-               )
-               (mRepP
-                 (mFor indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare listVar))
-                 (mSpecP
-                   (mSpecification (simpleName "c") 
-                     --ValAbbrev because we are abbreviating an expression:
-                     (mIs A.ValAbbrev A.Byte 
-                       (mSubscriptedVariable
-                         (mSubscript A.NoCheck (mExprVariable (mVariable indexVar)))
-                         listVar
-                       )
-                     )
-                   )
-                   (A.Only m (makeAssign (variable "c") (intLiteral 7)))
-                 )
-               )
-             )
-    indexVar = Named "indexVar" DontCare
-    listVarName = Named "listVarName" DontCare
-    listVar = mVariable listVarName
-    
-    --Need to also check the names were recorded properly in CompState, so that later passes will work properly:
-    check :: (Items,CompState) -> Assertion
-    check (items,st) = 
-      do case castADI (Map.lookup "indexVar" items) of
-           Just indexVarName -> assertVarDef "testEachPass0" st (A.nameName indexVarName) 
-             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration m A.Int64)) 
-           Nothing -> assertFailure "testEachPass0: Internal error, indexVar not found"
-         case castADI (Map.lookup "listVarName" items) of
-           Just listVarName -> assertVarDef "testEachPass0" st (A.nameName listVarName)
-             (simpleDefPattern (A.nameName listVarName) A.ValAbbrev (tag4 A.IsExpr DontCare A.ValAbbrev (A.List A.Byte) (makeLiteralStringRainPattern "1") ))
-           Nothing -> assertFailure "testEachPass0: Internal error, listVarName not found"
-
-testEachPass1 :: Test
-testEachPass1 = TestCase $ testPassWithItemsStateCheck "testEachPass0" exp (transformEach orig) startState' check
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "c") $ simpleDef "c" (A.Declaration m A.Byte)
-                     defineName (simpleName "d") $ simpleDef "d" (A.Declaration m (A.List A.Byte))
-
-    orig = A.Par m A.PlainPar
-             (A.Rep m
-               (A.ForEach m (simpleName "c") (A.ExprVariable m (variable "d")))
-               (A.Only m (makeAssign (variable "c") (intLiteral 7)))
-             )
-    exp = tag3 A.Par DontCare A.PlainPar
-             (mRepP
-               (tag4 A.For DontCare indexVar (intLiteral 0) (tag2 A.SizeVariable DontCare (variable "d")))
-               (mSpecP
-                 (tag3 A.Specification DontCare (simpleName "c")
-                   (tag4 A.Is DontCare A.Abbrev A.Byte
-                     (tag3 A.SubscriptedVariable DontCare
-                       (mSubscript A.NoCheck (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare indexVar)))
-                       (variable "d")
-                     )
-                   )
-                 )
-                 (A.Only m (makeAssign (variable "c") (intLiteral 7)))
-               )
-             )
-    indexVar = Named "indexVar" DontCare
-    --Need to also check the names were recorded properly in CompState, so that later passes will work properly:
-    check :: (Items,CompState) -> Assertion
-    check (items,st) = 
-      do case castADI (Map.lookup "indexVar" items) of
-           Just indexVarName -> assertVarDef "testEachPass1" st (A.nameName indexVarName) 
-             (simpleDefPattern (A.nameName indexVarName) A.Original (tag2 A.Declaration m A.Int64))
-           Nothing -> assertFailure "testEachPass1: Internal error, indexVar not found"
+makeRange :: Integer -> Integer -> A.Expression
+makeRange b e = A.Dyadic emptyMeta A.Add (intLiteral 1)
+  (A.Dyadic emptyMeta A.Subtr (intLiteral e) (intLiteral b))
 
 testEachRangePass0 :: Test
 testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp (transformEachRange orig) (return ())
@@ -152,7 +72,7 @@ testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp (transformEach
                  undefined (intLiteral 0) (intLiteral 9))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10))
+               (A.For m (simpleName "x") (intLiteral 0) (makeRange 0 9))
                (A.Only m (makeSimpleAssign "c" "x"))
                
 testEachRangePass1 :: Test
@@ -163,7 +83,8 @@ testEachRangePass1 = TestCase $ testPass "testEachRangePass1" exp (transformEach
                  (intLiteral (-5)) (intLiteral (-2)))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral (-5)) (intLiteral 4))
+               (A.For m (simpleName "x") (intLiteral (-5)) (makeRange (-5)
+                 (-2)))
                (A.Only m (makeSimpleAssign "c" "x"))                            
 
 testEachRangePass2 :: Test
@@ -174,7 +95,7 @@ testEachRangePass2 = TestCase $ testPass "testEachRangePass2" exp (transformEach
                  (intLiteral 6) (intLiteral 6))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 6) (intLiteral 1))
+               (A.For m (simpleName "x") (intLiteral 6) (makeRange 6 6))
                (A.Only m (makeSimpleAssign "c" "x"))
                
 testEachRangePass3 :: Test
@@ -185,7 +106,7 @@ testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp (transformEach
                  (intLiteral 6) (intLiteral 0))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 6) (intLiteral (-5)))
+               (A.For m (simpleName "x") (intLiteral 6) (makeRange 6 0))
                (A.Only m (makeSimpleAssign "c" "x"))               
 
 
@@ -290,7 +211,7 @@ testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "hello")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames0" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Original A.Unplaced)
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)
       
 -- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
 testRecordInfNames1 :: Test
@@ -301,7 +222,7 @@ testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Original A.Unplaced)      
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)      
 
 -- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
 testRecordInfNames2 :: Test
@@ -313,9 +234,9 @@ testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" ex
       A.Only m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.List A.Byte) ) A.Original A.Unplaced)
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.List A.Byte) ) A.Abbrev A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
-                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte ) A.Original A.Unplaced)                          
+                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)                          
 
 -- | checks that doing a foreach over a non-array type is barred:
 testRecordInfNames3 :: Test
@@ -471,14 +392,9 @@ testRangeRepPass0 :: Test
 testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp (transformRangeRep orig) (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 0) (intLiteral 1)
-    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte (tag4 A.For DontCare ("repIndex"@@DontCare) (intLiteral 0) (intLiteral 2)) 
+    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte
+        (mFor ("repIndex"@@DontCare) (intLiteral 0) (makeRange 0 1))
       (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ "repIndex"@@DontCare)
-
--- | Lists with negative counts should give an error
-testRangeRepPass1 :: Test
-testRangeRepPass1 = TestCase $ testPassShouldFail "testRangeRepPass1" (transformRangeRep orig) (return())
-  where
-    orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 1) (intLiteral 0)
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
 
@@ -525,9 +441,7 @@ testPullUpParDecl2 = TestCase $ testPass "testPullUpParDecl2" exp (pullUpParDecl
 tests :: Test
 tests = TestLabel "RainPassesTest" $ TestList
  [
-   testEachPass0
-   ,testEachPass1
-   ,testEachRangePass0
+   testEachRangePass0
    ,testEachRangePass1
    ,testEachRangePass2
    ,testEachRangePass3
@@ -554,7 +468,6 @@ tests = TestLabel "RainPassesTest" $ TestList
    ,testParamPass7
    ,testParamPass8
    ,testRangeRepPass0
-   ,testRangeRepPass1
    ,testCheckFunction0
    ,testCheckFunction1
    ,testPullUpParDecl0
