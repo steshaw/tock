@@ -255,11 +255,11 @@ testRange :: [ParseTest A.Expression]
 testRange =
  [
   pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ pat $
-    A.ExprConstr m $ A.RangeConstr m A.Any (intLiteral 0) (intLiteral 1))
+    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral 0) (intLiteral 1))
   ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 1" $ pat $
-    A.ExprConstr m $ A.RangeConstr m A.Any (intLiteral 0) (intLiteral 10000))
+    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral 0) (intLiteral 10000))
   ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 2" $ pat $
-    A.ExprConstr m $ A.RangeConstr m A.Any (intLiteral $ -3) (intLiteral $ -1))
+    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral $ -3) (intLiteral $ -1))
   --For now, at least, this should fail:
   ,fail("[0..x]", RP.expression)
  ]
