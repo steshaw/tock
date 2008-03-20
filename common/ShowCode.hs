@@ -544,6 +544,14 @@ instance ShowOccam A.Process where
 instance ShowRain a where
   showRainM = const $ return ()
 
+instance ShowOccam a => ShowOccam [a] where
+  showOccamM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
+    showOccamM xs) >> tell ["]"]
+instance ShowRain a => ShowRain [a] where
+  showRainM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
+    showRainM xs) >> tell ["]"]
+
+
 -- | Extends an existing (probably generic) function with cases for everything that has a specific ShowOccam and ShowRain instance
 -- This is a bit of manual wiring.  Because we can't generically deduce whether or not 
 -- a given Data item has a showRain\/showOccam implementation (that I know of), I have 
