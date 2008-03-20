@@ -196,6 +196,9 @@ transformEachRange = doGeneric `ext1M` doStructured
     doStructured s = doGeneric s
 
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
+--
+-- TODO make sure when the range has a bad order that an empty list is
+-- returned
 transformRangeRep :: Data t => t -> PassM t
 transformRangeRep = doGeneric `extM` doExpression
   where
@@ -203,22 +206,12 @@ transformRangeRep = doGeneric `extM` doExpression
     doGeneric = makeGeneric transformRangeRep
     
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.ExprConstr _ (A.RangeConstr m t (A.Literal _ _ beginLit) (A.Literal _ _ endLit)))
-      = if (isJust $ checkIntegral beginLit) && (isJust $ checkIntegral endLit)
-          then transformRangeRep'' m (fromJust $ checkIntegral beginLit) (fromJust $ checkIntegral endLit)
-          else dieP m "Items in range constructor (x..y) are not integer literals"
-      where
-        transformRangeRep'' :: Meta -> Integer -> Integer -> PassM A.Expression
-        transformRangeRep'' m begin end 
-          = if (end < begin)
-              then dieP m $ "End of range is before beginning: " ++ show begin ++ " > " ++ show end
-              else do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
-                      let count = end - begin + 1
+    doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
+          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
+                      let count = addOne $ subExprs end begin
                       return $ A.ExprConstr m $ A.RepConstr m t
-                        (A.For m rep 
-                          (A.Literal m A.Int (A.IntLiteral m $ show begin)) 
-                          (A.Literal m A.Int (A.IntLiteral m $ show count))
-                        ) (A.ExprVariable m $ A.Variable m rep)
+                        (A.For m rep begin count)
+                          (A.ExprVariable m $ A.Variable m rep)
     doExpression e = doGeneric e
 
 checkFunction :: Data t => t -> PassM t
