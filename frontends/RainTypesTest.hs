@@ -96,9 +96,9 @@ annotateIntTest = TestList
  where
   signed :: A.Type -> Integer -> Test
   signed t n = TestCase $ testPass ("annotateIntTest: " ++ show n) (tag3 A.Literal DontCare t $ tag2 A.IntLiteral DontCare (show n)) 
-    (annnotateIntLiteralTypes $ int64Literal n) (return ())
+    (annotateIntLiteralTypes $ int64Literal n) (return ())
   failSigned :: Integer -> Test
-  failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
+  failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annotateIntLiteralTypes $ int64Literal n) (return ())
 
 
 annotateListLiteralTest :: Test

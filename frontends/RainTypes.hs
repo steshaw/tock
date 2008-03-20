@@ -56,7 +56,7 @@ constantFoldPass = applyDepthM doExpression
 
 -- | Annotates all integer literal types
 annnotateIntLiteralTypes :: Data t => t -> PassM t
-annnotateIntLiteralTypes = applyDepthM doExpression
+annnotateIntLiteralTypes = everywhereASTM doExpression
   where
     --Function is separated out to easily provide the type description of Integer
     powOf2 :: Integer -> Integer

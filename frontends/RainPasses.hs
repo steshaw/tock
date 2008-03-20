@@ -45,7 +45,8 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
            uniquifyAndResolveVars, [Prop.noInt], namesDone)
             
        ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded, Prop.constantsChecked])
-       ,("Annotate integer literal types", annnotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
+       ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
+
        
        ,("Record inferred name types in dictionary", recordInfNameTypes, namesDone ++ [Prop.intLiteralsInBounds], [Prop.inferredTypesRecorded])
        
