@@ -167,6 +167,10 @@ exprDirVariable dir e = A.ExprVariable emptyMeta $ A.DirectedVariable emptyMeta 
 exprVariablePattern :: String -> Pattern
 exprVariablePattern e = tag2 A.ExprVariable DontCare $ variablePattern e
 
+-- | Creates a char (Byte) literal with the given char
+charLiteral :: Char -> A.Expression
+charLiteral c = A.Literal emptyMeta A.Byte $ A.ByteLiteral emptyMeta [c]
+
 -- | Creates an integer literal 'A.Expression' with the given integer.
 integerLiteral :: A.Type -> Integer -> A.Expression
 integerLiteral t n = A.Literal emptyMeta t $ A.IntLiteral emptyMeta (show n)

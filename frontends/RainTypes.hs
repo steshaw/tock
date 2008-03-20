@@ -87,6 +87,10 @@ annnotateIntLiteralTypes = applyDepthM doExpression
         n = read s        
     doExpression e = return e
 
+-- | Annotates all list literals and list ranges with their type
+annotateListLiteralTypes :: Data t => t -> PassM t
+annotateListLiteralTypes = return
+    
 -- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the AST, and checks that the actual parameters are valid inputs, given the 'A.Formal' parameters in the process's type
 matchParamPass :: Data t => t -> PassM t
 matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc)

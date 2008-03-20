@@ -100,6 +100,41 @@ annotateIntTest = TestList
   failSigned :: Integer -> Test
   failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annnotateIntLiteralTypes $ int64Literal n) (return ())
 
+
+annotateListLiteralTest :: Test
+annotateListLiteralTest = TestList
+  [
+   testList 0 A.Int [intLiteral 0, intLiteral 1]
+  ,testList 1 A.Any []
+  ,testList 2 A.Int [charLiteral 'c', intLiteral 6]
+  ,testList 3 A.Int64 [intLiteral 3, intLiteral 5, int64Literal 2,
+    intLiteral 2]
+   -- TODO test with variables (and implicit upcasting)
+  
+   -- TODO test ranges with variables too
+  ,testRange 1000 A.Int (intLiteral 0) (intLiteral 1)
+  ,testRange 1001 A.Int64 (intLiteral 0) (int64Literal 1)
+  ,testRange 1002 A.Int64 (int64Literal 0) (intLiteral 1)
+  ,testRange 1003 A.Int (charLiteral 'a') (intLiteral 1)
+  ,testRange 1004 A.Int (intLiteral 0) (charLiteral 'b')
+  ,testRange 1005 A.Int64 (charLiteral 'e') (int64Literal 1)
+  ,testRange 1006 A.Int64 (int64Literal 0) (charLiteral 'f')
+  ,testRange 1007 A.Byte (charLiteral 'd') (charLiteral 'f')
+  ]
+  where
+    testList :: Int -> A.Type -> [A.Expression] -> Test
+    testList n t es = TestCase $ testPass ("annotateListLiteralTest: " ++
+      show n) (mLiteral (A.List t) $ mListLiteral es)
+      (annotateListLiteralTypes $ A.Literal emptyMeta A.Any $ A.ListLiteral emptyMeta es)
+      (return ())
+
+    testRange :: Int -> A.Type -> A.Expression -> A.Expression -> Test
+    testRange n t b e = TestCase $ testPass ("annotateListLiteralTest: "
+      ++ show n) (mExprConstr $ mRangeConstr t b e)
+      (annotateListLiteralTypes $ A.ExprConstr emptyMeta $
+        A.RangeConstr emptyMeta A.Any b e)
+      (return ())
+
 -- | An amazing amount of tests for testing the Rain type-checker for all the different forms of statement,
 -- such as assignment, expressions, communications, etc etc.
 --TODO add typechecks for expressions involving channels
@@ -416,5 +451,6 @@ tests = TestLabel "RainTypesTest" $ TestList
  [
   constantFoldTest
   ,annotateIntTest
+  ,annotateListLiteralTest
   ,checkExpressionTest
  ]
