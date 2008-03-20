@@ -189,14 +189,10 @@ transformEachRange = doGeneric `ext1M` doStructured
     
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
-      _ (A.RangeConstr _ _ (A.Literal _ _ begin) (A.Literal _ _ end)))) body)
+      _ (A.RangeConstr _ _ begin end))) body)
         =   do body' <- doStructured body
-               -- TODO should probably not do mini-constant-folding here:
-               if (isJust $ checkIntegral begin) && (isJust $ checkIntegral end)
-                 then return $ A.Rep repMeta (A.For eachMeta loopVar (A.Literal eachMeta A.Int begin) 
-                   (A.Literal eachMeta A.Int $ A.IntLiteral eachMeta $ show ((fromJust $ checkIntegral end) - (fromJust $ checkIntegral begin) + 1))
-                   ) body'
-                 else dieP eachMeta "Items in range constructor (x..y) are not integer literals"
+               return $ A.Rep repMeta (A.For eachMeta loopVar begin
+                 (addOne $ subExprs end begin)) body'
     doStructured s = doGeneric s
 
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
