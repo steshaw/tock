@@ -110,7 +110,8 @@ annotateListLiteralTest = TestList
   ,testList 3 A.Int64 [intLiteral 3, intLiteral 5, int64Literal 2,
     intLiteral 2]
    -- TODO test with variables (and implicit upcasting)
-  
+
+   -- TODO test the type for lists of lists
    -- TODO test ranges with variables too
   ,testRange 1000 A.Int (intLiteral 0) (intLiteral 1)
   ,testRange 1001 A.Int64 (intLiteral 0) (int64Literal 1)
@@ -124,13 +125,19 @@ annotateListLiteralTest = TestList
   where
     testList :: Int -> A.Type -> [A.Expression] -> Test
     testList n t es = TestCase $ testPass ("annotateListLiteralTest: " ++
-      show n) (mLiteral (A.List t) $ mListLiteral es)
+      show n) (mLiteral (A.List t) $ mListLiteral $ map (maybeConvert t) es)
       (annotateListLiteralTypes $ A.Literal emptyMeta A.Any $ A.ListLiteral emptyMeta es)
       (return ())
 
+    maybeConvert :: A.Type -> A.Expression -> A.Expression
+    maybeConvert t lit@(A.Literal _ lt _)
+      | t == lt   = lit
+      | otherwise = A.Conversion emptyMeta A.DefaultConversion t lit
+    
     testRange :: Int -> A.Type -> A.Expression -> A.Expression -> Test
     testRange n t b e = TestCase $ testPass ("annotateListLiteralTest: "
-      ++ show n) (mExprConstr $ mRangeConstr t b e)
+      ++ show n) (mExprConstr $
+        mRangeConstr (A.List t) (maybeConvert t b) (maybeConvert t e))
       (annotateListLiteralTypes $ A.ExprConstr emptyMeta $
         A.RangeConstr emptyMeta A.Any b e)
       (return ())
