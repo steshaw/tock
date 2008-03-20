@@ -49,14 +49,14 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
 
 -- | Folds all constants.
 constantFoldPass :: Data t => t -> PassM t
-constantFoldPass = everywhereASTM doExpression
+constantFoldPass = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
 
 -- | Annotates all integer literal types
 annnotateIntLiteralTypes :: Data t => t -> PassM t
-annnotateIntLiteralTypes = everywhereASTM doExpression
+annnotateIntLiteralTypes = applyDepthM doExpression
   where
     --Function is separated out to easily provide the type description of Integer
     powOf2 :: Integer -> Integer
@@ -148,7 +148,7 @@ coerceType customMsg to from item
 
 -- | Checks the types in expressions
 checkExpressionTypes :: Data t => t -> PassM t
-checkExpressionTypes = everywhereASTM checkExpression
+checkExpressionTypes = applyDepthM checkExpression
   where
     checkExpression :: A.Expression -> PassM A.Expression
     checkExpression e@(A.Dyadic m op lhs rhs)
@@ -231,7 +231,7 @@ checkExpressionTypes = everywhereASTM checkExpression
 
 -- | Checks the types in assignments
 checkAssignmentTypes :: Data t => t -> PassM t
-checkAssignmentTypes = everywhereASTM checkAssignment
+checkAssignmentTypes = applyDepthM checkAssignment
   where
     checkAssignment :: A.Process -> PassM A.Process
     checkAssignment ass@(A.Assign m [v] (A.ExpressionList m' [e]))
@@ -246,7 +246,7 @@ checkAssignmentTypes = everywhereASTM checkAssignment
 
 -- | Checks the types in if and while conditionals
 checkConditionalTypes :: Data t => t -> PassM t
-checkConditionalTypes t = (everywhereASTM checkWhile t) >>= (everywhereASTM checkIf)
+checkConditionalTypes = applyDepthM2 checkWhile checkIf
   where
     checkWhile :: A.Process -> PassM A.Process
     checkWhile w@(A.While m exp _)
@@ -265,7 +265,7 @@ checkConditionalTypes t = (everywhereASTM checkWhile t) >>= (everywhereASTM chec
 
 -- | Checks the types in inputs and outputs, including inputs in alts
 checkCommTypes :: Data t => t -> PassM t
-checkCommTypes p = (everywhereASTM checkInputOutput p) >>= (everywhereASTM checkAltInput)
+checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM a
     checkInput chanVar destVar m p
@@ -307,7 +307,7 @@ checkCommTypes p = (everywhereASTM checkInputOutput p) >>= (everywhereASTM check
 
 -- | Checks the types in now and wait statements, and wait guards:
 checkGetTimeTypes :: Data t => t -> PassM t
-checkGetTimeTypes p = (everywhereASTM checkGetTime p) >>= (everywhereASTM checkTimeGuards)
+checkGetTimeTypes = applyDepthM2 checkGetTime checkTimeGuards
   where
     checkGetTime :: A.Process -> PassM A.Process
     checkGetTime p@(A.GetTime m v)

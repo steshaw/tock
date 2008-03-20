@@ -22,7 +22,6 @@ module OccamPasses (occamPasses, foldConstants, checkConstants,
 
 import Control.Monad.State
 import Data.Generics
-import System.IO
 
 import qualified AST as A
 import CompState
@@ -56,44 +55,36 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
 
 -- | Fold constant expressions.
 foldConstants :: Data t => t -> PassM t
-foldConstants = doGeneric `extM` doSpecification `extM` doExpression
+foldConstants = applyDepthM2 doExpression doSpecification
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric foldConstants
-
-    -- When an expression is abbreviated, try to fold it, and update its
-    -- definition so that it can be used when folding later expressions.
-    doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification s@(A.Specification m n (A.IsExpr m' am t e))
-        =  do e' <- doExpression e
-              let st' = A.IsExpr m' am t e'
-              modifyName n (\nd -> nd { A.ndType = st' })
-              return $ A.Specification m n st'
-    doSpecification s = doGeneric s
-
-    -- For all other expressions, just try to fold them.
-    -- We recurse into the expression first so that we fold subexpressions of
-    -- non-constant expressions too.
+    -- Try to fold all expressions we encounter. Since we've recursed into the
+    -- expression first, this'll also fold subexpressions of non-constant
+    -- expressions.
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
-        =  do e' <- doGeneric e
-              (e'', _, _) <- constantFold e'
-              return e''
+        =  do (e', _, _) <- constantFold e
+              return e'
+
+    -- When an expression is abbreviated, update its definition so that it can
+    -- be used when folding later expressions.
+    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification s@(A.Specification _ n st@(A.IsExpr _ _ _ _))
+        =  do modifyName n (\nd -> nd { A.ndType = st })
+              return s
+    doSpecification s = return s
+
 
 -- | Check that things that must be constant are.
 checkConstants :: Data t => t -> PassM t
-checkConstants = doGeneric `extM` doDimension `extM` doOption
+checkConstants = applyDepthM2 doDimension doOption
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric checkConstants
-
     -- Check array dimensions are constant.
     doDimension :: A.Dimension -> PassM A.Dimension
     doDimension d@(A.Dimension e)
         =  do when (not $ isConstant e) $
                 diePC (findMeta e) $ formatCode "Array dimension must be constant: %" e
-              doGeneric d
-    doDimension d = doGeneric d
+              return d
+    doDimension d = return d
 
     -- Check case options are constant.
     doOption :: A.Option -> PassM A.Option
@@ -101,12 +92,12 @@ checkConstants = doGeneric `extM` doDimension `extM` doOption
         =  do sequence_ [when (not $ isConstant e) $
                            diePC (findMeta e) $ formatCode "Case option must be constant: %" e
                          | e <- es]
-              doGeneric o
-    doOption o = doGeneric o
+              return o
+    doOption o = return o
 
 -- | Check that retyping is safe.
 checkRetypes :: Data t => t -> PassM t
-checkRetypes = everywhereASTM doSpecType
+checkRetypes = applyDepthM doSpecType
   where
     doSpecType :: A.SpecType -> PassM A.SpecType
     doSpecType st@(A.Retypes m _ t v)

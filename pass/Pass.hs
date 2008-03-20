@@ -196,11 +196,23 @@ makeGeneric top
 
 -- | Apply a monadic operation everywhere that it matches in the AST, going
 -- depth-first.
-everywhereASTM :: (Data s, Data t) => (s -> PassM s) -> t -> PassM t
-everywhereASTM f = doGeneric `extM` (doSpecific f)
+applyDepthM :: (Data a, Data t) => (a -> PassM a) -> t -> PassM t
+applyDepthM f = doGeneric `extM` (doSpecific f)
   where
     doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric (everywhereASTM f)
+    doGeneric = makeGeneric (applyDepthM f)
+
+    doSpecific :: Data t => (t -> PassM t) -> t -> PassM t
+    doSpecific f x = (doGeneric x >>= f)
+
+-- | Apply two monadic operations everywhere they match in the AST, going
+-- depth-first.
+applyDepthM2 :: (Data a, Data b, Data t) =>
+                  (a -> PassM a) -> (b -> PassM b) -> t -> PassM t
+applyDepthM2 f1 f2 = doGeneric `extM` (doSpecific f1) `extM` (doSpecific f2)
+  where
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = makeGeneric (applyDepthM2 f1 f2)
 
     doSpecific :: Data t => (t -> PassM t) -> t -> PassM t
     doSpecific f x = (doGeneric x >>= f)
