@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
+import Control.Monad.Writer (tell)
 import Data.Generics hiding (GT)
 import Data.List
 import Data.Maybe
@@ -41,14 +42,19 @@ instance Ord Var where
 instance ShowOccam Var where
   showOccamM (Var v) = showOccamM v
 instance ShowRain Var where
-  showRain (Var v) = showRain v
+  showRainM (Var v) = showRainM v
 
 instance ShowOccam (Set.Set Var) where
   showOccamM s
-      = do ss <- mapM showOccamM (Set.toList s)
-           return $ "{" ++ concat (intersperse ", " ss) ++ "}"
+      = do tell ["{"]
+           sequence $ intersperse (tell [", "]) $ map showOccamM (Set.toList s)
+           tell ["}"]
 instance ShowRain (Set.Set Var) where
-  showRain s = "{" ++ concat (intersperse ", " $ map showRain $ Set.toList s) ++ "}"
+  showRainM s
+      = do tell ["{"]
+           sequence $ intersperse (tell [", "]) $ map showRainM (Set.toList s)
+           tell ["}"]
+
 
 data Vars = Vars {
   readVars :: Set.Set Var

@@ -20,6 +20,7 @@ module ArrayUsageCheckTest (ioqcTests) where
 
 import Control.Monad.Identity
 import Control.Monad.State
+import Control.Monad.Writer (tell)
 import Data.Array.IArray
 import Data.List
 import qualified Data.Map as Map
@@ -894,7 +895,7 @@ translateEquations mp (eq,ineq)
          ++ " value beforehand was: " ++ show x ++ " mapping was: " ++ show mp
 
 instance (ShowOccam a, Show b) => ShowOccam (a,b) where
-  showOccamM (x,y) = showOccamM x >>* (++ show y)
+  showOccamM (x,y) = showOccamM x >> tell [show y]
 
 type Problem = (((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap, (EqualityProblem, InequalityProblem))
 

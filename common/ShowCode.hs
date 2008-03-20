@@ -31,9 +31,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- My plan for testing was to take each of the cgtests, and parse it in to AST_A.  Then print AST_A using this
 -- module, and feed it back in to the parser to get AST_B.  Then check if AST_A and AST_B are equal.
 
-module ShowCode (showCode, ShowOccam(..), showOccam, ShowRain(..), formatCode, extCode) where 
+module ShowCode (showCode, ShowOccam(..), showOccam, ShowRain(..), showRain, formatCode, extCode) where 
 
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Generics
 import Data.List
 import qualified Data.Map as Map
@@ -42,114 +43,135 @@ import Text.Regex
 
 import qualified AST as A
 import CompState hiding (CSM) -- everything here is read-only
+import Utils
 
-data ShowOccamState = ShowOccamState {
-  indentLevel :: Int,  -- The indent level in spaces (add two for each indent)
+data ShowCodeState = ShowCodeState {
+  indentLevel :: Int,  -- The indent level in spaces (add two for each
+                         -- indent in occam, four in rain)
   outerItem :: [String], -- What we are currently inside for Structureds, e.g. "IF" or "SEQ".  Use the head of the list
-  useOriginalName :: Bool, -- Whether to use the original proc names
+  useOriginalName :: Bool, -- Whether to use the original names
   realCode :: Bool, -- Whether to leave out all helpful hints (e.g. {protocol} on Protocols)
   originalNames :: Map.Map String String,
   suppressNextIndent :: Bool,
   -- Used to pass down variables for input modes, or for subscripts:
-  tempItem :: OccamWriter String
+  tempItem :: CodeWriter ()
 }
 
---TODO use the Writer monad instead, with StateT
-type OccamWriter a = State ShowOccamState a
+type CodeWriter a = StateT ShowCodeState (Writer [String]) a
 
-initialShowOccamState :: Map.Map String String -> ShowOccamState
-initialShowOccamState origNames = ShowOccamState {indentLevel = 0, outerItem = [], useOriginalName = True, realCode = True, 
-                                                  originalNames = origNames,suppressNextIndent = False, tempItem = return ""}
+initialShowCodeState :: Map.Map String String -> ShowCodeState
+initialShowCodeState origNames = ShowCodeState
+  {indentLevel = 0, outerItem = [], useOriginalName = True, realCode = True, 
+   originalNames = origNames,suppressNextIndent = False, tempItem = return ()}
 
-showInputModeOccamM :: A.Variable -> A.InputMode -> OccamWriter String
+showInputModeOccamM :: A.Variable -> A.InputMode -> CodeWriter ()
 showInputModeOccamM v im = do modify (\s -> s {tempItem = showOccamM v})
                               showOccamM im
 
-showSubscriptOccamM :: ShowOccam a => a -> A.Subscript -> OccamWriter String
+showSubscriptOccamM :: ShowOccam a => a -> A.Subscript -> CodeWriter ()
 showSubscriptOccamM arr s = do modify (\s -> s {tempItem = showOccamM arr})
                                showOccamM s
 
-suppressIndent :: OccamWriter String
+suppressIndent :: CodeWriter ()
 suppressIndent = do st <- get
                     put (st {suppressNextIndent = True})
-                    return ""
 
-showOccamLine :: OccamWriter String -> OccamWriter String
+showOccamLine :: CodeWriter () -> CodeWriter ()
 showOccamLine s = do st <- get
-                     (if (suppressNextIndent st)
+                     if (suppressNextIndent st)
                        then do put (st {suppressNextIndent = False})
-                               return ""
-                       else return (replicate (indentLevel st) ' ')
-                      ) +>> s +>> return "\n"
+                       else tell [replicate (indentLevel st) ' ']
+                     s
+                     tell ["\n"]
                      
+showRainLine :: CodeWriter () -> CodeWriter ()
+showRainLine s = do st <- get
+                    tell [replicate (indentLevel st) ' ']
+                    s
+                    tell ["\n"]
 
-occamIndent :: OccamWriter String
+occamIndent :: CodeWriter ()
 occamIndent = do st <- get
                  put (st { indentLevel = (indentLevel st) + 2} )
-                 return ""
-occamOutdent :: OccamWriter String
+
+occamOutdent :: CodeWriter ()
 occamOutdent = do st <- get
                   put (st { indentLevel = (indentLevel st) - 2} )
-                  return ""
 
-occamBlock :: OccamWriter String -> OccamWriter String
-occamBlock s = occamIndent +>> s +>> occamOutdent
+occamBlock :: CodeWriter () -> CodeWriter ()
+occamBlock s = occamIndent >> s >> occamOutdent
 
-showName :: A.Name -> OccamWriter String
+rainIndent :: CodeWriter ()
+rainIndent = do st <- get
+                put (st { indentLevel = (indentLevel st) + 4} )
+
+rainOutdent :: CodeWriter ()
+rainOutdent = do st <- get
+                 put (st { indentLevel = (indentLevel st) - 4} )
+
+rainBlock :: CodeWriter () -> CodeWriter ()
+rainBlock s = rainIndent >> s >> rainOutdent
+
+
+showName :: A.Name -> CodeWriter ()
 showName n = do st <- get
-                return $ if useOriginalName st then Map.findWithDefault k k (originalNames st) else k
+                tell [if useOriginalName st then Map.findWithDefault k k (originalNames st) else k]
   where k = A.nameName n
 
-helper :: String -> OccamWriter String
+-- | Displays helper tags, as long as realCode isn't True
+helper :: String -> CodeWriter ()
 helper s = do st <- get
-              return $ if (realCode st) then "" else s
+              tell $ singleton $ if (realCode st) then "" else s
 
-currentContext :: OccamWriter String
+currentContext :: CodeWriter String
 currentContext = get >>= (return . head . outerItem)
 
-pushContext :: String -> OccamWriter String
+pushContext :: String -> CodeWriter String
 pushContext x = do st <- get
                    put (st {outerItem = (x:(outerItem st))})
                    return ""
 
-beginStr :: String -> OccamWriter String
+beginStr :: String -> CodeWriter ()
 beginStr n = pushContext n >> occamIndent
 
-endStr :: OccamWriter String
+endStr :: CodeWriter ()
 endStr = popContext >> occamOutdent
 
-popContext :: OccamWriter String
+popContext :: CodeWriter ()
 popContext = do st <- get
                 put (st {outerItem = tail (outerItem st)})
-                return ""
 
-doStr :: String -> OccamWriter String -> OccamWriter String
-doStr n s = showOccamLine (return n) +>> (beginStr n) +>> s +>> endStr
+doStr :: String -> CodeWriter () -> CodeWriter ()
+doStr n s = showOccamLine (tell [n]) >> (beginStr n) >> s >> endStr
 
---TODO remove this function?  Or at least rename it
+--TODO remove these functions?  Or at least rename them
 showOccam :: ShowOccam a => a -> String
-showOccam x = evalState (showOccamM x) (initialShowOccamState Map.empty)
+showOccam x = concat $ snd $ runWriter $ evalStateT (showOccamM x) (initialShowCodeState Map.empty)
 
-bracket :: OccamWriter String -> OccamWriter String
-bracket x = return "(" +>> x +>> return ")"
+showRain :: ShowRain a => a -> String
+showRain x = concat $ snd $ runWriter $ evalStateT (showRainM x) (initialShowCodeState Map.empty)
+
+
+bracket :: MonadWriter [String] m => m () -> m ()
+bracket x = tell ["("] >> x >> tell [")"]
                 
 -- | A type-class that indicates that the data (AST item) is displayable as occam code.
 class ShowOccam a where
---  showOccam :: a -> String
---  showOccam = const ""
-  showOccamM :: a -> OccamWriter String
+  showOccamM :: a -> CodeWriter ()
 
 -- | A type-class that indicates that the data (AST item) is displayable as Rain code.
 class ShowRain a where
-  showRain :: a -> String
+  showRainM :: a -> CodeWriter ()
 
 -- | Shows the given code (AST item) as either occam or Rain code, depending on which frontend was selected
 showCode :: (CSMR m, ShowOccam a, ShowRain a) => a -> m String
 showCode o
    = do st <- getCompState
         case csFrontend st of
-          FrontendOccam -> return $ evalState (showOccamM o) (initialShowOccamState $ transformNames $ csNames st)
-          FrontendRain -> return $ showRain o
+          FrontendOccam -> return $ concat $ snd $ runWriter $ evalStateT (showOccamM o)
+            (initialShowCodeState $ transformNames $ csNames st)
+          FrontendRain -> return $ concat $ snd $ runWriter $ evalStateT (showRainM o)
+            (initialShowCodeState $ transformNames $ csNames st)
  where
    transformNames :: Map.Map String A.NameDef -> Map.Map String String
    transformNames = Map.map A.ndOrigName
@@ -182,242 +204,250 @@ formatCode fmt = chain (splitRegex (mkRegex "%") fmt) []
 --Type-class instances follow for ShowOccam and ShowRain:
 
 instance ShowOccam A.Type where
-  showOccamM A.Bool = return "BOOL"
-  showOccamM A.Byte = return "BYTE"
-  showOccamM A.UInt16 = return "UINT16"
-  showOccamM A.UInt32 = return "UINT32"
-  showOccamM A.UInt64 = return "UINT64"
-  showOccamM A.Int = return "INT"
-  showOccamM A.Int8 = return "INT8"
-  showOccamM A.Int16 = return "INT16"
-  showOccamM A.Int32 = return "INT32"
-  showOccamM A.Int64 = return "INT64"
-  showOccamM A.Real32 = return "REAL32"
-  showOccamM A.Real64 = return "REAL64"
-  showOccamM A.Any = return "ANY"
-  showOccamM A.Timer = return "TIMER"
-  showOccamM A.Time = return "TIME"
+  showOccamM A.Bool = tell ["BOOL"]
+  showOccamM A.Byte = tell ["BYTE"]
+  showOccamM A.UInt16 = tell ["UINT16"]
+  showOccamM A.UInt32 = tell ["UINT32"]
+  showOccamM A.UInt64 = tell ["UINT64"]
+  showOccamM A.Int = tell ["INT"]
+  showOccamM A.Int8 = tell ["INT8"]
+  showOccamM A.Int16 = tell ["INT16"]
+  showOccamM A.Int32 = tell ["INT32"]
+  showOccamM A.Int64 = tell ["INT64"]
+  showOccamM A.Real32 = tell ["REAL32"]
+  showOccamM A.Real64 = tell ["REAL64"]
+  showOccamM A.Any = tell ["ANY"]
+  showOccamM A.Timer = tell ["TIMER"]
+  showOccamM A.Time = tell ["TIME"]
 
-  showOccamM (A.Mobile t) = return "MOBILE " +>> showOccamM t
+  showOccamM (A.Mobile t) = tell ["MOBILE "] >> showOccamM t
   showOccamM (A.Array ds t)
-      = (liftM concat $ sequence dims) +>> showOccamM t
+      = (sequence dims) >> showOccamM t
     where
       dims = [case d of
-                A.Dimension n -> return "[" +>> showOccamM n +>> return "]"
-                A.UnknownDimension -> return "[]"
+                A.Dimension n -> tell ["["] >> showOccamM n >> tell ["]"]
+                A.UnknownDimension -> tell ["[]"]
               | d <- ds]
-  showOccamM (A.Chan _ _ t) = return "CHAN OF " +>> showOccamM t
-  showOccamM (A.Counted ct et) = showOccamM ct +>> return "::" +>> showOccamM et
-  showOccamM (A.Port t) = return "PORT OF " +>> showOccamM t
-  showOccamM (A.UserDataType n) = showName n +>> helper "{data type}"
-  showOccamM (A.Record n) = showName n +>> helper "{record}"
-  showOccamM (A.UserProtocol n) = showName n +>> helper "{protocol}"
-  showOccamM (A.List t) = return "LIST " +>> showOccamM t
+  showOccamM (A.Chan _ _ t) = tell ["CHAN OF "] >> showOccamM t
+  showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
+  showOccamM (A.Port t) = tell ["PORT OF "] >> showOccamM t
+  showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
+  showOccamM (A.Record n) = showName n >> helper "{record}"
+  showOccamM (A.UserProtocol n) = showName n >> helper "{protocol}"
+  showOccamM (A.List t) = tell ["LIST "] >> showOccamM t
 
 instance ShowRain A.Type where
-  showRain A.Bool = "bool"
-  showRain A.Byte = "uint8"
-  showRain A.UInt16 = "uint16"
-  showRain A.UInt32 = "uint32"
-  showRain A.UInt64 = "uint64"
-  showRain A.Int8 = "sint8"
-  showRain A.Int16 = "sint16"
-  showRain A.Int32 = "sint32"
-  showRain A.Int64 = "int"
-  showRain A.Int = "int"
-  showRain (A.Chan dir attr t) 
+  showRainM A.Bool = tell ["bool"]
+  showRainM A.Byte = tell ["uint8"]
+  showRainM A.UInt16 = tell ["uint16"]
+  showRainM A.UInt32 = tell ["uint32"]
+  showRainM A.UInt64 = tell ["uint64"]
+  showRainM A.Int8 = tell ["sint8"]
+  showRainM A.Int16 = tell ["sint16"]
+  showRainM A.Int32 = tell ["sint32"]
+  showRainM A.Int64 = tell ["int"]
+  showRainM A.Int = tell ["int"]
+  showRainM (A.Chan dir attr t) 
     = case dir of
-        A.DirUnknown -> "channel " ++ ao (A.caWritingShared attr) ++ "2" ++ ao (A.caReadingShared attr) ++ " " ++ showRain t
-        A.DirInput -> (if A.caReadingShared attr then "shared" else "") ++ " ?" ++ showRain t
-        A.DirOutput -> (if A.caWritingShared attr then "shared" else "") ++ " !" ++ showRain t
+        A.DirUnknown -> tell ["channel ", ao (A.caWritingShared attr),
+          "2", ao (A.caReadingShared attr)," "] >> showRainM t
+        A.DirInput -> tell [if A.caReadingShared attr then "shared" else "", " ?"] >> showRainM t
+        A.DirOutput -> tell [if A.caWritingShared attr then "shared" else "", " !"] >> showRainM t
     where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  
-  showRain A.Time = "time"
+  showRainM A.Time = tell ["time"]
   -- Mobility is not explicit in Rain:
-  showRain (A.Mobile t) = showRain t
-  showRain (A.List t) = "[" ++ showRain t ++ "]"
-  showRain x = "<invalid Rain type: " ++ show x ++ ">"
+  showRainM (A.Mobile t) = showRainM t
+  showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
+  showRainM x = tell ["<invalid Rain type: ", show x, ">"]
 
 instance ShowOccam A.DyadicOp where
-  showOccamM A.Add = return "+"
-  showOccamM A.Subtr = return "-"
-  showOccamM A.Mul = return "*"
-  showOccamM A.Div = return "/"
-  showOccamM A.Rem = return "REM"
-  showOccamM A.Plus = return "PLUS"
-  showOccamM A.Minus = return "MINUS"
-  showOccamM A.Times = return "TIMES"
-  showOccamM A.BitAnd = return "/\\"
-  showOccamM A.BitOr = return "\\/"
-  showOccamM A.BitXor = return "><"
-  showOccamM A.LeftShift = return "<<"
-  showOccamM A.RightShift = return ">>"
-  showOccamM A.And = return "AND"
-  showOccamM A.Or = return "OR"
-  showOccamM A.Eq = return "="
-  showOccamM A.NotEq = return "<>"
-  showOccamM A.Less = return "<"
-  showOccamM A.More = return ">"
-  showOccamM A.LessEq = return "<="
-  showOccamM A.MoreEq = return ">="
-  showOccamM A.After = return "AFTER"
+  showOccamM A.Add = tell ["+"]
+  showOccamM A.Subtr = tell ["-"]
+  showOccamM A.Mul = tell ["*"]
+  showOccamM A.Div = tell ["/"]
+  showOccamM A.Rem = tell ["REM"]
+  showOccamM A.Plus = tell ["PLUS"]
+  showOccamM A.Minus = tell ["MINUS"]
+  showOccamM A.Times = tell ["TIMES"]
+  showOccamM A.BitAnd = tell ["/\\"]
+  showOccamM A.BitOr = tell ["\\/"]
+  showOccamM A.BitXor = tell ["><"]
+  showOccamM A.LeftShift = tell ["<<"]
+  showOccamM A.RightShift = tell [">>"]
+  showOccamM A.And = tell ["AND"]
+  showOccamM A.Or = tell ["OR"]
+  showOccamM A.Eq = tell ["="]
+  showOccamM A.NotEq = tell ["<>"]
+  showOccamM A.Less = tell ["<"]
+  showOccamM A.More = tell [">"]
+  showOccamM A.LessEq = tell ["<="]
+  showOccamM A.MoreEq = tell [">="]
+  showOccamM A.After = tell ["AFTER"]
 
 
 instance ShowRain A.DyadicOp where
-  showRain A.Div = "/"
-  showRain A.Rem = "%"
-  showRain A.Plus = "+"
-  showRain A.Minus = "-"
-  showRain A.Times = "*"
-  showRain A.And = "and"
-  showRain A.Or = "or"
-  showRain A.Eq = "=="
-  showRain A.NotEq = "<>"
-  showRain A.Less = "<"
-  showRain A.More = ">"
-  showRain A.LessEq = "<="
-  showRain A.MoreEq = ">="
-  showRain x = "<invalid Rain operator: " ++ show x ++ ">"
+  showRainM A.Div = tell ["/"]
+  showRainM A.Rem = tell ["%"]
+  showRainM A.Plus = tell ["+"]
+  showRainM A.Minus = tell ["-"]
+  showRainM A.Times = tell ["*"]
+  showRainM A.And = tell ["and"]
+  showRainM A.Or = tell ["or"]
+  showRainM A.Eq = tell ["=="]
+  showRainM A.NotEq = tell ["<>"]
+  showRainM A.Less = tell ["<"]
+  showRainM A.More = tell [">"]
+  showRainM A.LessEq = tell ["<="]
+  showRainM A.MoreEq = tell [">="]
+  showRainM x = tell ["<invalid Rain operator: ", show x, ">"]
 
 instance ShowOccam A.MonadicOp where
-  showOccamM A.MonadicSubtr = return "-"
-  showOccamM A.MonadicMinus = return "MINUS"
-  showOccamM A.MonadicBitNot = return "~"
-  showOccamM A.MonadicNot = return "NOT"
+  showOccamM A.MonadicSubtr = tell ["-"]
+  showOccamM A.MonadicMinus = tell ["MINUS"]
+  showOccamM A.MonadicBitNot = tell ["~"]
+  showOccamM A.MonadicNot = tell ["NOT"]
 
 instance ShowOccam A.Variable where
   showOccamM (A.Variable _ n) = showName n
   showOccamM (A.SubscriptedVariable _ s v) = showSubscriptOccamM v s
   showOccamM (A.DirectedVariable _ A.DirUnknown v) = showOccamM v
-  showOccamM (A.DirectedVariable _ A.DirInput v) = showOccamM v +>> return "?"
-  showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v +>> return "!"
+  showOccamM (A.DirectedVariable _ A.DirInput v) = showOccamM v >> tell ["?"]
+  showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v >> tell ["!"]
   
 instance ShowRain A.Variable where
-  showRain (A.Variable _ n) = show n
-  showRain (A.DirectedVariable _ A.DirInput v) = "?" ++ showRain v
-  showRain (A.DirectedVariable _ A.DirOutput v) = "!" ++ showRain v
-  showRain x = "<invalid Rain variable: " ++ show x ++ ">"
+  showRainM (A.Variable _ n) = tell [show n]
+  showRainM (A.DirectedVariable _ A.DirInput v) = tell ["?"] >> showRainM v
+  showRainM (A.DirectedVariable _ A.DirOutput v) = tell ["!"] >> showRainM v
+  showRainM x = tell ["<invalid Rain variable: ", show x, ">"]
 
 instance ShowOccam A.ArrayElem where
-  showOccamM (A.ArrayElemArray elems) = return "[" +>> showWithCommas elems +>> return "]"
+  showOccamM (A.ArrayElemArray elems) = tell ["["] >> showWithCommas elems >> tell ["]"]
   showOccamM (A.ArrayElemExpr e) = showOccamM e
 
 instance ShowOccam A.LiteralRepr where
-  showOccamM (A.RealLiteral _ s) = return s
-  showOccamM (A.IntLiteral _ s) = return s
-  showOccamM (A.HexLiteral _ s) = return ("#" ++ s)
-  showOccamM (A.ByteLiteral _ s) = return ("'" ++ s ++ "'")
-  showOccamM (A.ArrayLiteral _ elems) = return "[" +>> showWithCommas elems +>> return "]"  
+  showOccamM (A.RealLiteral _ s) = tell [s]
+  showOccamM (A.IntLiteral _ s) = tell [s]
+  showOccamM (A.HexLiteral _ s) = tell ["#", s]
+  showOccamM (A.ByteLiteral _ s) = tell ["'", s, "'"]
+  showOccamM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
   --TODO record literals
 
 instance ShowOccam A.Subscript where
-  showOccamM (A.Subscript _ _ e) = getTempItem +>> return "[" +>> showOccamM e +>> return "]"
-  showOccamM (A.SubscriptField _ n) = getTempItem +>> return "[" +>> showName n +>> return "]"
+  showOccamM (A.Subscript _ _ e) = getTempItem >> tell ["["] >> showOccamM e >> tell ["]"]
+  showOccamM (A.SubscriptField _ n) = getTempItem >> tell ["["] >> showName n >> tell ["]"]
   showOccamM (A.SubscriptFromFor _ start count)
-    = return "[" +>> getTempItem +>> return " FROM " +>> showOccamM start +>> return " FOR " +>> showOccamM count +>> return "]"
+    = tell ["["] >> getTempItem >> tell [" FROM "] >> showOccamM start >> tell [" FOR "] >> showOccamM count >> tell ["]"]
   showOccamM (A.SubscriptFor _ count)
-    = return "[" +>> getTempItem +>> return " FOR " +>> showOccamM count +>> return "]"
+    = tell ["["] >> getTempItem >> tell [" FOR "] >> showOccamM count >> tell ["]"]
   showOccamM (A.SubscriptFrom _ start)
-    = return "[" +>> getTempItem +>> return " FROM " +>> showOccamM start +>> return "]"        
+    = tell ["["] >> getTempItem >> tell [" FROM "] >> showOccamM start >> tell ["]"]        
   
 
-convOrSpace :: A.ConversionMode -> OccamWriter String
+convOrSpace :: A.ConversionMode -> CodeWriter ()
 convOrSpace A.DefaultConversion = space
-convOrSpace A.Round = return " ROUND "
-convOrSpace A.Trunc = return " TRUNC "
+convOrSpace A.Round = tell [" ROUND "]
+convOrSpace A.Trunc = tell [" TRUNC "]
 
 instance ShowOccam A.Expression where
-  showOccamM (A.Monadic _ op e) = bracket $ showOccamM op +>> space +>> showOccamM e
-  showOccamM (A.Dyadic _ op lhs rhs) = bracket $ showOccamM lhs +>> space +>> showOccamM op +>> space +>> showOccamM rhs
-  showOccamM (A.MostPos _ t) = bracket $ return "MOSTPOS " +>> showOccamM t
-  showOccamM (A.MostNeg _ t) = bracket $ return "MOSTNEG " +>> showOccamM t
-  showOccamM (A.SizeType _ t) = bracket $ return "SIZE " +>> showOccamM t
-  showOccamM (A.SizeExpr _ e) = bracket $ return "SIZE " +>> showOccamM e
-  showOccamM (A.SizeVariable _ v) = bracket $ return "SIZE " +>> showOccamM v
-  showOccamM (A.Conversion _ cm t e) = bracket $ showOccamM t +>> convOrSpace cm +>> showOccamM e
+  showOccamM (A.Monadic _ op e) = bracket $ showOccamM op >> space >> showOccamM e
+  showOccamM (A.Dyadic _ op lhs rhs) = bracket $ showOccamM lhs >> space >> showOccamM op >> space >> showOccamM rhs
+  showOccamM (A.MostPos _ t) = bracket $ tell ["MOSTPOS "] >> showOccamM t
+  showOccamM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showOccamM t
+  showOccamM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showOccamM t
+  showOccamM (A.SizeExpr _ e) = bracket $ tell ["SIZE "] >> showOccamM e
+  showOccamM (A.SizeVariable _ v) = bracket $ tell ["SIZE "] >> showOccamM v
+  showOccamM (A.Conversion _ cm t e) = bracket $ showOccamM t >> convOrSpace cm >> showOccamM e
   showOccamM (A.ExprVariable _ v) = showOccamM v
   showOccamM (A.Literal _ _ lit) = showOccamM lit
-  showOccamM (A.True _) = return "TRUE"
-  showOccamM (A.False _) = return "FALSE"
-  showOccamM (A.FunctionCall _ n es) = showName n +>> return "(" +>> showWithCommas es +>> return ")"
+  showOccamM (A.True _) = tell ["TRUE"]
+  showOccamM (A.False _) = tell ["FALSE"]
+  showOccamM (A.FunctionCall _ n es) = showName n >> tell ["("] >> showWithCommas es >> tell [")"]
   showOccamM (A.SubscriptedExpr _ s e) = showSubscriptOccamM e s
-  showOccamM (A.BytesInExpr _ e) = bracket $ return "BYTESIN " +>> showOccamM e
-  showOccamM (A.BytesInType _ t) = bracket $ return "BYTESIN " +>> showOccamM t
-  showOccamM (A.OffsetOf _ t n) = return "OFFSETOF(" +>> showOccamM t +>> return " , " +>> showName n +>> return ")"
+  showOccamM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showOccamM e
+  showOccamM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showOccamM t
+  showOccamM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showOccamM t >> tell [" , "] >> showName n >> tell [")"]
   --TODO exprconstr
 
 instance ShowOccam A.Formal where
   showOccamM (A.Formal am t n) = (maybeVal am)
-                                 +>> (showOccamM t)
-                                 +>> space
-                                 +>> (showName n)
+                                 >> (showOccamM t)
+                                 >> space
+                                 >> (showName n)
                   
-space :: OccamWriter String
-space = return " "
+space :: CodeWriter ()
+space = tell [" "]
 
-colon :: OccamWriter String
-colon = return ":"
+colon :: CodeWriter ()
+colon = tell [":"]
 
-maybeVal :: A.AbbrevMode -> OccamWriter String
-maybeVal am = return $ if (am == A.ValAbbrev) then "VAL " else ""
+maybeVal :: A.AbbrevMode -> CodeWriter ()
+maybeVal am = tell [if (am == A.ValAbbrev) then "VAL " else ""]
 
 instance ShowOccam A.Specification where
   -- TODO add specmode to the output
   showOccamM (A.Specification _ n (A.Proc _ sm params body))
-    = do n' <- showName n
-         params' <- showAll (intersperse (return ",") $ map showOccamM params)
-         --TODO use the occamdoc setting
-         showOccamLine (return $ "PROC " ++ n' ++ "(" ++ params' ++ ")") +>> occamIndent +>> showOccamM body +>> occamOutdent +>> showOccamLine (return ":")
+    = do let params' = intersperse (tell [","]) $ map showOccamM params
+         showOccamLine $ do tell ["PROC "]
+                            showName n
+                            tell ["("]
+                            sequence_ params'
+                            tell [")"]
+         occamIndent
+         showOccamM body
+         occamOutdent
+         showOccamLine (tell [":"])
   showOccamM (A.Specification _ n (A.Declaration _ t))
-    = showOccamLine $ showOccamM t +>> space +>> showName n +>> colon
+    = showOccamLine $ showOccamM t >> space >> showName n >> colon
   showOccamM (A.Specification _ n (A.Is _ am t v))
-    = showOccamLine $ (maybeVal am) +>> showOccamM t +>> space +>> showName n +>> return " IS " +>> showOccamM v +>> colon
+    = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM v >> colon
   showOccamM (A.Specification _ n (A.IsExpr _ am t e))
-    = showOccamLine $ (maybeVal am) +>> showOccamM t +>> space +>> showName n +>> return " IS " +>> showOccamM e +>> colon
+    = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM e >> colon
   showOccamM (A.Specification _ n (A.IsChannelArray _ t vs))
-    = showOccamLine $ showOccamM t +>> space +>> showName n +>> return " IS [" +>> showWithCommas vs +>> return "]:"
+    = showOccamLine $ showOccamM t >> space >> showName n >> tell [" IS ["] >> showWithCommas vs >> tell ["]:"]
   showOccamM (A.Specification _ n (A.DataType _ t))
-    = showOccamLine $ return "DATA TYPE " +>> showName n +>> return " IS " +>> showOccamM t +>> colon
+    = showOccamLine $ tell ["DATA TYPE "] >> showName n >> tell [" IS "] >> showOccamM t >> colon
   showOccamM (A.Specification _ n (A.RecordType _ packed fields))
-    = (showOccamLine $ return "DATA TYPE " +>> showName n)
-      +>> occamIndent
-      +>> (showOccamLine $ return (if packed then "PACKED RECORD" else "RECORD"))
-      +>> occamIndent
-      +>> (showAll (map (\(n,t) -> showOccamLine $ showOccamM t +>> space +>> showName n +>> colon) fields))
-      +>> occamOutdent
-      +>> occamOutdent
-      +>> (showOccamLine colon)
+    = do (showOccamLine $ tell ["DATA TYPE "] >> showName n)
+         occamIndent
+         (showOccamLine $ tell [if packed then "PACKED RECORD" else "RECORD"])
+         occamIndent
+         (sequence_ (map (\(n,t) -> showOccamLine $ showOccamM t >> space >> showName n >> colon) fields))
+         occamOutdent
+         occamOutdent
+         (showOccamLine colon)
   --TODO use the specmode
   showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left el@(A.Only {}))))
     = showOccamLine $
-        showWithCommas retTypes +>> (return " FUNCTION ") +>> showName n +>> return "(" +>> showWithCommas params +>> return ")"
-        +>> return " IS " +>> showOccamM el +>> colon
+        showWithCommas retTypes >> (tell [" FUNCTION "]) >> showName n >> tell ["("] >> showWithCommas params >> tell [")"]
+        >> tell [" IS "] >> showOccamM el >> colon
   showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left body)))
-    = (showOccamLine $ showWithCommas retTypes +>> (return " FUNCTION ") +>> showName n +>> return "(" +>> showWithCommas params +>> return ")")
-      +>> occamIndent
-      +>> showOccamM body
-      +>> occamOutdent
-      +>> showOccamLine colon
+    = (showOccamLine $ showWithCommas retTypes >> (tell [" FUNCTION "]) >> showName n >> tell ["("] >> showWithCommas params >> tell [")"])
+      >> occamIndent
+      >> showOccamM body
+      >> occamOutdent
+      >> showOccamLine colon
   showOccamM (A.Specification _ n (A.Protocol _ ts))
-    = showOccamLine $ return "PROTOCOL " +>> showName n +>> return " IS " +>> showWithSemis ts +>> colon
+    = showOccamLine $ tell ["PROTOCOL "] >> showName n >> tell [" IS "] >> showWithSemis ts >> colon
   showOccamM (A.Specification _ n (A.ProtocolCase _ nts))
-    = (showOccamLine $ return "PROTOCOL " +>> showName n) +>> occamBlock
-        (showOccamLine (return "CASE") +>> occamBlock
-          (showAll $ map (showOccamLine . showProtocolItem) nts)
-      ) +>> colon
+    = (showOccamLine $ tell ["PROTOCOL "] >> showName n) >> occamBlock
+        (showOccamLine (tell ["CASE"]) >> occamBlock
+          (sequence_ $ map (showOccamLine . showProtocolItem) nts)
+      ) >> colon
   showOccamM (A.Specification _ n (A.Retypes _ am t v))
-    = showOccamLine $ maybeVal am +>> showOccamM t +>> space +>> showName n +>> return " RETYPES " +>> showOccamM v +>> colon
+    = showOccamLine $ maybeVal am >> showOccamM t >> space >> showName n >> tell [" RETYPES "] >> showOccamM v >> colon
   showOccamM (A.Specification _ n (A.RetypesExpr _ am t e))
-    = showOccamLine $ maybeVal am +>> showOccamM t +>> space +>> showName n +>> return " RETYPES " +>> showOccamM e +>> colon
+    = showOccamLine $ maybeVal am >> showOccamM t >> space >> showName n >> tell [" RETYPES "] >> showOccamM e >> colon
   
-showProtocolItem :: (A.Name, [A.Type]) -> OccamWriter String
-showProtocolItem (n,ts) = showAll $ intersperse (return " ; ") $ [showName n] ++ (map showOccamM ts)
+showProtocolItem :: (A.Name, [A.Type]) -> CodeWriter ()
+showProtocolItem (n,ts) = sequence_ $ intersperse (tell [" ; "]) $
+  showName n : (map showOccamM ts)
   
 instance ShowOccam A.Variant where
   showOccamM (A.Variant _ n iis p)
-    = (showOccamLine (showAll $ intersperse (return " ; ") $ [showName n] ++ (map showOccamM iis)))
-      +>> occamIndent +>> showOccamM p +>> occamOutdent
+    = (showOccamLine (sequence_ $ intersperse (tell [" ; "]) $ [showName n] ++ (map showOccamM iis)))
+      >> occamIndent >> showOccamM p >> occamOutdent
            
 instance ShowOccam A.Actual where
   showOccamM (A.ActualVariable _ _ v) = showOccamM v
@@ -425,78 +455,82 @@ instance ShowOccam A.Actual where
   
 instance ShowOccam A.OutputItem where
   showOccamM (A.OutExpression _ e) = showOccamM e
-  showOccamM (A.OutCounted _ ce ae) = showOccamM ce +>> return " :: " +>> showOccamM ae
+  showOccamM (A.OutCounted _ ce ae) = showOccamM ce >> tell [" :: "] >> showOccamM ae
   
-getTempItem :: OccamWriter String
+getTempItem :: CodeWriter ()
 getTempItem = get >>= tempItem
 
 instance ShowOccam A.InputItem where 
   showOccamM (A.InVariable _ v) = showOccamM v
-  showOccamM (A.InCounted _ cv av) = showOccamM cv +>> return " :: " +>> showOccamM av
+  showOccamM (A.InCounted _ cv av) = showOccamM cv >> tell [" :: "] >> showOccamM av
   
 instance ShowOccam A.InputMode where
   showOccamM (A.InputSimple _ iis)
-    = showOccamLine $ getTempItem +>> return " ? " +>> (showWithSemis iis)
+    = showOccamLine $ getTempItem >> tell [" ? "] >> (showWithSemis iis)
   showOccamM (A.InputCase _ str)
-    = (showOccamLine $ getTempItem +>> return " ? CASE") +>> occamIndent +>> showOccamM str +>> occamOutdent
+    = (showOccamLine $ getTempItem >> tell [" ? CASE"]) >> occamIndent >> showOccamM str >> occamOutdent
   showOccamM (A.InputTimerRead _ ii)
-    = showOccamLine $ getTempItem +>> return " ? " +>> showOccamM ii
+    = showOccamLine $ getTempItem >> tell [" ? "] >> showOccamM ii
   showOccamM (A.InputTimerAfter _ e)
-    = showOccamLine $ getTempItem +>> return " ? AFTER " +>> showOccamM e
+    = showOccamLine $ getTempItem >> tell [" ? AFTER "] >> showOccamM e
   
   
 instance ShowOccam A.Alternative where
-  showOccamM (A.Alternative _ v im p) = showInputModeOccamM v im +>> occamIndent +>> showOccamM p +>> occamOutdent
-  showOccamM (A.AlternativeCond _ e v im p) = showOccamM e +>> return " & " +>> suppressIndent +>> showOccamM (A.Alternative undefined v im p)
+  showOccamM (A.Alternative _ v im p) = showInputModeOccamM v im >> occamIndent >> showOccamM p >> occamOutdent
+  showOccamM (A.AlternativeCond _ e v im p) = showOccamM e >> tell [" & "] >> suppressIndent >> showOccamM (A.Alternative undefined v im p)
   
 instance ShowOccam A.Replicator where
-  showOccamM (A.For _ n start count) = return " " +>> showName n +>> return " = " +>> showOccamM start +>> return " FOR " +>> showOccamM count
-  showOccamM (A.ForEach _ n e) = return " " +>> showName n +>> return " IN " +>> showOccamM e
+  showOccamM (A.For _ n start count) = tell [" "] >> showName n >> tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count
+  showOccamM (A.ForEach _ n e) = tell [" "] >> showName n >> tell [" IN "] >> showOccamM e
 
 instance ShowOccam A.Choice where
-  showOccamM (A.Choice _ e p) = showOccamLine (showOccamM e) +>> occamBlock (showOccamM p)
+  showOccamM (A.Choice _ e p) = showOccamLine (showOccamM e) >> occamBlock (showOccamM p)
 
 instance ShowOccam A.Option where
-  showOccamM (A.Option _ es p) = showOccamLine (showAll $ intersperse (return " , ") $ map showOccamM es) +>> occamBlock (showOccamM p)
-  showOccamM (A.Else _ p) = showOccamLine (return "ELSE") +>> occamBlock (showOccamM p)
+  showOccamM (A.Option _ es p) = showOccamLine (sequence_ $ intersperse (tell [" , "]) $ map showOccamM es) >> occamBlock (showOccamM p)
+  showOccamM (A.Else _ p) = showOccamLine (tell ["ELSE"]) >> occamBlock (showOccamM p)
 
 instance (Data a, ShowOccam a) => ShowOccam (A.Structured a) where
-  showOccamM (A.Spec _ spec str) = showOccamM spec +>> showOccamM str
+  showOccamM (A.Spec _ spec str) = showOccamM spec >> showOccamM str
   showOccamM (A.Rep _ rep str)
     = do item <- currentContext
-         (showOccamLine (return (item ++ " ") +>> showOccamM rep)) +>> occamIndent +>> showOccamM str +>> occamOutdent
+         (showOccamLine (return (item ++ " ") >> showOccamM rep)) >> occamIndent >> showOccamM str >> occamOutdent
   showOccamM (A.Only _ p) = showOccamM p
-  showOccamM (A.Several _ ss) = showAll $ map showOccamM ss
-  showOccamM (A.ProcThen _ p str) = showOccamLine (return "VALOF") +>> occamBlock (showOccamM p +>> showOccamLine (return "RESULT " +>> showOccamM str))
+  showOccamM (A.Several _ ss) = sequence_ $ map showOccamM ss
+  showOccamM (A.ProcThen _ p str) = showOccamLine (tell ["VALOF"]) >> occamBlock (showOccamM p >> showOccamLine (tell ["RESULT "] >> showOccamM str))
 
-showWithCommas :: ShowOccam a => [a] -> OccamWriter String
-showWithCommas ss = showAll $ intersperse (return " , ") $ map showOccamM ss
+showWithCommas :: ShowOccam a => [a] -> CodeWriter ()
+showWithCommas ss = sequence_ $ intersperse (tell [" , "]) $ map showOccamM ss
 
-showWithSemis :: ShowOccam a => [a] -> OccamWriter String
-showWithSemis ss = showAll $ intersperse (return " ; ") $ map showOccamM ss
+showWithSemis :: ShowOccam a => [a] -> CodeWriter ()
+showWithSemis ss = sequence_ $ intersperse (tell [" ; "]) $ map showOccamM ss
 
 instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
   --TODO functioncalllist
 
-outer :: (Data a, ShowOccam a) => String -> A.Structured a -> OccamWriter String
-outer keyword (A.Rep _ rep str) = showOccamLine (return keyword +>> showOccamM rep) +>> beginStr keyword +>> showOccamM str +>> endStr
+outer :: (Data a, ShowOccam a) => String -> A.Structured a -> CodeWriter ()
+outer keyword (A.Rep _ rep str)
+  = do showOccamLine (tell [keyword] >> showOccamM rep)
+       beginStr keyword
+       showOccamM str
+       endStr
 outer keyword str = doStr keyword (showOccamM str)
 
 instance ShowOccam A.Process where
-  showOccamM (A.Assign _ vs el) = showOccamLine (showWithCommas vs +>> return ":=" +>> showOccamM el)
-  showOccamM (A.Skip _) = showOccamLine $ return "SKIP"
-  showOccamM (A.Stop _) = showOccamLine $ return "STOP" 
+  showOccamM (A.Assign _ vs el) = showOccamLine (showWithCommas vs >> tell [":="] >> showOccamM el)
+  showOccamM (A.Skip _) = showOccamLine $ tell ["SKIP"]
+  showOccamM (A.Stop _) = showOccamLine $ tell ["STOP"] 
   showOccamM (A.Input _ v im) = showInputModeOccamM v im
-  showOccamM (A.Output _ v ois) = showOccamLine $ showOccamM v +>> return " ! " +>> (showWithSemis ois)
-  showOccamM (A.OutputCase _ v n ois) = showOccamLine $ showOccamM v +>> return " ! " +>> 
-    (showAll $ intersperse (return " ; ") $ [showName n] ++ (map showOccamM ois))
+  showOccamM (A.Output _ v ois) = showOccamLine $ showOccamM v >> tell [" ! "] >> (showWithSemis ois)
+  showOccamM (A.OutputCase _ v n ois) = showOccamLine $ showOccamM v >> tell [" ! "] >> 
+    (sequence_ $ intersperse (tell [" ; "]) $ [showName n] ++ (map showOccamM ois))
   --TODO gettime and wait ?
   
   --TODO proccall
-  showOccamM (A.ProcCall _ n params) = showOccamLine $ showName n +>> return " ( " +>> showWithCommas params +>> return " ) "
-  showOccamM (A.While _ e p) = (showOccamLine $ return "WHILE " +>> showOccamM e) +>> occamIndent +>> showOccamM p +>> occamOutdent
-  showOccamM (A.Case _ e s) = (showOccamLine $ return "CASE " +>> showOccamM e) +>> occamBlock (showOccamM s)
+  showOccamM (A.ProcCall _ n params) = showOccamLine $ showName n >> tell [" ( "] >> showWithCommas params >> tell [" ) "]
+  showOccamM (A.While _ e p) = (showOccamLine $ tell ["WHILE "] >> showOccamM e) >> occamIndent >> showOccamM p >> occamOutdent
+  showOccamM (A.Case _ e s) = (showOccamLine $ tell ["CASE "] >> showOccamM e) >> occamBlock (showOccamM s)
   showOccamM (A.If _ str) = outer "IF" str
   showOccamM (A.Alt _ False str) = outer "ALT" str
   showOccamM (A.Alt _ True str) = outer "PRI ALT" str
@@ -508,7 +542,7 @@ instance ShowOccam A.Process where
 
 --TEMP:
 instance ShowRain a where
-  showRain = const ""
+  showRainM = const $ return ()
 
 -- | Extends an existing (probably generic) function with cases for everything that has a specific ShowOccam and ShowRain instance
 -- This is a bit of manual wiring.  Because we can't generically deduce whether or not 
@@ -532,10 +566,3 @@ extCode q f = q
 --TODO
 --                `ext1Q` (text . (f :: (Data c, ShowOccam c) => A.Structured c -> String))
 
-(+>>) :: State s [a] -> State s [a] -> State s [a]
-(+>>) x y = do x' <- x
-               y' <- y
-               return (x' ++ y')
-
-showAll :: [State s [a]] -> State s [a]
-showAll = foldl (+>>) (return [])
