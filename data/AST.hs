@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -20,7 +20,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- This is intended to be imported qualified as A.
 --
 -- All types with only no-argument constructors may (and should) derive Ord
--- automatically, but for all other types the Ord instance is in the OrdAST module.
+-- automatically, but for all other types the Ord instance is in the OrdAST
+-- module.
 module AST where
 
 {-! global : Haskell2Xml !-}
@@ -117,7 +118,8 @@ data Type =
   -- | An array.
   -- For N-dimensional arrays, the [Dimension] list will be of length N.
   | Array [Dimension] Type
-  -- | A (linked) list that allows element-wise removal, and easy concatentation.  Has dynamic size.
+  -- | A (linked) list that allows element-wise removal, and easy
+  -- concatentation.  Has dynamic size.
   | List Type
   -- | A user-defined data type.
   | UserDataType Name
@@ -170,10 +172,10 @@ data ConversionMode =
   deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | Which ends (or both) of an array dimension to check the subscript against.
--- By default, all subscripts in occam have the CheckBoth mode, but control-flow analysis
--- may reduce the checking.  Also, the user will have the ability to turn off checks.
--- Finally, checks introduced by passes may well use NoCheck if the array index is known
--- to be within bounds.
+-- By default, all subscripts in occam have the CheckBoth mode, but
+-- control-flow analysis may reduce the checking.  Also, the user will have the
+-- ability to turn off checks.  Finally, checks introduced by passes may well
+-- use NoCheck if the array index is known to be within bounds.
 data SubscriptCheck =
   NoCheck
   | CheckLower
@@ -238,15 +240,16 @@ data Variable =
 
 -- | An array constructor expression.
 data ArrayConstr =
-  -- | A simple integer range, beginning at the first value (inclusive) and ending at the second value (inclusive), with stepping 1.
-  -- If the first value is bigger than the second, the effective value is an empty array.
-  -- This will be transformed by an early pass into the second form (RepConstr).
+  -- | A simple integer range, beginning at the first value (inclusive) and
+  -- ending at the second value (inclusive), with stepping 1.
+  -- If the first value is bigger than the second, the effective value is an
+  -- empty array.  This will be transformed by an early pass into the second
+  -- form (RepConstr).
   RangeConstr Meta Type Expression Expression
   -- | A more general and powerful array constructor as used in occam-pi.
   -- The first item is the replicator, the second is the expression
   | RepConstr Meta Type Replicator Expression
   deriving (Show, Eq, Typeable, Data)
-
 
 -- | An expression.
 data Expression =
@@ -263,7 +266,8 @@ data Expression =
   -- | The size of the outermost dimension of an array expression.
   -- Given @[8][4]INT a:@, @SIZE a@ is 8 and @SIZE a[0]@ is 4.
   | SizeExpr Meta Expression
-  -- | The size of the outermost dimension of an array variable (see 'SizeExpr').
+  -- | The size of the outermost dimension of an array variable (see
+  -- 'SizeExpr').
   | SizeVariable Meta Variable
   | Conversion Meta ConversionMode Type Expression
   | ExprVariable Meta Variable
@@ -277,7 +281,8 @@ data Expression =
   | BytesInType Meta Type
   | OffsetOf Meta Type Name
   | ExprConstr Meta ArrayConstr
-  -- | The type should always be Mobile t, and the Expression should be of type t:
+  -- | A mobile allocation. The type should always be Mobile t, and the
+  -- Expression should be of type t.
   | AllocMobile Meta Type (Maybe Expression)
   deriving (Show, Eq, Typeable, Data)
 
@@ -313,7 +318,8 @@ data DyadicOp =
 -- | An item in an input.
 data InputItem =
   -- | A counted input.
-  -- The count is read into the first variable, and the array items into the second.
+  -- The count is read into the first variable, and the array items into the
+  -- second.
   InCounted Meta Variable Variable
   -- | A simple input into a single variable.
   | InVariable Meta Variable
@@ -344,7 +350,8 @@ data Replicator =
 data Choice = Choice Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
--- | A mode of waiting -- either for a specified duration, or until a specified time.
+-- | A mode of waiting -- either for a specified duration, or until a specified
+-- time.
 data WaitMode =
   WaitFor
   | WaitUntil
@@ -383,7 +390,8 @@ data Option =
 data Variant = Variant Meta Name [InputItem] Process
   deriving (Show, Eq, Typeable, Data)
 
--- | This represents something that can contain local replicators and specifications.
+-- | This represents something that can contain local replicators and
+-- specifications.
 data Data a => Structured a =
   Rep Meta Replicator (Structured a)
   | Spec Meta Specification (Structured a)
@@ -392,38 +400,39 @@ data Data a => Structured a =
   | Several Meta [Structured a]
   deriving (Show, Eq, Typeable)
 
--- The Data instance for Structured is tricky.  Because it is a parameterised class we
--- need to change the dataCast1 function from the default declaration; something
--- that leaving GHC to handle deriving (Data) will not achieve.  Therefore we have no
--- choice but to provide our own instance long-hand here:
+-- The Data instance for Structured is tricky.  Because it is a parameterised
+-- class we need to change the dataCast1 function from the default declaration;
+-- something that leaving GHC to handle deriving (Data) will not achieve.
+-- Therefore we have no choice but to provide our own instance long-hand here.
 
-_struct_RepConstr, _struct_SpecConstr, _struct_ProcThenConstr, _struct_OnlyConstr, _struct_SeveralConstr :: Constr
+_struct_RepConstr, _struct_SpecConstr, _struct_ProcThenConstr,
+  _struct_OnlyConstr, _struct_SeveralConstr :: Constr
 _struct_DataType :: DataType
 
-_struct_RepConstr     = mkConstr _struct_DataType "Rep"  [] Prefix
-_struct_SpecConstr    = mkConstr _struct_DataType "Spec" [] Prefix
-_struct_ProcThenConstr= mkConstr _struct_DataType "ProcThen" [] Prefix
-_struct_OnlyConstr    = mkConstr _struct_DataType "Only" [] Prefix
-_struct_SeveralConstr = mkConstr _struct_DataType "Several" [] Prefix
+_struct_RepConstr      = mkConstr _struct_DataType "Rep"  [] Prefix
+_struct_SpecConstr     = mkConstr _struct_DataType "Spec" [] Prefix
+_struct_ProcThenConstr = mkConstr _struct_DataType "ProcThen" [] Prefix
+_struct_OnlyConstr     = mkConstr _struct_DataType "Only" [] Prefix
+_struct_SeveralConstr  = mkConstr _struct_DataType "Several" [] Prefix
 _struct_DataType = mkDataType "AST.Structured"
-  [_struct_RepConstr
-  ,_struct_SpecConstr
-  ,_struct_ProcThenConstr
-  ,_struct_OnlyConstr
-  ,_struct_SeveralConstr
+  [ _struct_RepConstr
+  , _struct_SpecConstr
+  , _struct_ProcThenConstr
+  , _struct_OnlyConstr
+  , _struct_SeveralConstr
   ]
 
 instance Data a => Data (Structured a) where
-  gfoldl f z (Rep m r s)   = z Rep `f` m `f` r `f` s
-  gfoldl f z (Spec m sp str)   = z Spec `f` m `f` sp `f` str
-  gfoldl f z (ProcThen m p s)   = z ProcThen `f` m `f` p `f` s
-  gfoldl f z (Only m x)   = z Only `f` m `f` x
+  gfoldl f z (Rep m r s)      = z Rep `f` m `f` r `f` s
+  gfoldl f z (Spec m sp str)  = z Spec `f` m `f` sp `f` str
+  gfoldl f z (ProcThen m p s) = z ProcThen `f` m `f` p `f` s
+  gfoldl f z (Only m x)       = z Only `f` m `f` x
   gfoldl f z (Several m ss)   = z Several `f` m `f` ss
-  toConstr (Rep {})  = _struct_RepConstr
-  toConstr (Spec {}) = _struct_SpecConstr
+  toConstr (Rep {})      = _struct_RepConstr
+  toConstr (Spec {})     = _struct_SpecConstr
   toConstr (ProcThen {}) = _struct_ProcThenConstr
-  toConstr (Only {}) = _struct_OnlyConstr
-  toConstr (Several {}) = _struct_SeveralConstr
+  toConstr (Only {})     = _struct_OnlyConstr
+  toConstr (Several {})  = _struct_SeveralConstr
   gunfold k z c = case constrIndex c of
                     1 -> (k . k . k) (z Rep)
                     2 -> (k . k . k) (z Spec)
@@ -433,7 +442,6 @@ instance Data a => Data (Structured a) where
                     _ -> error "gunfold"
   dataTypeOf _ = _struct_DataType
   dataCast1 f  = gcast1 f
-
 
 -- | The mode in which an input operates.
 data InputMode =
@@ -491,7 +499,8 @@ data SpecType =
   -- | Declare a @PROC@.
   | Proc Meta SpecMode [Formal] Process
   -- | Declare a @FUNCTION@.
-  | Function Meta SpecMode [Type] [Formal] (Either (Structured ExpressionList) Process)
+  | Function Meta SpecMode [Type] [Formal]
+             (Either (Structured ExpressionList) Process)
   -- | Declare a retyping abbreviation of a variable.
   | Retypes Meta AbbrevMode Type Variable
   -- | Declare a retyping abbreviation of an expression.
@@ -562,4 +571,5 @@ data Process =
   | IntrinsicProcCall Meta String [Actual]
   deriving (Show, Eq, Typeable, Data)
 
+-- | The top level of the AST: a sequence of definitions.
 type AST = Structured ()
