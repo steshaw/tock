@@ -505,7 +505,7 @@ testPassShouldFail testName actualPass startStateTrans =
     do ret <- runPass actualPass (execState startStateTrans emptyState)
        case ret of
          Left err -> return ()
-         _ -> testFailure $ testName ++ " pass succeeded when expected to fail, data: " ++ (pshow ret)
+         Right (state, output) -> testFailure $ testName ++ " pass succeeded when expected to fail; output: " ++ pshow output
 
 --}}}
 --{{{  miscellaneous utilities
