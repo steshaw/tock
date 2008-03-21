@@ -136,7 +136,16 @@ main = do
               [fn] -> fn
               _ -> error "Must specify a single input file"
 
-  initState <- foldl (>>=) (return emptyState) opts
+  -- Try to guess the filename from the extension.  Since this function is
+  -- applied before the options are applied, it will be overriden by the
+  -- --frontend=x command-line option
+  let frontendGuess = if ".occ" `isSuffixOf` fn
+                        then \ps -> ps {csFrontend = FrontendOccam}
+                        else if ".rain" `isSuffixOf` fn
+                          then \ps -> ps {csFrontend = FrontendRain}
+                          else id
+
+  initState <- foldl (>>=) (return $ frontendGuess emptyState) opts
 
   let operation
         = case csMode initState of
