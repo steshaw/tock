@@ -135,7 +135,7 @@ buildGraph runProps passes
         check (prop, (post, pre))
           = do when (Set.null post && not (Set.null pre)) $
                  throwError $ "Property in dependency graph is required by a pass but not provided by any: "
-                   ++ show (map passName $ Set.toList pre)
+                   ++ show (propName prop)
                return (prop, (post, pre)) --TODO this is an identity transformation, so just check separately
                
     checkGraph :: Either String ()
