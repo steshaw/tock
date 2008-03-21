@@ -195,6 +195,8 @@ transformEachRange = doGeneric `ext1M` doStructured
     doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
       _ (A.RangeConstr _ _ begin end))) body)
         =   do body' <- doStructured body
+               -- Need to change the stored abbreviation mode to original:
+               modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
                return $ A.Rep repMeta (A.For eachMeta loopVar begin
                  (addOne $ subExprs end begin)) body'
     doStructured s = doGeneric s
