@@ -55,8 +55,8 @@ constantFoldPass = applyDepthM doExpression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
 
 -- | Annotates all integer literal types
-annnotateIntLiteralTypes :: Data t => t -> PassM t
-annnotateIntLiteralTypes = everywhereASTM doExpression
+annotateIntLiteralTypes :: Data t => t -> PassM t
+annotateIntLiteralTypes = applyDepthM doExpression
   where
     --Function is separated out to easily provide the type description of Integer
     powOf2 :: Integer -> Integer
@@ -89,7 +89,7 @@ annnotateIntLiteralTypes = everywhereASTM doExpression
 
 -- | Annotates all list literals and list ranges with their type
 annotateListLiteralTypes :: Data t => t -> PassM t
-annotateListLiteralTypes = everywhereASTM doExpression
+annotateListLiteralTypes = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m _ (A.ListLiteral m' es))
