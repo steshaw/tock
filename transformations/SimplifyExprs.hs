@@ -30,6 +30,7 @@ import EvalLiterals
 import Metadata
 import Pass
 import qualified Properties as Prop
+import ShowCode
 import Types
 import Utils
 
@@ -235,6 +236,7 @@ transformConstr = doGeneric `ext1M` doStructured
                return $ declDest $ A.ProcThen m''
                  (A.Seq m'' $ A.Rep m'' rep $ appendItem)
                  scope'
+             _ -> diePC m $ formatCode "Unsupported type for array constructor: %" t
       where
         declDest :: Data a => A.Structured a -> A.Structured a
         declDest = A.Spec m (A.Specification m' n (A.Declaration m' t))
