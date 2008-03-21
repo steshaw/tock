@@ -34,8 +34,6 @@ import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
-import Types
-
 
 
 type RainState = CompState
