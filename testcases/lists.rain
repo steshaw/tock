@@ -1,0 +1,13 @@
+process main (?uint8: in, !uint8: out, !uint8: err)
+{
+        [uint8]: alphabet;
+
+        alphabet = ['a' .. 'z'];
+
+        alphabet += ['A' .. 'Z'];
+
+	seqeach (c : alphabet)
+	{
+		out ! c;
+	}
+}
