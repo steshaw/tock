@@ -187,17 +187,31 @@ coerceType customMsg to from item
 checkExpressionTypes :: Data t => t -> PassM t
 checkExpressionTypes = applyDepthM checkExpression
   where
+    -- | Checks the types of an expression where at least one type involved
+    -- is Time.
+    checkTimeExpression :: Meta -> A.DyadicOp -> (A.Type, A.Expression) ->
+      (A.Type, A.Expression) -> PassM A.Expression
+    checkTimeExpression m op (tlhs, lhs) (trhs, rhs)
+      = case (validOpWithTime op tlhs trhs) of
+          Nothing -> diePC m $ formatCode
+            "Operator: \"%\" is not valid on types: \"%\" and \"%\"" op tlhs trhs
+          Just (destLHS, destRHS) -> 
+            if    (isImplicitConversionRain tlhs destLHS)
+               && (isImplicitConversionRain trhs destRHS)
+              then return $ A.Dyadic m op (convert destLHS tlhs lhs)
+                                          (convert destRHS trhs rhs)
+              else diePC m $ formatCode
+                "Operator: \"%\" is not valid on types: \"%\" and \"%\" (implicit conversions not possible)"
+                  op tlhs trhs
+
     checkExpression :: A.Expression -> PassM A.Expression
     checkExpression e@(A.Dyadic m op lhs rhs)
       = do tlhs <- typeOfExpression lhs
            trhs <- typeOfExpression rhs
-           if (tlhs == A.Time || trhs == A.Time) --Expressions with times can have asymmetric types, so we handle them specially:
-             then case (validOpWithTime op tlhs trhs) of
-                    Nothing -> diePC m $ formatCode "Operator: \"%\" is not valid on types: \"%\" and \"%\"" op tlhs trhs
-                    Just (destLHS, destRHS) -> 
-                      if (isImplicitConversionRain tlhs destLHS) && (isImplicitConversionRain trhs destRHS)
-                        then return $ A.Dyadic m op (convert destLHS tlhs lhs) (convert destRHS trhs rhs)
-                        else diePC m $ formatCode "Operator: \"%\" is not valid on types: \"%\" and \"%\" (implicit conversions not possible)" op tlhs trhs
+           if (tlhs == A.Time || trhs == A.Time)
+             -- Expressions with times can have asymmetric types,
+             -- so we handle them specially:
+             then checkTimeExpression m op (tlhs, lhs) (trhs, rhs)
              else 
                if (tlhs == trhs)
                  then (if validOpSameType op tlhs then return e else diePC m $ formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs)
