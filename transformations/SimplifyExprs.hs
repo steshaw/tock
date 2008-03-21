@@ -214,19 +214,30 @@ transformConstr = doGeneric `ext1M` doStructured
            let indexVar = A.Variable m'' indexName
            scope' <- doGeneric scope
 
-           return $ A.Spec m (A.Specification m' n (A.Declaration m' t)) $ A.ProcThen m''
+           return $ declDest $ A.ProcThen m''
              (A.Seq m'' $ A.Spec m'' indexVarSpec $ A.Several m'' [
-               A.Only m'' $ A.Assign m'' [indexVar] $ A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"],
+               assignIndex0 indexVar,
                A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m''
-                   [ A.Only m'' $ A.Assign m''
-                     [A.SubscriptedVariable m'' (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' indexVar) $ A.Variable m'' n]
-                     $ A.ExpressionList m'' [exp]
-                   , A.Only m'' $ A.Assign m'' [indexVar] $ A.ExpressionList m'' [A.Dyadic m'' A.Plus
-                     (A.ExprVariable m'' indexVar)
-                     (A.Literal m'' A.Int $ A.IntLiteral m'' "1")]
-                   ]
+                   [ assignItem indexVar, incrementIndex indexVar ]
              ])
              scope'
+      where
+        declDest :: Data a => A.Structured a -> A.Structured a
+        declDest = A.Spec m (A.Specification m' n (A.Declaration m' t))
+
+        assignIndex0 :: A.Variable -> A.Structured A.Process
+        assignIndex0 indexVar = A.Only m'' $ A.Assign m'' [indexVar] $
+          A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"]
+
+        incrementIndex :: A.Variable -> A.Structured A.Process
+        incrementIndex indexVar = A.Only m'' $ A.Assign m'' [indexVar] $
+          A.ExpressionList m'' [addOne $ A.ExprVariable m'' indexVar]
+
+        assignItem :: A.Variable -> A.Structured A.Process
+        assignItem indexVar = A.Only m'' $ A.Assign m'' [A.SubscriptedVariable m''
+          (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' indexVar) $
+            A.Variable m'' n] $ A.ExpressionList m'' [exp]
+
     doStructured s = doGeneric s
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
