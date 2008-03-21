@@ -46,6 +46,7 @@ import qualified LexRain as L
 import Metadata (Meta,emptyMeta)
 import qualified ParseRain as RP
 import Pattern
+import TagAST
 import TestUtils
 import TreeUtils
 
@@ -196,6 +197,8 @@ testExprs =
    passE (code,index,expr) = pass(code,RP.expression,assertPatternMatch ("testExprs " ++ show index) (buildExprPattern expr))
    failE x = fail (x,RP.expression)
 
+--TODO add support for shared ? and shared !, as well as any2any channels etc
+
 testLiteral :: [ParseTest A.Expression]
 testLiteral =
  [
@@ -277,9 +280,17 @@ testRange =
     A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral 0) (intLiteral 10000))
   ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 2" $ pat $
     A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral $ -3) (intLiteral $ -1))
+  ,pass("[sint16: 0..1]", RP.expression, rangePattern 4 (A.List A.Int16)
+    (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 0))
+    (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 1)))
+  
   --For now, at least, this should fail:
   ,fail("[0..x]", RP.expression)
  ]
+ where
+   rangePattern :: Int -> A.Type -> Pattern -> Pattern -> (A.Expression -> Assertion)
+   rangePattern n t start end = assertPatternMatch ("testRange " ++ show n) $
+     mExprConstr $ mRangeConstr t start end
 
 --Helper function for ifs:
 makeIf :: [(A.Expression,A.Process)] -> A.Process

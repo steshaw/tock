@@ -269,6 +269,7 @@ data ExprHelper =
   | DirVar A.Direction String
   | Lit A.Expression
   | EHTrue
+  | Range A.Type ExprHelper ExprHelper
 
 buildExprPattern :: ExprHelper -> Pattern
 buildExprPattern = (stopCaringPattern emptyMeta) . mkPattern . buildExpr
@@ -281,6 +282,8 @@ buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
 buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
 buildExpr (Lit e) = e
 buildExpr EHTrue = A.True emptyMeta
+buildExpr (Range t begin end) = A.ExprConstr emptyMeta $ A.RangeConstr emptyMeta t
+  (buildExpr begin) (buildExpr end)
 
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef

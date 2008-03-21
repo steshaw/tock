@@ -34,7 +34,7 @@ import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
-
+import Utils
 
 type RainState = CompState
 type RainParser = GenParser L.Token RainState
@@ -233,9 +233,25 @@ literal = do {lr <- stringLiteral ; return $ A.Literal (findMeta lr) (A.List A.B
           <|> listLiteral
           <?> "literal"
 
+maybeParse :: RainParser a -> RainParser (Maybe a)
+maybeParse p = option Nothing (p >>* Just)
+
 range :: RainParser A.Expression
-range = try $ do {m <- sLeftQ ; begin <- literal; sDots ; end <- literal ;
-  sRightQ ; return $ A.ExprConstr m $ A.RangeConstr m (A.List A.Any) begin end}
+range = try $ do m <- sLeftQ
+                 optTy <- maybeParse $ try $ do t <- dataType
+                                                m <- sColon
+                                                return (t, m)
+                 begin <- literal
+                 sDots
+                 end <- literal
+                 sRightQ
+                 case optTy of
+                   Just (t, mc) -> return $ A.ExprConstr m $ A.RangeConstr m
+                     (A.List t)
+                     (A.Conversion mc A.DefaultConversion t begin)
+                     (A.Conversion mc A.DefaultConversion t end)
+                   Nothing -> return $ A.ExprConstr m $ A.RangeConstr m
+                     (A.List A.Any) begin end
 
 expression :: RainParser A.Expression
 expression
