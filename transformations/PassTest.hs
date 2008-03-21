@@ -207,17 +207,27 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformCons
     startState :: State CompState ()
     startState = defineConst "x" A.Int (intLiteral 42)
 
-    orig = A.Spec m (A.Specification m (simpleName "arr") $ A.IsExpr m A.ValAbbrev (A.Array [dimension 10] A.Int) $ A.ExprConstr m $
-      A.RepConstr m A.Byte (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) (exprVariable "x")
-      ) skipP
+    t = A.Array [dimension 10] A.Int
+
+    orig = A.Spec m (A.Specification m (simpleName "arr") $
+      A.IsExpr m A.ValAbbrev t $ A.ExprConstr m $
+        A.RepConstr m t (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10))
+        (exprVariable "x")) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
-    exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m (A.Byte))) $ 
+    exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m t)) $
       A.ProcThen m 
-      (A.Seq m $ A.Spec m (A.Specification m (simpleName "i") (A.Declaration m A.Int)) $
-          A.Several m [A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [intLiteral 0],
-            A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $ A.Only m $ A.Seq m $ A.Several m
-            [A.Only m $ A.Assign m [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ exprVariable "i") (variable "arr")] $ A.ExpressionList m [exprVariable "x"],
-            A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m [A.Dyadic m A.Plus (exprVariable "i") (intLiteral 1)]]
+      (A.Seq m $ A.Spec m (A.Specification m (simpleName "i")
+          (A.Declaration m A.Int)) $
+        A.Several m [A.Only m $ A.Assign m [variable "i"] $
+            A.ExpressionList m [intLiteral 0],
+          A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $
+            A.Only m $ A.Seq m $ A.Several m
+              [A.Only m $ A.Assign m
+                [A.SubscriptedVariable m (A.Subscript m A.NoCheck $
+                  exprVariable "i") (variable "arr")] $
+                    A.ExpressionList m [exprVariable "x"],
+               A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m
+                 [A.Dyadic m A.Add (intLiteral 1) (exprVariable "i")]]
           ]
       )
       skipP
