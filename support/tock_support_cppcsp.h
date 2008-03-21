@@ -215,6 +215,12 @@ public:
 	{
 		data.push_back(t);
 	}
+
+	//Copy construction has the same behaviour as assignment:
+	inline tockList(const tockList<T>& _rhs)
+	{
+	  *this = _rhs;
+	}
 	
 	inline tockList& operator()(const T& t)
 	{
@@ -250,6 +256,14 @@ public:
 	
 	//TODO add beginParEach
 	//TODO add functions for concatenation
+
+	//By default, the class is mobile, so operator+ adds to this list
+	//and effectively blanks the other
+	inline tockList<T> operator+(const tockList<T>& _rhs) const
+	{
+	  data.splice(data.end(), _rhs.data);
+	  return *this;
+	}
 	
 	//By default the class acts like a mobile thing:
 	inline void operator=(const tockList<T>& _rhs)

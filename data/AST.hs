@@ -307,6 +307,7 @@ data DyadicOp =
   | And | Or
   | Eq | NotEq | Less | More | LessEq | MoreEq
   | After
+  | Concat
   deriving (Show, Eq, Ord, Typeable, Data)
 
 -- | An item in an input.

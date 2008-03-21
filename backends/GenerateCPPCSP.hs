@@ -65,6 +65,8 @@ cppgenOps = cgenOps {
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
     genInputItem = cppgenInputItem,
+    genListAssign = cppgenListAssign,
+    genListConcat = cppgenListConcat,
     genListSize = cppgenListSize,
     genListLiteral = cppgenListLiteral,
     genOutputCase = cppgenOutputCase,
@@ -684,6 +686,13 @@ cppgenType t
         Just s -> tell [s]
         Nothing -> call genMissingC $ formatCode "genType %" t
 
+cppgenListAssign :: A.Variable -> A.Expression -> CGen ()
+cppgenListAssign v e
+  = do call genVariable v
+       tell ["="]
+       call genExpression e
+       tell [";"]
+
 cppgenListSize :: A.Variable -> CGen ()
 cppgenListSize v
  = do call genVariable v
@@ -694,6 +703,14 @@ cppgenListLiteral es t
  = do call genType t
       tell ["()"]
       mapM_ (\e -> tell ["("] >> call genExpression e >> tell [")"]) es
+
+cppgenListConcat :: A.Expression -> A.Expression -> CGen ()
+cppgenListConcat a b
+  = do tell ["("]
+       call genExpression a
+       tell ["+"]
+       call genExpression b
+       tell [")"]
 
 cppgenReplicatorLoop :: A.Replicator -> CGen ()
 cppgenReplicatorLoop rep@(A.For {}) = cgenReplicatorLoop rep

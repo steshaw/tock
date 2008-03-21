@@ -91,6 +91,8 @@ cgenOps = GenOps {
     genInputItem = cgenInputItem,
     genIntrinsicFunction = cgenIntrinsicFunction,
     genIntrinsicProc = cgenIntrinsicProc,
+    genListAssign = cgenListAssign,
+    genListConcat = cgenListConcat,
     genListLiteral = cgenListLiteral,
     genListSize = cgenListSize,
     genLiteral = cgenLiteral,
@@ -513,11 +515,14 @@ genLitSuffix A.UInt64 = tell ["ULL"]
 genLitSuffix A.Real32 = tell ["F"]
 genLitSuffix _ = return ()
 
-cgenListLiteral :: [A.Expression] -> A.Type -> CGen()
+cgenListLiteral :: [A.Expression] -> A.Type -> CGen ()
 cgenListLiteral _ _ = call genMissing "C backend does not yet support lists"
 
 cgenListSize :: A.Variable -> CGen ()
 cgenListSize _ = call genMissing "C backend does not yet support lists"
+
+cgenListAssign :: A.Variable -> A.Expression -> CGen ()
+cgenListAssign _ _ = call genMissing "C backend does not yet support lists"
 
 cgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
 cgenLiteralRepr (A.RealLiteral m s) t = tell [s] >> genLitSuffix t
@@ -951,7 +956,11 @@ cgenDyadic _ A.Less e f = call genSimpleDyadic "<" e f
 cgenDyadic _ A.More e f = call genSimpleDyadic ">" e f
 cgenDyadic _ A.LessEq e f = call genSimpleDyadic "<=" e f
 cgenDyadic _ A.MoreEq e f = call genSimpleDyadic ">=" e f
+cgenDyadic _ A.Concat e f = call genListConcat e f
 --}}}
+
+cgenListConcat :: A.Expression -> A.Expression -> CGen ()
+cgenListConcat _ _ = call genMissing "C backend does not yet support lists"
 
 --{{{  input/output items
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
@@ -1454,6 +1463,7 @@ cgenAssign m [v] (A.ExpressionList _ [e])
              -- Assignment of channel-ends, but not channels, is possible (at least in Rain):
              A.Chan A.DirInput _ _ -> doAssign v e
              A.Chan A.DirOutput _ _ -> doAssign v e
+             A.List _ -> call genListAssign v e
              _ -> call genMissingC $ formatCode "assignment of type %" t
   where
     doAssign :: A.Variable -> A.Expression -> CGen ()

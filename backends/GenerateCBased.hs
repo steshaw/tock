@@ -132,6 +132,8 @@ data GenOps = GenOps {
     genInputItem :: A.Variable -> A.InputItem -> CGen (),
     genIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen (),
     genIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen (),
+    genListAssign :: A.Variable -> A.Expression -> CGen (),
+    genListConcat :: A.Expression -> A.Expression -> CGen (),
     genListLiteral :: [A.Expression] -> A.Type -> CGen (),
     genListSize :: A.Variable -> CGen (),
     genLiteral :: A.LiteralRepr -> A.Type -> CGen (),
