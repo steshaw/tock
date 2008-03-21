@@ -241,9 +241,9 @@ testLiteral =
   --Characters:
   
   ,pass ("'0'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '0')
-  ,pass ("'\\''", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\'')
-  ,pass ("'\\n'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\n')
-  ,pass ("'\\\\'", RP.literal, assertPatternMatch "testLiteral 300" $ makeLiteralCharPattern '\\')
+  ,pass ("'\\''", RP.literal, assertPatternMatch "testLiteral 301" $ makeLiteralCharPattern '\'')
+  ,pass ("'\\n'", RP.literal, assertPatternMatch "testLiteral 302" $ makeLiteralCharPattern '\n')
+  ,pass ("'\\\\'", RP.literal, assertPatternMatch "testLiteral 303" $ makeLiteralCharPattern '\\')
   ,fail ("''",RP.literal)
   ,fail ("'",RP.literal)
   ,fail ("'\\",RP.literal)
