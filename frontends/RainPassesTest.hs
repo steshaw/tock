@@ -201,7 +201,8 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquify
              (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (tag4 A.Proc DontCare A.PlainSpec 
                [tag3 A.Formal A.ValAbbrev A.Byte newcName] (bodyPattern newcName)) A.Original A.Unplaced)
            
-
+-- TODO check that doing {int : c; { int: c; } } does give an error
+-- TODO check that declaring a new proc with the same name as an old one does give an error
 
 
 -- | checks that c's type is recorded in: ***each (c : "hello") {}
