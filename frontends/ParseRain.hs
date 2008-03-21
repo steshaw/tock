@@ -204,12 +204,33 @@ integer
 integerLiteral :: RainParser A.Expression
 integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
 
+listLiteral :: RainParser A.Expression
+listLiteral
+  = try $ do m <- sLeftQ
+             (do try sRightQ
+                 return $ A.Literal m (A.List A.Any) $ A.ListLiteral m []
+              <|> do e0 <- try expression
+                     (do try sRightQ
+                         return $ A.Literal m (A.List A.Any) $
+                           A.ListLiteral m [e0]
+                      -- Up until the first comma, this may be a type declaration
+                      -- in a cast expression, so we "try" all the way
+                      -- up until that comma
+                      <|> do try sComma
+                             es <- sepBy1 expression sComma
+                             sRightQ
+                             return $ A.Literal m (A.List A.Any) $
+                               A.ListLiteral m (e0 : es)
+                      )
+              )
+
 literal :: RainParser A.Expression
 literal = do {lr <- stringLiteral ; return $ A.Literal (findMeta lr) (A.List A.Byte) lr }
           <|> do {c <- literalCharacter ; return $ A.Literal (findMeta c) A.Byte c}
           <|> integerLiteral
           <|> do {m <- reserved "true" ; return $ A.True m}
           <|> do {m <- reserved "false" ; return $ A.False m}
+          <|> listLiteral
           <?> "literal"
 
 range :: RainParser A.Expression

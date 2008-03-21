@@ -5,6 +5,8 @@ process main (?uint8: in, !uint8: out, !uint8: err)
         alphabet = ['a' .. 'z'];
 
         alphabet += ['A' .. 'Z'];
+        
+        alphabet += ['0','1','2'] + ['3','4','5'] + "6789";
 
 	seqeach (c : alphabet)
 	{

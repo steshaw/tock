@@ -52,6 +52,7 @@ import Metadata (emptyMeta)
 import Pass
 import Pattern
 import PrettyShow
+import TagAST
 import TestFramework
 import TreeUtils
 import Types
@@ -256,6 +257,9 @@ makeLiteralStringRainPattern = (stopCaringPattern emptyMeta) . mkPattern . makeL
 -- All meta tags are ignored
 makeLiteralCharPattern :: Char -> Pattern
 makeLiteralCharPattern c = tag3 A.Literal DontCare A.Byte (tag2 A.ByteLiteral DontCare [c])
+
+makeListLiteralPattern :: [Pattern] -> Pattern
+makeListLiteralPattern items = mLiteral (A.List A.Any) (mListLiteral items)
 
 data ExprHelper = 
   Dy ExprHelper A.DyadicOp ExprHelper

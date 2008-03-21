@@ -249,6 +249,23 @@ testLiteral =
   ,fail ("'\\",RP.literal)
   ,fail ("'ab'",RP.literal)  
   ,fail ("'\\n\\n'",RP.literal)  
+
+  -- Lists:
+  ,pass ("[0]", RP.literal, assertPatternMatch "testLiteral 400" $
+    makeListLiteralPattern [intLiteralPattern 0])
+  ,pass ("[]", RP.literal, assertPatternMatch "testLiteral 401" $
+    makeListLiteralPattern [])
+  ,pass ("[0,1,2]", RP.literal, assertPatternMatch "testLiteral 400" $
+    makeListLiteralPattern $ map intLiteralPattern [0,1,2])
+  ,pass ("['0']", RP.literal, assertPatternMatch "testLiteral 400" $
+    makeListLiteralPattern [makeLiteralCharPattern '0'])
+
+  ,fail ("[", RP.literal)
+  ,fail ("]", RP.literal)
+  ,fail ("[,]", RP.literal)
+  ,fail ("[0,]", RP.literal)
+  ,fail ("[,0]", RP.literal)
+  ,fail ("[0,,1]", RP.literal)
  ]
 
 testRange :: [ParseTest A.Expression]
