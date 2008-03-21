@@ -324,6 +324,10 @@ pullUp pullUpArraysInsideRecords
                     A.ExprVariable _ (A.DirectedVariable _ _ _) -> return e'
                     --TODO work out whether to pull up DerefVariable
                     _ -> pull t e'
+                A.List _ ->
+                  case e' of
+                    A.ExprVariable _ _ -> return e'
+                    _ -> pull t e'
                 _ -> return e'
       where
         pull :: A.Type -> A.Expression -> PassM A.Expression
