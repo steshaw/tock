@@ -145,7 +145,9 @@ cppgenTopLevel s
           genName name 
           tell ["("]
           infixComma $ map tlpChannel chans
-          tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<",chanType,">/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}"]
+          tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<"
+               ,chanType,">/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<"
+               ,chanType,">/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}\n"]
   where
     tlpChannel :: (A.Direction,TLPChannel) -> CGen()
     tlpChannel (dir,c) = case dir of
