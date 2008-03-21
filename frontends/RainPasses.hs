@@ -40,6 +40,7 @@ import Types
 rainPasses :: [Pass]
 rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
      [ ("AST Validity check, Rain #1", excludeNonRainFeatures, [], []) -- TODO work out some dependencies
+       ,("Dummy Rain pass", return, [], [Prop.retypesChecked])
        ,("Resolve Int -> Int64", transformInt, [], [Prop.noInt])
        ,("Uniquify variable declarations, record declared types and resolve variable names",
            uniquifyAndResolveVars, [Prop.noInt], namesDone)
