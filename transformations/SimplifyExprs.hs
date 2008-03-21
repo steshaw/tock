@@ -194,7 +194,7 @@ transformConstr = doGeneric `ext1M` doStructured
     doGeneric :: Data t => t -> PassM t
     doGeneric = makeGeneric transformConstr
 
-    -- This takes a constructor expression:
+    -- For arrays, this takes a constructor expression:
     --   VAL type name IS [i = rep | expr]:
     --   ...
     -- and produces this:
@@ -208,19 +208,33 @@ transformConstr = doGeneric `ext1M` doStructured
     --           name[indexvar] := expr
     --           indexvar := indexvar + 1
     --     ...
+    --
+    -- For lists, it takes the similar expression and produces:
+    -- type name:
+    -- PROCTHEN
+    --   SEQ i = rep
+    --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
-      = do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
-           let indexVar = A.Variable m'' indexName
-           scope' <- doGeneric scope
-
-           return $ declDest $ A.ProcThen m''
-             (A.Seq m'' $ A.Spec m'' indexVarSpec $ A.Several m'' [
-               assignIndex0 indexVar,
-               A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $ A.Several m''
-                   [ assignItem indexVar, incrementIndex indexVar ]
-             ])
-             scope'
+      = do scope' <- doGeneric scope
+           case t of
+             A.Array {} ->
+               do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
+                  let indexVar = A.Variable m'' indexName
+                  
+                  return $ declDest $ A.ProcThen m''
+                    (A.Seq m'' $ A.Spec m'' indexVarSpec $
+                      A.Several m'' [assignIndex0 indexVar,
+                        A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $
+                          A.Several m''
+                            [ assignItem indexVar
+                            , incrementIndex indexVar ]
+                    ])
+                    scope'
+             A.List {} ->
+               return $ declDest $ A.ProcThen m''
+                 (A.Seq m'' $ A.Rep m'' rep $ appendItem)
+                 scope'
       where
         declDest :: Data a => A.Structured a -> A.Structured a
         declDest = A.Spec m (A.Specification m' n (A.Declaration m' t))
@@ -237,6 +251,12 @@ transformConstr = doGeneric `ext1M` doStructured
         assignItem indexVar = A.Only m'' $ A.Assign m'' [A.SubscriptedVariable m''
           (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' indexVar) $
             A.Variable m'' n] $ A.ExpressionList m'' [exp]
+
+        appendItem :: A.Structured A.Process
+        appendItem = A.Only m'' $ A.Assign m'' [A.Variable m'' n] $
+          A.ExpressionList m'' [A.Dyadic m'' A.Concat
+            (A.ExprVariable m'' $ A.Variable m'' n)
+            (A.Literal m'' t $ A.ListLiteral m'' [exp])]
 
     doStructured s = doGeneric s
 
