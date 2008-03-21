@@ -40,8 +40,11 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     [ ("Fold constants", foldConstants,
        [],
        [Prop.constantsFolded])
-    , ("Check mandatory constants", checkConstants,
+    , ("Fix the types of array constructors", fixConstructorTypes,
        [Prop.constantsFolded],
+       [Prop.arrayConstructorTypesDone])
+    , ("Check mandatory constants", checkConstants,
+       [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
     , ("Check retyping", checkRetypes,
        [],
@@ -52,6 +55,18 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
                               Prop.inferredTypesRecorded, Prop.mainTagged,
                               Prop.processTypesChecked])
     ]
+
+-- | Fixed the types of array constructors according to the replicator count
+fixConstructorTypes :: Data t => t -> PassM t
+fixConstructorTypes = applyDepthM doExpression
+  where
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression (A.ExprConstr m (A.RepConstr m' _ rep expr))
+      = do t <- typeOfExpression expr
+           let count = countReplicator rep
+               t' = A.Array [A.Dimension count] t
+           return $ A.ExprConstr m $ A.RepConstr m' t' rep expr
+    doExpression e = return e
 
 -- | Fold constant expressions.
 foldConstants :: Data t => t -> PassM t

@@ -22,6 +22,8 @@ module Properties
   , agg_typesDone
   , afterRemoved
   , allChansToAnyOrProtocol
+  , arrayConstructorsRemoved
+  , arrayConstructorTypesDone
   , arrayLiteralsExpanded
   , arraySizesDeclared
   , assignFlattened
@@ -323,6 +325,12 @@ afterRemoved = Property "afterRemoved" $
 
 arrayLiteralsExpanded :: Property
 arrayLiteralsExpanded = Property "arrayLiteralsExpanded" checkTODO
+
+arrayConstructorsRemoved :: Property
+arrayConstructorsRemoved = Property "arrayConstructorsRemoved" checkTODO
+
+arrayConstructorTypesDone :: Property
+arrayConstructorTypesDone = Property "arrayConstructorTypesDone" checkTODO
 
 findFunctionCalls :: A.Expression -> Bool
 findFunctionCalls (A.FunctionCall {}) = True
