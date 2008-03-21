@@ -214,7 +214,22 @@ checkExpressionTypes = applyDepthM checkExpression
              then checkTimeExpression m op (tlhs, lhs) (trhs, rhs)
              else 
                if (tlhs == trhs)
-                 then (if validOpSameType op tlhs then return e else diePC m $ formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs)
+                 then
+                   -- Types identical.  At this point we consider whether the
+                   -- user is adding two lists (in which case, correct the
+                   -- operator), otherwise we just need to check the operator
+                   -- is valid on the types (to avoid two channels of the same
+                   -- type being added, for example)
+                   case (tlhs, op) of
+                     (A.List _, A.Plus) -> return $ A.Dyadic m A.Concat lhs rhs 
+                     _ -> if validOpSameType op tlhs
+                            then return e
+                            else diePC m $ formatCode
+                              "Operator: \"%\" is not valid on type: \"%\""
+                              op tlhs
+                   -- Types differ.  If they are integers, we can look for
+                   -- a common (more general) type for both of them to be cast
+                   -- up into in order to perform the operation.
                  else if (isIntegerType tlhs && isIntegerType trhs) 
                         then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
                                Nothing -> diePC m $ formatCode "Cannot find a suitable type to convert expression to, types are: % and %" tlhs trhs
