@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Types
   (
     specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
-    , isRealType, isIntegerType, isCaseableType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
+    , isRealType, isIntegerType, isCaseableType, isScalarType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
@@ -474,7 +474,7 @@ isIntegerType t
         A.Int64 -> True
         _ -> False
 
--- Real types.
+-- | Scalar real types.
 isRealType :: A.Type -> Bool
 isRealType t
     = case t of
@@ -482,10 +482,15 @@ isRealType t
         A.Real64 -> True
         _ -> False
 
--- Types that are permitted as CASE selectors.
+-- | Types that are permitted as 'Case' selectors.
 isCaseableType :: A.Type -> Bool
 isCaseableType A.Bool = True
 isCaseableType t = isIntegerType t
+
+-- | All scalar types.
+isScalarType :: A.Type -> Bool
+isScalarType A.Bool = True
+isScalarType t = isIntegerType t || isRealType t
 --}}}
 
 --{{{ sizes of types
