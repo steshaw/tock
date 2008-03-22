@@ -70,8 +70,8 @@ process consume_int(?int: in, !uint8: out) ### uses (time)
 		int: m;
 		m = toMicros(t1 - t0) / 1000000;
 		
-		out ! "Time per commstime iteration in micro-seconds: " 
-		out ! int_to_str(m) 
+		out ! "Time per commstime iteration in micro-seconds: ";
+		out ! int_to_str(m);
 		out ! "\n";
 	}
 }
