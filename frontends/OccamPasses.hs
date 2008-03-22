@@ -29,6 +29,7 @@ import Errors
 import EvalConstants
 import EvalLiterals
 import Metadata
+import OccamTypes
 import Pass
 import qualified Properties as Prop
 import ShowCode
@@ -46,6 +47,9 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     , ("Check mandatory constants", checkConstants,
        [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
+    , ("Check types", checkTypes,
+       [],
+       [Prop.expressionTypesChecked, Prop.processTypesChecked])
     , ("Check retyping", checkRetypes,
        [],
        [Prop.retypesChecked])
