@@ -258,7 +258,8 @@ checkExpressionTypes = applyDepthM checkExpression
              then return e
              else if isImplicitConversionRain src dest
                     then return e
-                    else diePC m $ formatCode "Invalid cast from: % to: %" dest src
+                    else diePC m $ formatCode "Invalid cast from: % to: %"
+                      src dest
     checkExpression e = return e
 
     convert :: A.Type -> A.Type -> A.Expression -> A.Expression
