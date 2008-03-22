@@ -98,12 +98,12 @@ typeOfRecordField m t field
           checkJust (Just m, "unknown record field") $ lookup field fs
 
 -- | Apply a plain subscript to a type.
-plainSubscriptType :: (CSMR m, Die m) => Meta -> A.Expression -> A.Type -> m A.Type
-plainSubscriptType m sub (A.Array (_:ds) t)
+plainSubscriptType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
+plainSubscriptType m (A.Array (_:ds) t)
     = return $ case ds of
                  [] -> t
                  _ -> A.Array ds t
-plainSubscriptType m _ t = diePC m $ formatCode "subscript of non-array type: %" t
+plainSubscriptType m t = diePC m $ formatCode "Subscript of non-array type: %" t
 
 -- | Turn an expression into a 'Dimension'.
 -- If the expression is constant, it'll produce 'Dimension'; if not, it'll
@@ -130,7 +130,7 @@ subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
 subscriptType (A.SubscriptFor m count) (A.Array (_:ds) t)
     = return $ A.Array (dimensionFromExpr count : ds) t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
-subscriptType (A.Subscript m _ sub) t = plainSubscriptType m sub t
+subscriptType (A.Subscript m _ _) t = plainSubscriptType m t
 subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %" t
 
 -- | The inverse of 'subscriptType': given a type that we know is the result of
@@ -296,7 +296,7 @@ resolveUserType m (A.UserDataType n)
     =  do st <- specTypeOfName n
           case st of
             A.DataType _ t -> resolveUserType m t
-            _ -> dieP m $ "not a type name " ++ show n
+            _ -> dieP m $ "Not a type name: " ++ show n
 resolveUserType _ t = return t
 
 -- | Add array dimensions to a type; if it's already an array it'll just add
