@@ -31,7 +31,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
-import Errors (Die, dieP, ErrorReport)
+import Errors (Die, dieP, ErrorReport, Warn, warnP)
 import Metadata
 
 -- | Modes that Tock can run in.
@@ -300,6 +300,9 @@ makeNonceVariable s m t nt am
 
 diePC :: (CSMR m, Die m) => Meta -> m String -> m a
 diePC m str = str >>= (dieP m)
+
+warnPC :: (CSMR m, Warn m) => Meta -> m String -> m ()
+warnPC m str = str >>= (warnP m)
 
 --dieC :: (CSM m, Die m) => m String -> m a
 --dieC str = str >>= die

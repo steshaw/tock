@@ -17,7 +17,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Error handling and reporting.
-module Errors (addPlainWarning, addWarning, checkJust, Die(..), dieInternal, dieIO, dieP, ErrorReport, showWarnings, Warn(..), WarningReport) where
+module Errors (addPlainWarning, addWarning, checkJust, Die(..),
+  dieInternal, dieIO, dieP, ErrorReport,
+  showWarnings, Warn(..), WarningReport, warnP) where
 
 import Control.Monad.Error
 import Control.Monad.Trans
@@ -44,6 +46,9 @@ type WarningReport = (Maybe Meta, String)
 
 class Monad m => Warn m where
   warnReport :: WarningReport -> m ()
+
+warnP :: Warn m => Meta -> String -> m ()
+warnP m s = warnReport (Just m,s)
 
 --{{{  warnings
 -- | Add a warning with no source position.
