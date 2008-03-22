@@ -191,6 +191,18 @@ testExprs =
   ,failE (":?c")
   
   ,passE ("(48 + (uint8: src % 10)) + r",300,Dy (Dy (Lit $ intLiteral 48) A.Plus (Cast A.Byte $ Dy (Var "src") A.Rem (Lit $ intLiteral 10))) A.Plus (Var "r"))
+
+  -- Function calls:
+  ,passE ("foo()", 400, Func "foo" [])
+  ,passE ("foo(0)", 401, Func "foo" [Lit $ intLiteral 0])
+  ,passE ("foo(0,1,2,3)", 402, Func "foo" $ map (Lit . intLiteral) [0,1,2,3])
+  ,passE ("2 + foo()", 403, Dy (Lit $ intLiteral 2) A.Plus $ Func "foo" [])
+  ,failE ("foo(")
+  ,failE ("foo)")
+  ,failE ("foo + 2()")
+  ,failE ("[]()")
+  ,failE ("()()")
+  
  ]
  where
    passE :: (String,Int,ExprHelper) -> ParseTest A.Expression

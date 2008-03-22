@@ -277,7 +277,12 @@ expression
     foldOps lhs (m,op,rhs) = A.Dyadic m op lhs rhs
 
     subExpr' :: RainParser A.Expression
-    subExpr' = do {id <- variable ; return $ A.ExprVariable (findMeta id) id}
+    subExpr' = try ( do funcName <- name
+                        sLeftR
+                        es <- sepBy expression sComma
+                        sRightR
+                        return $ A.FunctionCall (A.nameMeta funcName) funcName es)
+               <|> do {id <- variable ; return $ A.ExprVariable (findMeta id) id}
                <|> literal
                <|> range
                <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
