@@ -68,14 +68,14 @@ testOccamTypes :: Test
 testOccamTypes = TestList
     [
     -- Subscript expressions
-      testOK     0 $ A.Subscript m A.NoCheck intE
-    , testFail   1 $ A.Subscript m A.NoCheck byteE
-    , testOK     2 $ A.SubscriptFromFor m intE intE
-    , testFail   3 $ A.SubscriptFromFor m byteE byteE
-    , testOK     4 $ A.SubscriptFrom m intE
-    , testFail   5 $ A.SubscriptFrom m byteE
-    , testOK     6 $ A.SubscriptFor m intE
-    , testFail   7 $ A.SubscriptFor m byteE
+      testOK     0 $ subex $ A.Subscript m A.NoCheck intE
+    , testFail   1 $ subex $ A.Subscript m A.NoCheck byteE
+    , testOK     2 $ subex $ A.SubscriptFromFor m intE intE
+    , testFail   3 $ subex $ A.SubscriptFromFor m byteE byteE
+    , testOK     4 $ subex $ A.SubscriptFrom m intE
+    , testFail   5 $ subex $ A.SubscriptFrom m byteE
+    , testOK     6 $ subex $ A.SubscriptFor m intE
+    , testFail   7 $ subex $ A.SubscriptFor m byteE
 
     -- Trivial literals
     , testOK    20 $ intE
@@ -232,6 +232,7 @@ testOccamTypes = TestList
                                         (OccamTypes.checkTypes orig)
                                         startState
 
+    subex sub = A.SubscriptedExpr m sub twoIntsE
     intV = variable "varInt"
     intE = intLiteral 42
     realV = variable "varReal"
