@@ -242,7 +242,11 @@ returnTypesOfFunction n
 
 returnTypesOfIntrinsic :: (CSMR m, Die m) => Meta -> String -> m [A.Type]
 returnTypesOfIntrinsic m s
-    = case lookup s intrinsicFunctions of
+ = do frontend <- getCompState >>* csFrontend
+      let intrinsicList = case frontend of
+            FrontendOccam -> intrinsicFunctions
+            FrontendRain -> rainIntrinsicFunctions
+      case lookup s intrinsicList of
         Just (rts, _) -> return rts
         Nothing -> dieP m $ "unknown intrinsic function " ++ s
 

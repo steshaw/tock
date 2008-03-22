@@ -30,6 +30,7 @@ import Text.ParserCombinators.Parsec
 import qualified AST as A
 import CompState
 import Errors
+import Intrinsics
 import qualified LexRain as L
 import Metadata
 import ParseUtils
@@ -277,16 +278,23 @@ expression
     foldOps lhs (m,op,rhs) = A.Dyadic m op lhs rhs
 
     subExpr' :: RainParser A.Expression
-    subExpr' = try ( do funcName <- name
-                        sLeftR
-                        es <- sepBy expression sComma
-                        sRightR
-                        return $ A.FunctionCall (A.nameMeta funcName) funcName es)
+    subExpr' = try functionCall
                <|> do {id <- variable ; return $ A.ExprVariable (findMeta id) id}
                <|> literal
                <|> range
                <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
                <|> do {sLeftR ; e <- expression ; sRightR ; return e}
+
+functionCall :: RainParser A.Expression
+functionCall =  do funcName <- name
+                   sLeftR
+                   es <- sepBy expression sComma
+                   sRightR
+                   case lookup (A.nameName funcName) rainIntrinsicFunctions of
+                     Just _ -> return $ A.IntrinsicFunctionCall (A.nameMeta
+                       funcName) (A.nameName funcName) es
+                     Nothing -> return $
+                       A.FunctionCall (A.nameMeta funcName) funcName es
 
 data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
 

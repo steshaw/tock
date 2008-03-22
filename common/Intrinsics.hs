@@ -33,3 +33,15 @@ intrinsicProcs =
     , ("RESCHEDULE", [])
     ]
 
+rainIntrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
+rainIntrinsicFunctions =
+    -- Time functions:
+    [ ("toSeconds", ([A.Real64], [(A.Time, "time")]))
+    , ("toMillis", ([A.Int64], [(A.Time, "time")]))
+    , ("toMicros", ([A.Int64], [(A.Time, "time")]))
+    , ("toNanos", ([A.Int64], [(A.Time, "time")]))
+    , ("fromSeconds", ([A.Time], [(A.Real64, "value")]))
+    , ("fromMillis", ([A.Time], [(A.Int64, "value")]))
+    , ("fromMicros", ([A.Time], [(A.Int64, "value")]))
+    , ("fromNanos", ([A.Time], [(A.Int64, "value")]))
+    ]
