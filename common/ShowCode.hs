@@ -203,6 +203,12 @@ formatCode fmt = chain (splitRegex (mkRegex "%") fmt) []
 
 --Type-class instances follow for ShowOccam and ShowRain:
 
+instance ShowOccam A.Name where
+  showOccamM n = showName n
+
+instance ShowRain A.Name where
+  showRainM n = showName n
+
 instance ShowOccam A.Type where
   showOccamM A.Bool = tell ["BOOL"]
   showOccamM A.Byte = tell ["BYTE"]
