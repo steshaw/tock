@@ -151,7 +151,10 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
                then do transActualParams <- mapM (doExpParam m (A.nameName n)) (zip3 [0..] expectedParams actualParams)
                        return $ A.FunctionCall m n transActualParams
                else dieP m $ "Wrong number of parameters given to function call; expected: " ++ show (length expectedParams) ++ " but found: " ++ show (length actualParams)
-             _ -> dieP m $ "Attempt to make a function call with something that is not a function: \"" ++ (show $ A.nameName n) ++ "\""
+             _ -> dieP m $ "Attempt to make a function call with something"
+                        ++ " that is not a function: \"" ++ A.nameName n
+                        ++ "\"; is actually: " ++ showConstr (toConstr $
+                          A.ndType def)
     matchParamPassFunc e = return e
 
     --Checks the type of a parameter (A.Actual), and inserts a cast if it is safe to do so
