@@ -1,0 +1,23 @@
+process id_uint8(?uint8: in, !uint8: out)
+{
+	while (true)
+	{
+		uint8: c;
+		in ? c;
+		out ! c;
+	}
+}
+
+process main (?uint8: in, !uint8: out, !uint8: err)
+{
+    channel uint8: x;
+    
+    par
+    {
+    	run id_uint8(?x,out);
+    	seqeach (ch : "hello")
+		{
+			x ! ch;
+		}
+	}
+}

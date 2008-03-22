@@ -1,0 +1,89 @@
+process prefix_int(int: pre, ?int: in, !int: out)
+{
+    out ! pre;
+	while (true)
+	{
+		int: n;
+		in ? n;
+		out ! n;
+	}
+}
+
+process succ_int(?int: in,!int : out)
+{
+	while (true)
+	{
+		int: n;
+		in ? n;
+		out ! n + 1;
+	}
+}
+
+process seq_delta2_int(?int: in, !int: out0, !int: out1)
+{
+	while (true)
+	{
+		int: n;
+		in ? n;
+		out0 ! n;
+		out1 ! n;
+	}
+}
+
+function string : int_to_str(int: src)
+{
+	int: x;
+	string: r;
+	x = src;
+	
+	while (src > 0)
+	{
+		r = ('0' + (uint8: src % 10)) + r;
+		src /= 10;		
+	}
+	
+	return r;
+}
+
+process consume_int(?int: in, !uint8: out) ### uses (time)
+{
+	### Warm-up:
+	
+	seqeach (n : [1..100])
+	{
+		in ? _;
+	}
+	
+	while (true)
+	{
+		int: n;
+		time: t0,t1;
+		n = 0;
+		now t;
+		while (n < 1000000)
+		{
+			in ? _;
+			n += 1;
+		}
+		now t1;
+		
+		int: m;
+		m = toMicros(t1 - t0) / 1000000;
+		
+		out ! "Time per commstime iteration in micro-seconds: " 
+		out ! int_to_str(m) 
+		out ! "\n";
+	}
+}
+
+process main(!uint8: out)
+{
+	channel int: c,d,e,f;
+	par
+	{
+		run prefix_int(0,?c,!d);
+		run seq_delta2_int(?d,!e,!f);
+		run succ_int(?e,!c);
+		run consume_int(?f,out);
+	}
+}

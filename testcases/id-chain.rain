@@ -1,0 +1,50 @@
+
+process id_int(?int : in, !int: out)
+{
+	while (true)
+	{
+		int: n;
+		in ? n;
+		out ! n;
+	}
+}
+
+process id_int_ring(?int: in, !int: out, int: n)
+{
+	if (n == 1)
+	{
+		run id_int(in,out);
+	}
+	else
+	{
+		channel int: c;
+		par
+		{
+			run id_int(in, !c);
+			run id_int_ring(?c, out, n - 1);
+		}
+	}
+}
+
+process main()
+{
+	channel int: start,end;
+	
+	par
+	{
+		run id_int_ring(?start, !end, 100);
+		seq
+		{
+			seqeach (n : [0..99])
+			{
+				start ! n;
+			}
+			
+			int: x;
+			seqeach (n : [0..99])
+			{
+				end ? x;
+			}
+		}
+	}
+}
