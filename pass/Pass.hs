@@ -217,6 +217,20 @@ applyDepthM2 f1 f2 = doGeneric `extM` (doSpecific f1) `extM` (doSpecific f2)
     doSpecific :: Data t2 => (t2 -> PassM t2) -> t2 -> PassM t2
     doSpecific f x = (doGeneric x >>= f)
 
+-- | Apply a check (a monadic operation that returns nothing, but can succeed
+-- or fail) everywhere it matches in the AST, going depth-first.
+checkDepthM :: forall a t. (Data a, Data t) => (a -> PassM ()) -> t -> PassM t
+checkDepthM f = doGeneric `extM` (doSpecific f)
+  where
+    doGeneric :: Data t1 => t1 -> PassM t1
+    doGeneric = gmapMFor (undefined :: a) (checkDepthM f)
+
+    doSpecific :: Data t2 => (t2 -> PassM ()) -> t2 -> PassM t2
+    doSpecific f x
+        =  do x' <- doGeneric x
+              f x'
+              return x'
+
 excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 
   = if null items then return x else dieInternal (Nothing, "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x)
