@@ -234,15 +234,21 @@ checkFunction = everywhereM (mkM checkFunction')
     checkFunction' :: A.Specification -> PassM A.Specification
     checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Right body)))
       = case body of 
-          (A.Seq m' (A.Several m'' statements)) ->
+          (A.Seq m' seqBody) ->
+            let A.Several _ statements = skipSpecs seqBody in
             if (null statements)
               then dieP m "Functions must not have empty bodies"
               else case (last statements) of
                 (A.Only _ (A.Assign _ [A.Variable _ dest] _)) -> if A.nameName n == A.nameName dest then return spec else
                   dieP m "Functions must have a return statement as their last statement."
                 _ -> dieP m "Functions must have a return statement as their last statement"
-          _ -> dieP m "Functions must have seq[uential] bodies"
+          _ -> dieP m $ "Functions must have seq[uential] bodies, found instead: "
+                 ++ showConstr (toConstr body)
     checkFunction' s = return s
+
+    skipSpecs :: A.Structured A.Process -> A.Structured A.Process
+    skipSpecs (A.Spec _ _ inner) = skipSpecs inner
+    skipSpecs s = s
 
 -- | Pulls up the list expression into a variable.
 -- This is done no matter how simple the expression is; when we reach the
