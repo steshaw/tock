@@ -121,25 +121,15 @@ uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
                                    A.ndNameType = A.ProcName, A.ndType = newProc, 
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newProc) scope
-           where
-             --This function is like applying mapM to doFormals', but we need to let each doFormals' call in turn
-             --transform the scope of the formals.  This could possibly be done by using a StateT monad with the scope,
-             --but this method works just as well:
-             doFormals :: Data t => [A.Formal] -> t -> PassM ([A.Formal],t)
-             doFormals [] s = return ([],s)
-             doFormals (f:fs) s = do (f',s') <- doFormals' f s
-                                     (fs',s'') <- doFormals fs s'
-                                     return ((f':fs'),s'')
-             doFormals' :: Data t => A.Formal -> t -> PassM (A.Formal,t)
-             doFormals' (A.Formal am t n) scope
-               = do n' <- makeNonce $ A.nameName n
-                    let newName = (n {A.nameName = n'})
-                    let m = A.nameMeta n
-                    defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
-                                                  A.ndNameType = A.VariableName, A.ndType = (A.Declaration m t),
-                                                  A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
-                    let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
-                    return (A.Formal am t newName, scope')
+    -- Functions:
+    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n
+      (A.Function m'' funcMode retTypes params funcBody)) scope)
+      = do (params', funcBody') <- doFormals params funcBody
+           let newFunc = (A.Function m'' funcMode retTypes params' funcBody')
+           defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
+                                   A.ndNameType = A.FunctionName, A.ndType = newFunc,
+                                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+           return $ A.Spec m (A.Specification m' n newFunc) scope
 
     -- replicator names have their types recorded later, but are
     -- uniquified and resolved here
@@ -149,6 +139,25 @@ uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
            return $ A.Rep m (A.ForEach m' (n {A.nameName = n'}) e) scope'
     --Other:
     uniquifyAndResolveVars' s = return s
+
+    --This function is like applying mapM to doFormals', but we need to let each doFormals' call in turn
+    --transform the scope of the formals.  This could possibly be done by using a StateT monad with the scope,
+    --but this method works just as well:
+    doFormals :: Data t => [A.Formal] -> t -> PassM ([A.Formal],t)
+    doFormals [] s = return ([],s)
+    doFormals (f:fs) s = do (f',s') <- doFormals' f s
+                            (fs',s'') <- doFormals fs s'
+                            return ((f':fs'),s'')
+    doFormals' :: Data t => A.Formal -> t -> PassM (A.Formal,t)
+    doFormals' (A.Formal am t n) scope
+      = do n' <- makeNonce $ A.nameName n
+           let newName = (n {A.nameName = n'})
+           let m = A.nameMeta n
+           defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
+                                         A.ndNameType = A.VariableName, A.ndType = (A.Declaration m t),
+                                         A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
+           let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
+           return (A.Formal am t newName, scope')
 
 -- | Helper function for a few of the passes.  Replaces 'A.nameName' of a 'A.Name' if it matches a given 'String'.
 replaceNameName :: 
