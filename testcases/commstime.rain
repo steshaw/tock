@@ -30,15 +30,15 @@ process seq_delta2_int(?int: in, !int: out0, !int: out1)
 	}
 }
 
-function string : int_to_str(int: src)
+function [uint8] : int_to_str(int: src)
 {
 	int: x;
-	string: r;
+	[uint8]: r;
 	x = src;
 	
 	while (src > 0)
 	{
-		r = ('0' + (uint8: src % 10)) + r;
+		r = ['0' + (uint8: src % 10)] + r;
 		src /= 10;		
 	}
 	
