@@ -37,21 +37,20 @@ m = emptyMeta
 -- | Initial state for the tests.
 startState :: State CompState ()
 startState
-    =  do defineConst "const" A.Int (intLiteral 2)
-          defineConst "someInt" A.Int (intLiteral 42)
-          defineConst "someByte" A.Byte (byteLiteral 24)
-          defineConst "someInts" (A.Array [A.UnknownDimension] A.Int)
-                      (A.Literal m (A.Array [A.UnknownDimension] A.Int)
-                                   (A.ArrayLiteral m []))
-          defineConst "someBytes" (A.Array [A.UnknownDimension] A.Byte)
-                      (A.Literal m (A.Array [A.UnknownDimension] A.Int)
-                                   (A.ArrayLiteral m []))
+    =  do defineConst "constInt" A.Int (intLiteral 2)
+          defineConst "constInts" intsT (A.Literal m intsT arrayLit)
+          defineVariable "varInt" A.Int
+          defineVariable "varByte" A.Byte
+          defineVariable "varReal" A.Real32
+          defineVariable "varInts" (A.Array [A.UnknownDimension] A.Int)
+          defineVariable "varBytes" (A.Array [A.UnknownDimension] A.Byte)
           defineUserDataType "MYINT" A.Int
           defineUserDataType "MY2INT" (A.Array [dimension 2] A.Int)
           defineRecordType "COORD2" [("x", A.Int), ("y", A.Int)]
           defineRecordType "COORD3" [("x", A.Real32), ("y", A.Real32),
                                      ("z", A.Real32)]
-          defineChannel "chanInt" (A.Chan A.DirUnknown ca A.Int)
+          defineChannel "chanInt" chanIntT
+          defineChannel "chansInt" (A.Array [A.UnknownDimension] chanIntT)
           defineVariable "mobileInt" (A.Mobile A.Int)
           defineFunction "function0" [A.Int] []
           defineFunction "function1" [A.Int] [("x", A.Int)]
@@ -60,6 +59,9 @@ startState
                                       [("x", A.Int), ("y", A.Int)]
   where
     ca = A.ChanAttributes False False
+    intsT = A.Array [A.UnknownDimension] A.Int
+    arrayLit = A.ArrayLiteral m []
+    chanIntT = A.Chan A.DirUnknown ca A.Int
 
 -- | Test the typechecker.
 testOccamTypes :: Test
@@ -186,6 +188,36 @@ testOccamTypes = TestList
     , testOK   254 $ A.AllocMobile m (A.Mobile twoIntsT) (Just twoIntsE)
     , testFail 255 $ A.AllocMobile m (A.Mobile unknownIntsT) (Just twoIntsE)
     , testFail 256 $ A.AllocMobile m (A.Mobile unknownIntsT) Nothing
+
+    -- Input items
+    , testOK   300 $ A.InCounted m intV intsV
+    , testFail 301 $ A.InCounted m realV intsV
+    , testFail 302 $ A.InCounted m intV intV
+    , testFail 303 $ A.InCounted m constIntV intsV
+    , testFail 304 $ A.InCounted m intV constIntsV
+    , testFail 305 $ A.InCounted m intV chansIntV
+    , testOK   306 $ A.InVariable m intV
+    , testFail 307 $ A.InVariable m constIntV
+    , testFail 308 $ A.InVariable m chanIntV
+
+    -- Output items
+    , testOK   310 $ A.OutCounted m intE twoIntsE
+    , testFail 311 $ A.OutCounted m realE twoIntsE
+    , testFail 312 $ A.OutCounted m intE intE
+    , testOK   313 $ A.OutExpression m intE
+    , testFail 313 $ A.OutExpression m chanIntE
+
+    -- Replicators
+    , testOK   320 $ A.For m i intE intE
+    , testFail 321 $ A.For m i realE intE
+    , testFail 322 $ A.For m i intE realE
+    , testOK   323 $ A.ForEach m i twoIntsE
+    , testOK   324 $ A.ForEach m i listE
+    , testFail 324 $ A.ForEach m i intE
+
+    -- Choices
+    , testOK   330 $ A.Choice m boolE skip
+    , testFail 331 $ A.Choice m intE skip
     ]
   where
     testOK :: (Show a, Data a) => Int -> a -> Test
@@ -200,13 +232,16 @@ testOccamTypes = TestList
                                         (OccamTypes.checkTypes orig)
                                         startState
 
-    intV = variable "someInt"
+    intV = variable "varInt"
     intE = intLiteral 42
+    realV = variable "varReal"
     realE = A.Literal m A.Real32 $ A.RealLiteral m "3.14159"
-    byteV = variable "someByte"
+    byteV = variable "varByte"
     byteE = byteLiteral 42
-    intsV = variable "someInts"
-    bytesV = variable "someBytes"
+    intsV = variable "varInts"
+    bytesV = variable "varBytes"
+    constIntV = variable "constInt"
+    constIntsV = variable "constInts"
     boolE = boolLiteral True
     unknownIntsT = A.Array [A.UnknownDimension] A.Int
     twoIntsT = A.Array [dimension 2] A.Int
@@ -227,6 +262,8 @@ testOccamTypes = TestList
     coord3T = A.Record (simpleName "COORD3")
     coord3 = A.RecordLiteral m [realE, realE, realE]
     chanIntV = variable "chanInt"
+    chanIntE = A.ExprVariable m chanIntV
+    chansIntV = variable "chanInt"
     mobileIntV = variable "mobileInt"
     sub0 = A.Subscript m A.NoCheck (intLiteral 0)
     sub0E = A.SubscriptedExpr m sub0
@@ -238,6 +275,8 @@ testOccamTypes = TestList
     function22 = simpleName "function22"
     listT = A.List A.Int
     listE = A.Literal m listT (A.ListLiteral m [intE, intE, intE])
+    i = simpleName "i"
+    skip = A.Skip m
 
 tests :: Test
 tests = TestLabel "OccamTypesTest" $ TestList

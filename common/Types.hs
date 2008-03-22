@@ -20,7 +20,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Types
   (
     specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
-    , isRealType, isIntegerType, isCaseableType, isScalarType, resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
+    , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isCommunicableType, isSequenceType
+    , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
@@ -472,6 +473,7 @@ isIntegerType t
         A.Int16 -> True
         A.Int32 -> True
         A.Int64 -> True
+        A.Time -> True
         _ -> False
 
 -- | Scalar real types.
@@ -482,6 +484,10 @@ isRealType t
         A.Real64 -> True
         _ -> False
 
+-- | Numeric types.
+isNumericType :: A.Type -> Bool
+isNumericType t = isIntegerType t || isRealType t
+
 -- | Types that are permitted as 'Case' selectors.
 isCaseableType :: A.Type -> Bool
 isCaseableType A.Bool = True
@@ -491,6 +497,21 @@ isCaseableType t = isIntegerType t
 isScalarType :: A.Type -> Bool
 isScalarType A.Bool = True
 isScalarType t = isIntegerType t || isRealType t
+
+-- | Types that can be communicated across a channel.
+isCommunicableType :: A.Type -> Bool
+isCommunicableType (A.Array _ t) = isCommunicableType t
+isCommunicableType (A.List t) = isCommunicableType t
+isCommunicableType (A.Record _) = True
+isCommunicableType (A.Mobile _) = True
+isCommunicableType t = isScalarType t
+
+-- | Types that support 'Size' and subscripting.
+isSequenceType :: A.Type -> Bool
+isSequenceType (A.Array _ _) = True
+isSequenceType (A.List _) = True
+isSequenceType _ = False
+
 --}}}
 
 --{{{ sizes of types

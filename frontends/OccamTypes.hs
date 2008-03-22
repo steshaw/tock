@@ -89,29 +89,33 @@ checkType m et rt
     bad :: PassM ()
     bad = diePC m $ formatCode "Type mismatch: found %, expected %" rt et
 
+-- | Check a type against a predicate.
+checkTypeClass :: (A.Type -> Bool) -> String -> Meta -> A.Type -> PassM ()
+checkTypeClass f adjective m rawT
+    =  do t <- underlyingType m rawT
+          if f t
+            then ok
+            else diePC m $ formatCode ("Expected " ++ adjective ++ " type; found %") t
+
 -- | Check that a type is numeric.
 checkNumeric :: Meta -> A.Type -> PassM ()
-checkNumeric m rawT
-    =  do t <- underlyingType m rawT
-          if isIntegerType t || isRealType t
-            then ok
-            else diePC m $ formatCode "Expected numeric type; found %" t
+checkNumeric = checkTypeClass isNumericType "numeric"
 
 -- | Check that a type is integral.
 checkInteger :: Meta -> A.Type -> PassM ()
-checkInteger m rawT
-    =  do t <- underlyingType m rawT
-          if isIntegerType t
-            then ok
-            else diePC m $ formatCode "Expected integer type; found %" t
+checkInteger = checkTypeClass isIntegerType "integer"
 
 -- | Check that a type is scalar.
 checkScalar :: Meta -> A.Type -> PassM ()
-checkScalar m rawT
-    =  do t <- underlyingType m rawT
-          if isScalarType t
-            then ok
-            else diePC m $ formatCode "Expected scalar type; found %" t
+checkScalar = checkTypeClass isScalarType "scalar"
+
+-- | Check that a type is communicable.
+checkCommunicable :: Meta -> A.Type -> PassM ()
+checkCommunicable = checkTypeClass isCommunicableType "communicable"
+
+-- | Check that a type is a sequence.
+checkSequence :: Meta -> A.Type -> PassM ()
+checkSequence = checkTypeClass isSequenceType "array or list"
 
 -- | Check that a type is an array.
 -- (This also gets used elsewhere where we *know* the argument isn't an array,
@@ -120,15 +124,16 @@ checkArray :: Meta -> A.Type -> PassM ()
 checkArray m rawT
     =  do t <- underlyingType m rawT
           case t of
-            (A.Array _ _) -> ok
+            A.Array _ _ -> ok
             _ -> diePC m $ formatCode "Expected array type; found %" t
 
 -- | Check that a type is a list.
+-- Return the element type of the list.
 checkList :: Meta -> A.Type -> PassM ()
 checkList m rawT
     =  do t <- underlyingType m rawT
           case t of
-            (A.List _) -> ok
+            A.List _ -> ok
             _ -> diePC m $ formatCode "Expected list type; found %" t
 
 -- | Check the type of an expression.
@@ -184,11 +189,10 @@ checkSubscriptType m s rawT
             -- A record subscript.
             A.SubscriptField m n ->
               checkRecordField m t n
-            -- An array subscript.
-            _ ->
-              case t of
-                A.Array _ _ -> ok
-                _ -> checkArray m t
+            -- A sequence subscript.
+            A.Subscript _ _ _ -> checkSequence m t
+            -- An array slice.
+            _ -> checkArray m t
 
 -- | Classes of operators.
 data OpClass = NumericOp | IntegerOp | ShiftOp | BooleanOp | ComparisonOp
@@ -308,6 +312,15 @@ checkAllocMobile m rawT me
     checkFullDimension A.UnknownDimension
         = dieP m $ "Type in allocation contains unknown dimensions"
     checkFullDimension _ = ok
+
+-- | Check that a variable is writable.
+checkWritable :: A.Variable -> PassM ()
+checkWritable v
+    =  do am <- abbrevModeOfVariable v
+          case am of
+            A.ValAbbrev -> dieP (findMeta v) $ "Expected a writable variable"
+            _ -> ok
+
 --}}}
 
 -- | Check the AST for type consistency.
@@ -318,7 +331,11 @@ checkTypes t =
     checkSubscripts t >>=
     checkLiterals >>=
     checkVariables >>=
-    checkExpressions
+    checkExpressions >>=
+    checkInputItems >>=
+    checkOutputItems >>=
+    checkReplicators >>=
+    checkChoices
 
 checkSubscripts :: Data t => t -> PassM t
 checkSubscripts = checkDepthM doSubscript
@@ -383,13 +400,13 @@ checkExpressions = checkDepthM doExpression
     doExpression (A.Dyadic _ op le re) = checkDyadicOp op le re
     doExpression (A.MostPos m t) = checkNumeric m t
     doExpression (A.MostNeg m t) = checkNumeric m t
-    doExpression (A.SizeType m t) = checkArray m t
+    doExpression (A.SizeType m t) = checkSequence m t
     doExpression (A.SizeExpr m e)
         =  do t <- typeOfExpression e
-              checkArray m t
+              checkSequence m t
     doExpression (A.SizeVariable m v)
         =  do t <- typeOfVariable v
-              checkArray m t
+              checkSequence m t
     doExpression (A.Conversion m _ t e)
         =  do et <- typeOfExpression e
               checkScalar m t >> checkScalar (findMeta e) et
@@ -405,3 +422,52 @@ checkExpressions = checkDepthM doExpression
               checkRecordField m t n
     doExpression (A.AllocMobile m t me) = checkAllocMobile m t me
     doExpression _ = ok
+
+checkInputItems :: Data t => t -> PassM t
+checkInputItems = checkDepthM doInputItem
+  where
+    doInputItem :: A.InputItem -> PassM ()
+    doInputItem (A.InCounted m cv av)
+        =  do ct <- typeOfVariable cv
+              checkInteger (findMeta cv) ct
+              checkWritable cv
+              at <- typeOfVariable av
+              checkArray (findMeta av) at
+              checkCommunicable (findMeta av) at
+              checkWritable av
+    doInputItem (A.InVariable _ v)
+        =  do t <- typeOfVariable v
+              checkCommunicable (findMeta v) t
+              checkWritable v
+
+checkOutputItems :: Data t => t -> PassM t
+checkOutputItems = checkDepthM doOutputItem
+  where
+    doOutputItem :: A.OutputItem -> PassM ()
+    doOutputItem (A.OutCounted m ce ae)
+        =  do ct <- typeOfExpression ce
+              checkInteger (findMeta ce) ct
+              at <- typeOfExpression ae
+              checkArray (findMeta ae) at
+              checkCommunicable (findMeta ae) at
+    doOutputItem (A.OutExpression _ e)
+        =  do t <- typeOfExpression e
+              checkCommunicable (findMeta e) t
+
+checkReplicators :: Data t => t -> PassM t
+checkReplicators = checkDepthM doReplicator
+  where
+    doReplicator :: A.Replicator -> PassM ()
+    doReplicator (A.For _ _ start count)
+        =  do checkExpressionInt (findMeta start) start
+              checkExpressionInt (findMeta count) count
+    doReplicator (A.ForEach _ _ e)
+        =  do t <- typeOfExpression e
+              checkSequence (findMeta e) t
+
+checkChoices :: Data t => t -> PassM t
+checkChoices = checkDepthM doChoice
+  where
+    doChoice :: A.Choice -> PassM ()
+    doChoice (A.Choice _ e _) = checkExpressionBool (findMeta e) e
+
