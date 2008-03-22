@@ -32,8 +32,8 @@ import Types
 
 simplifyTypes :: [Pass]
 simplifyTypes = makePassesDep
-      [ ("Resolve types in AST", resolveNamedTypes, Prop.agg_namesDone, [Prop.typesResolvedInAST])
-      , ("Resolve types in state", rntState, Prop.agg_namesDone, [Prop.typesResolvedInState])
+      [ ("Resolve types in AST", resolveNamedTypes, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.typesResolvedInAST])
+      , ("Resolve types in state", rntState, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.typesResolvedInState])
       ]
 
 -- | Turn named data types into their underlying types.
