@@ -184,6 +184,10 @@ intLiteral n = integerLiteral A.Int n
 byteLiteral :: Integer -> A.Expression
 byteLiteral n = integerLiteral A.Byte n
 
+-- | Create an 'A.Bool' literal.
+boolLiteral :: Bool -> A.Expression
+boolLiteral b = if b then A.True emptyMeta else A.False emptyMeta
+
 -- | Creates a 'Pattern' to match an 'A.Expression' instance.
 -- @'assertPatternMatch' ('intLiteralPattern' x) ('intLiteral' x)@ will always succeed.
 -- All meta tags are ignored.
@@ -298,18 +302,60 @@ simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t)
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
 simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
 
--- | Define a @VAL IS@ constant.
-defineConst :: String -> A.Type -> A.Expression -> State CompState ()
-defineConst s t e = defineName (simpleName s) $
+--}}}
+--{{{  defining things
+
+-- | Define something in the initial state.
+defineThing :: String -> A.NameType -> A.SpecType -> A.AbbrevMode
+               -> State CompState ()
+defineThing s nt st am = defineName (simpleName s) $
     A.NameDef {
       A.ndMeta = emptyMeta,
       A.ndName = s,
       A.ndOrigName = s,
-      A.ndNameType = A.VariableName,
-      A.ndType = A.IsExpr emptyMeta A.ValAbbrev t e,
-      A.ndAbbrevMode = A.ValAbbrev,
+      A.ndNameType = nt,
+      A.ndType = st,
+      A.ndAbbrevMode = am,
       A.ndPlacement = A.Unplaced
     }
+
+-- | Define a @VAL IS@ constant.
+defineConst :: String -> A.Type -> A.Expression -> State CompState ()
+defineConst s t e
+    = defineThing s A.VariableName (A.IsExpr emptyMeta A.ValAbbrev t e)
+                  A.ValAbbrev
+
+-- | Define a variable.
+defineVariable :: String -> A.Type -> State CompState ()
+defineVariable s t
+    = defineThing s A.VariableName (A.Declaration emptyMeta t) A.Original
+
+-- | Define a channel.
+defineChannel :: String -> A.Type -> State CompState ()
+defineChannel s t
+    = defineThing s A.ChannelName (A.Declaration emptyMeta t) A.Original
+
+-- | Define a user data type.
+defineUserDataType :: String -> A.Type -> State CompState ()
+defineUserDataType s t
+    = defineThing s A.DataTypeName (A.DataType emptyMeta t) A.Original
+
+-- | Define a record type.
+-- (The fields are unscoped names, and thus don't need defining.)
+defineRecordType :: String -> [(String, A.Type)] -> State CompState ()
+defineRecordType s fs
+    = defineThing s A.RecordName st A.Original
+  where
+    st = A.RecordType emptyMeta False [(simpleName s, t) | (s, t) <- fs]
+
+-- | Define a function.
+defineFunction :: String -> [A.Type] -> [(String, A.Type)]
+                  -> State CompState ()
+defineFunction s rs as
+    = defineThing s A.FunctionName st A.Original
+  where
+    st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
+    fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
 --}}}
 --{{{  custom assertions
