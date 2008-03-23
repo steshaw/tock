@@ -300,7 +300,6 @@ excludeNonRainFeatures = excludeConstr
    ,con2 A.Counted
    ,con0 A.Timer
    ,con1 A.Port
-   ,con3 A.IntrinsicFunctionCall
    ,con2 A.BytesInExpr
    ,con2 A.BytesInType
    ,con3 A.OffsetOf
