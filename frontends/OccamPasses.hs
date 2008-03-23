@@ -57,7 +57,8 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
        [],
        Prop.agg_namesDone ++ [Prop.expressionTypesChecked,
                               Prop.inferredTypesRecorded, Prop.mainTagged,
-                              Prop.processTypesChecked])
+                              Prop.processTypesChecked,
+                              Prop.functionTypesChecked])
     ]
 
 -- | Fixed the types of array constructors according to the replicator count
