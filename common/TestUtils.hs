@@ -289,7 +289,8 @@ buildExpr (Lit e) = e
 buildExpr EHTrue = A.True emptyMeta
 buildExpr (Range t begin end) = A.ExprConstr emptyMeta $ A.RangeConstr emptyMeta t
   (buildExpr begin) (buildExpr end)
-buildExpr (Func f es) = A.FunctionCall emptyMeta (simpleName f) (map buildExpr es)
+buildExpr (Func f es) = A.FunctionCall emptyMeta ((simpleName f) {A.nameType
+  = A.FunctionName}) (map buildExpr es)
 
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef
