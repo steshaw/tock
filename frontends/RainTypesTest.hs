@@ -237,6 +237,11 @@ checkExpressionTest = TestList
   ,failAssign 3104 "x8" (Var "xu8")
   ,failAssign 3105 "xu8" (Var "x8")
   ,passAssign 3106 "x" (Cast A.Int64 $ int A.Int8 0) (int A.Int8 0)
+
+  -- Assignment with constants:
+  ,failAssign 3200 "X" (Var "x")
+  ,failAssign 3201 "X" (Var "X")
+  ,failAssign 3202 "X" (Var "xu8")
   
   --Conditionals:
   ,passWhileIfSame 4000 $ Var "b"
@@ -249,6 +254,8 @@ checkExpressionTest = TestList
   
   --Communication:
   ,testAllCheckCommTypes 5000
+
+  -- TODO check not being able to read into a constant variable
   
   --Time types:
   ,fail 6000 $ Dy (Var "t") A.Plus (Var "x")
@@ -436,9 +443,10 @@ checkExpressionTest = TestList
 
   defVar :: String -> A.Type -> State CompState ()
   defVar n t = defineName (simpleName n) $ simpleDefDecl n t
-  
+
   state :: State CompState ()
   state = do defVar "x" A.Int64
+             defineConst "X" A.Int64 $ intLiteral 3
              defVar "b" A.Bool
              defVar "xu8" A.Byte
              defVar "xu16" A.UInt16
