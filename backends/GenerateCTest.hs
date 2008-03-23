@@ -230,7 +230,7 @@ testGenType = TestList
   ,testBothSame "GenType 102" "int*" (tcall genType $ A.Array [dimension 5, A.UnknownDimension] A.Int) 
   ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
-  ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType A.Timer) 
+  ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType $ A.Timer A.OccamTimer) 
   
   ,testBothSame "GenType 250" "int*" (tcall genType $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int) 
   ,testBothSame "GenType 251" "int*" (tcall genType $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int) 
@@ -486,9 +486,9 @@ testDeclaration = TestList
 
   --Timers:
   ,testBoth "genDeclaration 500" "Time foo;" "csp::Time foo;"
-   (tcall3 genDeclaration A.Timer foo False)
+   (tcall3 genDeclaration (A.Timer A.OccamTimer) foo False)
   ,testBoth "genDeclaration 501" "Time foo[20];" "csp::Time foo[20];"
-   (tcall3 genDeclaration (A.Array [dimension 20] A.Timer) foo False)
+   (tcall3 genDeclaration (A.Array [dimension 20] (A.Timer A.OccamTimer)) foo False)
  ]
  where
    stateR t = defRecord "REC" "bar" t

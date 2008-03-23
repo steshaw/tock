@@ -628,7 +628,7 @@ channelType
 
 timerType :: OccParser A.Type
 timerType
-    =   do { sTIMER; return $ A.Timer }
+    =   do { sTIMER; return $ A.Timer A.OccamTimer }
     <|> arrayType timerType
     <?> "timer type"
 
@@ -1969,7 +1969,7 @@ actual (A.Formal am t n)
             _ ->
               case stripArrayType t of
                 A.Chan {} -> var (channelOfType t)
-                A.Timer -> var timer
+                A.Timer {} -> var timer
                 A.Port _ -> var (portOfType t)
                 _ -> var (variableOfType t)
     <?> "actual of type " ++ showOccam t ++ " for " ++ show n

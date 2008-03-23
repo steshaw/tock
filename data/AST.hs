@@ -98,6 +98,13 @@ data ChanAttributes = ChanAttributes {
   }
   deriving (Show, Eq, Typeable, Data)
 
+-- | In future we will probably add more timers to this list, especially for
+-- occam.  But for now we just differentiate between an occam timer (which
+-- reads into something of type Int), and a Rain timer (which reads into something
+-- of type Time).
+data TimerType = OccamTimer | RainTimer
+  deriving (Eq, Show, Ord, Typeable, Data)
+
 -- | A data or protocol type.
 -- The two concepts aren't unified in occam, but they are here, because it
 -- makes sense to be able to ask what type a particular name is defined to
@@ -132,7 +139,7 @@ data Type =
   -- | A counted input or output.
   | Counted Type Type
   | Any
-  | Timer
+  | Timer TimerType
   | Time
   | Port Type
   | Mobile Type

@@ -298,7 +298,7 @@ excludeNonRainFeatures = excludeConstr
   [ con0 A.Real32
    ,con0 A.Real64
    ,con2 A.Counted
-   ,con0 A.Timer
+   ,con1 A.Timer
    ,con1 A.Port
    ,con2 A.BytesInExpr
    ,con2 A.BytesInType

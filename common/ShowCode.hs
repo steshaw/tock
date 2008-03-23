@@ -223,7 +223,7 @@ instance ShowOccam A.Type where
   showOccamM A.Real32 = tell ["REAL32"]
   showOccamM A.Real64 = tell ["REAL64"]
   showOccamM A.Any = tell ["ANY"]
-  showOccamM A.Timer = tell ["TIMER"]
+  showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
 
   showOccamM (A.Mobile t) = tell ["MOBILE "] >> showOccamM t

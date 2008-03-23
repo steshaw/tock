@@ -642,7 +642,7 @@ cppgetScalarType A.Int32 = Just "int32_t"
 cppgetScalarType A.Int64 = Just "int64_t"
 cppgetScalarType A.Real32 = Just "float"
 cppgetScalarType A.Real64 = Just "double"
-cppgetScalarType A.Timer = Just "csp::Time"
+cppgetScalarType (A.Timer A.OccamTimer) = Just "csp::Time"
 cppgetScalarType A.Time = Just "csp::Time"
 cppgetScalarType _ = Nothing
 

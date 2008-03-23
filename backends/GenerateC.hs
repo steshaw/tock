@@ -324,7 +324,7 @@ cgetScalarType A.Int32 = Just "int32_t"
 cgetScalarType A.Int64 = Just "int64_t"
 cgetScalarType A.Real32 = Just "float"
 cgetScalarType A.Real64 = Just "double"
-cgetScalarType A.Timer = Just "Time"
+cgetScalarType (A.Timer A.OccamTimer) = Just "Time"
 cgetScalarType A.Time = Just "Time"
 cgetScalarType _ = Nothing
 
