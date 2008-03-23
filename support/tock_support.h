@@ -241,6 +241,9 @@ static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) 
 // we don't define negate for unsigned types 
 
 //}}}
+//{{{ int8_t
+MAKE_ALL_SIGNED(int8_t, "%d", uint8_t)
+//}}}
 //{{{ int16_t
 MAKE_ALL_SIGNED(int16_t, "%d", uint16_t)
 //}}}
