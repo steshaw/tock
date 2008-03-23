@@ -36,13 +36,21 @@ function [uint8] : int_to_str(int: src)
 	[uint8]: r;
 	x = src;
 	
-	while (src > 0)
+	while (x > 0)
 	{
-		r = ['0' + (uint8: src % 10)] + r;
-		src /= 10;		
+		r = ['0' + (uint8: x % 10)] + r;
+		x /= 10;
 	}
 	
 	return r;
+}
+
+process out_str(!uint8: out, [uint8]: val)
+{
+	seqeach (c : val)
+	{
+		out ! c;
+	}
 }
 
 process consume_int(?int: in, !uint8: out) ### uses (time)
@@ -51,7 +59,8 @@ process consume_int(?int: in, !uint8: out) ### uses (time)
 	
 	seqeach (n : [1..100])
 	{
-		in ? _;
+		int: _x;
+		in ? _x;
 	}
 	
 	while (true)
@@ -59,20 +68,20 @@ process consume_int(?int: in, !uint8: out) ### uses (time)
 		int: n;
 		time: t0,t1;
 		n = 0;
-		now t;
+		now t0;
 		while (n < 1000000)
 		{
-			in ? _;
+			int: _x;
+			in ? _x;
 			n += 1;
 		}
 		now t1;
 		
 		int: m;
-		m = toMicros(t1 - t0) / 1000000;
+		m = toNanos(t1 - t0) / 1000000;
 		
-		out ! "Time per commstime iteration in micro-seconds: ";
-		out ! int_to_str(m);
-		out ! "\n";
+		run out_str(out, "Time per commstime iteration in nano-seconds: "
+		 + int_to_str(m) + "\n");
 	}
 }
 
