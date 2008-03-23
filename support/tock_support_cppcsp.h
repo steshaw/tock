@@ -295,3 +295,45 @@ public:
 	}
 	
 };
+
+// Time intrinsics for Rain:
+
+inline double occam_toSeconds(const csp::Time& val, const char*)
+{
+	return csp::GetSeconds(val);
+}
+
+inline int64_t occam_toMillis(const csp::Time& val, const char*)
+{
+	return static_cast<int64_t>(1000.0 * csp::GetSeconds(val));
+}
+
+inline int64_t occam_toMicros(const csp::Time& val, const char*)
+{
+	return static_cast<int64_t>(1000000.0 * csp::GetSeconds(val));
+}
+
+inline int64_t occam_toNanos(const csp::Time& val, const char*)
+{
+	return static_cast<int64_t>(1000000000.0 * csp::GetSeconds(val));
+}
+
+inline csp::Time occam_fromSeconds(const double val, const char*)
+{
+	return csp::Seconds(val);
+}
+
+inline csp::Time occam_fromMillis(const int64_t val, const char*)
+{
+	return csp::Seconds(static_cast<double>(val) / 1000.0);
+}
+
+inline csp::Time occam_fromMicros(const int64_t val, const char*)
+{
+	return csp::Seconds(static_cast<double>(val) / 1000000.0);
+}
+
+inline csp::Time occam_fromNanos(const int64_t val, const char*)
+{
+	return csp::Seconds(static_cast<double>(val) / 1000000000.0);
+}
