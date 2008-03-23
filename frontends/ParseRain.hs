@@ -294,7 +294,8 @@ functionCall =  do funcName <- name
                      Just _ -> return $ A.IntrinsicFunctionCall (A.nameMeta
                        funcName) (A.nameName funcName) es
                      Nothing -> return $
-                       A.FunctionCall (A.nameMeta funcName) funcName es
+                       A.FunctionCall (A.nameMeta funcName)
+                         (funcName {A.nameType = A.FunctionName}) es
 
 data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
 
