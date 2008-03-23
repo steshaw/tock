@@ -323,7 +323,7 @@ instance ShowOccam A.Variable where
   showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v >> tell ["!"]
   
 instance ShowRain A.Variable where
-  showRainM (A.Variable _ n) = tell [show n]
+  showRainM (A.Variable _ n) = showName n
   showRainM (A.DirectedVariable _ A.DirInput v) = tell ["?"] >> showRainM v
   showRainM (A.DirectedVariable _ A.DirOutput v) = tell ["!"] >> showRainM v
   showRainM x = tell ["<invalid Rain variable: ", show x, ">"]
