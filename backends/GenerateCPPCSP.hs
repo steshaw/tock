@@ -39,7 +39,8 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cintroduceSpec, cgenReplicatorLoop, cgenType, generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
+import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec,
+  generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass

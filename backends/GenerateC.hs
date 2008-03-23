@@ -16,8 +16,25 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | Generate C code from the mangled AST.
-module GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cPreReq, genComma, genCPasses, generate, generateC, genLeftB, genMeta, genName, genRightB, seqComma, withIf ) where
+-- | Generate C code from the mangled AST.  Most of the exports here are actually
+-- for GenerateCPPCSP to use
+module GenerateC
+  ( cgenOps
+  , cgenReplicatorLoop
+  , cgenType
+  , cintroduceSpec
+  , cPreReq
+  , genComma
+  , genCPasses
+  , generate
+  , generateC
+  , genLeftB
+  , genMeta
+  , genName
+  , genRightB
+  , seqComma
+  , withIf
+  ) where
 
 import Data.Char
 import Data.Generics
