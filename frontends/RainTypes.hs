@@ -307,6 +307,9 @@ checkAssignmentTypes = applyDepthM checkAssignment
     checkAssignment ass@(A.Assign m [v] (A.ExpressionList m' [e]))
       = do trhs <- typeOfExpression e
            tlhs <- typeOfVariable v
+           am <- abbrevModeOfVariable v
+           when (am == A.ValAbbrev) $
+             diePC m $ formatCode "Cannot assign to a constant variable: %" v
            if (tlhs == trhs)
              then return ass
              else do rhs' <- coerceType " in assignment" tlhs trhs e
