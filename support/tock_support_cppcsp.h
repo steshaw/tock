@@ -296,6 +296,18 @@ public:
 	
 };
 
+// Time addition and subtraction:
+
+inline csp::Time occam_plus_time (const csp::Time& a, const csp::Time& b, const char *)
+{
+	return a + b;
+}
+
+inline csp::Time occam_minus_time (const csp::Time& a, const csp::Time& b, const char *)
+{
+	return a - b;
+}
+
 // Time intrinsics for Rain:
 
 inline double occam_toSeconds(const csp::Time& val, const char*)

@@ -896,9 +896,10 @@ cgenSizeSuffix dim = tell ["_sizes[", dim, "]"]
 cgenTypeSymbol :: String -> A.Type -> CGen ()
 cgenTypeSymbol s t
  = do f <- fget getScalarType
-      case f t of
-        Just ct -> tell ["occam_", s, "_", ct]
-        Nothing -> call genMissingC $ formatCode "genTypeSymbol %" t
+      case (t, f t) of
+        (A.Time, _) -> tell ["occam_", s, "_time"]
+        (_, Just ct) -> tell ["occam_", s, "_", ct]
+        (_, Nothing) -> call genMissingC $ formatCode "genTypeSymbol %" t
 
 cgenIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen ()
 cgenIntrinsicFunction m s es
