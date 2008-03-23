@@ -36,7 +36,8 @@ import Utils
 
 simplifyExprs :: [Pass]
 simplifyExprs = makePassesDep
-      [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked], [Prop.functionsRemoved])
+      [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
+        Prop.functionTypesChecked], [Prop.functionsRemoved])
       , ("Convert AFTER to MINUS", removeAfter, [Prop.expressionTypesChecked], [Prop.afterRemoved])
       , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
       , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone

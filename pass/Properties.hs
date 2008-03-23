@@ -39,6 +39,7 @@ module Properties
   , freeNamesToArgs
   , functionCallsRemoved
   , functionsRemoved
+  , functionTypesChecked
   , inferredTypesRecorded
   , inputCaseRemoved
   , intLiteralsInBounds
@@ -94,6 +95,7 @@ agg_typesDone =
     [ constantsChecked
     , constantsFolded
     , expressionTypesChecked
+    , functionTypesChecked
     , inferredTypesRecorded
     , processTypesChecked
     , retypesChecked
@@ -208,6 +210,9 @@ expressionTypesChecked = Property "expressionTypesChecked" nocheck
 
 processTypesChecked :: Property
 processTypesChecked = Property "processTypesChecked" nocheck
+
+functionTypesChecked :: Property
+functionTypesChecked = Property "functionTypesChecked" nocheck
 
 eachRangeTransformed :: Property
 eachRangeTransformed = Property "eachRangeTransformed" checkTODO

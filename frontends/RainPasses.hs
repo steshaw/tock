@@ -57,7 +57,8 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Check types in if/while conditions",checkConditionalTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
        ,("Check types in input/output",checkCommTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
        ,("Check types in now statements",checkGetTimeTypes, typesDone, [Prop.processTypesChecked])
-       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked])
+       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked,
+         Prop.functionTypesChecked])
        
        ,("Find and tag the main function", findMain, namesDone, [Prop.mainTagged])
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
