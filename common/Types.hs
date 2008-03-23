@@ -48,6 +48,7 @@ import EvalLiterals
 import Intrinsics
 import Metadata
 import Pass
+import PrettyShow
 import ShowCode
 import TypeSizes
 import Utils
@@ -69,7 +70,8 @@ typeOfName n
           t <- typeOfSpec st
           case t of
             Just t' -> return t'
-            Nothing -> dieP (findMeta n) $ "cannot type name " ++ show st
+            Nothing -> dieP (findMeta n) $ "cannot type name " ++ pshow n ++
+              ":" ++ show st
 
 typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)
 typeOfSpec st
