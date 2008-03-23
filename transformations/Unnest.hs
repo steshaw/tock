@@ -74,6 +74,7 @@ freeNamesIn = doGeneric
       where
         (repName, fns) = case rep of
           A.For _ n b c -> (n, Map.union (freeNamesIn b) (freeNamesIn c))
+          A.ForEach _ n b -> (n, freeNamesIn b)
 
     doSpecType :: A.SpecType -> NameMap
     doSpecType (A.Proc _ _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
