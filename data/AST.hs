@@ -357,13 +357,6 @@ data Replicator =
 data Choice = Choice Meta Expression Process
   deriving (Show, Eq, Typeable, Data)
 
--- | A mode of waiting -- either for a specified duration, or until a specified
--- time.
-data WaitMode =
-  WaitFor
-  | WaitUntil
-  deriving (Show, Eq, Ord, Typeable, Data)
-
 -- | A guard in an @ALT@.
 data Alternative =
   -- | A plain guard.
@@ -377,8 +370,6 @@ data Alternative =
   -- | A @SKIP@ guard (one that is always ready).
   -- The 'Expression' is the pre-condition.
   | AlternativeSkip Meta Expression Process
-  -- | A @wait for@\/@until@ guard.
-  | AlternativeWait Meta WaitMode Expression Process
   deriving (Show, Eq, Typeable, Data)
 
 -- | An option in a @CASE@ process.
@@ -557,8 +548,6 @@ data Process =
   | Input Meta Variable InputMode
   | Output Meta Variable [OutputItem]
   | OutputCase Meta Variable Name [OutputItem]
-  | GetTime Meta Variable
-  | Wait Meta WaitMode Expression
   -- | Clears the given mobile variable; if the variable is currently NULL,
   -- destroy the contents and make it NULL.  If it is already NULL, do nothing.
   | ClearMobile Meta Variable

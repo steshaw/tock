@@ -89,10 +89,6 @@ testGetVarProc = TestList (map doTest tests)
      ,(200,[tvB],[tvA],[],a_eq_not_b)
      ,(201,[tvC,tvD],[tvA],[],a_eq_c_plus_d)
      
-     -- Test time statements:
-     ,(300,[],[tvB],[],A.GetTime emptyMeta vB)
-     ,(301,[tvA],[],[],A.Wait emptyMeta A.WaitFor $ A.ExprVariable emptyMeta vA)
-     
      -- Test simple outputs:
      ,(400,[tvA],[],[tvC],A.Output emptyMeta vC [A.OutExpression emptyMeta $ A.ExprVariable emptyMeta vA])
      ,(401,[tvA,tvB],[],[tvC],A.Output emptyMeta vC $ map ((A.OutExpression emptyMeta) . (A.ExprVariable emptyMeta)) [vA,vB])

@@ -536,7 +536,6 @@ buildOnlyAlternative route alt
               (A.Alternative m _ _ p) -> (m,p, route44 route A.Alternative)
               (A.AlternativeCond m _ _ _ p) -> (m,p, route55 route A.AlternativeCond)
               (A.AlternativeSkip m _ p) -> (m,p, route33 route A.AlternativeSkip)
-              (A.AlternativeWait m _ _ p) -> (m,p, route44 route A.AlternativeWait)
        guardNode <- addNode' m labelAlternative alt (AlterAlternative route)
        (bodyNodeStart, bodyNodeEnd) <- buildProcess p r
        addEdge ESeq guardNode bodyNodeStart
