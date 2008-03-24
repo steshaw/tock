@@ -292,27 +292,41 @@ checkExpressionTest = TestList
   ,passSame 6503 A.Bool $ Dy (Var "t") A.More (Var "t")
   
   --Now statements:
-  ,testPassUntouched 7000 checkGetTimeTypes (A.GetTime m $ variable "t")
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7001" (checkGetTimeTypes $ A.GetTime m $ variable "x") state
+  ,testPassUntouched 7000 checkCommTypes (getTime $ variable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7001"
+    (checkCommTypes $ getTime $ variable "x") state
   
   --Wait statements:
-  ,testPassUntouched 7100 checkGetTimeTypes (A.Wait m A.WaitFor $ exprVariable "t")
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7101" (checkGetTimeTypes $ A.Wait m A.WaitFor $ exprVariable "x") state
-  ,testPassUntouched 7102 checkGetTimeTypes (A.Wait m A.WaitFor $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+  ,testPassUntouched 7100 checkCommTypes (waitFor $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7101" (checkCommTypes $ waitFor $ exprVariable "x") state
+  ,testPassUntouched 7102 checkCommTypes (waitFor $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
 
-  ,testPassUntouched 7200 checkGetTimeTypes (A.Wait m A.WaitUntil $ exprVariable "t")
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (checkGetTimeTypes $ A.Wait m A.WaitUntil $ exprVariable "x") state
-  ,testPassUntouched 7202 checkGetTimeTypes (A.Wait m A.WaitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+  ,testPassUntouched 7200 checkCommTypes (waitUntil $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (checkCommTypes $ waitUntil $ exprVariable "x") state
+  ,testPassUntouched 7202 checkCommTypes (waitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
   
-  ,testPassUntouched 7300 checkGetTimeTypes (A.AlternativeWait m A.WaitFor (exprVariable "t") $ A.Skip m)
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7301" (checkGetTimeTypes $ A.AlternativeWait m A.WaitFor (exprVariable "x") $ A.Skip m) state
-  ,testPassUntouched 7302 checkGetTimeTypes (A.AlternativeWait m A.WaitFor (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)
+  ,testPassUntouched 7300 checkCommTypes (altWaitFor (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7301" (checkCommTypes $ altWaitFor (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7302 checkCommTypes (altWaitFor (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)
 
-  ,testPassUntouched 7400 checkGetTimeTypes (A.AlternativeWait m A.WaitUntil (exprVariable "t") $ A.Skip m)
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7401" (checkGetTimeTypes $ A.AlternativeWait m A.WaitUntil (exprVariable "x") $ A.Skip m) state
-  ,testPassUntouched 7402 checkGetTimeTypes (A.AlternativeWait m A.WaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)  
+  ,testPassUntouched 7400 checkCommTypes (altWaitUntil (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7401" (checkCommTypes $ altWaitUntil (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7402 checkCommTypes (altWaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)  
  ]
  where
+  -- The type of a timer should not be checked, because it will only have parsed
+  -- if it used the special name anyway
+  tim = variable "tim"
+  getTime :: A.Variable -> A.Process
+  getTime = A.Input m tim . A.InputTimerRead m . A.InVariable m
+  waitFor, waitUntil :: A.Expression -> A.Process
+  waitFor = A.Input m tim . A.InputTimerFor m
+  waitUntil = A.Input m tim . A.InputTimerAfter m
+  altWaitFor, altWaitUntil :: A.Expression -> A.Process -> A.Alternative
+  altWaitFor e body = A.Alternative m tim (A.InputTimerFor m e) body
+  altWaitUntil e body = A.Alternative m tim (A.InputTimerAfter m e) body
+  
+   
   testPassUntouched :: Data t => Int -> (t -> PassM t) -> t -> Test
   testPassUntouched n passFunc src = TestCase $ testPass ("checkExpressionTest " ++ show n) (mkPattern src) (passFunc src) state
  

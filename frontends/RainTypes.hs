@@ -355,9 +355,36 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
                                                chanVar innerType destVar destType
              _ -> dieP m $ "Tried to input from a variable that is not of type channel: " ++ show chanVar
 
+    checkWait :: A.InputMode -> PassM ()
+    checkWait (A.InputTimerFor m exp)
+      = do t <- typeOfExpression exp
+           when (t /= A.Time) $
+             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
+               t
+    checkWait (A.InputTimerAfter m exp)
+      = do t <- typeOfExpression exp
+           when (t /= A.Time) $
+             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
+               t
+    checkWait (A.InputTimerRead m (A.InVariable _ v))
+      = do t <- typeOfVariable v
+           when (t /= A.Time) $
+             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
+               t
+    checkWait _ = return ()
+
     checkInputOutput :: A.Process -> PassM A.Process
     checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
       = checkInput chanVar destVar m p
+    checkInputOutput p@(A.Input _ _ im@(A.InputTimerFor {}))
+      = do checkWait im
+           return p
+    checkInputOutput p@(A.Input _ _ im@(A.InputTimerAfter {}))
+      = do checkWait im
+           return p
+    checkInputOutput p@(A.Input _ _ im@(A.InputTimerRead {}))
+      = do checkWait im
+           return p
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
       = do chanType <- typeOfVariable chanVar
            srcType <- typeOfExpression srcExp
@@ -376,29 +403,10 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
     checkAltInput :: A.Alternative -> PassM A.Alternative
     checkAltInput a@(A.Alternative m chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
       = checkInput chanVar destVar m a
+    checkAltInput a@(A.Alternative m _ im@(A.InputTimerFor {}) _)
+      = do checkWait im
+           return a
+    checkAltInput a@(A.Alternative m _ im@(A.InputTimerAfter {}) _)
+      = do checkWait im
+           return a
     checkAltInput a = return a
-
--- | Checks the types in now and wait statements, and wait guards:
-checkGetTimeTypes :: Data t => t -> PassM t
-checkGetTimeTypes = applyDepthM2 checkGetTime checkTimeGuards
-  where
-    checkGetTime :: A.Process -> PassM A.Process
-    checkGetTime p@(A.GetTime m v)
-      = do t <- typeOfVariable v
-           case t of
-             A.Time -> return p
-             _ -> diePC m $ formatCode "Cannot store time in variable of type \"%\"" t
-    checkGetTime p@(A.Wait m _ e)
-      = do t <- typeOfExpression e
-           case t of
-             A.Time -> return p
-             _ -> diePC m $ formatCode "Cannot wait with an expression of non-time type: \"%\"" t
-    checkGetTime p = return p
-    
-    checkTimeGuards :: A.Alternative -> PassM A.Alternative
-    checkTimeGuards g@(A.AlternativeWait m _ e _)
-      = do t <- typeOfExpression e
-           case t of
-             A.Time -> return g
-             _ -> diePC m $ formatCode "Cannot wait with an expression of non-time type: \"%\"" t
-    checkTimeGuards g = return g
