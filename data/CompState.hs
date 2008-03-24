@@ -320,3 +320,11 @@ findAllProcesses
       = case A.ndType nd of
           A.Proc _ _ _ p -> Just (n, p)
           _ -> Nothing
+
+-- | A prefix put on all ghost variables, such as Rain's timers
+ghostVarPrefix :: String
+ghostVarPrefix = "##"
+
+-- | A suffix put on all ghost variables, such as Rain's timers
+ghostVarSuffix :: String
+ghostVarSuffix = "_##"

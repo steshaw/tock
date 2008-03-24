@@ -202,14 +202,22 @@ genCPPCSPChannelOutput var
 --Since this is too large to be contained in an int once it has been multiplied,
 --the remainder is taken to trim the timer back down to something that will be useful in an int
 cppgenTimerRead :: A.Variable -> A.Variable -> CGen ()
-cppgenTimerRead c v
-    =  do tell ["csp::CurrentTime (&"]
+cppgenTimerRead c v = do
+   tt <- typeOfVariable c
+   case tt of
+     A.Timer A.RainTimer ->
+       do tell ["csp::CurrentTime (&"]
+          call genVariable v
+          tell [");"]
+     A.Timer A.OccamTimer ->
+       do tell ["csp::CurrentTime (&"]
           call genVariable c
           tell [");\n"]
           call genVariable v
           tell [" = (int)(unsigned)remainder(1000000.0 * csp::GetSeconds("]
           call genVariable c
-          tell ["),4294967296.0);\n"]
+          tell ["),4294967296.0);"]
+     _ -> call genMissing $ "Unsupported timer type: " ++ show tt
 
 cppgenGetTime :: A.Variable -> CGen ()
 cppgenGetTime v

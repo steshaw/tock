@@ -460,6 +460,9 @@ data InputMode =
   | InputTimerRead Meta InputItem
   -- | Wait for a particular time to go past on a timer.
   | InputTimerAfter Meta Expression
+  -- | Wait for a specified amount of time on a timer.
+  -- Equivalent to a timer-read followed by a timer-after
+  | InputTimerFor Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | Abbreviation mode.

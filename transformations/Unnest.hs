@@ -21,6 +21,7 @@ module Unnest (unnest) where
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 
@@ -55,7 +56,9 @@ freeNamesIn = doGeneric
     ignore s = Map.empty
 
     doName :: A.Name -> NameMap
-    doName n = Map.singleton (A.nameName n) n
+    doName n | ghostVarPrefix `isPrefixOf` (A.nameName n)
+               && ghostVarSuffix `isSuffixOf` (A.nameName n) = Map.empty
+             | otherwise =  Map.singleton (A.nameName n) n
 
     doStructured :: Data a => A.Structured a -> NameMap
     doStructured (A.Rep _ rep s) = doRep rep s

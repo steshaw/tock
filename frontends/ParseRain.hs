@@ -390,9 +390,10 @@ alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- many altCase ; optElseCase 
                  case input of
                    A.Input m lv im -> do { body <- block ; return $ A.Only m $ A.Alternative m lv im body }
                    _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
-              <|> do (m, wm, e) <- waitStatement True
+              <|> do (m, wm) <- waitStatement True
                      body <- block
-                     return $ A.Only m $ A.AlternativeWait m wm e body
+                     return $ A.Only m $ A.Alternative m (A.Variable m rainTimerName)
+                       wm body
     elseCase :: RainParser (A.Structured A.Alternative)
     elseCase = do m <- sElse
                   body <- block
@@ -412,11 +413,13 @@ runProcess = do m <- sRun
     convertItem (A.ExprVariable _ v) = A.ActualVariable A.Original A.Any v
     convertItem e = A.ActualExpression A.Any e
 
-waitStatement :: Bool -> RainParser (Meta, A.WaitMode, A.Expression)
+waitStatement :: Bool -> RainParser (Meta, A.InputMode)
 waitStatement isAlt
   = do { m <- sWait ;
-         do { sFor ; e <- expression ; possSemiColon ; return (m, A.WaitFor, e)}
-         <|> do { sUntil ; e <- expression ; possSemiColon ; return (m, A.WaitUntil, e)}
+         do { sFor ; e <- expression ; possSemiColon ;
+              return (m, A.InputTimerFor m e)}
+         <|> do { sUntil ; e <- expression ; possSemiColon ;
+                  return (m, A.InputTimerAfter m e)}
          <?> "reserved word \"for\" or \"until\" should follow reserved word \"wait\""
        }
     where
@@ -433,8 +436,10 @@ statement
     <|> block
     <|> each
     <|> runProcess
-    <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.GetTime m dest}
-    <|> do {(m,wm,exp) <- waitStatement False ; return $ A.Wait m wm exp}
+    <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.Input
+      m (A.Variable m rainTimerName) $ A.InputTimerRead m $ A.InVariable m dest}
+    <|> do {(m,wm) <- waitStatement False; return $ A.Input m (A.Variable m
+      rainTimerName) wm}
     <|> try (comm False)
     <|> alt
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
@@ -486,6 +491,10 @@ rainSourceFile
            s <- getState
            return (p, s)
 
+rainTimerName :: A.Name
+rainTimerName = A.Name {A.nameName = ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix,
+  A.nameMeta = emptyMeta, A.nameType = A.TimerName}
+
 -- | Load and parse a Rain source file.
 parseRainProgram :: String -> PassM A.AST
 parseRainProgram filename
@@ -494,7 +503,13 @@ parseRainProgram filename
           case lexOut of
             Left merr -> dieP merr $ "Parse (lexing) error"
             Right toks ->
-              do cs <- get
+              do defineName rainTimerName $ A.NameDef {A.ndMeta = emptyMeta,
+                   A.ndName = A.nameName rainTimerName,
+                   A.ndOrigName = A.nameName rainTimerName,
+                   A.ndNameType = A.TimerName, A.ndType = A.Declaration emptyMeta
+                     (A.Timer A.RainTimer),
+                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+                 cs <- get
                  case runParser rainSourceFile cs filename toks of
                    Left err -> dieP (sourcePosToMeta $ errorPos err) $ "Parse error: " ++ show err
                    Right (p, cs') ->
