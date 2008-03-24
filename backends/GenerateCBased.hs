@@ -180,8 +180,6 @@ data GenOps = GenOps {
     genVariableAM :: A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
     genVariableUnchecked :: A.Variable -> CGen (),
-    -- | Performs a wait for\/until (depending on the 'A.WaitMode') a specified time
-    genWait :: A.WaitMode -> A.Expression -> CGen (),
     -- | Generates a while loop with the given condition and body.
     genWhile :: A.Expression -> A.Process -> CGen (),
     getScalarType :: A.Type -> Maybe String,

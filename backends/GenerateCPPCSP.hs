@@ -82,7 +82,6 @@ cppgenOps = cgenOps {
     genType = cppgenType,
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
-    genWait = cppgenWait,
     getScalarType = cppgetScalarType,
     introduceSpec = cppintroduceSpec,
     removeSpec = cppremoveSpec
@@ -223,12 +222,6 @@ cppgenGetTime :: A.Variable -> CGen ()
 cppgenGetTime v
     =  do tell ["csp::CurrentTime(&"]
           call genVariable v
-          tell [");"]
-
-cppgenWait :: A.WaitMode -> A.Expression -> CGen ()
-cppgenWait wm e
-    =  do tell [if wm == A.WaitFor then "csp::SleepFor" else "csp::SleepUntil", "("]
-          call genExpression e
           tell [");"]
 
 {-|
@@ -437,10 +430,6 @@ cppgenAlt _ s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
-                A.AlternativeWait _ wm e _ -> 
-                  do tell [guardList, " . push_back( new ", if wm == A.WaitUntil then "csp::TimeoutGuard (" else "csp::RelTimeoutGuard("]
-                     call genExpression e
-                     tell ["));"]
 
         doIn c im
             = do case im of
@@ -463,7 +452,6 @@ cppgenAlt _ s
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
-                A.AlternativeWait _ _ _ p -> doCheck (call genProcess p)
 
         doIn c im p
             = do case im of

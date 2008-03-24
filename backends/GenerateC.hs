@@ -147,7 +147,6 @@ cgenOps = GenOps {
     genVariableAM = cgenVariableAM,
     genVariableUnchecked = cgenVariableUnchecked,
     genWhile = cgenWhile,
-    genWait = cgenWait,
     getScalarType = cgetScalarType,
     introduceSpec = cintroduceSpec,
     removeSpec = cremoveSpec
@@ -1455,8 +1454,6 @@ cgenProcess p = case p of
   A.Input m c im -> call genInput c im
   A.Output m c ois -> call genOutput c ois
   A.OutputCase m c t ois -> call genOutputCase c t ois
-  A.GetTime m v -> call genGetTime v
-  A.Wait m wm e -> call genWait wm e
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop m "STOP process"
   A.Seq _ s -> call genSeq s
@@ -1515,13 +1512,6 @@ cgenGetTime :: A.Variable -> CGen ()
 cgenGetTime v
     =  do call genVariable v
           tell [" = TimerRead(wptr);"]
-
-cgenWait :: A.WaitMode -> A.Expression -> CGen ()
-cgenWait A.WaitUntil e = call genTimerWait e
-cgenWait A.WaitFor e
-    =  do tell ["TimerDelay(wptr,"]
-          call genExpression e
-          tell [");"]
 
 --}}}
 --{{{  output
@@ -1677,7 +1667,6 @@ cgenAlt isPri s
         = case a of
             A.Alternative _ _ (A.InputTimerRead _ _) _ -> True
             A.Alternative _ _ (A.InputTimerAfter _ _) _ -> True
-            A.AlternativeWait _ _ _ _ -> True
             _ -> False
     containsTimers (A.Several _ ss) = or $ map containsTimers ss
 
@@ -1689,11 +1678,6 @@ cgenAlt isPri s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip (wptr,", id, "++);\n"]
-                --transformWaitFor should have removed all A.WaitFor guards (transforming them into A.WaitUntil):
-                A.AlternativeWait _ A.WaitUntil e _ ->
-                  do tell ["AltEnableTimer (wptr,", id, "++,"]
-                     call genExpression e
-                     tell [" );\n"]
 
         doIn c im
             = do case im of
@@ -1715,10 +1699,7 @@ cgenAlt isPri s
                 A.Alternative _ c im _ -> doIn c im
                 A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (wptr,", id, "++);\n"]
-                A.AlternativeWait _ A.WaitUntil e _ ->
-                     do tell ["AltDisableTimer (wptr,", id, "++, "]
-                        call genExpression e
-                        tell [");\n"]
+
         doIn c im
             = do case im of
                    A.InputTimerRead _ _ -> call genMissing "timer read in ALT"
@@ -1739,7 +1720,6 @@ cgenAlt isPri s
                 A.Alternative _ c im p -> doIn c im p
                 A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
-                A.AlternativeWait _ _ _ p -> doCheck (call genProcess p)
 
         doIn c im p
             = do case im of

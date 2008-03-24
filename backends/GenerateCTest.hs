@@ -889,22 +889,6 @@ testCase = TestList
     over :: Override
     over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
 
-testGetTime :: Test
-testGetTime = testBoth "testGetTime 0" "@ = TimerRead(wptr);" "csp::CurrentTime(&@);" (over (tcall genGetTime undefined))
-  where
-    over :: Override
-    over = local $ \ops -> ops {genVariable = override1 at}
-
-testWait :: Test
-testWait = TestList
- [
-  testBoth "testWait 0" "TimerWait(wptr,$);" "csp::SleepUntil($);" (over (tcall2 genWait A.WaitUntil undefined))
-  ,testBoth "testWait 1" "TimerDelay(wptr,$);" "csp::SleepFor($);" (over (tcall2 genWait A.WaitFor undefined))
- ]
- where
-   over :: Override
-   over = local $ \ops -> ops {genExpression = override1 dollar}
-
 testIf :: Test
 testIf = TestList
  [
@@ -1165,7 +1149,6 @@ tests = TestLabel "GenerateCTest" $ TestList
    ,testDeclareInitFree
    ,testGenType
    ,testGenVariable
-   ,testGetTime
    ,testIf
    ,testInput
    ,testMobile
@@ -1176,6 +1159,5 @@ tests = TestLabel "GenerateCTest" $ TestList
    ,testRetypeSizes
    ,testSpec
    ,testStop
-   ,testWait
    ,testWhile
  ]
