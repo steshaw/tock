@@ -356,7 +356,7 @@ parsIdentified :: Property
 parsIdentified = Property "parsIdentified" nocheck
 
 findWaitFor :: A.Alternative -> Bool
-findWaitFor (A.AlternativeWait _ A.WaitFor _ _) = True
+findWaitFor (A.Alternative _ _ (A.InputTimerFor {}) _) = True
 findWaitFor _ = False
 
 waitForRemoved :: Property
