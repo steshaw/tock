@@ -102,6 +102,7 @@ dyadicCompOp
     <|> do {m <- reserved "<=" ; return (m,A.LessEq) }
     <|> do {m <- reserved ">=" ; return (m,A.MoreEq) }
     <|> do {m <- reserved "==" ; return (m,A.Eq) }
+    <|> do {m <- reserved "<>" ; return (m,A.NotEq) }
 
 monadicArithOp :: RainParser (Meta,A.MonadicOp)
 monadicArithOp
