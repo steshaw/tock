@@ -1,0 +1,11 @@
+process main(?uint8: in, !uint8: out, !uint8: err)
+{
+	uint8: c;
+	in ? c;
+	while (c <> 'q')
+	{
+		out ! c;
+		out ! c;
+		in ? c;
+	}
+}

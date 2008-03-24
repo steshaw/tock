@@ -1,0 +1,8 @@
+PROC echo(CHAN BYTE in, out)
+  BYTE c:
+  WHILE TRUE
+    SEQ
+      in ? c
+      out ! c
+      out ! c
+:
