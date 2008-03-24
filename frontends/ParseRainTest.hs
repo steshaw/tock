@@ -636,12 +636,12 @@ testAlt =
     ,A.Only m $ A.AlternativeSkip m (A.True m) emptyBlock])
   
   ,passAlt (100, "pri alt { wait for t {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock])
+    A.Only m $ A.Alternative m timer (A.InputTimerFor m $ exprVariable "t") emptyBlock])
   ,passAlt (101, "pri alt { wait for t {} wait until t {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.AlternativeWait m A.WaitFor (exprVariable "t") emptyBlock
-    ,A.Only m $ A.AlternativeWait m A.WaitUntil (exprVariable "t") emptyBlock])
+    A.Only m $ A.Alternative m timer (A.InputTimerFor m $ exprVariable "t") emptyBlock
+    ,A.Only m $ A.Alternative m timer (A.InputTimerAfter m $ exprVariable "t") emptyBlock])
   ,passAlt (102, "pri alt { wait until t + t {} else {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.AlternativeWait m A.WaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) emptyBlock
+    A.Only m $ A.Alternative m timer (A.InputTimerAfter m (buildExpr $ Dy (Var "t") A.Plus (Var "t"))) emptyBlock
     ,A.Only m $ A.AlternativeSkip m (A.True m) emptyBlock])
 
 
@@ -668,6 +668,7 @@ testAlt =
   
  ]
  where
+   timer = A.Variable m RP.rainTimerName
    passAlt :: (Int, String, A.Process) -> ParseTest A.Process
    passAlt (ind, input, exp) = pass (input, RP.statement, assertPatternMatch ("testAlt " ++ show ind) (pat exp))
 
@@ -690,19 +691,25 @@ testRun =
 testTime :: [ParseTest A.Process]
 testTime =
  [
-  pass ("now t;",RP.statement, assertPatternMatch "testTime 0" $ tag2 A.GetTime DontCare (variablePattern "t"))
+  pass ("now t;",RP.statement, assertPatternMatch "testTime 0" $
+    mInput timer $ mInputTimerRead (mInVariable $ variablePattern "t"))
   ,fail ("now t",RP.statement)
   ,fail ("now ;",RP.statement)
   ,fail ("now t + t;",RP.statement)
   
-  ,pass ("wait for t;",RP.statement, assertPatternMatch "testTime 1" $ tag3 A.Wait DontCare A.WaitFor (exprVariablePattern "t"))
-  ,pass ("wait until t;",RP.statement, assertPatternMatch "testTime 2" $ tag3 A.Wait DontCare A.WaitUntil (exprVariablePattern "t"))
-  ,pass ("wait until t + t;",RP.statement, assertPatternMatch "testTime 3" $ tag3 A.Wait DontCare A.WaitUntil $ buildExprPattern $ Dy (Var "t") A.Plus (Var "t"))
+  ,pass ("wait for t;",RP.statement, assertPatternMatch "testTime 1" $
+    mInput timer $ mInputTimerFor (exprVariablePattern "t"))
+  ,pass ("wait until t;",RP.statement, assertPatternMatch "testTime 2" $
+    mInput timer $ mInputTimerAfter (exprVariablePattern "t"))
+  ,pass ("wait until t + t;",RP.statement, assertPatternMatch "testTime 3" $
+    mInput timer $ mInputTimerAfter $ buildExprPattern $ Dy (Var "t") A.Plus (Var "t"))
   ,fail ("waitfor t;",RP.statement)
   ,fail ("waituntil t;",RP.statement)
   ,fail ("wait for t",RP.statement)
   ,fail ("until t;",RP.statement)
  ]
+ where
+   timer = mVariable RP.rainTimerName
         
 --Returns the list of tests:
 tests :: Test
