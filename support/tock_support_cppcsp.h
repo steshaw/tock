@@ -43,12 +43,10 @@ public:
 #include <cppcsp/cppcsp.h>
 #include <cppcsp/common/basic.h>
 #include <iostream>
-#include <vector>
 #include <list>
-#include <boost/type_traits/remove_const.hpp>
-#include <boost/preprocessor/repetition/repeat.hpp>
-#include <boost/preprocessor/repetition/repeat_from_to.hpp>
-#include <boost/tuple/tuple.hpp>
+
+#include <termios.h>
+#include <unistd.h>
 
 inline unsigned TimeDiffHelper(unsigned now,unsigned waitFor)
 {
@@ -106,6 +104,48 @@ public:
 	inline StreamWriter(std::ostream& _out,const csp::Chanin<uint8_t>& _in)
 		:	out(_out),in(_in)
 	{
+	}
+};
+
+class StreamReader : public csp::CSProcess
+{
+private:
+	std::istream& in;
+	csp::Chanout<uint8_t> out;
+protected:
+	virtual void run()
+	{
+		try
+		{
+			tock_configure_terminal(true);
+			char c;
+			while (true)
+			{
+				in.get(c);
+				out << (uint8_t)c;
+			}
+		}
+		catch (csp::PoisonException& e)
+		{
+			out.poison();
+		}
+	}
+public:
+	inline StreamReader(std::istream& _in,const csp::Chanout<uint8_t>& _out)
+		:	in(_in),out(_out)
+	{
+	}
+};
+
+//Exits the whole program when it is run
+class LethalProcess : public csp::CSProcess
+{
+protected:
+	void run ()
+	{
+		//TODO should probably put this in an exit handler instead:
+		tock_restore_terminal();
+		exit(0);
 	}
 };
 
@@ -197,6 +237,37 @@ protected:
 public:
 	inline StreamWriterByteArray(std::ostream& _out,const csp::Chanin<tockSendableArrayOfBytes>& _in)
 		:	out(_out),in(_in)
+	{
+	}
+};
+
+class StreamReaderByteArray : public csp::CSProcess
+{
+private:
+	std::istream& in;
+	csp::Chanout<tockSendableArrayOfBytes> out;
+protected:
+	virtual void run()
+	{
+		try
+		{
+			tock_configure_terminal(true);
+			char c;
+			while (true)
+			{
+				in.get(c);
+				tockSendableArrayOfBytes aob(&c);
+				out << aob;
+			}
+		}
+		catch (csp::PoisonException& e)
+		{
+			out.poison();
+		}
+	}
+public:
+	inline StreamReaderByteArray(std::istream& _in,const csp::Chanout<tockSendableArrayOfBytes>& _out)
+		:	in(_in),out(_out)
 	{
 	}
 };

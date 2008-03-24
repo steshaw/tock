@@ -136,20 +136,25 @@ cppgenTopLevel s
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
-          (chanType,writer) <- 
+          (chanType, writer, reader) <- 
                       do st <- getCompState
                          case csFrontend st of
-                           FrontendOccam -> return ("tockSendableArrayOfBytes","StreamWriterByteArray")
-                           _ -> return ("uint8_t","StreamWriter")
+                           FrontendOccam -> return ("tockSendableArrayOfBytes",
+                                                    "StreamWriterByteArray",
+                                                    "StreamReaderByteArray")
+                           _ -> return ("uint8_t", "StreamWriter", "StreamReader")
           
-          tell ["csp::One2OneChannel<",chanType,"> in,out,err;"] --TODO add streamreader          
-          tell [" csp::Run( csp::InParallel (new ",writer,"(std::cout,out.reader())) (new ",writer,"(std::cerr,err.reader())) (csp::InSequenceOneThread ( new proc_"]
+          tell ["csp::One2OneChannel<",chanType,"> in,out,err;"]
+          tell [" csp::Run( csp::InParallel ",
+                "(new ",writer,"(std::cout,out.reader())) ",
+                "(new ",writer,"(std::cerr,err.reader())) ",
+                "(new ",reader,"(std::cin,in.writer())) ",
+                "(csp::InSequenceOneThread ( new proc_"]
           genName name 
           tell ["("]
           infixComma $ map tlpChannel chans
-          tell [")) (new csp::common::ChannelPoisoner< csp::Chanout<"
-               ,chanType,">/**/> (out.writer())) (new csp::common::ChannelPoisoner< csp::Chanout<"
-               ,chanType,">/**/> (err.writer()))   ) ); csp::End_CPPCSP(); return 0;}\n"]
+          tell [")) (new LethalProcess()) ) );",
+                "csp::End_CPPCSP(); return 0;}\n"]
   where
     tlpChannel :: (A.Direction,TLPChannel) -> CGen()
     tlpChannel (dir,c) = case dir of
