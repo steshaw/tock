@@ -1,15 +1,108 @@
-process main (?uint8: in, !uint8: out, !uint8: err)
+process assert_int(![uint8]: out, [uint8]: msg, int: exp, int: act)
 {
-        [uint8]: alphabet;
-
-        alphabet = ['a' .. 'z'];
-
-        alphabet += ['A' .. 'Z'];
-        
-        alphabet += ['0','1','2'] + ['3','4','5'] + "6789";
-
-	seqeach (c : alphabet)
+	if (exp <> act)
 	{
-		out ! c;
+		out ! msg;
 	}
+}
+
+process assert_uint8(![uint8]: out, [uint8]: msg, uint8: exp, uint8: act)
+{
+	if (exp <> act)
+	{
+		out ! msg;
+	}
+}
+
+process assert_lint(![uint8]: out, [uint8]: msg, [int]: exp, [int]: act)
+{
+	if (exp <> act)
+	{
+		out ! msg;
+	}
+}
+
+process assert_luint8(![uint8]: out, [uint8]: msg, [uint8]: exp, [uint8]: act)
+{
+	if (exp <> act)
+	{
+		out ! msg;
+	}
+}
+
+### Horrendous, I know:
+function int: head_int([int]: list)
+{
+	bool: first;
+	first = true;
+	int: r;
+	seqeach (x : list)
+	{
+		if (first)
+		{
+			r = x;
+			first = false;
+		}
+	}
+	return r;
+}
+
+### Could do with a map function in future:
+function [int]: addOne([int]: list)
+{
+	[int]: ret;
+### TODO fix type inference to accept this
+###	seqeach (x : list)
+	###{
+		###ret += [x + 1];
+	###}
+	return ret;
+}
+
+process comm_check_lint(![uint8]: out, [uint8]: msg, [int]: list)
+{
+	[int]: tmp;
+	channel [int]: c;
+	par
+	{
+		c ! list;
+		c ? tmp;
+	}
+	
+	assert_lint(out, msg, list, tmp);
+}
+
+process main (?uint8: in, ![uint8]: out, ![uint8]: err)
+{
+### TODO fix handling of the empty list to allow the commented out lines
+	assert_lint(out, "Simple list assert 0", [int: 6],[int: 6]);
+	assert_lint(out, "Simple list assert 1", [int: 0,1,2], [int: 0,1,2]);
+###	assert_lint(out, "Simple list assert 2", [], []);
+	assert_lint(out, "Simple list assert 3", [int: 5 .. 99], [int: 5 .. 99]);
+	###assert_lint(out, "Simple list assert 4", [5 .. 99], addOne([4 .. 98]));
+	
+	assert_luint8(out, "Simple list assert 10", "a","a");
+	assert_luint8(out, "Simple list assert 11", "abcd", "abcd");
+###	assert_luint8(out, "Simple list assert 12", "", "");	
+
+###	comm_check_lint(out, "Comm check 0", []);
+	comm_check_lint(out, "Comm check 1", [int:5]);
+	comm_check_lint(out, "Comm check 2", [int:1,2,3]);
+	comm_check_lint(out, "Comm check 3", [int:5 .. 99]);
+	comm_check_lint(out, "Comm check 4", [int:5 .. 99] + [int:4 .. 6]);
+
+	###TODO check with various variables and assignments
+
+###        [uint8]: alphabet;
+
+###        alphabet = ['a' .. 'z'];
+
+###        alphabet += ['A' .. 'Z'];
+        
+###        alphabet += ['0','1','2'] + ['3','4','5'] + "6789";
+
+###	seqeach (c : alphabet)
+###	{
+		###out ! c;
+	###}
 }
