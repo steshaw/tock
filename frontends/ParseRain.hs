@@ -53,9 +53,10 @@ instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
   dieReport (Nothing, err) = fail err  
 
-sLeftQ, sRightQ, sLeftR, sRightR, sLeftC, sRightC, sSemiColon, sColon, sComma, sIn, sOut, sDots,
-  sPar, sSeq, sAlt, sPri, sSeqeach, sPareach, sChannel, sOne2One, sIf, sElse, sWhile, sProcess, sFunction, sRun, sReturn, sWait, sFor, sUntil
-  :: RainParser Meta
+sLeftQ, sRightQ, sLeftR, sRightR, sLeftC, sRightC, sSemiColon, sColon,
+  sComma, sIn, sOut, sDots, sPar, sSeq, sAlt, sPri, sSeqeach, sPareach,
+  sChannel, sOne2One, sIf, sElse, sWhile, sProcess, sFunction, sReturn,
+  sWait, sFor, sUntil :: RainParser Meta
 
 --{{{ Symbols
 sLeftQ = reserved "["
@@ -87,7 +88,6 @@ sElse = reserved "else"
 sWhile = reserved "while"
 sProcess = reserved "process"
 sFunction = reserved "function"
-sRun = reserved "run"
 sReturn = reserved "return"
 sWait = reserved "wait"
 sFor = reserved "for"
@@ -424,11 +424,10 @@ tuple :: RainParser [A.Expression]
 tuple = do { sLeftR ; items <- expression `sepBy` sComma ; sRightR ; return items }
 
 runProcess :: RainParser A.Process
-runProcess = do m <- sRun
-                (mProcess,processName) <- identifier
+runProcess = do (mProcess,processName) <- identifier
                 items <- tuple
                 sSemiColon
-                return $ A.ProcCall m A.Name {A.nameName = processName, A.nameMeta = mProcess, A.nameType = A.ProcName} (map convertItem items)
+                return $ A.ProcCall mProcess A.Name {A.nameName = processName, A.nameMeta = mProcess, A.nameType = A.ProcName} (map convertItem items)
   where
     convertItem :: A.Expression -> A.Actual
     convertItem (A.ExprVariable _ v) = A.ActualVariable v
@@ -456,7 +455,7 @@ statement
            }
     <|> block
     <|> each
-    <|> runProcess
+    <|> try runProcess
     <|> do {m <- reserved "now" ; dest <- lvalue ; sSemiColon ; return $ A.Input
       m (A.Variable m rainTimerName) $ A.InputTimerRead m $ A.InVariable m dest}
     <|> do {(m,wm) <- waitStatement False; return $ A.Input m (A.Variable m

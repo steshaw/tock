@@ -675,16 +675,16 @@ testAlt =
 testRun :: [ParseTest A.Process]
 testRun =
  [
-  pass ("run foo();",RP.statement,assertPatternMatch "testRun 1" $ tag3 A.ProcCall DontCare (procNamePattern "foo") ([] :: [A.Actual]))
-  ,pass ("run foo(c);",RP.statement,assertPatternMatch "testRun 2" $ tag3 A.ProcCall DontCare (procNamePattern "foo") 
+  pass ("foo();",RP.statement,assertPatternMatch "testRun 1" $ tag3 A.ProcCall DontCare (procNamePattern "foo") ([] :: [A.Actual]))
+  ,pass ("foo(c);",RP.statement,assertPatternMatch "testRun 2" $ tag3 A.ProcCall DontCare (procNamePattern "foo") 
     [tag1 A.ActualVariable (variablePattern "c")])
-  ,pass ("run foo(c,0+x);",RP.statement,assertPatternMatch "testRun 3" $ tag3 A.ProcCall DontCare (procNamePattern "foo")
+  ,pass ("foo(c,0+x);",RP.statement,assertPatternMatch "testRun 3" $ tag3 A.ProcCall DontCare (procNamePattern "foo")
     [tag1 A.ActualVariable (variablePattern "c"),tag1 A.ActualExpression $ tag4 A.Dyadic DontCare A.Plus (intLiteralPattern 0) (exprVariablePattern "x")])  
-  ,fail ("run",RP.statement)
-  ,fail ("run;",RP.statement)
-  ,fail ("run ();",RP.statement)
-  ,fail ("run foo()",RP.statement)
-  ,fail ("run foo(,);",RP.statement)
+  ,fail ("",RP.statement)
+  ,fail (";",RP.statement)
+  ,fail ("();",RP.statement)
+  ,fail ("foo()",RP.statement)
+  ,fail ("foo(,);",RP.statement)
   
  ]
 
