@@ -80,6 +80,11 @@ PKG_CHECK_MODULES(CPPCSP2,cppcsp2-2.0 >= 2.0.4,,
 	cppcsp_available=false
 )
 
+PKG_CHECK_MODULES(GLIB,glib-2.0 >= 2.4.0,,
+	AC_MSG_WARN([Glib not available; you will not be able to compile output from the C backend on this machine: ] $GLIB_PKG_ERRORS)
+	ccsp_kroc_available=false
+)
+
 #Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
 CPPFLAGS="$CPPCSP2_CFLAGS"
@@ -154,7 +159,11 @@ AC_SUBST(C_INT_SIZE)
 
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
+CCSP_CFLAGS="`kroc --cflags` `kroc --ccincpath`"
+CCSP_LIBS="`kroc --cclibpath` -lccsp -lpthread -ldl -lm"
+
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS"
+# FIXME: -ldl is only necessary on some platforms for CCSP
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS"
 
 TOCK_CXXFLAGS="$CPPFLAGS $CXXFLAGS $common_cflags $CPPCSP2_CFLAGS"
