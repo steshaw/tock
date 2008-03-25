@@ -292,6 +292,16 @@ testOccamTypes = TestList
     , testOK   1300 $ testChoice $ A.Choice m boolE skip
     , testFail 1301 $ testChoice $ A.Choice m intE skip
 
+    -- Options
+    , testOK   1320 $ testOption intE $ A.Option m [] skip
+    , testOK   1321 $ testOption intE $ A.Option m [intE] skip
+    , testOK   1322 $ testOption intE $ A.Option m [intE, intE] skip
+    , testFail 1323 $ testOption realE $ A.Option m [realE] skip
+    , testFail 1324 $ testOption twoIntsE $ A.Option m [twoIntsE] skip
+    , testOK   1325 $ testOption boolE $ A.Option m [boolE] skip
+    , testFail 1326 $ testOption boolE $ A.Option m [intE] skip
+    , testFail 1327 $ testOption boolE $ A.Option m [boolE, intE] skip
+
     -- Assignment
     , testOK   1400 $ A.Assign m [intV] $ A.ExpressionList m [intE]
     , testOK   1401 $ A.Assign m [intV, intV] $ A.ExpressionList m [intE, intE]
@@ -310,6 +320,32 @@ testOccamTypes = TestList
                                $ A.FunctionCallList m function22 [intE, realE]
     , testFail 1415 $ A.Assign m [intV, realV]
                                $ A.FunctionCallList m function22 [realE]
+
+    -- Alt
+    , testOK   1500 $ testAlt $ A.Alternative m intC (insim [inv intV]) skip
+    , testOK   1501 $ testAlt $ A.Alternative m tim
+                                              (A.InputTimerAfter m intE) skip
+    , testOK   1502 $ testAlt $ A.AlternativeCond m boolE intC
+                                                  (insim [inv intV]) skip
+    , testOK   1503 $ testAlt $ A.AlternativeSkip m boolE skip
+    , testFail 1504 $ testAlt $ A.Alternative m intC (insim [inv realV]) skip
+    , testFail 1505 $ testAlt $ A.Alternative m tim
+                                              (A.InputTimerRead m $ inv intV)
+                                              skip
+    , testFail 1506 $ testAlt $ A.AlternativeCond m intE intC
+                                                  (insim [inv intV]) skip
+    , testFail 1507 $ testAlt $ A.AlternativeSkip m intE skip
+
+    -- Miscellaneous processes
+    , testOK   1900 $ A.ClearMobile m mobileIntV
+    , testFail 1901 $ A.ClearMobile m intV
+    , testOK   1902 $ A.Skip m
+    , testOK   1903 $ A.Stop m
+    , testOK   1904 $ A.While m boolE skip
+    , testFail 1905 $ A.While m intE skip
+    , testOK   1906 $ A.Par m A.PlainPar sskip
+    , testOK   1907 $ A.Processor m intE skip
+    , testFail 1908 $ A.Processor m realE skip
     --}}}
     ]
   where
@@ -376,7 +412,8 @@ testOccamTypes = TestList
     countedIntsC = variable "chanCountedInts"
     iirC = variable "chanIIR"
     caseC = variable "chanCaseProto"
-    inputSimple c iis = A.Input m c $ A.InputSimple m iis
+    insim iis = A.InputSimple m iis
+    inputSimple c iis = A.Input m c $ insim iis
     inputCase c vs = A.Input m c
                              $ A.InputCase m (A.Several m (map (A.Only m) vs))
     vari tag iis = A.Variant m (simpleName tag) iis skip
@@ -384,9 +421,11 @@ testOccamTypes = TestList
     outputCase c tag ois = A.OutputCase m c (simpleName tag) ois
     testRep r = A.Seq m (A.Rep m r sskip)
     testChoice c = A.If m $ A.Only m c
+    testOption e o = A.Case m e $ A.Only m o
     inv = A.InVariable m
     oute = A.OutExpression m
     tim = variable "tim"
+    testAlt a = A.Alt m True $ A.Only m a
     --}}}
 
 tests :: Test

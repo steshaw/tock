@@ -105,6 +105,10 @@ checkNumeric = checkTypeClass isNumericType "numeric"
 checkInteger :: Meta -> A.Type -> PassM ()
 checkInteger = checkTypeClass isIntegerType "integer"
 
+-- | Check that a type is case-selectable.
+checkCaseable :: Meta -> A.Type -> PassM ()
+checkCaseable = checkTypeClass isCaseableType "case-selectable"
+
 -- | Check that a type is scalar.
 checkScalar :: Meta -> A.Type -> PassM ()
 checkScalar = checkTypeClass isScalarType "scalar"
@@ -137,16 +141,16 @@ checkList m rawT
             _ -> diePC m $ formatCode "Expected list type; found %" t
 
 -- | Check the type of an expression.
-checkExpressionType :: Meta -> A.Type -> A.Expression -> PassM ()
-checkExpressionType m et e = typeOfExpression e >>= checkType m et
+checkExpressionType :: A.Type -> A.Expression -> PassM ()
+checkExpressionType et e = typeOfExpression e >>= checkType (findMeta e) et
 
 -- | Check that an expression is of integer type.
-checkExpressionInt :: Meta -> A.Expression -> PassM ()
-checkExpressionInt m e = checkExpressionType m A.Int e
+checkExpressionInt :: A.Expression -> PassM ()
+checkExpressionInt e = checkExpressionType A.Int e
 
 -- | Check that an expression is of boolean type.
-checkExpressionBool :: Meta -> A.Expression -> PassM ()
-checkExpressionBool m e = checkExpressionType m A.Bool e
+checkExpressionBool :: A.Expression -> PassM ()
+checkExpressionBool e = checkExpressionType A.Bool e
 
 -- | Check the type of a variable.
 checkVariableType :: Meta -> A.Type -> A.Variable -> PassM ()
@@ -191,11 +195,11 @@ checkSubscript m s rawT
 
           -- Check the subscript itself.
           case s of
-            A.Subscript m _ e -> checkExpressionInt m e
+            A.Subscript m _ e -> checkExpressionInt e
             A.SubscriptFromFor m e f ->
-              checkExpressionInt m e >> checkExpressionInt m f
-            A.SubscriptFrom m e -> checkExpressionInt m e
-            A.SubscriptFor m e -> checkExpressionInt m e
+              checkExpressionInt e >> checkExpressionInt f
+            A.SubscriptFrom m e -> checkExpressionInt e
+            A.SubscriptFor m e -> checkExpressionInt e
             _ -> ok
 
 -- | Classes of operators.
@@ -510,7 +514,7 @@ checkExpressions = checkDepthM doExpression
         =  do rfs <- underlyingType m t >>= recordFields m
               when (length es /= length rfs) $
                 dieP m $ "Record literal has wrong number of fields: found " ++ (show $ length es) ++ ", expected " ++ (show $ length rfs)
-              sequence_ [checkExpressionType (findMeta fe) ft fe
+              sequence_ [checkExpressionType ft fe
                          | ((_, ft), fe) <- zip rfs es]
     doLiteralRepr _ _ = ok
 
@@ -519,7 +523,7 @@ checkExpressions = checkDepthM doExpression
         =  do checkArraySize m t (length aes)
               t' <- subscriptType (A.Subscript m A.NoCheck undefined) t
               sequence_ $ map (doArrayElem m t') aes
-    doArrayElem _ t (A.ArrayElemExpr e) = checkExpressionType (findMeta e) t e
+    doArrayElem _ t (A.ArrayElemExpr e) = checkExpressionType t e
 
 --}}}
 --{{{  checkProcesses
@@ -535,22 +539,41 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Input _ v im) = doInput v im
     doProcess (A.Output m v ois) = doOutput m v ois
     doProcess (A.OutputCase m v tag ois) = doOutputCase m v tag ois
-    -- ClearMobile
-    -- Skip
-    -- Stop
+    doProcess (A.ClearMobile _ v)
+        =  do t <- typeOfVariable v
+              case t of
+                A.Mobile _ -> ok
+                _ -> diePC (findMeta v) $ formatCode "Expected mobile type; found %" t
+              checkWritable v
+    doProcess (A.Skip _) = ok
+    doProcess (A.Stop _) = ok
     doProcess (A.Seq _ s) = doStructured (\p -> ok) s
     doProcess (A.If _ s) = doStructured doChoice s
-    -- Case
-    -- While
-    -- Par
-    -- Processor
-    -- Alt
+    doProcess (A.Case _ e s)
+        =  do t <- typeOfExpression e
+              checkCaseable (findMeta e) t
+              doStructured (doOption t) s
+    doProcess (A.While _ e _) = checkExpressionBool e
+    doProcess (A.Par _ _ s) = doStructured (\p -> ok) s
+    doProcess (A.Processor _ e _) = checkExpressionInt e
+    doProcess (A.Alt _ _ s) = doStructured doAlternative s
     -- ProcCall
     -- IntrinsicProcCall
-    doProcess _ = ok
+
+    doAlternative :: A.Alternative -> PassM ()
+    doAlternative (A.Alternative m v im _)
+        = case im of
+            A.InputTimerRead _ _ ->
+              dieP m $ "Timer read not permitted as alternative"
+            _ -> doInput v im
+    doAlternative (A.AlternativeCond m e v im p)
+        =  do checkExpressionBool e
+              doAlternative (A.Alternative m v im p)
+    doAlternative (A.AlternativeSkip _ e _)
+        = checkExpressionBool e
 
     doChoice :: A.Choice -> PassM ()
-    doChoice (A.Choice _ e _) = checkExpressionBool (findMeta e) e
+    doChoice (A.Choice _ e _) = checkExpressionBool e
 
     doInput :: A.Variable -> A.InputMode -> PassM ()
     doInput c (A.InputSimple m iis)
@@ -590,6 +613,13 @@ checkProcesses = checkDepthM doProcess
               checkType (findMeta v) wantT t
               checkWritable v
 
+    doOption :: A.Type -> A.Option -> PassM ()
+    doOption et (A.Option _ es _)
+        = sequence_ [do rt <- typeOfExpression e
+                        checkType (findMeta e) et rt
+                     | e <- es]
+    doOption _ (A.Else _ _) = ok
+
     doOutput :: Meta -> A.Variable -> [A.OutputItem] -> PassM ()
     doOutput m c ois
         =  do t <- checkChannel A.DirOutput c
@@ -614,8 +644,8 @@ checkProcesses = checkDepthM doProcess
 
     doReplicator :: A.Replicator -> PassM ()
     doReplicator (A.For _ _ start count)
-        =  do checkExpressionInt (findMeta start) start
-              checkExpressionInt (findMeta count) count
+        =  do checkExpressionInt start
+              checkExpressionInt count
     doReplicator (A.ForEach _ _ e)
         =  do t <- typeOfExpression e
               checkSequence (findMeta e) t
