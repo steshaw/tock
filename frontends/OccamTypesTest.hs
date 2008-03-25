@@ -279,6 +279,25 @@ testOccamTypes = TestList
     -- Choices
     , testOK   1300 $ testChoice $ A.Choice m boolE skip
     , testFail 1301 $ testChoice $ A.Choice m intE skip
+
+    -- Assignment
+    , testOK   1400 $ A.Assign m [intV] $ A.ExpressionList m [intE]
+    , testOK   1401 $ A.Assign m [intV, intV] $ A.ExpressionList m [intE, intE]
+    , testFail 1402 $ A.Assign m [intV] $ A.ExpressionList m [realE]
+    , testFail 1403 $ A.Assign m [intV, intV] $ A.ExpressionList m [intE]
+    , testFail 1404 $ A.Assign m [intV] $ A.ExpressionList m [intE, intE]
+    , testOK   1410 $ A.Assign m [intV, intV]
+                               $ A.FunctionCallList m function22 [intE, intE]
+    , testFail 1411 $ A.Assign m [intV]
+                               $ A.FunctionCallList m function22 [intE, intE]
+    , testFail 1412 $ A.Assign m [intV, intV, intV]
+                               $ A.FunctionCallList m function22 [intE, intE]
+    , testFail 1413 $ A.Assign m [intV, realV]
+                               $ A.FunctionCallList m function22 [intE, intE]
+    , testFail 1414 $ A.Assign m [intV, realV]
+                               $ A.FunctionCallList m function22 [intE, realE]
+    , testFail 1415 $ A.Assign m [intV, realV]
+                               $ A.FunctionCallList m function22 [realE]
     --}}}
     ]
   where

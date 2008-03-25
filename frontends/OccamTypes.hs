@@ -152,12 +152,6 @@ checkExpressionBool m e = checkExpressionType m A.Bool e
 checkVariableType :: Meta -> A.Type -> A.Variable -> PassM ()
 checkVariableType m et v = typeOfVariable v >>= checkType m et
 
--- | Check that two lists of types match (for example, for parallel
--- assignment).
-checkTypeList :: Meta -> [A.Type] -> [A.Type] -> PassM ()
-checkTypeList m ets rts
-    = sequence_ [checkType m et rt | (et, rt) <- zip ets rts]
-
 --}}}
 --{{{  more complex checks
 
@@ -273,19 +267,18 @@ checkDyadicOp op l r
               checkList lm lt >> checkList rm rt >> checkType rm lt rt
 
 -- | Check a function call.
-checkFunctionCall :: Meta -> A.Name -> [A.Expression] -> Bool -> PassM ()
-checkFunctionCall m n es singleOnly
+checkFunctionCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Type]
+checkFunctionCall m n es
     =  do st <- specTypeOfName n
           case st of
             A.Function _ _ rs fs _ ->
-               do when (singleOnly && length rs /= 1) $
-                    diePC m $ formatCode "Function % used in an expression returns more than one value" n
-                  when (length es /= length fs) $
+               do when (length es /= length fs) $
                     diePC m $ formatCode ("Function % called with wrong number of arguments; found " ++ (show $ length es) ++ ", expected " ++ (show $ length fs)) n
                   sequence_ [do rt <- typeOfExpression e
                                 checkType (findMeta e) et rt
                              | (e, A.Formal _ et _) <- zip es fs]
-            _ -> diePC m $ formatCode ("% is not a function; it's a " ++ show st) n
+                  return rs
+            _ -> diePC m $ formatCode "% is not a function" n
 
 -- | Check an intrinsic function call.
 checkIntrinsicFunctionCall :: Meta -> String -> [A.Expression] -> Bool
@@ -401,6 +394,24 @@ checkProtocol m t tag items doItem
           sequence_ [doItem it item
                      | (it, item) <- zip its items]
 
+checkExpressionList :: [A.Type] -> A.ExpressionList -> PassM ()
+checkExpressionList ets el
+    = case el of
+        A.FunctionCallList m n es ->
+           do rs <- checkFunctionCall m n es
+              when (length ets /= length rs) $
+                diePC m $ formatCode ("Function % has wrong number of return values; found " ++ (show $ length rs) ++ ", expected " ++ (show $ length ets)) n
+              sequence_ [checkType m et rt
+                         | (et, rt) <- zip ets rs]
+        A.ExpressionList m es ->
+           do when (length ets /= length es) $
+                dieP m $ "Wrong number of items in expression list; found "
+                         ++ (show $ length es) ++ ", expected "
+                         ++ (show $ length ets)
+              sequence_ [do rt <- typeOfExpression e
+                            checkType (findMeta e) et rt
+                         | (e, et) <- zip es ets]
+
 --}}}
 
 -- | Check the AST for type consistency.
@@ -466,7 +477,9 @@ checkExpressions = checkDepthM doExpression
               checkScalar m t >> checkScalar (findMeta e) et
     doExpression (A.Literal m t lr) = doLiteralRepr t lr
     doExpression (A.FunctionCall m n es)
-        = checkFunctionCall m n es True
+        =  do rs <- checkFunctionCall m n es
+              when (length rs /= 1) $
+                diePC m $ formatCode "Function % used in an expression returns more than one value" n
     doExpression (A.IntrinsicFunctionCall m s es)
         = checkIntrinsicFunctionCall m s es True
     doExpression (A.SubscriptedExpr m s e)
@@ -503,7 +516,10 @@ checkProcesses :: Data t => t -> PassM t
 checkProcesses = checkDepthM doProcess
   where
     doProcess :: A.Process -> PassM ()
-    -- Assign
+    doProcess (A.Assign m vs el)
+        =  do vts <- mapM (typeOfVariable) vs
+              mapM_ checkWritable vs
+              checkExpressionList vts el
     doProcess (A.Input _ v im) = doInput v im
     doProcess (A.Output m v ois) = doOutput m v ois
     doProcess (A.OutputCase m v tag ois) = doOutputCase m v tag ois
