@@ -20,8 +20,10 @@
 #define TOCK_SUPPORT_CIF_H
 
 #include <cif.h>
+#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -139,6 +141,57 @@ static void tock_init_ccsp (bool uses_stdin) {
 
 	ccsp_set_exit_handler (tock_exit_handler);
 }
+//}}}
+
+//{{{ Helpers for lists
+
+//Just like g_queue_push_tail, but returns the queue pointer:
+static inline GQueue* tock_push_tail(GQueue*, gpointer) occam_unused;
+static inline GQueue* tock_push_tail(GQueue* queue, gpointer data)
+{
+	g_queue_push_tail(queue,data);
+	return queue;
+}
+
+static void tock_free_helper(gpointer, gpointer) occam_unused;
+static void tock_free_helper(gpointer data, gpointer _unused)
+{
+	free(data);
+}
+
+//This should go away once we start using mobiles properly:
+static gpointer tock_new_helper(gpointer, guint) occam_unused;
+static gpointer tock_new_helper(gpointer src, guint sz)
+{
+	gpointer ret = malloc(sz);
+	memcpy(ret,src,sz);
+	return ret;
+}
+
+//Deletes everything in the queue and frees it:
+static inline void tock_free_queue(GQueue*) occam_unused;
+static inline void tock_free_queue(GQueue* queue)
+{
+	g_queue_foreach(queue, tock_free_helper, NULL);
+	g_queue_free(queue);
+}
+
+//Moves both queues into a concatenated new queue.
+//Don't rely on either of the passed arguments being
+//valid afterwards
+static inline GQueue* tock_queue_concat(GQueue*,GQueue*) occam_unused;
+static inline GQueue* tock_queue_concat(GQueue* a, GQueue* b)
+{
+	a->length += b->length;
+	a->head = g_list_concat(a->head, b-> head);
+	a->tail = b->tail;
+	b->head = NULL;
+	b->tail = NULL;
+	b->length = 0;
+	g_queue_free(b);
+	return a;
+}
+
 //}}}
 
 #endif

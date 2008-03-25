@@ -348,8 +348,7 @@ cgenType (A.Chan _ _ t) = tell ["Channel*"]
 -- Any -- not used
 --cgenType (A.Port t) =
 
---TODO have a pass that declares these list types:
-cgenType t@(A.List {}) = tell [subRegex (mkRegex "[^A-Za-z0-9]") (show t) ""]
+cgenType (A.List {}) = tell ["GQueue*"]
 
 cgenType t
  = do f <- fget getScalarType
@@ -532,14 +531,33 @@ genLitSuffix A.UInt64 = tell ["ULL"]
 genLitSuffix A.Real32 = tell ["F"]
 genLitSuffix _ = return ()
 
+-- TODO don't allocate for things less than 64-bits in size
 cgenListLiteral :: [A.Expression] -> A.Type -> CGen ()
-cgenListLiteral _ _ = call genMissing "C backend does not yet support lists"
+cgenListLiteral es t
+  = foldl addItem (tell ["g_queue_new()"]) es
+  where
+    addItem :: CGen () -> A.Expression -> CGen ()
+    addItem prev add
+      = do tell ["g_queue_push_head("]
+           prev
+           tell [","]
+           call genExpression add
+           tell [")"]
 
 cgenListSize :: A.Variable -> CGen ()
-cgenListSize _ = call genMissing "C backend does not yet support lists"
+cgenListSize v = do tell ["g_queue_get_length("]
+                    call genVariable v
+                    tell [")"]
 
 cgenListAssign :: A.Variable -> A.Expression -> CGen ()
-cgenListAssign _ _ = call genMissing "C backend does not yet support lists"
+cgenListAssign v e
+  = do tell ["tock_free_queue("]
+       call genVariable v
+       tell [");"]
+       call genVariable v
+       tell ["="]
+       call genExpression e
+       tell [";"]
 
 cgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
 cgenLiteralRepr (A.RealLiteral m s) t = tell [s] >> genLitSuffix t
@@ -979,7 +997,12 @@ cgenDyadic _ A.Concat e f = call genListConcat e f
 --}}}
 
 cgenListConcat :: A.Expression -> A.Expression -> CGen ()
-cgenListConcat _ _ = call genMissing "C backend does not yet support lists"
+cgenListConcat a b
+  = do tell ["tock_queue_concat("]
+       call genExpression a
+       tell [","]
+       call genExpression b
+       tell [")"]
 
 --{{{  input/output items
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
