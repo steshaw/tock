@@ -66,6 +66,7 @@ startState
                                            , (simpleName "three", [])
                                            ]
           defineChannel "chanCaseProto" caseProtoT
+          defineTimer "tim" $ A.Timer A.OccamTimer
   where
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayLiteral m []
@@ -216,6 +217,7 @@ testOccamTypes = TestList
     , testFail 1013 $ inputSimple intV [inv intV]
     , testFail 1014 $ inputSimple intV []
     , testFail 1015 $ inputSimple intV [inv intV, inv intV]
+    , testFail 1016 $ inputSimple tim [inv intV]
     , testOK   1020 $ inputSimple iirC [inv intV, inv intV, inv realV]
     , testFail 1021 $ inputSimple iirC [inv intV, inv realV, inv intV]
     , testFail 1022 $ inputSimple iirC [inv realV, inv intV, inv intV]
@@ -253,6 +255,7 @@ testOccamTypes = TestList
     , testOK   1110 $ outputSimple intC [oute intE]
     , testFail 1111 $ outputSimple intC [oute intCE]
     , testFail 1112 $ outputSimple intV [oute intE]
+    , testFail 1113 $ outputSimple tim [oute intE]
     , testOK   1120 $ outputSimple iirC [oute intE, oute intE, oute realE]
     , testFail 1121 $ outputSimple iirC [oute intE, oute realE, oute intE]
     , testFail 1122 $ outputSimple iirC [oute realE, oute intE, oute intE]
@@ -267,6 +270,15 @@ testOccamTypes = TestList
     , testFail 1135 $ outputCase caseC "two" []
     , testFail 1136 $ outputCase caseC "two" [oute intE]
     , testFail 1137 $ outputCase caseC "herring" [oute intE]
+
+    -- Timer operations
+    , testOK   1180 $ A.Input m tim $ A.InputTimerRead m $ inv intV
+    , testOK   1181 $ A.Input m tim $ A.InputTimerAfter m intE
+    , testOK   1182 $ A.Input m tim $ A.InputTimerFor m intE
+    , testFail 1183 $ A.Input m tim $ A.InputTimerRead m $ inv realV
+    , testFail 1184 $ A.Input m caseC $ A.InputTimerRead m $ inv intV
+    , testFail 1185 $ A.Input m tim $ A.InputTimerAfter m realE
+    , testFail 1186 $ A.Input m tim $ A.InputTimerFor m realE
 
     -- Replicators
     , testOK   1200 $ testRep $ A.For m i intE intE
@@ -374,6 +386,7 @@ testOccamTypes = TestList
     testChoice c = A.If m $ A.Only m c
     inv = A.InVariable m
     oute = A.OutExpression m
+    tim = variable "tim"
     --}}}
 
 tests :: Test

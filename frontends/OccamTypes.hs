@@ -354,6 +354,18 @@ checkChannel wantDir c
   where
     m = findMeta c
 
+-- | Check that a variable is a timer.
+-- Return the type of the timer's value.
+checkTimer :: A.Variable -> PassM A.Type
+checkTimer tim
+    =  do t <- typeOfVariable tim >>= underlyingType m
+          case t of
+            A.Timer A.OccamTimer -> return A.Int
+            A.Timer A.RainTimer -> return A.Time
+            _ -> diePC m $ formatCode "Expected timer; found %" t
+  where
+    m = findMeta tim
+
 -- | Return the list of types carried by a protocol.
 -- For a variant protocol, the second argument should be 'Just' the tag.
 -- For a non-variant protocol, the second argument should be 'Nothing'.
@@ -523,8 +535,6 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Input _ v im) = doInput v im
     doProcess (A.Output m v ois) = doOutput m v ois
     doProcess (A.OutputCase m v tag ois) = doOutputCase m v tag ois
-    -- GetTime
-    -- Wait
     -- ClearMobile
     -- Skip
     -- Stop
@@ -553,9 +563,17 @@ checkProcesses = checkDepthM doProcess
         doVariant :: A.Type -> A.Variant -> PassM ()
         doVariant t (A.Variant m tag iis _)
             = checkProtocol m t (Just tag) iis doInputItem
-    -- InputTimerRead
-    -- InputTimerAfter
-    doInput _ _ = ok
+    doInput c (A.InputTimerRead m ii)
+        =  do t <- checkTimer c
+              doInputItem t ii
+    doInput c (A.InputTimerAfter m e)
+        =  do t <- checkTimer c
+              et <- typeOfExpression e
+              checkType (findMeta e) t et
+    doInput c (A.InputTimerFor m e)
+        =  do t <- checkTimer c
+              et <- typeOfExpression e
+              checkType (findMeta e) t et
 
     doInputItem :: A.Type -> A.InputItem -> PassM ()
     doInputItem (A.Counted wantCT wantAT) (A.InCounted m cv av)

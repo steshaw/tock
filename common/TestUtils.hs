@@ -338,6 +338,11 @@ defineChannel :: String -> A.Type -> State CompState ()
 defineChannel s t
     = defineThing s A.ChannelName (A.Declaration emptyMeta t) A.Original
 
+-- | Define a timer.
+defineTimer :: String -> A.Type -> State CompState ()
+defineTimer s t
+    = defineThing s A.TimerName (A.Declaration emptyMeta t) A.Original
+
 -- | Define a user data type.
 defineUserDataType :: String -> A.Type -> State CompState ()
 defineUserDataType s t
