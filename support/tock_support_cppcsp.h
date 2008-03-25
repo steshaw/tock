@@ -93,12 +93,12 @@ protected:
 				in >> c;
 				out << c;
 			}
-			out.flush();
 		}
 		catch (csp::PoisonException& e)
 		{
 			in.poison();
 		}
+		out.flush();
 	}
 public:
 	inline StreamWriter(std::ostream& _out,const csp::Chanin<uint8_t>& _in)
@@ -225,14 +225,21 @@ protected:
 			{
 				tockSendableArrayOfBytes aob(1,&c);
 				in >> aob;
-				out << c;
+				if (c == 255)
+				{
+					out.flush();
+				}
+				else
+				{
+					out << c;
+				}
 			}
-			out.flush();
 		}
 		catch (csp::PoisonException& e)
 		{
 			in.poison();
 		}
+		out.flush();
 	}
 public:
 	inline StreamWriterByteArray(std::ostream& _out,const csp::Chanin<tockSendableArrayOfBytes>& _in)

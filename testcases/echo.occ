@@ -5,4 +5,5 @@ PROC echo(CHAN BYTE in, out)
       in ? c
       out ! c
       out ! c
+      out ! 255
 :
