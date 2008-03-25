@@ -215,8 +215,9 @@ transformRangeRep = doGeneric `extM` doExpression
                           (A.ExprVariable m $ A.Variable m rep)
     doExpression e = doGeneric e
 
+-- TODO this is almost certainly better figured out from the CFG
 checkFunction :: Data t => t -> PassM t
-checkFunction = everywhereM (mkM checkFunction')
+checkFunction = return -- everywhereM (mkM checkFunction')
   where
     checkFunction' :: A.Specification -> PassM A.Specification
     checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Right body)))
