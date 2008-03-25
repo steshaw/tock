@@ -139,11 +139,14 @@ main = do
   -- Try to guess the filename from the extension.  Since this function is
   -- applied before the options are applied, it will be overriden by the
   -- --frontend=x command-line option
-  let frontendGuess = if ".occ" `isSuffixOf` fn
-                        then \ps -> ps {csFrontend = FrontendOccam}
+  let (frontendGuess, fileStem)
+                    = if ".occ" `isSuffixOf` fn
+                        then (\ps -> ps {csFrontend = FrontendOccam},
+                              Just $ take (length fn - length ".occ") fn)
                         else if ".rain" `isSuffixOf` fn
-                          then \ps -> ps {csFrontend = FrontendRain}
-                          else id
+                          then (\ps -> ps {csFrontend = FrontendRain},
+                                Just $ take (length fn - length ".rain") fn)
+                          else (id, Nothing)
 
   initState <- foldl (>>=) (return $ frontendGuess emptyState) opts
 
@@ -153,7 +156,7 @@ main = do
             ModeFlowGraph -> useOutputOptions (compile ModeFlowGraph fn)
             ModeCompile -> useOutputOptions (compile ModeCompile fn)
             ModePostC -> useOutputOptions (postCAnalyse fn)
-            ModeFull -> evalStateT (compileFull fn) []
+            ModeFull -> evalStateT (compileFull fn fileStem) []
 
   -- Run the compiler.
   -- TODO still get the warnings back in future
@@ -184,12 +187,17 @@ instance Die (StateT [FilePath] PassM) where
               liftIO $ removeFiles files
             lift $ dieReport err
 
-compileFull :: String -> StateT [FilePath] PassM ()
-compileFull inputFile
+compileFull :: String -> Maybe String -> StateT [FilePath] PassM ()
+compileFull inputFile moutputFile
     =  do optsPS <- lift get
-          outputFile <- case csOutputFile optsPS of
-                          "-" -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
-                          file -> return file
+          outputFile <- case (csOutputFile optsPS, moutputFile) of
+                          -- If the user hasn't given an output file, we guess by
+                          -- using a stem (input file minus known extension).
+                          -- If the extension isn't known, the user must specify
+                          -- the output file
+                          ("-", Just file) -> return file
+                          ("-", Nothing) -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
+                          (file, _) -> return file
 
           let extension = case csBackend optsPS of
                             BackendC -> ".c"
