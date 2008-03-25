@@ -99,6 +99,7 @@ PKG_CHECK_MODULES(CPPCSP2,cppcsp2-2.0 >= 2.0.4,,
 
 #Must remember to switch the language to C++ before checking the C++ headers:
 AC_LANG(C++)
+CPPFLAGS="$CPPCSP2_CFLAGS"
 AC_CHECK_HEADERS([cppcsp/cppcsp.h],[HAVE_CPPCSP=true],[HAVE_CPPCSP=false])
 if test "x$HAVE_CPPCSP" = "xfalse"; then
   AC_MSG_WARN([cppcsp/cppcsp.h not found; you will not be able to compile output from the C++ backend on this machine])
@@ -168,11 +169,26 @@ AC_CHECK_SIZEOF(int)
 AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
 AC_SUBST(C_INT_SIZE)
 
+common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
-AC_SUBST(gnu89_inline)
+CCSP_CFLAGS="`kroc --cflags` `kroc --ccincpath`"
+CCSP_LIBS="`kroc --cclibpath` -lccsp -lpthread -ldl -lm"
+
+TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS"
+# FIXME: -ldl is only necessary on some platforms for CCSP
+TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS"
+
+TOCK_CXXFLAGS="$CPPFLAGS $CXXFLAGS $common_cflags $CPPCSP2_CFLAGS"
+TOCK_CXXLDFLAGS="$LDFLAGS $CPPCSP2_LIBS"
+
+AC_SUBST(TOCK_CFLAGS)
+AC_SUBST(TOCK_CLDFLAGS)
+AC_SUBST(TOCK_CXXFLAGS)
+AC_SUBST(TOCK_CXXLDFLAGS)
+
 AC_SUBST(ccsp_kroc_available)
 AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile] [TypeSizes.hs] [CompilerCommands.hs] [tock-1.0.pc])
 AC_OUTPUT
