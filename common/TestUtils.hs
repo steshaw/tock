@@ -360,6 +360,16 @@ defineFunction s rs as
     st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
+-- | Define a protocol.
+defineProtocol :: String -> [A.Type] -> State CompState ()
+defineProtocol s ts
+    = defineThing s A.ProtocolName (A.Protocol emptyMeta ts) A.Original
+
+-- | Define a variant protocol.
+defineProtocolCase :: String -> [(A.Name, [A.Type])] -> State CompState ()
+defineProtocolCase s ntss
+    = defineThing s A.ProtocolName (A.ProtocolCase emptyMeta ntss) A.Original
+
 --}}}
 --{{{  custom assertions
 

@@ -57,16 +57,29 @@ startState
           defineFunction "function2" [A.Int] [("x", A.Int), ("y", A.Int)]
           defineFunction "function22" [A.Int, A.Int]
                                       [("x", A.Int), ("y", A.Int)]
+          defineProtocol "countedInts" $ [A.Counted A.Int intsT]
+          defineChannel "chanCountedInts" countedIntsT
+          defineProtocol "iir" $ [A.Int, A.Int, A.Real32]
+          defineChannel "chanIIR" iirT
+          defineProtocolCase "caseProto" $ [ (simpleName "one", [A.Int])
+                                           , (simpleName "two", [A.Real32])
+                                           , (simpleName "three", [])
+                                           ]
+          defineChannel "chanCaseProto" caseProtoT
   where
-    ca = A.ChanAttributes False False
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayLiteral m []
-    chanIntT = A.Chan A.DirUnknown ca A.Int
+    chanT t = A.Chan A.DirUnknown (A.ChanAttributes False False) t
+    chanIntT = chanT A.Int
+    countedIntsT = chanT $ A.UserProtocol (simpleName "countedInts")
+    iirT = chanT $ A.UserProtocol (simpleName "iir")
+    caseProtoT = chanT $ A.UserProtocol (simpleName "caseProto")
 
 -- | Test the typechecker.
 testOccamTypes :: Test
 testOccamTypes = TestList
     [
+    --{{{  expressions
     -- Subscript expressions
       testOK     0 $ subex $ A.Subscript m A.NoCheck intE
     , testFail   1 $ subex $ A.Subscript m A.NoCheck byteE
@@ -103,10 +116,10 @@ testOccamTypes = TestList
     -- Variables
     , testOK    50 $ intV
     , testOK    51 $ bytesV
-    , testOK    52 $ A.DirectedVariable m A.DirInput chanIntV
+    , testOK    52 $ A.DirectedVariable m A.DirInput intC
     , testFail  53 $ A.DirectedVariable m A.DirInput intV
     , testOK    54 $ A.DerefVariable m mobileIntV
-    , testFail  55 $ A.DerefVariable m chanIntV
+    , testFail  55 $ A.DerefVariable m intC
 
     -- Operators in expressions
     , testOK   100 $ A.Monadic m A.MonadicSubtr intE
@@ -188,36 +201,85 @@ testOccamTypes = TestList
     , testOK   254 $ A.AllocMobile m (A.Mobile twoIntsT) (Just twoIntsE)
     , testFail 255 $ A.AllocMobile m (A.Mobile unknownIntsT) (Just twoIntsE)
     , testFail 256 $ A.AllocMobile m (A.Mobile unknownIntsT) Nothing
+    --}}}
+    --{{{  processes
+    -- Inputs
+    , testOK   1000 $ inputSimple countedIntsC [A.InCounted m intV intsV]
+    , testFail 1001 $ inputSimple countedIntsC [A.InCounted m realV intsV]
+    , testFail 1002 $ inputSimple countedIntsC [A.InCounted m intV intV]
+    , testFail 1003 $ inputSimple countedIntsC [A.InCounted m constIntV intsV]
+    , testFail 1004 $ inputSimple countedIntsC [A.InCounted m intV constIntsV]
+    , testFail 1005 $ inputSimple countedIntsC [A.InCounted m intV intsC]
+    , testOK   1010 $ inputSimple intC [inv intV]
+    , testFail 1011 $ inputSimple intC [inv constIntV]
+    , testFail 1012 $ inputSimple intC [inv intC]
+    , testFail 1013 $ inputSimple intV [inv intV]
+    , testFail 1014 $ inputSimple intV []
+    , testFail 1015 $ inputSimple intV [inv intV, inv intV]
+    , testOK   1020 $ inputSimple iirC [inv intV, inv intV, inv realV]
+    , testFail 1021 $ inputSimple iirC [inv intV, inv realV, inv intV]
+    , testFail 1022 $ inputSimple iirC [inv realV, inv intV, inv intV]
+    , testFail 1023 $ inputSimple iirC [inv intV, inv intV]
+    , testFail 1024 $ inputSimple iirC [inv intV, inv intV, inv realV, inv intV]
+    , testOK   1030 $ inputCase caseC [ vari "one" [inv intV]
+                                      , vari "two" [inv realV]
+                                      , vari "three" []
+                                      ]
+    , testFail 1031 $ inputCase caseC [ vari "one" [inv realV]
+                                      , vari "two" [inv realV]
+                                      , vari "three" []
+                                      ]
+    , testFail 1032 $ inputCase caseC [ vari "one" [inv intV]
+                                      , vari "two" [inv intV]
+                                      , vari "three" []
+                                      ]
+    , testFail 1033 $ inputCase caseC [ vari "one" [inv intV]
+                                      , vari "herring" [inv realV]
+                                      , vari "three" []
+                                      ]
+    , testFail 1034 $ inputCase caseC [ vari "one" [inv intV, inv realV]
+                                      , vari "two" [inv realV]
+                                      , vari "three" []
+                                      ]
+    , testFail 1035 $ inputCase caseC [ vari "one" []
+                                      , vari "two" []
+                                      , vari "three" []
+                                      ]
 
-    -- Input items
-    , testOK   300 $ A.InCounted m intV intsV
-    , testFail 301 $ A.InCounted m realV intsV
-    , testFail 302 $ A.InCounted m intV intV
-    , testFail 303 $ A.InCounted m constIntV intsV
-    , testFail 304 $ A.InCounted m intV constIntsV
-    , testFail 305 $ A.InCounted m intV chansIntV
-    , testOK   306 $ A.InVariable m intV
-    , testFail 307 $ A.InVariable m constIntV
-    , testFail 308 $ A.InVariable m chanIntV
-
-    -- Output items
-    , testOK   310 $ A.OutCounted m intE twoIntsE
-    , testFail 311 $ A.OutCounted m realE twoIntsE
-    , testFail 312 $ A.OutCounted m intE intE
-    , testOK   313 $ A.OutExpression m intE
-    , testFail 313 $ A.OutExpression m chanIntE
+    -- Outputs
+    , testOK   1100 $ outputSimple countedIntsC [A.OutCounted m intE twoIntsE]
+    , testFail 1101 $ outputSimple countedIntsC [A.OutCounted m realE twoIntsE]
+    , testFail 1102 $ outputSimple countedIntsC [A.OutCounted m intE intE]
+    , testOK   1110 $ outputSimple intC [oute intE]
+    , testFail 1111 $ outputSimple intC [oute intCE]
+    , testFail 1112 $ outputSimple intV [oute intE]
+    , testOK   1120 $ outputSimple iirC [oute intE, oute intE, oute realE]
+    , testFail 1121 $ outputSimple iirC [oute intE, oute realE, oute intE]
+    , testFail 1122 $ outputSimple iirC [oute realE, oute intE, oute intE]
+    , testFail 1123 $ outputSimple iirC [oute intE, oute intE]
+    , testFail 1124 $ outputSimple iirC [oute intE, oute intE, oute realE,
+                                         oute intE]
+    , testOK   1130 $ outputCase caseC "one" [oute intE]
+    , testOK   1131 $ outputCase caseC "two" [oute realE]
+    , testOK   1132 $ outputCase caseC "three" []
+    , testFail 1133 $ outputCase caseC "three" [oute intE]
+    , testFail 1134 $ outputCase caseC "two" [oute realE, oute intE]
+    , testFail 1135 $ outputCase caseC "two" []
+    , testFail 1136 $ outputCase caseC "two" [oute intE]
+    , testFail 1137 $ outputCase caseC "herring" [oute intE]
 
     -- Replicators
-    , testOK   320 $ A.For m i intE intE
-    , testFail 321 $ A.For m i realE intE
-    , testFail 322 $ A.For m i intE realE
-    , testOK   323 $ A.ForEach m i twoIntsE
-    , testOK   324 $ A.ForEach m i listE
-    , testFail 324 $ A.ForEach m i intE
+    , testOK   1200 $ testRep $ A.For m i intE intE
+    , testFail 1201 $ testRep $ A.For m i realE intE
+    , testFail 1202 $ testRep $ A.For m i intE realE
+    , testOK   1203 $ testRep $ A.ForEach m i twoIntsE
+    , testOK   1204 $ testRep $ A.ForEach m i listE
+    , testFail 1205 $ testRep $ A.ForEach m i intE
 
     -- Choices
-    , testOK   330 $ A.Choice m boolE skip
-    , testFail 331 $ A.Choice m intE skip
+    , testOK   1300 $ testChoice $ A.Choice m boolE skip
+    , testFail 1301 $ testChoice $ A.Choice m intE skip
+    --}}}
     ]
   where
     testOK :: (Show a, Data a) => Int -> a -> Test
@@ -232,6 +294,7 @@ testOccamTypes = TestList
                                         (OccamTypes.checkTypes orig)
                                         startState
 
+    --{{{  definitions for tests
     subex sub = A.SubscriptedExpr m sub twoIntsE
     intV = variable "varInt"
     intE = intLiteral 42
@@ -262,9 +325,9 @@ testOccamTypes = TestList
     coord2E = A.Literal m coord2T coord2
     coord3T = A.Record (simpleName "COORD3")
     coord3 = A.RecordLiteral m [realE, realE, realE]
-    chanIntV = variable "chanInt"
-    chanIntE = A.ExprVariable m chanIntV
-    chansIntV = variable "chanInt"
+    intC = variable "chanInt"
+    intCE = A.ExprVariable m intC
+    intsC = variable "chansInt"
     mobileIntV = variable "mobileInt"
     sub0 = A.Subscript m A.NoCheck (intLiteral 0)
     sub0E = A.SubscriptedExpr m sub0
@@ -278,6 +341,21 @@ testOccamTypes = TestList
     listE = A.Literal m listT (A.ListLiteral m [intE, intE, intE])
     i = simpleName "i"
     skip = A.Skip m
+    sskip = A.Only m skip
+    countedIntsC = variable "chanCountedInts"
+    iirC = variable "chanIIR"
+    caseC = variable "chanCaseProto"
+    inputSimple c iis = A.Input m c $ A.InputSimple m iis
+    inputCase c vs = A.Input m c
+                             $ A.InputCase m (A.Several m (map (A.Only m) vs))
+    vari tag iis = A.Variant m (simpleName tag) iis skip
+    outputSimple c ois = A.Output m c ois
+    outputCase c tag ois = A.OutputCase m c (simpleName tag) ois
+    testRep r = A.Seq m (A.Rep m r sskip)
+    testChoice c = A.If m $ A.Only m c
+    inv = A.InVariable m
+    oute = A.OutExpression m
+    --}}}
 
 tests :: Test
 tests = TestLabel "OccamTypesTest" $ TestList

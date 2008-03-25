@@ -331,6 +331,76 @@ checkWritable v
             A.ValAbbrev -> dieP (findMeta v) $ "Expected a writable variable"
             _ -> ok
 
+-- | Check that is a variable is a channel that can be used in the given
+-- direction.
+-- If the direction passed is 'DirUnknown', no direction or sharedness checks
+-- will be performed.
+-- Return the type carried by the channel.
+checkChannel :: A.Direction -> A.Variable -> PassM A.Type
+checkChannel wantDir c
+    =  do -- Check it's a channel.
+          t <- typeOfVariable c >>= underlyingType m
+          case t of
+            A.Chan dir (A.ChanAttributes ws rs) innerT ->
+               do -- Check the direction is appropriate 
+                  case (wantDir, dir) of
+                    (A.DirUnknown, _) -> ok
+                    (_, A.DirUnknown) -> ok
+                    (a, b) -> when (a /= b) $
+                                dieP m $ "Channel directions do not match"
+
+                  -- Check it's not shared in the direction we're using.
+                  case (ws, rs, wantDir) of
+                    (False, _, A.DirOutput) -> ok
+                    (_, False, A.DirInput) -> ok
+                    (_, _, A.DirUnknown) -> ok
+                    _ -> dieP m $ "Shared channel must be claimed before use"
+
+                  return innerT
+            _ -> diePC m $ formatCode "Expected channel; found %" t
+  where
+    m = findMeta c
+
+-- | Return the list of types carried by a protocol.
+-- For a variant protocol, the second argument should be 'Just' the tag.
+-- For a non-variant protocol, the second argument should be 'Nothing'.
+protocolTypes :: Meta -> A.Type -> Maybe A.Name -> PassM [A.Type]
+protocolTypes m t tag
+    = case t of
+        -- A user-defined protocol.
+        A.UserProtocol n ->
+           do st <- specTypeOfName n
+              case (st, tag) of
+                -- A simple protocol.
+                (A.Protocol _ ts, Nothing) -> return ts
+                (A.Protocol _ _, Just tagName) ->
+                  diePC m $ formatCode "Tag % specified for non-variant protocol %" tagName n
+                -- A variant protocol.
+                (A.ProtocolCase _ ntss, Just tagName) ->
+                  case lookup tagName ntss of
+                    Just ts -> return ts
+                    Nothing -> diePC m $ formatCode "Tag % not found in protocol %; expected one of %" tagName n (map fst ntss)
+                (A.ProtocolCase _ _, Nothing) ->
+                  diePC m $ formatCode "No tag specified for variant protocol %" n
+                -- Not actually a protocol.
+                _ -> diePC m $ formatCode "% is not a protocol" n
+        -- Not a protocol (e.g. CHAN INT); just return it.
+        _ -> return [t]
+
+-- | Check a protocol communication.
+-- Figure out the types of the items that should be involved in a protocol
+-- communication, and run the supplied check against each item with its type.
+checkProtocol :: Meta -> A.Type -> Maybe A.Name
+                 -> [t] -> (A.Type -> t -> PassM ()) -> PassM ()
+checkProtocol m t tag items doItem
+    =  do its <- protocolTypes m t tag
+          when (length its /= length items) $
+            dieP m $ "Wrong number of items in protocol communication; found "
+                     ++ (show $ length items) ++ ", expected "
+                     ++ (show $ length its)
+          sequence_ [doItem it item
+                     | (it, item) <- zip its items]
+
 --}}}
 
 -- | Check the AST for type consistency.
@@ -338,12 +408,21 @@ checkWritable v
 -- inside the AST, but it doesn't really make sense to split it up.
 checkTypes :: Data t => t -> PassM t
 checkTypes t =
-    checkVariables t >>=
+    checkSpecTypes t >>=
+    checkVariables >>=
     checkExpressions >>=
-    checkInputItems >>=
-    checkOutputItems >>=
-    checkReplicators >>=
-    checkChoices
+    checkProcesses
+
+--{{{  checkSpecTypes
+
+checkSpecTypes :: Data t => t -> PassM t
+checkSpecTypes = checkDepthM doSpecType
+  where
+    doSpecType :: A.SpecType -> PassM ()
+    doSpecType _ = ok
+
+--}}}
+--{{{  checkVariables
 
 checkVariables :: Data t => t -> PassM t
 checkVariables = checkDepthM doVariable
@@ -363,6 +442,9 @@ checkVariables = checkDepthM doVariable
                 A.Mobile _ -> ok
                 _ -> dieP m $ "Dereference applied to non-mobile variable"
     doVariable _ = ok
+
+--}}}
+--{{{  checkExpressions
 
 checkExpressions :: Data t => t -> PassM t
 checkExpressions = checkDepthM doExpression
@@ -414,40 +496,88 @@ checkExpressions = checkDepthM doExpression
               sequence_ $ map (doArrayElem m t') aes
     doArrayElem _ t (A.ArrayElemExpr e) = checkExpressionType (findMeta e) t e
 
-checkInputItems :: Data t => t -> PassM t
-checkInputItems = checkDepthM doInputItem
+--}}}
+--{{{  checkProcesses
+
+checkProcesses :: Data t => t -> PassM t
+checkProcesses = checkDepthM doProcess
   where
-    doInputItem :: A.InputItem -> PassM ()
-    doInputItem (A.InCounted m cv av)
+    doProcess :: A.Process -> PassM ()
+    -- Assign
+    doProcess (A.Input _ v im) = doInput v im
+    doProcess (A.Output m v ois) = doOutput m v ois
+    doProcess (A.OutputCase m v tag ois) = doOutputCase m v tag ois
+    -- GetTime
+    -- Wait
+    -- ClearMobile
+    -- Skip
+    -- Stop
+    doProcess (A.Seq _ s) = doStructured (\p -> ok) s
+    doProcess (A.If _ s) = doStructured doChoice s
+    -- Case
+    -- While
+    -- Par
+    -- Processor
+    -- Alt
+    -- ProcCall
+    -- IntrinsicProcCall
+    doProcess _ = ok
+
+    doChoice :: A.Choice -> PassM ()
+    doChoice (A.Choice _ e _) = checkExpressionBool (findMeta e) e
+
+    doInput :: A.Variable -> A.InputMode -> PassM ()
+    doInput c (A.InputSimple m iis)
+        =  do t <- checkChannel A.DirInput c
+              checkProtocol m t Nothing iis doInputItem
+    doInput c (A.InputCase _ s)
+        =  do t <- checkChannel A.DirInput c
+              doStructured (doVariant t) s
+      where
+        doVariant :: A.Type -> A.Variant -> PassM ()
+        doVariant t (A.Variant m tag iis _)
+            = checkProtocol m t (Just tag) iis doInputItem
+    -- InputTimerRead
+    -- InputTimerAfter
+    doInput _ _ = ok
+
+    doInputItem :: A.Type -> A.InputItem -> PassM ()
+    doInputItem (A.Counted wantCT wantAT) (A.InCounted m cv av)
         =  do ct <- typeOfVariable cv
-              checkInteger (findMeta cv) ct
+              checkType (findMeta cv) wantCT ct
               checkWritable cv
               at <- typeOfVariable av
-              checkArray (findMeta av) at
-              checkCommunicable (findMeta av) at
+              checkType (findMeta cv) wantAT at
               checkWritable av
-    doInputItem (A.InVariable _ v)
+    doInputItem t@(A.Counted _ _) (A.InVariable m v)
+        = diePC m $ formatCode "Expected counted item of type %; found %" t v
+    doInputItem wantT (A.InVariable _ v)
         =  do t <- typeOfVariable v
-              checkCommunicable (findMeta v) t
+              checkType (findMeta v) wantT t
               checkWritable v
 
-checkOutputItems :: Data t => t -> PassM t
-checkOutputItems = checkDepthM doOutputItem
-  where
-    doOutputItem :: A.OutputItem -> PassM ()
-    doOutputItem (A.OutCounted m ce ae)
-        =  do ct <- typeOfExpression ce
-              checkInteger (findMeta ce) ct
-              at <- typeOfExpression ae
-              checkArray (findMeta ae) at
-              checkCommunicable (findMeta ae) at
-    doOutputItem (A.OutExpression _ e)
-        =  do t <- typeOfExpression e
-              checkCommunicable (findMeta e) t
+    doOutput :: Meta -> A.Variable -> [A.OutputItem] -> PassM ()
+    doOutput m c ois
+        =  do t <- checkChannel A.DirOutput c
+              checkProtocol m t Nothing ois doOutputItem
 
-checkReplicators :: Data t => t -> PassM t
-checkReplicators = checkDepthM doReplicator
-  where
+    doOutputCase :: Meta -> A.Variable -> A.Name -> [A.OutputItem] -> PassM ()
+    doOutputCase m c tag ois
+        =  do t <- checkChannel A.DirOutput c
+              checkProtocol m t (Just tag) ois doOutputItem
+
+    doOutputItem :: A.Type -> A.OutputItem -> PassM ()
+    doOutputItem (A.Counted wantCT wantAT) (A.OutCounted m ce ae)
+        =  do ct <- typeOfExpression ce
+              checkType (findMeta ce) wantCT ct
+              at <- typeOfExpression ae
+              checkType (findMeta ae) wantAT at
+    doOutputItem t@(A.Counted _ _) (A.OutExpression m e)
+        = diePC m $ formatCode "Expected counted item of type %; found %" t e
+    doOutputItem wantT (A.OutExpression _ e)
+        =  do t <- typeOfExpression e
+              checkType (findMeta e) wantT t
+
     doReplicator :: A.Replicator -> PassM ()
     doReplicator (A.For _ _ start count)
         =  do checkExpressionInt (findMeta start) start
@@ -456,9 +586,17 @@ checkReplicators = checkDepthM doReplicator
         =  do t <- typeOfExpression e
               checkSequence (findMeta e) t
 
-checkChoices :: Data t => t -> PassM t
-checkChoices = checkDepthM doChoice
-  where
-    doChoice :: A.Choice -> PassM ()
-    doChoice (A.Choice _ e _) = checkExpressionBool (findMeta e) e
+    doStructured :: Data t => (t -> PassM ()) -> A.Structured t -> PassM ()
+    doStructured doInner (A.Rep _ rep s)
+        = doReplicator rep >> doStructured doInner s
+    doStructured doInner (A.Spec _ spec s)
+        = doStructured doInner s
+    doStructured doInner (A.ProcThen _ p s)
+        = doStructured doInner s
+    doStructured doInner (A.Only _ i)
+        = doInner i
+    doStructured doInner (A.Several _ ss)
+        = mapM_ (doStructured doInner) ss
+
+--}}}
 
