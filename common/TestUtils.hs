@@ -328,6 +328,11 @@ defineConst s t e
     = defineThing s A.VariableName (A.IsExpr emptyMeta A.ValAbbrev t e)
                   A.ValAbbrev
 
+-- | Define an @IS@ abbreviation.
+defineIs :: String -> A.Type -> A.Variable -> State CompState ()
+defineIs s t v
+    = defineThing s A.VariableName (A.Is emptyMeta A.Abbrev t v) A.Abbrev
+
 -- | Define a variable.
 defineVariable :: String -> A.Type -> State CompState ()
 defineVariable s t
@@ -481,6 +486,7 @@ testPassGetItems testName expected actualPass startStateTrans =
 
          prefixErr :: String -> String
          prefixErr err = testName ++ ": " ++ err
+
 
 -- | Runs a given AST pass and returns the subsequent state, along with either an error or the result.  This function is primarily intended for internal use by this module.
 runPass :: TestMonad m r =>

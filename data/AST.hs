@@ -522,11 +522,9 @@ data Formal =
 -- | Actual parameters for @PROC@s and @FUNCTION@s.
 data Actual =
   -- | A variable used as a parameter.
-  -- 'AbbrevMode' and 'Type' are here for parity with 'Formal'; they can be
-  -- figured out from the variable.
-  ActualVariable AbbrevMode Type Variable
+  ActualVariable Variable
   -- | An expression used as a parameter.
-  | ActualExpression Type Expression
+  | ActualExpression Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | The mode in which a @PAR@ operates.

@@ -32,6 +32,7 @@ import CompState
 import Errors
 import FlowGraph
 import Metadata
+import TestFramework
 import TestUtils hiding (Var)
 import UsageCheckAlgorithms
 import UsageCheckUtils
@@ -102,8 +103,23 @@ testGetVarProc = TestList (map doTest tests)
      ,(502,[],[tvA,tvB],[tvC],A.Input emptyMeta vC 
        (A.InputSimple emptyMeta [A.InCounted emptyMeta vA vB]))
     ]
+
+   -- This is a custom test because there's no instance of Data for Vars.
+   -- If we need to do this elsewhere, this could become a helper function in
+   -- TestUtils.
    doTest :: (Int,[Var],[Var],[Var],A.Process) -> Test
-   doTest (index,r,w,u,proc) = TestCase $ assertEqual ("testGetVarProc-" ++ (show index)) (vars r w u) (getVarProc proc)
+   doTest (index, r, w, u, proc)
+      = TestCase $ do result <- runPass (getVarProc proc) startState
+                      case result of
+                        Left err ->
+                          testFailure $ name ++ " failed: " ++ show err
+                        Right (_, result) ->
+                          assertEqual name (vars r w u) result
+    where
+      name = "testGetVarProc" ++ show index
+
+   startState :: CompState
+   startState = emptyState
 
 --TODO test declarations being recorded, when I've decided how to record them
 

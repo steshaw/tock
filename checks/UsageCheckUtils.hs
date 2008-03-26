@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarActual, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
+module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarProcCall, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Control.Monad.Writer (tell)
 import Data.Generics hiding (GT)
@@ -25,11 +25,14 @@ import Data.Maybe
 import qualified Data.Set as Set
 
 import qualified AST as A
+import CompState
 import Errors
 import FlowGraph
 import Metadata
 import OrdAST()
 import ShowCode
+import Types
+import Utils
 
 newtype Var = Var A.Variable deriving (Data, Show, Typeable)
 
@@ -118,31 +121,48 @@ mapUnionVars f = foldUnionVars . (map f)
 --For subscripted variables used as Lvalues , e.g. a[b] it should return a[b] as written-to and b as read
 --For subscripted variables used as expressions, e.g. a[b] it should return a[b],b as read (with no written-to)
 
-getVarProc :: A.Process -> Vars
+getVarProc :: (Die m, CSMR m) => A.Process -> m Vars
 getVarProc (A.Assign _ vars expList) 
         --Join together:
-      = unionVars
+      = return $ unionVars
           --The written-to variables on the LHS:
           (mapUnionVars processVarW vars) 
           --All variables read on the RHS:
           (getVarExpList expList)
-getVarProc (A.Output _ chanVar outItems) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarOutputItem outItems)
+getVarProc (A.Output _ chanVar outItems)
+    = return $ (processVarUsed chanVar)
+               `unionVars` (mapUnionVars getVarOutputItem outItems)
   where
     getVarOutputItem :: A.OutputItem -> Vars
     getVarOutputItem (A.OutExpression _ e) = getVarExp e
     getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
-getVarProc (A.Input _ chanVar (A.InputSimple _ iis)) = (processVarUsed chanVar) `unionVars` (mapUnionVars getVarInputItem iis)
+getVarProc (A.Input _ chanVar (A.InputSimple _ iis))
+    = return $ (processVarUsed chanVar)
+               `unionVars` (mapUnionVars getVarInputItem iis)
   where
     getVarInputItem :: A.InputItem -> Vars
-    getVarInputItem (A.InCounted _ cv av) = mkWrittenVars [variableToVar cv,variableToVar av]
-    getVarInputItem (A.InVariable _ v) = mkWrittenVars [variableToVar v]
-getVarProc (A.ProcCall _ _ params) =  mapUnionVars getVarActual params
-getVarProc _ = emptyVars
+    getVarInputItem (A.InCounted _ cv av)
+        = mkWrittenVars [variableToVar cv,variableToVar av]
+    getVarInputItem (A.InVariable _ v)
+        = mkWrittenVars [variableToVar v]
+getVarProc p@(A.ProcCall _ _ _)
+    = getVarProcCall p >>* foldUnionVars
+getVarProc _ = return emptyVars
 
-getVarActual :: A.Actual -> Vars
-getVarActual (A.ActualExpression _ e) = getVarExp e
-getVarActual (A.ActualVariable A.ValAbbrev _ v) = processVarR v
-getVarActual (A.ActualVariable _ _ v) = processVarW v
+getVarProcCall :: (Die m, CSMR m) => A.Process -> m [Vars]
+getVarProcCall (A.ProcCall _ proc as)
+    =  do st <- specTypeOfName proc
+          let fs = case st of A.Proc _ _ fs _ -> fs
+
+          sequence [getVarActual f a
+                    | (f, a) <- zip fs as]
+
+getVarActual :: (Die m, CSMR m) => A.Formal -> A.Actual -> m Vars
+getVarActual _ (A.ActualExpression e) = return $ getVarExp e
+getVarActual (A.Formal am _ _) (A.ActualVariable v)
+    = case am of
+        A.ValAbbrev -> return $ processVarR v
+        _ -> return $ processVarW v
 
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
@@ -201,13 +221,13 @@ getVarRepExp (A.ForEach _ _ e) = getVarExp e
 getVarAlternative :: A.Alternative -> Vars
 getVarAlternative = const emptyVars -- TODO
 
-labelFunctions :: forall m. Die m => GraphLabelFuncs m UsageLabel
+labelFunctions :: forall m. (Die m, CSMR m) => GraphLabelFuncs m UsageLabel
 labelFunctions = GLF
  {
    labelExpression = single getVarExp
   ,labelExpressionList = single getVarExpList
   ,labelDummy = const (return $ Usage Nothing Nothing emptyVars)
-  ,labelProcess = single getVarProc
+  ,labelProcess = singleM getVarProc
   ,labelAlternative = single getVarAlternative
   ,labelStartNode = single (uncurry getVarFormals)
   ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp x))
@@ -218,6 +238,9 @@ labelFunctions = GLF
   where
     single :: (a -> Vars) -> (a -> m UsageLabel)
     single f x = return $ Usage Nothing Nothing (f x)
-  
+
+    singleM :: (a -> m Vars) -> (a -> m UsageLabel)
+    singleM f x = f x >>* Usage Nothing Nothing
+
     pair :: (a -> Maybe Decl) -> (a -> Vars) -> (a -> m UsageLabel)
     pair f0 f1 x = return $ Usage Nothing (f0 x) (f1 x)

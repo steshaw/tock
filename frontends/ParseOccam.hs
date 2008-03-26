@@ -1965,7 +1965,7 @@ actual (A.Formal am t n)
     =  do case am of
             A.ValAbbrev ->
               do e <- expressionOfType t
-                 return $ A.ActualExpression t e
+                 return $ A.ActualExpression e
             _ ->
               case stripArrayType t of
                 A.Chan {} -> var (channelOfType t)
@@ -1974,7 +1974,7 @@ actual (A.Formal am t n)
                 _ -> var (variableOfType t)
     <?> "actual of type " ++ showOccam t ++ " for " ++ show n
     where
-      var inner = liftM (A.ActualVariable am t) inner
+      var inner = liftM A.ActualVariable inner
 --}}}
 --{{{ intrinsic PROC call
 intrinsicProcName :: OccParser (String, [A.Formal])

@@ -145,7 +145,7 @@ flattenAssign = doGeneric `extM` doProcess `ext1M` doStructured
                          return $ A.Rep m rep $ A.Only m inner
                     A.Record n ->
                       return $ A.Only m $ A.ProcCall m (n {A.nameName = "copy_" ++ A.nameName n})
-                        [A.ActualVariable A.Abbrev t destV, A.ActualVariable A.ValAbbrev t srcV]
+                        [A.ActualVariable destV, A.ActualVariable srcV]
 
           return $ A.Seq m $ A.Spec m src $ A.Spec m dest body
 

@@ -305,15 +305,16 @@ testActuals = TestList
   ,testBothSame "genActuals 1" "" $ (tcall genActuals [])
   
   --For expressions, genExpression should be called:
-  ,testBothSame "genActual 0" "$" $ over (tcall genActual $ A.ActualExpression A.Bool (A.True undefined))
+  ,testBothSame "genActual 0" "$" $ over (tcall genActual $ A.ActualExpression (A.True undefined))
   
   --For abbreviating arrays, nothing special should happen any more:
-  ,testBothSame "genActual 1" "$" $ over (tcall genActual $ A.ActualExpression (A.Array undefined undefined) (A.Literal undefined undefined undefined))
-  ,testBothSameS "genActual 2" "@" (over (tcall genActual $ A.ActualVariable A.Original (A.Array undefined undefined) (A.Variable undefined foo)))
+  ,testBothSame "genActual 1" "$" $ over (tcall genActual $ A.ActualExpression (A.Literal undefined undefined undefined))
+  ,testBothSameS "genActual 2" "@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
     (defineName foo $ simpleDefDecl "foo" A.Int)
-  ,testBothSameS "genActual 3" "&@" (over (tcall genActual $ A.ActualVariable A.Abbrev (A.Array undefined undefined) (A.Variable undefined foo)))
-    (defineName foo $ simpleDefDecl "foo" A.Int)
-  ,testBothSameS "genActual 4" "@" (over (tcall genActual $ A.ActualVariable A.ValAbbrev (A.Array undefined undefined) (A.Variable undefined foo)))
+  ,testBothSameS "genActual 3" "&@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
+    (do defineName foo $ simpleDefDecl "bar" A.Int
+        defineIs "foo" A.Int (variable "bar"))
+  ,testBothSameS "genActual 4" "@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
     (defineName foo $ simpleDefDecl "foo" A.Int)
  ]
  where

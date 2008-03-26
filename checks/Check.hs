@@ -224,9 +224,9 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
     -- | Need to check that all the destinations in a parallel assignment
     -- are distinct.  So we check plain variables, and array variables
     checkArgs :: A.Process -> m ()
-    checkArgs (A.ProcCall m _ params)
-      = do checkPlainVarUsage (m, mockedupParItems)
+    checkArgs p@(A.ProcCall m _ _)
+      = do vars <- getVarProcCall p
+           let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing v]
+                                            | v <- vars]
+           checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, mockedupParItems)
-      where
-        mockedupParItems :: ParItems UsageLabel
-        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing v] | v <- map getVarActual params]

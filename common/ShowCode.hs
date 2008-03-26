@@ -456,8 +456,8 @@ instance ShowOccam A.Variant where
       >> occamIndent >> showOccamM p >> occamOutdent
            
 instance ShowOccam A.Actual where
-  showOccamM (A.ActualVariable _ _ v) = showOccamM v
-  showOccamM (A.ActualExpression _ e) = showOccamM e
+  showOccamM (A.ActualVariable v) = showOccamM v
+  showOccamM (A.ActualExpression e) = showOccamM e
   
 instance ShowOccam A.OutputItem where
   showOccamM (A.OutExpression _ e) = showOccamM e

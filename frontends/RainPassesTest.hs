@@ -180,7 +180,7 @@ testUnique4 :: Test
 testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquifyAndResolveVars orig) (return ()) check
   where
     orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ 
-      A.ProcCall m (procName "foo") [A.ActualExpression A.Byte $ exprVariable "c"]) (skipP)
+      A.ProcCall m (procName "foo") [A.ActualExpression $ exprVariable "c"]) (skipP)
     exp = mSpecP
              (tag3 A.Specification DontCare (procNamePattern "foo") $ tag4 A.Proc DontCare A.PlainSpec 
                [tag3 A.Formal A.ValAbbrev A.Byte newc] 
@@ -188,7 +188,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquify
              )
              skipP
     bodyPattern n = (tag3 A.ProcCall DontCare (procNamePattern "foo") 
-                      [tag2 A.ActualExpression A.Byte $ tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare n]
+                      [tag1 A.ActualExpression $ tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare n]
                     )
 
     newc = Named "newc" DontCare
@@ -318,8 +318,8 @@ testParamPass testName formals params transParams
     deActualise :: [A.Actual] -> [A.Expression]
     deActualise = map deActualise'
     deActualise' :: A.Actual -> A.Expression
-    deActualise' (A.ActualVariable _ _ v) = A.ExprVariable m v
-    deActualise' (A.ActualExpression _ e) = e
+    deActualise' (A.ActualVariable v) = A.ExprVariable m v
+    deActualise' (A.ActualExpression e) = e
 
 -- | Test no-params:
 testParamPass0 :: Test
@@ -329,31 +329,31 @@ testParamPass0 = testParamPass "testParamPass0" (Just []) [] (Just [])
 testParamPass1 :: Test
 testParamPass1 = testParamPass "testParamPass1" 
   (Just [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")]) 
-  [A.ActualVariable A.Original A.Any (variable "x")]
-  (Just [A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")])
+  [A.ActualVariable (variable "x")]
+  (Just [A.ActualVariable (variable "x")])
 
 -- | Test up-casts:
 testParamPass2 :: Test
 testParamPass2 = testParamPass "testParamPass2"
   (Just [A.Formal A.ValAbbrev A.Int32 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")])
-  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
-  (Just [A.ActualExpression A.Int32 $ A.Conversion m A.DefaultConversion A.Int32 (exprVariable "x"),
-         A.ActualExpression A.UInt32 $ A.Conversion m A.DefaultConversion A.UInt32 (exprVariable "x")])
+  [A.ActualVariable (variable "x"),A.ActualVariable (variable "x")]
+  (Just [A.ActualExpression $ A.Conversion m A.DefaultConversion A.Int32 (exprVariable "x"),
+         A.ActualExpression $ A.Conversion m A.DefaultConversion A.UInt32 (exprVariable "x")])
 
 -- | Test invalid implicit down-cast:
 testParamPass3 :: Test
 testParamPass3 = testParamPass "testParamPass3"
   (Just [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")])
-  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  [A.ActualVariable (variable "x"),A.ActualVariable (variable "x")]
   Nothing
 
 -- | Test explicit down-cast:
 testParamPass4 :: Test
 testParamPass4 = testParamPass "testParamPass4"
   (Just [A.Formal A.ValAbbrev A.Int8 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt16 (simpleName "p1")])
-  [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),A.ActualVariable A.Original A.Any (variable "x")]
-  (Just [A.ActualExpression A.Int8 $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),
-         A.ActualVariable A.ValAbbrev A.UInt16 (variable "x")])
+  [A.ActualExpression $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),A.ActualVariable (variable "x")]
+  (Just [A.ActualExpression $ A.Conversion m A.DefaultConversion A.Int8 (exprVariable "x"),
+         A.ActualVariable (variable "x")])
 
 -- | Test too few parameters:
 testParamPass5 :: Test
@@ -366,14 +366,14 @@ testParamPass5 = testParamPass "testParamPass5"
 testParamPass6 :: Test
 testParamPass6 = testParamPass "testParamPass6"
   (Just [A.Formal A.ValAbbrev A.UInt16 (simpleName "p0")])
-  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  [A.ActualVariable (variable "x"),A.ActualVariable (variable "x")]
   Nothing
 
 -- | Test unknown process:
 testParamPass7 :: Test
 testParamPass7 = testParamPass "testParamPass7"
   Nothing
-  [A.ActualVariable A.Original A.Any (variable "x"),A.ActualVariable A.Original A.Any (variable "x")]
+  [A.ActualVariable (variable "x"),A.ActualVariable (variable "x")]
   Nothing
 
 -- | Test calling something that is not a process:

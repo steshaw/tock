@@ -155,9 +155,9 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
              let newAs = [case am of
-                            A.Abbrev -> A.ActualVariable am t (A.Variable m n)
-                            _ -> A.ActualExpression t (A.ExprVariable m (A.Variable m n))
-                          | (am, n, t) <- zip3 ams freeNames types]
+                            A.Abbrev -> A.ActualVariable (A.Variable m n)
+                            _ -> A.ActualExpression (A.ExprVariable m (A.Variable m n))
+                          | (am, n) <- zip ams freeNames]
              debug $ "removeFreeNames: " ++ show n ++ " has new args " ++ show newAs
              when (newAs /= []) $
                modify $ (\ps -> ps { csAdditionalArgs = Map.insert (A.nameName n) newAs (csAdditionalArgs ps) })

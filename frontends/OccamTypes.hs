@@ -312,12 +312,12 @@ checkActuals m n fs as
 checkActual :: A.Formal -> A.Actual -> PassM ()
 checkActual (A.Formal newAM et _) a
     =  do rt <- case a of
-                  A.ActualVariable _ _ v -> typeOfVariable v
-                  A.ActualExpression _ e -> typeOfExpression e
+                  A.ActualVariable v -> typeOfVariable v
+                  A.ActualExpression e -> typeOfExpression e
           checkType (findMeta a) et rt
           origAM <- case a of
-                      A.ActualVariable _ _ v -> abbrevModeOfVariable v
-                      A.ActualExpression _ _ -> return A.ValAbbrev
+                      A.ActualVariable v -> abbrevModeOfVariable v
+                      A.ActualExpression _ -> return A.ValAbbrev
           checkAbbrev (findMeta a) origAM newAM
 
 -- | Check a function call.
@@ -326,10 +326,7 @@ checkFunctionCall m n es
     =  do st <- specTypeOfName n
           case st of
             A.Function _ _ rs fs _ ->
-               do as <- sequence [do t <- typeOfExpression e
-                                     return $ A.ActualExpression t e
-                                  | e <- es]
-                  checkActuals m n fs as
+               do checkActuals m n fs (map A.ActualExpression es)
                   return rs
             _ -> diePC m $ formatCode "% is not a function" n
 
@@ -340,12 +337,10 @@ checkIntrinsicFunctionCall m n es
         Just (rs, args) ->
            do when (length rs /= 1) $
                 dieP m $ "Function " ++ n ++ " used in an expression returns more than one value"
-              as <- sequence [do t <- typeOfExpression e
-                                 return $ A.ActualExpression t e
-                              | e <- es]
               let fs = [A.Formal A.ValAbbrev t (A.Name m A.VariableName s)
                         | (t, s) <- args]
-              checkActuals m (A.Name m A.ProcName n) fs as
+              checkActuals m (A.Name m A.ProcName n)
+                           fs (map A.ActualExpression es)
         Nothing -> dieP m $ n ++ " is not an intrinsic function"
 
 -- | Check a mobile allocation.

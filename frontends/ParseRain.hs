@@ -411,8 +411,8 @@ runProcess = do m <- sRun
                 return $ A.ProcCall m A.Name {A.nameName = processName, A.nameMeta = mProcess, A.nameType = A.ProcName} (map convertItem items)
   where
     convertItem :: A.Expression -> A.Actual
-    convertItem (A.ExprVariable _ v) = A.ActualVariable A.Original A.Any v
-    convertItem e = A.ActualExpression A.Any e
+    convertItem (A.ExprVariable _ v) = A.ActualVariable v
+    convertItem e = A.ActualExpression e
 
 waitStatement :: Bool -> RainParser (Meta, A.InputMode)
 waitStatement isAlt

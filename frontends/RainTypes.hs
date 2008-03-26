@@ -159,13 +159,13 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
 
     --Checks the type of a parameter (A.Actual), and inserts a cast if it is safe to do so
     doParam :: Meta -> String -> (Int,A.Formal, A.Actual) -> PassM A.Actual
-    doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualVariable _ _ v)
+    doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualVariable v)
       = do actualType <- typeOfVariable v
            if (actualType == formalType)
-             then return $ A.ActualVariable formalAbbrev formalType v
-             else (liftM $ A.ActualExpression formalType) $ doCast index formalType actualType (A.ExprVariable (findMeta v) v )
-    doParam m n (index, for@(A.Formal _ formalType _), A.ActualExpression _ e)
-      = (liftM $ A.ActualExpression formalType) $ doExpParam m n (index, for, e)
+             then return $ A.ActualVariable v
+             else (liftM A.ActualExpression) $ doCast index formalType actualType (A.ExprVariable (findMeta v) v )
+    doParam m n (index, for@(A.Formal _ formalType _), A.ActualExpression e)
+      = (liftM A.ActualExpression) $ doExpParam m n (index, for, e)
 
     --Checks the type of a parameter (A.Expression), and inserts a cast if it is safe to do so
     doExpParam :: Meta -> String -> (Int, A.Formal, A.Expression) -> PassM A.Expression

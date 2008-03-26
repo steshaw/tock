@@ -288,20 +288,21 @@ addSizesActualParameters = doGeneric `extM` doProcess
     doProcess p = doGeneric p
     
     transformActual :: A.Actual -> PassM [A.Actual]
-    transformActual a@(A.ActualVariable am (A.Array ds _) (A.Variable m n))
-      = do let a_sizes = A.Variable m (append_sizes n)
-           let sizeType = A.Array [makeDimension m $ length ds] A.Int
-           return [a, A.ActualVariable A.ValAbbrev sizeType a_sizes]
-    transformActual a@(A.ActualExpression (A.Array ds _) (A.ExprVariable _ (A.Variable m n)))
-      = do let a_sizes = A.Variable m (append_sizes n)
-           let sizeType = A.Array [makeDimension m $ length ds] A.Int
-           return [a, A.ActualVariable A.ValAbbrev sizeType a_sizes]
-    transformActual a = let t = case a of
-                                  A.ActualVariable _ t _ -> t
-                                  A.ActualExpression t _ -> t
-                        in case t of
-                             A.Array {} -> dieP (findMeta a) "Untransformed actual parameter of type array: "
-                             _ -> return [a]
+    transformActual a@(A.ActualVariable v)
+      = transformActualVariable a v
+    transformActual a@(A.ActualExpression (A.ExprVariable _ v))
+      = transformActualVariable a v
+    transformActual a = return [a]
+
+    transformActualVariable :: A.Actual -> A.Variable -> PassM [A.Actual]
+    transformActualVariable a v@(A.Variable m n)
+      = do t <- typeOfVariable v
+           case t of
+             A.Array ds _ ->
+               return [a, A.ActualVariable a_sizes]
+             _ -> return [a]
+      where
+        a_sizes = A.Variable m (append_sizes n)
 
 -- | Transforms all slices into the FromFor form.
 simplifySlices :: Data t => t -> PassM t

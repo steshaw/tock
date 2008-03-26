@@ -355,7 +355,9 @@ qcTestSizeParameters =
     testActual ts = testPassWithStateCheck "qcTestSizeParameters Actual"
       (procCall "p" argsWithSizes)
       (addSizesActualParameters $ procCall "p" args)
-      (return ()) (const $ return ())
+      (do recordProcDef args
+          recordProcFormals args)
+      (const $ return ())
       where
         args = [("x" ++ show n, t, A.Abbrev) | (n, t) <- zip [(0::Integer)..] ts]
         argsWithSizes = concat [
@@ -401,7 +403,7 @@ qcTestSizeParameters =
     wrapSpec n spec = A.Spec emptyMeta (A.Specification emptyMeta (simpleName n) spec) (A.Only emptyMeta ())
     
     procCall :: String -> [(String, A.Type, A.AbbrevMode)] -> A.Process
-    procCall p nts = A.ProcCall emptyMeta (simpleName p) [A.ActualVariable am t (variable n) | (n, t, am) <- nts]
+    procCall p nts = A.ProcCall emptyMeta (simpleName p) [A.ActualVariable (variable n) | (n, _, _) <- nts]
 
 ---Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])

@@ -1367,10 +1367,11 @@ cgenActual actual = seqComma $ realActuals actual
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
 realActuals :: A.Actual -> [CGen ()]
-realActuals (A.ActualExpression t e)
+realActuals (A.ActualExpression e)
     = [call genExpression e]
-realActuals (A.ActualVariable am t v)
-    = [call genVariableAM v am]
+realActuals (A.ActualVariable v)
+    = [do am <- abbrevModeOfVariable v
+          call genVariableAM v am]
 
 -- | Return (type, name) generator pairs for all the real formals corresponding
 -- to a single formal.
@@ -1751,7 +1752,7 @@ cgenProcCall n as
 --}}}
 --{{{  intrinsic procs
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
-cgenIntrinsicProc m "ASSERT" [A.ActualExpression A.Bool e] = call genAssert m e
+cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = tell ["Reschedule (wptr);\n"]
 cgenIntrinsicProc _ s _ = call genMissing $ "intrinsic PROC " ++ s
 

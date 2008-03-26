@@ -384,7 +384,7 @@ pullUp pullUpArraysInsideRecords
 
              let names = [n | A.Specification _ n _ <- specs]
              let vars = [A.Variable m n | n <- names]
-             let call = A.ProcCall m n ([A.ActualExpression t e | (t, e) <- zip ets es'] ++ [A.ActualVariable A.Abbrev t v | (t, v) <- zip rts vars])
+             let call = A.ProcCall m n (map A.ActualExpression es' ++ map A.ActualVariable vars)
              addPulled $ (m, Right call)
 
              return vars

@@ -344,13 +344,13 @@ testOccamTypes = TestList
 
     -- Proc calls
     , testOK   1600 $ proccall "proc0" []
-    , testOK   1601 $ proccall "proc1" [A.ActualExpression A.Int intE]
-    , testOK   1602 $ proccall "proc2" [A.ActualExpression A.Int intE,
-                                        A.ActualVariable A.Original A.Int intV]
-    , testFail 1603 $ proccall "proc0" [A.ActualExpression A.Int intE]
-    , testFail 1604 $ proccall "proc1" [A.ActualExpression A.Real32 realE]
-    , testFail 1605 $ proccall "proc1" [A.ActualExpression A.Int intE,
-                                        A.ActualExpression A.Int intE]
+    , testOK   1601 $ proccall "proc1" [A.ActualExpression intE]
+    , testOK   1602 $ proccall "proc2" [A.ActualExpression intE,
+                                        A.ActualVariable intV]
+    , testFail 1603 $ proccall "proc0" [A.ActualExpression intE]
+    , testFail 1604 $ proccall "proc1" [A.ActualExpression realE]
+    , testFail 1605 $ proccall "proc1" [A.ActualExpression intE,
+                                        A.ActualExpression intE]
     , testFail 1606 $ proccall "herring" []
 
     -- Miscellaneous processes
@@ -365,12 +365,12 @@ testOccamTypes = TestList
     , testFail 1908 $ A.Processor m realE skip
     , testOK   1909 $ A.IntrinsicProcCall m "RESCHEDULE" []
     , testOK   1910 $ A.IntrinsicProcCall m "ASSERT"
-                                          [A.ActualExpression A.Bool boolE]
+                                          [A.ActualExpression boolE]
     , testFail 1911 $ A.IntrinsicProcCall m "ASSERT"
-                                          [A.ActualExpression A.Int intE]
+                                          [A.ActualExpression intE]
     , testFail 1912 $ A.IntrinsicProcCall m "ASSERT" []
     , testFail 1913 $ A.IntrinsicProcCall m "RESCHEDULE"
-                                          [A.ActualExpression A.Bool boolE]
+                                          [A.ActualExpression boolE]
     , testFail 1914 $ A.IntrinsicProcCall m "HERRING" []
 
     --}}}
