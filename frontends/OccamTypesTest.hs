@@ -376,12 +376,15 @@ testOccamTypes = TestList
     --}}}
     --{{{  specifications
 
+    -- Place
     , testOK   2000 $ A.Place m intE
     , testFail 2001 $ A.Place m twoIntsE
 
+    -- Declaration
     , testOK   2010 $ A.Declaration m A.Int
     , testOK   2011 $ A.Declaration m twoIntsT
 
+    -- Is
     , testOK   2020 $ A.Is m A.Abbrev A.Int intV
     , testFail 2021 $ A.Is m A.ValAbbrev A.Int intV
     , testFail 2022 $ A.Is m A.Original A.Int intV
@@ -391,11 +394,13 @@ testOccamTypes = TestList
     , testOK   2026 $ A.Is m A.Abbrev (A.Timer A.OccamTimer) tim
     , testFail 2027 $ A.Is m A.ValAbbrev (A.Timer A.OccamTimer) tim
 
+    -- IsExpr
     , testOK   2030 $ A.IsExpr m A.ValAbbrev A.Int intE
     , testFail 2031 $ A.IsExpr m A.Abbrev A.Int intE
     , testFail 2032 $ A.IsExpr m A.Original A.Int intE
     , testFail 2033 $ A.IsExpr m A.ValAbbrev A.Real32 intE
 
+    -- IsChannelArray
     , testOK   2040 $ A.IsChannelArray m chansIntT [intC, intC]
     , testOK   2041 $ A.IsChannelArray m uchansIntT [intC, intC]
     , testOK   2042 $ A.IsChannelArray m uchansIntT []
@@ -404,12 +409,14 @@ testOccamTypes = TestList
     , testFail 2045 $ A.IsChannelArray m chansIntT [intC, intC, intC]
     , testFail 2046 $ A.IsChannelArray m chansIntT [intV, intV]
 
+    -- DataType
     , testOK   2050 $ A.DataType m A.Int
     , testOK   2051 $ A.DataType m twoIntsT
     , testOK   2052 $ A.DataType m myTwoIntsT
     , testFail 2053 $ A.DataType m chanIntT
     , testFail 2054 $ A.DataType m $ A.Timer A.OccamTimer
 
+    -- RecordType
     , testOK   2060 $ A.RecordType m True []
     , testOK   2061 $ A.RecordType m False []
     , testOK   2062 $ A.RecordType m False [ (simpleName "x", A.Int)
@@ -422,6 +429,7 @@ testOccamTypes = TestList
                                            , (simpleName "x", A.Real32)
                                            ]
 
+    -- Protocol
     , testOK   2070 $ A.Protocol m [A.Int]
     , testOK   2071 $ A.Protocol m [A.Int, A.Real32, twoIntsT]
     , testOK   2072 $ A.Protocol m [A.Mobile A.Int]
@@ -440,6 +448,7 @@ testOccamTypes = TestList
                                        , (simpleName "one", [A.Real32])
                                        ]
 
+    -- Proc
     , testOK   2090 $ A.Proc m A.PlainSpec [] skip
     , testOK   2091 $ A.Proc m A.InlineSpec [] skip
     , testOK   2092 $ A.Proc m A.PlainSpec
@@ -453,6 +462,7 @@ testOccamTypes = TestList
                              ]
                              skip
 
+    -- Function
     , testOK   2100 $ A.Function m A.PlainSpec [A.Int] [] returnOne
     , testOK   2110 $ A.Function m A.InlineSpec [A.Int] [] returnOne
     , testFail 2120 $ A.Function m A.PlainSpec [] [] returnNone
@@ -470,6 +480,32 @@ testOccamTypes = TestList
                         returnOne
     , testFail 2160 $ A.Function m A.PlainSpec [A.Int] [] returnNone
     , testFail 2170 $ A.Function m A.PlainSpec [A.Int] [] returnTwo
+
+    --}}}
+    --{{{  retyping
+
+    -- Definitely OK at compile time
+    , testOK   3000 $ retypesV A.Int intV
+    , testOK   3001 $ retypesE A.Int intE
+    , testOK   3002 $ retypesV A.Byte byteV
+    , testOK   3003 $ retypesE A.Byte byteE
+    , testOK   3004 $ retypesV known1 intV
+    , testOK   3005 $ retypesV known2 intV
+    , testOK   3006 $ retypesV both intV
+    , testOK   3007 $ retypesV unknown1 intV
+
+    -- Definitely wrong at compile time
+    , testFail 3100 $ retypesV A.Byte intV
+    , testFail 3101 $ retypesV A.Int byteV
+    , testFail 3102 $ retypesV unknown2 intV
+    , testFail 3103 $ retypesV unknown2 intsV
+    , testFail 3104 $ retypesV A.Byte intsV
+
+    -- Can't tell; need a runtime check
+    , testOK   3200 $ retypesV unknown1 intsV
+    , testOK   3201 $ retypesV A.Int intsV
+    , testOK   3202 $ retypesV known2 intsV
+    , testOK   3203 $ retypesV unknown1 bytesV
 
     --}}}
     ]
@@ -568,6 +604,14 @@ testOccamTypes = TestList
     returnNone = Left $ A.Only m $ A.ExpressionList m []
     returnOne = Left $ A.Only m $ A.ExpressionList m [intE]
     returnTwo = Left $ A.Only m $ A.ExpressionList m [intE, intE]
+
+    retypesV = A.Retypes m A.ValAbbrev
+    retypesE = A.RetypesExpr m A.ValAbbrev
+    known1 = A.Array [dimension 4] A.Byte
+    known2 = A.Array [dimension 2, dimension 2] A.Byte
+    both = A.Array [dimension 2, A.UnknownDimension] A.Byte
+    unknown1 = A.Array [A.UnknownDimension] A.Int
+    unknown2 = A.Array [A.UnknownDimension, A.UnknownDimension] A.Int
 
     --}}}
 

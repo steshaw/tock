@@ -17,15 +17,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam-specific frontend passes.
-module OccamPasses (occamPasses, foldConstants, checkConstants,
-                    checkRetypes) where
+module OccamPasses (occamPasses, foldConstants, checkConstants) where
 
 import Control.Monad.State
 import Data.Generics
 
 import qualified AST as A
 import CompState
-import Errors
 import EvalConstants
 import EvalLiterals
 import Metadata
@@ -49,16 +47,11 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
        [Prop.constantsChecked])
     , ("Check types", checkTypes,
        [],
-       [Prop.expressionTypesChecked, Prop.processTypesChecked])
-    , ("Check retyping", checkRetypes,
-       [],
-       [Prop.retypesChecked])
+       [Prop.expressionTypesChecked, Prop.processTypesChecked,
+        Prop.functionTypesChecked, Prop.retypesChecked])
     , ("Dummy occam pass", dummyOccamPass,
        [],
-       Prop.agg_namesDone ++ [Prop.expressionTypesChecked,
-                              Prop.inferredTypesRecorded, Prop.mainTagged,
-                              Prop.processTypesChecked,
-                              Prop.functionTypesChecked])
+       Prop.agg_namesDone ++ [Prop.inferredTypesRecorded, Prop.mainTagged])
     ]
 
 -- | Fixed the types of array constructors according to the replicator count
@@ -93,7 +86,6 @@ foldConstants = applyDepthM2 doExpression doSpecification
               return s
     doSpecification s = return s
 
-
 -- | Check that things that must be constant are.
 checkConstants :: Data t => t -> PassM t
 checkConstants = applyDepthM2 doDimension doOption
@@ -114,49 +106,6 @@ checkConstants = applyDepthM2 doDimension doOption
                          | e <- es]
               return o
     doOption o = return o
-
--- | Check that retyping is safe.
-checkRetypes :: Data t => t -> PassM t
-checkRetypes = applyDepthM doSpecType
-  where
-    doSpecType :: A.SpecType -> PassM A.SpecType
-    doSpecType st@(A.Retypes m _ t v)
-        =  do fromT <- typeOfVariable v
-              checkRetypes m fromT t
-              return st
-    doSpecType st@(A.RetypesExpr m _ t e)
-        =  do fromT <- typeOfExpression e
-              checkRetypes m fromT t
-              return st
-    doSpecType st = return st
-
-    checkRetypes :: Meta -> A.Type -> A.Type -> PassM ()
-    checkRetypes m fromT toT
-        =  do (fromBI, fromN) <- evalBytesInType fromT
-              (toBI, toN) <- evalBytesInType toT
-              case (fromBI, toBI, fromN, toN) of
-                (_, BIManyFree, _, _) ->
-                  dieP m "Multiple free dimensions in retype destination type"
-                (BIJust _, BIJust _, Just a, Just b) ->
-                  when (a /= b) $
-                    dieP m "Sizes do not match in retype"
-                (BIJust _, BIOneFree _ _, Just a, Just b) ->
-                  when (not ((b <= a) && (a `mod` b == 0))) $
-                    dieP m "Sizes do not match in retype"
-                (BIOneFree _ _, BIJust _, Just a, Just b) ->
-                  when (not ((a <= b) && (b `mod` a == 0))) $
-                    dieP m "Sizes do not match in retype"
-                -- Otherwise we must do a runtime check.
-                _ -> return ()
-
-    evalBytesInType :: A.Type -> PassM (BytesInResult, Maybe Int)
-    evalBytesInType t
-        =  do bi <- bytesInType t
-              n <- case bi of
-                     BIJust e -> maybeEvalIntExpression e
-                     BIOneFree e _ -> maybeEvalIntExpression e
-                     _ -> return Nothing
-              return (bi, n)
 
 -- | A dummy pass for things that haven't been separated out into passes yet.
 dummyOccamPass :: Data t => t -> PassM t

@@ -26,6 +26,7 @@ import Data.List
 import qualified AST as A
 import CompState
 import Errors
+import EvalConstants
 import EvalLiterals
 import Intrinsics
 import Metadata
@@ -506,6 +507,40 @@ checkStructured doInner (A.Several _ ss)
     = mapM_ (checkStructured doInner) ss
 
 --}}}
+--{{{  retyping checks
+
+-- | Check that one type can be retyped to another.
+checkRetypes :: Meta -> A.Type -> A.Type -> PassM ()
+checkRetypes m fromT toT
+    =  do (fromBI, fromN) <- evalBytesInType fromT
+          (toBI, toN) <- evalBytesInType toT
+          case (fromBI, toBI, fromN, toN) of
+            (_, BIManyFree, _, _) ->
+              dieP m "Multiple free dimensions in retype destination type"
+            (BIJust _, BIJust _, Just a, Just b) ->
+              when (a /= b) $
+                dieP m "Sizes do not match in retype"
+            (BIJust _, BIOneFree _ _, Just a, Just b) ->
+              when (not ((b <= a) && (a `mod` b == 0))) $
+                dieP m "Sizes do not match in retype"
+            (BIOneFree _ _, BIJust _, Just a, Just b) ->
+              when (not ((a <= b) && (b `mod` a == 0))) $
+                dieP m "Sizes do not match in retype"
+            -- Otherwise we must do a runtime check.
+            _ -> return ()
+
+-- | Evaluate 'BytesIn' for a type.
+-- If the size isn't known at compile type, return 'Nothing'.
+evalBytesInType :: A.Type -> PassM (BytesInResult, Maybe Int)
+evalBytesInType t
+    =  do bi <- bytesInType t
+          n <- case bi of
+                 BIJust e -> maybeEvalIntExpression e
+                 BIOneFree e _ -> maybeEvalIntExpression e
+                 _ -> return Nothing
+          return (bi, n)
+
+--}}}
 
 -- | Check the AST for type consistency.
 -- This is actually a series of smaller passes that check particular types
@@ -601,6 +636,7 @@ checkSpecTypes = checkDepthM doSpecType
   where
     doSpecType :: A.SpecType -> PassM ()
     doSpecType (A.Place _ e) = checkExpressionInt e
+    doSpecType (A.Declaration _ _) = ok
     doSpecType (A.Is m am t v)
         =  do tv <- typeOfVariable v
               checkType (findMeta v) t tv
@@ -662,12 +698,15 @@ checkSpecTypes = checkDepthM doSpecType
         doFunctionBody rs (Left s) = checkStructured (checkExpressionList rs) s
         -- FIXME: Need to know the name of the function to do this
         doFunctionBody rs (Right p) = dieP m "Cannot check function process body"
-    -- FIXME: Retypes/RetypesExpr is checked elsewhere
-    doSpecType _ = ok
+    doSpecType (A.Retypes m _ t v)
+        =  do fromT <- typeOfVariable v
+              checkRetypes m fromT t
+    doSpecType (A.RetypesExpr m _ t e)
+        =  do fromT <- typeOfExpression e
+              checkRetypes m fromT t
 
     unexpectedAM :: Meta -> PassM ()
     unexpectedAM m = dieP m "Unexpected abbreviation mode"
-
 
 --}}}
 --{{{  checkProcesses
