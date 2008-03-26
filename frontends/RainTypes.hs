@@ -271,11 +271,11 @@ checkExpressionTypes = applyDepthM checkExpression
                            else A.Conversion (findMeta e) A.DefaultConversion dest e
 
     validOpSameType :: A.DyadicOp -> A.Type -> Bool
-    validOpSameType A.Plus t = (isIntegerType t) || (t == A.Time)
-    validOpSameType A.Minus t = (isIntegerType t) || (t == A.Time)
-    validOpSameType A.Times t = isIntegerType t
-    validOpSameType A.Div t = isIntegerType t
-    validOpSameType A.Rem t = isIntegerType t
+    validOpSameType A.Plus t = isIntegerType t
+    validOpSameType A.Minus t = isIntegerType t
+    validOpSameType A.Times t = isIntegerType t && t /= A.Time
+    validOpSameType A.Div t = isIntegerType t && t /= A.Time
+    validOpSameType A.Rem t = isIntegerType t && t /= A.Time
     validOpSameType A.Eq _ = True
     validOpSameType A.NotEq _ = True
     validOpSameType A.Less t = haveOrder t
