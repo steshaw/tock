@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Types
   (
     specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
-    , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isCommunicableType, isSequenceType
+    , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
@@ -503,6 +503,11 @@ isCaseableType t = isIntegerType t
 isScalarType :: A.Type -> Bool
 isScalarType A.Bool = True
 isScalarType t = isIntegerType t || isRealType t
+
+-- | Types that can be used to define 'DataType's.
+isDataType :: A.Type -> Bool
+-- This may change in the future.
+isDataType = isCommunicableType
 
 -- | Types that can be communicated across a channel.
 isCommunicableType :: A.Type -> Bool

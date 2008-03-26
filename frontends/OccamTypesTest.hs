@@ -84,6 +84,7 @@ testOccamTypes :: Test
 testOccamTypes = TestList
     [
     --{{{  expressions
+
     -- Subscript expressions
       testOK     0 $ subex $ A.Subscript m A.NoCheck intE
     , testFail   1 $ subex $ A.Subscript m A.NoCheck byteE
@@ -205,8 +206,10 @@ testOccamTypes = TestList
     , testOK   254 $ A.AllocMobile m (A.Mobile twoIntsT) (Just twoIntsE)
     , testFail 255 $ A.AllocMobile m (A.Mobile unknownIntsT) (Just twoIntsE)
     , testFail 256 $ A.AllocMobile m (A.Mobile unknownIntsT) Nothing
+
     --}}}
     --{{{  processes
+
     -- Inputs
     , testOK   1000 $ inputSimple countedIntsC [A.InCounted m intV intsV]
     , testFail 1001 $ inputSimple countedIntsC [A.InCounted m realV intsV]
@@ -369,6 +372,105 @@ testOccamTypes = TestList
     , testFail 1913 $ A.IntrinsicProcCall m "RESCHEDULE"
                                           [A.ActualExpression A.Bool boolE]
     , testFail 1914 $ A.IntrinsicProcCall m "HERRING" []
+
+    --}}}
+    --{{{  specifications
+
+    , testOK   2000 $ A.Place m intE
+    , testFail 2001 $ A.Place m twoIntsE
+
+    , testOK   2010 $ A.Declaration m A.Int
+    , testOK   2011 $ A.Declaration m twoIntsT
+
+    , testOK   2020 $ A.Is m A.Abbrev A.Int intV
+    , testFail 2021 $ A.Is m A.ValAbbrev A.Int intV
+    , testFail 2022 $ A.Is m A.Original A.Int intV
+    , testFail 2023 $ A.Is m A.Abbrev A.Real32 intV
+    , testOK   2024 $ A.Is m A.Abbrev chanIntT intC
+    , testFail 2025 $ A.Is m A.ValAbbrev chanIntT intC
+    , testOK   2026 $ A.Is m A.Abbrev (A.Timer A.OccamTimer) tim
+    , testFail 2027 $ A.Is m A.ValAbbrev (A.Timer A.OccamTimer) tim
+
+    , testOK   2030 $ A.IsExpr m A.ValAbbrev A.Int intE
+    , testFail 2031 $ A.IsExpr m A.Abbrev A.Int intE
+    , testFail 2032 $ A.IsExpr m A.Original A.Int intE
+    , testFail 2033 $ A.IsExpr m A.ValAbbrev A.Real32 intE
+
+    , testOK   2040 $ A.IsChannelArray m chansIntT [intC, intC]
+    , testOK   2041 $ A.IsChannelArray m uchansIntT [intC, intC]
+    , testOK   2042 $ A.IsChannelArray m uchansIntT []
+    , testFail 2043 $ A.IsChannelArray m chansIntT [intC]
+    , testFail 2044 $ A.IsChannelArray m chansIntT [iirC, intC]
+    , testFail 2045 $ A.IsChannelArray m chansIntT [intC, intC, intC]
+    , testFail 2046 $ A.IsChannelArray m chansIntT [intV, intV]
+
+    , testOK   2050 $ A.DataType m A.Int
+    , testOK   2051 $ A.DataType m twoIntsT
+    , testOK   2052 $ A.DataType m myTwoIntsT
+    , testFail 2053 $ A.DataType m chanIntT
+    , testFail 2054 $ A.DataType m $ A.Timer A.OccamTimer
+
+    , testOK   2060 $ A.RecordType m True []
+    , testOK   2061 $ A.RecordType m False []
+    , testOK   2062 $ A.RecordType m False [ (simpleName "x", A.Int)
+                                           , (simpleName "y", A.Int)
+                                           , (simpleName "z", A.Int)
+                                           ]
+    , testFail 2063 $ A.RecordType m False [(simpleName "c", chanIntT)]
+    , testOK   2064 $ A.RecordType m False [(simpleName "c", A.Mobile A.Int)]
+    , testFail 2065 $ A.RecordType m False [ (simpleName "x", A.Int)
+                                           , (simpleName "x", A.Real32)
+                                           ]
+
+    , testOK   2070 $ A.Protocol m [A.Int]
+    , testOK   2071 $ A.Protocol m [A.Int, A.Real32, twoIntsT]
+    , testOK   2072 $ A.Protocol m [A.Mobile A.Int]
+    , testFail 2073 $ A.Protocol m []
+    , testFail 2074 $ A.Protocol m [chanIntT]
+    , testOK   2075 $ A.Protocol m [A.Counted A.Int unknownIntsT]
+    , testFail 2076 $ A.Protocol m [A.Counted A.Real32 unknownIntsT]
+    , testFail 2077 $ A.Protocol m [A.Counted A.Int A.Int]
+    , testFail 2078 $ A.Protocol m [A.Counted A.Int twoIntsT]
+
+    , testOK   2080 $ A.ProtocolCase m [ (simpleName "one", [A.Int])
+                                       , (simpleName "two", [A.Real32])
+                                       , (simpleName "three", [])
+                                       ]
+    , testFail 2081 $ A.ProtocolCase m [ (simpleName "one", [A.Int])
+                                       , (simpleName "one", [A.Real32])
+                                       ]
+
+    , testOK   2090 $ A.Proc m A.PlainSpec [] skip
+    , testOK   2091 $ A.Proc m A.InlineSpec [] skip
+    , testOK   2092 $ A.Proc m A.PlainSpec
+                             [ A.Formal A.Abbrev A.Int (simpleName "x")
+                             , A.Formal A.ValAbbrev A.Int (simpleName "y")
+                             , A.Formal A.Abbrev chanIntT (simpleName "c")
+                             ]
+                             skip
+    , testFail 2093 $ A.Proc m A.PlainSpec
+                             [ A.Formal A.Original A.Int (simpleName "x")
+                             ]
+                             skip
+
+    , testOK   2100 $ A.Function m A.PlainSpec [A.Int] [] returnOne
+    , testOK   2110 $ A.Function m A.InlineSpec [A.Int] [] returnOne
+    , testFail 2120 $ A.Function m A.PlainSpec [] [] returnNone
+    , testOK   2130 $ A.Function m A.PlainSpec [A.Int]
+                                 [ A.Formal A.ValAbbrev A.Int (simpleName "x")
+                                 , A.Formal A.ValAbbrev A.Bool (simpleName "b")
+                                 , A.Formal A.ValAbbrev A.Int (simpleName "q")
+                                 ]
+                                 returnOne
+    , testFail 2140 $ A.Function m A.PlainSpec [A.Int]
+                                 [A.Formal A.Abbrev A.Int (simpleName "x")]
+                                 returnOne
+    , testFail 2150 $ A.Function m A.PlainSpec [A.Int]
+                        [A.Formal A.ValAbbrev chanIntT (simpleName "c")]
+                        returnOne
+    , testFail 2160 $ A.Function m A.PlainSpec [A.Int] [] returnNone
+    , testFail 2170 $ A.Function m A.PlainSpec [A.Int] [] returnTwo
+
     --}}}
     ]
   where
@@ -384,7 +486,8 @@ testOccamTypes = TestList
                                         (OccamTypes.checkTypes orig)
                                         startState
 
-    --{{{  definitions for tests
+    --{{{  expression fragments
+
     subex sub = A.SubscriptedExpr m sub twoIntsE
     intV = variable "varInt"
     intE = intLiteral 42
@@ -415,6 +518,10 @@ testOccamTypes = TestList
     coord2E = A.Literal m coord2T coord2
     coord3T = A.Record (simpleName "COORD3")
     coord3 = A.RecordLiteral m [realE, realE, realE]
+    chanT t = A.Chan A.DirUnknown (A.ChanAttributes False False) t
+    chanIntT = chanT A.Int
+    chansIntT = A.Array [dimension 2] $ chanT A.Int
+    uchansIntT = A.Array [A.UnknownDimension] $ chanT A.Int
     intC = variable "chanInt"
     intCE = A.ExprVariable m intC
     intsC = variable "chansInt"
@@ -430,11 +537,15 @@ testOccamTypes = TestList
     listT = A.List A.Int
     listE = A.Literal m listT (A.ListLiteral m [intE, intE, intE])
     i = simpleName "i"
-    skip = A.Skip m
-    sskip = A.Only m skip
     countedIntsC = variable "chanCountedInts"
     iirC = variable "chanIIR"
     caseC = variable "chanCaseProto"
+
+    --}}}
+    --{{{  process fragments
+
+    skip = A.Skip m
+    sskip = A.Only m skip
     insim iis = A.InputSimple m iis
     inputSimple c iis = A.Input m c $ insim iis
     inputCase c vs = A.Input m c
@@ -450,6 +561,14 @@ testOccamTypes = TestList
     tim = variable "tim"
     testAlt a = A.Alt m True $ A.Only m a
     proccall n = A.ProcCall m (simpleName n)
+
+    --}}}
+    --{{{  specification fragments
+
+    returnNone = Left $ A.Only m $ A.ExpressionList m []
+    returnOne = Left $ A.Only m $ A.ExpressionList m [intE]
+    returnTwo = Left $ A.Only m $ A.ExpressionList m [intE, intE]
+
     --}}}
 
 tests :: Test

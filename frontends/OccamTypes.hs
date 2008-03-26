@@ -21,6 +21,7 @@ module OccamTypes (checkTypes) where
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 
 import qualified AST as A
 import CompState
@@ -113,17 +114,27 @@ checkCaseable = checkTypeClass isCaseableType "case-selectable"
 checkScalar :: Meta -> A.Type -> PassM ()
 checkScalar = checkTypeClass isScalarType "scalar"
 
+-- | Check that a type is usable as a 'DataType'
+checkDataType :: Meta -> A.Type -> PassM ()
+checkDataType = checkTypeClass isDataType "data"
+
 -- | Check that a type is communicable.
 checkCommunicable :: Meta -> A.Type -> PassM ()
-checkCommunicable = checkTypeClass isCommunicableType "communicable"
+checkCommunicable m (A.Counted ct rawAT)
+    =  do checkInteger m ct
+          at <- underlyingType m rawAT
+          case at of
+            A.Array (A.UnknownDimension:ds) t ->
+               do checkCommunicable m t
+                  mapM_ (checkFullDimension m) ds
+            _ -> dieP m "Expected array type with unknown first dimension"
+checkCommunicable m t = checkTypeClass isCommunicableType "communicable" m t
 
 -- | Check that a type is a sequence.
 checkSequence :: Meta -> A.Type -> PassM ()
 checkSequence = checkTypeClass isSequenceType "array or list"
 
 -- | Check that a type is an array.
--- (This also gets used elsewhere where we *know* the argument isn't an array,
--- so that we get a consistent error message.)
 checkArray :: Meta -> A.Type -> PassM ()
 checkArray m rawT
     =  do t <- underlyingType m rawT
@@ -131,8 +142,13 @@ checkArray m rawT
             A.Array _ _ -> ok
             _ -> diePC m $ formatCode "Expected array type; found %" t
 
+-- | Check that a dimension isn't unknown.
+checkFullDimension :: Meta -> A.Dimension -> PassM ()
+checkFullDimension m A.UnknownDimension
+    = dieP m $ "Type contains unknown dimensions"
+checkFullDimension _ _ = ok
+
 -- | Check that a type is a list.
--- Return the element type of the list.
 checkList :: Meta -> A.Type -> PassM ()
 checkList m rawT
     =  do t <- underlyingType m rawT
@@ -151,10 +167,6 @@ checkExpressionInt e = checkExpressionType A.Int e
 -- | Check that an expression is of boolean type.
 checkExpressionBool :: A.Expression -> PassM ()
 checkExpressionBool e = checkExpressionType A.Bool e
-
--- | Check the type of a variable.
-checkVariableType :: Meta -> A.Type -> A.Variable -> PassM ()
-checkVariableType m et v = typeOfVariable v >>= checkType m et
 
 --}}}
 --{{{  more complex checks
@@ -342,7 +354,7 @@ checkAllocMobile m rawT me
           case t of
             A.Mobile innerT ->
                do case innerT of
-                    A.Array ds _ -> sequence_ $ map checkFullDimension ds
+                    A.Array ds _ -> mapM_ (checkFullDimension m) ds
                     _ -> ok
                   case me of
                     Just e ->
@@ -350,11 +362,6 @@ checkAllocMobile m rawT me
                           checkType (findMeta e) innerT et
                     Nothing -> ok
             _ -> diePC m $ formatCode "Expected mobile type in allocation; found %" t
-  where
-    checkFullDimension :: A.Dimension -> PassM ()
-    checkFullDimension A.UnknownDimension
-        = dieP m $ "Type in allocation contains unknown dimensions"
-    checkFullDimension _ = ok
 
 -- | Check that a variable is writable.
 checkWritable :: A.Variable -> PassM ()
@@ -465,6 +472,39 @@ checkExpressionList ets el
                             checkType (findMeta e) et rt
                          | (e, et) <- zip es ets]
 
+-- | Check a set of names are distinct.
+checkNamesDistinct :: Meta -> [A.Name] -> PassM ()
+checkNamesDistinct m ns
+    = when (dupes /= []) $
+        diePC m $ formatCode "List contains duplicate names: %" dupes
+  where
+    dupes :: [A.Name]
+    dupes = nub (ns \\ nub ns)
+
+-- | Check a 'Replicator'.
+checkReplicator :: A.Replicator -> PassM ()
+checkReplicator (A.For _ _ start count)
+    =  do checkExpressionInt start
+          checkExpressionInt count
+checkReplicator (A.ForEach _ _ e)
+    =  do t <- typeOfExpression e
+          checkSequence (findMeta e) t
+
+-- | Check a 'Structured', applying the given check to each item found inside
+-- it. This assumes that processes and specifications will be checked
+-- elsewhere.
+checkStructured :: Data t => (t -> PassM ()) -> A.Structured t -> PassM ()
+checkStructured doInner (A.Rep _ rep s)
+    = checkReplicator rep >> checkStructured doInner s
+checkStructured doInner (A.Spec _ spec s)
+    = checkStructured doInner s
+checkStructured doInner (A.ProcThen _ p s)
+    = checkStructured doInner s
+checkStructured doInner (A.Only _ i)
+    = doInner i
+checkStructured doInner (A.Several _ ss)
+    = mapM_ (checkStructured doInner) ss
+
 --}}}
 
 -- | Check the AST for type consistency.
@@ -472,20 +512,11 @@ checkExpressionList ets el
 -- inside the AST, but it doesn't really make sense to split it up.
 checkTypes :: Data t => t -> PassM t
 checkTypes t =
-    checkSpecTypes t >>=
-    checkVariables >>=
+    checkVariables t >>=
     checkExpressions >>=
+    checkSpecTypes >>=
     checkProcesses
 
---{{{  checkSpecTypes
-
-checkSpecTypes :: Data t => t -> PassM t
-checkSpecTypes = checkDepthM doSpecType
-  where
-    doSpecType :: A.SpecType -> PassM ()
-    doSpecType _ = ok
-
---}}}
 --{{{  checkVariables
 
 checkVariables :: Data t => t -> PassM t
@@ -563,6 +594,82 @@ checkExpressions = checkDepthM doExpression
     doArrayElem _ t (A.ArrayElemExpr e) = checkExpressionType t e
 
 --}}}
+--{{{  checkSpecTypes
+
+checkSpecTypes :: Data t => t -> PassM t
+checkSpecTypes = checkDepthM doSpecType
+  where
+    doSpecType :: A.SpecType -> PassM ()
+    doSpecType (A.Place _ e) = checkExpressionInt e
+    doSpecType (A.Is m am t v)
+        =  do tv <- typeOfVariable v
+              checkType (findMeta v) t tv
+              when (am /= A.Abbrev) $ unexpectedAM m
+              amv <- abbrevModeOfVariable v
+              checkAbbrev m amv am
+    doSpecType (A.IsExpr m am t e)
+        =  do te <- typeOfExpression e
+              checkType (findMeta e) t te
+              when (am /= A.ValAbbrev) $ unexpectedAM m
+              checkAbbrev m A.ValAbbrev am
+    doSpecType (A.IsChannelArray m rawT cs)
+        =  do t <- underlyingType m rawT
+              case t of
+                A.Array [d] et@(A.Chan _ _ _) ->
+                   do sequence_ [do rt <- typeOfVariable c
+                                    checkType (findMeta c) et rt
+                                    am <- abbrevModeOfVariable c
+                                    checkAbbrev m am A.Abbrev
+                                 | c <- cs]
+                      case d of
+                        A.UnknownDimension -> ok
+                        A.Dimension e ->
+                           do v <- evalIntExpression e
+                              when (v /= length cs) $
+                                dieP m $ "Wrong number of elements in channel array abbreviation: found " ++ (show $ length cs) ++ ", expected " ++ show v
+                _ -> dieP m "Expected 1D channel array type"
+    doSpecType (A.DataType m rawT)
+        =  do t <- underlyingType m rawT
+              checkDataType m t
+    doSpecType (A.RecordType m _ nts)
+        =  do sequence_ [checkDataType (findMeta n) t
+                         | (n, t) <- nts]
+              checkNamesDistinct m (map fst nts)
+    doSpecType (A.Protocol m ts)
+        =  do when (length ts == 0) $
+                dieP m "A protocol cannot be empty"
+              mapM_ (checkCommunicable m) ts
+    doSpecType (A.ProtocolCase m ntss)
+        =  do sequence_ [mapM_ (checkCommunicable (findMeta n)) ts
+                         | (n, ts) <- ntss]
+              checkNamesDistinct m (map fst ntss)
+    doSpecType (A.Proc m _ fs _)
+        = sequence_ [when (am == A.Original) $ unexpectedAM m
+                     | A.Formal am _ n <- fs]
+    doSpecType (A.Function m _ rs fs body)
+        =  do when (length rs == 0) $
+                dieP m "A function must have at least one return type"
+              sequence_ [do when (am /= A.ValAbbrev) $
+                              diePC (findMeta n) $ formatCode "Argument % is not a value abbreviation" n
+                            checkDataType (findMeta n) t
+                         | A.Formal am t n <- fs]
+              -- FIXME: Run this test again after free name removal
+              doFunctionBody rs body
+      where
+        doFunctionBody :: [A.Type]
+                          -> Either (A.Structured A.ExpressionList) A.Process
+                          -> PassM ()
+        doFunctionBody rs (Left s) = checkStructured (checkExpressionList rs) s
+        -- FIXME: Need to know the name of the function to do this
+        doFunctionBody rs (Right p) = dieP m "Cannot check function process body"
+    -- FIXME: Retypes/RetypesExpr is checked elsewhere
+    doSpecType _ = ok
+
+    unexpectedAM :: Meta -> PassM ()
+    unexpectedAM m = dieP m "Unexpected abbreviation mode"
+
+
+--}}}
 --{{{  checkProcesses
 
 checkProcesses :: Data t => t -> PassM t
@@ -584,16 +691,16 @@ checkProcesses = checkDepthM doProcess
               checkWritable v
     doProcess (A.Skip _) = ok
     doProcess (A.Stop _) = ok
-    doProcess (A.Seq _ s) = doStructured (\p -> ok) s
-    doProcess (A.If _ s) = doStructured doChoice s
+    doProcess (A.Seq _ s) = checkStructured (\p -> ok) s
+    doProcess (A.If _ s) = checkStructured doChoice s
     doProcess (A.Case _ e s)
         =  do t <- typeOfExpression e
               checkCaseable (findMeta e) t
-              doStructured (doOption t) s
+              checkStructured (doOption t) s
     doProcess (A.While _ e _) = checkExpressionBool e
-    doProcess (A.Par _ _ s) = doStructured (\p -> ok) s
+    doProcess (A.Par _ _ s) = checkStructured (\p -> ok) s
     doProcess (A.Processor _ e _) = checkExpressionInt e
-    doProcess (A.Alt _ _ s) = doStructured doAlternative s
+    doProcess (A.Alt _ _ s) = checkStructured doAlternative s
     doProcess (A.ProcCall m n as)
         =  do st <- specTypeOfName n
               case st of
@@ -628,7 +735,7 @@ checkProcesses = checkDepthM doProcess
               checkProtocol m t Nothing iis doInputItem
     doInput c (A.InputCase _ s)
         =  do t <- checkChannel A.DirInput c
-              doStructured (doVariant t) s
+              checkStructured (doVariant t) s
       where
         doVariant :: A.Type -> A.Variant -> PassM ()
         doVariant t (A.Variant m tag iis _)
@@ -688,26 +795,6 @@ checkProcesses = checkDepthM doProcess
     doOutputItem wantT (A.OutExpression _ e)
         =  do t <- typeOfExpression e
               checkType (findMeta e) wantT t
-
-    doReplicator :: A.Replicator -> PassM ()
-    doReplicator (A.For _ _ start count)
-        =  do checkExpressionInt start
-              checkExpressionInt count
-    doReplicator (A.ForEach _ _ e)
-        =  do t <- typeOfExpression e
-              checkSequence (findMeta e) t
-
-    doStructured :: Data t => (t -> PassM ()) -> A.Structured t -> PassM ()
-    doStructured doInner (A.Rep _ rep s)
-        = doReplicator rep >> doStructured doInner s
-    doStructured doInner (A.Spec _ spec s)
-        = doStructured doInner s
-    doStructured doInner (A.ProcThen _ p s)
-        = doStructured doInner s
-    doStructured doInner (A.Only _ i)
-        = doInner i
-    doStructured doInner (A.Several _ ss)
-        = mapM_ (doStructured doInner) ss
 
 --}}}
 
