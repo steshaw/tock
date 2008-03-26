@@ -23,6 +23,7 @@ INT,INT FUNCTION fRR(VAL INT m, VAL INT n)
 PROC p(INT x, y, z)
   [10]INT a:
   [12]INT b:
+  INT q, w:
 %%
 :
 
@@ -70,13 +71,13 @@ PROC m()
 
 %PASS Safe overlapping function calls
   PAR
-    y := fRR(y,z)
-    x := fRR(x,z)
+    y, q := fRR(y,z)
+    x, w := fRR(x,z)
 
 %FAIL Risky overlapping function calls
   PAR
-    x := fRR(y,z)
-    y := fRR(x,z)
+    x, q := fRR(y,z)
+    y, w := fRR(x,z)
 
     
 -- TODO array versions of these
