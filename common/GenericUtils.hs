@@ -72,7 +72,7 @@ type ContainsMap = IntMap IntSet
 -- At the moment this only knows about types reachable from the AST.
 contains :: ContainsMap
 contains = IntMap.fromList [(typeKey t,
-                             IntSet.fromList $ IntMap.keys $ containsTypes t)
+                             IntMap.keysSet $ containsTypes t)
                             | DataBox t <- IntMap.elems allTypes]
   where
     allTypes = containsTypes (undefined :: A.AST)
