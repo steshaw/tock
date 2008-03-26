@@ -270,34 +270,70 @@ checkDyadicOp op l r
             ListOp ->
               checkList lm lt >> checkList rm rt >> checkType rm lt rt
 
+-- | Check an abbreviation.
+-- Is the second abbrev mode a valid abbreviation of the first?
+checkAbbrev :: Meta -> A.AbbrevMode -> A.AbbrevMode -> PassM ()
+checkAbbrev m orig new
+    = case (orig, new) of
+        (_, A.Original) -> bad
+        (A.ValAbbrev, A.ValAbbrev) -> ok
+        (A.ValAbbrev, _) -> bad
+        _ -> ok
+  where
+    bad = dieP m $ "You can't abbreviate " ++ showAM orig ++ " as " ++ showAM new
+
+    showAM :: A.AbbrevMode -> String
+    showAM A.Original = "an original declaration"
+    showAM A.Abbrev = "a reference abbreviation"
+    showAM A.ValAbbrev = "a value abbreviation"
+
+-- | Check a set of actuals against the formals they're meant to match.
+checkActuals :: Meta -> A.Name -> [A.Formal] -> [A.Actual] -> PassM ()
+checkActuals m n fs as
+    =  do when (length fs /= length as) $
+            diePC m $ formatCode ("% called with wrong number of arguments; found " ++ (show $ length as) ++ ", expected " ++ (show $ length fs)) n
+          sequence_ [checkActual f a
+                     | (f, a) <- zip fs as]
+
+-- | Check an actual against its matching formal.
+checkActual :: A.Formal -> A.Actual -> PassM ()
+checkActual (A.Formal newAM et _) a
+    =  do rt <- case a of
+                  A.ActualVariable _ _ v -> typeOfVariable v
+                  A.ActualExpression _ e -> typeOfExpression e
+          checkType (findMeta a) et rt
+          origAM <- case a of
+                      A.ActualVariable _ _ v -> abbrevModeOfVariable v
+                      A.ActualExpression _ _ -> return A.ValAbbrev
+          checkAbbrev (findMeta a) origAM newAM
+
 -- | Check a function call.
 checkFunctionCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Type]
 checkFunctionCall m n es
     =  do st <- specTypeOfName n
           case st of
             A.Function _ _ rs fs _ ->
-               do when (length es /= length fs) $
-                    diePC m $ formatCode ("Function % called with wrong number of arguments; found " ++ (show $ length es) ++ ", expected " ++ (show $ length fs)) n
-                  sequence_ [do rt <- typeOfExpression e
-                                checkType (findMeta e) et rt
-                             | (e, A.Formal _ et _) <- zip es fs]
+               do as <- sequence [do t <- typeOfExpression e
+                                     return $ A.ActualExpression t e
+                                  | e <- es]
+                  checkActuals m n fs as
                   return rs
             _ -> diePC m $ formatCode "% is not a function" n
 
 -- | Check an intrinsic function call.
-checkIntrinsicFunctionCall :: Meta -> String -> [A.Expression] -> Bool
-                              -> PassM ()
-checkIntrinsicFunctionCall m s es singleOnly
-    = case lookup s intrinsicFunctions of
-        Just (rs, tns) ->
-           do when (singleOnly && length rs /= 1) $
-                dieP m $ "Intrinsic function " ++ s ++ " used in an expression returns more than one value"
-              when (length es /= length tns) $
-                dieP m $ "Intrinsic function " ++ s ++ " called with wrong number of arguments; found " ++ (show $ length es) ++ ", expected " ++ (show $ length tns)
-              sequence_ [do rt <- typeOfExpression e
-                            checkType (findMeta e) et rt
-                         | (e, (et, _)) <- zip es tns]
-        Nothing -> dieP m $ s ++ " is not an intrinsic function"
+checkIntrinsicFunctionCall :: Meta -> String -> [A.Expression] -> PassM ()
+checkIntrinsicFunctionCall m n es
+    = case lookup n intrinsicFunctions of
+        Just (rs, args) ->
+           do when (length rs /= 1) $
+                dieP m $ "Function " ++ n ++ " used in an expression returns more than one value"
+              as <- sequence [do t <- typeOfExpression e
+                                 return $ A.ActualExpression t e
+                              | e <- es]
+              let fs = [A.Formal A.ValAbbrev t (A.Name m A.VariableName s)
+                        | (t, s) <- args]
+              checkActuals m (A.Name m A.ProcName n) fs as
+        Nothing -> dieP m $ n ++ " is not an intrinsic function"
 
 -- | Check a mobile allocation.
 checkAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> PassM ()
@@ -410,6 +446,7 @@ checkProtocol m t tag items doItem
           sequence_ [doItem it item
                      | (it, item) <- zip its items]
 
+-- | Check an 'ExpressionList' matches a set of types.
 checkExpressionList :: [A.Type] -> A.ExpressionList -> PassM ()
 checkExpressionList ets el
     = case el of
@@ -497,7 +534,7 @@ checkExpressions = checkDepthM doExpression
               when (length rs /= 1) $
                 diePC m $ formatCode "Function % used in an expression returns more than one value" n
     doExpression (A.IntrinsicFunctionCall m s es)
-        = checkIntrinsicFunctionCall m s es True
+        = checkIntrinsicFunctionCall m s es
     doExpression (A.SubscriptedExpr m s e)
         =  do t <- typeOfExpression e
               checkSubscript m s t
@@ -557,8 +594,18 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Par _ _ s) = doStructured (\p -> ok) s
     doProcess (A.Processor _ e _) = checkExpressionInt e
     doProcess (A.Alt _ _ s) = doStructured doAlternative s
-    -- ProcCall
-    -- IntrinsicProcCall
+    doProcess (A.ProcCall m n as)
+        =  do st <- specTypeOfName n
+              case st of
+                A.Proc _ _ fs _ -> checkActuals m n fs as
+                _ -> diePC m $ formatCode "% is not a procedure" n
+    doProcess (A.IntrinsicProcCall m n as)
+        = case lookup n intrinsicProcs of
+            Just args ->
+              do let fs = [A.Formal am t (A.Name m A.VariableName s)
+                           | (am, t, s) <- args]
+                 checkActuals m (A.Name m A.ProcName n) fs as
+            Nothing -> dieP m $ n ++ " is not an intrinsic procedure"
 
     doAlternative :: A.Alternative -> PassM ()
     doAlternative (A.Alternative m v im _)

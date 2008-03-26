@@ -67,6 +67,9 @@ startState
                                            ]
           defineChannel "chanCaseProto" caseProtoT
           defineTimer "tim" $ A.Timer A.OccamTimer
+          defineProc "proc0" []
+          defineProc "proc1" [("x", A.ValAbbrev, A.Int)]
+          defineProc "proc2" [("x", A.ValAbbrev, A.Int), ("y", A.Abbrev, A.Int)]
   where
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayLiteral m []
@@ -336,6 +339,17 @@ testOccamTypes = TestList
                                                   (insim [inv intV]) skip
     , testFail 1507 $ testAlt $ A.AlternativeSkip m intE skip
 
+    -- Proc calls
+    , testOK   1600 $ proccall "proc0" []
+    , testOK   1601 $ proccall "proc1" [A.ActualExpression A.Int intE]
+    , testOK   1602 $ proccall "proc2" [A.ActualExpression A.Int intE,
+                                        A.ActualVariable A.Original A.Int intV]
+    , testFail 1603 $ proccall "proc0" [A.ActualExpression A.Int intE]
+    , testFail 1604 $ proccall "proc1" [A.ActualExpression A.Real32 realE]
+    , testFail 1605 $ proccall "proc1" [A.ActualExpression A.Int intE,
+                                        A.ActualExpression A.Int intE]
+    , testFail 1606 $ proccall "herring" []
+
     -- Miscellaneous processes
     , testOK   1900 $ A.ClearMobile m mobileIntV
     , testFail 1901 $ A.ClearMobile m intV
@@ -346,6 +360,15 @@ testOccamTypes = TestList
     , testOK   1906 $ A.Par m A.PlainPar sskip
     , testOK   1907 $ A.Processor m intE skip
     , testFail 1908 $ A.Processor m realE skip
+    , testOK   1909 $ A.IntrinsicProcCall m "RESCHEDULE" []
+    , testOK   1910 $ A.IntrinsicProcCall m "ASSERT"
+                                          [A.ActualExpression A.Bool boolE]
+    , testFail 1911 $ A.IntrinsicProcCall m "ASSERT"
+                                          [A.ActualExpression A.Int intE]
+    , testFail 1912 $ A.IntrinsicProcCall m "ASSERT" []
+    , testFail 1913 $ A.IntrinsicProcCall m "RESCHEDULE"
+                                          [A.ActualExpression A.Bool boolE]
+    , testFail 1914 $ A.IntrinsicProcCall m "HERRING" []
     --}}}
     ]
   where
@@ -426,6 +449,7 @@ testOccamTypes = TestList
     oute = A.OutExpression m
     tim = variable "tim"
     testAlt a = A.Alt m True $ A.Only m a
+    proccall n = A.ProcCall m (simpleName n)
     --}}}
 
 tests :: Test

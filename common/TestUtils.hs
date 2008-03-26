@@ -365,6 +365,14 @@ defineFunction s rs as
     st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
+-- | Define a proc.
+defineProc :: String -> [(String, A.AbbrevMode, A.Type)] -> State CompState ()
+defineProc s as
+    = defineThing s A.ProcName st A.Original
+  where
+    st = A.Proc emptyMeta A.PlainSpec fs $ A.Skip emptyMeta
+    fs = [A.Formal am t (simpleName s) | (s, am, t) <- as]
+
 -- | Define a protocol.
 defineProtocol :: String -> [A.Type] -> State CompState ()
 defineProtocol s ts
