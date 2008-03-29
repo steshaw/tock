@@ -216,15 +216,6 @@ instance CGenCall (a -> b -> c -> d -> e -> CGen z) where
     = do ops <- ask
          f ops x0 x1 x2 x3 x4
 
--- A bit of a mind-boggler, but this is essentially for genSlice
-instance CGenCall (a -> b -> c -> d -> (CGen x, y -> CGen z)) where
-  call f x0 x1 x2 x3
-    = (do ops <- ask
-          fst $ f ops x0 x1 x2 x3
-      ,\y -> do ops <- ask
-                (snd $ f ops x0 x1 x2 x3) y
-      )
-
 fget :: (GenOps -> a) -> CGen a
 fget = asks
 
