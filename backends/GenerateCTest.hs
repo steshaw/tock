@@ -301,25 +301,33 @@ testActuals :: Test
 testActuals = TestList
  [
   -- C adds a prefix comma (to follow Process* me) but C++ does not:
-  testBoth "genActuals 0" ",@,@" "@,@" $ overActual (tcall genActuals [undefined, undefined])
-  ,testBothSame "genActuals 1" "" $ (tcall genActuals [])
+  testBoth "genActuals 0" ",@,@" "@,@" $ overActual (tcall genActuals [undefined, undefined] [undefined, undefined])
+  ,testBothSame "genActuals 1" "" $ (tcall genActuals [] [])
   
   --For expressions, genExpression should be called:
-  ,testBothSame "genActual 0" "$" $ over (tcall genActual $ A.ActualExpression (A.True undefined))
-  
-  --For abbreviating arrays, nothing special should happen any more:
-  ,testBothSame "genActual 1" "$" $ over (tcall genActual $ A.ActualExpression (A.Literal undefined undefined undefined))
-  ,testBothSameS "genActual 2" "@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
-    (defineName foo $ simpleDefDecl "foo" A.Int)
-  ,testBothSameS "genActual 3" "&@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
-    (do defineName foo $ simpleDefDecl "bar" A.Int
+  ,testBothSame "genActual 0" "$" $ over (tcall genActual valFormal $ A.ActualExpression (A.True undefined))
+  ,testBothSame "genActual 1" "$" $ over (tcall genActual valFormal $ A.ActualExpression (A.Literal undefined undefined undefined))
+
+  --The abbreviation mode used when generating an actual should come from the
+  --corresponding formal, not from the variable:
+  ,testBothSameS "genActual 10" "@" (over (tcall genActual valFormal $ A.ActualVariable (A.Variable undefined foo)))
+    (defineVariable "foo" A.Int)
+  ,testBothSameS "genActual 11" "&@" (over (tcall genActual refFormal $ A.ActualVariable (A.Variable undefined foo)))
+    (defineVariable "foo" A.Int)
+  ,testBothSameS "genActual 12" "@" (over (tcall genActual valFormal $ A.ActualVariable (A.Variable undefined foo)))
+    (do defineVariable "bar" A.Int
         defineIs "foo" A.Int (variable "bar"))
-  ,testBothSameS "genActual 4" "@" (over (tcall genActual $ A.ActualVariable (A.Variable undefined foo)))
-    (defineName foo $ simpleDefDecl "foo" A.Int)
+  ,testBothSameS "genActual 13" "&@" (over (tcall genActual refFormal $ A.ActualVariable (A.Variable undefined foo)))
+    (do defineVariable "bar" A.Int
+        defineIs "foo" A.Int (variable "bar"))
  ]
  where
+   valFormal :: A.Formal
+   valFormal = A.Formal A.ValAbbrev undefined undefined
+   refFormal :: A.Formal
+   refFormal = A.Formal A.Abbrev undefined undefined
    overActual :: Override
-   overActual = local (\ops -> ops {genActual = override1 at})
+   overActual = local (\ops -> ops {genActual = override2 at})
    over :: Override
    over = local (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
 

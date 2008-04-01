@@ -401,7 +401,8 @@ cppgenPar _ s
                do tell [forking," .forkInThisThread(new proc_"]
                   genName n
                   tell ["("]
-                  call genActuals as
+                  (A.Proc _ _ fs _) <- specTypeOfName n
+                  call genActuals fs as
                   tell [" ) ); "] 
              _ -> error ("trying to run something other than a process in parallel")
       
@@ -472,15 +473,16 @@ cppgenAlt _ s
 
 
 -- | In GenerateC this uses prefixComma (because "Process * me" is always the first argument), but here we use infixComma.
-cppgenActuals :: [A.Actual] -> CGen ()
-cppgenActuals as = infixComma (map (call genActual) as)
+cppgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
+cppgenActuals fs as = infixComma [call genActual f a | (f, a) <- zip fs as]
 
 -- | The only change from GenerateC is that passing "me" is not necessary in C++CSP
 cppgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cppgenProcCall n as 
     = do genName n
          tell ["("]
-         call genActuals as
+         (A.Proc _ _ fs _) <- specTypeOfName n
+         call genActuals fs as
          tell [");"]
 
 -- | Changed because we initialise channels and arrays differently in C++

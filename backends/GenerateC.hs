@@ -1358,20 +1358,19 @@ cgenSpecMode A.InlineSpec = tell ["inline "]
 prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
-cgenActuals :: [A.Actual] -> CGen ()
-cgenActuals as = prefixComma (map (call genActual) as)
+cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
+cgenActuals fs as = prefixComma [call genActual f a | (f, a) <- zip fs as]
 
-cgenActual :: A.Actual -> CGen ()
-cgenActual actual = seqComma $ realActuals actual
+cgenActual :: A.Formal -> A.Actual -> CGen ()
+cgenActual f a = seqComma $ realActuals f a
 
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
-realActuals :: A.Actual -> [CGen ()]
-realActuals (A.ActualExpression e)
+realActuals :: A.Formal -> A.Actual -> [CGen ()]
+realActuals _ (A.ActualExpression e)
     = [call genExpression e]
-realActuals (A.ActualVariable v)
-    = [do am <- abbrevModeOfVariable v
-          call genVariableAM v am]
+realActuals (A.Formal am _ _) (A.ActualVariable v)
+    = [call genVariableAM v am]
 
 -- | Return (type, name) generator pairs for all the real formals corresponding
 -- to a single formal.
@@ -1431,9 +1430,9 @@ genProcSpec n (A.Proc _ sm fs p) forwardDecl
 
 -- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
 -- workspace pointer and the name of the function to call.
-cgenProcAlloc :: A.Name -> [A.Actual] -> CGen (String, CGen ())
-cgenProcAlloc n as
-    =  do let ras = concatMap realActuals as
+cgenProcAlloc :: A.Name -> [A.Formal] -> [A.Actual] -> CGen (String, CGen ())
+cgenProcAlloc n fs as
+    =  do let ras = concat [realActuals f a | (f, a) <- zip fs as]
 
           ws <- csmLift $ makeNonce "workspace"
           tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
@@ -1627,7 +1626,8 @@ cgenPar pm s
   where
     startP :: String -> Meta -> A.Process -> CGen ()
     startP bar _ (A.ProcCall _ n as)
-        =  do (ws, func) <- cgenProcAlloc n as
+        =  do (A.Proc _ _ fs _) <- specTypeOfName n
+              (ws, func) <- cgenProcAlloc n fs as
               tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
               func
               tell [");\n"]
@@ -1747,7 +1747,8 @@ cgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cgenProcCall n as
     =  do genName n
           tell [" (wptr"]
-          call genActuals as
+          (A.Proc _ _ fs _) <- specTypeOfName n
+          call genActuals fs as
           tell [");\n"]
 --}}}
 --{{{  intrinsic procs
