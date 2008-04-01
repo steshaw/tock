@@ -33,17 +33,16 @@ import Pass
 -- | A transformation for a single 'Data' type with explicit descent.
 -- The first argument passed is a function that can be called to explicitly
 -- descend into a generic value.
-type ExplicitTrans t = Data t =>
-                       (forall s. Data s => s -> PassM s) -> t -> PassM t
+type ExplicitTrans t = (forall s. Data s => s -> PassM s) -> t -> PassM t
 
 -- | A transformation for a single 'Data' type with implicit descent.
 -- This can be applied recursively throughout a data structure.
-type Transform t = Data t => t -> PassM t
+type Transform t = t -> PassM t
 
 -- | A check for a single 'Data' type with implicit descent.
 -- This is like 'Transform', but it doesn't change the value; it may fail or
 -- modify the state, though.
-type Check t = Data t => t -> PassM ()
+type Check t = t -> PassM ()
 
 -- | Make an 'ExplicitTrans' that applies a 'Transform', recursing depth-first.
 transformToExplicitDepth :: Data t => Transform t -> ExplicitTrans t
