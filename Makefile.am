@@ -116,6 +116,7 @@ tock_SOURCES_hs += frontends/StructureOccam.hs
 tock_SOURCES_hs += pass/Pass.hs
 tock_SOURCES_hs += pass/PassList.hs
 tock_SOURCES_hs += pass/Properties.hs
+tock_SOURCES_hs += pass/Traversal.hs
 tock_SOURCES_hs += transformations/SimplifyComms.hs
 tock_SOURCES_hs += transformations/SimplifyExprs.hs
 tock_SOURCES_hs += transformations/SimplifyProcs.hs

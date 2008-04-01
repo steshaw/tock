@@ -28,7 +28,6 @@ import System.IO
 import qualified AST as A
 import CompState
 import Errors
-import GenericUtils
 import Metadata
 import PrettyShow
 import TreeUtils
@@ -150,7 +149,6 @@ runPasses (p:ps) ast
           debug $ "}}}"
           runPasses ps ast'
 
-
 -- | Print a message if above the given verbosity level.
 verboseMessage :: (CSM m, MonadIO m) => Int -> String -> m ()
 verboseMessage n s
@@ -194,42 +192,6 @@ makeGeneric top
     = (gmapM top)
         `extM` (return :: String -> m String)
         `extM` (return :: Meta -> m Meta)
-
--- | Apply a monadic operation everywhere that it matches, going depth-first.
-applyDepthM :: forall a t. (Data a, Data t) => (a -> PassM a) -> t -> PassM t
-applyDepthM f = doGeneric `extM` (doSpecific f)
-  where
-    doGeneric :: Data t1 => t1 -> PassM t1
-    doGeneric = gmapMFor (undefined :: a) (applyDepthM f)
-
-    doSpecific :: Data t2 => (t2 -> PassM t2) -> t2 -> PassM t2
-    doSpecific f x = (doGeneric x >>= f)
-
--- | Apply two monadic operations everywhere they match in the AST, going
--- depth-first.
-applyDepthM2 :: forall a b t. (Data a, Data b, Data t) =>
-                  (a -> PassM a) -> (b -> PassM b) -> t -> PassM t
-applyDepthM2 f1 f2 = doGeneric `extM` (doSpecific f1) `extM` (doSpecific f2)
-  where
-    doGeneric :: Data t1 => t1 -> PassM t1
-    doGeneric = gmapMFor2 (undefined :: a) (undefined :: b) (applyDepthM2 f1 f2)
-
-    doSpecific :: Data t2 => (t2 -> PassM t2) -> t2 -> PassM t2
-    doSpecific f x = (doGeneric x >>= f)
-
--- | Apply a check (a monadic operation that returns nothing, but can succeed
--- or fail) everywhere it matches in the AST, going depth-first.
-checkDepthM :: forall a t. (Data a, Data t) => (a -> PassM ()) -> t -> PassM t
-checkDepthM f = doGeneric `extM` (doSpecific f)
-  where
-    doGeneric :: Data t1 => t1 -> PassM t1
-    doGeneric = gmapMFor (undefined :: a) (checkDepthM f)
-
-    doSpecific :: Data t2 => (t2 -> PassM ()) -> t2 -> PassM t2
-    doSpecific f x
-        =  do x' <- doGeneric x
-              f x'
-              return x'
 
 excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 

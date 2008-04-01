@@ -28,6 +28,7 @@ import EvalConstants
 import Metadata
 import Pass
 import ShowCode
+import Traversal
 import Types
 
 

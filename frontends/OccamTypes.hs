@@ -32,6 +32,7 @@ import Intrinsics
 import Metadata
 import Pass
 import ShowCode
+import Traversal
 import Types
 
 -- | A successful check.
@@ -162,11 +163,11 @@ checkExpressionType :: A.Type -> A.Expression -> PassM ()
 checkExpressionType et e = typeOfExpression e >>= checkType (findMeta e) et
 
 -- | Check that an expression is of integer type.
-checkExpressionInt :: A.Expression -> PassM ()
+checkExpressionInt :: Check A.Expression
 checkExpressionInt e = checkExpressionType A.Int e
 
 -- | Check that an expression is of boolean type.
-checkExpressionBool :: A.Expression -> PassM ()
+checkExpressionBool :: Check A.Expression
 checkExpressionBool e = checkExpressionType A.Bool e
 
 --}}}
@@ -293,6 +294,7 @@ checkAbbrev m orig new
         (A.ValAbbrev, _) -> bad
         _ -> ok
   where
+    bad :: PassM ()
     bad = dieP m $ "You can't abbreviate " ++ showAM orig ++ " as " ++ showAM new
 
     showAM :: A.AbbrevMode -> String
@@ -360,7 +362,7 @@ checkAllocMobile m rawT me
             _ -> diePC m $ formatCode "Expected mobile type in allocation; found %" t
 
 -- | Check that a variable is writable.
-checkWritable :: A.Variable -> PassM ()
+checkWritable :: Check A.Variable
 checkWritable v
     =  do am <- abbrevModeOfVariable v
           case am of
@@ -478,7 +480,7 @@ checkNamesDistinct m ns
     dupes = nub (ns \\ nub ns)
 
 -- | Check a 'Replicator'.
-checkReplicator :: A.Replicator -> PassM ()
+checkReplicator :: Check A.Replicator
 checkReplicator (A.For _ _ start count)
     =  do checkExpressionInt start
           checkExpressionInt count
@@ -489,7 +491,7 @@ checkReplicator (A.ForEach _ _ e)
 -- | Check a 'Structured', applying the given check to each item found inside
 -- it. This assumes that processes and specifications will be checked
 -- elsewhere.
-checkStructured :: Data t => (t -> PassM ()) -> A.Structured t -> PassM ()
+checkStructured :: Data t => Check t -> Check (A.Structured t)
 checkStructured doInner (A.Rep _ rep s)
     = checkReplicator rep >> checkStructured doInner s
 checkStructured doInner (A.Spec _ spec s)
@@ -552,7 +554,7 @@ checkTypes t =
 checkVariables :: Data t => t -> PassM t
 checkVariables = checkDepthM doVariable
   where
-    doVariable :: A.Variable -> PassM ()
+    doVariable :: Check A.Variable
     doVariable (A.SubscriptedVariable m s v)
         =  do t <- typeOfVariable v
               checkSubscript m s t
@@ -574,7 +576,7 @@ checkVariables = checkDepthM doVariable
 checkExpressions :: Data t => t -> PassM t
 checkExpressions = checkDepthM doExpression
   where
-    doExpression :: A.Expression -> PassM ()
+    doExpression :: Check A.Expression
     doExpression (A.Monadic _ op e) = checkMonadicOp op e
     doExpression (A.Dyadic _ op le re) = checkDyadicOp op le re
     doExpression (A.MostPos m t) = checkNumeric m t
@@ -629,7 +631,7 @@ checkExpressions = checkDepthM doExpression
 checkSpecTypes :: Data t => t -> PassM t
 checkSpecTypes = checkDepthM doSpecType
   where
-    doSpecType :: A.SpecType -> PassM ()
+    doSpecType :: Check A.SpecType
     doSpecType (A.Place _ e) = checkExpressionInt e
     doSpecType (A.Declaration _ _) = ok
     doSpecType (A.Is m am t v)
@@ -700,7 +702,7 @@ checkSpecTypes = checkDepthM doSpecType
         =  do fromT <- typeOfExpression e
               checkRetypes m fromT t
 
-    unexpectedAM :: Meta -> PassM ()
+    unexpectedAM :: Check Meta
     unexpectedAM m = dieP m "Unexpected abbreviation mode"
 
 --}}}
@@ -709,7 +711,7 @@ checkSpecTypes = checkDepthM doSpecType
 checkProcesses :: Data t => t -> PassM t
 checkProcesses = checkDepthM doProcess
   where
-    doProcess :: A.Process -> PassM ()
+    doProcess :: Check A.Process
     doProcess (A.Assign m vs el)
         =  do vts <- mapM (typeOfVariable) vs
               mapM_ checkWritable vs
@@ -748,7 +750,7 @@ checkProcesses = checkDepthM doProcess
                  checkActuals m (A.Name m A.ProcName n) fs as
             Nothing -> dieP m $ n ++ " is not an intrinsic procedure"
 
-    doAlternative :: A.Alternative -> PassM ()
+    doAlternative :: Check A.Alternative
     doAlternative (A.Alternative m v im _)
         = case im of
             A.InputTimerRead _ _ ->
@@ -760,7 +762,7 @@ checkProcesses = checkDepthM doProcess
     doAlternative (A.AlternativeSkip _ e _)
         = checkExpressionBool e
 
-    doChoice :: A.Choice -> PassM ()
+    doChoice :: Check A.Choice
     doChoice (A.Choice _ e _) = checkExpressionBool e
 
     doInput :: A.Variable -> A.InputMode -> PassM ()

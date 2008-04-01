@@ -31,6 +31,7 @@ import OccamTypes
 import Pass
 import qualified Properties as Prop
 import ShowCode
+import Traversal
 import Types
 
 -- | Occam-specific frontend passes.
