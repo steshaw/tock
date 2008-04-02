@@ -57,8 +57,11 @@ applyExplicitM :: forall t1 s. (Data t1, Data s) =>
                   ExplicitTrans t1 -> s -> PassM s
 applyExplicitM f1 = doGeneric `extM` (doSpecific f1)
   where
+    typeSet :: [TypeKey]
+    typeSet = [typeKey (undefined :: t1)]
+
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor (undefined :: t1) (applyExplicitM f1)
+    doGeneric = gmapMFor typeSet (applyExplicitM f1)
 
     doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
     doSpecific f x = f doGeneric x
@@ -67,11 +70,15 @@ applyExplicitM f1 = doGeneric `extM` (doSpecific f1)
 applyExplicitM2 :: forall t1 t2 s. (Data t1, Data t2, Data s) =>
                    ExplicitTrans t1 -> ExplicitTrans t2 -> s -> PassM s
 applyExplicitM2 f1 f2 = doGeneric `extM` (doSpecific f1)
-                               `extM` (doSpecific f2)
+                                  `extM` (doSpecific f2)
   where
+    typeSet :: [TypeKey]
+    typeSet = [ typeKey (undefined :: t1)
+              , typeKey (undefined :: t2)
+              ]
+
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor2 (undefined :: t1) (undefined :: t2)
-                          (applyExplicitM2 f1 f2)
+    doGeneric = gmapMFor typeSet (applyExplicitM2 f1 f2)
 
     doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
     doSpecific f x = f doGeneric x

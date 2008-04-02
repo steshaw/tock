@@ -22,7 +22,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- 'typeContains' is faster than PlateData's equivalent at the cost of some
 -- flexibility: it'll only work for types that it knows about (which can be
 -- added to in the definition of 'contains').
-module GenericUtils (typeContains, gmapMFor, gmapMFor2) where
+module GenericUtils (
+    TypeKey, typeKey
+  , typeContains
+  , gmapMFor
+  ) where
 
 import Data.Generics
 import Data.IntMap (IntMap)
@@ -35,6 +39,14 @@ import System.IO.Unsafe
 
 import qualified AST as A
 
+-- | A type identifier.
+type TypeKey = Int
+
+-- | Given a witness for a type, return its 'TypeKey'.
+typeKey :: Typeable a => a -> TypeKey
+typeKey x = unsafePerformIO $ typeRepKey $ typeOf x
+
+-- | Container for 'Data' items.
 data DataBox = forall a. (Typeable a, Data a) => DataBox a
 
 -- | Given a witness for a type, return witnesses for all the types that its
@@ -46,20 +58,16 @@ constrArgTypes x = if isAlgType dtype then concatMap f constrs else []
     constrs = dataTypeConstrs dtype
     dtype = dataTypeOf x
 
--- | Given a witness for a type, return its type key.
-typeKey :: Typeable a => a -> Int
-typeKey x = unsafePerformIO $ typeRepKey $ typeOf x
-
 -- | Given a witness for a type, return a map from type keys to witnesses for
 -- all the types it contains recursively.
-containsTypes :: (Data a, Typeable a) => a -> IntMap DataBox
-containsTypes start = containsTypes' (DataBox start) IntMap.empty
+containedTypes :: (Data a, Typeable a) => a -> IntMap DataBox
+containedTypes start = containedTypes' (DataBox start) IntMap.empty
   where
-    containsTypes' :: DataBox -> IntMap DataBox -> IntMap DataBox
-    containsTypes' box@(DataBox thisType) seen
+    containedTypes' :: DataBox -> IntMap DataBox -> IntMap DataBox
+    containedTypes' box@(DataBox thisType) seen
         = if thisKey `IntMap.member` seen
             then seen
-            else foldl (\s t -> containsTypes' t s)
+            else foldl (\s t -> containedTypes' t s)
                        (IntMap.insert thisKey box seen)
                        (constrArgTypes thisType)
       where
@@ -72,50 +80,33 @@ type ContainsMap = IntMap IntSet
 -- At the moment this only knows about types reachable from the AST.
 contains :: ContainsMap
 contains = IntMap.fromList [(typeKey t,
-                             IntMap.keysSet $ containsTypes t)
+                             IntMap.keysSet $ containedTypes t)
                             | DataBox t <- IntMap.elems allTypes]
   where
-    allTypes = containsTypes (undefined :: A.AST)
+    allTypes = containedTypes (undefined :: A.AST)
 
 -- | Does one type contain another?
 -- (A type always contains itself.)
-typeContains :: (Data a, Typeable a, Data b, Typeable b) => a -> b -> Bool
+typeContains :: TypeKey -> TypeKey -> Bool
 typeContains start find
-    = if startKey == findKey
-        then True
-        else case IntMap.lookup startKey contains of
-               Just set -> findKey `IntSet.member` set
-               Nothing -> True  -- can't tell, so it might be
-  where
-    startKey = typeKey start
-    findKey = typeKey find
+  | start == find = True
+  | otherwise     = case IntMap.lookup start contains of
+                      Just set -> find `IntSet.member` set
+                      Nothing -> True  -- can't tell, so it might be
 
 -- | Type-smart generic mapM.
 -- This is like 'gmapM', but it only applies the function to arguments that
--- could contain the target type.
-gmapMFor :: (Monad m, Data t, Data a) =>
-            a                                 -- ^ Witness for target type
+-- could contain any of the target types.
+gmapMFor :: (Monad m, Data t) =>
+            [TypeKey]                         -- ^ Target types
             -> (forall s. Data s => s -> m s) -- ^ Function to apply
             -> (t -> m t)                     -- ^ Generic operation
-gmapMFor find top = gmapM (each find top)
+gmapMFor find f = gmapM (each f)
   where
-    each :: (Monad m, Data t, Data a) =>
-            a -> (forall s. Data s => s -> m s) -> (t -> m t)
-    each find top x
-        = if cont then top x else return x
-      where cont = x `typeContains` find
-
--- | Two-type version of 'gmapMFor'.
-gmapMFor2 :: (Monad m, Data t, Data a1, Data a2) =>
-             a1                                -- ^ Witness for target type 1
-             -> a2                             -- ^ Witness for target type 2
-             -> (forall s. Data s => s -> m s) -- ^ Function to apply
-             -> (t -> m t)                     -- ^ Generic operation
-gmapMFor2 find1 find2 top = gmapM (each find1 find2 top)
-  where
-    each :: (Monad m, Data t, Data a1, Data a2) =>
-            a1 -> a2 -> (forall s. Data s => s -> m s) -> (t -> m t)
-    each find1 find2 top x
-        = if cont then top x else return x
-      where cont = x `typeContains` find1 || x `typeContains` find2
-
+    each :: (Monad m, Data t) =>
+            (forall s. Data s => s -> m s) -> (t -> m t)
+    each f x
+        = if cont then f x else return x
+      where
+        cont = or $ map (typeContains xKey) find
+        xKey = typeKey x
