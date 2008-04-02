@@ -24,7 +24,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- added to in the definition of 'contains').
 module GenericUtils (
     TypeKey, typeKey
-  , typeContains
+  , containsTypes
   , gmapMFor
   ) where
 
@@ -85,14 +85,21 @@ contains = IntMap.fromList [(typeKey t,
   where
     allTypes = containedTypes (undefined :: A.AST)
 
--- | Does one type contain another?
--- (A type always contains itself.)
-typeContains :: TypeKey -> TypeKey -> Bool
-typeContains start target
-  | start == target = True
-  | otherwise       = case IntMap.lookup start contains of
-                        Just set -> target `IntSet.member` set
-                        Nothing -> True  -- can't tell, so it might be
+-- | Does a value contain any of the listed types?
+-- (A value always contains its own type.)
+containsTypes :: Data t => t -> [TypeKey] -> Bool
+containsTypes x targets
+    = or $ map containsType targets
+  where
+    start :: TypeKey
+    start = typeKey x
+
+    containsType :: TypeKey -> Bool
+    containsType target
+      | start == target = True
+      | otherwise       = case IntMap.lookup start contains of
+                            Just set -> target `IntSet.member` set
+                            Nothing -> True  -- can't tell, so it might be
 
 -- | Type-smart generic mapM.
 -- This is like 'gmapM', but it only applies the function to arguments that
@@ -106,7 +113,4 @@ gmapMFor targets f = gmapM (each f)
     each :: (Monad m, Data t) =>
             (forall s. Data s => s -> m s) -> (t -> m t)
     each f x
-        = if cont then f x else return x
-      where
-        cont = or $ map (typeContains xKey) targets
-        xKey = typeKey x
+        = if containsTypes x targets then f x else return x

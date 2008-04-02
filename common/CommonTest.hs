@@ -146,8 +146,7 @@ testTypeContains = TestList
             Int -> Bool -> a -> b -> Test
     test n exp start find
         = TestCase $ assertEqual ("testTypeContains " ++ show n)
-                                 exp (typeContains (typeKey start)
-                                                   (typeKey find))
+                                 exp (containsTypes start [typeKey find])
 
 --Returns the list of tests:
 tests :: Test
