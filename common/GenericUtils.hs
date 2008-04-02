@@ -88,11 +88,11 @@ contains = IntMap.fromList [(typeKey t,
 -- | Does one type contain another?
 -- (A type always contains itself.)
 typeContains :: TypeKey -> TypeKey -> Bool
-typeContains start find
-  | start == find = True
-  | otherwise     = case IntMap.lookup start contains of
-                      Just set -> find `IntSet.member` set
-                      Nothing -> True  -- can't tell, so it might be
+typeContains start target
+  | start == target = True
+  | otherwise       = case IntMap.lookup start contains of
+                        Just set -> target `IntSet.member` set
+                        Nothing -> True  -- can't tell, so it might be
 
 -- | Type-smart generic mapM.
 -- This is like 'gmapM', but it only applies the function to arguments that
@@ -101,12 +101,12 @@ gmapMFor :: (Monad m, Data t) =>
             [TypeKey]                         -- ^ Target types
             -> (forall s. Data s => s -> m s) -- ^ Function to apply
             -> (t -> m t)                     -- ^ Generic operation
-gmapMFor find f = gmapM (each f)
+gmapMFor targets f = gmapM (each f)
   where
     each :: (Monad m, Data t) =>
             (forall s. Data s => s -> m s) -> (t -> m t)
     each f x
         = if cont then f x else return x
       where
-        cont = or $ map (typeContains xKey) find
+        cont = or $ map (typeContains xKey) targets
         xKey = typeKey x
