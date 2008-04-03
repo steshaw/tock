@@ -161,10 +161,10 @@ main = do
             ModeFull -> evalStateT (compileFull fn fileStem) []
 
   -- Run the compiler.
-  v <- runWriterT $ evalStateT (runErrorT operation) initState
+  v <- runPassM initState operation
   case v of
-    (Left e, ws) -> showWarnings ws >> dieIO e
-    (Right r, ws) -> showWarnings ws
+    (Left e, _, ws) -> showWarnings ws >> dieIO e
+    (Right r, _, ws) -> showWarnings ws
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)

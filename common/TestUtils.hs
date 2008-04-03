@@ -495,7 +495,8 @@ runPass :: TestMonad m r =>
   PassM b                            -- ^ The actual pass.
   -> CompState                       -- ^ The state to use to run the pass.
   -> m (CompState, Either ErrorReport b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
-runPass actualPass startState = liftM (\((x,y),_) -> (y,x)) $ runIO (runWriterT $ runStateT (runErrorT actualPass) startState)
+runPass actualPass startState = liftM (\(x,y,_) -> (y,x)) $
+  runIO (runPassM startState actualPass)
 
 -- | A test that runs a given AST pass and checks that it succeeds.
 testPass ::
@@ -585,7 +586,7 @@ testPassShouldFail testName actualPass startStateTrans =
     do ret <- runPass actualPass (execState startStateTrans emptyState)
        case ret of
          (_,Left err) -> return ()
-         Right (state, output) -> testFailure $ testName ++ " pass succeeded when expected to fail; output: " ++ pshow output
+         (state, Right output) -> testFailure $ testName ++ " pass succeeded when expected to fail; output: " ++ pshow output
 
 --}}}
 --{{{  miscellaneous utilities

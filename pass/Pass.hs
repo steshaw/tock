@@ -37,8 +37,8 @@ import TreeUtils
 import Utils
 
 -- | The monad in which AST-mangling passes operate.
-type PassM = ErrorT ErrorReport (StateT CompState (WriterT [WarningReport]  IO))
-type PassMR = ErrorT ErrorReport (ReaderT CompState (WriterT [WarningReport]  IO))
+type PassM = ErrorT ErrorReport (StateT CompState (StateT [WarningReport]  IO))
+type PassMR = ErrorT ErrorReport (ReaderT CompState (StateT [WarningReport]  IO))
 
 instance Die PassM where
   dieReport = throwError
@@ -47,10 +47,10 @@ instance Die PassMR where
   dieReport = throwError
   
 instance Warn PassM where
-  warnReport w = tell [w]
+  warnReport w = lift $ lift $ modify (++ [w])
 
 instance Warn PassMR where
-  warnReport w = tell [w]
+  warnReport w = lift $ lift $ modify (++ [w])
 
 -- | The type of an AST-mangling pass.
 data Monad m => Pass_ m = Pass {
@@ -85,10 +85,16 @@ instance Ord Property where
 runPassR :: (A.AST -> PassMR A.AST) -> (A.AST -> PassM A.AST)
 runPassR p t 
            = do st <- get
-                (r,w) <- liftIO $ runWriterT $ runReaderT (runErrorT (p t)) st
+                (r,w) <- liftIO $ flip runStateT [] $ runReaderT (runErrorT (p t)) st
                 case r of
                   Left err -> throwError err
-                  Right result -> tell w >> return result
+                  Right result -> mapM_ warnReport w >> return result
+
+runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState, [WarningReport])
+runPassM cs pass = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runErrorT pass
+  where
+    flatten :: ((a, b),c) -> (a, b, c)
+    flatten ((x, y), z) = (x, y, z)
 
 makePassesDep :: [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
 makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) (const True))

@@ -111,9 +111,9 @@ testGetVarProc = TestList (map doTest tests)
    doTest (index, r, w, u, proc)
       = TestCase $ do result <- runPass (getVarProc proc) startState
                       case result of
-                        Left err ->
+                        (_, Left err) ->
                           testFailure $ name ++ " failed: " ++ show err
-                        Right (_, result) ->
+                        (_, Right result) ->
                           assertEqual name (vars r w u) result
     where
       name = "testGetVarProc" ++ show index

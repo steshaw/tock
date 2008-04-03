@@ -59,7 +59,7 @@ defaultState = emptyState {csUsageChecking = True}
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
 testOccam :: String -> IO (Maybe String)
-testOccam source = do (result,_) <- runWriterT $ evalStateT (runErrorT compilation) defaultState
+testOccam source = do (result,_,_) <- runPassM defaultState compilation
                       return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
