@@ -433,8 +433,7 @@ cppgenAlt _ s
       where
         doA  _ alt
             = case alt of
-                A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.Alternative _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell [guardList, " . push_back( new csp::SkipGuard() );\n"]
 
         doIn c im
@@ -455,8 +454,7 @@ cppgenAlt _ s
       where
         doA _ alt
             = case alt of
-                A.Alternative _ c im p -> doIn c im p
-                A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
+                A.Alternative _ e c im p -> withIf e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
 
         doIn c im p

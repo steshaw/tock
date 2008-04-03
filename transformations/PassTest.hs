@@ -489,13 +489,13 @@ testInputCase = TestList
    ,TestCase $ testPass "testInputCase 100"
        (tag3 A.Alt DontCare False $ 
           mSpecA (tag3 A.Specification DontCare (Named "tag" DontCare) $ mDeclaration A.Int) $
-          mOnlyA $ tag4 A.Alternative DontCare c
+          mOnlyA $ mAlternative (A.True emptyMeta) c
             (tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]) $
           tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
            mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
      )
      (transformInputCase $ 
-       A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta c 
+       A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True emptyMeta) c 
         (A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0)
         (A.Skip emptyMeta)
      )
@@ -542,13 +542,15 @@ testTransformProtocolInput = TestList
       (return ())
 
    ,TestCase $ testPass "testTransformProtocolInput3"
-      (A.Alt emptyMeta True $ A.Only emptyMeta $ A.Alternative emptyMeta (variable "c") (A.InputSimple emptyMeta [ii0]) $
+      (A.Alt emptyMeta True $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
+        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
         A.Seq emptyMeta $ A.Several emptyMeta $ onlySingle ii1 : [A.Only emptyMeta $ A.Skip emptyMeta])
       (transformProtocolInput $ A.Alt emptyMeta True $ A.Only emptyMeta $ altItems [ii0, ii1])
       (return ())
 
    ,TestCase $ testPass "testTransformProtocolInput4"
-      (A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (variable "c") (A.InputSimple emptyMeta [ii0]) $
+      (A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
+        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
         A.Seq emptyMeta $ A.Several emptyMeta $ map onlySingle [ii1,ii2] ++ [A.Only emptyMeta $ A.Skip emptyMeta])
       (transformProtocolInput $ A.Alt emptyMeta False $ A.Only emptyMeta $ altItems [ii0, ii1, ii2])
       (return ())
@@ -559,9 +561,10 @@ testTransformProtocolInput = TestList
    ii2 = A.InVariable emptyMeta (variable "a")
   
    onlySingle = A.Only emptyMeta . A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta . singleton
-   onlySingleAlt = A.Only emptyMeta . flip (A.Alternative emptyMeta (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta . singleton
+   onlySingleAlt = A.Only emptyMeta . flip (A.Alternative emptyMeta (A.True
+     emptyMeta) (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta . singleton
    seqItems = A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta
-   altItems = flip (A.Alternative emptyMeta (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta
+   altItems = flip (A.Alternative emptyMeta (A.True emptyMeta) (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta
 
 
 testPullRepCounts :: Test

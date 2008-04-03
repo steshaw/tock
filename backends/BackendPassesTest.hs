@@ -43,17 +43,17 @@ m :: Meta
 m = emptyMeta
 
 waitFor :: A.Expression -> A.Process -> A.Alternative
-waitFor e body = A.Alternative emptyMeta (A.Variable emptyMeta $ simpleName
+waitFor e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta $ simpleName
   (ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix)) (A.InputTimerFor emptyMeta e)
     body
 
 waitUntil :: A.Expression -> A.Process -> A.Alternative
-waitUntil e body = A.Alternative emptyMeta (A.Variable emptyMeta $ simpleName
+waitUntil e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta $ simpleName
   (ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix)) (A.InputTimerAfter emptyMeta e)
     body
 
 mWaitUntil :: (Data a, Data b) => a -> b -> Pattern
-mWaitUntil e body = mAlternative (mVariable $ simpleName (ghostVarPrefix ++ "raintimer"
+mWaitUntil e body = mAlternative (A.True emptyMeta) (mVariable $ simpleName (ghostVarPrefix ++ "raintimer"
   ++ ghostVarSuffix)) (mInputTimerAfter e) body
 
 mGetTime :: Pattern -> Pattern

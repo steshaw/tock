@@ -328,17 +328,17 @@ testOccamTypes = TestList
                                $ A.FunctionCallList m function22 [realE]
 
     -- Alt
-    , testOK   1500 $ testAlt $ A.Alternative m intC (insim [inv intV]) skip
-    , testOK   1501 $ testAlt $ A.Alternative m tim
+    , testOK   1500 $ testAlt $ A.Alternative m true intC (insim [inv intV]) skip
+    , testOK   1501 $ testAlt $ A.Alternative m true tim
                                               (A.InputTimerAfter m intE) skip
-    , testOK   1502 $ testAlt $ A.AlternativeCond m boolE intC
+    , testOK   1502 $ testAlt $ A.Alternative m boolE intC
                                                   (insim [inv intV]) skip
     , testOK   1503 $ testAlt $ A.AlternativeSkip m boolE skip
-    , testFail 1504 $ testAlt $ A.Alternative m intC (insim [inv realV]) skip
-    , testFail 1505 $ testAlt $ A.Alternative m tim
+    , testFail 1504 $ testAlt $ A.Alternative m true intC (insim [inv realV]) skip
+    , testFail 1505 $ testAlt $ A.Alternative m true tim
                                               (A.InputTimerRead m $ inv intV)
                                               skip
-    , testFail 1506 $ testAlt $ A.AlternativeCond m intE intC
+    , testFail 1506 $ testAlt $ A.Alternative m intE intC
                                                   (insim [inv intV]) skip
     , testFail 1507 $ testAlt $ A.AlternativeSkip m intE skip
 
@@ -524,6 +524,7 @@ testOccamTypes = TestList
 
     --{{{  expression fragments
 
+    true = A.True emptyMeta
     subex sub = A.SubscriptedExpr m sub twoIntsE
     intV = variable "varInt"
     intE = intLiteral 42

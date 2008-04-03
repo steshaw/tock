@@ -1500,11 +1500,11 @@ alternative
     <|> do m <- md
            (b, c) <- tryVXVX expression sAmp channel (sQuest >> sCASE >> eol)
            vs <- maybeIndentedList m "empty ? CASE" variant
-           return $ A.Only m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           return $ A.Only m (A.Alternative m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
            c <- tryVXX channel sQuest (sCASE >> eol)
            vs <- maybeIndentedList m "empty ? CASE" variant
-           return $ A.Only m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           return $ A.Only m (A.Alternative m (A.True m) c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
     <|> handleSpecs specification alternative A.Spec
     <?> "alternative"
@@ -1523,10 +1523,10 @@ guard :: OccParser (A.Process -> A.Alternative)
 guard
     =   do m <- md
            (c, im) <- input
-           return $ A.Alternative m c im
+           return $ A.Alternative m (A.True m) c im
     <|> do m <- md
            b <- tryVX expression sAmp
-           do { (c, im) <- input; return $ A.AlternativeCond m b c im }
+           do { (c, im) <- input; return $ A.Alternative m b c im }
              <|> do { sSKIP; eol; return $ A.AlternativeSkip m b }
     <?> "guard"
 --}}}

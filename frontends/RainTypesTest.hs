@@ -325,8 +325,8 @@ checkExpressionTest = TestList
   waitFor = A.Input m tim . A.InputTimerFor m
   waitUntil = A.Input m tim . A.InputTimerAfter m
   altWaitFor, altWaitUntil :: A.Expression -> A.Process -> A.Alternative
-  altWaitFor e body = A.Alternative m tim (A.InputTimerFor m e) body
-  altWaitUntil e body = A.Alternative m tim (A.InputTimerAfter m e) body
+  altWaitFor e body = A.Alternative m (A.True m) tim (A.InputTimerFor m e) body
+  altWaitUntil e body = A.Alternative m (A.True m) tim (A.InputTimerAfter m e) body
   
    
   testPassUntouched :: Data t => Int -> (t -> PassM t) -> t -> Test
@@ -394,7 +394,7 @@ checkExpressionTest = TestList
         then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (checkCommTypes st) state
         else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
       where
-        st = A.Alt m True $ A.Only m $ A.Alternative m chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
+        st = A.Alt m True $ A.Only m $ A.Alternative m (A.True m) chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
  
   --Automatically tests checking inputs and outputs for various combinations of channel type and direction
   testAllCheckCommTypes :: Int -> Test

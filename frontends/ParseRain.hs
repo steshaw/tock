@@ -389,12 +389,14 @@ alt = do {m <- sPri ; sAlt ; m' <- sLeftC ; cases <- many altCase ; optElseCase 
     altCase :: RainParser (A.Structured A.Alternative)
     altCase = do input <- comm True
                  case input of
-                   A.Input m lv im -> do { body <- block ; return $ A.Only m $ A.Alternative m lv im body }
+                   A.Input m lv im -> do body <- block
+                                         return $ A.Only m $ A.Alternative m
+                                           (A.True m) lv im body
                    _ -> dieP (findMeta input) $ "communication type not supported in an alt: \"" ++ show input ++ "\""
               <|> do (m, wm) <- waitStatement True
                      body <- block
-                     return $ A.Only m $ A.Alternative m (A.Variable m rainTimerName)
-                       wm body
+                     return $ A.Only m $ A.Alternative m (A.True m)
+                       (A.Variable m rainTimerName) wm body
     elseCase :: RainParser (A.Structured A.Alternative)
     elseCase = do m <- sElse
                   body <- block

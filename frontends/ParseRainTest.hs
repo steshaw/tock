@@ -624,24 +624,24 @@ testAlt =
  [
    passAlt (0, "pri alt {}", A.Alt m True $ A.Several m [])
   ,passAlt (1, "pri alt { c ? x {} }", A.Alt m True $ A.Several m [A.Only m $ A.Alternative m 
-    (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock])
+    (A.True m) (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock])
   ,passAlt (2, "pri alt { c ? x {} d ? y {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
-    ,A.Only m $ A.Alternative m (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
+    A.Only m $ A.Alternative m (A.True m) (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
+    ,A.Only m $ A.Alternative m (A.True m) (variable "d") (A.InputSimple m [A.InVariable m (variable "y")]) emptyBlock])
   --Fairly nonsensical, but valid:
   ,passAlt (3, "pri alt { else {} }", A.Alt m True $ A.Several m [
     A.Only m $ A.AlternativeSkip m (A.True m) emptyBlock])
   ,passAlt (4, "pri alt { c ? x {} else {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.Alternative m (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
+    A.Only m $ A.Alternative m (A.True m) (variable "c") (A.InputSimple m [A.InVariable m (variable "x")]) emptyBlock
     ,A.Only m $ A.AlternativeSkip m (A.True m) emptyBlock])
   
   ,passAlt (100, "pri alt { wait for t {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.Alternative m timer (A.InputTimerFor m $ exprVariable "t") emptyBlock])
+    A.Only m $ A.Alternative m (A.True m) timer (A.InputTimerFor m $ exprVariable "t") emptyBlock])
   ,passAlt (101, "pri alt { wait for t {} wait until t {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.Alternative m timer (A.InputTimerFor m $ exprVariable "t") emptyBlock
-    ,A.Only m $ A.Alternative m timer (A.InputTimerAfter m $ exprVariable "t") emptyBlock])
+    A.Only m $ A.Alternative m (A.True m) timer (A.InputTimerFor m $ exprVariable "t") emptyBlock
+    ,A.Only m $ A.Alternative m (A.True m) timer (A.InputTimerAfter m $ exprVariable "t") emptyBlock])
   ,passAlt (102, "pri alt { wait until t + t {} else {} }", A.Alt m True $ A.Several m [
-    A.Only m $ A.Alternative m timer (A.InputTimerAfter m (buildExpr $ Dy (Var "t") A.Plus (Var "t"))) emptyBlock
+    A.Only m $ A.Alternative m (A.True m) timer (A.InputTimerAfter m (buildExpr $ Dy (Var "t") A.Plus (Var "t"))) emptyBlock
     ,A.Only m $ A.AlternativeSkip m (A.True m) emptyBlock])
 
 

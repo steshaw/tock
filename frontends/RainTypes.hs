@@ -402,12 +402,12 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
     checkInputOutput p = return p
 
     checkAltInput :: A.Alternative -> PassM A.Alternative
-    checkAltInput a@(A.Alternative m chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
+    checkAltInput a@(A.Alternative m _ chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
       = checkInput chanVar destVar m a
-    checkAltInput a@(A.Alternative m _ im@(A.InputTimerFor {}) _)
+    checkAltInput a@(A.Alternative m _ _ im@(A.InputTimerFor {}) _)
       = do checkWait im
            return a
-    checkAltInput a@(A.Alternative m _ im@(A.InputTimerAfter {}) _)
+    checkAltInput a@(A.Alternative m _ _ im@(A.InputTimerAfter {}) _)
       = do checkWait im
            return a
     checkAltInput a = return a

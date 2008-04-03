@@ -533,8 +533,7 @@ buildOnlyAlternative :: (Monad mLabel, Monad mAlter) => ASTModifier mAlter A.Alt
   GraphMaker mLabel mAlter label structType (Node, Node)
 buildOnlyAlternative route alt
   = do let (m,p,r) = case alt of
-              (A.Alternative m _ _ p) -> (m,p, route44 route A.Alternative)
-              (A.AlternativeCond m _ _ _ p) -> (m,p, route55 route A.AlternativeCond)
+              (A.Alternative m _ _ _ p) -> (m,p, route55 route A.Alternative)
               (A.AlternativeSkip m _ p) -> (m,p, route33 route A.AlternativeSkip)
        guardNode <- addNode' m labelAlternative alt (AlterAlternative route)
        (bodyNodeStart, bodyNodeEnd) <- buildProcess p r

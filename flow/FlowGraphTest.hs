@@ -393,7 +393,7 @@ testAlt = TestLabel "testAlt" $ TestList
   ]
   where
     guard45 = A.AlternativeSkip m4 (A.True mU) sm5
-    guard67 = A.Alternative m6 (variable "c") (A.InputSimple mU []) sm7
+    guard67 = A.Alternative m6 (A.True mU) (variable "c") (A.InputSimple mU []) sm7
     
     spec8 = A.Spec mU (A.Specification m8 undefined undefined)
     spec9 = A.Spec mU (A.Specification m9 undefined undefined)

@@ -484,8 +484,14 @@ instance ShowOccam A.InputMode where
   
   
 instance ShowOccam A.Alternative where
-  showOccamM (A.Alternative _ v im p) = showInputModeOccamM v im >> occamIndent >> showOccamM p >> occamOutdent
-  showOccamM (A.AlternativeCond _ e v im p) = showOccamM e >> tell [" & "] >> suppressIndent >> showOccamM (A.Alternative undefined v im p)
+  showOccamM (A.Alternative _ e v im p)
+    = do showOccamM e
+         tell [" & "]
+         suppressIndent
+         showInputModeOccamM v im
+         occamIndent
+         showOccamM p
+         occamOutdent
   
 instance ShowOccam A.Replicator where
   showOccamM (A.For _ n start count) = tell [" "] >> showName n >> tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count

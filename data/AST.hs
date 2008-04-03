@@ -360,14 +360,11 @@ data Choice = Choice Meta Expression Process
 
 -- | A guard in an @ALT@.
 data Alternative =
-  -- | A plain guard.
+  -- | A plain/conditional guard.
   -- The channel or timer is the 'Variable', and the destination (or @AFTER@
   -- clause) is inside the 'InputMode'. The process is the body of the guard.
-  Alternative Meta Variable InputMode Process
-  -- | A conditional guard.
-  -- The 'Expression' is the pre-condition, everything else is as 'Alternative'
-  -- above.
-  | AlternativeCond Meta Expression Variable InputMode Process
+  -- The 'Expression' is the pre-condition.
+  Alternative Meta Expression Variable InputMode Process
   -- | A @SKIP@ guard (one that is always ready).
   -- The 'Expression' is the pre-condition.
   | AlternativeSkip Meta Expression Process

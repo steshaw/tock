@@ -1668,8 +1668,8 @@ cgenAlt isPri s
     containsTimers (A.ProcThen _ _ s) = containsTimers s
     containsTimers (A.Only _ a)
         = case a of
-            A.Alternative _ _ (A.InputTimerRead _ _) _ -> True
-            A.Alternative _ _ (A.InputTimerAfter _ _) _ -> True
+            A.Alternative _ _ _ (A.InputTimerRead _ _) _ -> True
+            A.Alternative _ _ _ (A.InputTimerAfter _ _) _ -> True
             _ -> False
     containsTimers (A.Several _ ss) = or $ map containsTimers ss
 
@@ -1678,8 +1678,7 @@ cgenAlt isPri s
       where
         doA _ alt
             = case alt of
-                A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.Alternative _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell ["AltEnableSkip (wptr,", id, "++);\n"]
 
         doIn c im
@@ -1699,8 +1698,7 @@ cgenAlt isPri s
       where
         doA _ alt
             = case alt of
-                A.Alternative _ c im _ -> doIn c im
-                A.AlternativeCond _ e c im _ -> withIf e $ doIn c im
+                A.Alternative _ e c im _ -> withIf e $ doIn c im
                 A.AlternativeSkip _ e _ -> withIf e $ tell ["AltDisableSkip (wptr,", id, "++);\n"]
 
         doIn c im
@@ -1720,8 +1718,7 @@ cgenAlt isPri s
       where
         doA _ alt
             = case alt of
-                A.Alternative _ c im p -> doIn c im p
-                A.AlternativeCond _ e c im p -> withIf e $ doIn c im p
+                A.Alternative _ e c im p -> withIf e $ doIn c im p
                 A.AlternativeSkip _ e p -> withIf e $ doCheck (call genProcess p)
 
         doIn c im p

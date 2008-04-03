@@ -197,17 +197,11 @@ transformInputCase = doGeneric `extM` doProcess
 
     -- Transform alt guards:
     -- The processes that are the body of input-case guards are always skip, so we can discard them:
-    doStructuredA (A.Only m (A.Alternative m' v (A.InputCase m'' s) _))
+    doStructuredA (A.Only m (A.Alternative m' e v (A.InputCase m'' s) _))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
            s' <- doStructuredV v s
            return $ A.Spec m' spec $ A.Only m $ 
-             A.Alternative m' v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
-             A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
-    doStructuredA (A.Only m (A.AlternativeCond m' e v (A.InputCase m'' s) _))
-      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
-           s' <- doStructuredV v s
-           return $ A.Spec m' spec $ A.Only m $ 
-             A.AlternativeCond m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
+             A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
              A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
     -- Leave other guards (and parts of Structured) untouched:
     doStructuredA s = return s
@@ -225,14 +219,9 @@ transformProtocolInput = doGeneric `extM` doProcess `extM` doAlternative
     doProcess p = doGeneric p
 
     doAlternative :: A.Alternative -> PassM A.Alternative
-    doAlternative (A.Alternative m v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
+    doAlternative (A.Alternative m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
       = do body' <- doProcess body
-           return $ A.Alternative m v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
-             map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
-             ++ [A.Only m' body']
-    doAlternative (A.AlternativeCond m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
-      = do body' <- doProcess body
-           return $ A.AlternativeCond m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
+           return $ A.Alternative m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
              map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
              ++ [A.Only m' body']
     doAlternative s = doGeneric s

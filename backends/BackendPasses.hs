@@ -62,7 +62,7 @@ transformWaitFor = doGeneric `extM` doAlt
     addSpec spec inner = spec inner
 
     doWaitFor :: A.Alternative -> StateT ([A.Structured A.Process -> A.Structured A.Process], [A.Structured A.Process]) PassM A.Alternative
-    doWaitFor a@(A.Alternative m tim (A.InputTimerFor m' e) p)
+    doWaitFor a@(A.Alternative m cond tim (A.InputTimerFor m' e) p)
       = do (specs, init) <- get
            id <- lift $ makeNonce "waitFor"
            let n = (A.Name m A.VariableName id)
@@ -71,7 +71,7 @@ transformWaitFor = doGeneric `extM` doAlt
                 init ++ [A.Only m $ A.Input m tim
                            (A.InputTimerRead m (A.InVariable m var)),
                          A.Only m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
-           return $ A.Alternative m tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
+           return $ A.Alternative m cond tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
                
     doWaitFor a = return a
 

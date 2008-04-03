@@ -1214,14 +1214,12 @@ checkProcesses = checkDepthM doProcess
             Nothing -> dieP m $ n ++ " is not an intrinsic procedure"
 
     doAlternative :: Check A.Alternative
-    doAlternative (A.Alternative m v im _)
-        = case im of
-            A.InputTimerRead _ _ ->
-              dieP m $ "Timer read not permitted as alternative"
-            _ -> doInput v im
-    doAlternative (A.AlternativeCond m e v im p)
+    doAlternative (A.Alternative m e v im p)
         =  do checkExpressionBool e
-              doAlternative (A.Alternative m v im p)
+              case im of
+                A.InputTimerRead _ _ ->
+                  dieP m $ "Timer read not permitted as alternative"
+                _ -> doInput v im
     doAlternative (A.AlternativeSkip _ e _)
         = checkExpressionBool e
 
