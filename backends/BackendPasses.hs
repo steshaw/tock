@@ -303,6 +303,7 @@ addSizesActualParameters = doGeneric `extM` doProcess
              _ -> return [a]
       where
         a_sizes = A.Variable m (append_sizes n)
+    transformActualVariable a _ = return [a]
 
 -- | Transforms all slices into the FromFor form.
 simplifySlices :: Data t => t -> PassM t
