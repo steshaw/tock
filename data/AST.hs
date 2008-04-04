@@ -143,6 +143,8 @@ data Type =
   | Time
   | Port Type
   | Mobile Type
+  -- | A type that will be inferred automatically by a pass.
+  | Infer
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.

@@ -225,6 +225,7 @@ instance ShowOccam A.Type where
   showOccamM A.Any = tell ["ANY"]
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
+  showOccamM A.Infer = tell ["(inferred type)"]
 
   showOccamM (A.Mobile t) = tell ["MOBILE "] >> showOccamM t
   showOccamM (A.Array ds t)
@@ -266,6 +267,7 @@ instance ShowRain A.Type where
   -- Mobility is not explicit in Rain:
   showRainM (A.Mobile t) = showRainM t
   showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
+  showRainM A.Infer = tell ["(inferred type)"]
   showRainM x = tell ["<invalid Rain type: ", show x, ">"]
 
 instance ShowOccam A.DyadicOp where
