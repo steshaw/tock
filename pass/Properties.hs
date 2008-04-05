@@ -227,7 +227,12 @@ rainParDeclarationsPulledUp :: Property
 rainParDeclarationsPulledUp = Property "rainParDeclarationsPulledUp" checkTODO
 
 inferredTypesRecorded :: Property
-inferredTypesRecorded = Property "inferredTypesRecorded" checkTODO
+inferredTypesRecorded = Property "inferredTypesRecorded" $
+                          checkNull "inferredTypesRecorded" . listify findInfer
+  where
+    findInfer :: A.Type -> Bool
+    findInfer A.Infer = True
+    findInfer _ = False
 
 findUDT :: A.Type -> Bool
 findUDT (A.UserDataType {}) = True
