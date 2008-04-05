@@ -127,6 +127,7 @@ tock_SOURCES = $(tock_SOURCES_hs) frontends/LexOccam.x frontends/LexRain.x
 
 tocktest_SOURCES = $(tock_SOURCES)
 tocktest_SOURCES += TestMain.hs
+tocktest_SOURCES += backends/AnalyseAsmTest.hs
 tocktest_SOURCES += backends/BackendPassesTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs
 tocktest_SOURCES += checks/ArrayUsageCheckTest.hs

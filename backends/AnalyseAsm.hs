@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -22,9 +22,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- FIXME: This only works for x86 at the moment.
 -- FIXME: This should have a "just use a huge fixed number" mode for debugging.
 
-module AnalyseAsm (analyseAsm) where
+module AnalyseAsm (
+    AsmItem(..),
+    parseAsmLine, analyseAsm
+  ) where
 
 import Control.Monad.State
+import Data.Char
 import Data.Generics
 import Data.List
 import qualified Data.Map as Map
@@ -32,7 +36,6 @@ import Data.Maybe
 import qualified Data.Set as Set
 import Numeric (readDec)
 import Text.Printf
-import Text.Regex
 
 import Errors
 import Pass
@@ -40,7 +43,7 @@ import PrettyShow
 
 -- | Interesting things that we might find in the assembly source.
 data AsmItem =
-  AsmFunction String
+  AsmLabel String
   | AsmStackInc Int
   | AsmCall String
   deriving (Show, Eq, Data, Typeable)
@@ -49,58 +52,50 @@ data AsmItem =
 -- interested in.
 parseAsmLine :: String -> Maybe AsmItem
 parseAsmLine s
-    = matchLabel s' `mplus` matchInc s' `mplus` matchPush s' `mplus` matchCall s'
-  where
-    s' = trim s
+    = case words s of
+        [] -> Nothing
 
-    trim :: String -> String
-    trim s = subRegex wsRE (subRegex startwsRE (subRegex endwsRE s "") "") " "
-      where
-        wsRE = mkRegex "[[:space:]]+"
-        startwsRE = mkRegex "^[[:space:]]+"
-        endwsRE = mkRegex "[[:space:]]+$"
-
-    matchLabel :: String -> Maybe AsmItem
-    matchLabel s
-        = case matchRegex labelRE s of
-            Just [l] -> Just $ AsmFunction l
-            _ -> Nothing
-      where
-        labelRE = mkRegex "^([^\\.0-9][a-zA-Z0-9_]*):$"
-
-    matchInc :: String -> Maybe AsmItem
-    matchInc s
-        = case matchRegex incdecRE s of
-            Just [_, v] -> Just $ AsmStackInc (parseVal v)
-            _ -> Nothing
-      where
         -- The x86 stack goes downwards, so subl makes the stack deeper.
-        -- GCC will sometimes generate "addl $-n" rather than "subl $n".
-        incdecRE = mkRegex "^(subl \\$|addl \\$-)([0-9]+), %esp$"
+        ["subl", '$':arg, "%esp"] -> parseInc arg
+        -- ... but GCC will sometimes generate "addl $-n" rather than "subl
+        -- $n".
+        ["addl", '$':'-':arg, "%esp"] -> parseInc arg
+        -- A plain push also makes the stack deeper.
+        ("pushl":_) -> Just $ AsmStackInc 4
 
-        parseVal :: String -> Int
-        parseVal s
-            = case readDec s of
-                [(v, "")] -> v
-                _ -> error $ "Don't know how to parse assembly literal: " ++ s
-
-    matchPush :: String -> Maybe AsmItem
-    matchPush s
-        = case matchRegex pushRE s of
-            Just [] -> Just $ AsmStackInc 4
-            _ -> Nothing
-      where
-        pushRE = mkRegex "^pushl"
-
-    matchCall :: String -> Maybe AsmItem
-    matchCall s
-        = case matchRegex callRE s of
-            Just [_, l] -> Just $ AsmCall l
-            _ -> Nothing
-      where
+        ["call", arg] -> parseCall arg
         -- GCC does tail-call optimisation, so we need to look for jmp as well
         -- as call.
-        callRE = mkRegex "^(jmp|call) ([^\\.\\*].*)$"
+        ["jmp", arg] -> parseCall arg
+
+        [label] -> parseLabel label
+
+        _ -> Nothing
+
+  where
+    -- | Parse a label: a line ending in @:@, and not starting with @.@ or a
+    -- digit.
+    parseLabel :: String -> Maybe AsmItem
+    parseLabel s@(c:cs)
+      | c == '.' || isDigit c = Nothing
+      | last cs == ':'        = Just $ AsmLabel (liat s)
+      | otherwise = Nothing
+      where
+        liat :: String -> String
+        liat = reverse . tail . reverse
+
+    -- | Parse a stack increase: just a number.
+    parseInc :: String -> Maybe AsmItem
+    parseInc s
+        = case readDec s of
+            [(v, ",")] -> Just $ AsmStackInc v
+            _ -> Nothing
+
+    -- | Parse a called label, which mustn't start with @.@ or @*@.
+    parseCall :: String -> Maybe AsmItem
+    parseCall ('.':_) = Nothing
+    parseCall ('*':_) = Nothing
+    parseCall s = Just $ AsmCall s
 
 -- | Turn assembly source into a list of interesting things.
 parseAsm :: String -> [AsmItem]
@@ -136,7 +131,7 @@ collectInfo ais = collectInfo' ais ""
               let fi = Map.findWithDefault emptyFI func fmap
               let (func', fi')
                     = case ai of
-                        AsmFunction newFunc -> (newFunc, fi)
+                        AsmLabel newFunc -> (newFunc, fi)
                         AsmStackInc v ->
                           -- This overestimates: it adds together all the stack
                           -- allocations it finds, rather than trying to figure

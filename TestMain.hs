@@ -18,6 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | A module containing the 'main' function for the Tock test suite.  It currently runs tests from the following modules:
 --
+-- * "AnalyseAsmTest"
+--
 -- * "ArrayUsageCheckTest"
 --
 -- * "BackendPassesTest"
@@ -55,6 +57,7 @@ import System.Exit
 import System.IO
 import Test.HUnit
 
+import qualified AnalyseAsmTest (tests)
 import qualified ArrayUsageCheckTest (ioqcTests)
 import qualified BackendPassesTest (qcTests)
 import qualified CommonTest (tests)
@@ -171,7 +174,8 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
 
     tests :: [IO TestSet]
     tests = [
-              ArrayUsageCheckTest.ioqcTests
+              noqc AnalyseAsmTest.tests
+              ,ArrayUsageCheckTest.ioqcTests
               ,return BackendPassesTest.qcTests
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
