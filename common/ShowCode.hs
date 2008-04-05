@@ -235,9 +235,9 @@ instance ShowOccam A.Type where
                 A.Dimension n -> tell ["["] >> showOccamM n >> tell ["]"]
                 A.UnknownDimension -> tell ["[]"]
               | d <- ds]
-  showOccamM (A.Chan _ _ t) = tell ["CHAN OF "] >> showOccamM t
+  showOccamM (A.Chan _ _ t) = tell ["CHAN "] >> showOccamM t
   showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
-  showOccamM (A.Port t) = tell ["PORT OF "] >> showOccamM t
+  showOccamM (A.Port t) = tell ["PORT "] >> showOccamM t
   showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
   showOccamM (A.Record n) = showName n >> helper "{record}"
   showOccamM (A.UserProtocol n) = showName n >> helper "{protocol}"
