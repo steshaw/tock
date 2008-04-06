@@ -39,18 +39,16 @@ type EvalM = ErrorT ErrorReport (StateT CompState Identity)
 instance Die EvalM where
   dieReport = throwError
 
--- | Occam values of various types.
+-- | Evaluated values of various types.
 data OccValue =
   OccBool Bool
   | OccByte Word8
-  -- The following four aren't occam types, but I need to put them in here for handling Rain code:
   | OccUInt16 Word16
   | OccUInt32 Word32
   | OccUInt64 Word64
   | OccInt8 Int8
-  
-  | OccInt Int32
   | OccInt16 Int16
+  | OccInt Int32
   | OccInt32 Int32
   | OccInt64 Int64
   -- FIXME This should include the type of the elements, so we can handle
