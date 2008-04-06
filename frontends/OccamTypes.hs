@@ -569,7 +569,9 @@ evalBytesInType t
 -- | Run an operation in a given type context.
 inTypeContext :: Maybe A.Type -> PassM a -> PassM a
 inTypeContext ctx body
-    =  do pushTypeContext ctx
+    =  do pushTypeContext (case ctx of
+                             Just A.Infer -> Nothing
+                             _ -> ctx)
           v <- body
           popTypeContext
           return v
@@ -894,10 +896,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                     _ -> diePC m $ formatCode "Table literal is not valid for type %" wantT
         -- An expression: descend into it with the right context.
         doArrayElem wantT (A.ArrayElemExpr e)
-            =  do let ctx = case wantT of
-                              A.Infer -> Nothing
-                              _ -> Just wantT
-                  e' <- inTypeContext ctx $ doExpression descend e
+            =  do e' <- inTypeContext (Just wantT) $ doExpression descend e
                   t <- typeOfExpression e'
                   checkType (findMeta e') wantT t
                   return (t, A.ArrayElemExpr e')
