@@ -433,6 +433,10 @@ scopeOutFormals fs = sequence_ [scopeOut n | (A.Formal am t n) <- fs]
 -- the occam2.1 manual.
 --
 -- Each production is allowed to consume the thing it's trying to match.
+--
+-- Productions with an "-- AMBIGUITY" comment match something that's ambiguous
+-- in the occam grammar, and may thus produce incorrect AST fragments. The
+-- ambiguities will be resolved later.
 
 --{{{ names
 anyName :: A.NameType -> OccParser A.Name
@@ -670,10 +674,10 @@ splitStringLiteral m cs = ssl cs
 --{{{ expressions
 expressionList :: OccParser A.ExpressionList
 expressionList
+    -- AMBIGUITY: this will also match FunctionCallList.
     =   do m <- md
            es <- sepBy1 expression sComma
            return $ A.ExpressionList m es
-    -- FunctionCallList will be matched by this and resolved later.
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expression list"
 
@@ -1325,23 +1329,20 @@ channelOutput :: OccParser A.Process
 channelOutput
     =   do m <- md
            c <- tryVX channel sBang
-           -- This is an ambiguity in the occam grammar; you can't tell in "a !
-           -- b" whether b is a variable or a tag, without knowing the type of
-           -- a.
-           -- FIXME: We should resolve this in a pass later, rather than doing
-           -- the check here.
-           pis <- protocolItems c
-           case pis of
-             Left _ ->
-               do os <- sepBy1 outputItem sSemi
-                  eol
-                  return $ A.Output m c os
-             Right _ ->
-               do tag <- tagName
-                  os <- many (sSemi >> outputItem)
-                  eol
-                  return $ A.OutputCase m c tag os
+           -- AMBIGUITY: in "a ! b", b may be a tag or a variable.
+           regularOutput m c <|> caseOutput m c
     <?> "channel output"
+  where
+    regularOutput m c
+        =  do o <- try outputItem
+              os <- many (sSemi >> outputItem)
+              eol
+              return $ A.Output m c (o:os)
+    caseOutput m c
+        =  do tag <- tagName
+              os <- many (sSemi >> outputItem)
+              eol
+              return $ A.OutputCase m c tag os
 
 outputItem :: OccParser A.OutputItem
 outputItem

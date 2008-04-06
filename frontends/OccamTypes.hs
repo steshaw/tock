@@ -761,8 +761,21 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   return $ A.Assign m vs' el'
             A.Output m v ois ->
                do v' <- inferTypes v
-                  ois' <- doOutputItems m v' Nothing ois
-                  return $ A.Output m v' ois'
+                  -- At this point we must resolve the "c ! x" ambiguity:
+                  -- we definitely know what c is, and we must know what x is
+                  -- before trying to infer its type.
+                  tagged <- isTagged v'
+                  if tagged
+                    -- Tagged protocol -- convert (wrong) variable to tag.
+                    then case ois of
+                           ((A.OutExpression _ (A.ExprVariable _ (A.Variable _ wrong))):ois) ->
+                             do tag <- nameToTag wrong
+                                ois' <- doOutputItems m v' (Just tag) ois
+                                return $ A.OutputCase m v' tag ois'
+                           _ -> diePC m $ formatCode "This channel carries a variant protocol; expected a list starting with a tag, but found %" ois
+                    -- Regular protocol -- proceed as before.
+                    else do ois' <- doOutputItems m v' Nothing ois
+                            return $ A.Output m v' ois'
             A.OutputCase m v tag ois ->
                do v' <- inferTypes v
                   ois' <- doOutputItems m v' (Just tag) ois
@@ -782,6 +795,24 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             -- FIXME: IntrinsicProcCall
             _ -> descend p
       where
+        -- | Does a channel carry a tagged protocol?
+        isTagged :: A.Variable -> PassM Bool
+        isTagged c
+            =  do protoT <- checkChannel A.DirOutput c
+                  case protoT of
+                    A.UserProtocol n ->
+                       do st <- specTypeOfName n
+                          case st of
+                            A.ProtocolCase _ _ -> return True
+                            _ -> return False
+                    _ -> return False
+
+        -- | Given a name that should really have been a tag, make it one.
+        nameToTag :: A.Name -> PassM A.Name
+        nameToTag n@(A.Name m nt _)
+            =  do nd <- lookupName n
+                  findUnscopedName (A.Name m nt (A.ndOrigName nd))
+
         doOutputItems :: Meta -> A.Variable -> Maybe A.Name
                          -> Transform [A.OutputItem]
         doOutputItems m v tag ois

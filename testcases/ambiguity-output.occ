@@ -1,0 +1,12 @@
+PROTOCOL FOO
+  CASE
+    x
+:
+PROC P ()
+  INT x:
+  SEQ
+    CHAN INT c:
+    c ! x
+    CHAN FOO c:
+    c ! x
+:
