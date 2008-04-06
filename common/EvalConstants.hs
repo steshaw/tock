@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -61,14 +61,20 @@ evalIntExpression e
             Right (OccInt val) -> return $ fromIntegral val
             Right _ -> dieP (findMeta e) "expression is not of INT type"
 
--- | Is a name defined as a constant expression? If so, return its definition.
+-- | Is a name defined as a constant expression? If so, return its folded
+-- value.
 getConstantName :: (CSMR m, Die m) => A.Name -> m (Maybe A.Expression)
 getConstantName n
     =  do st <- specTypeOfName n
           case st of
             A.IsExpr _ A.ValAbbrev _ e ->
-              if isConstant e then return $ Just e
-                              else return Nothing
+               do (e', isConst, _) <- constantFold e
+                  -- FIXME: This should update the definition if it's constant
+                  -- (to avoid folding multiple times), but that would require
+                  -- CSM rather than CSMR.
+                  if isConst
+                    then return $ Just e'
+                    else return Nothing
             _ -> return Nothing
 
 -- | Is a name defined as a constant expression?
