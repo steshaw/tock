@@ -725,6 +725,20 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                            A.Infer -> typeOfExpression e'
                            _ -> return t'
                   return $ A.IsExpr m am' t'' e'
+            A.IsChannelArray m t vs ->
+               -- No expressions in this -- but we may need to infer the type
+               -- of the variable if it's something like "cs IS [c]:".
+               do t' <- inferTypes t
+                  vs' <- mapM inferTypes vs
+                  let dim = makeDimension m $ length vs'
+                  t'' <- case (t', vs') of
+                           (A.Infer, (v:_)) ->
+                             do elemT <- typeOfVariable v
+                                return $ addDimensions [dim] elemT
+                           (A.Infer, []) ->
+                             dieP m "Cannot infer type of empty channel array"
+                           _ -> return $ applyDimension dim t'
+                  return $ A.IsChannelArray m t'' vs'
             A.Function m sm ts fs (Left sel) ->
                do sm' <- inferTypes sm
                   ts' <- inferTypes ts
