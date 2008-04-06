@@ -261,7 +261,10 @@ returnTypesOfIntrinsic m s
 -- Returns Left if it's a simple protocol, Right if it's tagged.
 protocolItems :: (CSMR m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
 protocolItems v
-    =  do A.Chan _ _ t <- typeOfVariable v
+    =  do chanT <- typeOfVariable v
+          t <- case chanT of
+                 A.Chan _ _ t -> return t
+                 _ -> dieP (findMeta v) $ "Expected a channel variable, but this is of type: " ++ show chanT
           case t of
             A.UserProtocol proto ->
               do st <- specTypeOfName proto
