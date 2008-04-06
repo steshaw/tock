@@ -27,7 +27,7 @@ module Types
 
     , makeAbbrevAM, makeConstant, makeDimension, addOne, addExprs, subExprs,
       mulExprs, divExprs
-    , addDimensions, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
+    , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
 
     , leastGeneralSharedTypeRain
@@ -319,6 +319,11 @@ resolveUserType _ t = return t
 addDimensions :: [A.Dimension] -> A.Type -> A.Type
 addDimensions newDs (A.Array ds t) = A.Array (newDs ++ ds) t
 addDimensions ds t = A.Array ds t
+
+-- | Set the first dimension of an array type.
+applyDimension :: A.Dimension -> A.Type -> A.Type
+applyDimension dim (A.Array (_:ds) t) = A.Array (dim : ds) t
+applyDimension _ t = t
 
 -- | Return a type with any enclosing arrays removed; useful for identifying
 -- things that should be channel names, timer names, etc. in the parser.

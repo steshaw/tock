@@ -828,7 +828,8 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                     A.Array _ _ ->
                        do subT <- trivialSubscriptType m underT
                           taes <- mapM (doArrayElem subT) aes
-                          return (applyDim (length aes) wantT,
+                          return (applyDimension (makeDimension m $ length aes)
+                                                 wantT,
                                   A.ArrayElemArray (map snd taes))
                     -- FIXME: Implement this
                     A.Record n -> dieP m "FIXME: implement record constants"
@@ -846,11 +847,6 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                           return (addDimensions dims elemT,
                                   A.ArrayElemArray (map snd taes))
                     _ -> diePC m $ formatCode "Table literal is not valid for type %" wantT
-          where
-            -- | Set the first dimension of an array type.
-            applyDim :: Int -> A.Type -> A.Type
-            applyDim n (A.Array (_:ds) t) = A.Array (makeDimension m n : ds) t
-            applyDim _ t = t
         -- An expression: descend into it with the right context.
         doArrayElem wantT (A.ArrayElemExpr e)
             =  do let ctx = case wantT of
