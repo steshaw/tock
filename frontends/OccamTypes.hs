@@ -867,13 +867,13 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                     -- If we don't know, assume it's an array.
                     A.Infer ->
                        do taes <- mapM (doArrayElem A.Infer) aes
-                          let elemT = case taes of
-                                        -- Empty list -- can't tell what
-                                        -- the element type is.
-                                        [] -> A.Infer
-                                        -- Else use the type of the first
-                                        -- element.
-                                        ((t, _):_) -> t
+                          elemT <- case taes of
+                                     -- Empty list -- can't tell what
+                                     -- the element type is.
+                                     [] -> dieP m "Cannot infer type of empty array"
+                                     -- Else use the type of the first
+                                     -- element.
+                                     ((t, _):_) -> return t
                           let dims = [makeDimension m (length taes)]
                           return (addDimensions dims elemT,
                                   A.ArrayElemArray (map snd taes))
