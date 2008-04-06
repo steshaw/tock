@@ -131,6 +131,7 @@ checkCommunicable m (A.Counted ct rawAT)
                do checkCommunicable m t
                   mapM_ (checkFullDimension m) ds
             _ -> dieP m "Expected array type with unknown first dimension"
+checkCommunicable m A.Any = ok
 checkCommunicable m t = checkTypeClass isCommunicableType "communicable" m t
 
 -- | Check that a type is a sequence.
@@ -845,6 +846,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             =  do ce' <- inTypeContext (Just ct) $ inferTypes ce
                   ae' <- inTypeContext (Just at) $ inferTypes ae
                   return $ A.OutCounted m ce' ae'
+        doOutputItem A.Any o = noTypeContext $ inferTypes o
         doOutputItem t o = inTypeContext (Just t) $ inferTypes o
 
     -- | Process a 'LiteralRepr', taking the type it's meant to represent or
@@ -1172,7 +1174,9 @@ checkProcesses = checkDepthM doProcess
         = diePC m $ formatCode "Expected counted item of type %; found %" t v
     doInputItem wantT (A.InVariable _ v)
         =  do t <- typeOfVariable v
-              checkType (findMeta v) wantT t
+              case wantT of
+                A.Any -> checkCommunicable (findMeta v) t
+                _ -> checkType (findMeta v) wantT t
               checkWritable v
 
     doOption :: A.Type -> A.Option -> PassM ()
@@ -1202,7 +1206,9 @@ checkProcesses = checkDepthM doProcess
         = diePC m $ formatCode "Expected counted item of type %; found %" t e
     doOutputItem wantT (A.OutExpression _ e)
         =  do t <- typeOfExpression e
-              checkType (findMeta e) wantT t
+              case wantT of
+                A.Any -> checkCommunicable (findMeta e) t
+                _ -> checkType (findMeta e) wantT t
 
 --}}}
 
