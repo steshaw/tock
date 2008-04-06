@@ -84,9 +84,9 @@ data CompState = CompState {
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
-    csTypeContext :: [Maybe A.Type],
 
     -- Set by passes
+    csTypeContext :: [Maybe A.Type],
     csNonceCounter :: Int,
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[PulledItem]],
@@ -115,8 +115,8 @@ emptyState = CompState {
     csNames = Map.empty,
     csUnscopedNames = Map.empty,
     csNameCounter = 0,
-    csTypeContext = [],
 
+    csTypeContext = [],
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
     csPulledItems = [],
