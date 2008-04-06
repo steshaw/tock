@@ -1,0 +1,18 @@
+VAL INT screen.width IS 80:
+VAL INT screen.height IS 24:
+
+PROC clear.buffer ([screen.height][screen.width]BYTE screen, [screen.height][screen.width]INT colour)
+  SKIP
+:
+
+PROC screen.buffer (CHAN OF BYTE in, CHAN OF BYTE out)
+  [2][screen.height][screen.width]BYTE screen:
+  [2][screen.height][screen.width]INT colour:
+  SEQ
+    clear.buffer (screen[0], colour[0])
+    clear.buffer (screen[1], colour[1])
+:
+
+PROC q7 ()
+  SKIP
+:

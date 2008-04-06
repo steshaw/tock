@@ -79,13 +79,13 @@ foldConstants = applyDepthM2 doExpression doSpecification
         =  do (e', _, _) <- constantFold e
               return e'
 
-    -- When an expression is abbreviated, update its definition so that it can
-    -- be used when folding later expressions.
+    -- After we're done folding a specification, update its definition.
+    -- (Even if it isn't an expression itself, it might have others inside it,
+    -- so we just update them all.)
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification s@(A.Specification _ n st@(A.IsExpr _ _ _ _))
+    doSpecification s@(A.Specification _ n st)
         =  do modifyName n (\nd -> nd { A.ndType = st })
               return s
-    doSpecification s = return s
 
 -- | Check that things that must be constant are.
 checkConstants :: Data t => t -> PassM t
