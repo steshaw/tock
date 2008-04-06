@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam typechecker.
-module OccamTypes (checkTypes) where
+module OccamTypes (inferTypes, checkTypes) where
 
 import Control.Monad.State
 import Data.Generics
@@ -34,6 +34,7 @@ import Pass
 import ShowCode
 import Traversal
 import Types
+import Utils
 
 -- | A successful check.
 ok :: PassM ()
@@ -80,6 +81,7 @@ areValidDimensions _ _ = return False
 checkType :: Meta -> A.Type -> A.Type -> PassM ()
 checkType m et rt
     = case (et, rt) of
+        (A.Infer, _) -> ok
         ((A.Array ds t), (A.Array ds' t')) ->
           do valid <- areValidDimensions ds ds'
              if valid
@@ -302,11 +304,16 @@ checkAbbrev m orig new
     showAM A.Abbrev = "a reference abbreviation"
     showAM A.ValAbbrev = "a value abbreviation"
 
+-- | Check a list of actuals is the right length for a list of formals.
+checkActualCount :: Meta -> A.Name -> [A.Formal] -> [a] -> PassM ()
+checkActualCount m n fs as
+    =  do when (length fs /= length as) $
+            diePC m $ formatCode ("% called with wrong number of arguments; found " ++ (show $ length as) ++ ", expected " ++ (show $ length fs)) n
+
 -- | Check a set of actuals against the formals they're meant to match.
 checkActuals :: Meta -> A.Name -> [A.Formal] -> [A.Actual] -> PassM ()
 checkActuals m n fs as
-    =  do when (length fs /= length as) $
-            diePC m $ formatCode ("% called with wrong number of arguments; found " ++ (show $ length as) ++ ", expected " ++ (show $ length fs)) n
+    =  do checkActualCount m n fs as
           sequence_ [checkActual f a
                      | (f, a) <- zip fs as]
 
@@ -322,15 +329,28 @@ checkActual (A.Formal newAM et _) a
                       A.ActualExpression _ -> return A.ValAbbrev
           checkAbbrev (findMeta a) origAM newAM
 
+-- | Check a function exists.
+checkFunction :: Meta -> A.Name -> PassM ([A.Type], [A.Formal])
+checkFunction m n
+    =  do st <- specTypeOfName n
+          case st of
+            A.Function _ _ rs fs _ -> return (rs, fs)
+            _ -> diePC m $ formatCode "% is not a function" n
+
+-- | Check a 'Proc' exists.
+checkProc :: Meta -> A.Name -> PassM [A.Formal]
+checkProc m n
+    =  do st <- specTypeOfName n
+          case st of
+            A.Proc _ _ fs _ -> return fs
+            _ -> diePC m $ formatCode "% is not a procedure" n
+
 -- | Check a function call.
 checkFunctionCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Type]
 checkFunctionCall m n es
-    =  do st <- specTypeOfName n
-          case st of
-            A.Function _ _ rs fs _ ->
-               do checkActuals m n fs (map A.ActualExpression es)
-                  return rs
-            _ -> diePC m $ formatCode "% is not a function" n
+    =  do (rs, fs) <- checkFunction m n
+          checkActuals m n fs (map A.ActualExpression es)
+          return rs
 
 -- | Check an intrinsic function call.
 checkIntrinsicFunctionCall :: Meta -> String -> [A.Expression] -> PassM ()
@@ -538,6 +558,307 @@ evalBytesInType t
           return (bi, n)
 
 --}}}
+--{{{  type context management
+
+-- | Run an operation in a given type context.
+inTypeContext :: Maybe A.Type -> PassM a -> PassM a
+inTypeContext ctx body
+    =  do pushTypeContext ctx
+          v <- body
+          popTypeContext
+          return v
+
+-- | Run an operation in the type context 'Nothing'.
+noTypeContext :: PassM a -> PassM a
+noTypeContext = inTypeContext Nothing
+
+-- | Run an operation in the type context that results from subscripting
+-- the current type context.
+-- If the current type context is 'Nothing', the resulting one will be too.
+inSubscriptedContext :: Meta -> PassM a -> PassM a
+inSubscriptedContext m body
+    =  do ctx <- getTypeContext
+          subCtx <- case ctx of
+                      Just t@(A.Array _ _) ->
+                        trivialSubscriptType m t >>* Just
+                      Just t -> diePC m $ formatCode "Attempting to subscript non-array type %" t
+                      Nothing -> return Nothing
+          inTypeContext subCtx body
+
+--}}}
+
+--{{{  inferTypes
+
+-- | Infer types.
+inferTypes :: Data t => t -> PassM t
+inferTypes = applyExplicitM9 doExpression doDimension doSubscript
+                             doArrayConstr doReplicator doAlternative
+                             doInputMode doSpecification doProcess
+  where
+    doExpression :: ExplicitTrans A.Expression
+    doExpression descend outer
+        = case outer of
+            -- Literals are what we're really looking for here.
+            A.Literal m t lr ->
+               do t' <- inferTypes t
+                  ctx <- getTypeContext
+                  let wantT = case (ctx, t') of
+                                -- No type specified on the literal,
+                                -- but there's a context, so use that.
+                                (Just ct, A.Infer) -> ct
+                                -- Use the explicit type of the literal, or the
+                                -- default.
+                                _ -> t'
+                  (realT, realLR) <- doLiteral descend (wantT, lr)
+                  return $ A.Literal m realT realLR
+
+            -- Expressions that aren't literals, but that modify the type
+            -- context.
+            A.Dyadic m op le re ->
+              case classifyOp op of
+                -- Infer the RHS type from the LHS.
+                ComparisonOp ->
+                  do le' <- noTypeContext $ inferTypes le
+                     t <- typeOfExpression le'
+                     re' <- inTypeContext (Just t) $ inferTypes re
+                     return $ A.Dyadic m op le' re'
+                -- The RHS type is always A.Int.
+                ShiftOp ->
+                  do le' <- inferTypes le
+                     re' <- inTypeContext (Just A.Int) $ inferTypes re
+                     return $ A.Dyadic m op le' re'
+                -- Otherwise it's the type we already have.
+                _ -> descend outer
+            A.SizeExpr _ _ -> noTypeContext $ descend outer
+            A.Conversion _ _ _ _ -> noTypeContext $ descend outer
+            A.FunctionCall m n es ->
+               do es' <- doFunctionCall m n es
+                  return $ A.FunctionCall m n es'
+            -- FIXME: IntrinsicFunctionCall
+            A.SubscriptedExpr m s e ->
+               do s' <- inferTypes s
+                  e' <- inSubscriptedContext m $ inferTypes e
+                  return $ A.SubscriptedExpr m s' e'
+
+            -- Other expressions don't modify the type context.
+            _ -> descend outer
+
+    doFunctionCall :: Meta -> A.Name -> Transform [A.Expression]
+    doFunctionCall m n es
+        =  do (_, fs) <- checkFunction m n
+              doActuals m n fs es
+
+    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> Transform [a]
+    doActuals m n fs as
+        =  do checkActualCount m n fs as
+              sequence [inTypeContext (Just t) $ inferTypes a
+                        | (A.Formal _ t _, a) <- zip fs as]
+
+    doDimension :: ExplicitTrans A.Dimension
+    doDimension descend dim = inTypeContext (Just A.Int) $ descend dim
+
+    doSubscript :: ExplicitTrans A.Subscript
+    doSubscript descend s = inTypeContext (Just A.Int) $ descend s
+
+    -- FIXME: RepConstr shouldn't contain the type -- and this won't fill it in.
+    -- (That is, it should just be a kind of literal.)
+    doArrayConstr :: ExplicitTrans A.ArrayConstr
+    doArrayConstr descend ac
+        = case ac of
+            A.RangeConstr m t _ _ -> inSubscriptedContext m $ descend ac
+            A.RepConstr m t _ _ -> inSubscriptedContext m $ descend ac
+
+    doExpressionList :: [A.Type] -> Transform A.ExpressionList
+    doExpressionList ts el
+        = case el of
+            A.FunctionCallList m n es ->
+               do es' <- doFunctionCall m n es
+                  return $ A.FunctionCallList m n es'
+            A.ExpressionList m es ->
+               do es' <- sequence [inTypeContext (Just t) $ inferTypes e
+                                   | (t, e) <- zip ts es]
+                  return $ A.ExpressionList m es'
+
+    doReplicator :: ExplicitTrans A.Replicator
+    doReplicator descend rep
+        = case rep of
+            A.For _ _ _ _ -> inTypeContext (Just A.Int) $ descend rep
+            A.ForEach _ _ _ -> noTypeContext $ descend rep
+
+    doAlternative :: ExplicitTrans A.Alternative
+    doAlternative descend a = inTypeContext (Just A.Bool) $ descend a
+
+    doInputMode :: ExplicitTrans A.InputMode
+    doInputMode descend im = inTypeContext (Just A.Int) $ descend im
+
+    -- FIXME: This should be shared with foldConstants.
+    doSpecification :: ExplicitTrans A.Specification
+    doSpecification descend s@(A.Specification m n st)
+        =  do st' <- doSpecType descend st
+              -- Update the definition of each name after we handle it.
+              modifyName n (\nd -> nd { A.ndType = st' })
+              return $ A.Specification m n st'
+
+    doSpecType :: ExplicitTrans A.SpecType
+    doSpecType descend st
+        = case st of
+            A.Place _ _ -> inTypeContext (Just A.Int) $ descend st
+            A.Is m am t v ->
+               do am' <- inferTypes am
+                  t' <- inferTypes t
+                  v' <- inTypeContext (Just t') $ inferTypes v
+                  t'' <- case t' of
+                           A.Infer -> typeOfVariable v'
+                           _ -> return t'
+                  return $ A.Is m am' t'' v'
+            A.IsExpr m am t e ->
+               do am' <- inferTypes am
+                  t' <- inferTypes t
+                  e' <- inTypeContext (Just t') $ inferTypes e
+                  t'' <- case t' of
+                           A.Infer -> typeOfExpression e'
+                           _ -> return t'
+                  return $ A.IsExpr m am' t'' e'
+            A.Function m sm ts fs (Left sel) ->
+               do sm' <- inferTypes sm
+                  ts' <- inferTypes ts
+                  fs' <- inferTypes fs
+                  sel' <- doFuncDef ts sel
+                  return $ A.Function m sm' ts' fs' (Left sel')
+            A.RetypesExpr _ _ _ _ -> noTypeContext $ descend st
+            _ -> descend st
+      where
+        -- | This is a bit ugly: walk down a Structured to find the single
+        -- ExpressionList that must be in there.
+        -- (This can go away once we represent all functions in the new Process
+        -- form.)
+        doFuncDef :: [A.Type] -> Transform (A.Structured A.ExpressionList)
+        doFuncDef ts (A.Spec m spec s)
+            =  do spec' <- inferTypes spec
+                  s' <- doFuncDef ts s
+                  return $ A.Spec m spec' s'
+        doFuncDef ts (A.ProcThen m p s)
+            =  do p' <- inferTypes p
+                  s' <- doFuncDef ts s
+                  return $ A.ProcThen m p' s'
+        doFuncDef ts (A.Only m el)
+            =  do el' <- doExpressionList ts el
+                  return $ A.Only m el'
+
+    doProcess :: ExplicitTrans A.Process
+    doProcess descend p
+        = case p of
+            A.Assign m vs el ->
+               do vs' <- inferTypes vs
+                  ts <- mapM typeOfVariable vs'
+                  el' <- doExpressionList ts el
+                  return $ A.Assign m vs' el'
+            A.Output m v ois ->
+               do v' <- inferTypes v
+                  ois' <- doOutputItems m v' Nothing ois
+                  return $ A.Output m v' ois'
+            A.OutputCase m v tag ois ->
+               do v' <- inferTypes v
+                  ois' <- doOutputItems m v' (Just tag) ois
+                  return $ A.OutputCase m v' tag ois'
+            A.If _ _ -> inTypeContext (Just A.Bool) $ descend p
+            A.Case m e so ->
+               do e' <- inferTypes e
+                  t <- typeOfExpression e'
+                  so' <- inTypeContext (Just t) $ inferTypes so
+                  return $ A.Case m e' so'
+            A.While _ _ _ -> inTypeContext (Just A.Bool) $ descend p
+            A.Processor _ _ _ -> inTypeContext (Just A.Int) $ descend p
+            A.ProcCall m n as ->
+               do fs <- checkProc m n
+                  as' <- doActuals m n fs as
+                  return $ A.ProcCall m n as'
+            -- FIXME: IntrinsicProcCall
+            _ -> descend p
+      where
+        doOutputItems :: Meta -> A.Variable -> Maybe A.Name
+                         -> Transform [A.OutputItem]
+        doOutputItems m v tag ois
+            =  do chanT <- checkChannel A.DirOutput v
+                  ts <- protocolTypes m chanT tag
+                  sequence [doOutputItem t oi | (t, oi) <- zip ts ois]
+
+        doOutputItem :: A.Type -> Transform A.OutputItem
+        doOutputItem (A.Counted ct at) (A.OutCounted m ce ae)
+            =  do ce' <- inTypeContext (Just ct) $ inferTypes ce
+                  ae' <- inTypeContext (Just at) $ inferTypes ae
+                  return $ A.OutCounted m ce' ae'
+        doOutputItem t o = inTypeContext (Just t) $ inferTypes o
+
+    -- | Process a 'LiteralRepr', taking the type it's meant to represent or
+    -- 'Infer', and returning the type it really is.
+    doLiteral :: ExplicitTrans (A.Type, A.LiteralRepr)
+    doLiteral descend (wantT, lr)
+        = case lr of
+            A.ArrayLiteral m aes ->
+               do (t, A.ArrayElemArray aes') <-
+                    doArrayElem wantT (A.ArrayElemArray aes)
+                  return (t, A.ArrayLiteral m aes')
+            _ ->
+               do lr' <- descend lr
+                  (defT, isT) <-
+                    case lr' of
+                      A.RealLiteral _ _ -> return (A.Real32, isRealType)
+                      A.IntLiteral _ _ -> return (A.Int, isIntegerType)
+                      A.HexLiteral _ _ -> return (A.Int, isIntegerType)
+                      A.ByteLiteral _ _ -> return (A.Byte, isIntegerType)
+                      _ -> dieP m $ "Unexpected LiteralRepr: " ++ show lr'
+                  underT <- resolveUserType m wantT
+                  case (wantT, isT underT) of
+                    (A.Infer, _) -> return (defT, lr')
+                    (_, True) -> return (wantT, lr')
+                    (_, False) -> diePC m $ formatCode "Literal of default type % is not valid for type %" defT wantT
+      where
+        doArrayElem :: A.Type -> A.ArrayElem -> PassM (A.Type, A.ArrayElem)
+        -- A table: this could be an array or a record.
+        doArrayElem wantT (A.ArrayElemArray aes)
+            =  do underT <- resolveUserType m wantT
+                  case underT of
+                    A.Array _ _ ->
+                       do subT <- trivialSubscriptType m underT
+                          taes <- mapM (doArrayElem subT) aes
+                          return (applyDim (length aes) wantT,
+                                  A.ArrayElemArray (map snd taes))
+                    -- FIXME: Implement this
+                    A.Record n -> dieP m "FIXME: implement record constants"
+                    -- If we don't know, assume it's an array.
+                    A.Infer ->
+                       do taes <- mapM (doArrayElem A.Infer) aes
+                          let elemT = case taes of
+                                        -- Empty list -- can't tell what
+                                        -- the element type is.
+                                        [] -> A.Infer
+                                        -- Else use the type of the first
+                                        -- element.
+                                        ((t, _):_) -> t
+                          let dims = [makeDimension m (length taes)]
+                          return (addDimensions dims elemT,
+                                  A.ArrayElemArray (map snd taes))
+                    _ -> diePC m $ formatCode "Table literal is not valid for type %" wantT
+          where
+            -- | Set the first dimension of an array type.
+            applyDim :: Int -> A.Type -> A.Type
+            applyDim n (A.Array (_:ds) t) = A.Array (makeDimension m n : ds) t
+            applyDim _ t = t
+        -- An expression: descend into it with the right context.
+        doArrayElem wantT (A.ArrayElemExpr e)
+            =  do let ctx = case wantT of
+                              A.Infer -> Nothing
+                              _ -> Just wantT
+                  e' <- inTypeContext ctx $ doExpression descend e
+                  t <- typeOfExpression e'
+                  checkType (findMeta e') wantT t
+                  return (t, A.ArrayElemExpr e')
+
+        m = findMeta lr
+
+--}}}
+--{{{  checkTypes
 
 -- | Check the AST for type consistency.
 -- This is actually a series of smaller passes that check particular types
@@ -738,10 +1059,8 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Processor _ e _) = checkExpressionInt e
     doProcess (A.Alt _ _ s) = checkStructured doAlternative s
     doProcess (A.ProcCall m n as)
-        =  do st <- specTypeOfName n
-              case st of
-                A.Proc _ _ fs _ -> checkActuals m n fs as
-                _ -> diePC m $ formatCode "% is not a procedure" n
+        =  do fs <- checkProc m n
+              checkActuals m n fs as
     doProcess (A.IntrinsicProcCall m n as)
         = case lookup n intrinsicProcs of
             Just args ->
@@ -834,3 +1153,4 @@ checkProcesses = checkDepthM doProcess
 
 --}}}
 
+--}}}

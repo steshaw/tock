@@ -46,14 +46,24 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     , ("Check mandatory constants", checkConstants,
        [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
+    , ("Infer types", astAndState inferTypes,
+       [Prop.constantsFolded],
+       [Prop.inferredTypesRecorded])
     , ("Check types", checkTypes,
-       [],
+       [Prop.inferredTypesRecorded],
        [Prop.expressionTypesChecked, Prop.processTypesChecked,
         Prop.functionTypesChecked, Prop.retypesChecked])
     , ("Dummy occam pass", dummyOccamPass,
        [],
-       Prop.agg_namesDone ++ [Prop.inferredTypesRecorded, Prop.mainTagged])
+       Prop.agg_namesDone ++ [Prop.mainTagged])
     ]
+  where
+    -- Apply a pass to both the AST and the state.
+    astAndState :: (forall t. Data t => t -> PassM t) -> A.AST -> PassM A.AST
+    astAndState p ast
+        =  do ast' <- p ast
+              get >>= p >>= put
+              return ast'
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Data t => t -> PassM t
