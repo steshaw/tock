@@ -113,6 +113,13 @@ fromRead = fromRead' id undefined
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
+-- If the type hasn't yet been inferred, we use the default type.
+evalSimpleLiteral (A.Literal _ A.Infer (A.ByteLiteral _ s))
+    = evalByteLiteral s
+evalSimpleLiteral (A.Literal _ A.Infer (A.IntLiteral _ s))
+    = fromRead OccInt (readSigned readDec) s
+evalSimpleLiteral (A.Literal _ A.Infer (A.HexLiteral _ s))
+    = fromRead OccInt readHex s
 evalSimpleLiteral (A.Literal _ A.Byte (A.ByteLiteral _ s))
     = evalByteLiteral s
 evalSimpleLiteral (A.Literal _ A.Byte (A.IntLiteral _ s))
