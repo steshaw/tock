@@ -1081,7 +1081,10 @@ checkProcesses = checkDepthM doProcess
   where
     doProcess :: Check A.Process
     doProcess (A.Assign m vs el)
-        =  do vts <- mapM (typeOfVariable) vs
+        -- We ignore dimensions here because we do the check at runtime.
+        -- (That is, [2]INT := []INT is legal.)
+        =  do vts <- sequence [typeOfVariable v >>* removeFixedDimensions
+                               | v <- vs]
               mapM_ checkWritable vs
               checkExpressionList vts el
     doProcess (A.Input _ v im) = doInput v im
