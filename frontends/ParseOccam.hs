@@ -689,8 +689,7 @@ expressionList
     =   do m <- md
            es <- sepBy1 expression sComma
            return $ A.ExpressionList m es
-    <|> do (m, n, as) <- functionCall
-           return $ A.FunctionCallList m n as
+    -- FunctionCallList will be matched by this and resolved later.
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expression list"
 
@@ -744,13 +743,13 @@ sizeExpr
                    return $ A.SizeVariable m v
     <?> "SIZE expression"
 
-functionCall :: OccParser (Meta, A.Name, [A.Expression])
+functionCall :: OccParser A.Expression
 functionCall
     =  do m <- md
           n <- tryVX functionName sLeftR
           as <- sepBy expression sComma
           sRightR
-          return (m, n, as)
+          return $ A.FunctionCall m n as
     <?> "function call"
 
 monadicOperator :: OccParser A.MonadicOp
@@ -818,8 +817,7 @@ operand'
     <|> literal
     <|> do { sLeftR; e <- expression; sRightR; return e }
 -- XXX value process
-    <|> do (m, n, as) <- functionCall
-           return $ A.FunctionCall m n as
+    <|> functionCall
     <|> do m <- md
            sBYTESIN
            sLeftR

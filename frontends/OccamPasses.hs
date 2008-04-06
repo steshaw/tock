@@ -49,8 +49,11 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     , ("Infer types", astAndState inferTypes,
        [],
        [Prop.inferredTypesRecorded])
-    , ("Check types", checkTypes,
+    , ("Resolve ambiguities", resolveAmbiguities,
        [Prop.inferredTypesRecorded],
+       [Prop.ambiguitiesResolved])
+    , ("Check types", checkTypes,
+       [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved],
        [Prop.expressionTypesChecked, Prop.processTypesChecked,
         Prop.functionTypesChecked, Prop.retypesChecked])
     , ("Dummy occam pass", dummyOccamPass,
@@ -76,6 +79,17 @@ fixConstructorTypes = applyDepthM doExpression
                t' = A.Array [A.Dimension count] t
            return $ A.ExprConstr m $ A.RepConstr m' t' rep expr
     doExpression e = return e
+
+-- | Handle ambiguities in the occam syntax that the parser can't resolve.
+resolveAmbiguities :: Data t => t -> PassM t
+resolveAmbiguities = applyDepthM doExpressionList
+  where
+    doExpressionList :: Transform A.ExpressionList
+    -- A single function call inside an ExpressionList is actually a
+    -- FunctionCallList, since it can have multiple results.
+    doExpressionList (A.ExpressionList _ [A.FunctionCall m n es])
+        = return $ A.FunctionCallList m n es
+    doExpressionList e = return e
 
 -- | Fold constant expressions.
 foldConstants :: Data t => t -> PassM t

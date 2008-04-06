@@ -22,6 +22,7 @@ module Properties
   , agg_typesDone
   , afterRemoved
   , allChansToAnyOrProtocol
+  , ambiguitiesResolved
   , arrayConstructorsRemoved
   , arrayConstructorTypesDone
   , arrayLiteralsExpanded
@@ -233,6 +234,9 @@ inferredTypesRecorded = Property "inferredTypesRecorded" $
     findInfer :: A.Type -> Bool
     findInfer A.Infer = True
     findInfer _ = False
+
+ambiguitiesResolved :: Property
+ambiguitiesResolved = Property "ambiguitiesResolved" checkTODO
 
 findUDT :: A.Type -> Bool
 findUDT (A.UserDataType {}) = True
