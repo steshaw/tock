@@ -517,6 +517,7 @@ cgenLiteral lr t
 
 -- | Does a LiteralRepr represent something that can be a plain string literal?
 isStringLiteral :: A.LiteralRepr -> Bool
+isStringLiteral (A.ArrayLiteral _ []) = False
 isStringLiteral (A.ArrayLiteral _ aes)
     = and [case ae of
              A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ _)) -> True
