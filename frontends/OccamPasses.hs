@@ -38,7 +38,7 @@ import Types
 occamPasses :: [Pass]
 occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     [ ("Fold constants", foldConstants,
-       [],
+       [Prop.inferredTypesRecorded],
        [Prop.constantsFolded])
     , ("Fix the types of array constructors", fixConstructorTypes,
        [Prop.constantsFolded],
@@ -47,7 +47,7 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
        [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
     , ("Infer types", astAndState inferTypes,
-       [Prop.constantsFolded],
+       [],
        [Prop.inferredTypesRecorded])
     , ("Check types", checkTypes,
        [Prop.inferredTypesRecorded],
