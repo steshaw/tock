@@ -645,7 +645,11 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             -- FIXME: IntrinsicFunctionCall
             A.SubscriptedExpr m s e ->
                do s' <- inferTypes s
-                  e' <- inSubscriptedContext m $ inferTypes e
+                  ctx <- getTypeContext
+                  ctx' <- case ctx of
+                            Just t -> unsubscriptType s t >>* Just
+                            Nothing -> return Nothing
+                  e' <- inTypeContext ctx' $ inferTypes e
                   return $ A.SubscriptedExpr m s' e'
 
             -- Other expressions don't modify the type context.
