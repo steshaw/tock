@@ -57,6 +57,7 @@ testParse = TestList
 
     , testLine  350 ".blah:" $ Nothing
     , testLine  351 "0:" $ Nothing
+    , testLine  352 "blah.1234:" $ Nothing
     ]
   where
     testLine :: Int -> String -> Maybe AsmItem -> Test

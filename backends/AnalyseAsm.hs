@@ -77,9 +77,9 @@ parseAsmLine s
     -- digit.
     parseLabel :: String -> Maybe AsmItem
     parseLabel s@(c:cs)
-      | c == '.' || isDigit c = Nothing
-      | last cs == ':'        = Just $ AsmLabel (liat s)
-      | otherwise = Nothing
+      | isDigit c || '.' `elem` s = Nothing
+      | last cs == ':'            = Just $ AsmLabel (liat s)
+      | otherwise                 = Nothing
       where
         liat :: String -> String
         liat = reverse . tail . reverse
