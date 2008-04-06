@@ -137,6 +137,8 @@ data Type =
   -- | A channel of the specified type.
   | Chan Direction ChanAttributes Type
   -- | A counted input or output.
+  -- The first type is that of the count; the second is that of the array.
+  -- (For example, @INT::[]BYTE@ would be @A.Counted A.Int (A.Array ...)@).
   | Counted Type Type
   | Any
   | Timer TimerType

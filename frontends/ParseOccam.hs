@@ -1229,7 +1229,7 @@ protocol
 
 simpleProtocol :: OccParser A.Type
 simpleProtocol
-    =   do { l <- tryVX dataType sColons; sLeft; sRight; r <- dataType; return $ A.Counted l r }
+    =   do { l <- tryVX dataType sColons; sLeft; sRight; r <- dataType; return $ A.Counted l (addDimensions [A.UnknownDimension] r) }
     <|> dataType
     <|> do { sANY; return $ A.Any }
     <?> "simple protocol"
