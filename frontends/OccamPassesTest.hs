@@ -45,6 +45,7 @@ startState
                                  undefined
           defineConst "someBytes" (A.Array [A.UnknownDimension] A.Byte)
                                   undefined
+          defineVariable "var" A.Int
 
 -- | Test 'OccamPasses.foldConstants'.
 testFoldConstants :: Test

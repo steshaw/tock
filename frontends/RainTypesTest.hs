@@ -66,7 +66,7 @@ constantFoldTest = TestList
    foldCon n exp orig = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern exp) (constantFoldPass $ buildExpr orig) state
 
    state :: State CompState ()
-   state = return ()
+   state = defineVariable "x" A.Int64
 
    lit :: Integer -> ExprHelper
    lit n = Lit $ int64Literal n
