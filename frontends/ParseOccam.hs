@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Parse occam code into an AST.
 module ParseOccam (parseOccamProgram) where
 
-import Control.Monad (liftM, when)
+import Control.Monad (liftM)
 import Control.Monad.State (MonadState, modify, get, put)
 import Control.Monad.Writer (tell)
 import Data.List
@@ -30,7 +30,6 @@ import Text.ParserCombinators.Parsec
 import qualified AST as A
 import CompState
 import Errors
-import EvalLiterals
 import Intrinsics
 import LexOccam
 import Metadata
@@ -249,14 +248,20 @@ tryXVVX a b c d = try (do { a; bv <- b; cv <- c; d; return (bv, cv) })
 tryVXXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, d)
 tryVXXV a b c d = try (do { av <- a; b; c; dv <- d; return (av, dv) })
 
+tryVXVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, c)
+tryVXVX a b c d = try (do { av <- a; b; cv <- c; d; return (av, cv) })
+
+tryVVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b)
+tryVVXX a b c d = try (do { av <- a; bv <- b; c; d; return (av, bv) })
+
 tryVVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b, d)
 tryVVXV a b c d = try (do { av <- a; bv <- b; c; dv <- d; return (av, bv, dv) })
-
-tryVXVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser e -> OccParser (a, c)
-tryVXVXX a b c d e = try (do { av <- a; b; cv <- c; d; e; return (av, cv) })
 --}}}
 
 --{{{ subscripts
+-- FIXME: This shouldn't need to care about types.
+-- At the moment it does in order to resolve the c[x] ambiguity -- is x a field
+-- or a variable?
 maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
 maybeSubscripted prodName inner subscripter typer
     =  do m <- md
@@ -283,26 +288,26 @@ postSubscript t
               do f <- tryXV sLeft fieldName
                  sRight
                  return $ A.SubscriptField m f
-            A.Array _ _ ->
-              do e <- tryXV sLeft intExpr
+            -- FIXME: This is a hack (that we're not matching A.Array here); if
+            -- we aren't *sure* it's a record, then we assume it's an array.
+            -- This will break on code like:
+            --   VAL a IS some.record:
+            --   ... a[field]
+            _ ->
+              do e <- tryXV sLeft expression
                  sRight
                  return $ A.Subscript m A.CheckBoth e
-            _ -> pzero
 
-maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
-maybeSliced inner subscripter typer
+maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
+maybeSliced inner subscripter
     =  do m <- md
 
           (v, ff1) <- tryXVV sLeft inner fromOrFor
-          t <- typer v >>= underlyingType m
-          case t of
-            (A.Array _ _) -> return ()
-            _ -> dieP m $ "slice of non-array type " ++ showOccam t
 
-          e <- intExpr
+          e <- expression
           sub <- case ff1 of
                    "FROM" ->
-                     (do f <- tryXV sFOR intExpr
+                     (do f <- tryXV sFOR expression
                          sRight
                          return $ A.SubscriptFromFor m e f)
                      <|>
@@ -353,91 +358,6 @@ intersperseP (f:fs) sep
           as <- intersperseP fs sep
           return $ a : as
 
--- | Are two types the same?
-sameType :: A.Type -> A.Type -> OccParser Bool
-sameType (A.Array (A.Dimension e1 : ds1) t1)
-         (A.Array (A.Dimension e2 : ds2) t2)
-    =  do n1 <- evalIntExpression e1
-          n2 <- evalIntExpression e2
-          same <- sameType (A.Array ds1 t1) (A.Array ds2 t2)
-          return $ (n1 == n2) && same
-sameType (A.Array (A.UnknownDimension : ds1) t1)
-         (A.Array (A.UnknownDimension : ds2) t2)
-    = sameType (A.Array ds1 t1) (A.Array ds2 t2)
-sameType a b = return $ a == b
-
--- | Find the type of a table literal given the types of its components.
--- This'll always return an Array; the inner type will either be the type of
--- the elements if they're all the same (in which case it's either an array
--- literal, or a record where all the fields are the same type), or Any if
--- they're not (i.e. if it's a record literal or an empty array).
-tableType :: Meta -> [A.Type] -> OccParser A.Type
-tableType m l = tableType' m (makeConstant m $ length l) l
-  where
-    tableType' :: Meta -> A.Expression -> [A.Type] -> OccParser A.Type
-    tableType' m len [t] = return $ addDimensions [A.Dimension len] t
-    tableType' m len (t1 : rest@(t2 : _))
-        =  do same <- sameType t1 t2
-              if same
-                then tableType' m len rest
-                else return $ addDimensions [A.Dimension len] A.Any
-    tableType' m len [] = return $ addDimensions [A.Dimension zero] A.Any
-
-    zero = makeConstant m 0
-
--- | Check that the second dimension can be used in a context where the first
--- is expected.
-isValidDimension :: A.Dimension -> A.Dimension -> OccParser Bool
-isValidDimension A.UnknownDimension A.UnknownDimension = return True
-isValidDimension A.UnknownDimension (A.Dimension _) = return True
-isValidDimension (A.Dimension e1) (A.Dimension e2)
-    =  do n1 <- evalIntExpression e1
-          n2 <- evalIntExpression e2
-          return $ n1 == n2
-isValidDimension _ _ = return False
-
--- | Check that the second second of dimensions can be used in a context where
--- the first is expected.
-areValidDimensions :: [A.Dimension] -> [A.Dimension] -> OccParser Bool
-areValidDimensions [] [] = return True
-areValidDimensions (d1:ds1) (d2:ds2)
-    = do valid <- isValidDimension d1 d2
-         if valid
-           then areValidDimensions ds1 ds2
-           else return False
-areValidDimensions _ _ = return False
-
--- | Check that a type we've inferred matches the type we expected.
-matchType :: Meta -> A.Type -> A.Type -> OccParser ()
-matchType m et rt
-    = case (et, rt) of
-        ((A.Array ds t), (A.Array ds' t')) ->
-          do valid <- areValidDimensions ds ds'
-             if valid
-               then matchType m t t'
-               else bad
-        _ -> if rt == et then return () else bad
-  where
-    bad :: OccParser ()
-    bad = dieP m $ "type mismatch (got " ++ showOccam rt ++ "; expected " ++ showOccam et ++ ")"
-
--- | Check that two lists of types match (for example, for parallel assignment).
-matchTypes :: Meta -> [A.Type] -> [A.Type] -> OccParser ()
-matchTypes m ets rts
-    = sequence_ [matchType m et rt | (et, rt) <- zip ets rts]
-
--- | Parse a production inside a particular type context.
-inTypeContext :: Maybe A.Type -> OccParser a -> OccParser a
-inTypeContext ctx body
-    =  do pushTypeContext ctx
-          v <- body
-          popTypeContext
-          return v
-
--- | Parse a production with no particular type context (i.e. where we're
--- inside some bit of an expression that means we can't tell what the type is).
-noTypeContext :: OccParser a -> OccParser a
-noTypeContext = inTypeContext Nothing
 --}}}
 
 --{{{ name scoping
@@ -468,7 +388,7 @@ findUnscopedName n@(A.Name m nt s)
                  return $ A.Name m nt s'
 
 scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
-scopeIn n@(A.Name m nt s) t am
+scopeIn n@(A.Name m nt s) specType am
     =  do st <- getState
           s' <- makeUniqueName s
           let n' = n { A.nameName = s' }
@@ -477,7 +397,7 @@ scopeIn n@(A.Name m nt s) t am
             A.ndName = s',
             A.ndOrigName = s,
             A.ndNameType = A.nameType n',
-            A.ndType = t,
+            A.ndType = specType,
             A.ndAbbrevMode = am,
             A.ndPlacement = A.Unplaced
           }
@@ -596,7 +516,7 @@ newTagName = unscopedName A.TagName
 -- | A sized array of a production.
 arrayType :: OccParser A.Type -> OccParser A.Type
 arrayType element
-    =  do (s, t) <- tryXVXV sLeft intExpr sRight element
+    =  do (s, t) <- tryXVXV sLeft expression sRight element
           return $ addDimensions [A.Dimension s] t
 
 -- | Either a sized or unsized array of a production.
@@ -640,135 +560,29 @@ portType
     <?> "port type"
 --}}}
 --{{{ literals
---{{{ type utilities for literals
--- | Can a literal of type rawT be used as a value of type wantT?
-isValidLiteralType :: Meta -> A.Type -> A.Type -> OccParser Bool
-isValidLiteralType m rawT wantT
-    =  do underT <- resolveUserType m wantT
-          case (rawT, underT) of
-            -- We don't yet know what type we want -- so assume it's OK for now.
-            (_, A.Any) -> return True
-            (A.Real32, _) -> return $ isRealType underT
-            (A.Int, _) -> return $ isIntegerType underT
-            (A.Byte, _) -> return $ isIntegerType underT
-            (A.Array (A.Dimension e:_) _, A.Record _) ->
-              -- We can't be sure without looking at the literal itself,
-              -- so we need to do that below.
-              do fs <- recordFields m wantT
-                 nf <- evalIntExpression e
-                 return $ nf == length fs
-            (A.Array (d1:ds1) t1, A.Array (d2:ds2) t2) ->
-              -- Check the outermost dimension is OK, then recurse.
-              -- We can't just look at all the dimensions because this
-              -- might be an array of a record type, or similar.
-              do valid <- isValidDimension d2 d1
-                 if valid
-                   then do rawT' <- trivialSubscriptType m rawT
-                           underT' <- trivialSubscriptType m underT
-                           isValidLiteralType m rawT' underT'
-                   else return False
-            _ -> return $ rawT == wantT
 
--- | Apply dimensions from one type to another as far as possible.
--- This should only be used when you know the two types are compatible first
--- (i.e. they've passed isValidLiteralType).
-applyDimensions :: A.Type -> A.Type -> A.Type
-applyDimensions (A.Array ods _) (A.Array tds t) = A.Array (dims ods tds) t
-  where
-    dims :: [A.Dimension] -> [A.Dimension] -> [A.Dimension]
-    dims (d@(A.Dimension _):ods) (A.UnknownDimension:tds)
-        = d : dims ods tds
-    dims (_:ods) (d:tds)
-        = d : dims ods tds
-    dims _ ds = ds
-applyDimensions _ t = t
-
--- | Convert a raw array element literal into its real form.
-makeArrayElem :: A.Type -> A.ArrayElem -> OccParser A.ArrayElem
-makeArrayElem t@(A.Array _ _) (A.ArrayElemArray aes)
-    =  do elemT <- trivialSubscriptType (findMeta aes) t
-          liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
-makeArrayElem _ (A.ArrayElemArray es)
-    = dieP (findMeta es) $ "unexpected nested array literal"
--- A nested array literal that's still of array type (i.e. it's not a
--- record inside the array) -- collapse it.
-makeArrayElem t@(A.Array _ _) (A.ArrayElemExpr (A.Literal _ _ (A.ArrayLiteral m aes)))
-    =  do elemT <- trivialSubscriptType m t
-          liftM A.ArrayElemArray $ mapM (makeArrayElem elemT) aes
-makeArrayElem t (A.ArrayElemExpr e)
-    = liftM A.ArrayElemExpr $ makeLiteral e t
-
--- | Given a raw literal and the type that it should be, either produce a
--- literal of that type, or fail with an appropriate error if it's not a valid
--- value of that type.
-makeLiteral :: A.Expression -> A.Type -> OccParser A.Expression
--- A literal.
-makeLiteral x@(A.Literal m t lr) wantT
-    =  do underT <- resolveUserType m wantT
-
-          typesOK <- isValidLiteralType m t wantT
-          when (not typesOK) $
-            dieP m $ "default type of literal (" ++ showOccam t ++ ") cannot be coerced to desired type (" ++ showOccam wantT ++ ")"
-
-          case (underT, lr) of
-            -- An array literal.
-            (A.Array _ _, A.ArrayLiteral ml aes) ->
-              do elemT <- trivialSubscriptType ml underT
-                 aes' <- mapM (makeArrayElem elemT) aes
-                 return $ A.Literal m (applyDimensions t wantT) (A.ArrayLiteral ml aes')
-            -- A record literal -- which we need to convert from the raw
-            -- representation.
-            (A.Record _, A.ArrayLiteral ml aes)  ->
-              do fs <- recordFields m underT
-                 es <- sequence [case ae of
-                                   A.ArrayElemExpr e -> makeLiteral e t
-                                   A.ArrayElemArray aes ->
-                                     makeLiteral (A.Literal m t $ A.ArrayLiteral ml aes) t
-                                 | ((_, t), ae) <- zip fs aes]
-                 return $ A.Literal m wantT (A.RecordLiteral ml es)
-            -- Some other kind of literal (one of the trivial types).
-            _ -> return $ A.Literal m wantT lr
--- A subscript; figure out what the type of the thing being subscripted must be
--- and recurse.
-makeLiteral (A.SubscriptedExpr m sub e) wantT
-    =  do inWantT <- unsubscriptType sub wantT
-          e' <- makeLiteral e inWantT
-          return $ A.SubscriptedExpr m sub e'
--- Something that's not a literal (which we've found inside a table) -- just
--- check it's the right type.
-makeLiteral e wantT
-    =  do t <- typeOfExpression e
-          matchType (findMeta e) wantT t
-          return e
---}}}
-
-typeDecorator :: OccParser (Maybe A.Type)
+typeDecorator :: OccParser A.Type
 typeDecorator
     =   do sLeftR
            t <- dataType
            sRightR
-           return $ Just t
-    <|> return Nothing
+           return t
+    <|> return A.Infer
     <?> "literal type decorator"
 
 literal :: OccParser A.Expression
 literal
     =  do m <- md
-          (lr, t) <- untypedLiteral
-          dec <- typeDecorator
-          ctx <- getTypeContext
-          let lit = A.Literal m t lr
-          case (dec, ctx) of
-            (Just wantT, _) -> makeLiteral lit wantT
-            (_, Just wantT) -> makeLiteral lit wantT
-            _ -> return lit
+          lr <- untypedLiteral
+          t <- typeDecorator
+          return $ A.Literal m t lr
     <?> "literal"
 
-untypedLiteral :: OccParser (A.LiteralRepr, A.Type)
+untypedLiteral :: OccParser A.LiteralRepr
 untypedLiteral
-    =   do { r <- real; return (r, A.Real32) }
-    <|> do { r <- integer; return (r, A.Int) }
-    <|> do { r <- byte; return (r, A.Byte) }
+    =   real
+    <|> integer
+    <|> byte
 
 real :: OccParser A.LiteralRepr
 real
@@ -807,43 +621,32 @@ byte
 -- literals collapsed, and record literals are array literals of type []ANY.
 table :: OccParser A.Expression
 table
-    =   do e <- maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
-           rawT <- typeOfExpression e
-           ctx <- getTypeContext
-           case ctx of
-             Just wantT -> makeLiteral e wantT
-             _ -> return e
+    = maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
 
 table' :: OccParser A.Expression
 table'
     =   do m <- md
-           (lr, t) <- tableElems
-           dec <- typeDecorator
-           let lit = A.Literal m t lr
-           case dec of
-             Just wantT -> makeLiteral lit wantT
-             _ -> return lit
-    <|> maybeSliced table A.SubscriptedExpr typeOfExpression
+           lr <- tableElems
+           t <- typeDecorator
+           return $ A.Literal m t lr
+    <|> maybeSliced table A.SubscriptedExpr
     <?> "table'"
 
-tableElems :: OccParser (A.LiteralRepr, A.Type)
+tableElems :: OccParser A.LiteralRepr
 tableElems
-    =   do (lr, dim) <- stringLiteral
-           return (lr, A.Array [dim] A.Byte)
+    =   stringLiteral
     <|> do m <- md
-           es <- tryXVX sLeft (noTypeContext $ sepBy1 expression sComma) sRight
-           ets <- mapM typeOfExpression es
-           defT <- tableType m ets
-           return (A.ArrayLiteral m (map A.ArrayElemExpr es), defT)
+           es <- tryXVX sLeft (sepBy1 expression sComma) sRight
+           return $ A.ArrayLiteral m (map A.ArrayElemExpr es)
     <?> "table elements"
 
-stringLiteral :: OccParser (A.LiteralRepr, A.Dimension)
+stringLiteral :: OccParser A.LiteralRepr
 stringLiteral
     =  do m <- md
           cs <- stringCont <|> stringLit
-          let aes = [A.ArrayElemExpr $ A.Literal m' A.Byte c
+          let aes = [A.ArrayElemExpr $ A.Literal m' A.Infer c
                      | c@(A.ByteLiteral m' _) <- cs]
-          return (A.ArrayLiteral m aes, makeDimension m $ length cs)
+          return $ A.ArrayLiteral m aes
     <?> "string literal"
   where
     stringCont :: OccParser [A.LiteralRepr]
@@ -881,12 +684,13 @@ splitStringLiteral m cs = ssl cs
         = (A.ByteLiteral m [c]) : ssl cs
 --}}}
 --{{{ expressions
-expressionList :: [A.Type] -> OccParser A.ExpressionList
-expressionList types
-    =   functionMulti types
-    <|> do m <- md
-           es <- intersperseP (map expressionOfType types) sComma
+expressionList :: OccParser A.ExpressionList
+expressionList
+    =   do m <- md
+           es <- sepBy1 expression sComma
            return $ A.ExpressionList m es
+    <|> do (m, n, as) <- functionCall
+           return $ A.FunctionCallList m n as
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
     <?> "expression list"
 
@@ -901,22 +705,7 @@ expression
     <|> sizeExpr
     <|> do m <- md
            (l, o) <- tryVV operand dyadicOperator
-           t <- typeOfExpression l
-           r <- operandOfType t
-           return $ A.Dyadic m o l r
-    <|> do m <- md
-           (l, o) <- tryVV operand shiftOperator
-           r <- operandOfType A.Int
-           return $ A.Dyadic m o l r
-    <|> do m <- md
-           (l, o) <- tryVV (noTypeContext operand) comparisonOperator
-           t <- typeOfExpression l
-           r <- operandOfType t
-           return $ A.Dyadic m o l r
-    <|> do m <- md
-           (l, o) <- tryVV operand dyadicOperator
-           t <- typeOfExpression l
-           r <- operandOfType t
+           r <- operand
            return $ A.Dyadic m o l r
     <|> associativeOpExpression
     <|> conversion
@@ -930,28 +719,17 @@ arrayConstructor
           r <- replicator
           sBar
           r' <- scopeInRep r
-          ctx <- getTypeContext
-          subCtx <- case ctx of
-                      Just t@(A.Array _ _) -> trivialSubscriptType m t >>* Just
-                      _ -> return Nothing
-          e <- inTypeContext subCtx expression
+          e <- expression
           scopeOutRep r'
           sRight
-          innerT <- typeOfExpression e
-          let t = case ctx of
-                    Just t -> t
-                    Nothing -> A.Array [A.UnknownDimension] innerT
-          return $ A.ExprConstr m $ A.RepConstr m t r' e
+          return $ A.ExprConstr m $ A.RepConstr m A.Infer r' e
     <?> "array constructor expression"
 
 associativeOpExpression :: OccParser A.Expression
 associativeOpExpression
     =  do m <- md
           (l, o) <- tryVV operand associativeOperator
-          tl <- typeOfExpression l
           r <- associativeOpExpression <|> operand
-          tr <- typeOfExpression r
-          matchType m tl tr
           return $ A.Dyadic m o l r
     <?> "associative operator expression"
 
@@ -960,99 +738,20 @@ sizeExpr
     =  do m <- md
           sSIZE
           do { t <- dataType; return $ A.SizeType m t }
-            <|> do v <- noTypeContext operand
+            <|> do v <- operand
                    return $ A.SizeExpr m v
-            <|> do v <- noTypeContext (channel <|> timer <|> port)
+            <|> do v <- (channel <|> timer <|> port)
                    return $ A.SizeVariable m v
     <?> "SIZE expression"
 
---{{{ type-constrained expressions
-expressionOfType :: A.Type -> OccParser A.Expression
-expressionOfType wantT
-    =  do e <- inTypeContext (Just wantT) expression
-          t <- typeOfExpression e
-          matchType (findMeta e) wantT t
-          return e
-
-intExpr :: OccParser A.Expression
-intExpr = expressionOfType A.Int <?> "integer expression"
-booleanExpr :: OccParser A.Expression
-booleanExpr = expressionOfType A.Bool <?> "boolean expression"
-
-operandOfType :: A.Type -> OccParser A.Expression
-operandOfType wantT
-    =  do o <- inTypeContext (Just wantT) operand
-          t <- typeOfExpression o
-          matchType (findMeta o) wantT t
-          return o
---}}}
---{{{ functions
-functionNameValued :: Bool -> OccParser A.Name
-functionNameValued isMulti
-    =  do n <- functionName
-          rts <- returnTypesOfFunction n
-          case (rts, isMulti) of
-            ([_], False) -> return n
-            ((_:_:_), True) -> return n
-            _ -> pzero
-    <?> "function name"
-
-functionActuals :: [A.Formal] -> OccParser [A.Expression]
-functionActuals fs
-    =  do let actuals = [expressionOfType t <?> "actual for " ++ show n
-                         | A.Formal _ t n <- fs]
-          es <- intersperseP actuals sComma
-          return es
-
-functionSingle :: OccParser A.Expression
-functionSingle
+functionCall :: OccParser (Meta, A.Name, [A.Expression])
+functionCall
     =  do m <- md
-          n <- tryVX (functionNameValued False) sLeftR
-          A.Function _ _ _ fs _ <- specTypeOfName n
-          as <- functionActuals fs
+          n <- tryVX functionName sLeftR
+          as <- sepBy expression sComma
           sRightR
-          return $ A.FunctionCall m n as
-    <?> "single-valued function call"
-
-functionMulti :: [A.Type] -> OccParser A.ExpressionList
-functionMulti types
-    =  do m <- md
-          n <- tryVX (functionNameValued True) sLeftR
-          A.Function _ _ _ fs _ <- specTypeOfName n
-          as <- functionActuals fs
-          sRightR
-          rts <- returnTypesOfFunction n
-          matchTypes m types rts
-          return $ A.FunctionCallList m n as
-    <?> "multi-valued function call"
---}}}
---{{{ intrinsic functions
-intrinsicFunctionName :: Bool -> OccParser (String, [A.Type], [A.Formal])
-intrinsicFunctionName isMulti
-    =  do n <- anyName A.FunctionName
-          let s = A.nameName n
-          case (lookup s intrinsicFunctions, isMulti) of
-            (Nothing, _) -> pzero
-            (Just ([_], _), True) -> pzero
-            (Just ((_:_:_), _), False) -> pzero
-            (Just (rts, tns), _) ->
-              return (s, rts, [A.Formal A.ValAbbrev t (A.Name emptyMeta A.VariableName n)
-                               | (t, n) <- tns])
-    <?> "intrinsic function name"
-
-intrinsicFunctionSingle :: OccParser A.Expression
-intrinsicFunctionSingle
-    =  do m <- md
-          (s, _, fs) <- tryVX (intrinsicFunctionName False) sLeftR
-          as <- functionActuals fs
-          sRightR
-          return $ A.IntrinsicFunctionCall m s as
-    <?> "single-valued intrinsic function call"
-
--- No support for multi-valued intrinsic functions, because I don't think there
--- are likely to be any, and supporting them in the C backend is slightly
--- tricky.
---}}}
+          return (m, n, as)
+    <?> "function call"
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
@@ -1074,27 +773,16 @@ dyadicOperator
     <|> do { reserved "/\\" <|> sBITAND; return A.BitAnd }
     <|> do { reserved "\\/" <|> sBITOR; return A.BitOr }
     <|> do { reserved "><"; return A.BitXor }
-    <?> "dyadic operator"
-
--- These always need an INT on their right-hand side.
-shiftOperator :: OccParser A.DyadicOp
-shiftOperator
-    =   do { reserved "<<"; return A.LeftShift }
+    <|> do { reserved "<<"; return A.LeftShift }
     <|> do { reserved ">>"; return A.RightShift }
-    <?> "shift operator"
-
--- These always return a BOOL, so we have to deal with them specially for type
--- context.
-comparisonOperator :: OccParser A.DyadicOp
-comparisonOperator
-    =   do { reserved "="; return A.Eq }
+    <|> do { reserved "="; return A.Eq }
     <|> do { reserved "<>"; return A.NotEq }
     <|> do { reserved "<"; return A.Less }
     <|> do { reserved ">"; return A.More }
     <|> do { reserved "<="; return A.LessEq }
     <|> do { reserved ">="; return A.MoreEq }
     <|> do { sAFTER; return A.After }
-    <?> "comparison operator"
+    <?> "dyadic operator"
 
 associativeOperator :: OccParser A.DyadicOp
 associativeOperator
@@ -1108,26 +796,15 @@ conversion :: OccParser A.Expression
 conversion
     =  do m <- md
           t <- dataType
-          baseT <- underlyingType m t
           (c, o) <- conversionMode
-          ot <- typeOfExpression o
-          baseOT <- underlyingType m ot
-          c <- case (isPreciseConversion baseOT baseT, c) of
-                 (False, A.DefaultConversion) ->
-                   dieP m "imprecise conversion must specify ROUND or TRUNC"
-                 (False, _) -> return c
-                 (True, A.DefaultConversion) -> return c
-                 (True, _) ->
-                   do addWarning m "precise conversion specifies ROUND or TRUNC; ignored"
-                      return A.DefaultConversion
           return $ A.Conversion m c t o
     <?> "conversion"
 
 conversionMode :: OccParser (A.ConversionMode, A.Expression)
 conversionMode
-    =   do { sROUND; o <- noTypeContext operand; return (A.Round, o) }
-    <|> do { sTRUNC; o <- noTypeContext operand; return (A.Trunc, o) }
-    <|> do { o <- noTypeContext operand; return (A.DefaultConversion, o) }
+    =   do { sROUND; o <- operand; return (A.Round, o) }
+    <|> do { sTRUNC; o <- operand; return (A.Trunc, o) }
+    <|> do { o <- operand; return (A.DefaultConversion, o) }
     <?> "conversion mode and operand"
 --}}}
 --{{{ operands
@@ -1141,12 +818,12 @@ operand'
     <|> literal
     <|> do { sLeftR; e <- expression; sRightR; return e }
 -- XXX value process
-    <|> functionSingle
-    <|> intrinsicFunctionSingle
+    <|> do (m, n, as) <- functionCall
+           return $ A.FunctionCall m n as
     <|> do m <- md
            sBYTESIN
            sLeftR
-           (try (do { o <- noTypeContext operand; sRightR; return $ A.BytesInExpr m o }))
+           (try (do { o <- operand; sRightR; return $ A.BytesInExpr m o }))
              <|> do { t <- dataType; sRightR; return $ A.BytesInType m t }
     <|> do { m <- md; sOFFSETOF; sLeftR; t <- dataType; sComma; f <- fieldName; sRightR; return $ A.OffsetOf m t f }
     <|> do { m <- md; sTRUE; return $ A.True m }
@@ -1163,15 +840,8 @@ variable
 variable' :: OccParser A.Variable
 variable'
     =   do { m <- md; n <- try variableName; return $ A.Variable m n }
-    <|> maybeSliced variable A.SubscriptedVariable typeOfVariable
+    <|> maybeSliced variable A.SubscriptedVariable
     <?> "variable'"
-
-variableOfType :: A.Type -> OccParser A.Variable
-variableOfType wantT
-    =  do v <- variable
-          t <- typeOfVariable v
-          matchType (findMeta v) wantT t
-          return v
 
 channel :: OccParser A.Variable
 channel
@@ -1181,15 +851,8 @@ channel
 channel' :: OccParser A.Variable
 channel'
     =   do { m <- md; n <- try channelName; return $ A.Variable m n }
-    <|> maybeSliced channel A.SubscriptedVariable typeOfVariable
+    <|> maybeSliced channel A.SubscriptedVariable
     <?> "channel'"
-
-channelOfType :: A.Type -> OccParser A.Variable
-channelOfType wantT
-    =  do c <- channel
-          t <- typeOfVariable c
-          matchType (findMeta c) wantT t
-          return c
 
 timer :: OccParser A.Variable
 timer
@@ -1199,7 +862,7 @@ timer
 timer' :: OccParser A.Variable
 timer'
     =   do { m <- md; n <- try timerName; return $ A.Variable m n }
-    <|> maybeSliced timer A.SubscriptedVariable typeOfVariable
+    <|> maybeSliced timer A.SubscriptedVariable
     <?> "timer'"
 
 port :: OccParser A.Variable
@@ -1210,15 +873,8 @@ port
 port' :: OccParser A.Variable
 port'
     =   do { m <- md; n <- try portName; return $ A.Variable m n }
-    <|> maybeSliced port A.SubscriptedVariable typeOfVariable
+    <|> maybeSliced port A.SubscriptedVariable
     <?> "port'"
-
-portOfType :: A.Type -> OccParser A.Variable
-portOfType wantT
-    =  do p <- port
-          t <- typeOfVariable p
-          matchType (findMeta p) wantT t
-          return p
 --}}}
 --{{{ protocols
 protocol :: OccParser A.Type
@@ -1250,9 +906,9 @@ replicator :: OccParser A.Replicator
 replicator
     =  do m <- md
           n <- tryVX newVariableName sEq
-          b <- intExpr
+          b <- expression
           sFOR
-          c <- intExpr
+          c <- expression
           return $ A.For m n b c
     <?> "replicator"
 --}}}
@@ -1272,7 +928,7 @@ allocation
 
 placement :: OccParser A.Placement
 placement
-    =   do e <- tryXV (optional sAT) intExpr
+    =   do e <- tryXV (optional sAT) expression
            return $ A.PlaceAt e
     <|> do tryXX sIN sWORKSPACE
            return $ A.PlaceInWorkspace
@@ -1316,8 +972,8 @@ abbreviation
 valIsAbbrev :: OccParser A.Specification
 valIsAbbrev
     =  do m <- md
-          (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; t <- typeOfExpression e; return (n, t, e) }
-                       <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expressionOfType s; sColon; eol; return (n, s, e) }
+          (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; return (n, A.Infer, e) }
+                       <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expression; sColon; eol; return (n, s, e) }
           return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
     <?> "VAL IS abbreviation"
 
@@ -1325,7 +981,7 @@ initialIsAbbrev :: OccParser A.Specification
 initialIsAbbrev
     =   do m <- md
            (t, n) <- tryXVVX sINITIAL dataSpecifier newVariableName sIS
-           e <- expressionOfType t
+           e <- expression
            sColon
            eol
            return $ A.Specification m n $ A.IsExpr m A.Original t e
@@ -1337,14 +993,11 @@ isAbbrev newName oldVar
            (n, v) <- tryVXV newName sIS oldVar
            sColon
            eol
-           t <- typeOfVariable v
-           return $ A.Specification m n $ A.Is m A.Abbrev t v
+           return $ A.Specification m n $ A.Is m A.Abbrev A.Infer v
     <|> do m <- md
            (s, n, v) <- tryVVXV specifier newName sIS oldVar
            sColon
            eol
-           t <- typeOfVariable v
-           matchType m s t
            return $ A.Specification m n $ A.Is m A.Abbrev s v
     <?> "IS abbreviation"
 
@@ -1355,22 +1008,10 @@ chanArrayAbbrev
            sRight
            sColon
            eol
-           ts <- mapM typeOfVariable cs
-           t <- tableType m ts
-           case t of
-             (A.Array _ (A.Chan {})) -> return ()
-             _ -> dieP m $ "types do not match in channel array abbreviation"
-           return $ A.Specification m n $ A.IsChannelArray m t cs
+           return $ A.Specification m n $ A.IsChannelArray m A.Infer cs
     <|> do m <- md
-           (ct, s, n) <- try (do s <- channelSpecifier
-                                 n <- newChannelName
-                                 sIS
-                                 sLeft
-                                 ct <- trivialSubscriptType m s
-                                 case ct of
-                                   A.Chan {} -> return (ct, s, n)
-                                   _ -> pzero)
-           cs <- sepBy1 (channelOfType ct) sComma
+           (s, n) <- tryVVXX channelSpecifier newChannelName sIS sLeft
+           cs <- sepBy1 channel sComma
            sRight
            sColon
            eol
@@ -1414,8 +1055,8 @@ definition
            (rs, sm) <- tryVV (sepBy1 dataType sComma) (specMode sFUNCTION)
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList rs; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left $ A.Only m el) }
-             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess rs; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left vp) }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left $ A.Only m el) }
+             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left vp) }
     <|> retypesAbbrev
     <?> "definition"
 
@@ -1432,21 +1073,18 @@ retypesAbbrev
            v <- variable
            sColon
            eol
-           origT <- typeOfVariable v
            return $ A.Specification m n $ A.Retypes m A.Abbrev s v
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
            c <- channel
            sColon
            eol
-           origT <- typeOfVariable c
            return $ A.Specification m n $ A.Retypes m A.Abbrev s c
     <|> do m <- md
            (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
            e <- expression
            sColon
            eol
-           origT <- typeOfExpression e
            return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
     <?> "RETYPES/RESHAPES abbreviation"
 
@@ -1533,19 +1171,19 @@ formalVariableType
            return (A.Abbrev, s)
     <?> "formal variable type"
 
-valueProcess :: [A.Type] -> OccParser (A.Structured A.ExpressionList)
-valueProcess rs
+valueProcess :: OccParser (A.Structured A.ExpressionList)
+valueProcess
     =   do m <- md
            sVALOF
            eol
            indent
            p <- process
            sRESULT
-           el <- expressionList rs
+           el <- expressionList
            eol
            outdent
            return $ A.ProcThen m p (A.Only m el)
-    <|> handleSpecs specification (valueProcess rs) A.Spec
+    <|> handleSpecs specification valueProcess A.Spec
     <?> "value process"
 --}}}
 --{{{ RECORDs
@@ -1601,9 +1239,7 @@ assignment :: OccParser A.Process
 assignment
     =   do m <- md
            vs <- tryVX (sepBy1 variable sComma) sAssign
-           -- We ignore dimensions here because we do the check at runtime.
-           ts <- sequence [liftM removeFixedDimensions $ typeOfVariable v | v <- vs]
-           es <- expressionList ts
+           es <- expressionList
            eol
            return $ A.Assign m vs es
     <?> "assignment"
@@ -1622,8 +1258,7 @@ input
     <|> timerInput
     <|> do m <- md
            p <- tryVX port sQuest
-           A.Port t <- typeOfVariable p
-           v <- variableOfType t
+           v <- variable
            eol
            return (p, A.InputSimple m [A.InVariable m v])
     <?> "input"
@@ -1632,82 +1267,65 @@ channelInput :: OccParser (A.Variable, A.InputMode)
 channelInput
     =   do m <- md
            c <- tryVX channel sQuest
-           pis <- protocolItems c
-           case pis of
-             Left ts ->
-               do is <- intersperseP (map inputItem ts) sSemi
-                  eol
-                  return (c, A.InputSimple m is)
-             Right nts ->
-               do sCASE
-                  tl <- taggedList nts
-                  eol
-                  return (c, A.InputCase m (A.Only m (tl (A.Skip m))))
+           caseInput m c <|> plainInput m c
     <?> "channel input"
+  where
+    caseInput m c
+        = do sCASE
+             tl <- taggedList
+             eol
+             return (c, A.InputCase m (A.Only m (tl (A.Skip m))))
+    plainInput m c
+        = do is <- sepBy1 inputItem sSemi
+             eol
+             return (c, A.InputSimple m is)
 
 timerInput :: OccParser (A.Variable, A.InputMode)
 timerInput
     =   do m <- md
            c <- tryVX timer sQuest
-           do { v <- variableOfType A.Int; eol; return (c, A.InputTimerRead m (A.InVariable m v)) }
-             <|> do { sAFTER; e <- intExpr; eol; return (c, A.InputTimerAfter m e) }
+           do { v <- variable; eol; return (c, A.InputTimerRead m (A.InVariable m v)) }
+             <|> do { sAFTER; e <- expression; eol; return (c, A.InputTimerAfter m e) }
     <?> "timer input"
 
-taggedList :: [(A.Name, [A.Type])] -> OccParser (A.Process -> A.Variant)
-taggedList nts
+taggedList :: OccParser (A.Process -> A.Variant)
+taggedList
     =  do m <- md
           tag <- tagName
-          ts <- checkJust (Just m, "unknown tag in protocol") $ lookup tag nts
-          is <- sequence [sSemi >> inputItem t | t <- ts]
+          is <- many (sSemi >> inputItem)
           return $ A.Variant m tag is
     <?> "tagged list"
 
-inputItem :: A.Type -> OccParser A.InputItem
-inputItem t
-    = case t of
-        (A.Counted ct it) ->
-          do m <- md
-             v <- variableOfType ct
-             sColons
-             w <- variableOfType (addDimensions [A.UnknownDimension] it)
-             return $ A.InCounted m v w
-        A.Any ->
-          do m <- md
-             v <- variable
-             return $ A.InVariable m v
-        _ ->
-          do m <- md
-             v <- variableOfType t
-             return $ A.InVariable m v
+inputItem :: OccParser A.InputItem
+inputItem
+    =   do m <- md
+           v <- tryVX variable sColons
+           w <- variable
+           return $ A.InCounted m v w
+    <|> do m <- md
+           v <- variable
+           return $ A.InVariable m v
     <?> "input item"
 --}}}
 --{{{ variant input (? CASE)
-caseInputItems :: A.Variable -> OccParser [(A.Name, [A.Type])]
-caseInputItems c
-    =   do pis <- protocolItems c
-           case pis of
-             Left _ -> dieP (findMeta c) "CASE input on channel of non-variant protocol"
-             Right nts -> return nts
-
 caseInput :: OccParser A.Process
 caseInput
     =   do m <- md
-           c <- tryVX channel (do {sQuest; sCASE; eol})
-           nts <- caseInputItems c
-           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
+           c <- tryVX channel (sQuest >> sCASE >> eol)
+           vs <- maybeIndentedList m "empty ? CASE" variant
            return $ A.Input m c (A.InputCase m (A.Several m vs))
     <?> "case input"
 
-variant :: [(A.Name, [A.Type])] -> OccParser (A.Structured A.Variant)
-variant nts
+variant :: OccParser (A.Structured A.Variant)
+variant
     =   do m <- md
-           tl <- taggedList nts
+           tl <- taggedList
            eol
            indent
            p <- process
            outdent
            return $ A.Only m (tl p)
-    <|> handleSpecs specification (variant nts) A.Spec
+    <|> handleSpecs specification variant A.Spec
     <?> "variant"
 --}}}
 --{{{ output (!)
@@ -1716,8 +1334,7 @@ output
     =   channelOutput
     <|> do m <- md
            p <- tryVX port sBang
-           A.Port t <- typeOfVariable p
-           e <- expressionOfType t
+           e <- expression
            eol
            return $ A.Output m p [A.OutExpression m e]
     <?> "output"
@@ -1726,40 +1343,33 @@ channelOutput :: OccParser A.Process
 channelOutput
     =   do m <- md
            c <- tryVX channel sBang
-           -- This is an ambiguity in the occam grammar; you can't tell in "a ! b"
-           -- whether b is a variable or a tag, without knowing the type of a.
+           -- This is an ambiguity in the occam grammar; you can't tell in "a !
+           -- b" whether b is a variable or a tag, without knowing the type of
+           -- a.
+           -- FIXME: We should resolve this in a pass later, rather than doing
+           -- the check here.
            pis <- protocolItems c
            case pis of
-             Left ts ->
-               do os <- intersperseP (map outputItem ts) sSemi
+             Left _ ->
+               do os <- sepBy1 outputItem sSemi
                   eol
                   return $ A.Output m c os
-             Right nts ->
+             Right _ ->
                do tag <- tagName
-                  ts <- checkJust (Just m, "unknown tag in protocol") $ lookup tag nts
-                  os <- sequence [sSemi >> outputItem t | t <- ts]
+                  os <- many (sSemi >> outputItem)
                   eol
                   return $ A.OutputCase m c tag os
     <?> "channel output"
 
-outputItem :: A.Type -> OccParser A.OutputItem
-outputItem t
-    = case t of
-        (A.Counted ct it) ->
-          do m <- md
-             a <- expressionOfType ct
-             sColons
-             b <- expressionOfType (addDimensions [A.UnknownDimension] it)
-             return $ A.OutCounted m a b
-        A.Any ->
-          do m <- md
-             e <- expression
-             t <- typeOfExpression e
-             return $ A.OutExpression m e
-        _ ->
-          do m <- md
-             e <- expressionOfType t
-             return $ A.OutExpression m e
+outputItem :: OccParser A.OutputItem
+outputItem
+    =   do m <- md
+           a <- tryVX expression sColons
+           b <- expression
+           return $ A.OutCounted m a b
+    <|> do m <- md
+           e <- expression
+           return $ A.OutExpression m e
     <?> "output item"
 --}}}
 --{{{ SEQ
@@ -1797,7 +1407,7 @@ ifChoice
 guardedChoice :: OccParser (A.Structured A.Choice)
 guardedChoice
     =   do m <- md
-           b <- booleanExpr
+           b <- expression
            eol
            indent
            p <- process
@@ -1811,18 +1421,15 @@ caseProcess
     =   do m <- md
            sCASE
            sel <- expression
-           t <- typeOfExpression sel
-           t' <- underlyingType m t
-           when (not $ isCaseableType t') $ dieP m "case selector has non-CASEable type"
            eol
-           os <- maybeIndentedList m "empty CASE" (caseOption t)
+           os <- maybeIndentedList m "empty CASE" caseOption
            return $ A.Case m sel (A.Several m os)
     <?> "CASE process"
 
-caseOption :: A.Type -> OccParser (A.Structured A.Option)
-caseOption t
+caseOption :: OccParser (A.Structured A.Option)
+caseOption
     =   do m <- md
-           ces <- tryVX (sepBy (expressionOfType t) sComma) eol
+           ces <- tryVX (sepBy1 expression sComma) eol
            indent
            p <- process
            outdent
@@ -1834,7 +1441,7 @@ caseOption t
            p <- process
            outdent
            return $ A.Only m (A.Else m p)
-    <|> handleSpecs specification (caseOption t) A.Spec
+    <|> handleSpecs specification caseOption A.Spec
     <?> "option"
 --}}}
 --{{{ WHILE
@@ -1842,7 +1449,7 @@ whileProcess :: OccParser A.Process
 whileProcess
     =   do m <- md
            sWHILE
-           b <- booleanExpr
+           b <- expression
            eol
            indent
            p <- process
@@ -1871,7 +1478,7 @@ processor :: OccParser A.Process
 processor
     =   do m <- md
            sPROCESSOR
-           e <- intExpr
+           e <- expression
            eol
            indent
            p <- process
@@ -1911,14 +1518,12 @@ alternative
     -- These are special cases to deal with c ? CASE inside ALTs -- the normal
     -- guards are below.
     <|> do m <- md
-           (b, c) <- tryVXVXX booleanExpr sAmp channel sQuest (sCASE >> eol)
-           nts <- caseInputItems c
-           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
+           (b, c) <- tryVXVX expression sAmp channel (sQuest >> sCASE >> eol)
+           vs <- maybeIndentedList m "empty ? CASE" variant
            return $ A.Only m (A.AlternativeCond m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> do m <- md
            c <- tryVXX channel sQuest (sCASE >> eol)
-           nts <- caseInputItems c
-           vs <- maybeIndentedList m "empty ? CASE" (variant nts)
+           vs <- maybeIndentedList m "empty ? CASE" variant
            return $ A.Only m (A.Alternative m c (A.InputCase m $ A.Several m vs) (A.Skip m))
     <|> guardedAlternative
     <|> handleSpecs specification alternative A.Spec
@@ -1940,12 +1545,13 @@ guard
            (c, im) <- input
            return $ A.Alternative m c im
     <|> do m <- md
-           b <- tryVX booleanExpr sAmp
+           b <- tryVX expression sAmp
            do { (c, im) <- input; return $ A.AlternativeCond m b c im }
              <|> do { sSKIP; eol; return $ A.AlternativeSkip m b }
     <?> "guard"
 --}}}
 --{{{ PROC calls
+-- FIXME: This shouldn't need to look at the definition
 procInstance :: OccParser A.Process
 procInstance
     =  do m <- md
@@ -1964,18 +1570,16 @@ actuals fs = intersperseP (map actual fs) sComma
 actual :: A.Formal -> OccParser A.Actual
 actual (A.Formal am t n)
     =  do case am of
-            A.ValAbbrev ->
-              do e <- expressionOfType t
-                 return $ A.ActualExpression e
+            A.ValAbbrev -> expression >>* A.ActualExpression
             _ ->
               case stripArrayType t of
-                A.Chan {} -> var (channelOfType t)
+                A.Chan {} -> var channel
                 A.Timer {} -> var timer
-                A.Port _ -> var (portOfType t)
-                _ -> var (variableOfType t)
+                A.Port _ -> var port
+                _ -> var variable
     <?> "actual of type " ++ showOccam t ++ " for " ++ show n
     where
-      var inner = liftM A.ActualVariable inner
+      var inner = inner >>* A.ActualVariable
 --}}}
 --{{{ intrinsic PROC call
 intrinsicProcName :: OccParser (String, [A.Formal])
