@@ -17,7 +17,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Evaluate constant expressions.
-module EvalConstants (constantFold, maybeEvalIntExpression, isConstantName) where
+module EvalConstants
+    ( constantFold
+    , evalIntExpression
+    , isConstantName
+    ) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -48,14 +52,14 @@ constantFold e
               do e' <- renderValue (findMeta e) t val
                  return (e', isConstant e', (Nothing, "already folded"))
 
--- | Try to fold and evaluate an integer expression.
--- If it's not a constant, return 'Nothing'.
-maybeEvalIntExpression :: (CSMR m, Die m) => A.Expression -> m (Maybe Int)
-maybeEvalIntExpression e
-    =  do (e', isConst, _) <- constantFold e
-          if isConst
-            then evalIntExpression e' >>* Just
-            else return Nothing
+-- | Evaluate a constant integer expression.
+evalIntExpression :: (CSMR m, Die m) => A.Expression -> m Int
+evalIntExpression e
+    =  do ps <- getCompState
+          case runEvaluator ps (evalExpression e) of
+            Left (m, err) -> dieReport (m, "cannot evaluate expression: " ++ err)
+            Right (OccInt val) -> return $ fromIntegral val
+            Right _ -> dieP (findMeta e) "expression is not of INT type"
 
 -- | Is a name defined as a constant expression? If so, return its definition.
 getConstantName :: (CSMR m, Die m) => A.Name -> m (Maybe A.Expression)

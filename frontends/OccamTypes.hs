@@ -27,7 +27,6 @@ import qualified AST as A
 import CompState
 import Errors
 import EvalConstants
-import EvalLiterals
 import Intrinsics
 import Metadata
 import Pass
@@ -552,10 +551,17 @@ evalBytesInType :: A.Type -> PassM (BytesInResult, Maybe Int)
 evalBytesInType t
     =  do bi <- bytesInType t
           n <- case bi of
-                 BIJust e -> maybeEvalIntExpression e
-                 BIOneFree e _ -> maybeEvalIntExpression e
+                 BIJust e -> foldEval e
+                 BIOneFree e _ -> foldEval e
                  _ -> return Nothing
           return (bi, n)
+  where
+    foldEval :: A.Expression -> PassM (Maybe Int)
+    foldEval e
+        =  do (e', isConst, _) <- constantFold e
+              if isConst
+                then evalIntExpression e' >>* Just
+                else return Nothing
 
 --}}}
 --{{{  type context management

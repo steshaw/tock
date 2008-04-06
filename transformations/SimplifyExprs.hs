@@ -26,7 +26,7 @@ import qualified Data.Map as Map
 import qualified AST as A
 import CompState
 import Errors
-import EvalLiterals
+import EvalConstants
 import Metadata
 import Pass
 import qualified Properties as Prop

@@ -73,15 +73,6 @@ isConstantArray :: A.ArrayElem -> Bool
 isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
 isConstantArray (A.ArrayElemExpr e) = isConstant e
 
--- | Evaluate a constant integer expression.
-evalIntExpression :: (CSMR m, Die m) => A.Expression -> m Int
-evalIntExpression e
-    =  do ps <- getCompState
-          case runEvaluator ps (evalSimpleExpression e) of
-            Left (m,err) -> dieReport (m,"cannot evaluate expression: " ++ err)
-            Right (OccInt val) -> return $ fromIntegral val
-            Right _ -> dieP (findMeta e) "expression is not of INT type"
-
 -- | Evaluate a byte literal.
 evalByte :: (CSMR m, Die m) => String -> m Char
 evalByte s
