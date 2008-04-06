@@ -46,7 +46,7 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     , ("Check mandatory constants", checkConstants,
        [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
-    , ("Infer types", astAndState inferTypes,
+    , ("Infer types", inferTypes,
        [],
        [Prop.inferredTypesRecorded])
     , ("Resolve ambiguities", resolveAmbiguities,
@@ -60,13 +60,6 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
        [],
        Prop.agg_namesDone ++ [Prop.mainTagged])
     ]
-  where
-    -- Apply a pass to both the AST and the state.
-    astAndState :: (forall t. Data t => t -> PassM t) -> A.AST -> PassM A.AST
-    astAndState p ast
-        =  do ast' <- p ast
-              get >>= p >>= put
-              return ast'
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Data t => t -> PassM t
