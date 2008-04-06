@@ -652,6 +652,9 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                             Nothing -> return Nothing
                   e' <- inTypeContext ctx' $ inferTypes e
                   return $ A.SubscriptedExpr m s' e'
+            A.BytesInExpr _ _ -> noTypeContext $ descend outer
+            -- FIXME: ExprConstr
+            -- FIXME: AllocMobile
 
             -- Other expressions don't modify the type context.
             _ -> descend outer
