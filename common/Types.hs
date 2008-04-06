@@ -120,6 +120,8 @@ dimensionFromExpr e
 -- | Apply a subscript to a type, and return what the type is after it's been
 -- subscripted.
 subscriptType :: (CSMR m, Die m) => A.Subscript -> A.Type -> m A.Type
+subscriptType sub A.Infer
+    = return $ A.Infer
 subscriptType sub t@(A.UserDataType _)
     = resolveUserType (findMeta sub) t >>= subscriptType sub
 subscriptType (A.SubscriptFromFor m _ count) (A.Array (_:ds) t)
@@ -155,6 +157,9 @@ unsubscriptType (A.Subscript _ _ sub) t
 -- This is used for the couple of cases where we know it's safe and don't want
 -- the usage check.
 trivialSubscriptType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
+trivialSubscriptType _ A.Infer = return A.Infer
+trivialSubscriptType m t@(A.UserDataType _)
+    = resolveUserType m t >>= trivialSubscriptType m
 trivialSubscriptType _ (A.Array [d] t) = return t
 trivialSubscriptType _ (A.Array (d:ds) t) = return $ A.Array ds t
 trivialSubscriptType m t = diePC m $ formatCode "not plain array type: %" t
