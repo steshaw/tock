@@ -219,7 +219,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
     makeStaticSizeSpec :: Meta -> A.Name -> [A.Dimension] -> A.SpecType
     makeStaticSizeSpec m n ds = makeDynamicSizeSpec m n es
       where
-        es = [e | A.Dimension e <- ds]
+        es = [case d of A.Dimension e -> e | d <- ds]
 
     makeDynamicSizeSpec :: Meta -> A.Name -> [A.Expression] -> A.SpecType
     makeDynamicSizeSpec m n es = sizeSpecType
