@@ -186,6 +186,23 @@ lookupNameOrError n err
             Just nd -> return nd
             Nothing -> err
 
+-- | Make a name unique by appending a suffix to it.
+makeUniqueName :: CSM m => String -> m String
+makeUniqueName s
+    =  do st <- get
+          put $ st { csNameCounter = csNameCounter st + 1 }
+          return $ s ++ "_u" ++ show (csNameCounter st)
+
+-- | Find an unscoped name -- or define a new one if it doesn't already exist.
+findUnscopedName :: CSM m => A.Name -> m A.Name
+findUnscopedName n@(A.Name m nt s)
+    =  do st <- get
+          case Map.lookup s (csUnscopedNames st) of
+            Just s' -> return $ A.Name m nt s'
+            Nothing ->
+              do s' <- makeUniqueName s
+                 modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
+                 return $ A.Name m nt s'
 --}}}
 
 --{{{  pulled items

@@ -371,22 +371,6 @@ findName thisN
             then dieP (A.nameMeta thisN) $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
-makeUniqueName :: String -> OccParser String
-makeUniqueName s
-    =  do st <- get
-          put $ st { csNameCounter = csNameCounter st + 1 }
-          return $ s ++ "_u" ++ show (csNameCounter st)
-
-findUnscopedName :: A.Name -> OccParser A.Name
-findUnscopedName n@(A.Name m nt s)
-    =  do st <- get
-          case Map.lookup s (csUnscopedNames st) of
-            Just s' -> return $ A.Name m nt s'
-            Nothing ->
-              do s' <- makeUniqueName s
-                 modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
-                 return $ A.Name m nt s'
-
 scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
 scopeIn n@(A.Name m nt s) specType am
     =  do st <- getState
