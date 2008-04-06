@@ -141,6 +141,8 @@ subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %
 -- | The inverse of 'subscriptType': given a type that we know is the result of
 -- a subscript, return what the type being subscripted is.
 unsubscriptType :: (CSMR m, Die m) => A.Subscript -> A.Type -> m A.Type
+unsubscriptType _ A.Infer
+    = return $ A.Infer
 unsubscriptType (A.SubscriptFromFor _ _ _) t
     = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptFrom _ _) t
