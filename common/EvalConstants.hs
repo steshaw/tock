@@ -282,14 +282,16 @@ evalDyadic op _ _ = throwError (Nothing, "bad dyadic op: " ++ show op)
 renderValue :: (CSMR m, Die m) => Meta -> A.Type -> OccValue -> m A.Expression
 renderValue m _ (OccBool True) = return $ A.True m
 renderValue m _ (OccBool False) = return $ A.False m
-renderValue m t v = renderLiteral m t v >>* A.Literal m t
+renderValue m t v
+    =  do (t', lr) <- renderLiteral m t v
+          return $ A.Literal m t' lr
 
 -- | Convert an 'OccValue' back into a 'LiteralRepr'.
-renderLiteral :: forall m. (CSMR m, Die m) => Meta -> A.Type -> OccValue -> m A.LiteralRepr
+renderLiteral :: forall m. (CSMR m, Die m) => Meta -> A.Type -> OccValue -> m (A.Type, A.LiteralRepr)
 renderLiteral m t v
     = case v of
         OccByte c ->
-          return $ A.ByteLiteral m $ renderChar (chr $ fromIntegral c)
+          return (t, A.ByteLiteral m $ renderChar (chr $ fromIntegral c))
         OccUInt16 i -> renderInt i
         OccUInt32 i -> renderInt i
         OccUInt64 i -> renderInt i
@@ -313,27 +315,40 @@ renderLiteral m t v
       | otherwise           = [c]
       where o = ord c
 
-    renderInt :: Show s => s -> m A.LiteralRepr
-    renderInt i = return $ A.IntLiteral m $ show i
+    renderInt :: Show s => s -> m (A.Type, A.LiteralRepr)
+    renderInt i = return (t, A.IntLiteral m $ show i)
 
-    renderArray :: [OccValue] -> m A.LiteralRepr
+    renderArray :: [OccValue] -> m (A.Type, A.LiteralRepr)
     renderArray vs
-        =  do subT <- trivialSubscriptType m t
-              aes <- mapM (renderArrayElem subT) vs
-              return $ A.ArrayLiteral m aes
+        =  do (t', aes) <- renderArrayElems t vs
+              return (t', A.ArrayLiteral m aes)
 
-    renderArrayElem :: A.Type -> OccValue -> m A.ArrayElem
+    -- We must make sure to apply array sizes if we've learned them while
+    -- expanding the literal.
+    renderArrayElems :: A.Type -> [OccValue] -> m (A.Type, [A.ArrayElem])
+    renderArrayElems t vs
+        =  do subT <- trivialSubscriptType m t
+              (ts, aes) <- mapM (renderArrayElem subT) vs >>* unzip
+              let dim = makeDimension m $ length aes
+                  t' = case ts of
+                         [] -> applyDimension dim t
+                         _ -> addDimensions [dim] (head ts)
+              return (t', aes)
+
+    renderArrayElem :: A.Type -> OccValue -> m (A.Type, A.ArrayElem)
     renderArrayElem t (OccArray vs)
-        =  do subT <- trivialSubscriptType m t
-              aes <- mapM (renderArrayElem subT) vs
-              return $ A.ArrayElemArray aes
-    renderArrayElem t v = renderValue m t v >>* A.ArrayElemExpr
+        =  do (t', aes) <- renderArrayElems t vs
+              return (t', A.ArrayElemArray aes)
+    renderArrayElem t v
+        =  do e <- renderValue m t v
+              t' <- typeOfExpression e
+              return (t', A.ArrayElemExpr e)
 
-    renderRecord :: [OccValue] -> m A.LiteralRepr
+    renderRecord :: [OccValue] -> m (A.Type, A.LiteralRepr)
     renderRecord vs
         =  do ts <- case t of
                       A.Infer -> return [A.Infer | _ <- vs]
                       _ -> recordFields m t >>* map snd
               es <- sequence [renderValue m fieldT v | (fieldT, v) <- zip ts vs]
-              return $ A.RecordLiteral m es
+              return (t, A.RecordLiteral m es)
 --}}}
