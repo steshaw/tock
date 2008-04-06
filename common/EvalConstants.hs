@@ -275,7 +275,7 @@ renderValue m _ (OccBool False) = return $ A.False m
 renderValue m t v = renderLiteral m t v >>* A.Literal m t
 
 -- | Convert an 'OccValue' back into a 'LiteralRepr'.
-renderLiteral :: (CSMR m, Die m) => Meta -> A.Type -> OccValue -> m A.LiteralRepr
+renderLiteral :: forall m. (CSMR m, Die m) => Meta -> A.Type -> OccValue -> m A.LiteralRepr
 renderLiteral m t v
     = case v of
         OccByte c ->
@@ -303,23 +303,23 @@ renderLiteral m t v
       | otherwise           = [c]
       where o = ord c
 
-    renderInt :: (Show s, CSMR m, Die m) => s -> m A.LiteralRepr
+    renderInt :: Show s => s -> m A.LiteralRepr
     renderInt i = return $ A.IntLiteral m $ show i
 
-    renderArray :: (CSMR m, Die m) => [OccValue] -> m A.LiteralRepr
+    renderArray :: [OccValue] -> m A.LiteralRepr
     renderArray vs
         =  do subT <- trivialSubscriptType m t
               aes <- mapM (renderArrayElem subT) vs
               return $ A.ArrayLiteral m aes
 
-    renderArrayElem :: (CSMR m, Die m) => A.Type -> OccValue -> m A.ArrayElem
+    renderArrayElem :: A.Type -> OccValue -> m A.ArrayElem
     renderArrayElem t (OccArray vs)
         =  do subT <- trivialSubscriptType m t
               aes <- mapM (renderArrayElem subT) vs
               return $ A.ArrayElemArray aes
     renderArrayElem t v = renderValue m t v >>* A.ArrayElemExpr
 
-    renderRecord :: (CSMR m, Die m) => [OccValue] -> m A.LiteralRepr
+    renderRecord :: [OccValue] -> m A.LiteralRepr
     renderRecord vs
         =  do ts <- case t of
                       A.Infer -> return [A.Infer | _ <- vs]
