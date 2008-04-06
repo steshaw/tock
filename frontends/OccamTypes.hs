@@ -449,8 +449,8 @@ protocolTypes m t tag
                   case lookup tagName ntss of
                     Just ts -> return ts
                     Nothing -> diePC m $ formatCode "Tag % not found in protocol %; expected one of %" tagName n (map fst ntss)
-                (A.ProtocolCase _ _, Nothing) ->
-                  diePC m $ formatCode "No tag specified for variant protocol %" n
+                (A.ProtocolCase _ ntss, Nothing) ->
+                  diePC m $ formatCode "No tag specified for variant protocol %; expected one of %" n (map fst ntss)
                 -- Not actually a protocol.
                 _ -> diePC m $ formatCode "% is not a protocol" n
         -- Not a protocol (e.g. CHAN INT); just return it.
