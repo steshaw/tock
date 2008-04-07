@@ -877,10 +877,14 @@ inferTypes = applyExplicitM10 doExpression doDimension doSubscript
     -- | Resolve the @v[s]@ ambiguity: this takes the type that @v@ is, and
     -- returns the correct 'Subscript'.
     fixSubscript :: A.Type -> A.Subscript -> PassM A.Subscript
-    fixSubscript (A.Record _) (A.Subscript m _ (A.ExprVariable _ (A.Variable _ wrong)))
-        =  do n <- nameToUnscoped wrong
-              return $ A.SubscriptField m n
-    fixSubscript t s = return s
+    fixSubscript t s@(A.Subscript m _ (A.ExprVariable _ (A.Variable _ wrong)))
+        =  do underT <- resolveUserType m t
+              case underT of
+                A.Record _ ->
+                  do n <- nameToUnscoped wrong
+                     return $ A.SubscriptField m n
+                _ -> return s
+    fixSubscript _ s = return s
 
     -- | Given a name that should really have been a tag, make it one.
     nameToUnscoped :: A.Name -> PassM A.Name
