@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Traversal (
     ExplicitTrans, Transform, Check
   , transformToExplicitDepth, checkToTransform
-  , applyExplicitM, applyExplicitM2, applyExplicitM9
+  , applyExplicitM, applyExplicitM2, applyExplicitM9, applyExplicitM10
   , applyDepthM, applyDepthM2
   , checkDepthM
   ) where
@@ -122,6 +122,53 @@ applyExplicitM9 f1 f2 f3 f4 f5 f6 f7 f8 f9
 
     doGeneric :: Data t => t -> PassM t
     doGeneric = gmapMFor typeSet (applyExplicitM9 f1 f2 f3 f4 f5 f6 f7 f8 f9)
+
+    doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
+    doSpecific f x = f doGeneric x
+
+-- | Apply ten explicit transformations.
+applyExplicitM10 :: forall t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 s.
+                   (Data t1, Data t2, Data t3, Data t4, Data t5, Data t6,
+                    Data t7, Data t8, Data t9, Data t10, Data s) =>
+                   ExplicitTrans t1
+                   -> ExplicitTrans t2
+                   -> ExplicitTrans t3
+                   -> ExplicitTrans t4
+                   -> ExplicitTrans t5
+                   -> ExplicitTrans t6
+                   -> ExplicitTrans t7
+                   -> ExplicitTrans t8
+                   -> ExplicitTrans t9
+                   -> ExplicitTrans t10
+                   -> s -> PassM s
+applyExplicitM10 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10
+    = doGeneric `extM` (doSpecific f1)
+                `extM` (doSpecific f2)
+                `extM` (doSpecific f3)
+                `extM` (doSpecific f4)
+                `extM` (doSpecific f5)
+                `extM` (doSpecific f6)
+                `extM` (doSpecific f7)
+                `extM` (doSpecific f8)
+                `extM` (doSpecific f9)
+                `extM` (doSpecific f10)
+  where
+    typeSet :: [TypeKey]
+    typeSet = [ typeKey (undefined :: t1)
+              , typeKey (undefined :: t2)
+              , typeKey (undefined :: t3)
+              , typeKey (undefined :: t4)
+              , typeKey (undefined :: t5)
+              , typeKey (undefined :: t6)
+              , typeKey (undefined :: t7)
+              , typeKey (undefined :: t8)
+              , typeKey (undefined :: t9)
+              , typeKey (undefined :: t10)
+              ]
+
+    doGeneric :: Data t => t -> PassM t
+    doGeneric = gmapMFor typeSet (applyExplicitM10 f1 f2 f3 f4 f5
+                                                   f6 f7 f8 f9 f10)
 
     doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
     doSpecific f x = f doGeneric x
