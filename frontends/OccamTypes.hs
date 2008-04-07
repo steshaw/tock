@@ -890,7 +890,7 @@ inferTypes = applyExplicitM10 doExpression doDimension doSubscript
     nameToUnscoped :: A.Name -> PassM A.Name
     nameToUnscoped n@(A.Name m nt _)
         =  do nd <- lookupName n
-              findUnscopedName (A.Name m nt (A.ndOrigName nd))
+              findUnscopedName (A.Name m A.FieldName (A.ndOrigName nd))
 
     -- | Process a 'LiteralRepr', taking the type it's meant to represent or
     -- 'Infer', and returning the type it really is.
