@@ -625,7 +625,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             -- context.
             A.Dyadic m op le re ->
               case classifyOp op of
-                -- Infer the RHS type from the LHS.
+                -- No info about the LHS; infer the RHS type from the LHS.
                 ComparisonOp ->
                   do le' <- noTypeContext $ inferTypes le
                      t <- typeOfExpression le'
@@ -636,8 +636,13 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   do le' <- inferTypes le
                      re' <- inTypeContext (Just A.Int) $ inferTypes re
                      return $ A.Dyadic m op le' re'
-                -- Otherwise it's the type we already have.
-                _ -> descend outer
+                -- Otherwise infer the LHS from the current context,
+                -- then the RHS from that.
+                _ ->
+                  do le' <- inferTypes le
+                     t <- typeOfExpression le'
+                     re' <- inTypeContext (Just t) $ inferTypes re
+                     return $ A.Dyadic m op le' re'
             A.SizeExpr _ _ -> noTypeContext $ descend outer
             A.Conversion _ _ _ _ -> noTypeContext $ descend outer
             A.FunctionCall m n es ->
