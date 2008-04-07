@@ -70,11 +70,9 @@ unpackMeta s
     getInt s = case readDec s of [(v, "")] -> v
 
 -- | Find the first Meta value in some part of the AST.
-findMeta :: (Data t, Typeable t) => t -> Meta
-findMeta e = case cast e of
-               Just m -> m
-               Nothing -> if null (concat metaList) then emptyMeta else head (concat metaList)
-  where
-    metaList = gmapQ (mkQ [] findMeta') e
-    findMeta' :: Meta -> [Meta]
-    findMeta' m = [m]
+-- Return 'emptyMeta' if it couldn't find one.
+findMeta :: Data t => t -> Meta
+findMeta e
+    = case listify (const True :: Meta -> Bool) e of
+        (m:_) -> m
+        [] -> emptyMeta
