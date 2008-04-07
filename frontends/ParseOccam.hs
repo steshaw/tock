@@ -614,27 +614,32 @@ table
 table' :: OccParser A.Expression
 table'
     =   do m <- md
-           lr <- tableElems
+           (defT, lr) <- tableElems
            t <- typeDecorator
-           return $ A.Literal m t lr
+           let t' = case t of
+                      A.Infer -> defT
+                      _ -> t
+           return $ A.Literal m t' lr
     <|> maybeSliced table A.SubscriptedExpr
     <?> "table'"
 
-tableElems :: OccParser A.LiteralRepr
+tableElems :: OccParser (A.Type, A.LiteralRepr)
 tableElems
     =   stringLiteral
     <|> do m <- md
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
-           return $ A.ArrayLiteral m (map A.ArrayElemExpr es)
+           return (A.Infer, A.ArrayLiteral m (map A.ArrayElemExpr es))
     <?> "table elements"
 
-stringLiteral :: OccParser A.LiteralRepr
+-- String literals are implicitly typed []BYTE unless otherwise specified, so
+-- we can tell the type of "".
+stringLiteral :: OccParser (A.Type, A.LiteralRepr)
 stringLiteral
     =  do m <- md
           cs <- stringCont <|> stringLit
           let aes = [A.ArrayElemExpr $ A.Literal m' A.Infer c
                      | c@(A.ByteLiteral m' _) <- cs]
-          return $ A.ArrayLiteral m aes
+          return (A.Array [A.UnknownDimension] A.Byte, A.ArrayLiteral m aes)
     <?> "string literal"
   where
     stringCont :: OccParser [A.LiteralRepr]
