@@ -860,7 +860,8 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             A.ArrayLiteral m aes ->
                do (t, A.ArrayElemArray aes') <-
                     doArrayElem wantT (A.ArrayElemArray aes)
-                  return (t, A.ArrayLiteral m aes')
+                  lr' <- buildTable t aes'
+                  return (t, lr')
             _ ->
                do lr' <- descend lr
                   (defT, isT) <-
@@ -876,6 +877,8 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                     (_, True) -> return (wantT, lr')
                     (_, False) -> diePC m $ formatCode "Literal of default type % is not valid for type %" defT wantT
       where
+        m = findMeta lr
+
         doArrayElem :: A.Type -> A.ArrayElem -> PassM (A.Type, A.ArrayElem)
         -- A table: this could be an array or a record.
         doArrayElem wantT (A.ArrayElemArray aes)
@@ -883,26 +886,34 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   case underT of
                     A.Array _ _ ->
                        do subT <- trivialSubscriptType m underT
-                          taes <- mapM (doArrayElem subT) aes
-                          return (applyDimension (makeDimension m $ length aes)
-                                                 wantT,
-                                  A.ArrayElemArray (map snd taes))
-                    -- FIXME: Implement this
-                    A.Record n -> dieP m "FIXME: implement record constants"
+                          (elemT, aes') <- doElems subT aes
+                          let dims = [makeDimension m (length aes)]
+                          return (addDimensions dims elemT,
+                                  A.ArrayElemArray aes')
+                    A.Record _ ->
+                       do nts <- recordFields m underT
+                          aes <- sequence [doArrayElem t ae >>* snd
+                                           | ((_, t), ae) <- zip nts aes]
+                          return (wantT, A.ArrayElemArray aes)
                     -- If we don't know, assume it's an array.
                     A.Infer ->
-                       do taes <- mapM (doArrayElem A.Infer) aes
-                          elemT <- case taes of
-                                     -- Empty list -- can't tell what
-                                     -- the element type is.
-                                     [] -> dieP m "Cannot infer type of empty array"
-                                     -- Else use the type of the first
-                                     -- element.
-                                     ((t, _):_) -> return t
-                          let dims = [makeDimension m (length taes)]
+                       do (elemT, aes') <- doElems A.Infer aes
+                          when (elemT == A.Infer) $
+                            dieP m "Cannot infer type of (empty?) array"
+                          let dims = [makeDimension m (length aes)]
                           return (addDimensions dims elemT,
-                                  A.ArrayElemArray (map snd taes))
+                                  A.ArrayElemArray aes')
                     _ -> diePC m $ formatCode "Table literal is not valid for type %" wantT
+          where
+            -- | When walking along an array literal, use the type of the
+            -- first element as the default for the rest.
+            doElems :: A.Type -> [A.ArrayElem] -> PassM (A.Type, [A.ArrayElem])
+            doElems t [] = return (t, [])
+            doElems t (ae:aes)
+                =  do (t', ae') <- doArrayElem t ae
+                      aes' <- sequence [doArrayElem t' ae >>* snd
+                                        | ae <- aes]
+                      return (t', ae':aes')
         -- An expression: descend into it with the right context.
         doArrayElem wantT (A.ArrayElemExpr e)
             =  do e' <- inTypeContext (Just wantT) $ doExpression descend e
@@ -910,7 +921,39 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   checkType (findMeta e') wantT t
                   return (t, A.ArrayElemExpr e')
 
-        m = findMeta lr
+        -- | Turn a raw table literal into the appropriate combination of
+        -- arrays and records.
+        buildTable :: A.Type -> [A.ArrayElem] -> PassM A.LiteralRepr
+        buildTable t aes
+            =  do underT <- underlyingType m t
+                  case underT of
+                    A.Array _ _ ->
+                       do elemT <- trivialSubscriptType m t
+                          aes' <- mapM (buildElem elemT) aes
+                          return $ A.ArrayLiteral m aes'
+                    A.Record _ ->
+                       do nts <- recordFields m underT
+                          aes' <- sequence [buildExpr elemT ae
+                                            | ((_, elemT), ae) <- zip nts aes]
+                          return $ A.RecordLiteral m aes'
+          where
+            buildExpr :: A.Type -> A.ArrayElem -> PassM A.Expression
+            buildExpr t (A.ArrayElemArray aes)
+                =  do lr <- buildTable t aes
+                      return $ A.Literal m t lr
+            buildExpr _ (A.ArrayElemExpr e) = return e
+
+            buildElem :: A.Type -> A.ArrayElem -> PassM A.ArrayElem
+            buildElem t ae
+                =  do underT <- underlyingType m t
+                      case (underT, ae) of
+                        (A.Array _ _, A.ArrayElemArray aes) ->
+                           do A.ArrayLiteral _ aes' <- buildTable t aes
+                              return $ A.ArrayElemArray aes'
+                        (A.Record _, A.ArrayElemArray _) ->
+                           do e <- buildExpr t ae
+                              return $ A.ArrayElemExpr e
+                        (_, A.ArrayElemExpr _) -> return ae
 
 --}}}
 --{{{  checkTypes
