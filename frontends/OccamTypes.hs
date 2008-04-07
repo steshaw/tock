@@ -923,8 +923,8 @@ inferTypes = applyExplicitM10 doExpression doDimension doSubscript
                     A.Array _ _ ->
                        do subT <- trivialSubscriptType m underT
                           (elemT, aes') <- doElems subT aes
-                          let dims = [makeDimension m (length aes)]
-                          return (addDimensions dims elemT,
+                          let dim = makeDimension m (length aes)
+                          return (applyDimension dim wantT,
                                   A.ArrayElemArray aes')
                     A.Record _ ->
                        do nts <- recordFields m underT
