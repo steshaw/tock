@@ -21,9 +21,7 @@ module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (liftM)
 import Control.Monad.State (MonadState, modify, get, put)
-import Control.Monad.Writer (tell)
 import Data.List
-import qualified Data.Map as Map
 import Data.Maybe
 import Text.ParserCombinators.Parsec
 
@@ -259,44 +257,26 @@ tryVVXV a b c d = try (do { av <- a; bv <- b; c; dv <- d; return (av, bv, dv) })
 --}}}
 
 --{{{ subscripts
--- FIXME: This shouldn't need to care about types.
--- At the moment it does in order to resolve the c[x] ambiguity -- is x a field
--- or a variable?
-maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> (a -> OccParser A.Type) -> OccParser a
-maybeSubscripted prodName inner subscripter typer
+maybeSubscripted :: String -> OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
+maybeSubscripted prodName inner subscripter
     =  do m <- md
           v <- inner
-          t <- typer v
-          subs <- postSubscripts t
+          subs <- many postSubscript
           return $ foldl (\var sub -> subscripter m sub var) v subs
     <?> prodName
 
-postSubscripts :: A.Type -> OccParser [A.Subscript]
-postSubscripts t
-    = (do sub <- postSubscript t
-          t' <- subscriptType sub t
-          rest <- postSubscripts t'
-          return $ sub : rest)
-      <|> return []
-
-postSubscript :: A.Type -> OccParser A.Subscript
-postSubscript t
-    =  do m <- md
-          t' <- resolveUserType m t
-          case t' of
-            A.Record _ ->
-              do f <- tryXV sLeft fieldName
-                 sRight
-                 return $ A.SubscriptField m f
-            -- FIXME: This is a hack (that we're not matching A.Array here); if
-            -- we aren't *sure* it's a record, then we assume it's an array.
-            -- This will break on code like:
-            --   VAL a IS some.record:
-            --   ... a[field]
-            _ ->
-              do e <- tryXV sLeft expression
-                 sRight
-                 return $ A.Subscript m A.CheckBoth e
+postSubscript :: OccParser A.Subscript
+postSubscript
+    -- AMBIGUITY: in [x], x may be a variable or a field name.
+    =   do m <- md
+           e <- tryXV sLeft expression
+           sRight
+           return $ A.Subscript m A.CheckBoth e
+    <|> do m <- md
+           f <- tryXV sLeft fieldName
+           sRight
+           return $ A.SubscriptField m f
+    <?> "subscript"
 
 maybeSliced :: OccParser a -> (Meta -> A.Subscript -> a -> a) -> OccParser a
 maybeSliced inner subscripter
@@ -609,7 +589,7 @@ byte
 -- literals collapsed, and record literals are array literals of type []ANY.
 table :: OccParser A.Expression
 table
-    = maybeSubscripted "table" table' A.SubscriptedExpr typeOfExpression
+    = maybeSubscripted "table" table' A.SubscriptedExpr
 
 table' :: OccParser A.Expression
 table'
@@ -814,7 +794,7 @@ conversionMode
 --{{{ operands
 operand :: OccParser A.Expression
 operand
-    = maybeSubscripted "operand" operand' A.SubscriptedExpr typeOfExpression
+    = maybeSubscripted "operand" operand' A.SubscriptedExpr
 
 operand' :: OccParser A.Expression
 operand'
@@ -838,7 +818,7 @@ operand'
 --{{{ variables, channels, timers, ports
 variable :: OccParser A.Variable
 variable
-    = maybeSubscripted "variable" variable' A.SubscriptedVariable typeOfVariable
+    = maybeSubscripted "variable" variable' A.SubscriptedVariable
 
 variable' :: OccParser A.Variable
 variable'
@@ -848,7 +828,7 @@ variable'
 
 channel :: OccParser A.Variable
 channel
-    =   maybeSubscripted "channel" channel' A.SubscriptedVariable typeOfVariable
+    =   maybeSubscripted "channel" channel' A.SubscriptedVariable
     <?> "channel"
 
 channel' :: OccParser A.Variable
@@ -859,7 +839,7 @@ channel'
 
 timer :: OccParser A.Variable
 timer
-    =   maybeSubscripted "timer" timer' A.SubscriptedVariable typeOfVariable
+    =   maybeSubscripted "timer" timer' A.SubscriptedVariable
     <?> "timer"
 
 timer' :: OccParser A.Variable
@@ -870,7 +850,7 @@ timer'
 
 port :: OccParser A.Variable
 port
-    =   maybeSubscripted "port" port' A.SubscriptedVariable typeOfVariable
+    =   maybeSubscripted "port" port' A.SubscriptedVariable
     <?> "port"
 
 port' :: OccParser A.Variable

@@ -1,0 +1,12 @@
+DATA TYPE FOO
+  RECORD
+    INT x:
+:
+PROC P ()
+  INT x:
+  SEQ
+    FOO v:
+    x := v[x]
+    [1]INT v:
+    x := v[x]
+:

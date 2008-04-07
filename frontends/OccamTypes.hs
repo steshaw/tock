@@ -617,9 +617,10 @@ inSubscriptedContext m body
 
 -- | Infer types.
 inferTypes :: Data t => t -> PassM t
-inferTypes = applyExplicitM9 doExpression doDimension doSubscript
-                             doArrayConstr doReplicator doAlternative
-                             doInputMode doSpecification doProcess
+inferTypes = applyExplicitM10 doExpression doDimension doSubscript
+                              doArrayConstr doReplicator doAlternative
+                              doInputMode doSpecification doProcess
+                              doVariable
   where
     doExpression :: ExplicitTrans A.Expression
     doExpression descend outer
@@ -663,12 +664,13 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   return $ A.FunctionCall m n es'
             A.IntrinsicFunctionCall _ _ _ -> noTypeContext $ descend outer
             A.SubscriptedExpr m s e ->
-               do s' <- inferTypes s
-                  ctx <- getTypeContext
+               do ctx <- getTypeContext
                   ctx' <- case ctx of
                             Just t -> unsubscriptType s t >>* Just
                             Nothing -> return Nothing
                   e' <- inTypeContext ctx' $ inferTypes e
+                  t <- typeOfExpression e'
+                  s' <- inferTypes s >>= fixSubscript t
                   return $ A.SubscriptedExpr m s' e'
             A.BytesInExpr _ _ -> noTypeContext $ descend outer
             -- FIXME: ExprConstr
@@ -811,7 +813,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                     -- Tagged protocol -- convert (wrong) variable to tag.
                     then case ois of
                            ((A.OutExpression _ (A.ExprVariable _ (A.Variable _ wrong))):ois) ->
-                             do tag <- nameToTag wrong
+                             do tag <- nameToUnscoped wrong
                                 ois' <- doOutputItems m v' (Just tag) ois
                                 return $ A.OutputCase m v' tag ois'
                            _ -> diePC m $ formatCode "This channel carries a variant protocol; expected a list starting with a tag, but found %" ois
@@ -849,12 +851,6 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                             _ -> return False
                     _ -> return False
 
-        -- | Given a name that should really have been a tag, make it one.
-        nameToTag :: A.Name -> PassM A.Name
-        nameToTag n@(A.Name m nt _)
-            =  do nd <- lookupName n
-                  findUnscopedName (A.Name m nt (A.ndOrigName nd))
-
         doOutputItems :: Meta -> A.Variable -> Maybe A.Name
                          -> Transform [A.OutputItem]
         doOutputItems m v tag ois
@@ -869,6 +865,28 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                   return $ A.OutCounted m ce' ae'
         doOutputItem A.Any o = noTypeContext $ inferTypes o
         doOutputItem t o = inTypeContext (Just t) $ inferTypes o
+
+    doVariable :: ExplicitTrans A.Variable
+    doVariable descend (A.SubscriptedVariable m s v)
+        =  do v' <- inferTypes v
+              t <- typeOfVariable v'
+              s' <- inferTypes s >>= fixSubscript t
+              return $ A.SubscriptedVariable m s' v'
+    doVariable descend v = descend v
+
+    -- | Resolve the @v[s]@ ambiguity: this takes the type that @v@ is, and
+    -- returns the correct 'Subscript'.
+    fixSubscript :: A.Type -> A.Subscript -> PassM A.Subscript
+    fixSubscript (A.Record _) (A.Subscript m _ (A.ExprVariable _ (A.Variable _ wrong)))
+        =  do n <- nameToUnscoped wrong
+              return $ A.SubscriptField m n
+    fixSubscript t s = return s
+
+    -- | Given a name that should really have been a tag, make it one.
+    nameToUnscoped :: A.Name -> PassM A.Name
+    nameToUnscoped n@(A.Name m nt _)
+        =  do nd <- lookupName n
+              findUnscopedName (A.Name m nt (A.ndOrigName nd))
 
     -- | Process a 'LiteralRepr', taking the type it's meant to represent or
     -- 'Infer', and returning the type it really is.
