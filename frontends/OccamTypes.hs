@@ -643,7 +643,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
             A.FunctionCall m n es ->
                do es' <- doFunctionCall m n es
                   return $ A.FunctionCall m n es'
-            -- FIXME: IntrinsicFunctionCall
+            A.IntrinsicFunctionCall _ _ _ -> noTypeContext $ descend outer
             A.SubscriptedExpr m s e ->
                do s' <- inferTypes s
                   ctx <- getTypeContext
@@ -816,7 +816,7 @@ inferTypes = applyExplicitM9 doExpression doDimension doSubscript
                do fs <- checkProc m n
                   as' <- doActuals m n fs as
                   return $ A.ProcCall m n as'
-            -- FIXME: IntrinsicProcCall
+            A.IntrinsicProcCall _ _ _ -> noTypeContext $ descend p
             _ -> descend p
       where
         -- | Does a channel carry a tagged protocol?

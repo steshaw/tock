@@ -738,12 +738,24 @@ sizeExpr
 
 functionCall :: OccParser A.Expression
 functionCall
-    =  do m <- md
-          n <- tryVX functionName sLeftR
-          as <- sepBy expression sComma
-          sRightR
-          return $ A.FunctionCall m n as
+    =   do m <- md
+           n <- tryVX functionName sLeftR
+           as <- sepBy expression sComma
+           sRightR
+           return $ A.FunctionCall m n as
+    <|> do m <- md
+           s <- tryVX intrinsicFunctionName sLeftR
+           as <- sepBy expression sComma
+           sRightR
+           return $ A.IntrinsicFunctionCall m s as
     <?> "function call"
+  where
+    intrinsicFunctionName :: OccParser String
+    intrinsicFunctionName
+        =  do s <- anyName A.FunctionName >>* A.nameName
+              case lookup s intrinsicFunctions of
+                Just _ -> return s
+                Nothing -> pzero
 
 monadicOperator :: OccParser A.MonadicOp
 monadicOperator
