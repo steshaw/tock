@@ -125,7 +125,7 @@ checkDataType = checkTypeClass isDataType "data"
 checkCommunicable :: Meta -> A.Type -> PassM ()
 checkCommunicable m (A.Counted ct rawAT)
     =  do checkInteger m ct
-          at <- underlyingType m rawAT
+          at <- resolveUserType m rawAT
           case at of
             A.Array (A.UnknownDimension:ds) t ->
                do checkCommunicable m t
@@ -141,7 +141,7 @@ checkSequence = checkTypeClass isSequenceType "array or list"
 -- | Check that a type is an array.
 checkArray :: Meta -> A.Type -> PassM ()
 checkArray m rawT
-    =  do t <- underlyingType m rawT
+    =  do t <- resolveUserType m rawT
           case t of
             A.Array _ _ -> ok
             _ -> diePC m $ formatCode "Expected array type; found %" t
@@ -155,7 +155,7 @@ checkFullDimension _ _ = ok
 -- | Check that a type is a list.
 checkList :: Meta -> A.Type -> PassM ()
 checkList m rawT
-    =  do t <- underlyingType m rawT
+    =  do t <- resolveUserType m rawT
           case t of
             A.List _ -> ok
             _ -> diePC m $ formatCode "Expected list type; found %" t
@@ -195,7 +195,7 @@ betterType t1 t2
 -- | Check that an array literal's length matches its type.
 checkArraySize :: Meta -> A.Type -> Int -> PassM ()
 checkArraySize m rawT want
-    =  do t <- underlyingType m rawT
+    =  do t <- resolveUserType m rawT
           case t of
             A.Array (A.UnknownDimension:_) _ -> ok
             A.Array (A.Dimension e:_) _ ->
@@ -216,7 +216,7 @@ checkRecordField m t n
 checkSubscript :: Meta -> A.Subscript -> A.Type -> PassM ()
 checkSubscript m s rawT
     =  do -- Check the type of the thing being subscripted.
-          t <- underlyingType m rawT
+          t <- resolveUserType m rawT
           case s of
             -- A record subscript.
             A.SubscriptField m n ->
@@ -385,7 +385,7 @@ checkIntrinsicFunctionCall m n es
 -- | Check a mobile allocation.
 checkAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> PassM ()
 checkAllocMobile m rawT me
-    =  do t <- underlyingType m rawT
+    =  do t <- resolveUserType m rawT
           case t of
             A.Mobile innerT ->
                do case innerT of
@@ -414,7 +414,7 @@ checkWritable v
 checkChannel :: A.Direction -> A.Variable -> PassM A.Type
 checkChannel wantDir c
     =  do -- Check it's a channel.
-          t <- typeOfVariable c >>= underlyingType m
+          t <- typeOfVariable c >>= resolveUserType m
           case t of
             A.Chan dir (A.ChanAttributes ws rs) innerT ->
                do -- Check the direction is appropriate 
@@ -440,7 +440,7 @@ checkChannel wantDir c
 -- Return the type of the timer's value.
 checkTimer :: A.Variable -> PassM A.Type
 checkTimer tim
-    =  do t <- typeOfVariable tim >>= underlyingType m
+    =  do t <- typeOfVariable tim >>= resolveUserType m
           case t of
             A.Timer A.OccamTimer -> return A.Int
             A.Timer A.RainTimer -> return A.Time
@@ -962,7 +962,7 @@ inferTypes = applyExplicitM10 doExpression doDimension doSubscript
         -- arrays and records.
         buildTable :: A.Type -> [A.ArrayElem] -> PassM A.LiteralRepr
         buildTable t aes
-            =  do underT <- underlyingType m t
+            =  do underT <- resolveUserType m t
                   case underT of
                     A.Array _ _ ->
                        do elemT <- trivialSubscriptType m t
@@ -982,7 +982,7 @@ inferTypes = applyExplicitM10 doExpression doDimension doSubscript
 
             buildElem :: A.Type -> A.ArrayElem -> PassM A.ArrayElem
             buildElem t ae
-                =  do underT <- underlyingType m t
+                =  do underT <- resolveUserType m t
                       case (underT, ae) of
                         (A.Array _ _, A.ArrayElemArray aes) ->
                            do A.ArrayLiteral _ aes' <- buildTable t aes
@@ -1015,12 +1015,12 @@ checkVariables = checkDepthM doVariable
         =  do t <- typeOfVariable v
               checkSubscript m s t
     doVariable (A.DirectedVariable m _ v)
-        =  do t <- typeOfVariable v >>= underlyingType m
+        =  do t <- typeOfVariable v >>= resolveUserType m
               case t of
                 A.Chan _ _ _ -> ok
                 _ -> dieP m $ "Direction applied to non-channel variable"
     doVariable (A.DerefVariable m v)
-        =  do t <- typeOfVariable v >>= underlyingType m
+        =  do t <- typeOfVariable v >>= resolveUserType m
               case t of
                 A.Mobile _ -> ok
                 _ -> dieP m $ "Dereference applied to non-mobile variable"
@@ -1058,7 +1058,7 @@ checkExpressions = checkDepthM doExpression
         =  do t <- typeOfExpression e
               checkSubscript m s t
     doExpression (A.OffsetOf m rawT n)
-        =  do t <- underlyingType m rawT
+        =  do t <- resolveUserType m rawT
               checkRecordField m t n
     doExpression (A.AllocMobile m t me) = checkAllocMobile m t me
     doExpression _ = ok
@@ -1067,7 +1067,7 @@ checkExpressions = checkDepthM doExpression
     doLiteralRepr t (A.ArrayLiteral m aes)
         = doArrayElem m t (A.ArrayElemArray aes)
     doLiteralRepr t (A.RecordLiteral m es)
-        =  do rfs <- underlyingType m t >>= recordFields m
+        =  do rfs <- resolveUserType m t >>= recordFields m
               when (length es /= length rfs) $
                 dieP m $ "Record literal has wrong number of fields: found " ++ (show $ length es) ++ ", expected " ++ (show $ length rfs)
               sequence_ [checkExpressionType ft fe
@@ -1102,7 +1102,7 @@ checkSpecTypes = checkDepthM doSpecType
               when (am /= A.ValAbbrev) $ unexpectedAM m
               checkAbbrev m A.ValAbbrev am
     doSpecType (A.IsChannelArray m rawT cs)
-        =  do t <- underlyingType m rawT
+        =  do t <- resolveUserType m rawT
               case t of
                 A.Array [d] et@(A.Chan _ _ _) ->
                    do sequence_ [do rt <- typeOfVariable c
@@ -1117,9 +1117,8 @@ checkSpecTypes = checkDepthM doSpecType
                               when (v /= length cs) $
                                 dieP m $ "Wrong number of elements in channel array abbreviation: found " ++ (show $ length cs) ++ ", expected " ++ show v
                 _ -> dieP m "Expected 1D channel array type"
-    doSpecType (A.DataType m rawT)
-        =  do t <- underlyingType m rawT
-              checkDataType m t
+    doSpecType (A.DataType m t)
+        = checkDataType m t
     doSpecType (A.RecordType m _ nts)
         =  do sequence_ [checkDataType (findMeta n) t
                          | (n, t) <- nts]
