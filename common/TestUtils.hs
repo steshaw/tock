@@ -92,21 +92,17 @@ testCheck config property =
     tests :: Config -> Gen Result -> StdGen -> Int -> Int -> [[String]] -> IO ()
     tests config gen rnd0 ntest nfail stamps
       | ntest == configMaxTest config = return ()
-      | nfail == configMaxFail config =
-          assertFailure $ "Arguments exhausted after " ++ show ntest ++ " tests"
-      | otherwise               =
-          do putStr (configEvery config ntest (arguments result))
-             case ok result of
-               Nothing    ->
-                 tests config gen rnd1 ntest (nfail+1) stamps
-               Just True  ->
-                 tests config gen rnd1 (ntest+1) nfail (stamp result:stamps)
-               Just False ->
-                 assertFailure $  ( "Falsifiable, after "
-                       ++ show ntest
-                       ++ " tests:\n"
-                       ++ unlines (arguments result)
-                        )
+      | nfail == configMaxFail config
+        = assertFailure $ "Arguments exhausted after " ++ show ntest ++ " tests"
+      | otherwise
+        = case ok result of
+            Nothing ->
+              tests config gen rnd1 ntest (nfail+1) stamps
+            Just True ->
+              tests config gen rnd1 (ntest+1) nfail (stamp result:stamps)
+            Just False ->
+              assertFailure $ "Falsifiable, after " ++ show ntest
+                              ++ " tests:\n" ++ unlines (arguments result)
          where
           result      = generate (configSize config ntest) rnd2 gen
           (rnd1,rnd2) = split rnd0
