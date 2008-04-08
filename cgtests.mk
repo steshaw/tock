@@ -14,6 +14,9 @@ checkout:
 %: %.occ
 	./tock -vk --backend=$(BACKEND) -o $@ $<
 
+run: $(tests)
+	cd cgtests && ./run-tests
+
 run-all: $(addprefix run-,$(tests))
 
 run-cgtests/%: cgtests/%
