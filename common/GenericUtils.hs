@@ -24,6 +24,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- added to in the definition of 'contains').
 module GenericUtils (
     TypeKey, typeKey
+  , TypeSet, makeTypeSet
   , containsTypes
   , gmapMFor
   ) where
@@ -101,11 +102,18 @@ containsTypes x targets
                             Just set -> target `IntSet.member` set
                             Nothing -> True  -- can't tell, so it might be
 
+-- | A set of type information for use by 'gmapMFor'.
+type TypeSet = [TypeKey]
+
+-- | Make a 'TypeSet' from a list of 'TypeKey's.
+makeTypeSet :: [TypeKey] -> TypeSet
+makeTypeSet tks = tks
+
 -- | Type-smart generic mapM.
 -- This is like 'gmapM', but it only applies the function to arguments that
 -- could contain any of the target types.
 gmapMFor :: (Monad m, Data t) =>
-            [TypeKey]                         -- ^ Target types
+            TypeSet                           -- ^ Target types
             -> (forall s. Data s => s -> m s) -- ^ Function to apply
             -> (t -> m t)                     -- ^ Generic operation
 gmapMFor targets f = gmapM (each f)

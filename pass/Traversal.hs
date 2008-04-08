@@ -79,8 +79,11 @@ extC info f = extD info (checkToTransform f)
 applyX :: Data s => InfoX -> s -> PassM s
 applyX info@(tks, g) = g doGeneric doGeneric
   where
+    ts :: TypeSet
+    ts = makeTypeSet tks
+
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor tks (applyX info)
+    doGeneric = gmapMFor ts (applyX info)
 
 -- | Apply a transformation, recursing depth-first.
 applyDepthM :: forall t1 s. (Data t1, Data s) =>
