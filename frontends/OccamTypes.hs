@@ -617,10 +617,17 @@ inSubscriptedContext m body
 
 -- | Infer types.
 inferTypes :: Data t => t -> PassM t
-inferTypes = applyExplicitM10 doExpression doDimension doSubscript
-                              doArrayConstr doReplicator doAlternative
-                              doInputMode doSpecification doProcess
-                              doVariable
+inferTypes = applyX $ baseX
+                      `extX` doExpression
+                      `extX` doDimension
+                      `extX` doSubscript
+                      `extX` doArrayConstr
+                      `extX` doReplicator
+                      `extX` doAlternative
+                      `extX` doInputMode
+                      `extX` doSpecification
+                      `extX` doProcess
+                      `extX` doVariable
   where
     doExpression :: ExplicitTrans A.Expression
     doExpression descend outer

@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Traversal (
     ExplicitTrans, Transform, Check
   , transformToExplicitDepth, checkToTransform
-  , applyExplicitM, applyExplicitM2, applyExplicitM9, applyExplicitM10
+  , baseX, extX, extD, extC, applyX
   , applyDepthM, applyDepthM2
   , checkDepthM
   ) where
@@ -52,140 +52,51 @@ transformToExplicitDepth f descend x = descend x >>= f
 checkToTransform :: Data t => Check t -> Transform t
 checkToTransform f x = f x >> return x
 
--- | Apply an explicit transformation.
-applyExplicitM :: forall t1 s. (Data t1, Data s) =>
-                  ExplicitTrans t1 -> s -> PassM s
-applyExplicitM f1 = doGeneric `extM` (doSpecific f1)
+-- | A set of generic transformations.
+type InfoX = ([TypeKey],
+              (forall dgt. Data dgt => dgt -> PassM dgt)
+              -> (forall t1. Data t1 => t1 -> PassM t1)
+              -> (forall t2. Data t2 => t2 -> PassM t2))
+
+-- | An empty set of transformations.
+baseX :: InfoX
+baseX = ([], (\doGeneric t -> t))
+
+-- | Add an 'ExplicitTrans' to a set.
+extX :: forall t. Data t => InfoX -> ExplicitTrans t -> InfoX
+extX (tks, g) f = ((typeKey (undefined :: t)) : tks,
+                   (\doGeneric t -> (g doGeneric t) `extM` (f doGeneric)))
+
+-- | Add a 'Transform' to a set, to be applied depth-first.
+extD :: forall t. Data t => InfoX -> Transform t -> InfoX
+extD info f = extX info (transformToExplicitDepth f)
+
+-- | Add a 'Check' to a set, to be applied depth-first.
+extC :: forall t. Data t => InfoX -> Check t -> InfoX
+extC info f = extD info (checkToTransform f)
+
+-- | Apply a set of transformations.
+applyX :: Data s => InfoX -> s -> PassM s
+applyX info@(tks, g) = g doGeneric doGeneric
   where
-    typeSet :: [TypeKey]
-    typeSet = [typeKey (undefined :: t1)]
-
     doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor typeSet (applyExplicitM f1)
-
-    doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
-    doSpecific f x = f doGeneric x
-
--- | Apply two explicit transformations.
-applyExplicitM2 :: forall t1 t2 s. (Data t1, Data t2, Data s) =>
-                   ExplicitTrans t1 -> ExplicitTrans t2 -> s -> PassM s
-applyExplicitM2 f1 f2 = doGeneric `extM` (doSpecific f1)
-                                  `extM` (doSpecific f2)
-  where
-    typeSet :: [TypeKey]
-    typeSet = [ typeKey (undefined :: t1)
-              , typeKey (undefined :: t2)
-              ]
-
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor typeSet (applyExplicitM2 f1 f2)
-
-    doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
-    doSpecific f x = f doGeneric x
-
--- | Apply nine explicit transformations (!).
-applyExplicitM9 :: forall t1 t2 t3 t4 t5 t6 t7 t8 t9 s.
-                   (Data t1, Data t2, Data t3, Data t4, Data t5, Data t6,
-                    Data t7, Data t8, Data t9, Data s) =>
-                   ExplicitTrans t1
-                   -> ExplicitTrans t2
-                   -> ExplicitTrans t3
-                   -> ExplicitTrans t4
-                   -> ExplicitTrans t5
-                   -> ExplicitTrans t6
-                   -> ExplicitTrans t7
-                   -> ExplicitTrans t8
-                   -> ExplicitTrans t9
-                   -> s -> PassM s
-applyExplicitM9 f1 f2 f3 f4 f5 f6 f7 f8 f9
-    = doGeneric `extM` (doSpecific f1)
-                `extM` (doSpecific f2)
-                `extM` (doSpecific f3)
-                `extM` (doSpecific f4)
-                `extM` (doSpecific f5)
-                `extM` (doSpecific f6)
-                `extM` (doSpecific f7)
-                `extM` (doSpecific f8)
-                `extM` (doSpecific f9)
-  where
-    typeSet :: [TypeKey]
-    typeSet = [ typeKey (undefined :: t1)
-              , typeKey (undefined :: t2)
-              , typeKey (undefined :: t3)
-              , typeKey (undefined :: t4)
-              , typeKey (undefined :: t5)
-              , typeKey (undefined :: t6)
-              , typeKey (undefined :: t7)
-              , typeKey (undefined :: t8)
-              , typeKey (undefined :: t9)
-              ]
-
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor typeSet (applyExplicitM9 f1 f2 f3 f4 f5 f6 f7 f8 f9)
-
-    doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
-    doSpecific f x = f doGeneric x
-
--- | Apply ten explicit transformations.
-applyExplicitM10 :: forall t1 t2 t3 t4 t5 t6 t7 t8 t9 t10 s.
-                   (Data t1, Data t2, Data t3, Data t4, Data t5, Data t6,
-                    Data t7, Data t8, Data t9, Data t10, Data s) =>
-                   ExplicitTrans t1
-                   -> ExplicitTrans t2
-                   -> ExplicitTrans t3
-                   -> ExplicitTrans t4
-                   -> ExplicitTrans t5
-                   -> ExplicitTrans t6
-                   -> ExplicitTrans t7
-                   -> ExplicitTrans t8
-                   -> ExplicitTrans t9
-                   -> ExplicitTrans t10
-                   -> s -> PassM s
-applyExplicitM10 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10
-    = doGeneric `extM` (doSpecific f1)
-                `extM` (doSpecific f2)
-                `extM` (doSpecific f3)
-                `extM` (doSpecific f4)
-                `extM` (doSpecific f5)
-                `extM` (doSpecific f6)
-                `extM` (doSpecific f7)
-                `extM` (doSpecific f8)
-                `extM` (doSpecific f9)
-                `extM` (doSpecific f10)
-  where
-    typeSet :: [TypeKey]
-    typeSet = [ typeKey (undefined :: t1)
-              , typeKey (undefined :: t2)
-              , typeKey (undefined :: t3)
-              , typeKey (undefined :: t4)
-              , typeKey (undefined :: t5)
-              , typeKey (undefined :: t6)
-              , typeKey (undefined :: t7)
-              , typeKey (undefined :: t8)
-              , typeKey (undefined :: t9)
-              , typeKey (undefined :: t10)
-              ]
-
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = gmapMFor typeSet (applyExplicitM10 f1 f2 f3 f4 f5
-                                                   f6 f7 f8 f9 f10)
-
-    doSpecific :: Data t => ExplicitTrans t -> t -> PassM t
-    doSpecific f x = f doGeneric x
+    doGeneric = gmapMFor tks (applyX info)
 
 -- | Apply a transformation, recursing depth-first.
 applyDepthM :: forall t1 s. (Data t1, Data s) =>
                Transform t1 -> s -> PassM s
-applyDepthM f = applyExplicitM (transformToExplicitDepth f)
+applyDepthM f1
+    = applyX $ baseX `extD` f1
 
 -- | Apply two transformations, recursing depth-first.
 applyDepthM2 :: forall t1 t2 s. (Data t1, Data t2, Data s) =>
                 Transform t1 -> Transform t2 -> s -> PassM s
-applyDepthM2 f1 f2 = applyExplicitM2 (transformToExplicitDepth f1)
-                                     (transformToExplicitDepth f2)
+applyDepthM2 f1 f2
+    = applyX $ baseX `extD` f1 `extD` f2
 
 -- | Apply a check, recursing depth-first.
 checkDepthM :: forall t1 s. (Data t1, Data s) =>
                Check t1 -> s -> PassM s
-checkDepthM f = applyDepthM (checkToTransform f)
+checkDepthM f1
+    = applyX $ baseX `extC` f1
 
