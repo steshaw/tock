@@ -123,7 +123,7 @@ static void tock_tlp_output_kill (Workspace wptr, Channel *kill) {
 //{{{  CCSP startup and terminal handling
 static void tock_exit_handler (int status, word core) occam_unused;
 static void tock_exit_handler (int status, word core) {
-	tock_restore_terminal();
+	tock_restore_terminal ();
 	ccsp_default_exit_handler (status, core);
 }
 
@@ -131,7 +131,7 @@ static void tock_init_ccsp (bool uses_stdin) occam_unused;
 static void tock_init_ccsp (bool uses_stdin) {
 	ccsp_set_branding ("Tock");
 
-	tock_configure_terminal(uses_stdin);
+	tock_configure_terminal (uses_stdin);
 
 	if (!ccsp_init ())
 		exit (1);

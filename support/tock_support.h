@@ -363,8 +363,8 @@ static inline double occam_DSQRT (double v, const char *pos) {
 static bool tock_uses_tty;
 static struct termios tock_saved_termios;
 
-static void tock_restore_terminal() occam_unused;
-static void tock_restore_terminal()
+static void tock_restore_terminal () occam_unused;
+static void tock_restore_terminal ()
 {
 	//{{{  restore terminal
 	if (tock_uses_tty) {
@@ -378,8 +378,8 @@ static void tock_restore_terminal()
 	//}}}
 }
 
-static void tock_configure_terminal(bool) occam_unused;
-static void tock_configure_terminal(bool uses_stdin)
+static void tock_configure_terminal (bool) occam_unused;
+static void tock_configure_terminal (bool uses_stdin)
 {
 	//{{{  configure terminal
 	tock_uses_tty = uses_stdin && isatty (0);
