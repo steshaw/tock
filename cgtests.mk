@@ -6,7 +6,7 @@ tests = $(patsubst %.occ,%,$(wildcard cgtests/cgtest??.occ))
 all: $(tests)
 
 clean:
-	rm $(tests)
+	rm -f $(tests)
 
 checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
