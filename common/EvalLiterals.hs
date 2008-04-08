@@ -77,7 +77,7 @@ isConstantArray (A.ArrayElemExpr e) = isConstant e
 evalByte :: (CSMR m, Die m) => String -> m Char
 evalByte s
     =  do ps <- getCompState
-          case runEvaluator ps (evalByteLiteral s) of
+          case runEvaluator ps (evalByteLiteral OccByte s) of
             Left (m,err) -> dieReport (m,"cannot evaluate byte literal: " ++ err)
             Right (OccByte ch) -> return (chr $ fromIntegral ch)
 
@@ -104,60 +104,87 @@ fromRead = fromRead' id undefined
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
+
 -- If the type hasn't yet been inferred, we use the default type.
 evalSimpleLiteral (A.Literal _ A.Infer (A.ByteLiteral _ s))
-    = evalByteLiteral s
+    = evalByteLiteral OccByte s
 evalSimpleLiteral (A.Literal _ A.Infer (A.IntLiteral _ s))
     = fromRead OccInt (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Infer (A.HexLiteral _ s))
     = fromRead OccInt readHex s
+
 evalSimpleLiteral (A.Literal _ A.Byte (A.ByteLiteral _ s))
-    = evalByteLiteral s
+    = evalByteLiteral OccByte s
 evalSimpleLiteral (A.Literal _ A.Byte (A.IntLiteral _ s))
     = fromRead OccByte (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Byte (A.HexLiteral _ s))
     = fromRead OccByte readHex s
+
+evalSimpleLiteral (A.Literal _ A.UInt16 (A.ByteLiteral _ s))
+    = evalByteLiteral OccUInt16 s
 evalSimpleLiteral (A.Literal _ A.UInt16 (A.IntLiteral _ s))
     = fromRead OccUInt16 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.UInt16 (A.HexLiteral _ s))
     = fromRead OccUInt16 readHex s
+
+evalSimpleLiteral (A.Literal _ A.UInt32 (A.ByteLiteral _ s))
+    = evalByteLiteral OccUInt32 s
 evalSimpleLiteral (A.Literal _ A.UInt32 (A.IntLiteral _ s))
     = fromRead OccUInt32 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.UInt32 (A.HexLiteral _ s))
     = fromRead OccUInt32 readHex s
+
+evalSimpleLiteral (A.Literal _ A.UInt64 (A.ByteLiteral _ s))
+    = evalByteLiteral OccUInt64 s
 evalSimpleLiteral (A.Literal _ A.UInt64 (A.IntLiteral _ s))
     = fromRead OccUInt64 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.UInt64 (A.HexLiteral _ s))
     = fromRead OccUInt64 readHex s
+
+evalSimpleLiteral (A.Literal _ A.Int8 (A.ByteLiteral _ s))
+    = evalByteLiteral OccInt8 s
 evalSimpleLiteral (A.Literal _ A.Int8 (A.IntLiteral _ s))
     = fromRead OccInt8 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int8 (A.HexLiteral _ s))
     = fromRead' (fromInteger . toInteger) OccByte OccInt8 readHex s
+
+evalSimpleLiteral (A.Literal _ A.Int (A.ByteLiteral _ s))
+    = evalByteLiteral OccInt s
 evalSimpleLiteral (A.Literal _ A.Int (A.IntLiteral _ s))
     = fromRead OccInt (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int (A.HexLiteral _ s))
     = fromRead' (fromInteger . toInteger) OccUInt32 OccInt readHex s
+
+evalSimpleLiteral (A.Literal _ A.Int16 (A.ByteLiteral _ s))
+    = evalByteLiteral OccInt16 s
 evalSimpleLiteral (A.Literal _ A.Int16 (A.IntLiteral _ s))
     = fromRead OccInt16 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int16 (A.HexLiteral _ s))
     = fromRead' (fromInteger . toInteger) OccUInt16 OccInt16 readHex s
+
+evalSimpleLiteral (A.Literal _ A.Int32 (A.ByteLiteral _ s))
+    = evalByteLiteral OccInt32 s
 evalSimpleLiteral (A.Literal _ A.Int32 (A.IntLiteral _ s))
     = fromRead OccInt32 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int32 (A.HexLiteral _ s))
     = fromRead' (fromInteger . toInteger) OccUInt32 OccInt32 readHex s
+
+evalSimpleLiteral (A.Literal _ A.Int64 (A.ByteLiteral _ s))
+    = evalByteLiteral OccInt64 s
 evalSimpleLiteral (A.Literal _ A.Int64 (A.IntLiteral _ s))
     = fromRead OccInt64 (readSigned readDec) s
 evalSimpleLiteral (A.Literal _ A.Int64 (A.HexLiteral _ s))
     = fromRead' (fromInteger . toInteger) OccUInt64 OccInt64 readHex s
+
 evalSimpleLiteral l = throwError (Just $ findMeta l,"bad literal: " ++ show l)
 
 -- | Evaluate a byte literal.
-evalByteLiteral :: String -> EvalM OccValue
-evalByteLiteral ('*':'#':hex)
+evalByteLiteral :: Num t => (t -> OccValue) -> String -> EvalM OccValue
+evalByteLiteral cons ('*':'#':hex)
     = do OccInt n <- fromRead OccInt readHex hex
-         return $ OccByte (fromIntegral n)
-evalByteLiteral ['*', ch]
-    = return $ OccByte (fromIntegral $ ord $ star ch)
+         return $ cons (fromIntegral n)
+evalByteLiteral cons ['*', ch]
+    = return $ cons (fromIntegral $ ord $ star ch)
   where
     star :: Char -> Char
     star 'c' = '\r'
@@ -165,6 +192,6 @@ evalByteLiteral ['*', ch]
     star 't' = '\t'
     star 's' = ' '
     star c = c
-evalByteLiteral [ch]
-    = return $ OccByte (fromIntegral $ ord ch)
-evalByteLiteral _ = throwError (Nothing,"bad BYTE literal")
+evalByteLiteral cons [ch]
+    = return $ cons (fromIntegral $ ord ch)
+evalByteLiteral _ _ = throwError (Nothing,"bad BYTE literal")
