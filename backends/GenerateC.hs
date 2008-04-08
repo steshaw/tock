@@ -510,8 +510,8 @@ cgenLiteral lr t
     = if isStringLiteral lr
         then do tell ["\""]
                 let A.ArrayLiteral _ aes = lr
-                sequence_ [genByteLiteral s
-                           | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ s)) <- aes]
+                sequence_ [genByteLiteral m s
+                           | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral m s)) <- aes]
                 tell ["\""]
         else call genLiteralRepr lr t
 
@@ -554,7 +554,8 @@ cgenLiteralRepr (A.HexLiteral m s) t
        tell ["((",ct,")0x", s]
        genLitSuffix t
        tell [")"]
-cgenLiteralRepr (A.ByteLiteral m s) _ = tell ["'"] >> genByteLiteral s >> tell ["'"]
+cgenLiteralRepr (A.ByteLiteral m s) _
+    = tell ["'"] >> genByteLiteral m s >> tell ["'"]
 cgenLiteralRepr (A.ArrayLiteral m aes) _
     =  do genLeftB
           call genArrayLiteralElems aes
@@ -623,9 +624,9 @@ cgenArrayLiteralElems aes
     genElem (A.ArrayElemArray aes) = call genArrayLiteralElems aes
     genElem (A.ArrayElemExpr e) = call genUnfoldedExpression e
 
-genByteLiteral :: String -> CGen ()
-genByteLiteral s
-    =  do c <- evalByte s
+genByteLiteral :: Meta -> String -> CGen ()
+genByteLiteral m s
+    =  do c <- evalByte m s
           tell [convByte c]
 
 convByte :: Char -> String
