@@ -105,6 +105,7 @@ static void tock_tlp_output (Workspace wptr) {
 			case 1: {
 				bool b;
 				ChanIn (wptr, kill, &b, sizeof b);
+				fflush (out);
 
 				return;
 			}
