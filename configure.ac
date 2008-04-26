@@ -1,4 +1,5 @@
 AC_INIT([Tock],[0.0.1],[tock-discuss@kent.ac.uk],[tock])
+AC_PREREQ([2.60])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE
 
