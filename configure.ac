@@ -13,14 +13,14 @@ AC_CONFIG_SRCDIR(Main.hs)
 AC_PROG_CC
 AC_PROG_CXX
 
-ccsp_kroc_available=true
+ccsp_available=true
 cppcsp_available=true
 
 #Sets "ac_cv_prog_cc_c99" to "no" if C99 is not supported
 AC_PROG_CC_C99
 if test "x$ac_cv_prog_cc_c99" = "xno"; then
   AC_MSG_WARN([C99 support not found; output from the C backend will not compile on this machine])
-  ccsp_kroc_available=false
+  ccsp_available=false
 fi
 
 #AC_NEED_PROG(progname,progvar)
@@ -32,20 +32,11 @@ AC_DEFUN([AC_NEED_PROG],
   fi
 ])
 
-#Check that they have alex, GHC, kroc, svn and the CCSP headers:
+#Check that they have alex, GHC, svn and the CCSP headers:
 
 AC_NEED_PROG(ghc,HAVE_ghc)
 AC_NEED_PROG(ghc-pkg,HAVE_ghcpkg)
 AC_NEED_PROG(alex,HAVE_alex)
-
-AC_CHECK_PROG([HAVE_KROC],[kroc],[true],[false])
-if test "x$HAVE_KROC" = "xfalse"; then
-  AC_MSG_WARN([kroc not found; you will not be able to compile output from the C backend on this machine])
-  ccsp_kroc_available=false
-  kroc_incpath=
-else
-  kroc_incpath=`kroc --ccincpath`
-fi
 
 AC_CHECK_PROG([HAVE_SVN],[svn],[true],[false])
 if test "x$HAVE_SVN" = "xfalse"; then
@@ -79,19 +70,10 @@ AC_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
 AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
 AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
 
-AC_LANG(C)
-old_CFLAGS="$CFLAGS"
-old_CPPFLAGS="$CPPFLAGS"
-CFLAGS="$kroc_incpath"
-CPPFLAGS="$kroc_incpath"
-AC_CHECK_HEADER([cif.h],[HAVE_CIF=true],[HAVE_CIF=false])
-
-if test "x$HAVE_CIF" = "xfalse"; then
-  AC_MSG_WARN([cif.h not found; you will not be able to compile output from the C backend on this machine])
-  ccsp_kroc_available=false
-fi
-CFLAGS="$old_CFLAGS"
-CPPFLAGS="$old_CPPFLAGS"
+PKG_CHECK_MODULES(CCSP, ccsp-1.6 >= 1.6.3,,
+	AC_MSG_WARN([CCSP not located using pkg-config; you will not be able to compile output from the C backend on this machine: ] $CCSP_PKG_ERRORS)
+	ccsp_available=false
+)
 
 PKG_CHECK_MODULES(CPPCSP2,cppcsp2-2.0 >= 2.0.4,,
 	AC_MSG_WARN([C++CSP2 backend not located using pkg-config; you will not be able to compile output from the C++ backend on this machine: ] $CPPCSP2_PKG_ERRORS)
@@ -108,7 +90,7 @@ if test "x$HAVE_CPPCSP" = "xfalse"; then
 fi
 
 #Warn them if neither backend is available:
-if test "x$cppcsp_available$ccsp_kroc_available" = "xfalsefalse"; then
+if test "x$cppcsp_available$ccsp_available" = "xfalsefalse"; then
   AC_MSG_WARN([No working backends: Code from neither the C nor C++ backend will compile on your machine])
 fi
 
@@ -172,9 +154,6 @@ AC_SUBST(C_INT_SIZE)
 
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
-CCSP_CFLAGS="`kroc --cflags` `kroc --ccincpath`"
-CCSP_LIBS="`kroc --cclibpath` -lccsp -lpthread -ldl -lm"
-
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS"
 # FIXME: -ldl is only necessary on some platforms for CCSP
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS"
@@ -187,7 +166,7 @@ AC_SUBST(TOCK_CLDFLAGS)
 AC_SUBST(TOCK_CXXFLAGS)
 AC_SUBST(TOCK_CXXLDFLAGS)
 
-AC_SUBST(ccsp_kroc_available)
+AC_SUBST(ccsp_available)
 AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
 
