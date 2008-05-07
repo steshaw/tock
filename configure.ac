@@ -155,7 +155,6 @@ AC_SUBST(C_INT_SIZE)
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS"
-# FIXME: -ldl is only necessary on some platforms for CCSP
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS"
 
 TOCK_CXXFLAGS="$CPPFLAGS $CXXFLAGS $common_cflags $CPPCSP2_CFLAGS"
