@@ -76,7 +76,12 @@ data/TagAST.hs: GenTagAST$(EXEEXT)
 data/OrdAST.hs: GenOrdAST$(EXEEXT)
 	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
 
+config/Paths.hs: config/Paths.hs.in
+	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' \
+		config/Paths.hs.in >config/Paths.hs
+
 config_sources = config/CompilerCommands.hs
+config_sources += config/Paths.hs
 config_sources += config/TypeSizes.hs
 
 BUILT_SOURCES = data/OrdAST.hs

@@ -3,12 +3,10 @@ module CompilerCommands where
 
 import Data.List
 
--- Because we can't know for sure yet where Tock will be installed,
--- we must include this pkg-config call to be executed each time
--- to find out where our headers live.  Suggestions for a better way
--- are welcome.
+import Paths
+
 tockIncludeFlags :: String
-tockIncludeFlags = "`pkg-config --cflags tock-1.0`"
+tockIncludeFlags = "-I" ++ pkgIncludeDir
 
 cCommand :: String -> String -> String
 cCommand inp out = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ inp
