@@ -11,7 +11,16 @@ GHC_OPTS = \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
-	-ibackends -ichecks -icommon -idata -iflow -ifrontends -ipass -itransformations
+	\
+	-ibackends \
+	-ichecks \
+	-icommon \
+	-iconfig \
+	-idata \
+	-iflow \
+	-ifrontends \
+	-ipass \
+	-itransformations
 
 if GHC68
 GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
@@ -19,12 +28,12 @@ else
 GHC_OPTS += -fallow-undecidable-instances
 endif
 
-tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) CompilerCommands.hs TypeSizes.hs
+tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tock$(EXEEXT) --make Main -odir obj -hidir obj
 
 #The order of the -main-is and --make flags is important here:
-tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) CompilerCommands.hs TypeSizes.hs
+tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
@@ -67,8 +76,15 @@ data/TagAST.hs: GenTagAST$(EXEEXT)
 data/OrdAST.hs: GenOrdAST$(EXEEXT)
 	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
 
-BUILT_SOURCES = frontends/LexOccam.hs frontends/LexRain.hs data/TagAST.hs data/OrdAST.hs
-CLEANFILES = $(BUILT_SOURCES)
+config_sources = config/CompilerCommands.hs
+config_sources += config/TypeSizes.hs
+
+BUILT_SOURCES = data/OrdAST.hs
+BUILT_SOURCES += data/TagAST.hs
+BUILT_SOURCES += frontends/LexOccam.hs
+BUILT_SOURCES += frontends/LexRain.hs
+
+CLEANFILES = $(BUILT_SOURCES) $(config_sources)
 
 EXTRA_DIST = docextra testcases/automatic
 

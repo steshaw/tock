@@ -169,5 +169,5 @@ AC_SUBST(ccsp_available)
 AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
 
-AC_CONFIG_FILES([Makefile] [TypeSizes.hs] [CompilerCommands.hs] [tock-1.0.pc])
+AC_CONFIG_FILES([Makefile config/TypeSizes.hs config/CompilerCommands.hs tock-1.0.pc])
 AC_OUTPUT
