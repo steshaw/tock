@@ -117,8 +117,5 @@ items = concat
  
    u = undefined
 
-joinLines :: [String] -> String
-joinLines xs = concat [x ++ "\n" | x <- xs]
-
 main :: IO ()
-main = putStr $ joinLines $ genHeader ++ items
+main = putStr $ unlines $ genHeader ++ items
