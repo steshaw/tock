@@ -22,6 +22,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- (to stdout).
 module GenTagAST where
 
+import Data.Char
 import Data.Generics
 import Data.List (intersperse)
 
@@ -102,52 +103,64 @@ consParamsFor x = map consParamsFor' (dataTypeConstrs $ dataTypeOf x)
         cons :: [String]
         cons = gmapQ (show . typeOf) (fromConstr con :: a)
 
-items :: [(Int, String)]
+items :: [String]
 items = concat
- [consFor (u :: A.Actual)
- ,consFor (u :: A.Alternative)
- ,consFor (u :: A.ArrayConstr)
- ,consFor (u :: A.ArrayElem)
- ,consFor (u :: A.Choice)
- ,consFor (u :: A.Expression)
- ,consFor (u :: A.ExpressionList)
- ,consFor (u :: A.Formal)
- ,consFor (u :: A.InputItem)
- ,consFor (u :: A.InputMode)
- ,consFor (u :: A.LiteralRepr)
- ,consFor (u :: A.OutputItem)
- ,consFor (u :: A.Option)
- ,consFor (u :: A.Process)
- ,consFor (u :: A.Replicator)
- ,consFor (u :: A.Specification)
- ,consFor (u :: A.SpecType)
- ,consFor (u :: A.Subscript)
- ,consFor (u :: A.Type)
- ,consFor (u :: A.Variable)
- ,consFor (u :: A.Variant)
- ]
- where
-   u = undefined
-
-struct :: [String]
-struct = concat 
- [consP "P" (undefined :: A.Structured A.Process)
- ,consP "O" (undefined :: A.Structured A.Option)
- ,consP "C" (undefined :: A.Structured A.Choice)
- ,consP "V" (undefined :: A.Structured A.Variant)
- ,consP "A" (undefined :: A.Structured A.Alternative)
- ,consP "EL" (undefined :: A.Structured A.ExpressionList)
- ,consP "AST" (undefined :: A.Structured ())
- ]
+    [ gen (u :: A.Actual)
+    , gen (u :: A.Alternative)
+    , gen (u :: A.ArrayConstr)
+    , gen (u :: A.ArrayElem)
+    , gen (u :: A.Choice)
+    , gen (u :: A.Expression)
+    , gen (u :: A.ExpressionList)
+    , gen (u :: A.Formal)
+    , gen (u :: A.InputItem)
+    , gen (u :: A.InputMode)
+    , gen (u :: A.LiteralRepr)
+    , gen (u :: A.OutputItem)
+    , gen (u :: A.Option)
+    , gen (u :: A.Process)
+    , gen (u :: A.Replicator)
+    , gen (u :: A.Specification)
+    , gen (u :: A.SpecType)
+    , gen (u :: A.Subscript)
+    , gen (u :: A.Type)
+    , gen (u :: A.Variable)
+    , gen (u :: A.Variant)
+    , gen (u :: A.Structured A.Process)
+    , gen (u :: A.Structured A.Option)
+    , gen (u :: A.Structured A.Choice)
+    , gen (u :: A.Structured A.Variant)
+    , gen (u :: A.Structured A.Alternative)
+    , gen (u :: A.Structured A.ExpressionList)
+    , gen (u :: A.Structured ())
+    ]
   where
-    consP prefix w = concatMap (genItem' prefix (show $ typeOf w)) $ consParamsFor w
+    u = undefined
 
+    gen w
+        = case typeRepArgs rep of
+            -- A parameterised type (e.g. Structured Process).
+            [arg] -> genParam arg w
+            -- A normal type (e.g. Process).
+            _ -> genNormal w
+      where
+        rep = typeOf w
+
+    genParam arg w
+        = concatMap (genItem' prefix (show $ typeOf w)) $ consParamsFor w
+      where
+        argS = show arg
+        prefix
+          | argS == "()" = "AST"
+          | otherwise    = filter isUpper (drop (1 + index '.' argS) argS)
+
+        index c s = length (takeWhile (/= c) s)
+
+    genNormal w
+       = concatMap genItem (filterInvalid $ consFor w)
 
 filterInvalid :: [(Int, a)] -> [(Int, a)]
 filterInvalid = filter (\(n,_) -> n > 0)
 
-joinLines :: [String] -> String
-joinLines xs = concat [x ++ "\n" | x <- xs]
-
 main :: IO ()
-main = putStr $ joinLines $ genHeader ++ concatMap genItem (filterInvalid items) ++ struct
+main = putStr $ unlines $ genHeader ++ items
