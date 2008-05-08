@@ -53,7 +53,7 @@ ordFor' typeName x = process $ map processConstr $ dataTypeConstrs $ dataTypeOf 
     process :: [(String, String, String, [String])] -> [String]
     process [] = []
     process items =
-      ["instance Ord " ++ typeName ++ " where"]
+      ["instance Ord (" ++ typeName ++ ") where"]
       ++ concat [ [ "  compare (" ++ name ++ headL ++ ") (" ++ name ++ headR ++ ") = " ++
                     --Shortcut:
                     if null comparisons then "EQ" else
@@ -100,21 +100,20 @@ items = concat
  ,ordFor (u :: A.Replicator)
  ,ordFor (u :: A.Specification)
  ,ordFor (u :: A.SpecType)
- --TODO define a new function for doing a parameterised Ord
- ,ordFor' "(AST.Structured AST.Process)" (u :: A.Structured A.Process)
- ,ordFor' "(AST.Structured AST.Choice)" (u :: A.Structured A.Choice)
- ,ordFor' "(AST.Structured AST.Option)" (u :: A.Structured A.Option)
- ,ordFor' "(AST.Structured AST.Alternative)" (u :: A.Structured A.Alternative)
- ,ordFor' "(AST.Structured AST.Variant)" (u :: A.Structured A.Variant)
- ,ordFor' "(AST.Structured AST.ExpressionList)" (u :: A.Structured A.ExpressionList)
- ,ordFor' "(AST.Structured ())" (u :: A.Structured ())
+ ,ordFor (u :: A.Structured A.Process)
+ ,ordFor (u :: A.Structured A.Choice)
+ ,ordFor (u :: A.Structured A.Option)
+ ,ordFor (u :: A.Structured A.Alternative)
+ ,ordFor (u :: A.Structured A.Variant)
+ ,ordFor (u :: A.Structured A.ExpressionList)
+ ,ordFor (u :: A.Structured ())
  ,ordFor (u :: A.Subscript)
  ,ordFor (u :: A.Type)
  ,ordFor (u :: A.Variable)
  ,ordFor (u :: A.Variant)
  ]
  where
-   ordFor x = ordFor' (dataTypeName $ dataTypeOf x) x
+   ordFor x = ordFor' (show $ typeOf x) x
  
    u = undefined
 
