@@ -20,6 +20,7 @@ GHC_OPTS = \
 	-iflow \
 	-ifrontends \
 	-ipass \
+	-ipregen \
 	-itransformations
 
 if GHC68
@@ -167,8 +168,8 @@ tocktest_SOURCES += frontends/RainTypesTest.hs
 tocktest_SOURCES += frontends/StructureOccamTest.hs
 tocktest_SOURCES += transformations/PassTest.hs
 
-GenTagAST_SOURCES = GenTagAST.hs
-GenOrdAST_SOURCES = GenOrdAST.hs
+GenTagAST_SOURCES = pregen/GenTagAST.hs
+GenOrdAST_SOURCES = pregen/GenOrdAST.hs
 
 #The programs to actually build:	
 bin_PROGRAMS = tock
