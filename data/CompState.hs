@@ -33,6 +33,7 @@ import qualified Data.Set as Set
 import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, warnP)
 import Metadata
+import OrdAST ()
 
 -- | Modes that Tock can run in.
 data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull

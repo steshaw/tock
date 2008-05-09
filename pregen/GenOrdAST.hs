@@ -27,8 +27,9 @@ import Control.Monad.Writer
 import Data.Generics
 import Data.List
 
-import qualified AST as A
 import Metadata
+import PregenUtils
+import Utils
 
 genHeader :: [String]
 genHeader = [
@@ -80,42 +81,9 @@ ordFor' typeName x = process $ map processConstr $ dataTypeConstrs $ dataTypeOf 
                       ("AST." ++ showConstr c, x, y, z)
   
 items :: [String]
-items = concat
- [ordFor (u :: A.Actual)
- ,ordFor (u :: A.Alternative)
- ,ordFor (u :: A.ArrayConstr)
- ,ordFor (u :: A.ArrayElem)
- ,ordFor (u :: A.ChanAttributes)
- ,ordFor (u :: A.Choice)
- ,ordFor (u :: A.Dimension)
- ,ordFor (u :: A.Expression)
- ,ordFor (u :: A.ExpressionList)
- ,ordFor (u :: A.Formal)
- ,ordFor (u :: A.InputItem)
- ,ordFor (u :: A.InputMode)
- ,ordFor (u :: A.LiteralRepr)
- ,ordFor (u :: A.OutputItem)
- ,ordFor (u :: A.Option)
- ,ordFor (u :: A.Process)
- ,ordFor (u :: A.Replicator)
- ,ordFor (u :: A.Specification)
- ,ordFor (u :: A.SpecType)
- ,ordFor (u :: A.Structured A.Process)
- ,ordFor (u :: A.Structured A.Choice)
- ,ordFor (u :: A.Structured A.Option)
- ,ordFor (u :: A.Structured A.Alternative)
- ,ordFor (u :: A.Structured A.Variant)
- ,ordFor (u :: A.Structured A.ExpressionList)
- ,ordFor (u :: A.Structured ())
- ,ordFor (u :: A.Subscript)
- ,ordFor (u :: A.Type)
- ,ordFor (u :: A.Variable)
- ,ordFor (u :: A.Variant)
- ]
+items = concat [ordFor w | DataBox w <- astTypes]
  where
    ordFor x = ordFor' (show $ typeOf x) x
- 
-   u = undefined
 
 main :: IO ()
 main = putStr $ unlines $ genHeader ++ items

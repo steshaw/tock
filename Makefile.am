@@ -38,11 +38,11 @@ tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
-GenTagAST$(EXEEXT): $(GenTagAST_SOURCES) data/AST.hs
+GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
 
-GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES) data/AST.hs
+GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
 
@@ -168,8 +168,11 @@ tocktest_SOURCES += frontends/RainTypesTest.hs
 tocktest_SOURCES += frontends/StructureOccamTest.hs
 tocktest_SOURCES += transformations/PassTest.hs
 
-GenTagAST_SOURCES = pregen/GenTagAST.hs
-GenOrdAST_SOURCES = pregen/GenOrdAST.hs
+pregen_sources = data/AST.hs
+pregen_sources += pregen/PregenUtils.hs
+
+GenTagAST_SOURCES = pregen/GenTagAST.hs $(pregen_sources)
+GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
 
 #The programs to actually build:	
 bin_PROGRAMS = tock

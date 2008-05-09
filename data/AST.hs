@@ -58,10 +58,7 @@ instance Show Name where
   show n = show $ nameName n
 
 instance Eq Name where
-  (==) a b = nameName a == nameName b
-
-instance Ord Name where
-  compare a b = compare (nameName a) (nameName b)
+  (==) a b = (nameName a) == (nameName b)
 
 -- | The definition of a name.
 data NameDef = NameDef {
@@ -89,7 +86,7 @@ data Direction =
   | DirOutput      -- ^ The output end.
   | DirUnknown     -- ^ Either direction; either this is a whole channel,
                    -- or its direction is to be figured out later.
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | Attributes of the type of a channel.
 data ChanAttributes = ChanAttributes {
@@ -103,7 +100,7 @@ data ChanAttributes = ChanAttributes {
 -- reads into something of type Int), and a Rain timer (which reads into something
 -- of type Time).
 data TimerType = OccamTimer | RainTimer
-  deriving (Eq, Show, Ord, Typeable, Data)
+  deriving (Eq, Show, Typeable, Data)
 
 -- | A data or protocol type.
 -- The two concepts aren't unified in occam, but they are here, because it
@@ -180,7 +177,7 @@ data ConversionMode =
   DefaultConversion
   | Round
   | Trunc
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | Which ends (or both) of an array dimension to check the subscript against.
 -- By default, all subscripts in occam have the CheckBoth mode, but
@@ -192,7 +189,7 @@ data SubscriptCheck =
   | CheckLower
   | CheckUpper
   | CheckBoth
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | A subscript that can be applied to a variable or an expression.
 data Subscript =
@@ -312,7 +309,7 @@ data MonadicOp =
   | MonadicMinus
   | MonadicBitNot
   | MonadicNot
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | A dyadic (binary) operator.
 data DyadicOp =
@@ -324,7 +321,7 @@ data DyadicOp =
   | Eq | NotEq | Less | More | LessEq | MoreEq
   | After
   | Concat
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | An item in an input.
 data InputItem =
@@ -470,7 +467,7 @@ data AbbrevMode =
   | Abbrev
   -- | An abbreviation by value.
   | ValAbbrev
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | Anything that introduces a new name.
 data Specification =
@@ -516,7 +513,7 @@ data SpecType =
 -- This indicates whether a function is inlined by the compiler.
 data SpecMode =
   PlainSpec | InlineSpec
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | Formal parameters for @PROC@s and @FUNCTION@s.
 data Formal =
@@ -542,7 +539,7 @@ data ParMode =
   -- 'Processor' instances inside this indicate which processor each parallel
   -- process runs on.
   | PlacedPar
-  deriving (Show, Eq, Ord, Typeable, Data)
+  deriving (Show, Eq, Typeable, Data)
 
 -- | A process.
 data Process =

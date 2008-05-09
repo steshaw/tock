@@ -26,7 +26,8 @@ import Data.Char
 import Data.Generics
 import Data.List (intersperse)
 
-import qualified AST as A
+import PregenUtils
+import Utils
 
 genHeader :: [String]
 genHeader = [
@@ -104,39 +105,8 @@ consParamsFor x = map consParamsFor' (dataTypeConstrs $ dataTypeOf x)
         cons = gmapQ (show . typeOf) (fromConstr con :: a)
 
 items :: [String]
-items = concat
-    [ gen (u :: A.Actual)
-    , gen (u :: A.Alternative)
-    , gen (u :: A.ArrayConstr)
-    , gen (u :: A.ArrayElem)
-    , gen (u :: A.Choice)
-    , gen (u :: A.Expression)
-    , gen (u :: A.ExpressionList)
-    , gen (u :: A.Formal)
-    , gen (u :: A.InputItem)
-    , gen (u :: A.InputMode)
-    , gen (u :: A.LiteralRepr)
-    , gen (u :: A.OutputItem)
-    , gen (u :: A.Option)
-    , gen (u :: A.Process)
-    , gen (u :: A.Replicator)
-    , gen (u :: A.Specification)
-    , gen (u :: A.SpecType)
-    , gen (u :: A.Subscript)
-    , gen (u :: A.Type)
-    , gen (u :: A.Variable)
-    , gen (u :: A.Variant)
-    , gen (u :: A.Structured A.Process)
-    , gen (u :: A.Structured A.Option)
-    , gen (u :: A.Structured A.Choice)
-    , gen (u :: A.Structured A.Variant)
-    , gen (u :: A.Structured A.Alternative)
-    , gen (u :: A.Structured A.ExpressionList)
-    , gen (u :: A.Structured ())
-    ]
+items = concat [gen w | DataBox w <- astTypes]
   where
-    u = undefined
-
     gen w
         = case typeRepArgs rep of
             -- A parameterised type (e.g. Structured Process).
