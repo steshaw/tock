@@ -1,5 +1,4 @@
 GHC_OPTS = \
-	-prof -auto-all \
 	-fglasgow-exts \
 	-fwarn-deprecations \
 	-fwarn-duplicate-exports \
