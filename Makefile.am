@@ -38,13 +38,17 @@ tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
-GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
+GenNavAST$(EXEEXT): $(GenNavAST_SOURCES)
 	@MKDIR_P@ obj
-	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
+	ghc $(GHC_OPTS) -o GenNavAST$(EXEEXT) -main-is GenNavAST --make GenNavAST -odir obj -hidir obj
 
 GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
+
+GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
+	@MKDIR_P@ obj
+	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
 
 # Both these results are near-identical.  The -g flag to alex tells it to generate
 # a lexer optimised for GHC.  The other part of the rule inserts the
@@ -71,21 +75,25 @@ else
 	mv frontends/LexRain.temphs frontends/LexRain.hs
 endif
 
-data/TagAST.hs: GenTagAST$(EXEEXT)
-	./GenTagAST$(EXEEXT) > data/TagAST.hs
+config/Paths.hs: config/Paths.hs.in
+	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' \
+		config/Paths.hs.in >config/Paths.hs
+
+data/NavAST.hs: GenNavAST$(EXEEXT)
+	./GenNavAST$(EXEEXT) > data/NavAST.hs
 
 data/OrdAST.hs: GenOrdAST$(EXEEXT)
 	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
 
-config/Paths.hs: config/Paths.hs.in
-	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' \
-		config/Paths.hs.in >config/Paths.hs
+data/TagAST.hs: GenTagAST$(EXEEXT)
+	./GenTagAST$(EXEEXT) > data/TagAST.hs
 
 config_sources = config/CompilerCommands.hs
 config_sources += config/Paths.hs
 config_sources += config/TypeSizes.hs
 
-BUILT_SOURCES = data/OrdAST.hs
+BUILT_SOURCES = data/NavAST.hs
+BUILT_SOURCES += data/OrdAST.hs
 BUILT_SOURCES += data/TagAST.hs
 BUILT_SOURCES += frontends/LexOccam.hs
 BUILT_SOURCES += frontends/LexRain.hs
@@ -122,6 +130,7 @@ tock_SOURCES_hs += common/Utils.hs
 tock_SOURCES_hs += data/AST.hs
 tock_SOURCES_hs += data/CompState.hs
 tock_SOURCES_hs += data/Metadata.hs
+tock_SOURCES_hs += data/NavAST.hs
 tock_SOURCES_hs += data/OrdAST.hs
 tock_SOURCES_hs += data/TagAST.hs
 tock_SOURCES_hs += flow/FlowGraph.hs
@@ -171,12 +180,13 @@ tocktest_SOURCES += transformations/PassTest.hs
 pregen_sources = data/AST.hs
 pregen_sources += pregen/PregenUtils.hs
 
-GenTagAST_SOURCES = pregen/GenTagAST.hs $(pregen_sources)
+GenNavAST_SOURCES = pregen/GenNavAST.hs $(pregen_sources)
 GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
+GenTagAST_SOURCES = pregen/GenTagAST.hs $(pregen_sources)
 
 #The programs to actually build:	
 bin_PROGRAMS = tock
-noinst_PROGRAMS = tocktest GenTagAST GenOrdAST
+noinst_PROGRAMS = tocktest GenNavAST GenOrdAST GenTagAST
 TESTS = tocktest
 
 pkginclude_HEADERS = support/tock_support.h

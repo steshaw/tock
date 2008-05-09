@@ -18,7 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | Utilities for metaprogramming.
 module PregenUtils
-  ( astTypes
+  ( TypeMap
+  , astTypeMap
+  , astTypes
+  , filterModule
+  , findTypesIn
+  , justBoxes
+  , typeKey
   ) where
 
 import Control.Monad.State
@@ -33,6 +39,9 @@ import Utils
 
 type TypeMap = Map Int (String, DataBox)
 type TypeMapM = State TypeMap
+
+typeKey :: Typeable t => t -> Int
+typeKey x = unsafePerformIO $ typeRepKey $ typeOf x
 
 -- | Given a starting value, find all the types that could possibly be inside
 -- it.
@@ -68,7 +77,10 @@ justBoxes = map snd . sortBy cmp . Map.elems
   where
     cmp (l, _) (r, _) = compare l r
 
+-- | 'TypeMap' for all the types contained in the AST.
+astTypeMap :: TypeMap
+astTypeMap = findTypesIn (undefined :: A.AST)
+
 -- | Witnesses for all the types defined in the 'AST' module.
 astTypes :: [DataBox]
-astTypes = justBoxes $ filterModule "AST" $ findTypesIn (undefined :: A.AST)
-
+astTypes = justBoxes $ filterModule "AST" $ astTypeMap
