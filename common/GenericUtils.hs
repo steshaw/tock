@@ -39,6 +39,7 @@ import Data.Typeable
 import System.IO.Unsafe
 
 import qualified AST as A
+import Utils
 
 -- | A type identifier.
 type TypeKey = Int
@@ -46,9 +47,6 @@ type TypeKey = Int
 -- | Given a witness for a type, return its 'TypeKey'.
 typeKey :: Typeable a => a -> TypeKey
 typeKey x = unsafePerformIO $ typeRepKey $ typeOf x
-
--- | Container for 'Data' items.
-data DataBox = forall a. (Typeable a, Data a) => DataBox a
 
 -- | Given a witness for a type, return witnesses for all the types that its
 -- constructors take.

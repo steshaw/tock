@@ -23,6 +23,7 @@ module Utils where
 import Control.Monad.State
 import Data.Array.IArray
 import Data.List
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Ord
@@ -296,3 +297,6 @@ makeArraySize size def arr = array size [(i,arrayLookupWithDefault def arr i) | 
 -- This is like '(\/\/)'.
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt n rep es = [if i == n then rep else e | (e, i) <- zip es [0..]]
+
+-- | A type that can contain any 'Data' item.
+data DataBox = forall t. Data t => DataBox t
