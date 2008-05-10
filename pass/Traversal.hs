@@ -28,6 +28,7 @@ module Traversal (
 import Data.Generics
 
 import GenericUtils
+import NavAST
 import Pass
 
 -- | A transformation for a single 'Data' type with explicit descent.
