@@ -300,3 +300,10 @@ replaceAt n rep es = [if i == n then rep else e | (e, i) <- zip es [0..]]
 
 -- | A type that can contain any 'Data' item.
 data DataBox = forall t. Data t => DataBox t
+
+-- A version of mapM that acts on the values in maps.
+mapMapM :: (Ord a, Monad m) => (b -> m c) -> Map.Map a b -> m (Map.Map a c)
+mapMapM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
+  where
+    f' (x,y) = do y' <- f y
+                  return (x, y')
