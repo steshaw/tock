@@ -144,6 +144,7 @@ tock_SOURCES_hs += frontends/PreprocessOccam.hs
 tock_SOURCES_hs += frontends/RainPasses.hs
 tock_SOURCES_hs += frontends/RainTypes.hs
 tock_SOURCES_hs += frontends/StructureOccam.hs
+tock_SOURCES_hs += frontends/TypeUnification.hs
 tock_SOURCES_hs += pass/Pass.hs
 tock_SOURCES_hs += pass/PassList.hs
 tock_SOURCES_hs += pass/Properties.hs

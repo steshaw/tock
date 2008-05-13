@@ -23,6 +23,7 @@ import Control.Monad.State
 import Control.Monad.Error
 import Control.Monad.Writer
 import Data.Generics
+import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
 import qualified AST as A
@@ -36,6 +37,7 @@ import TagAST
 import TestUtils
 import TreeUtils
 import Types
+import TypeUnification
 import Utils
 
 m :: Meta
@@ -479,6 +481,24 @@ checkExpressionTest = TestList
              defVar "t" $ A.Time
              markRainTest
 
+testUnify :: Test
+testUnify = TestList
+ [test [] [] $ Just []
+ ,test' [("a",A.Int)] []
+ ,test' [("a",A.Int)] [("a","a")]
+ ,test [("a", A.Int), ("b", A.Infer)] [("a","b")] $
+  Just [("a", A.Int), ("b", A.Int)]
+ ]
+ where
+   test :: [(String, A.Type)] -> [(String, String)] -> Maybe [(String, A.Type)]
+     -> Test
+   test im u om = TestCase $ assertEqual "testUnify" (fmap Map.fromList om) $ Just $ unifyRainTypes (Map.fromList
+     im) u
+
+   test' :: [(String, A.Type)] -> [(String, String)] -> Test
+   test' x y = test x y (Just x)
+
+
 tests :: Test
 tests = TestLabel "RainTypesTest" $ TestList
  [
@@ -486,4 +506,5 @@ tests = TestLabel "RainTypesTest" $ TestList
   ,annotateIntTest
   ,annotateListLiteralTest
   ,checkExpressionTest
+  ,testUnify
  ]
