@@ -486,10 +486,8 @@ testUnify = TestList
  [pass [] [] []
  ,pass' [("a",A.Int)] []
  ,pass' [("a",A.Int)] [("a","a")]
- ,pass [("a", A.Int), ("b", A.Infer)] [("a","b")]
-       [("a", A.Int), ("b", A.Int)]
- ,pass [("a", A.List A.Int), ("b", A.List A.Infer)] [("a","b")]
-       [("a", A.List A.Int), ("b", A.List A.Int)]
+ ,pass2 [A.Int, A.Infer] [A.Int, A.Int]
+ ,pass2 [A.List A.Int, A.List A.Infer] [A.List A.Int, A.List A.Int]
  ,fail [("a", A.Int), ("b", A.List A.Infer)] [("a","b")]
  ,fail [("a", A.Infer)] []
  ,fail [("a", A.Infer), ("b", A.Infer)] [("a","b")]
@@ -508,6 +506,10 @@ testUnify = TestList
    pass' :: [(String, A.Type)] -> [(String, String)] -> Test
    pass' x y = pass x y x
 
+   pass2 :: [A.Type] -> [A.Type] -> Test
+   pass2 xs ys = pass (zip names xs) (allPairs names) (zip names ys)
+     where
+       names = take (min (length xs) (length ys)) $ map (:[]) ['a'..]
 
 tests :: Test
 tests = TestLabel "RainTypesTest" $ TestList
