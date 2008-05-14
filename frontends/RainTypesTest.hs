@@ -491,6 +491,9 @@ testUnify = TestList
  ,fail [("a", A.Int), ("b", A.List A.Infer)] [("a","b")]
  ,fail [("a", A.Infer)] []
  ,fail [("a", A.Infer), ("b", A.Infer)] [("a","b")]
+
+ -- Numeric things:
+ ,pass2 [A.InferNum 3, A.Int32] [A.Int32, A.Int32]
  ]
  where
    pass :: [(String, A.Type)] -> [(String, String)] -> [(String, A.Type)]

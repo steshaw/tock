@@ -45,9 +45,11 @@ unifyRainTypes :: Map.Map String A.Type -> [(String, String)] -> Either String
   (Map.Map String A.Type)
 unifyRainTypes m prs
   = runST $ do m' <- mapToST m
-               mapM_ (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y
+               outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y
                  m')) prs
-               stToMap m'
+               case mapMaybe (either Just (const Nothing)) outs of
+                 (err:_) -> return $ Left err
+                 [] -> stToMap m'
   where
     lookupStartType :: String -> Map.Map String (TypeExp s A.Type) -> TypeExp
       s A.Type
@@ -73,6 +75,9 @@ unifyRainTypes m prs
         read (MutVar v) = readSTRef v >>= \t -> case t of
           Nothing -> return $ Left $ "Type error in unification, found non-unified type"
           Just t' -> read t'
+        read (NumLit v) = readSTRef v >>= \x -> case x of
+          Left _ -> return $ Left $ "Numeric type without concrete type"
+          Right t -> return $ Right t
         read x = return $ Left $ "Type error in unification, found: " ++ show x
                   ++ " in: " ++ show m
 
@@ -92,20 +97,24 @@ typeToTypeExp (A.Chan A.DirUnknown _ t) = ttte "channel" t
 typeToTypeExp (A.Mobile t) = ttte "MOBILE" t
 typeToTypeExp (A.Infer) = do r <- newSTRef Nothing
                              return $ MutVar r
+typeToTypeExp (A.InferNum n) = do r <- newSTRef $ Left [n]
+                                  return $ NumLit r
 typeToTypeExp t = return $ OperType (toConstr t) []
 
 type Ptr s a = STRef s (Maybe (TypeExp s a))
 
--- TODO add a special type for numeric literals
 data TypeExp s a
  = MutVar (Ptr s a)
  | GenVar Int
+ -- Either a list of integers that must fit, or a concrete type
+ | NumLit (STRef s (Either [Integer] A.Type))
  | OperType Constr [ TypeExp s a ]
 
 -- For debugging:
 instance Show (TypeExp s a) where
   show (MutVar {}) = "MutVar"
   show (GenVar {}) = "GenVar"
+  show (NumLit {}) = "NumLit"
   show (OperType _ ts) = "OperType " ++ show ts
 
 prune :: TypeExp s a -> ST s (TypeExp s a)
@@ -132,9 +141,9 @@ occursInType r t =
                 return (or bs)
 
 unifyType :: TypeExp s a -> TypeExp s a -> ST s (Either String ())
-unifyType t1 t2
-  = do t1' <- prune t1
-       t2' <- prune t2
+unifyType te1 te2
+  = do t1' <- prune te1
+       t2' <- prune te2
        case (t1',t2') of
          (MutVar r1, MutVar r2) ->
            if r1 == r2
@@ -152,6 +161,41 @@ unifyType t1 t2
            if n1 == n2
               then unifyArgs ts1 ts2
               else return $ Left "different constructors"
+         (NumLit vns1, NumLit vns2) ->
+           do nst1 <- readSTRef vns1
+              nst2 <- readSTRef vns2
+              case (nst1, nst2) of
+                (Right t1, Right t2) ->
+                  if t1 /= t2
+                    then return $ Left "Numeric literals bound to different types"
+                    else return $ Right ()
+                (Left ns1, Left ns2) ->
+                  do writeSTRef vns1 $ Left (ns1 ++ ns2)
+                     writeSTRef vns2 $ Left (ns1 ++ ns2)
+                     return $ Right ()
+                (Right {}, Left {}) -> unifyType t2' t1'
+                (Left ns1, Right t2) ->
+                  if all (willFit t2) ns1
+                    then do writeSTRef vns1 (Right t2)
+                            return $ Right ()
+                    else return $ Left "Numeric literals will not fit in concrete type"
+         (OperType {}, NumLit {}) -> unifyType t2' t1'
+         (NumLit vns1, OperType n1 ts2) ->
+           do nst1 <- readSTRef vns1
+              case nst1 of
+                Right t ->
+                  if null ts2 && t == fromConstr n1
+                    then return $ Right ()
+                    else return $ Left $ "numeric literal cannot be unified"
+                           ++ " with two different types"
+                Left ns ->
+                  if null ts2
+                    then if all (willFit $ fromConstr n1) ns
+                           then do writeSTRef vns1 $ Right (fromConstr n1)
+                                   return $ Right ()
+                           else return $ Left "Numeric literals will not fit in concrete type"
+                    else return $ Left $ "Numeric literal cannot be unified"
+                      ++ " with non-numeric type"
          (_,_) -> return $ Left "different types"
   where
     unifyArgs (x:xs) (y:ys) = do unifyType x y
@@ -164,4 +208,24 @@ instantiate ts x = case x of
   MutVar _ -> x
   OperType nm xs -> OperType nm (map (instantiate ts) xs)
   GenVar n -> ts !! n
+
+willFit :: A.Type -> Integer -> Bool
+willFit t n = case bounds t of
+  Just (l,h) -> l <= n && n <= h
+  _ -> False
+  where
+    unsigned, signed :: Int -> Maybe (Integer, Integer)
+    signed n = Just (negate $ 2 ^ (n - 1), (2 ^ (n - 1)) - 1)
+    unsigned n = Just (0, (2 ^ n) - 1)
+
+    bounds :: A.Type -> Maybe (Integer, Integer)
+    bounds A.Int8 = signed 8
+    bounds A.Int16 = signed 16
+    bounds A.Int32 = signed 32
+    bounds A.Int64 = signed 64
+    bounds A.Byte = unsigned 8
+    bounds A.UInt16 = unsigned 16
+    bounds A.UInt32 = unsigned 32
+    bounds A.UInt64 = unsigned 64
+    bounds _ = Nothing
 
