@@ -483,20 +483,30 @@ checkExpressionTest = TestList
 
 testUnify :: Test
 testUnify = TestList
- [test [] [] $ Just []
- ,test' [("a",A.Int)] []
- ,test' [("a",A.Int)] [("a","a")]
- ,test [("a", A.Int), ("b", A.Infer)] [("a","b")] $
-  Just [("a", A.Int), ("b", A.Int)]
+ [pass [] [] []
+ ,pass' [("a",A.Int)] []
+ ,pass' [("a",A.Int)] [("a","a")]
+ ,pass [("a", A.Int), ("b", A.Infer)] [("a","b")]
+       [("a", A.Int), ("b", A.Int)]
+ ,pass [("a", A.List A.Int), ("b", A.List A.Infer)] [("a","b")]
+       [("a", A.List A.Int), ("b", A.List A.Int)]
+ ,fail [("a", A.Int), ("b", A.List A.Infer)] [("a","b")]
+ ,fail [("a", A.Infer)] []
+ ,fail [("a", A.Infer), ("b", A.Infer)] [("a","b")]
  ]
  where
-   test :: [(String, A.Type)] -> [(String, String)] -> Maybe [(String, A.Type)]
+   pass :: [(String, A.Type)] -> [(String, String)] -> [(String, A.Type)]
      -> Test
-   test im u om = TestCase $ assertEqual "testUnify" (fmap Map.fromList om) $ Just $ unifyRainTypes (Map.fromList
-     im) u
+   pass im u om = TestCase $ assertEqual "testUnify" (Right $ Map.fromList om)
+                              $ unifyRainTypes (Map.fromList im) u
 
-   test' :: [(String, A.Type)] -> [(String, String)] -> Test
-   test' x y = test x y (Just x)
+   fail :: [(String, A.Type)] -> [(String, String)] -> Test
+   fail im u = TestCase $ case unifyRainTypes (Map.fromList im) u of
+                 Left _ -> return ()
+                 Right om -> assertEqual "testUnify" Nothing $ Just om
+
+   pass' :: [(String, A.Type)] -> [(String, String)] -> Test
+   pass' x y = pass x y x
 
 
 tests :: Test
