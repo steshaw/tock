@@ -41,8 +41,8 @@ foldCon con _ = Left "foldCon: too many arguments given"
 -- Pearl (2001)", citeseer: http://citeseer.ist.psu.edu/451401.html
 -- This in turn was taken from Luca Cardelli's "Basic Polymorphic Type Checking"
 
-unifyRainTypes :: Map.Map String A.Type -> [(String, String)] -> Either String
-  (Map.Map String A.Type)
+unifyRainTypes :: forall k. (Ord k, Show k) => Map.Map k A.Type -> [(k, k)] -> Either String
+  (Map.Map k A.Type)
 unifyRainTypes m prs
   = runST $ do m' <- mapToST m
                outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y
@@ -51,18 +51,17 @@ unifyRainTypes m prs
                  (err:_) -> return $ Left err
                  [] -> stToMap m'
   where
-    lookupStartType :: String -> Map.Map String (TypeExp s A.Type) -> TypeExp
+    lookupStartType :: k -> Map.Map k (TypeExp s A.Type) -> TypeExp
       s A.Type
     lookupStartType s m = case Map.lookup s m of
       Just x -> x
       Nothing -> error $ "Could not find type for variable in map before unification: "
-        ++ s
+        ++ show s
 
-    mapToST :: Map.Map String A.Type -> ST s (Map.Map String (TypeExp s A.Type))
+    mapToST :: Map.Map k A.Type -> ST s (Map.Map k (TypeExp s A.Type))
     mapToST = mapMapM typeToTypeExp
 
-    stToMap :: Map.Map String (TypeExp s A.Type) -> ST s (Either String (Map.Map String
-      A.Type))
+    stToMap :: Map.Map k (TypeExp s A.Type) -> ST s (Either String (Map.Map k A.Type))
     stToMap m = do m' <- mapMapM (read <.< prune) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
