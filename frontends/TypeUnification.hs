@@ -62,23 +62,23 @@ unifyRainTypes m prs
     mapToST = mapMapM typeToTypeExp
 
     stToMap :: Map.Map k (TypeExp s A.Type) -> ST s (Either String (Map.Map k A.Type))
-    stToMap m = do m' <- mapMapM (read <.< prune) m
+    stToMap m = do m' <- mapMapWithKeyM (\k v -> prune v >>= read k) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
                      (e:_) -> return $ Left e
                      [] -> return $ Right mapOfRes
       where
-        read :: TypeExp s A.Type -> ST s (Either String A.Type)
-        read (OperType con vals) = do vals' <- mapM read vals
-                                      return $ foldCon con vals'
-        read (MutVar v) = readSTRef v >>= \t -> case t of
-          Nothing -> return $ Left $ "Type error in unification, found non-unified type"
-          Just t' -> read t'
-        read (NumLit v) = readSTRef v >>= \x -> case x of
-          Left _ -> return $ Left $ "Numeric type without concrete type"
+        read :: k -> TypeExp s A.Type -> ST s (Either String A.Type)
+        read k (OperType con vals) = do vals' <- mapM (read k) vals
+                                        return $ foldCon con vals'
+        read k (MutVar v) = readSTRef v >>= \t -> case t of
+          Nothing -> return $ Left $ "Type error in unification, "
+            ++ "ambigious type remains for: " ++ show k
+          Just t' -> read k t'
+        read k (NumLit v) = readSTRef v >>= \x -> case x of
+          Left _ -> return $ Left $ "Type error in unification, "
+            ++ "ambigious type remains for numeric literal: " ++ show k
           Right t -> return $ Right t
-        read x = return $ Left $ "Type error in unification, found: " ++ show x
-                  ++ " in: " ++ show m
 
 ttte :: Data b => b -> A.Type -> ST s (TypeExp s A.Type)
 ttte c t = typeToTypeExp t >>= \t' -> return $ OperType (toConstr c) [t']
