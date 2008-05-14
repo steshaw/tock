@@ -194,7 +194,7 @@ liftF :: (MonadTrans t, Monad m) => (a -> m b) -> (a -> t m b)
 liftF f x = lift (f x)
 
 
--- | Like the (.) operator, but for monads.  
+-- | Like the (.) operator, but for monads.
 (<.<) :: Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
 (<.<) f1 f0 x = f0 x >>= f1
 
@@ -220,7 +220,7 @@ product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
 product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
 
 -- | Given a list, produces all possible distinct pairings of the elements.
--- That is, for each pair returned, (A,B), B will not be the same element as A, and the pair (B,A) 
+-- That is, for each pair returned, (A,B), B will not be the same element as A, and the pair (B,A)
 -- will not be in the list.  Note that this is not the same as B /= A; if the source list contains
 -- two equal items, the returned pairs will feature a pair such that B /= A.
 allPairs :: [a] -> [(a,a)]
@@ -258,7 +258,7 @@ arrayZipWith' :: (IArray a e, Ix i) => e -> (e -> e -> e) -> a i e -> a i e -> a
 arrayZipWith' def f a0 a1 = simpleArray $ map (\i -> (i,f' i)) allIndexes
   where
     allIndexes = nub $ indices a0 ++ indices a1
-  
+
     f' i = f (arrayLookupWithDefault def a0 i) (arrayLookupWithDefault def a1 i)
 
 -- | Zips two maps using the given function.
@@ -268,7 +268,7 @@ zipMap :: Ord k => (Maybe v -> Maybe v' -> Maybe v'') -> Map.Map k v -> Map.Map 
 zipMap f xs ys = Map.fromList $ mapMaybe f' (Set.elems allKeys)
   where
     allKeys = Map.keysSet xs `Set.union` Map.keysSet ys
-    
+
     f' k = transformMaybe ((,) k) $ f (Map.lookup k xs) (Map.lookup k ys)
 
 showMaybe :: (a -> String) -> Maybe a -> String
@@ -303,7 +303,14 @@ data DataBox = forall t. Data t => DataBox t
 
 -- A version of mapM that acts on the values in maps.
 mapMapM :: (Ord a, Monad m) => (b -> m c) -> Map.Map a b -> m (Map.Map a c)
-mapMapM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
+mapMapM f m = mapMapWithKeyM (const f) m
+
+-- A version of mapM that acts on the values in maps.
+mapMapWithKeyM :: (Ord a, Monad m) => (a -> b -> m c) -> Map.Map a b -> m (Map.Map a c)
+mapMapWithKeyM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
   where
-    f' (x,y) = do y' <- f y
+    f' (x,y) = do y' <- f x y
                   return (x, y')
+
+
+
