@@ -144,6 +144,9 @@ data Type =
   | Mobile Type
   -- | A type that will be inferred automatically by a pass.
   | Infer
+  -- | A numeric type to be inferred later, that must be able to hold the given
+  -- value
+  | InferNum Integer
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.

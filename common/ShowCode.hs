@@ -226,7 +226,7 @@ instance ShowOccam A.Type where
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
   showOccamM A.Infer = tell ["(inferred type)"]
-
+  showOccamM (A.InferNum n) = tell ["(inferred numeric type: ",show n,")"]
   showOccamM (A.Mobile t) = tell ["MOBILE "] >> showOccamM t
   showOccamM (A.Array ds t)
       = (sequence dims) >> showOccamM t
@@ -268,6 +268,7 @@ instance ShowRain A.Type where
   showRainM (A.Mobile t) = showRainM t
   showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
   showRainM A.Infer = tell ["(inferred type)"]
+  showRainM (A.InferNum n) = tell ["(inferred numeric type: ",show n,")"]
   showRainM x = tell ["<invalid Rain type: ", show x, ">"]
 
 instance ShowOccam A.DyadicOp where
