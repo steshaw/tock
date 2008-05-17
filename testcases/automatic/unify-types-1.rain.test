@@ -1,0 +1,32 @@
+process main()
+{
+  bool: b;
+  int: x;
+%%
+}
+
+%PASS Valid ifs
+if (b) {}
+if (true) {}
+if (false) {}
+if (x == x) {}
+if (x < x) {}
+%FAIL Invalid if #1
+if (x) {}
+%FAIL Invalid if #2
+if (0) {}
+%FAIL Invalid if #3
+if ("6") {}
+%PASS Valid while
+while (b) {}
+while (true) {}
+while (false) {}
+while (x == x) {}
+while (x < x) {}
+%FAIL Invalid while #1
+while (x) {}
+%FAIL Invalid while #2
+while (0) {}
+%FAIL Invalid while #3
+while ("6") {}
+%

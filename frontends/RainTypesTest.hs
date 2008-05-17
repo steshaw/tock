@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | A module testing things from the RainTypes module.
-module RainTypesTest where
+module RainTypesTest (ioTests) where
 
 import Control.Monad.State
 import Control.Monad.Error
@@ -34,6 +34,7 @@ import Pass
 import Pattern
 import RainTypes
 import TagAST
+import TestHarness
 import TestUtils
 import TreeUtils
 import Types
@@ -515,12 +516,13 @@ testUnify = TestList [] {-
      where
        names = take (min (length xs) (length ys)) $ map (:[]) ['a'..]
 -}
-tests :: Test
-tests = TestLabel "RainTypesTest" $ TestList
+ioTests :: IO Test
+ioTests = liftM (TestLabel "RainTypesTest" . TestList) $ sequence
  [
-  constantFoldTest
-  ,annotateIntTest
-  ,annotateListLiteralTest
-  ,checkExpressionTest
-  ,testUnify
+  return constantFoldTest
+  ,return annotateIntTest
+  ,return annotateListLiteralTest
+  ,return checkExpressionTest
+  ,return testUnify
+  ,automaticTest FrontendRain "testcases/automatic/unify-types-1.rain.test"
  ]

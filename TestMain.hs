@@ -69,7 +69,7 @@ import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
 import qualified RainPassesTest (tests)
-import qualified RainTypesTest (tests)
+import qualified RainTypesTest (ioTests)
 import qualified StructureOccamTest (tests)
 import qualified UsageCheckTest (tests)
 import TestUtils
@@ -186,7 +186,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc PassTest.tests
               ,noqc PreprocessOccamTest.tests
               ,noqc RainPassesTest.tests
-              ,noqc RainTypesTest.tests
+              ,noqcButIO RainTypesTest.ioTests
               ,noqc StructureOccamTest.tests
               ,noqc UsageCheckTest.tests
             ]
@@ -194,3 +194,5 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
     noqc :: Test -> IO (Test, [LabelledQuickCheckTest])
     noqc t = return (t,[])
 
+    noqcButIO :: IO Test -> IO (Test, [LabelledQuickCheckTest])
+    noqcButIO t = t >>* \x -> (x,[])
