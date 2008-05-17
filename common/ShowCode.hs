@@ -38,7 +38,7 @@ import Control.Monad.Writer
 import Data.Generics
 import Data.List
 import qualified Data.Map as Map
-import Text.PrettyPrint.HughesPJ hiding (space, colon)
+import Text.PrettyPrint.HughesPJ hiding (space, colon, semi)
 import Text.Regex
 
 import qualified AST as A
@@ -90,6 +90,9 @@ showRainLine s = do st <- get
                     s
                     tell ["\n"]
 
+showRainLine' :: CodeWriter () -> CodeWriter ()
+showRainLine' s = showRainLine $ s >> tell [";"]
+
 occamIndent :: CodeWriter ()
 occamIndent = do st <- get
                  put (st { indentLevel = (indentLevel st) + 2} )
@@ -110,7 +113,8 @@ rainOutdent = do st <- get
                  put (st { indentLevel = (indentLevel st) - 4} )
 
 rainBlock :: CodeWriter () -> CodeWriter ()
-rainBlock s = rainIndent >> s >> rainOutdent
+rainBlock s = currentContext >>= \c -> showRainLine (tell [c]) >> showRainLine (tell ["{"]) >> rainIndent >> s >> rainOutdent >>
+  showRainLine (tell ["}"])
 
 
 showName :: A.Name -> CodeWriter ()
@@ -162,6 +166,12 @@ class ShowOccam a where
 -- | A type-class that indicates that the data (AST item) is displayable as Rain code.
 class ShowRain a where
   showRainM :: a -> CodeWriter ()
+
+-- For printing out the A.AST type, we need an instance for the unit type:
+instance ShowOccam () where
+  showOccamM _ = return ()
+instance ShowRain () where
+  showRainM _ = return ()
 
 -- | Shows the given code (AST item) as either occam or Rain code, depending on which frontend was selected
 showCode :: (CSMR m, ShowOccam a, ShowRain a) => a -> m String
@@ -351,6 +361,14 @@ instance ShowOccam A.LiteralRepr where
   showOccamM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
   --TODO record literals
 
+instance ShowRain A.LiteralRepr where
+  showRainM (A.RealLiteral _ s) = tell [s]
+  showRainM (A.IntLiteral _ s) = tell [s]
+  showRainM (A.HexLiteral _ s) = tell ["#", s]
+  showRainM (A.ByteLiteral _ s) = tell ["'", s, "'"]
+  showRainM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
+
+
 instance ShowOccam A.Subscript where
   showOccamM (A.Subscript _ _ e) = getTempItem >> tell ["["] >> showOccamM e >> tell ["]"]
   showOccamM (A.SubscriptField _ n) = getTempItem >> tell ["["] >> showName n >> tell ["]"]
@@ -387,6 +405,25 @@ instance ShowOccam A.Expression where
   showOccamM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showOccamM t >> tell [" , "] >> showName n >> tell [")"]
   --TODO exprconstr
 
+instance ShowRain A.Expression where
+  showRainM (A.Monadic _ op e) = bracket $ showRainM op >> space >> showRainM e
+  showRainM (A.Dyadic _ op lhs rhs) = bracket $ showRainM lhs >> space >> showRainM op >> space >> showRainM rhs
+  showRainM (A.MostPos _ t) = bracket $ tell ["MOSTPOS "] >> showRainM t
+  showRainM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showRainM t
+  showRainM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showRainM t
+  showRainM (A.SizeExpr _ e) = bracket $ tell ["SIZE "] >> showRainM e
+  showRainM (A.SizeVariable _ v) = bracket $ tell ["SIZE "] >> showRainM v
+  showRainM (A.Conversion _ cm t e) = bracket $ showRainM t >> convOrSpace cm >> showRainM e
+  showRainM (A.ExprVariable _ v) = showRainM v
+  showRainM (A.Literal _ _ lit) = showRainM lit
+  showRainM (A.True _) = tell ["TRUE"]
+  showRainM (A.False _) = tell ["FALSE"]
+  showRainM (A.FunctionCall _ n es) = showName n >> tell ["("] >> showWithCommas es >> tell [")"]
+  showRainM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showRainM e
+  showRainM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showRainM t
+  showRainM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showRainM t >> tell [" , "] >> showName n >> tell [")"]
+
+
 instance ShowOccam A.Formal where
   showOccamM (A.Formal am t n) = (maybeVal am)
                                  >> (showOccamM t)
@@ -399,8 +436,15 @@ space = tell [" "]
 colon :: CodeWriter ()
 colon = tell [":"]
 
+semi :: CodeWriter ()
+semi = tell [";"]
+
 maybeVal :: A.AbbrevMode -> CodeWriter ()
 maybeVal am = tell [if (am == A.ValAbbrev) then "VAL " else ""]
+
+maybeValRain :: A.AbbrevMode -> CodeWriter ()
+maybeValRain am = tell [if (am == A.ValAbbrev) then "const " else ""]
+
 
 instance ShowOccam A.Specification where
   -- TODO add specmode to the output
@@ -532,13 +576,22 @@ instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
   --TODO functioncalllist
 
-outer :: (Data a, ShowOccam a) => String -> A.Structured a -> CodeWriter ()
-outer keyword (A.Rep _ rep str)
+outerOccam :: (Data a, ShowOccam a) => String -> A.Structured a -> CodeWriter ()
+outerOccam keyword (A.Rep _ rep str)
   = do showOccamLine (tell [keyword] >> showOccamM rep)
        beginStr keyword
        showOccamM str
        endStr
-outer keyword str = doStr keyword (showOccamM str)
+outerOccam keyword str = doStr keyword (showOccamM str)
+
+outerRain :: (Data a, ShowRain a) => String -> A.Structured a -> CodeWriter ()
+outerRain keyword (A.Rep _ rep str)
+  = do showRainLine (tell [keyword] >> showRainM rep)
+       pushContext keyword
+       rainBlock $ showRainM str
+       popContext
+outerRain keyword str = pushContext keyword >> (rainBlock $ showRainM str)
+  >> popContext
 
 instance ShowOccam A.Process where
   showOccamM (A.Assign _ vs el) = showOccamLine (showWithCommas vs >> tell [":="] >> showOccamM el)
@@ -554,18 +607,78 @@ instance ShowOccam A.Process where
   showOccamM (A.ProcCall _ n params) = showOccamLine $ showName n >> tell [" ( "] >> showWithCommas params >> tell [" ) "]
   showOccamM (A.While _ e p) = (showOccamLine $ tell ["WHILE "] >> showOccamM e) >> occamIndent >> showOccamM p >> occamOutdent
   showOccamM (A.Case _ e s) = (showOccamLine $ tell ["CASE "] >> showOccamM e) >> occamBlock (showOccamM s)
-  showOccamM (A.If _ str) = outer "IF" str
-  showOccamM (A.Alt _ False str) = outer "ALT" str
-  showOccamM (A.Alt _ True str) = outer "PRI ALT" str
-  showOccamM (A.Seq _ str) = outer "SEQ" str
-  showOccamM (A.Par _ A.PlainPar str) = outer "PAR" str
-  showOccamM (A.Par _ A.PriPar str) = outer "PRI PAR" str
-  showOccamM (A.Par _ A.PlacedPar str) = outer "PLACED PAR" str
+  showOccamM (A.If _ str) = outerOccam "IF" str
+  showOccamM (A.Alt _ False str) = outerOccam "ALT" str
+  showOccamM (A.Alt _ True str) = outerOccam "PRI ALT" str
+  showOccamM (A.Seq _ str) = outerOccam "SEQ" str
+  showOccamM (A.Par _ A.PlainPar str) = outerOccam "PAR" str
+  showOccamM (A.Par _ A.PriPar str) = outerOccam "PRI PAR" str
+  showOccamM (A.Par _ A.PlacedPar str) = outerOccam "PLACED PAR" str
 --  showOccamM _x = return $ "#error unimplemented" ++ show _x
+
+-- TODO make this properly rain:
+instance (Data a, ShowRain a) => ShowRain (A.Structured a) where
+  showRainM (A.Spec _ spec str) = showRainM spec >> showRainM str
+  showRainM (A.Rep _ rep str)
+    = do item <- currentContext
+         (showRainLine (return (item ++ " ") >> showRainM rep)) >> rainIndent >> showRainM str >> rainOutdent
+  showRainM (A.Only _ p) = showRainM p
+  showRainM (A.Several _ ss) = sequence_ $ map showRainM ss
+  showRainM (A.ProcThen _ p str) = showRainLine (tell ["VALOF"]) >> rainBlock (showRainM p >> showRainLine (tell ["RESULT "] >> showRainM str))
+
+instance ShowRain A.Specification where
+  -- TODO add specmode to the output
+  showRainM (A.Specification _ n (A.Proc _ sm params body))
+    = do let params' = intersperse (tell [","]) $ map showRainM params
+         showRainLine $ do  tell ["process "]
+                            showName n
+                            tell ["("]
+                            sequence_ params'
+                            tell [")"]
+         showRainLine (tell ["{"])
+         rainIndent
+         showRainM body
+         rainOutdent
+         showRainLine (tell ["}"])
+  showRainM (A.Specification _ n (A.Declaration _ t))
+    = showRainLine $ showRainM t >> colon >> showName n >> semi
+  showRainM (A.Specification _ n (A.Is _ am t v))
+    = showRainLine $ (maybeValRain am) >> showRainM t >> colon >> showName n >> tell [" = "] >> showRainM v >> semi
+  showRainM (A.Specification _ n (A.IsExpr _ am t e))
+    = showRainLine $ (maybeValRain am) >> showRainM t >> colon >> showName n >> tell [" = "] >> showRainM e >> semi
+
+
+instance ShowRain A.Process where
+  showRainM (A.Assign _ vs el) = showRainLine' (showWithCommas vs >> tell ["="] >> showRainM el)
+  showRainM (A.Skip _) = showRainLine $ tell ["{}"]
+  showRainM (A.Stop _) = showRainLine' $ tell ["STOP"] 
+  showRainM (A.Input _ v im) = showInputModeOccamM v im --TODO add a rain version
+  showRainM (A.Output _ v ois) = showRainLine' $ showRainM v >> tell [" ! "] >> (showWithSemis ois)
+  showRainM (A.OutputCase _ v n ois) = showRainLine' $ showRainM v >> tell [" ! "] >> 
+    (sequence_ $ intersperse (tell [" ; "]) $ [showName n] ++ (map showRainM ois))
+  --TODO gettime and wait ?
+  
+  --TODO proccall
+  showRainM (A.ProcCall _ n params) = showRainLine' $ showName n >> tell [" ( "] >> showWithCommas params >> tell [" ) "]
+  showRainM (A.While _ e p) = (showRainLine $ tell ["while "] >> showRainM e) >> rainIndent >> showRainM p >> rainOutdent
+  showRainM (A.Case _ e s) = (showRainLine $ tell ["case "] >> showRainM e) >> rainBlock (showRainM s)
+  showRainM (A.If _ str) = outerRain "if" str
+  showRainM (A.Alt _ False str) = outerRain "alt" str
+  showRainM (A.Alt _ True str) = outerRain "pri alt" str
+  showRainM (A.Seq _ str) = outerRain "seq" str
+  showRainM (A.Par _ A.PlainPar str) = outerRain "par" str
+  showRainM (A.Par _ A.PriPar str) = outerRain "pri par" str
+  showRainM (A.Par _ A.PlacedPar str) = outerRain "placed par" str
+
+instance ShowRain A.Replicator where
+  showRainM (A.For _ n start count) = tell [" "] >> showName n >> tell [" = "] >> showRainM start >> tell [" for "] >> showRainM count
+  showRainM (A.ForEach _ n e) = tell ["each ("] >> showName n >> colon >> showRainM e
+
+
 
 --TEMP:
 instance ShowRain a where
-  showRainM = const $ return ()
+  showRainM = const $ tell ["$"]
 
 instance ShowOccam a => ShowOccam [a] where
   showOccamM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
