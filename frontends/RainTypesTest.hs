@@ -297,26 +297,26 @@ checkExpressionTest = TestList
   ,passSame 6503 A.Bool $ Dy (Var "t") A.More (Var "t")
   
   --Now statements:
-  ,testPassUntouched 7000 checkCommTypes (getTime $ variable "t")
+  ,testPassUntouched 7000 performTypeUnification (getTime $ variable "t")
   ,TestCase $ testPassShouldFail "checkExpressionTest 7001"
-    (checkCommTypes $ getTime $ variable "x") state
+    (performTypeUnification $ getTime $ variable "x") state
   
   --Wait statements:
-  ,testPassUntouched 7100 checkCommTypes (waitFor $ exprVariable "t")
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7101" (checkCommTypes $ waitFor $ exprVariable "x") state
-  ,testPassUntouched 7102 checkCommTypes (waitFor $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+  ,testPassUntouched 7100 performTypeUnification (waitFor $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7101" (performTypeUnification $ waitFor $ exprVariable "x") state
+  ,testPassUntouched 7102 performTypeUnification (waitFor $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
 
-  ,testPassUntouched 7200 checkCommTypes (waitUntil $ exprVariable "t")
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (checkCommTypes $ waitUntil $ exprVariable "x") state
-  ,testPassUntouched 7202 checkCommTypes (waitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
+  ,testPassUntouched 7200 performTypeUnification (waitUntil $ exprVariable "t")
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7201" (performTypeUnification $ waitUntil $ exprVariable "x") state
+  ,testPassUntouched 7202 performTypeUnification (waitUntil $ buildExpr $ Dy (Var "t") A.Plus (Var "t"))
   
-  ,testPassUntouched 7300 checkCommTypes (altWaitFor (exprVariable "t") $ A.Skip m)
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7301" (checkCommTypes $ altWaitFor (exprVariable "x") $ A.Skip m) state
-  ,testPassUntouched 7302 checkCommTypes (altWaitFor (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)
+  ,testPassUntouched 7300 performTypeUnification (altWaitFor (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7301" (performTypeUnification $ altWaitFor (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7302 performTypeUnification (altWaitFor (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)
 
-  ,testPassUntouched 7400 checkCommTypes (altWaitUntil (exprVariable "t") $ A.Skip m)
-  ,TestCase $ testPassShouldFail "checkExpressionTest 7401" (checkCommTypes $ altWaitUntil (exprVariable "x") $ A.Skip m) state
-  ,testPassUntouched 7402 checkCommTypes (altWaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)  
+  ,testPassUntouched 7400 performTypeUnification (altWaitUntil (exprVariable "t") $ A.Skip m)
+  ,TestCase $ testPassShouldFail "checkExpressionTest 7401" (performTypeUnification $ altWaitUntil (exprVariable "x") $ A.Skip m) state
+  ,testPassUntouched 7402 performTypeUnification (altWaitUntil (buildExpr $ Dy (Var "t") A.Plus (Var "t")) $ A.Skip m)  
  ]
  where
   -- The type of a timer should not be checked, because it will only have parsed
@@ -384,8 +384,8 @@ checkExpressionTest = TestList
   testCheckCommTypesIn :: Int -> (A.Direction,A.Type,A.Variable) -> (A.Type,A.Variable) -> Test
   testCheckCommTypesIn n (chanDir,chanType,chanVar) (destType,destVar)
     = if (chanType == destType && chanDir /= A.DirOutput)
-        then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (checkCommTypes st) state
-        else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
+        then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (performTypeUnification st) state
+        else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (performTypeUnification st) state 
       where
         st = A.Input m chanVar $ A.InputSimple m [A.InVariable m destVar]              
 
@@ -394,8 +394,8 @@ checkExpressionTest = TestList
   testCheckCommTypesInAlt :: Int -> (A.Direction,A.Type,A.Variable) -> (A.Type,A.Variable) -> Test
   testCheckCommTypesInAlt n (chanDir,chanType,chanVar) (destType,destVar)
     = if (chanType == destType && chanDir /= A.DirOutput)
-        then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (checkCommTypes st) state
-        else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (checkCommTypes st) state 
+        then TestCase $ testPass ("testCheckCommTypesIn " ++ show n) (mkPattern st) (performTypeUnification st) state
+        else TestCase $ testPassShouldFail ("testCheckCommTypesIn " ++ show n) (performTypeUnification st) state 
       where
         st = A.Alt m True $ A.Only m $ A.Alternative m (A.True m) chanVar (A.InputSimple m [A.InVariable m destVar]) $ A.Skip m
  
@@ -420,10 +420,10 @@ checkExpressionTest = TestList
   testCheckCommTypesOut n (chanDir,chanType,chanVar) (srcType,srcVar)
     = if (isImplicitConversionRain srcType chanType && chanDir /= A.DirInput)
         then (if srcType == chanType
-                then TestCase $ testPass ("testCheckCommTypesOut " ++ show n) (mkPattern st) (checkCommTypes st) state
-                else TestCase $ testPass ("testCheckCommTypesOut " ++ show n) stCast (checkCommTypes st) state
+                then TestCase $ testPass ("testCheckCommTypesOut " ++ show n) (mkPattern st) (performTypeUnification st) state
+                else TestCase $ testPass ("testCheckCommTypesOut " ++ show n) stCast (performTypeUnification st) state
              )
-        else TestCase $ testPassShouldFail ("testCheckCommTypesOut " ++ show n) (checkCommTypes st) state 
+        else TestCase $ testPassShouldFail ("testCheckCommTypesOut " ++ show n) (performTypeUnification st) state 
       where
         st = A.Output m chanVar [A.OutExpression m $ A.ExprVariable m srcVar]
         stCast = tag3 A.Output DontCare chanVar [tag2 A.OutExpression DontCare $ tag4 A.Conversion DontCare A.DefaultConversion chanType $

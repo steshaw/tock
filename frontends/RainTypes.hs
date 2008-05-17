@@ -90,6 +90,7 @@ performTypeUnification x
        -- First, we markup all the types in the tree:
   = do x' <- markConditionalTypes
              <.< markAssignmentTypes
+             <.< markCommTypes
              $ x --TODO markup everything else
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
@@ -392,76 +393,34 @@ markConditionalTypes = checkDepthM2 checkWhile checkIf
       = markUnify exp A.Bool
 
 -- | Checks the types in inputs and outputs, including inputs in alts
-checkCommTypes :: Data t => t -> PassM t
-checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
+markCommTypes :: Data t => t -> PassM t
+markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
-    checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM a
+    checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM ()
     checkInput chanVar destVar m p
-      = do chanType <- astTypeOf chanVar
-           destType <- astTypeOf destVar
-           case chanType of
-             A.Chan dir _ innerType -> 
-               if (dir == A.DirOutput) 
-                 then dieP m $ "Tried to input from the writing end of a channel: " ++ show chanVar
-                 else 
-                   if (innerType == destType)
-                     then return p
-                     else diePC m $ formatCode "Mis-matching types; channel: \"%\" has inner-type: % but destination variable: \"%\" has type: %"
-                                               chanVar innerType destVar destType
-             _ -> dieP m $ "Tried to input from a variable that is not of type channel: " ++ show chanVar
+      = astTypeOf destVar >>= markUnify chanVar . A.Chan A.DirInput (A.ChanAttributes
+        False False)
 
-    checkWait :: A.InputMode -> PassM ()
-    checkWait (A.InputTimerFor m exp)
-      = do t <- astTypeOf exp
-           when (t /= A.Time) $
-             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
-               t
-    checkWait (A.InputTimerAfter m exp)
-      = do t <- astTypeOf exp
-           when (t /= A.Time) $
-             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
-               t
-    checkWait (A.InputTimerRead m (A.InVariable _ v))
-      = do t <- astTypeOf v
-           when (t /= A.Time) $
-             diePC m $ formatCode "Tried to wait for something that was not of time type: %"
-               t
+    checkWait :: Check A.InputMode
+    checkWait (A.InputTimerFor m exp) = markUnify A.Time exp
+    checkWait (A.InputTimerAfter m exp) = markUnify A.Time exp
+    checkWait (A.InputTimerRead m (A.InVariable _ v)) = markUnify A.Time v
     checkWait _ = return ()
 
-    checkInputOutput :: A.Process -> PassM A.Process
+    checkInputOutput :: Check A.Process
     checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
       = checkInput chanVar destVar m p
-    checkInputOutput p@(A.Input _ _ im@(A.InputTimerFor {}))
-      = do checkWait im
-           return p
-    checkInputOutput p@(A.Input _ _ im@(A.InputTimerAfter {}))
-      = do checkWait im
-           return p
-    checkInputOutput p@(A.Input _ _ im@(A.InputTimerRead {}))
-      = do checkWait im
-           return p
+    checkInputOutput (A.Input _ _ im@(A.InputTimerFor {})) = checkWait im
+    checkInputOutput (A.Input _ _ im@(A.InputTimerAfter {})) = checkWait im
+    checkInputOutput (A.Input _ _ im@(A.InputTimerRead {})) = checkWait im
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
-      = do chanType <- astTypeOf chanVar
-           srcType <- astTypeOf srcExp
-           case chanType of
-             A.Chan dir _ innerType ->
-               if (dir == A.DirInput)
-                 then dieP m $ "Tried to output to the reading end of a channel: " ++ show chanVar
-                 else
-                   if (innerType == srcType)
-                     then return p
-                     else do castExp <- coerceType " for writing to channel" innerType srcType srcExp
-                             return $ A.Output m chanVar [A.OutExpression m' castExp]
-             _ -> dieP m $ "Tried to output to a variable that is not of type channel: " ++ show chanVar
-    checkInputOutput p = return p
+      = astTypeOf srcExp >>= markUnify chanVar . A.Chan A.DirOutput (A.ChanAttributes
+        False False)
+    checkInputOutput _ = return ()
 
-    checkAltInput :: A.Alternative -> PassM A.Alternative
+    checkAltInput :: Check A.Alternative
     checkAltInput a@(A.Alternative m _ chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
       = checkInput chanVar destVar m a
-    checkAltInput a@(A.Alternative m _ _ im@(A.InputTimerFor {}) _)
-      = do checkWait im
-           return a
-    checkAltInput a@(A.Alternative m _ _ im@(A.InputTimerAfter {}) _)
-      = do checkWait im
-           return a
-    checkAltInput a = return a
+    checkAltInput (A.Alternative m _ _ im@(A.InputTimerFor {}) _) = checkWait im
+    checkAltInput (A.Alternative m _ _ im@(A.InputTimerAfter {}) _) = checkWait im
+    checkAltInput _ = return ()
