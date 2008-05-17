@@ -38,7 +38,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
   where
     recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
-      = do arrType <- typeOfExpression e
+      = do arrType <- astTypeOf e
            innerT <- case arrType of 
              A.List t -> return t
              _ -> diePC m $ formatCode "Cannot do a foreach loop over a non-list type: %" arrType
@@ -94,7 +94,7 @@ annotateListLiteralTypes = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m _ (A.ListLiteral m' es))
-      = do ts <- mapM typeOfExpression es
+      = do ts <- mapM astTypeOf es
            sharedT <- case (ts, leastGeneralSharedTypeRain ts) of
              (_, Just t) -> return t
              ([], Nothing) -> return A.Any
@@ -105,8 +105,8 @@ annotateListLiteralTypes = applyDepthM doExpression
            es' <- mapM (coerceIfNecessary sharedT) (zip ts es)
            return $ A.Literal m (A.List sharedT) $ A.ListLiteral m' es'
     doExpression (A.ExprConstr m (A.RangeConstr m' t b e))
-      = do bt <- typeOfExpression b
-           et <- typeOfExpression e
+      = do bt <- astTypeOf b
+           et <- astTypeOf e
            sharedT <- case leastGeneralSharedTypeRain [bt, et] of
              Just t -> return t
              Nothing -> diePC m'
@@ -161,7 +161,7 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
     --Checks the type of a parameter (A.Actual), and inserts a cast if it is safe to do so
     doParam :: Meta -> String -> (Int,A.Formal, A.Actual) -> PassM A.Actual
     doParam m n (index, A.Formal formalAbbrev formalType formalName, A.ActualVariable v)
-      = do actualType <- typeOfVariable v
+      = do actualType <- astTypeOf v
            if (actualType == formalType)
              then return $ A.ActualVariable v
              else (liftM A.ActualExpression) $ doCast index formalType actualType (A.ExprVariable (findMeta v) v )
@@ -171,7 +171,7 @@ matchParamPass = everywhereM ((mkM matchParamPassProc) `extM` matchParamPassFunc
     --Checks the type of a parameter (A.Expression), and inserts a cast if it is safe to do so
     doExpParam :: Meta -> String -> (Int, A.Formal, A.Expression) -> PassM A.Expression
     doExpParam m n (index, A.Formal formalAbbrev formalType formalName, e)
-      = do actualType <- typeOfExpression e
+      = do actualType <- astTypeOf e
            if (actualType == formalType)
              then return e
              else doCast index formalType actualType e
@@ -210,8 +210,8 @@ checkExpressionTypes = applyDepthM checkExpression
 
     checkExpression :: A.Expression -> PassM A.Expression
     checkExpression e@(A.Dyadic m op lhs rhs)
-      = do tlhs <- typeOfExpression lhs
-           trhs <- typeOfExpression rhs
+      = do tlhs <- astTypeOf lhs
+           trhs <- astTypeOf rhs
            if (tlhs == A.Time || trhs == A.Time)
              -- Expressions with times can have asymmetric types,
              -- so we handle them specially:
@@ -242,7 +242,7 @@ checkExpressionTypes = applyDepthM checkExpression
                         else --The operands are not equal, and are not integers, and neither of them is a time type.  Therefore this must be an error:
                           diePC m $ formatCode "Mis-matched types; no operator applies to types: % and %" tlhs trhs
     checkExpression e@(A.Monadic m op rhs)
-      = do trhs <- typeOfExpression rhs
+      = do trhs <- astTypeOf rhs
            if (op == A.MonadicMinus)
              then case trhs of
                     A.Byte -> return $ A.Monadic m op $ convert A.Int16 trhs rhs
@@ -257,7 +257,7 @@ checkExpressionTypes = applyDepthM checkExpression
                         _ -> diePC m $ formatCode "Cannot apply unary not to non-boolean type: %" trhs
                     else dieP m $ "Invalid Rain operator: \"" ++ show op ++ "\""
     checkExpression e@(A.Conversion m cm dest rhs)
-      = do src <- typeOfExpression rhs
+      = do src <- astTypeOf rhs
            if (src == dest)
              then return e
              else if isImplicitConversionRain src dest
@@ -306,8 +306,8 @@ checkAssignmentTypes = applyDepthM checkAssignment
   where
     checkAssignment :: A.Process -> PassM A.Process
     checkAssignment ass@(A.Assign m [v] (A.ExpressionList m' [e]))
-      = do trhs <- typeOfExpression e
-           tlhs <- typeOfVariable v
+      = do trhs <- astTypeOf e
+           tlhs <- astTypeOf v
            am <- abbrevModeOfVariable v
            when (am == A.ValAbbrev) $
              diePC m $ formatCode "Cannot assign to a constant variable: %" v
@@ -324,7 +324,7 @@ checkConditionalTypes = applyDepthM2 checkWhile checkIf
   where
     checkWhile :: A.Process -> PassM A.Process
     checkWhile w@(A.While m exp _)
-      = do t <- typeOfExpression exp
+      = do t <- astTypeOf exp
            if (t == A.Bool)
              then return w
              else dieP m "Expression in while conditional must be of boolean type"
@@ -332,7 +332,7 @@ checkConditionalTypes = applyDepthM2 checkWhile checkIf
     
     checkIf :: A.Choice -> PassM A.Choice
     checkIf c@(A.Choice m exp _)
-      = do t <- typeOfExpression exp
+      = do t <- astTypeOf exp
            if (t == A.Bool)
              then return c
              else dieP m "Expression in if conditional must be of boolean type"
@@ -343,8 +343,8 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM a
     checkInput chanVar destVar m p
-      = do chanType <- typeOfVariable chanVar
-           destType <- typeOfVariable destVar
+      = do chanType <- astTypeOf chanVar
+           destType <- astTypeOf destVar
            case chanType of
              A.Chan dir _ innerType -> 
                if (dir == A.DirOutput) 
@@ -358,17 +358,17 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
 
     checkWait :: A.InputMode -> PassM ()
     checkWait (A.InputTimerFor m exp)
-      = do t <- typeOfExpression exp
+      = do t <- astTypeOf exp
            when (t /= A.Time) $
              diePC m $ formatCode "Tried to wait for something that was not of time type: %"
                t
     checkWait (A.InputTimerAfter m exp)
-      = do t <- typeOfExpression exp
+      = do t <- astTypeOf exp
            when (t /= A.Time) $
              diePC m $ formatCode "Tried to wait for something that was not of time type: %"
                t
     checkWait (A.InputTimerRead m (A.InVariable _ v))
-      = do t <- typeOfVariable v
+      = do t <- astTypeOf v
            when (t /= A.Time) $
              diePC m $ formatCode "Tried to wait for something that was not of time type: %"
                t
@@ -387,8 +387,8 @@ checkCommTypes = applyDepthM2 checkInputOutput checkAltInput
       = do checkWait im
            return p
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
-      = do chanType <- typeOfVariable chanVar
-           srcType <- typeOfExpression srcExp
+      = do chanType <- astTypeOf chanVar
+           srcType <- astTypeOf srcExp
            case chanType of
              A.Chan dir _ innerType ->
                if (dir == A.DirInput)

@@ -45,7 +45,7 @@ import Utils
 constantFold :: (CSMR m, Die m) => A.Expression -> m (A.Expression, Bool, ErrorReport)
 constantFold e
     =  do ps <- getCompState
-          t <- typeOfExpression e
+          t <- astTypeOf e
           case runEvaluator ps (evalExpression e) of
             Left err -> return (e, False, err)
             Right val ->
@@ -152,7 +152,7 @@ evalExpression (A.MostNeg _ A.Int32) = return $ OccInt32 minBound
 evalExpression (A.MostPos _ A.Int64) = return $ OccInt64 maxBound
 evalExpression (A.MostNeg _ A.Int64) = return $ OccInt64 minBound
 evalExpression (A.SizeExpr m e)
-    =  do t <- typeOfExpression e >>= underlyingType m
+    =  do t <- astTypeOf e >>= underlyingType m
           case t of
             A.Array (A.Dimension n:_) _ -> evalExpression n
             _ ->
@@ -161,7 +161,7 @@ evalExpression (A.SizeExpr m e)
                    OccArray vs -> return $ OccInt (fromIntegral $ length vs)
                    _ -> throwError (Just m, "size of non-constant expression " ++ show e ++ " used")
 evalExpression (A.SizeVariable m v)
-    =  do t <- typeOfVariable v >>= underlyingType m
+    =  do t <- astTypeOf v >>= underlyingType m
           case t of
             A.Array (A.Dimension n:_) _ -> evalExpression n
             _ -> throwError (Just m, "size of non-fixed-size variable " ++ show v ++ " used")
@@ -171,7 +171,7 @@ evalExpression (A.True _) = return $ OccBool True
 evalExpression (A.False _) = return $ OccBool False
 evalExpression (A.SubscriptedExpr _ sub e) = evalExpression e >>= evalSubscript sub
 evalExpression (A.BytesInExpr m e)
-    =  do b <- typeOfExpression e >>= underlyingType m >>= bytesInType
+    =  do b <- astTypeOf e >>= underlyingType m >>= bytesInType
           case b of
             BIJust n -> evalExpression n
             _ -> throwError (Just m, "BYTESIN non-constant-size expression " ++ show e ++ " used")
@@ -341,7 +341,7 @@ renderLiteral m t v
               return (t', A.ArrayElemArray aes)
     renderArrayElem t v
         =  do e <- renderValue m t v
-              t' <- typeOfExpression e
+              t' <- astTypeOf e
               return (t', A.ArrayElemExpr e)
 
     renderRecord :: [OccValue] -> m (A.Type, A.LiteralRepr)

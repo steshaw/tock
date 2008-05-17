@@ -131,7 +131,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
              -- Don't bother with constants -- they get pulled up anyway.
              freeNames <- filterM (liftM not . isConstantName) freeNames''
-             types <- mapM typeOfName freeNames
+             types <- mapM astTypeOf freeNames
              origAMs <- mapM abbrevModeOfName freeNames
              let ams = map makeAbbrevAM origAMs
 

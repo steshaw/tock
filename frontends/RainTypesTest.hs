@@ -442,14 +442,14 @@ checkExpressionTest = TestList
       check t e
         = do eot <- errorOrType
              case eot of
-               Left err -> assertFailure ("checkExpressionTest " ++ show n ++ " typeOfExpression failed")
+               Left err -> assertFailure ("checkExpressionTest " ++ show n ++ " astTypeOf failed")
                Right t' -> do assertEqual ("checkExpressionTest " ++ show n) t t'
                               --Now feed it through again, to make sure it isn't changed:
                               if (e /= act) then pass' (10000 + n) t (mkPattern e) e else return ()
             where
               errorOrType :: IO (Either ErrorReport A.Type)
               errorOrType
-                = (flip runPassM (typeOfExpression e) (execState state emptyState))
+                = (flip runPassM (astTypeOf e) (execState state emptyState))
                   >>* \(x,_,_) -> x
   
   

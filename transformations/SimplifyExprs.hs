@@ -111,7 +111,7 @@ removeAfter = doGeneric `extM` doExpression
     doExpression (A.Dyadic m A.After a b)
         =  do a' <- removeAfter a
               b' <- removeAfter b
-              t <- typeOfExpression a'
+              t <- astTypeOf a'
               case t of
                 A.Byte -> do let one = A.Literal m t $ A.IntLiteral m "1"
                                  oneTwoSeven = A.Literal m t $ A.IntLiteral m "127"
@@ -130,7 +130,7 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
     doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
     doArrayElem ae@(A.ArrayElemExpr e)
         =  do e' <- expandArrayLiterals e
-              t <- typeOfExpression e'
+              t <- astTypeOf e'
               case t of
                 A.Array ds _ -> expand ds e
                 _ -> doGeneric ae
@@ -181,7 +181,7 @@ pullRepCounts = doGeneric `extM` doProcess
            return $ A.ProcThen m p' s'
     pullRepCountSeq (A.Several m ss) = mapM pullRepCountSeq ss >>* A.Several m
     pullRepCountSeq (A.Rep m (A.For m' n from for) s)
-      = do t <- typeOfExpression for
+      = do t <- astTypeOf for
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" m' t for
            s' <- pullRepCountSeq s
            return $ A.Spec m spec $ A.Rep m (A.For m' n from (A.ExprVariable m' $ A.Variable m' nonceName)) s'
@@ -319,7 +319,7 @@ pullUp pullUpArraysInsideRecords
     -- Convert RetypesExpr into Retypes of a variable.
     doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
         =  do e' <- doExpression e
-              fromT <- typeOfExpression e'
+              fromT <- astTypeOf e'
               spec@(A.Specification _ n' _) <- makeNonceIsExpr "retypes_expr" m' fromT e'
               addPulled $ (m', Left spec)
               return $ A.Specification m n (A.Retypes m' am toT (A.Variable m' n'))
@@ -339,7 +339,7 @@ pullUp pullUpArraysInsideRecords
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
         =  do e' <- doExpression' e
-              t <- typeOfExpression e'
+              t <- astTypeOf e'
               case t of
                 A.Array _ _ ->
                   case e' of
@@ -360,7 +360,7 @@ pullUp pullUpArraysInsideRecords
     doVariable :: A.Variable -> PassM A.Variable
     doVariable v@(A.SubscriptedVariable m _ _)
         =  do v' <- doGeneric v
-              t <- typeOfVariable v'
+              t <- astTypeOf v'
               case t of
                 A.Array _ _ ->
                   do origAM <- abbrevModeOfVariable v'
@@ -375,7 +375,7 @@ pullUp pullUpArraysInsideRecords
     convertFuncCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Variable]
     convertFuncCall m n es
         = do es' <- pullUpRecur es
-             ets <- sequence [typeOfExpression e | e <- es']
+             ets <- sequence [astTypeOf e | e <- es']
 
              ps <- get
              rts <- Map.lookup (A.nameName n) (csFunctionReturns ps)
@@ -398,7 +398,7 @@ pullUp pullUpArraysInsideRecords
     doExpression' (A.SubscriptedExpr m s e)
         = do e' <- pullUpRecur e
              s' <- pullUpRecur s
-             t <- typeOfExpression e'
+             t <- astTypeOf e'
              spec@(A.Specification _ n _) <- makeNonceIsExpr "subscripted_expr" m t e'
              addPulled $ (m, Left spec)
              return $ A.ExprVariable m (A.SubscriptedVariable m s' (A.Variable m n))

@@ -162,7 +162,7 @@ checkList m rawT
 
 -- | Check the type of an expression.
 checkExpressionType :: A.Type -> A.Expression -> PassM ()
-checkExpressionType et e = typeOfExpression e >>= checkType (findMeta e) et
+checkExpressionType et e = astTypeOf e >>= checkType (findMeta e) et
 
 -- | Check that an expression is of integer type.
 checkExpressionInt :: Check A.Expression
@@ -275,7 +275,7 @@ classifyOp A.Concat = ListOp
 -- | Check a monadic operator.
 checkMonadicOp :: A.MonadicOp -> A.Expression -> PassM ()
 checkMonadicOp op e
-    =  do t <- typeOfExpression e
+    =  do t <- astTypeOf e
           let m = findMeta e
           case classifyMOp op of
             NumericOp -> checkNumeric m t
@@ -285,9 +285,9 @@ checkMonadicOp op e
 -- | Check a dyadic operator.
 checkDyadicOp :: A.DyadicOp -> A.Expression -> A.Expression -> PassM ()
 checkDyadicOp op l r
-    =  do lt <- typeOfExpression l
+    =  do lt <- astTypeOf l
           let lm = findMeta l
-          rt <- typeOfExpression r
+          rt <- astTypeOf r
           let rm = findMeta r
           case classifyOp op of
             NumericOp ->
@@ -338,8 +338,8 @@ checkActuals m n fs as
 checkActual :: A.Formal -> A.Actual -> PassM ()
 checkActual (A.Formal newAM et _) a
     =  do rt <- case a of
-                  A.ActualVariable v -> typeOfVariable v
-                  A.ActualExpression e -> typeOfExpression e
+                  A.ActualVariable v -> astTypeOf v
+                  A.ActualExpression e -> astTypeOf e
           checkType (findMeta a) et rt
           origAM <- case a of
                       A.ActualVariable v -> abbrevModeOfVariable v
@@ -393,7 +393,7 @@ checkAllocMobile m rawT me
                     _ -> ok
                   case me of
                     Just e ->
-                       do et <- typeOfExpression e
+                       do et <- astTypeOf e
                           checkType (findMeta e) innerT et
                     Nothing -> ok
             _ -> diePC m $ formatCode "Expected mobile type in allocation; found %" t
@@ -414,7 +414,7 @@ checkWritable v
 checkChannel :: A.Direction -> A.Variable -> PassM A.Type
 checkChannel wantDir c
     =  do -- Check it's a channel.
-          t <- typeOfVariable c >>= resolveUserType m
+          t <- astTypeOf c >>= resolveUserType m
           case t of
             A.Chan dir (A.ChanAttributes ws rs) innerT ->
                do -- Check the direction is appropriate 
@@ -440,7 +440,7 @@ checkChannel wantDir c
 -- Return the type of the timer's value.
 checkTimer :: A.Variable -> PassM A.Type
 checkTimer tim
-    =  do t <- typeOfVariable tim >>= resolveUserType m
+    =  do t <- astTypeOf tim >>= resolveUserType m
           case t of
             A.Timer A.OccamTimer -> return A.Int
             A.Timer A.RainTimer -> return A.Time
@@ -503,7 +503,7 @@ checkExpressionList ets el
                 dieP m $ "Wrong number of items in expression list; found "
                          ++ (show $ length es) ++ ", expected "
                          ++ (show $ length ets)
-              sequence_ [do rt <- typeOfExpression e
+              sequence_ [do rt <- astTypeOf e
                             checkType (findMeta e) et rt
                          | (e, et) <- zip es ets]
 
@@ -522,7 +522,7 @@ checkReplicator (A.For _ _ start count)
     =  do checkExpressionInt start
           checkExpressionInt count
 checkReplicator (A.ForEach _ _ e)
-    =  do t <- typeOfExpression e
+    =  do t <- astTypeOf e
           checkSequence (findMeta e) t
 
 -- | Check a 'Structured', applying the given check to each item found inside
@@ -651,8 +651,8 @@ inferTypes = applyX $ baseX
             A.Dyadic m op le re ->
               let -- Both types are the same.
                   bothSame
-                    =  do lt <- inferTypes le >>= typeOfExpression
-                          rt <- inferTypes re >>= typeOfExpression
+                    =  do lt <- inferTypes le >>= astTypeOf
+                          rt <- inferTypes re >>= astTypeOf
                           inTypeContext (Just $ betterType lt rt) $
                             descend outer
                   -- The RHS type is always A.Int.
@@ -676,7 +676,7 @@ inferTypes = applyX $ baseX
                             Just t -> unsubscriptType s t >>* Just
                             Nothing -> return Nothing
                   e' <- inTypeContext ctx' $ inferTypes e
-                  t <- typeOfExpression e'
+                  t <- astTypeOf e'
                   s' <- inferTypes s >>= fixSubscript t
                   return $ A.SubscriptedExpr m s' e'
             A.BytesInExpr _ _ -> noTypeContext $ descend outer
@@ -751,7 +751,7 @@ inferTypes = applyX $ baseX
                   t' <- inferTypes t
                   v' <- inTypeContext (Just t') $ inferTypes v
                   t'' <- case t' of
-                           A.Infer -> typeOfVariable v'
+                           A.Infer -> astTypeOf v'
                            _ -> return t'
                   return $ A.Is m am' t'' v'
             A.IsExpr m am t e ->
@@ -759,7 +759,7 @@ inferTypes = applyX $ baseX
                   t' <- inferTypes t
                   e' <- inTypeContext (Just t') $ inferTypes e
                   t'' <- case t' of
-                           A.Infer -> typeOfExpression e'
+                           A.Infer -> astTypeOf e'
                            _ -> return t'
                   return $ A.IsExpr m am' t'' e'
             A.IsChannelArray m t vs ->
@@ -770,7 +770,7 @@ inferTypes = applyX $ baseX
                   let dim = makeDimension m $ length vs'
                   t'' <- case (t', vs') of
                            (A.Infer, (v:_)) ->
-                             do elemT <- typeOfVariable v
+                             do elemT <- astTypeOf v
                                 return $ addDimensions [dim] elemT
                            (A.Infer, []) ->
                              dieP m "Cannot infer type of empty channel array"
@@ -807,7 +807,7 @@ inferTypes = applyX $ baseX
         = case p of
             A.Assign m vs el ->
                do vs' <- inferTypes vs
-                  ts <- mapM typeOfVariable vs'
+                  ts <- mapM astTypeOf vs'
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
             A.Output m v ois ->
@@ -834,7 +834,7 @@ inferTypes = applyX $ baseX
             A.If _ _ -> inTypeContext (Just A.Bool) $ descend p
             A.Case m e so ->
                do e' <- inferTypes e
-                  t <- typeOfExpression e'
+                  t <- astTypeOf e'
                   so' <- inTypeContext (Just t) $ inferTypes so
                   return $ A.Case m e' so'
             A.While _ _ _ -> inTypeContext (Just A.Bool) $ descend p
@@ -876,7 +876,7 @@ inferTypes = applyX $ baseX
     doVariable :: ExplicitTrans A.Variable
     doVariable descend (A.SubscriptedVariable m s v)
         =  do v' <- inferTypes v
-              t <- typeOfVariable v'
+              t <- astTypeOf v'
               s' <- inferTypes s >>= fixSubscript t
               return $ A.SubscriptedVariable m s' v'
     doVariable descend v = descend v
@@ -961,7 +961,7 @@ inferTypes = applyX $ baseX
         -- An expression: descend into it with the right context.
         doArrayElem wantT (A.ArrayElemExpr e)
             =  do e' <- inTypeContext (Just wantT) $ doExpression descend e
-                  t <- typeOfExpression e'
+                  t <- astTypeOf e'
                   checkType (findMeta e') wantT t
                   return (t, A.ArrayElemExpr e')
 
@@ -1019,15 +1019,15 @@ checkVariables = checkDepthM doVariable
   where
     doVariable :: Check A.Variable
     doVariable (A.SubscriptedVariable m s v)
-        =  do t <- typeOfVariable v
+        =  do t <- astTypeOf v
               checkSubscript m s t
     doVariable (A.DirectedVariable m _ v)
-        =  do t <- typeOfVariable v >>= resolveUserType m
+        =  do t <- astTypeOf v >>= resolveUserType m
               case t of
                 A.Chan _ _ _ -> ok
                 _ -> dieP m $ "Direction applied to non-channel variable"
     doVariable (A.DerefVariable m v)
-        =  do t <- typeOfVariable v >>= resolveUserType m
+        =  do t <- astTypeOf v >>= resolveUserType m
               case t of
                 A.Mobile _ -> ok
                 _ -> dieP m $ "Dereference applied to non-mobile variable"
@@ -1046,13 +1046,13 @@ checkExpressions = checkDepthM doExpression
     doExpression (A.MostNeg m t) = checkNumeric m t
     doExpression (A.SizeType m t) = checkSequence m t
     doExpression (A.SizeExpr m e)
-        =  do t <- typeOfExpression e
+        =  do t <- astTypeOf e
               checkSequence m t
     doExpression (A.SizeVariable m v)
-        =  do t <- typeOfVariable v
+        =  do t <- astTypeOf v
               checkSequence m t
     doExpression (A.Conversion m _ t e)
-        =  do et <- typeOfExpression e
+        =  do et <- astTypeOf e
               checkScalar m t >> checkScalar (findMeta e) et
     doExpression (A.Literal m t lr) = doLiteralRepr t lr
     doExpression (A.FunctionCall m n es)
@@ -1062,7 +1062,7 @@ checkExpressions = checkDepthM doExpression
     doExpression (A.IntrinsicFunctionCall m s es)
         = checkIntrinsicFunctionCall m s es
     doExpression (A.SubscriptedExpr m s e)
-        =  do t <- typeOfExpression e
+        =  do t <- astTypeOf e
               checkSubscript m s t
     doExpression (A.OffsetOf m rawT n)
         =  do t <- resolveUserType m rawT
@@ -1098,13 +1098,13 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType (A.Place _ e) = checkExpressionInt e
     doSpecType (A.Declaration _ _) = ok
     doSpecType (A.Is m am t v)
-        =  do tv <- typeOfVariable v
+        =  do tv <- astTypeOf v
               checkType (findMeta v) t tv
               when (am /= A.Abbrev) $ unexpectedAM m
               amv <- abbrevModeOfVariable v
               checkAbbrev m amv am
     doSpecType (A.IsExpr m am t e)
-        =  do te <- typeOfExpression e
+        =  do te <- astTypeOf e
               checkType (findMeta e) t te
               when (am /= A.ValAbbrev) $ unexpectedAM m
               checkAbbrev m A.ValAbbrev am
@@ -1112,7 +1112,7 @@ checkSpecTypes = checkDepthM doSpecType
         =  do t <- resolveUserType m rawT
               case t of
                 A.Array [d] et@(A.Chan _ _ _) ->
-                   do sequence_ [do rt <- typeOfVariable c
+                   do sequence_ [do rt <- astTypeOf c
                                     checkType (findMeta c) et rt
                                     am <- abbrevModeOfVariable c
                                     checkAbbrev m am A.Abbrev
@@ -1158,10 +1158,10 @@ checkSpecTypes = checkDepthM doSpecType
         -- FIXME: Need to know the name of the function to do this
         doFunctionBody rs (Right p) = dieP m "Cannot check function process body"
     doSpecType (A.Retypes m _ t v)
-        =  do fromT <- typeOfVariable v
+        =  do fromT <- astTypeOf v
               checkRetypes m fromT t
     doSpecType (A.RetypesExpr m _ t e)
-        =  do fromT <- typeOfExpression e
+        =  do fromT <- astTypeOf e
               checkRetypes m fromT t
 
     unexpectedAM :: Check Meta
@@ -1177,7 +1177,7 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Assign m vs el)
         -- We ignore dimensions here because we do the check at runtime.
         -- (That is, [2]INT := []INT is legal.)
-        =  do vts <- sequence [typeOfVariable v >>* removeFixedDimensions
+        =  do vts <- sequence [astTypeOf v >>* removeFixedDimensions
                                | v <- vs]
               mapM_ checkWritable vs
               checkExpressionList vts el
@@ -1185,7 +1185,7 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Output m v ois) = doOutput m v ois
     doProcess (A.OutputCase m v tag ois) = doOutputCase m v tag ois
     doProcess (A.ClearMobile _ v)
-        =  do t <- typeOfVariable v
+        =  do t <- astTypeOf v
               case t of
                 A.Mobile _ -> ok
                 _ -> diePC (findMeta v) $ formatCode "Expected mobile type; found %" t
@@ -1195,7 +1195,7 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.Seq _ s) = checkStructured (\p -> ok) s
     doProcess (A.If _ s) = checkStructured doChoice s
     doProcess (A.Case _ e s)
-        =  do t <- typeOfExpression e
+        =  do t <- astTypeOf e
               checkCaseable (findMeta e) t
               checkStructured (doOption t) s
     doProcess (A.While _ e _) = checkExpressionBool e
@@ -1242,25 +1242,25 @@ checkProcesses = checkDepthM doProcess
               doInputItem t ii
     doInput c (A.InputTimerAfter m e)
         =  do t <- checkTimer c
-              et <- typeOfExpression e
+              et <- astTypeOf e
               checkType (findMeta e) t et
     doInput c (A.InputTimerFor m e)
         =  do t <- checkTimer c
-              et <- typeOfExpression e
+              et <- astTypeOf e
               checkType (findMeta e) t et
 
     doInputItem :: A.Type -> A.InputItem -> PassM ()
     doInputItem (A.Counted wantCT wantAT) (A.InCounted m cv av)
-        =  do ct <- typeOfVariable cv
+        =  do ct <- astTypeOf cv
               checkType (findMeta cv) wantCT ct
               checkWritable cv
-              at <- typeOfVariable av
+              at <- astTypeOf av
               checkType (findMeta cv) wantAT at
               checkWritable av
     doInputItem t@(A.Counted _ _) (A.InVariable m v)
         = diePC m $ formatCode "Expected counted item of type %; found %" t v
     doInputItem wantT (A.InVariable _ v)
-        =  do t <- typeOfVariable v
+        =  do t <- astTypeOf v
               case wantT of
                 A.Any -> checkCommunicable (findMeta v) t
                 _ -> checkType (findMeta v) wantT t
@@ -1268,7 +1268,7 @@ checkProcesses = checkDepthM doProcess
 
     doOption :: A.Type -> A.Option -> PassM ()
     doOption et (A.Option _ es _)
-        = sequence_ [do rt <- typeOfExpression e
+        = sequence_ [do rt <- astTypeOf e
                         checkType (findMeta e) et rt
                      | e <- es]
     doOption _ (A.Else _ _) = ok
@@ -1285,14 +1285,14 @@ checkProcesses = checkDepthM doProcess
 
     doOutputItem :: A.Type -> A.OutputItem -> PassM ()
     doOutputItem (A.Counted wantCT wantAT) (A.OutCounted m ce ae)
-        =  do ct <- typeOfExpression ce
+        =  do ct <- astTypeOf ce
               checkType (findMeta ce) wantCT ct
-              at <- typeOfExpression ae
+              at <- astTypeOf ae
               checkType (findMeta ae) wantAT at
     doOutputItem t@(A.Counted _ _) (A.OutExpression m e)
         = diePC m $ formatCode "Expected counted item of type %; found %" t e
     doOutputItem wantT (A.OutExpression _ e)
-        =  do t <- typeOfExpression e
+        =  do t <- astTypeOf e
               case wantT of
                 A.Any -> checkCommunicable (findMeta e) t
                 _ -> checkType (findMeta e) wantT t

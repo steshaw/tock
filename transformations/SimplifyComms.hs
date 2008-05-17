@@ -69,7 +69,7 @@ outExprs = doGeneric `extM` doProcess
                        return (A.ExprVariable m $ A.Variable m nm, spec)
     
     abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured A.Process -> A.Structured A.Process)
-    abbrevExpr m e = do t <- typeOfExpression e
+    abbrevExpr m e = do t <- astTypeOf e
                         specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
                         return (nm, A.Spec m specification)
 

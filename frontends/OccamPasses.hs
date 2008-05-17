@@ -67,7 +67,7 @@ fixConstructorTypes = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr m (A.RepConstr m' _ rep expr))
-      = do t <- typeOfExpression expr
+      = do t <- astTypeOf expr
            let count = countReplicator rep
                t' = A.Array [A.Dimension count] t
            return $ A.ExprConstr m $ A.RepConstr m' t' rep expr

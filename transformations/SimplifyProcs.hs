@@ -81,7 +81,7 @@ removeParAssign = doGeneric `extM` doProcess
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
-        =  do ts <- mapM typeOfVariable vs
+        =  do ts <- mapM astTypeOf vs
               specs <- sequence [makeNonceVariable "assign_temp" m t A.VariableName A.Original | t <- ts]
               let temps = [A.Variable m n | A.Specification _ n _ <- specs]
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
@@ -98,7 +98,7 @@ flattenAssign = doGeneric `extM` doProcess `ext1M` doStructured
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m [v] (A.ExpressionList m' [e]))
-        =  do t <- typeOfVariable v
+        =  do t <- astTypeOf v
               assign m t v m' e
     doProcess p = doGeneric p
     

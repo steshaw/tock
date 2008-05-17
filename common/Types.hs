@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Type inference and checking.
 module Types
   (
-    specTypeOfName, typeOfSpec, abbrevModeOfName, typeOfName, typeOfExpression, typeOfVariable, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
+    specTypeOfName, typeOfSpec, abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
@@ -31,7 +31,8 @@ module Types
     , recordFields, protocolItems
 
     , leastGeneralSharedTypeRain
-
+    
+    , Typed(..)
   ) where
 
 import Control.Monad.State
@@ -53,6 +54,12 @@ import ShowCode
 import TypeSizes
 import Utils
 
+class Typed a where
+  astTypeOf :: (CSMR m, Die m) => a -> m A.Type
+
+instance Typed A.Type where
+  astTypeOf = return
+
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 specTypeOfName :: (CSMR m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
@@ -62,6 +69,9 @@ specTypeOfName n
 abbrevModeOfName :: (CSMR m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
     = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
+
+instance Typed A.Name where
+  astTypeOf = typeOfName
 
 -- | Gets the 'A.Type' for a given 'A.Name' by looking at its definition in the 'CompState'.  Dies with an error if the name is unknown.
 typeOfName :: (CSMR m, Die m) => A.Name -> m A.Type
@@ -166,6 +176,9 @@ trivialSubscriptType _ (A.Array [d] t) = return t
 trivialSubscriptType _ (A.Array (d:ds) t) = return $ A.Array ds t
 trivialSubscriptType m t = diePC m $ formatCode "not plain array type: %" t
 
+instance Typed A.Variable where
+  astTypeOf = typeOfVariable
+
 -- | Gets the 'A.Type' of a 'A.Variable' by looking at the types recorded in the 'CompState'.
 typeOfVariable :: (CSMR m, Die m) => A.Variable -> m A.Type
 typeOfVariable (A.Variable m n) = typeOfName n
@@ -198,6 +211,9 @@ dyadicIsBoolean A.LessEq = True
 dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
+
+instance Typed A.Expression where
+  astTypeOf = typeOfExpression
 
 -- | Gets the 'A.Type' of an 'A.Expression'.  This function assumes that the expression has already been type-checked.
 typeOfExpression :: (CSMR m, Die m) => A.Expression -> m A.Type

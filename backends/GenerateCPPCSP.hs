@@ -184,7 +184,7 @@ cppgenStop m s
 -- | Generates code from a channel 'A.Variable' that will be of type Chanin\<\>
 genCPPCSPChannelInput :: A.Variable -> CGen()
 genCPPCSPChannelInput var
-  = do t <- typeOfVariable var
+  = do t <- astTypeOf var
        case t of
          (A.Chan A.DirInput _ _) -> call genVariable var
          (A.Chan A.DirUnknown _ _) -> do call genVariable var
@@ -194,7 +194,7 @@ genCPPCSPChannelInput var
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
 genCPPCSPChannelOutput :: A.Variable -> CGen()
 genCPPCSPChannelOutput var
-  = do t <- typeOfVariable var
+  = do t <- astTypeOf var
        case t of
          (A.Chan A.DirOutput _ _) -> call genVariable var
          (A.Chan A.DirUnknown _ _) -> do call genVariable var
@@ -207,7 +207,7 @@ genCPPCSPChannelOutput var
 --the remainder is taken to trim the timer back down to something that will be useful in an int
 cppgenTimerRead :: A.Variable -> A.Variable -> CGen ()
 cppgenTimerRead c v = do
-   tt <- typeOfVariable c
+   tt <- astTypeOf c
    case tt of
      A.Timer A.RainTimer ->
        do tell ["csp::CurrentTime (&"]
@@ -291,13 +291,13 @@ cppgenInputItem c dest
            recvBytes av (
              do call genVariable cv
                 tell ["*"]
-                t <- typeOfVariable av
+                t <- astTypeOf av
                 subT <- trivialSubscriptType m t
                 call genBytesIn m subT (Right av)
              )
       (A.InVariable m v) ->
-        do ct <- typeOfVariable c
-           t <- typeOfVariable v
+        do ct <- astTypeOf c
+           t <- astTypeOf v
            case (byteArrayChan ct,t) of
              (True,_)-> recvBytes v (call genBytesIn m t (Right v))
              (False,A.Array {}) -> do tell ["tockRecvArray("]
@@ -325,8 +325,8 @@ cppgenOutputItem chan item
   = case item of
       (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) -> (sendBytes cv) >> (sendBytes av)
       (A.OutExpression _ (A.ExprVariable _ sv)) ->
-       do t <- typeOfVariable chan
-          tsv <- typeOfVariable sv
+       do t <- astTypeOf chan
+          tsv <- astTypeOf sv
           case (byteArrayChan t,tsv) of
             (True,_) -> sendBytes sv
             (False,A.Array {}) -> do tell ["tockSendArray("]
@@ -353,11 +353,11 @@ byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
 byteArrayChan _ = False
 
 genPoint :: A.Variable -> CGen()
-genPoint v = do t <- typeOfVariable v
+genPoint v = do t <- astTypeOf v
                 when (not $ isPoint t) $ tell ["&"]
                 call genVariable v
 genNonPoint :: A.Variable -> CGen()
-genNonPoint v = do t <- typeOfVariable v
+genNonPoint v = do t <- astTypeOf v
                    when (isPoint t) $ tell ["*"]
                    call genVariable v                    
 isPoint :: A.Type -> Bool
@@ -373,7 +373,7 @@ infixComma [] = return ()
 
 cppgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase c tag ois 
-    =  do t <- typeOfVariable c
+    =  do t <- astTypeOf c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tell ["tockSendInt("]
           genCPPCSPChannelOutput c
@@ -717,7 +717,7 @@ cppgenListConcat a b
 cppgenReplicatorLoop :: A.Replicator -> CGen ()
 cppgenReplicatorLoop rep@(A.For {}) = cgenReplicatorLoop rep
 cppgenReplicatorLoop (A.ForEach m n (A.ExprVariable _ v))
-  = do t <- typeOfVariable v
+  = do t <- astTypeOf v
        call genType t
        tell ["::iterator "]
        genName n
@@ -750,7 +750,7 @@ cppgenUnfoldedExpression e = call genExpression e
 -- | Changed to remove array size:
 cppgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
 cppgenUnfoldedVariable m var
-    =  do t <- typeOfVariable var
+    =  do t <- astTypeOf var
           case t of
             A.Record _ ->
               do genLeftB

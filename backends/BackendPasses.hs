@@ -107,7 +107,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
     retypesSizes :: Meta -> A.Name -> [A.Dimension] -> A.Type -> A.Variable -> PassM A.Specification
     retypesSizes m n_sizes ds elemT v@(A.Variable _ nSrc)
       =  do biDest <- bytesInType (A.Array ds elemT)
-            tSrc <- typeOfVariable v
+            tSrc <- astTypeOf v
             biSrc <- bytesInType tSrc
 
             -- Figure out the size of the source.
@@ -158,10 +158,10 @@ declareSizesArray = doGeneric `ext1M` doStructured
            varSrcSizes <- case innerV of
              A.Variable _ srcN -> return (A.Variable m $ append_sizes srcN)
              A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
-               do A.Record recordName <- typeOfVariable recordV
+               do A.Record recordName <- astTypeOf recordV
                   return (A.Variable m $ A.Name m A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
            -- Get the dimensions of the source variable:
-           (A.Array srcDs _) <- typeOfVariable innerV
+           (A.Array srcDs _) <- astTypeOf innerV
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
                subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
@@ -296,7 +296,7 @@ addSizesActualParameters = doGeneric `extM` doProcess
 
     transformActualVariable :: A.Actual -> A.Variable -> PassM [A.Actual]
     transformActualVariable a v@(A.Variable m n)
-      = do t <- typeOfVariable v
+      = do t <- astTypeOf v
            case t of
              A.Array ds _ ->
                return [a, A.ActualVariable a_sizes]
@@ -320,7 +320,7 @@ simplifySlices = doGeneric `extM` doVariable
            return (A.SubscriptedVariable m (A.SubscriptFromFor m' (makeConstant m' 0) for') v')
     doVariable (A.SubscriptedVariable m (A.SubscriptFrom m' from) v)
       = do v' <- doGeneric v
-           A.Array (d:_) _ <- typeOfVariable v'
+           A.Array (d:_) _ <- astTypeOf v'
            limit <- case d of
              A.Dimension n -> return n
              A.UnknownDimension -> return $ A.SizeVariable m' v'

@@ -306,7 +306,7 @@ findAssignVars _ = []
 
 filterArrayAndRecord :: (CSMR m, Die m) => A.Variable -> m Bool
 filterArrayAndRecord v
-  = do t <- typeOfVariable v
+  = do t <- astTypeOf v
        return $ case t of
          A.Array {} -> True
          A.Record {} -> True

@@ -258,7 +258,7 @@ genRightB = tell ["}"]
 -- | Map an operation over every item of an occam array.
 cgenOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 cgenOverArray m var func
-    =  do A.Array ds _ <- typeOfVariable var
+    =  do A.Array ds _ <- astTypeOf var
           specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
@@ -457,10 +457,10 @@ cgenCheckedConversion m fromT toT exp
 
 cgenConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen ()
 cgenConversion m A.DefaultConversion toT e
-    =  do fromT <- typeOfExpression e
+    =  do fromT <- astTypeOf e
           call genCheckedConversion m fromT toT (call genExpression e)
 cgenConversion m cm toT e
-    =  do fromT <- typeOfExpression e
+    =  do fromT <- astTypeOf e
           case (isSafeConversion fromT toT, isRealType fromT, isRealType toT) of
             (True, _, _) ->
               -- A safe conversion -- no need for a check.
@@ -583,7 +583,7 @@ cgenUnfoldedExpression e = call genExpression e
 -- | Generate a variable inside a record literal.
 cgenUnfoldedVariable :: Meta -> A.Variable -> CGen ()
 cgenUnfoldedVariable m var
-    =  do t <- typeOfVariable var
+    =  do t <- astTypeOf var
           case t of
             A.Array ds _ ->
               do genLeftB
@@ -720,7 +720,7 @@ cgenVariable' checkValid v
                        -- If we are dealing with an array element, treat it as if it had the original abbreviation mode,
                        -- regardless of the abbreviation mode of the array:
                        (_, Just t') -> return (A.Original, t')
-                       (am,Nothing) -> do t <- typeOfName n
+                       (am,Nothing) -> do t <- astTypeOf n
                                           return (am, t)
            let ind' = case (am, t, indirectedType t) of
                         -- For types that are referred to by pointer (such as records)
@@ -738,7 +738,7 @@ cgenVariable' checkValid v
                         _ -> ind
            return (genName n, ind')
     inner ind (A.DerefVariable _ v) mt
-      = do (A.Mobile t) <- typeOfVariable v
+      = do (A.Mobile t) <- astTypeOf v
            case t of
              A.Array {} -> inner ind v mt
              A.Record {} -> inner ind v mt
@@ -749,16 +749,16 @@ cgenVariable' checkValid v
     inner ind sv@(A.SubscriptedVariable m (A.Subscript _ subCheck _) v) mt
       = do (es, v, t') <- collectSubs sv
            t <- if checkValid
-                  then typeOfVariable sv
+                  then astTypeOf sv
                   else return t'
-           A.Array ds _ <- typeOfVariable v
+           A.Array ds _ <- astTypeOf v
            (cg, n) <- inner ind v (Just t)
            let check = if checkValid then subCheck else A.NoCheck
            return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg
                     >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), n)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
-              t <- typeOfVariable sv
+              t <- astTypeOf sv
               let outerInd :: Int
                   outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
@@ -795,7 +795,7 @@ cgenVariable' checkValid v
         = do (es', v', t') <- collectSubs v
              t <- trivialSubscriptType m t'
              return (es' ++ [e], v', t)
-    collectSubs v = do t <- typeOfVariable v
+    collectSubs v = do t <- astTypeOf v
                        return ([], v, t)
 
 
@@ -809,7 +809,7 @@ cgenDirectedVariable var _ = var
 
 cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen ()
 cgenArraySubscript check v es
-    =  do t <- typeOfVariable v
+    =  do t <- astTypeOf v
           let numDims = case t of A.Array ds _ -> length ds
           tell ["["]
           sequence_ $ intersperse (tell ["+"]) $ genPlainSub (genDynamicDim v) es [0..(numDims - 1)]
@@ -867,7 +867,7 @@ cgenExpression (A.SizeExpr m e)
     =  do call genExpression e
           call genSizeSuffix "0"
 cgenExpression (A.SizeVariable m v)
-    =  do t <- typeOfVariable v
+    =  do t <- astTypeOf v
           case t of
             A.Array (d:_) _  ->
               case d of
@@ -919,7 +919,7 @@ cgenSimpleMonadic s e
 
 cgenFuncMonadic :: Meta -> String -> A.Expression -> CGen ()
 cgenFuncMonadic m s e
-    =  do t <- typeOfExpression e
+    =  do t <- astTypeOf e
           call genTypeSymbol s t
           tell [" ("]
           call genExpression e
@@ -943,7 +943,7 @@ cgenSimpleDyadic s e f
 
 cgenFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
 cgenFuncDyadic m s e f
-    =  do t <- typeOfExpression e
+    =  do t <- astTypeOf e
           call genTypeSymbol s t
           tell [" ("]
           call genExpression e
@@ -985,7 +985,7 @@ cgenListConcat _ _ = call genMissing "C backend does not yet support lists"
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
 cgenInputItem c (A.InCounted m cv av)
     =  do call genInputItem c (A.InVariable m cv)
-          t <- typeOfVariable av
+          t <- astTypeOf av
           tell ["ChanIn(wptr,"]
           call genVariable c
           tell [","]
@@ -997,7 +997,7 @@ cgenInputItem c (A.InCounted m cv av)
           call genBytesIn m subT (Right av)
           tell [");"]
 cgenInputItem c (A.InVariable m v)
-    =  do t <- typeOfVariable v
+    =  do t <- astTypeOf v
           let rhs = call genVariableAM v A.Abbrev
           case t of
             A.Int ->
@@ -1018,7 +1018,7 @@ cgenInputItem c (A.InVariable m v)
 cgenOutputItem :: A.Variable -> A.OutputItem -> CGen ()
 cgenOutputItem c (A.OutCounted m ce ae)
     =  do call genOutputItem c (A.OutExpression m ce)
-          t <- typeOfExpression ae
+          t <- astTypeOf ae
           case ae of
             A.ExprVariable m v ->
               do tell ["ChanOut(wptr,"]
@@ -1032,7 +1032,7 @@ cgenOutputItem c (A.OutCounted m ce ae)
                  call genBytesIn m subT (Right v)
                  tell [");"]
 cgenOutputItem c (A.OutExpression m e)
-    =  do t <- typeOfExpression e
+    =  do t <- astTypeOf e
           case (t, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt(wptr,"]
@@ -1101,7 +1101,7 @@ cgenReplicatorLoop _ = cgenMissing "ForEach loops not yet supported in the C bac
 cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
 cgenVariableAM v am
     =  do when (am == A.Abbrev) $
-            do t <- typeOfVariable v
+            do t <- astTypeOf v
                case (indirectedType t, t) of
                  (True, _) -> return ()
                  (False, A.Array {}) -> return ()
@@ -1302,7 +1302,7 @@ cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
 cintroduceSpec (A.Specification _ n st@(A.Proc _ _ _ _))
     = genProcSpec n st False
 cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
-    =  do origT <- typeOfVariable v
+    =  do origT <- astTypeOf v
           let rhs = call genVariableAM v A.Abbrev
           call genDecl am t n
           tell ["="]
@@ -1472,7 +1472,7 @@ cgenProcess p = case p of
 --{{{  assignment
 cgenAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
 cgenAssign m [v] (A.ExpressionList _ [e])
-    = do t <- typeOfVariable v
+    = do t <- astTypeOf v
          f <- fget getScalarType
          case f t of
            Just _ -> doAssign v e
@@ -1522,7 +1522,7 @@ cgenOutput c ois = sequence_ $ map (call genOutputItem c) ois
 
 cgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase c tag ois
-    =  do t <- typeOfVariable c
+    =  do t <- astTypeOf c
           let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt(wptr,"]
           call genVariable c

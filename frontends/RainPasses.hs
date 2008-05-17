@@ -265,7 +265,7 @@ pullUpForEach = doGeneric `ext1M` doStructured
     doStructured (A.Rep m (A.ForEach m' loopVar loopExp) s)
      = do (extra, loopExp') <- case loopExp of
             A.ExprVariable {} -> return (id, loopExp)
-            _ -> do t <- typeOfExpression loopExp
+            _ -> do t <- astTypeOf loopExp
                     spec@(A.Specification _ n _) <- makeNonceIsExpr
                       "loop_expr" m' t loopExp
                     return (A.Spec m' spec, A.ExprVariable m' (A.Variable m' n))
