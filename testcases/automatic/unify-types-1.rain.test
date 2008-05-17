@@ -2,6 +2,9 @@ process main()
 {
   bool: b;
   int: x;
+  sint8: xi8;
+  uint8: xu8;
+  
 %%
 }
 
@@ -29,4 +32,36 @@ while (x) {}
 while (0) {}
 %FAIL Invalid while #3
 while ("6") {}
+
+%PASS Same-typed var assignments
+b = b;
+x = x;
+xi8 = xi8;
+xu8 = xu8;
+
+%PASS Correct constant assignments
+b = true;
+b = false;
+x = 0;
+xi8 = 0;
+xu8 = 0;
+x = 1000000;
+x = -1;
+xi8 = 127;
+xi8 = -128;
+xu8 = 255;
+xu8 = 0;
+
+%FAIL Bad constant assignment #1
+b = 0;
+%FAIL Bad constant assignment #2
+x = false;
+%FAIL Bad constant assignment #3
+xi8 = 128;
+%FAIL Bad constant assignment #4
+xi8 = -129;
+%FAIL Bad constant assignment #5
+xu8 = -1;
+%FAIL Bad constant assignment #6
+xu8 = 256;
 %
