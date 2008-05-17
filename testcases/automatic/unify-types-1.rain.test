@@ -4,7 +4,9 @@ process main()
   int: x;
   sint8: xi8;
   uint8: xu8;
-  
+  channel bool: cb;
+  channel int: cx;
+  channel sint8: cxi8;
 %%
 }
 
@@ -64,4 +66,30 @@ xi8 = -129;
 xu8 = -1;
 %FAIL Bad constant assignment #6
 xu8 = 256;
+
+%PASS Valid channel comms
+!cb ! true;
+?cb ? b;
+!cx ! 0;
+!cxi8 ! 0;
+?cx ? x;
+?cxi8 ? x;
+%FAIL Invalid channel comm -- not end #1
+cb ? b;
+%FAIL Invalid channel comm -- not end #2
+cb ! b;
+%FAIL Invalid channel comm -- bad end #3
+?cb ! b;
+%FAIL Invalid channel comm -- bad send #1
+!cb ! 0;
+%FAIL Invalid channel comm -- bad send #2
+!cxi8 ! 256;
+%FAIL Invalid channel comm -- bad send #3
+!cb ! x;
+%FAIL Invalid channel comm -- bad recv #1
+?cb ? x;
+%FAIL Invalid channel comm -- bad recv #2
+?cb ? true;
+%FAIL Invalid channel comm -- bad recv #3
+cb ? x;
 %
