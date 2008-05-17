@@ -49,13 +49,14 @@ import Pass
 import PassList
 import PreprocessOccam
 import PrettyShow
+import ShowCode
 import Utils
 
 type OptFunc = CompState -> IO CompState
 
 options :: [OptDescr OptFunc]
 options =
-  [ Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast)"
+  [ Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast,src)"
   , Option ['h'] ["help"] (NoArg optPrintHelp) "print this help"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
@@ -83,6 +84,7 @@ optBackend s ps
             "c" -> return BackendC
             "cppcsp" -> return BackendCPPCSP
             "dumpast" -> return BackendDumpAST
+            "src" -> return BackendSource
             _ -> dieIO (Nothing, "Unknown backend: " ++ s)
           return $ ps { csBackend = backend }
 
@@ -315,11 +317,13 @@ compile mode fn outHandle
 
                  debug "{{{ Generate code"
                  progress $ "- Backend: " ++ (show $ csBackend optsPS)
-                 let generator
+                 let generator :: A.AST -> PassM ()
+                     generator
                        = case csBackend optsPS of
                            BackendC -> generateC outHandle
                            BackendCPPCSP -> generateCPPCSP outHandle
                            BackendDumpAST -> liftIO . hPutStr outHandle . pshow
+                           BackendSource -> (liftIO . hPutStr outHandle) <.< showCode
                  generator ast2
                  debug "}}}"
 
