@@ -34,6 +34,7 @@ import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, warnP)
 import Metadata
 import OrdAST ()
+import TypeUnification
 
 -- | Modes that Tock can run in.
 data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull
@@ -56,6 +57,23 @@ data PreprocDef =
 
 -- | An item that has been pulled up.
 type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
+
+-- | An index to identify an item involved in the type unification.
+newtype UnifyIndex = UnifyIndex (Meta, Either Int A.Name)
+  deriving (Typeable, Data)
+
+instance Show UnifyIndex where
+  show (UnifyIndex (m,u)) = show m ++ ": " ++ either (const "<anon>") show u
+
+instance Eq UnifyIndex where
+  (UnifyIndex (_,u)) == (UnifyIndex (_,u')) = u == u'
+
+instance Ord UnifyIndex where
+  compare (UnifyIndex (_,u)) (UnifyIndex (_,u'))
+    = compare u u'
+
+-- | An entry in the map corresponding to a UnifyIndex
+type UnifyValue = TypeExp A.Type
 
 -- | State necessary for compilation.
 data CompState = CompState {
@@ -92,7 +110,9 @@ data CompState = CompState {
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[PulledItem]],
     csAdditionalArgs :: Map String [A.Actual],
-    csParProcs :: Set A.Name
+    csParProcs :: Set A.Name,
+    csUnifyLookup :: Map UnifyIndex UnifyValue,
+    csUnifyPairs :: [(UnifyValue, UnifyValue)]
   }
   deriving (Data, Typeable)
 
@@ -122,7 +142,9 @@ emptyState = CompState {
     csFunctionReturns = Map.empty,
     csPulledItems = [],
     csAdditionalArgs = Map.empty,
-    csParProcs = Set.empty
+    csParProcs = Set.empty,
+    csUnifyLookup = Map.empty,
+    csUnifyPairs = []
   }
 
 -- | Class of monads which keep a CompState.

@@ -19,11 +19,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TypeUnification where
 
 import Control.Monad
-import Control.Monad.ST
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.STRef
+import Data.IORef
 
 import qualified AST as A
 import Utils
@@ -41,95 +40,106 @@ foldCon con _ = Left "foldCon: too many arguments given"
 -- Pearl (2001)", citeseer: http://citeseer.ist.psu.edu/451401.html
 -- This in turn was taken from Luca Cardelli's "Basic Polymorphic Type Checking"
 
-unifyRainTypes :: forall k. (Ord k, Show k) => Map.Map k A.Type -> [(k, k)] -> Either String
-  (Map.Map k A.Type)
-unifyRainTypes m prs
-  = runST $ do m' <- mapToST m
-               outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y
-                 m')) prs
-               case mapMaybe (either Just (const Nothing)) outs of
+unifyRainTypes :: forall k. (Ord k, Show k) => (Map.Map k (TypeExp A.Type)) -> [(k, k)] -> IO
+  (Either String (Map.Map k A.Type))
+unifyRainTypes m' prs
+  =   do outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y m')) prs
+         case mapMaybe (either Just (const Nothing)) outs of
                  (err:_) -> return $ Left err
                  [] -> stToMap m'
   where
-    lookupStartType :: k -> Map.Map k (TypeExp s A.Type) -> TypeExp
-      s A.Type
+    lookupStartType :: k -> Map.Map k (TypeExp A.Type) -> TypeExp A.Type
     lookupStartType s m = case Map.lookup s m of
       Just x -> x
       Nothing -> error $ "Could not find type for variable in map before unification: "
         ++ show s
 
-    mapToST :: Map.Map k A.Type -> ST s (Map.Map k (TypeExp s A.Type))
-    mapToST = mapMapM typeToTypeExp
-
-    stToMap :: Map.Map k (TypeExp s A.Type) -> ST s (Either String (Map.Map k A.Type))
+    stToMap :: Map.Map k (TypeExp A.Type) -> IO (Either String (Map.Map k A.Type))
     stToMap m = do m' <- mapMapWithKeyM (\k v -> prune v >>= read k) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
                      (e:_) -> return $ Left e
                      [] -> return $ Right mapOfRes
       where
-        read :: k -> TypeExp s A.Type -> ST s (Either String A.Type)
+        read :: k -> TypeExp A.Type -> IO (Either String A.Type)
         read k (OperType con vals) = do vals' <- mapM (read k) vals
                                         return $ foldCon con vals'
-        read k (MutVar v) = readSTRef v >>= \t -> case t of
+        read k (MutVar v) = readIORef v >>= \t -> case t of
           Nothing -> return $ Left $ "Type error in unification, "
             ++ "ambigious type remains for: " ++ show k
           Just t' -> read k t'
-        read k (NumLit v) = readSTRef v >>= \x -> case x of
+        read k (NumLit v) = readIORef v >>= \x -> case x of
           Left _ -> return $ Left $ "Type error in unification, "
             ++ "ambigious type remains for numeric literal: " ++ show k
           Right t -> return $ Right t
 
-ttte :: Data b => b -> A.Type -> ST s (TypeExp s A.Type)
-ttte c t = typeToTypeExp t >>= \t' -> return $ OperType (toConstr c) [t']
+type Ptr a = IORef (Maybe (TypeExp a))
 
--- Transforms the given type into a typeexp, such that the only inner types
--- left will be the primitive types (integer types, float types, bool, time).  Arrays
--- (which would require unification of dimensions and such) are not supported,
--- neither are records.
---  User data types should not be present in the input.
-typeToTypeExp :: A.Type -> ST s (TypeExp s A.Type)
-typeToTypeExp x@(A.List t) = ttte x t
-typeToTypeExp (A.Chan A.DirInput _ t) = ttte "?" t
-typeToTypeExp (A.Chan A.DirOutput _ t) = ttte "!" t
-typeToTypeExp (A.Chan A.DirUnknown _ t) = ttte "channel" t
-typeToTypeExp (A.Mobile t) = ttte "MOBILE" t
-typeToTypeExp (A.Infer) = do r <- newSTRef Nothing
-                             return $ MutVar r
-typeToTypeExp (A.InferNum n) = do r <- newSTRef $ Left [n]
-                                  return $ NumLit r
-typeToTypeExp t = return $ OperType (toConstr t) []
-
-type Ptr s a = STRef s (Maybe (TypeExp s a))
-
-data TypeExp s a
- = MutVar (Ptr s a)
+data TypeExp a
+ = MutVar (Ptr a)
  | GenVar Int
  -- Either a list of integers that must fit, or a concrete type
- | NumLit (STRef s (Either [Integer] A.Type))
- | OperType Constr [ TypeExp s a ]
+ | NumLit (IORef (Either [Integer] A.Type))
+ | OperType Constr [ TypeExp a ]
+ deriving (Typeable)
+
+-- Because Constr is not a member of Data, we must provide our own Data instance
+-- here:
+
+_typeExp_MutVarConstr, _typeExp_GenVarConstr, _typeExp_NumLitConstr,
+  _typeExp_OperTypeConstr :: Constr
+_typeExp_DataType :: DataType
+
+_typeExp_MutVarConstr   = mkConstr _typeExp_DataType "MutVar"  [] Prefix
+_typeExp_GenVarConstr   = mkConstr _typeExp_DataType "GenVar" [] Prefix
+_typeExp_NumLitConstr   = mkConstr _typeExp_DataType "NumLit" [] Prefix
+_typeExp_OperTypeConstr = mkConstr _typeExp_DataType "OperType" [] Prefix
+_typeExp_DataType = mkDataType "TypeUnification.TypeExp"
+  [ _typeExp_MutVarConstr
+  , _typeExp_GenVarConstr
+  , _typeExp_NumLitConstr
+  , _typeExp_OperTypeConstr
+  ]
+
+instance Data a => Data (TypeExp a) where
+  gfoldl f z (MutVar x)     = z MutVar `f` x
+  gfoldl f z (GenVar x)     = z GenVar `f` x
+  gfoldl f z (NumLit x)     = z NumLit `f` x
+  -- We leave the Constr item untouched, as it is not of type Data:
+  gfoldl f z (OperType x y) = z (OperType x) `f` y
+  toConstr (MutVar {})      = _typeExp_MutVarConstr
+  toConstr (GenVar {})      = _typeExp_GenVarConstr
+  toConstr (NumLit {})      = _typeExp_NumLitConstr
+  toConstr (OperType {})    = _typeExp_OperTypeConstr
+  gunfold k z c = case constrIndex c of
+                    1 -> (k) (z MutVar)
+                    2 -> (k) (z GenVar)
+                    3 -> (k) (z NumLit)
+                    4 -> error "gunfold typeExp OperType"
+                    _ -> error "gunfold typeExp"
+  dataTypeOf _ = _typeExp_DataType
 
 -- For debugging:
-instance Show (TypeExp s a) where
+instance Show (TypeExp a) where
   show (MutVar {}) = "MutVar"
   show (GenVar {}) = "GenVar"
   show (NumLit {}) = "NumLit"
   show (OperType _ ts) = "OperType " ++ show ts
 
-prune :: TypeExp s a -> ST s (TypeExp s a)
+prune :: TypeExp a -> IO (TypeExp a)
 prune t =
  case t of
    MutVar r ->
-     do m <- readSTRef r
+     do m <- readIORef r
         case m of
           Nothing -> return t
           Just t2 ->
             do t' <- prune t2
-               writeSTRef r (Just t')
+               writeIORef r (Just t')
                return t'
    _ -> return t
 
-occursInType :: Ptr s a -> TypeExp s a -> ST s Bool
+occursInType :: Ptr a -> TypeExp a -> IO Bool
 occursInType r t =
   do t' <- prune t
      case t' of
@@ -139,7 +149,7 @@ occursInType r t =
              do bs <- mapM (occursInType r) ts
                 return (or bs)
 
-unifyType :: TypeExp s a -> TypeExp s a -> ST s (Either String ())
+unifyType :: TypeExp a -> TypeExp a -> IO (Either String ())
 unifyType te1 te2
   = do t1' <- prune te1
        t2' <- prune te2
@@ -147,12 +157,12 @@ unifyType te1 te2
          (MutVar r1, MutVar r2) ->
            if r1 == r2
              then return $ Right ()
-             else liftM Right $ writeSTRef r1 (Just t2')
+             else liftM Right $ writeIORef r1 (Just t2')
          (MutVar r1, _) ->
            do b <- occursInType r1 t2'
               if b
                 then return $ Left "occurs in"
-                else liftM Right $ writeSTRef r1 (Just t2')
+                else liftM Right $ writeIORef r1 (Just t2')
          (_,MutVar _) -> unifyType t2' t1'
          (GenVar n,GenVar m) ->
            if n == m then return $ Right () else return $ Left "different genvars"
@@ -161,26 +171,26 @@ unifyType te1 te2
               then unifyArgs ts1 ts2
               else return $ Left "different constructors"
          (NumLit vns1, NumLit vns2) ->
-           do nst1 <- readSTRef vns1
-              nst2 <- readSTRef vns2
+           do nst1 <- readIORef vns1
+              nst2 <- readIORef vns2
               case (nst1, nst2) of
                 (Right t1, Right t2) ->
                   if t1 /= t2
                     then return $ Left "Numeric literals bound to different types"
                     else return $ Right ()
                 (Left ns1, Left ns2) ->
-                  do writeSTRef vns1 $ Left (ns1 ++ ns2)
-                     writeSTRef vns2 $ Left (ns1 ++ ns2)
+                  do writeIORef vns1 $ Left (ns1 ++ ns2)
+                     writeIORef vns2 $ Left (ns1 ++ ns2)
                      return $ Right ()
                 (Right {}, Left {}) -> unifyType t2' t1'
                 (Left ns1, Right t2) ->
                   if all (willFit t2) ns1
-                    then do writeSTRef vns1 (Right t2)
+                    then do writeIORef vns1 (Right t2)
                             return $ Right ()
                     else return $ Left "Numeric literals will not fit in concrete type"
          (OperType {}, NumLit {}) -> unifyType t2' t1'
          (NumLit vns1, OperType n1 ts2) ->
-           do nst1 <- readSTRef vns1
+           do nst1 <- readIORef vns1
               case nst1 of
                 Right t ->
                   if null ts2 && t == fromConstr n1
@@ -190,7 +200,7 @@ unifyType te1 te2
                 Left ns ->
                   if null ts2
                     then if all (willFit $ fromConstr n1) ns
-                           then do writeSTRef vns1 $ Right (fromConstr n1)
+                           then do writeIORef vns1 $ Right (fromConstr n1)
                                    return $ Right ()
                            else return $ Left "Numeric literals will not fit in concrete type"
                     else return $ Left $ "Numeric literal cannot be unified"
@@ -202,7 +212,7 @@ unifyType te1 te2
     unifyArgs [] [] = return $ Right ()
     unifyArgs _ _ = return $ Left "different lengths"
 
-instantiate :: [TypeExp s a] -> TypeExp s a -> TypeExp s a
+instantiate :: [TypeExp a] -> TypeExp a -> TypeExp a
 instantiate ts x = case x of
   MutVar _ -> x
   OperType nm xs -> OperType nm (map (instantiate ts) xs)
