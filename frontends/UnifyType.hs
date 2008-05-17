@@ -25,46 +25,10 @@ import qualified AST as A
 
 type Ptr a = IORef (Maybe (TypeExp a))
 
-data TypeExp a
+data Typeable a => TypeExp a
  = MutVar (Ptr a)
  | GenVar Int
  -- Either a list of integers that must fit, or a concrete type
  | NumLit (IORef (Either [Integer] A.Type))
- | OperType Constr [ TypeExp a ]
- deriving (Typeable)
-
--- Because Constr is not a member of Data, we must provide our own Data instance
--- here:
-
-_typeExp_MutVarConstr, _typeExp_GenVarConstr, _typeExp_NumLitConstr,
-  _typeExp_OperTypeConstr :: Constr
-_typeExp_DataType :: DataType
-
-_typeExp_MutVarConstr   = mkConstr _typeExp_DataType "MutVar"  [] Prefix
-_typeExp_GenVarConstr   = mkConstr _typeExp_DataType "GenVar" [] Prefix
-_typeExp_NumLitConstr   = mkConstr _typeExp_DataType "NumLit" [] Prefix
-_typeExp_OperTypeConstr = mkConstr _typeExp_DataType "OperType" [] Prefix
-_typeExp_DataType = mkDataType "TypeUnification.TypeExp"
-  [ _typeExp_MutVarConstr
-  , _typeExp_GenVarConstr
-  , _typeExp_NumLitConstr
-  , _typeExp_OperTypeConstr
-  ]
-
-instance Data a => Data (TypeExp a) where
-  gfoldl f z (MutVar x)     = z MutVar `f` x
-  gfoldl f z (GenVar x)     = z GenVar `f` x
-  gfoldl f z (NumLit x)     = z NumLit `f` x
-  -- We leave the Constr item untouched, as it is not of type Data:
-  gfoldl f z (OperType x y) = z (OperType x) `f` y
-  toConstr (MutVar {})      = _typeExp_MutVarConstr
-  toConstr (GenVar {})      = _typeExp_GenVarConstr
-  toConstr (NumLit {})      = _typeExp_NumLitConstr
-  toConstr (OperType {})    = _typeExp_OperTypeConstr
-  gunfold k z c = case constrIndex c of
-                    1 -> (k) (z MutVar)
-                    2 -> (k) (z GenVar)
-                    3 -> (k) (z NumLit)
-                    4 -> error "gunfold typeExp OperType"
-                    _ -> error "gunfold typeExp"
-  dataTypeOf _ = _typeExp_DataType
+ | OperType String ([A.Type] -> A.Type) [ TypeExp a ]
+ deriving (Typeable, Data)

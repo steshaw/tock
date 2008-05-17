@@ -19,23 +19,25 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TypeUnification where
 
 import Control.Monad
+import Control.Monad.State
+import Control.Monad.Trans
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.IORef
 
 import qualified AST as A
+import Errors
+import Metadata
 import Pass
 import ShowCode
 import UnifyType
 import Utils
 
-foldCon :: Constr -> [Either String A.Type] -> Either String A.Type
-foldCon con [] = Right $ fromConstr con
-foldCon con [Left e] = Left e
-foldCon con [Right t] = Right $ fromConstrB (fromJust $ cast t) con
-foldCon con _ = Left "foldCon: too many arguments given"
-
+foldCon :: ([A.Type] -> A.Type) -> [Either String A.Type] -> Either String A.Type
+foldCon con es = case splitEither es of
+  ([],ts) -> Right $ con ts
+  ((e:_),_) -> Left e
 
 -- Much of the code in this module is taken from or based on Tim Sheard's Haskell
 -- listing of a simple type unification algorithm at the beginning of his
@@ -65,8 +67,8 @@ unifyRainTypes m' prs
                      [] -> return $ Right mapOfRes
       where
         read :: k -> TypeExp A.Type -> IO (Either String A.Type)
-        read k (OperType con vals) = do vals' <- mapM (read k) vals
-                                        return $ foldCon con vals'
+        read k (OperType _ con vals) = do vals' <- mapM (read k) vals
+                                          return $ foldCon con vals'
         read k (MutVar v) = readIORef v >>= \t -> case t of
           Nothing -> return $ Left $ "Type error in unification, "
             ++ "ambigious type remains for: " ++ show k
@@ -76,16 +78,23 @@ unifyRainTypes m' prs
             ++ "ambigious type remains for numeric literal: " ++ show k
           Right t -> return $ Right t
 
+fromTypeExp :: Meta -> TypeExp A.Type -> PassM A.Type
+fromTypeExp m x = fromTypeExp' =<< (liftIO $ prune x)
+  where
+    fromTypeExp' :: TypeExp A.Type -> PassM A.Type
+    fromTypeExp' (MutVar {}) = dieP m "Unresolved type"
+    fromTypeExp' (GenVar {}) = dieP m "Template vars not yet supported"
+    fromTypeExp' (NumLit v) = liftIO (readIORef v) >>= \x -> case x of
+      Left (n:_) -> dieP m $ "Ambigiously typed numeric literal: " ++ show n
+      Right t -> return t
+    fromTypeExp' (OperType _ f ts) = mapM (fromTypeExp m) ts >>* f
+
 -- For debugging:
 showInErr :: TypeExp A.Type -> PassM String
 showInErr (MutVar {}) = return "MutVar"
 showInErr (GenVar {}) = return "GenVar"
 showInErr (NumLit {}) = return "NumLit"
-showInErr (OperType c ts) = showCode $ case length ts of
-    0 -> fromConstr c :: A.Type
-    1 -> (fromConstr c :: A.Type -> A.Type)
-           (A.UserDataType $ A.Name {A.nameName = "a"})
-             :: A.Type
+showInErr t@(OperType {}) = showCode =<< fromTypeExp undefined t
 
 giveErr :: String -> TypeExp A.Type -> TypeExp A.Type -> Either (PassM String) a
 giveErr msg tx ty
@@ -93,7 +102,7 @@ giveErr msg tx ty
               y <- showInErr ty
               return $ msg ++ x ++ " and " ++ y
 
-prune :: TypeExp a -> IO (TypeExp a)
+prune :: Typeable a => TypeExp a -> IO (TypeExp a)
 prune t =
  case t of
    MutVar r ->
@@ -106,15 +115,13 @@ prune t =
                return t'
    _ -> return t
 
-occursInType :: Ptr a -> TypeExp a -> IO Bool
+occursInType :: Typeable a => Ptr a -> TypeExp a -> IO Bool
 occursInType r t =
   do t' <- prune t
      case t' of
        MutVar r2 -> return $ r == r2
        GenVar n -> return False
-       OperType nm ts ->
-             do bs <- mapM (occursInType r) ts
-                return (or bs)
+       OperType _ _ ts -> mapM (occursInType r) ts >>* or
 
 unifyType :: TypeExp A.Type -> TypeExp A.Type -> IO (Either (PassM String) ())
 unifyType te1 te2
@@ -133,7 +140,7 @@ unifyType te1 te2
          (_,MutVar _) -> unifyType t2' t1'
          (GenVar n,GenVar m) ->
            if n == m then return $ Right () else return $ Left $ return "different genvars"
-         (OperType n1 ts1,OperType n2 ts2) ->
+         (OperType n1 _ ts1,OperType n2 _ ts2) ->
            if n1 == n2
               then unifyArgs ts1 ts2
               else return $ giveErr "Different constructors: " t1' t2'
@@ -147,7 +154,7 @@ unifyType te1 te2
                     else return $ Right ()
                 (Left ns1, Left ns2) ->
                   do writeIORef vns1 $ Left (ns1 ++ ns2)
-                     writeIORef vns2 $ Left (ns1 ++ ns2)
+                     writeIORef vns2 $ Left (ns2 ++ ns1)
                      return $ Right ()
                 (Right {}, Left {}) -> unifyType t2' t1'
                 (Left ns1, Right t2) ->
@@ -156,18 +163,18 @@ unifyType te1 te2
                             return $ Right ()
                     else return $ Left $ return "Numeric literals will not fit in concrete type"
          (OperType {}, NumLit {}) -> unifyType t2' t1'
-         (NumLit vns1, OperType n1 ts2) ->
+         (NumLit vns1, OperType n1 f ts2) ->
            do nst1 <- readIORef vns1
               case nst1 of
                 Right t ->
-                  if null ts2 && t == fromConstr n1
+                  if null ts2 && t == f []
                     then return $ Right ()
                     else return $ Left $ return $ "numeric literal cannot be unified"
                            ++ " with two different types"
                 Left ns ->
                   if null ts2
-                    then if all (willFit $ fromConstr n1) ns
-                           then do writeIORef vns1 $ Right (fromConstr n1)
+                    then if all (willFit $ f []) ns
+                           then do writeIORef vns1 $ Right (f [])
                                    return $ Right ()
                            else return $ Left $ return "Numeric literals will not fit in concrete type"
                     else return $ Left $ return $ "Numeric literal cannot be unified"
@@ -181,10 +188,10 @@ unifyType te1 te2
     unifyArgs [] [] = return $ Right ()
     unifyArgs _ _ = return $ Left $ return "different lengths"
 
-instantiate :: [TypeExp a] -> TypeExp a -> TypeExp a
+instantiate :: Typeable a => [TypeExp a] -> TypeExp a -> TypeExp a
 instantiate ts x = case x of
   MutVar _ -> x
-  OperType nm xs -> OperType nm (map (instantiate ts) xs)
+  OperType nm f xs -> OperType nm f (map (instantiate ts) xs)
   GenVar n -> ts !! n
 
 willFit :: A.Type -> Integer -> Bool

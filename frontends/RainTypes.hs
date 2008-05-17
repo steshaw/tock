@@ -49,8 +49,8 @@ lookupMapElseMutVar k
                        put st {csUnifyLookup = m'}
                        return v
 
-ttte :: Data b => b -> A.Type -> PassM (TypeExp A.Type)
-ttte c t = typeToTypeExp t >>= \t' -> return $ OperType (toConstr c) [t']
+ttte :: String -> (A.Type -> A.Type) -> A.Type -> PassM (TypeExp A.Type)
+ttte c f t = typeToTypeExp t >>= \t' -> return $ OperType c (\[x] -> f x) [t']
 
 -- Transforms the given type into a typeexp, such that the only inner types
 -- left will be the primitive types (integer types, float types, bool, time).  Arrays
@@ -58,11 +58,11 @@ ttte c t = typeToTypeExp t >>= \t' -> return $ OperType (toConstr c) [t']
 -- neither are records.
 --  User data types should not be present in the input.
 typeToTypeExp :: A.Type -> PassM (TypeExp A.Type)
-typeToTypeExp x@(A.List t) = ttte x t
-typeToTypeExp (A.Chan A.DirInput _ t) = ttte "?" t
-typeToTypeExp (A.Chan A.DirOutput _ t) = ttte "!" t
-typeToTypeExp (A.Chan A.DirUnknown _ t) = ttte "channel" t
-typeToTypeExp (A.Mobile t) = ttte "MOBILE" t
+typeToTypeExp (A.List t) = ttte "[]" A.List t
+typeToTypeExp (A.Chan A.DirInput at t) = ttte "?" (A.Chan A.DirInput at) t
+typeToTypeExp (A.Chan A.DirOutput at t) = ttte "!" (A.Chan A.DirOutput at) t
+typeToTypeExp (A.Chan A.DirUnknown at t) = ttte "channel" (A.Chan A.DirUnknown at) t
+typeToTypeExp (A.Mobile t) = ttte "MOBILE" A.Mobile t
 typeToTypeExp (A.UnknownVarType en)
   = case en of
       Left n -> lookupMapElseMutVar (UnifyIndex (A.nameMeta n, Right n))
@@ -73,8 +73,8 @@ typeToTypeExp (A.UnknownNumLitType m id n)
        st <- get
        let mp = csUnifyLookup st
        put st {csUnifyLookup = Map.insert (UnifyIndex (m,Left id)) v mp}
-       return v     
-typeToTypeExp t = return $ OperType (toConstr t) []
+       return v
+typeToTypeExp t = return $ OperType (show t) (const t) []
 
 markUnify :: (Typed a, Typed b) => a  -> b -> PassM ()
 markUnify x y
