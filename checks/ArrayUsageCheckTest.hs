@@ -34,6 +34,7 @@ import Test.QuickCheck hiding (check)
 
 import ArrayUsageCheck
 import qualified AST as A
+import CompState
 import Metadata
 import Omega
 import ShowCode
@@ -1163,17 +1164,19 @@ qcOmegaPrune = [("Omega Test Pruning", scaleQC (100,1000,10000,50000) prop)]
 ioqcTests :: IO (Test, [LabelledQuickCheckTest])
 ioqcTests
   = seqPair
-      (liftM (TestLabel "ArrayUsageCheckTest" . TestList) $ sequence
-        [
-          return testArrayCheck
-         ,return testIndexes
-         ,return testMakeEquations
-         ,automaticTest "testcases/automatic/usage-check-1.occ.test"
-         ,automaticTest "testcases/automatic/usage-check-2.occ.test"
-         ,automaticTest "testcases/automatic/usage-check-3.occ.test"
-         ,automaticTest "testcases/automatic/usage-check-4.occ.test"
-         ,automaticTest "testcases/automatic/usage-check-5.occ.test"
-        ]
+      (liftM (TestLabel "ArrayUsageCheckTest" . TestList) $ sequence $
+        map return [
+          testArrayCheck
+         ,testIndexes
+         ,testMakeEquations
+         ]
+        ++ map (automaticTest FrontendOccam)
+         ["testcases/automatic/usage-check-1.occ.test"
+         ,"testcases/automatic/usage-check-2.occ.test"
+         ,"testcases/automatic/usage-check-3.occ.test"
+         ,"testcases/automatic/usage-check-4.occ.test"
+         ,"testcases/automatic/usage-check-5.occ.test"
+         ]
       ,return $ qcOmegaEquality ++ qcOmegaPrune ++ qcTestMakeEquations)
 
 

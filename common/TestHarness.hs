@@ -44,27 +44,39 @@ import Text.Regex
 
 import CompState
 import ParseOccam
+import ParseRain
 import Pass
 import PassList
 import PreprocessOccam
 import Utils
 
-automaticTest :: FilePath -> IO Test
-automaticTest fileName = readFile fileName >>* performTest fileName
+automaticTest :: CompFrontend -> FilePath -> IO Test
+automaticTest fr fileName = readFile fileName >>* performTest fr fileName
 
 -- Bit of a hard-hack, until usage-checking is on by default:
-defaultState :: CompState
-defaultState = emptyState {csUsageChecking = True}
+defaultState :: CompFrontend -> CompState
+defaultState fr = emptyState {csUsageChecking = True, csFrontend = fr}
 
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
 testOccam :: String -> IO (Maybe String)
-testOccam source = do (result,_,_) <- runPassM defaultState compilation
+testOccam source = do (result,_,_) <- runPassM (defaultState FrontendOccam) compilation
                       return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
   where
-    compilation = preprocessOccamSource source >>= parseOccamProgram >>= runPasses (getPassList defaultState)
+    compilation = preprocessOccamSource source
+                  >>= parseOccamProgram
+                  >>= runPasses (getPassList $ defaultState FrontendOccam)
+
+testRain :: String -> IO (Maybe String)
+testRain  source = do (result,_,_) <- runPassM (defaultState FrontendRain) compilation
+                      return $ case result of
+                                 Left (_,err) -> Just err
+                                 Right _  -> Nothing
+  where
+    compilation = parseRainProgram "<test>" source
+                  >>= runPasses (getPassList $ defaultState FrontendRain)
 
 -- | Substitutes each substitution into the prologue
 substitute :: String -> [(Bool, Bool, String, String)] -> [(Bool, Bool, String, String)]
@@ -72,8 +84,8 @@ substitute prologue = map (\(a,b,c,subst) -> (a,b,c,subRegex (mkRegex "%%") prol
 
 
 -- | Given a file's contents, tests it
-performTest :: String -> String -> Test
-performTest fileName fileContents
+performTest :: CompFrontend -> String -> String -> Test
+performTest fr fileName fileContents
   = case parseTestFile fileContents of
       Left err -> TestCase $ assertFailure $ "Error processing file \"" ++ fileName ++ "\": " ++ err
       Right (prologue,tests) -> TestLabel fileName $ TestList $ map performTest' (substitute prologue tests)
@@ -82,7 +94,7 @@ performTest fileName fileContents
     performTest' :: (Bool, Bool, String, String) -> Test
     performTest' (expPass, _, testName, testText)
       = TestCase $ 
-        do result <- testOccam testText
+        do result <- (if fr == FrontendOccam then testOccam else testRain) testText
            case result of
              Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ err) else return ()
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")

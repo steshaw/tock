@@ -285,7 +285,7 @@ compile mode fn outHandle
         progress "Parse"
         ast1 <- case csFrontend optsPS of
           FrontendOccam -> preprocessOccamProgram fn >>= parseOccamProgram
-          FrontendRain -> parseRainProgram fn
+          FrontendRain -> liftIO (readFile fn) >>= parseRainProgram fn
         debugAST ast1
         debug "}}}"
 

@@ -498,11 +498,10 @@ rainTimerName :: A.Name
 rainTimerName = A.Name {A.nameName = ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix,
   A.nameMeta = emptyMeta, A.nameType = A.TimerName}
 
--- | Load and parse a Rain source file.
-parseRainProgram :: String -> PassM A.AST
-parseRainProgram filename
-    =  do source <- liftIO $ readFile filename
-          lexOut <- liftIO $ L.runLexer filename source          
+-- | Parse Rain source text (with filename for error messages)
+parseRainProgram :: FilePath -> String -> PassM A.AST
+parseRainProgram filename source
+    =  do lexOut <- liftIO $ L.runLexer filename source          
           case lexOut of
             Left merr -> dieP merr $ "Parse (lexing) error"
             Right toks ->
