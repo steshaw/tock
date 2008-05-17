@@ -92,7 +92,7 @@ performTypeUnification x
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
        res <- liftIO $ mapM (uncurry unifyType) prs
-       mapM (dieP emptyMeta) (fst $ splitEither res)
+       mapM (diePC emptyMeta) (fst $ splitEither res)
        return x'
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.

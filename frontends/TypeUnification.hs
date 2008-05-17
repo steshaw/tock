@@ -44,7 +44,7 @@ foldCon con _ = Left "foldCon: too many arguments given"
 -- This in turn was taken from Luca Cardelli's "Basic Polymorphic Type Checking"
 
 unifyRainTypes :: forall k. (Ord k, Show k) => (Map.Map k (TypeExp A.Type)) -> [(k, k)] -> IO
-  (Either String (Map.Map k A.Type))
+  (Either (PassM String) (Map.Map k A.Type))
 unifyRainTypes m' prs
   =   do outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y m')) prs
          case mapMaybe (either Just (const Nothing)) outs of
@@ -57,11 +57,11 @@ unifyRainTypes m' prs
       Nothing -> error $ "Could not find type for variable in map before unification: "
         ++ show s
 
-    stToMap :: Map.Map k (TypeExp A.Type) -> IO (Either String (Map.Map k A.Type))
+    stToMap :: Map.Map k (TypeExp A.Type) -> IO (Either (PassM String) (Map.Map k A.Type))
     stToMap m = do m' <- mapMapWithKeyM (\k v -> prune v >>= read k) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
-                     (e:_) -> return $ Left e
+                     (e:_) -> return $ Left $ return e
                      [] -> return $ Right mapOfRes
       where
         read :: k -> TypeExp A.Type -> IO (Either String A.Type)
@@ -77,11 +77,21 @@ unifyRainTypes m' prs
           Right t -> return $ Right t
 
 -- For debugging:
-instance Show (TypeExp a) where
-  show (MutVar {}) = "MutVar"
-  show (GenVar {}) = "GenVar"
-  show (NumLit {}) = "NumLit"
-  show (OperType _ ts) = "OperType " ++ show ts
+showInErr :: TypeExp A.Type -> PassM String
+showInErr (MutVar {}) = return "MutVar"
+showInErr (GenVar {}) = return "GenVar"
+showInErr (NumLit {}) = return "NumLit"
+showInErr (OperType c ts) = showCode $ case length ts of
+    0 -> fromConstr c :: A.Type
+    1 -> (fromConstr c :: A.Type -> A.Type)
+           (A.UserDataType $ A.Name {A.nameName = "a"})
+             :: A.Type
+
+giveErr :: String -> TypeExp A.Type -> TypeExp A.Type -> Either (PassM String) a
+giveErr msg tx ty
+  = Left $ do x <- showInErr tx
+              y <- showInErr ty
+              return $ msg ++ x ++ " and " ++ y
 
 prune :: TypeExp a -> IO (TypeExp a)
 prune t =
@@ -106,7 +116,7 @@ occursInType r t =
              do bs <- mapM (occursInType r) ts
                 return (or bs)
 
-unifyType :: TypeExp a -> TypeExp a -> IO (Either String ())
+unifyType :: TypeExp A.Type -> TypeExp A.Type -> IO (Either (PassM String) ())
 unifyType te1 te2
   = do t1' <- prune te1
        t2' <- prune te2
@@ -118,22 +128,22 @@ unifyType te1 te2
          (MutVar r1, _) ->
            do b <- occursInType r1 t2'
               if b
-                then return $ Left "occurs in"
+                then return $ Left $ return "occurs in"
                 else liftM Right $ writeIORef r1 (Just t2')
          (_,MutVar _) -> unifyType t2' t1'
          (GenVar n,GenVar m) ->
-           if n == m then return $ Right () else return $ Left "different genvars"
+           if n == m then return $ Right () else return $ Left $ return "different genvars"
          (OperType n1 ts1,OperType n2 ts2) ->
            if n1 == n2
               then unifyArgs ts1 ts2
-              else return $ Left "different constructors"
+              else return $ giveErr "Different constructors: " t1' t2'
          (NumLit vns1, NumLit vns2) ->
            do nst1 <- readIORef vns1
               nst2 <- readIORef vns2
               case (nst1, nst2) of
                 (Right t1, Right t2) ->
                   if t1 /= t2
-                    then return $ Left "Numeric literals bound to different types"
+                    then return $ Left $ return "Numeric literals bound to different types"
                     else return $ Right ()
                 (Left ns1, Left ns2) ->
                   do writeIORef vns1 $ Left (ns1 ++ ns2)
@@ -144,7 +154,7 @@ unifyType te1 te2
                   if all (willFit t2) ns1
                     then do writeIORef vns1 (Right t2)
                             return $ Right ()
-                    else return $ Left "Numeric literals will not fit in concrete type"
+                    else return $ Left $ return "Numeric literals will not fit in concrete type"
          (OperType {}, NumLit {}) -> unifyType t2' t1'
          (NumLit vns1, OperType n1 ts2) ->
            do nst1 <- readIORef vns1
@@ -152,22 +162,22 @@ unifyType te1 te2
                 Right t ->
                   if null ts2 && t == fromConstr n1
                     then return $ Right ()
-                    else return $ Left $ "numeric literal cannot be unified"
+                    else return $ Left $ return $ "numeric literal cannot be unified"
                            ++ " with two different types"
                 Left ns ->
                   if null ts2
                     then if all (willFit $ fromConstr n1) ns
                            then do writeIORef vns1 $ Right (fromConstr n1)
                                    return $ Right ()
-                           else return $ Left "Numeric literals will not fit in concrete type"
-                    else return $ Left $ "Numeric literal cannot be unified"
+                           else return $ Left $ return "Numeric literals will not fit in concrete type"
+                    else return $ Left $ return $ "Numeric literal cannot be unified"
                       ++ " with non-numeric type"
-         (_,_) -> return $ Left "different types"
+         (_,_) -> return $ Left $ return "different types"
   where
     unifyArgs (x:xs) (y:ys) = do unifyType x y
                                  unifyArgs xs ys
     unifyArgs [] [] = return $ Right ()
-    unifyArgs _ _ = return $ Left "different lengths"
+    unifyArgs _ _ = return $ Left $ return "different lengths"
 
 instantiate :: [TypeExp a] -> TypeExp a -> TypeExp a
 instantiate ts x = case x of
