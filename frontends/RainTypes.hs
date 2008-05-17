@@ -121,10 +121,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
   where
     recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
-      = do arrType <- astTypeOf e
-           innerT <- case arrType of 
-             A.List t -> return t
-             _ -> diePC m $ formatCode "Cannot do a foreach loop over a non-list type: %" arrType
+      = do let innerT = A.UnknownVarType $ Left n
            defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
                                    A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
                                    A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}

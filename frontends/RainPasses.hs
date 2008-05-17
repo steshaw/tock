@@ -21,6 +21,7 @@ module RainPasses where
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 
@@ -42,44 +43,38 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Dummy Rain pass", return, [], [Prop.retypesChecked])
        ,("Resolve Int -> Int64", transformInt, [], [Prop.noInt])
        ,("Uniquify variable declarations, record declared types and resolve variable names",
-           uniquifyAndResolveVars, [Prop.noInt], namesDone)
+           uniquifyAndResolveVars, [Prop.noInt], Prop.agg_namesDone \\ [Prop.inferredTypesRecorded])
             
---       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded, Prop.constantsChecked])
-       ,("Type Checking", performTypeUnification, [Prop.noInt] ++ namesDone,
-         typesDone)
+       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ Prop.agg_namesDone
+            ++ Prop.agg_typesDone, [Prop.constantsFolded, Prop.constantsChecked])
+       ,("Type Checking", performTypeUnification, [Prop.noInt] ++ Prop.agg_namesDone,
+         Prop.agg_typesDone)
        
 --       ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
 --       ,("Annotate list literal and range types", annotateListLiteralTypes,
 --         namesDone ++ [Prop.noInt, Prop.intLiteralsInBounds], [Prop.listsGivenType])         
        
        ,("Record inferred name types in dictionary", recordInfNameTypes,
-         namesDone ++ [Prop.intLiteralsInBounds, Prop.listsGivenType], [Prop.inferredTypesRecorded])
+           Prop.agg_namesDone \\ [Prop.inferredTypesRecorded], [Prop.inferredTypesRecorded])
        
-       ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
+--       ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
 --       ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
 --       ,("Check types in if/while conditions",checkConditionalTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
 --       ,("Check types in input/output",checkCommTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
-       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked,
-         Prop.functionTypesChecked])
+--       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked,
+--         Prop.functionTypesChecked])
        
-       ,("Find and tag the main function", findMain, namesDone, [Prop.mainTagged])
+       ,("Find and tag the main function", findMain, Prop.agg_namesDone, [Prop.mainTagged])
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
-         transformEachRange, typesDone ++ [Prop.constantsFolded], [Prop.eachRangeTransformed])
+         transformEachRange, Prop.agg_typesDone ++ [Prop.constantsFolded], [Prop.eachRangeTransformed])
        ,("Pull up foreach-expressions", pullUpForEach,
-         typesDone ++ [Prop.constantsFolded],
+         Prop.agg_typesDone ++ [Prop.constantsFolded],
          [Prop.eachTransformed])
-       ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
-       ,("Transform Rain functions into the occam form",checkFunction, typesDone, [])
+       ,("Convert simple Rain range constructors into more general array constructors",transformRangeRep, Prop.agg_typesDone ++ [Prop.eachRangeTransformed], [Prop.rangeTransformed])
+       ,("Transform Rain functions into the occam form",checkFunction, Prop.agg_typesDone, [])
          --TODO add an export property.  Maybe check other things too (lack of comms etc -- but that could be combined with occam?)
        ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
      ]
-  where
-    namesDone :: [Property]
-    namesDone = [Prop.declaredNamesResolved, Prop.declarationTypesRecorded, Prop.declarationsUnique]
-
-    typesDone :: [Property]
-    typesDone = namesDone ++ [Prop.inferredTypesRecorded]
-
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
 transformInt :: Data t => t -> PassM t
