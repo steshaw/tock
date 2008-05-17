@@ -87,8 +87,12 @@ markUnify x y
 
 performTypeUnification :: Data t => t -> PassM t
 performTypeUnification x
-       -- First, we markup all the types in the tree:
-  = do x' <- markConditionalTypes
+  = do -- First, we copy the known types into the unify map:
+       st <- get
+       ul <- shift $ csNames st
+       put st {csUnifyPairs = [], csUnifyLookup = ul}
+       -- Then we markup all the types in the tree:
+       x' <- markConditionalTypes
              <.< markAssignmentTypes
              <.< markCommTypes
              $ x --TODO markup everything else
@@ -97,6 +101,19 @@ performTypeUnification x
        res <- liftIO $ mapM (uncurry unifyType) prs
        mapM (diePC emptyMeta) (fst $ splitEither res)
        return x'
+  where
+    shift :: Map.Map String A.NameDef -> PassM (Map.Map UnifyIndex UnifyValue)
+    shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
+      where
+        shift' :: (String, A.NameDef) -> PassM (Maybe (UnifyIndex, UnifyValue))
+        shift' (rawName, d) = do mt <- typeOfSpec (A.ndType d)
+                                 case mt of
+                                   Nothing -> return Nothing
+                                   Just t -> do te <- typeToTypeExp t
+                                                return $ Just (UnifyIndex (A.ndMeta d, Right name), te)
+          where
+            name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d, A.nameType
+              = A.ndNameType d}
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
 recordInfNameTypes :: Data t => t -> PassM t
