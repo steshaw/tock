@@ -22,7 +22,7 @@ module Traversal (
   , transformToExplicitDepth, checkToTransform
   , baseX, extX, extD, extC, applyX
   , applyDepthM, applyDepthM2
-  , checkDepthM
+  , checkDepthM, checkDepthM2
   ) where
 
 import Data.Generics
@@ -106,4 +106,10 @@ checkDepthM :: forall t1 s. (Data t1, Data s) =>
                Check t1 -> s -> PassM s
 checkDepthM f1
     = applyX $ baseX `extC` f1
+
+-- | Apply two checks, recursing depth-first.
+checkDepthM2 :: forall t1 t2 s. (Data t1, Data t2, Data s) =>
+               Check t1 -> Check t2 -> s -> PassM s
+checkDepthM2 f1 f2
+    = applyX $ baseX `extC` f1 `extC` f2
 
