@@ -44,19 +44,19 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
        ,("Uniquify variable declarations, record declared types and resolve variable names",
            uniquifyAndResolveVars, [Prop.noInt], namesDone)
             
-       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded, Prop.constantsChecked])
+--       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ namesDone, [Prop.constantsFolded, Prop.constantsChecked])
        ,("Type Checking", performTypeUnification, [Prop.noInt] ++ namesDone,
          typesDone)
        
-       ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
-       ,("Annotate list literal and range types", annotateListLiteralTypes,
-         namesDone ++ [Prop.noInt, Prop.intLiteralsInBounds], [Prop.listsGivenType])         
+--       ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
+--       ,("Annotate list literal and range types", annotateListLiteralTypes,
+--         namesDone ++ [Prop.noInt, Prop.intLiteralsInBounds], [Prop.listsGivenType])         
        
        ,("Record inferred name types in dictionary", recordInfNameTypes,
          namesDone ++ [Prop.intLiteralsInBounds, Prop.listsGivenType], [Prop.inferredTypesRecorded])
        
        ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
-       ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
+--       ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
 --       ,("Check types in if/while conditions",checkConditionalTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
        ,("Check types in input/output",checkCommTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
        ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked,

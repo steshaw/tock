@@ -88,7 +88,9 @@ markUnify x y
 performTypeUnification :: Data t => t -> PassM t
 performTypeUnification x
        -- First, we markup all the types in the tree:
-  = do x' <- markConditionalTypes x --TODO markup everything else
+  = do x' <- markConditionalTypes
+             <.< markAssignmentTypes
+             $ x --TODO markup everything else
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
        res <- liftIO $ mapM (uncurry unifyType) prs
@@ -364,22 +366,17 @@ checkExpressionTypes = applyDepthM checkExpression
     haveOrder t = (isIntegerType t) || (t == A.Time)
 
 -- | Checks the types in assignments
-checkAssignmentTypes :: Data t => t -> PassM t
-checkAssignmentTypes = applyDepthM checkAssignment
+markAssignmentTypes :: Data t => t -> PassM t
+markAssignmentTypes = checkDepthM checkAssignment
   where
-    checkAssignment :: A.Process -> PassM A.Process
-    checkAssignment ass@(A.Assign m [v] (A.ExpressionList m' [e]))
-      = do trhs <- astTypeOf e
-           tlhs <- astTypeOf v
-           am <- abbrevModeOfVariable v
+    checkAssignment :: Check A.Process
+    checkAssignment (A.Assign m [v] (A.ExpressionList _ [e]))
+      = do am <- abbrevModeOfVariable v
            when (am == A.ValAbbrev) $
              diePC m $ formatCode "Cannot assign to a constant variable: %" v
-           if (tlhs == trhs)
-             then return ass
-             else do rhs' <- coerceType " in assignment" tlhs trhs e
-                     return $ A.Assign m [v] (A.ExpressionList m' [rhs'])
+           markUnify v e
     checkAssignment (A.Assign m _ _) = dieInternal (Just m,"Rain checker found occam-style assignment")
-    checkAssignment st = return st
+    checkAssignment st = return ()
 
 -- | Checks the types in if and while conditionals
 markConditionalTypes :: Data t => t -> PassM t
