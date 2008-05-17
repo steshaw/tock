@@ -112,7 +112,8 @@ data CompState = CompState {
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Set A.Name,
     csUnifyLookup :: Map UnifyIndex UnifyValue,
-    csUnifyPairs :: [(UnifyValue, UnifyValue)]
+    csUnifyPairs :: [(UnifyValue, UnifyValue)],
+    csUnifyId :: Int
   }
   deriving (Data, Typeable)
 
@@ -144,7 +145,8 @@ emptyState = CompState {
     csAdditionalArgs = Map.empty,
     csParProcs = Set.empty,
     csUnifyLookup = Map.empty,
-    csUnifyPairs = []
+    csUnifyPairs = [],
+    csUnifyId = 0
   }
 
 -- | Class of monads which keep a CompState.
@@ -368,3 +370,10 @@ ghostVarPrefix = "##"
 -- | A suffix put on all ghost variables, such as Rain's timers
 ghostVarSuffix :: String
 ghostVarSuffix = "_##"
+
+-- | A new identifer for the unify types in the tree
+getUniqueIdentifer :: CSM m => m Int
+getUniqueIdentifer = do st <- get
+                        let n = csUnifyId st
+                        put st {csUnifyId = n + 1}
+                        return n

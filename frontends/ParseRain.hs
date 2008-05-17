@@ -40,6 +40,15 @@ import Utils
 type RainState = CompState
 type RainParser = GenParser L.Token RainState
 
+instance CSMR (GenParser tok CompState) where
+  getCompState = getState
+
+-- We can expose only part of the state to make it look like we are only using
+-- CompState:
+instance MonadState CompState (GenParser tok CompState) where
+  get = getState
+  put = setState
+
 instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
   dieReport (Nothing, err) = fail err  
@@ -195,16 +204,19 @@ literalCharacter
     testToken (L.TokCharLiteral c) = Just c
     testToken _ = Nothing
            
-integer :: RainParser A.LiteralRepr
+integer :: RainParser (Integer, A.LiteralRepr)
 integer
     =  do (m,d) <- getToken testToken
-          return $ A.IntLiteral m d
+          return $ (read d, A.IntLiteral m d)
   where
     testToken (L.TokDecimalLiteral d) = Just d
     testToken _ = Nothing
 
 integerLiteral :: RainParser A.Expression
-integerLiteral = do {i <- integer ; return $ A.Literal (findMeta i) A.Int i}
+integerLiteral = do (val, i) <- integer
+                    u <- getUniqueIdentifer
+                    let m = findMeta i
+                    return $ A.Literal m (A.UnknownNumLitType m u val) i
 
 listLiteral :: RainParser A.Expression
 listLiteral
