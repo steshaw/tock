@@ -20,6 +20,9 @@ module RainTypes where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
+import Data.Maybe
+import Data.IORef
 
 import qualified AST as A
 import CompState
@@ -30,7 +33,66 @@ import Pass
 import ShowCode
 import Traversal
 import Types
+import TypeUnification
+import Utils
 
+lookupMapElseMutVar :: UnifyIndex -> PassM (TypeExp A.Type)
+lookupMapElseMutVar k
+  = do st <- get
+       let m = csUnifyLookup st
+       case Map.lookup k m of
+         Just v -> return v
+         Nothing -> do r <- liftIO $ newIORef Nothing
+                       let v = MutVar r
+                           m' = Map.insert k v m
+                       put st {csUnifyLookup = m'}
+                       return v
+
+ttte :: Data b => b -> A.Type -> PassM (TypeExp A.Type)
+ttte c t = typeToTypeExp t >>= \t' -> return $ OperType (toConstr c) [t']
+
+-- Transforms the given type into a typeexp, such that the only inner types
+-- left will be the primitive types (integer types, float types, bool, time).  Arrays
+-- (which would require unification of dimensions and such) are not supported,
+-- neither are records.
+--  User data types should not be present in the input.
+typeToTypeExp :: A.Type -> PassM (TypeExp A.Type)
+typeToTypeExp x@(A.List t) = ttte x t
+typeToTypeExp (A.Chan A.DirInput _ t) = ttte "?" t
+typeToTypeExp (A.Chan A.DirOutput _ t) = ttte "!" t
+typeToTypeExp (A.Chan A.DirUnknown _ t) = ttte "channel" t
+typeToTypeExp (A.Mobile t) = ttte "MOBILE" t
+typeToTypeExp (A.UnknownVarType en)
+  = case en of
+      Left n -> lookupMapElseMutVar (UnifyIndex (A.nameMeta n, Right n))
+      Right (m, i) -> lookupMapElseMutVar (UnifyIndex (m, Left i))
+typeToTypeExp (A.UnknownNumLitType m id n)
+  = do r <- liftIO . newIORef $ Left [n]
+       let v = NumLit r
+       st <- get
+       let mp = csUnifyLookup st
+       put st {csUnifyLookup = Map.insert (UnifyIndex (m,Left id)) v mp}
+       return v     
+typeToTypeExp t = return $ OperType (toConstr t) []
+
+markUnify :: (Typed a, Typed b) => a  -> b -> PassM ()
+markUnify x y
+  = do tx <- astTypeOf x
+       ty <- astTypeOf y
+       tex <- typeToTypeExp tx
+       tey <- typeToTypeExp ty
+       modify $ \st -> st {csUnifyPairs = (tex,tey) : csUnifyPairs st}
+
+
+performTypeUnification :: Data t => t -> PassM t
+performTypeUnification x
+       -- First, we markup all the types in the tree:
+  = do x' <- markConditionalTypes x --TODO markup everything else
+       -- Then, we do the unification:
+       prs <- get >>* csUnifyPairs
+       res <- liftIO $ mapM (uncurry unifyType) prs
+       mapM (dieP emptyMeta) (fst $ splitEither res)
+       return x'
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
 recordInfNameTypes :: Data t => t -> PassM t
@@ -319,23 +381,17 @@ checkAssignmentTypes = applyDepthM checkAssignment
     checkAssignment st = return st
 
 -- | Checks the types in if and while conditionals
-checkConditionalTypes :: Data t => t -> PassM t
-checkConditionalTypes = applyDepthM2 checkWhile checkIf
+markConditionalTypes :: Data t => t -> PassM t
+markConditionalTypes = checkDepthM2 checkWhile checkIf
   where
-    checkWhile :: A.Process -> PassM A.Process
+    checkWhile :: Check A.Process
     checkWhile w@(A.While m exp _)
-      = do t <- astTypeOf exp
-           if (t == A.Bool)
-             then return w
-             else dieP m "Expression in while conditional must be of boolean type"
-    checkWhile p = return p
+      = markUnify exp A.Bool
+    checkWhile _ = return ()
     
-    checkIf :: A.Choice -> PassM A.Choice
+    checkIf :: Check A.Choice
     checkIf c@(A.Choice m exp _)
-      = do t <- astTypeOf exp
-           if (t == A.Bool)
-             then return c
-             else dieP m "Expression in if conditional must be of boolean type"
+      = markUnify exp A.Bool
 
 -- | Checks the types in inputs and outputs, including inputs in alts
 checkCommTypes :: Data t => t -> PassM t
