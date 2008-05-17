@@ -34,6 +34,7 @@ import ShowCode
 import Traversal
 import Types
 import TypeUnification
+import UnifyType
 import Utils
 
 lookupMapElseMutVar :: UnifyIndex -> PassM (TypeExp A.Type)

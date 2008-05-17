@@ -34,7 +34,7 @@ import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, warnP)
 import Metadata
 import OrdAST ()
-import TypeUnification
+import UnifyType
 
 -- | Modes that Tock can run in.
 data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull
