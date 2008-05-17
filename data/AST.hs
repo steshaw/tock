@@ -144,9 +144,12 @@ data Type =
   | Mobile Type
   -- | A type that will be inferred automatically by a pass.
   | Infer
+  -- | A type that will be inferred by type unification.  Either for a named
+  -- variable, or for an anonymous, uniquely identified, expression
+  | UnknownVarType (Either Name (Meta, Int))
   -- | A numeric type to be inferred later, that must be able to hold the given
-  -- value
-  | InferNum Integer
+  -- value.  The Int is a unique identifier, the Integer is the number to hold
+  | UnknownNumLitType Meta Int Integer
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.
