@@ -174,8 +174,10 @@ unifyType te1 te2
                       ++ " with non-numeric type"
          (_,_) -> return $ Left $ return "different types"
   where
-    unifyArgs (x:xs) (y:ys) = do unifyType x y
-                                 unifyArgs xs ys
+    unifyArgs (x:xs) (y:ys) = do r <- unifyType x y
+                                 case r of
+                                   Left _ -> return r
+                                   Right _ -> unifyArgs xs ys
     unifyArgs [] [] = return $ Right ()
     unifyArgs _ _ = return $ Left $ return "different lengths"
 
