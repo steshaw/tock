@@ -159,12 +159,8 @@ AC_SUBST(C_INT_SIZE)
 
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
-CCSP_CFLAGS="`kroc --cflags` `kroc --ccincpath`"
-CCSP_LIBS="`kroc --cclibpath` -lccsp -lpthread -ldl -lm"
-
-TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS"
-# FIXME: -ldl is only necessary on some platforms for CCSP
-TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS"
+TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
+TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS"
 
 TOCK_CXXFLAGS="$CPPFLAGS $CXXFLAGS $common_cflags $CPPCSP2_CFLAGS"
 TOCK_CXXLDFLAGS="$LDFLAGS $CPPCSP2_LIBS"
