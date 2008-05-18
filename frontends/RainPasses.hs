@@ -47,22 +47,11 @@ rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
             
        ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ Prop.agg_namesDone
             ++ Prop.agg_typesDone, [Prop.constantsFolded, Prop.constantsChecked])
-       ,("Type Checking", performTypeUnification, [Prop.noInt] ++ Prop.agg_namesDone,
+       ,("Rain Type Checking", performTypeUnification, [Prop.noInt] ++ Prop.agg_namesDone,
          Prop.agg_typesDone)
-       
---       ,("Annotate integer literal types", annotateIntLiteralTypes, [Prop.noInt] ++ namesDone, [Prop.intLiteralsInBounds])
---       ,("Annotate list literal and range types", annotateListLiteralTypes,
---         namesDone ++ [Prop.noInt, Prop.intLiteralsInBounds], [Prop.listsGivenType])         
        
        ,("Record inferred name types in dictionary", recordInfNameTypes,
            Prop.agg_namesDone \\ [Prop.inferredTypesRecorded], [Prop.inferredTypesRecorded])
-       
---       ,("Check types in expressions",checkExpressionTypes, namesDone ++ [Prop.noInt, Prop.constantsFolded, Prop.intLiteralsInBounds, Prop.inferredTypesRecorded], [Prop.expressionTypesChecked]) 
---       ,("Check types in assignments", checkAssignmentTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
---       ,("Check types in if/while conditions",checkConditionalTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
---       ,("Check types in input/output",checkCommTypes, typesDone ++ [Prop.expressionTypesChecked], [Prop.processTypesChecked])
---       ,("Check parameters in process calls", matchParamPass, typesDone, [Prop.processTypesChecked,
---         Prop.functionTypesChecked])
        
        ,("Find and tag the main function", findMain, Prop.agg_namesDone, [Prop.mainTagged])
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
