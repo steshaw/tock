@@ -73,6 +73,13 @@ abbrevModeOfName n
 instance Typed A.Name where
   astTypeOf = typeOfName
 
+instance Typed A.Formal where
+  astTypeOf (A.Formal _ t _) = return t
+
+instance Typed A.Actual where
+  astTypeOf (A.ActualVariable v) = astTypeOf v
+  astTypeOf (A.ActualExpression e) = astTypeOf e
+
 -- | Gets the 'A.Type' for a given 'A.Name' by looking at its definition in the 'CompState'.  Dies with an error if the name is unknown.
 typeOfName :: (CSMR m, Die m) => A.Name -> m A.Type
 typeOfName n
