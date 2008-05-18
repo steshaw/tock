@@ -103,7 +103,11 @@ performTypeUnification x
        prs <- get >>* csUnifyPairs
        res <- liftIO $ mapM (uncurry unifyType) prs
        mapM (diePC emptyMeta) (fst $ splitEither res)
-       return x'
+       -- Now put the types back in a map, and replace them through the tree:
+       l <- get >>* csUnifyLookup
+       ts <- mapMapWithKeyM (\(UnifyIndex(m,_)) v -> fromTypeExp m v) l
+       get >>= substituteUnknownTypes ts >>= put
+       substituteUnknownTypes ts x'
   where
     shift :: Map.Map String A.NameDef -> PassM (Map.Map UnifyIndex UnifyValue)
     shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
@@ -117,6 +121,19 @@ performTypeUnification x
           where
             name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d, A.nameType
               = A.ndNameType d}
+
+substituteUnknownTypes :: Data t => Map.Map UnifyIndex A.Type -> t -> PassM t
+substituteUnknownTypes mt = applyDepthM sub
+  where
+    sub :: A.Type -> PassM A.Type
+    sub (A.UnknownVarType (Left n)) = lookup $ UnifyIndex (A.nameMeta n, Right n)
+    sub (A.UnknownNumLitType m i _) = lookup $ UnifyIndex (m, Left i)
+    sub t = return t
+
+    lookup :: UnifyIndex -> PassM A.Type
+    lookup u@(UnifyIndex(m,_)) = case Map.lookup u mt of
+      Just t -> return t
+      Nothing -> dieP m "Could not deduce type"
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
 recordInfNameTypes :: Data t => t -> PassM t
