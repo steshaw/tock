@@ -103,6 +103,7 @@ dyadicArithOp
     <|> do {m <- reserved "*" ; return (m,A.Times) }
     <|> do {m <- reserved "/" ; return (m,A.Div) }
     <|> do {m <- reserved "%" ; return (m,A.Rem) }
+    <|> do {m <- reserved "++" ; return (m,A.Concat) }
 
 dyadicCompOp :: RainParser (Meta,A.DyadicOp)
 dyadicCompOp
@@ -113,6 +114,7 @@ dyadicCompOp
     <|> do {m <- reserved "==" ; return (m,A.Eq) }
     <|> do {m <- reserved "<>" ; return (m,A.NotEq) }
 
+-- TODO remove this in future, I think
 monadicArithOp :: RainParser (Meta,A.MonadicOp)
 monadicArithOp
   = do {m <- reserved "-" ; return (m,A.MonadicMinus) }
