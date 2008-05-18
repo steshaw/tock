@@ -96,7 +96,7 @@ performTypeUnification x
              <.< markParamPass
              <.< markAssignmentTypes
              <.< markCommTypes
-             -- TODO mark up types in replicators
+             <.< markReplicators
              <.< markExpressionTypes
              $ x
        -- Then, we do the unification:
@@ -130,6 +130,13 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
                                    A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}
            return input
     recordInfNameTypes' r = return r
+
+markReplicators :: Data t => t -> PassM t
+markReplicators = checkDepthM mark
+  where
+    mark :: Check A.Replicator
+    mark (A.ForEach _m n e)
+      = astTypeOf n >>= \t -> markUnify (A.List t) e
 
 -- | Folds all constants.
 constantFoldPass :: Data t => t -> PassM t
