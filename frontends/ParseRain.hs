@@ -223,11 +223,13 @@ integerLiteral = do (val, i) <- integer
 listLiteral :: RainParser A.Expression
 listLiteral
   = try $ do m <- sLeftQ
+             u <- getUniqueIdentifer
+             let t = A.List $ A.UnknownVarType (Right (m,u))
              (do try sRightQ
-                 return $ A.Literal m (A.List A.Any) $ A.ListLiteral m []
+                 return $ A.Literal m t $ A.ListLiteral m []
               <|> do e0 <- try expression
                      (do try sRightQ
-                         return $ A.Literal m (A.List A.Any) $
+                         return $ A.Literal m t $
                            A.ListLiteral m [e0]
                       -- Up until the first comma, this may be a type declaration
                       -- in a cast expression, so we "try" all the way
@@ -235,7 +237,7 @@ listLiteral
                       <|> do try sComma
                              es <- sepBy1 expression sComma
                              sRightQ
-                             return $ A.Literal m (A.List A.Any) $
+                             return $ A.Literal m t $
                                A.ListLiteral m (e0 : es)
                       )
               )
@@ -266,8 +268,10 @@ range = try $ do m <- sLeftQ
                      (A.List t)
                      (A.Conversion mc A.DefaultConversion t begin)
                      (A.Conversion mc A.DefaultConversion t end)
-                   Nothing -> return $ A.ExprConstr m $ A.RangeConstr m
-                     (A.List A.Any) begin end
+                   Nothing -> do u <- getUniqueIdentifer
+                                 let t = A.List $ A.UnknownVarType (Right (m,u))
+                                 return $ A.ExprConstr m $ A.RangeConstr m
+                                   t begin end
 
 expression :: RainParser A.Expression
 expression
