@@ -136,74 +136,6 @@ constantFoldPass = applyDepthM doExpression
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
 
--- | Annotates all integer literal types
-annotateIntLiteralTypes :: Data t => t -> PassM t
-annotateIntLiteralTypes = applyDepthM doExpression
-  where
-    --Function is separated out to easily provide the type description of Integer
-    powOf2 :: Integer -> Integer
-    powOf2 x = 2 ^ x
-  
-    doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.Literal m t (A.IntLiteral m' s))
-      = do t' <-       
-             if (t == A.Int64) then --it's a signed literal
-              (if (n >= powOf2 63 || n < (-(powOf2 63))) 
-                 then dieP m $ "Signed integer literal too large to fit into 64 bits: " ++ s
-                 else 
-                   if (n < (-(powOf2 31)) || n >= powOf2 31)
-                     then return A.Int64
-                     else 
-                       if (n < (-(powOf2 15)) || n >= powOf2 15)
-                         then return A.Int32
-                         else
-                           if (n < (-(powOf2 7)) || n >= powOf2 7)
-                             then return A.Int16
-                             else return A.Int8
-              )
-              else
-                dieP m $ "Unsigned literals currently unsupported"
-           return $ A.Literal m t' (A.IntLiteral m' s)
-      where
-        n :: Integer
-        n = read s        
-    doExpression e = return e
-
--- | Annotates all list literals and list ranges with their type
-annotateListLiteralTypes :: Data t => t -> PassM t
-annotateListLiteralTypes = applyDepthM doExpression
-  where
-    doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.Literal m _ (A.ListLiteral m' es))
-      = do ts <- mapM astTypeOf es
-           sharedT <- case (ts, leastGeneralSharedTypeRain ts) of
-             (_, Just t) -> return t
-             ([], Nothing) -> return A.Any
-             (_, Nothing) -> diePC m' 
-               $ formatCode
-                   "Can't determine a common type for the list literal from: %"
-                   ts
-           es' <- mapM (coerceIfNecessary sharedT) (zip ts es)
-           return $ A.Literal m (A.List sharedT) $ A.ListLiteral m' es'
-    doExpression (A.ExprConstr m (A.RangeConstr m' t b e))
-      = do bt <- astTypeOf b
-           et <- astTypeOf e
-           sharedT <- case leastGeneralSharedTypeRain [bt, et] of
-             Just t -> return t
-             Nothing -> diePC m'
-               $ formatCode
-                  "Can't determine a common type for the range from: % %"
-                  bt et
-           b' <- coerceIfNecessary sharedT (bt, b)
-           e' <- coerceIfNecessary sharedT (et, e)
-           return $ A.ExprConstr m $ A.RangeConstr m' (A.List sharedT) b' e'
-    doExpression e = return e
-
-    coerceIfNecessary :: A.Type -> (A.Type, A.Expression) -> PassM A.Expression
-    coerceIfNecessary to (from, e)
-      | to == from = return e
-      | otherwise = coerceType " in list literal" to from e
-
 -- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the
 -- AST, and checks that the actual parameters are valid inputs, given
 -- the 'A.Formal' parameters in the process's type
@@ -236,14 +168,6 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
                         ++ "\"; is actually: " ++ showConstr (toConstr $
                           A.ndType def)
     matchParamPassFunc _ = return ()
-
---Adds a cast between two types if it is safe to do so, otherwise gives an error
-coerceType :: String -> A.Type -> A.Type -> A.Expression -> PassM A.Expression
-coerceType customMsg to from item
-      = if isImplicitConversionRain from to
-          then return $ A.Conversion (findMeta item) A.DefaultConversion to item
-          else diePC (findMeta item) $ (liftM concat) $ sequence [formatCode "Could not perform implicit cast from supplied type: % to expected type: %" from to, return customMsg]
-
 
 -- | Checks the types in expressions
 checkExpressionTypes :: Data t => t -> PassM t
