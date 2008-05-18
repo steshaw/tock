@@ -73,7 +73,7 @@ xu8 = 256;
 !cx ! 0;
 !cxi8 ! 0;
 ?cx ? x;
-?cxi8 ? x;
+?cxi8 ? xi8;
 %FAIL Invalid channel comm -- not end #1
 cb ? b;
 %FAIL Invalid channel comm -- not end #2
