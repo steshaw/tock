@@ -74,78 +74,6 @@ constantFoldTest = TestList
    lit :: Integer -> ExprHelper
    lit n = Lit $ int64Literal n
 
--- | Tests that integer literals are correctly annotated with the smallest type that can hold them.
--- We only test the boundaries between each integer type, but that should suffice.
--- TODO was there a reason I didn't test unsigned numbers?
-annotateIntTest :: Test
-annotateIntTest = TestList
- [
-  failSigned (-9223372036854775809)
-  ,signed A.Int64 (-9223372036854775808)
-  ,signed A.Int64 (-2147483649)
-  ,signed A.Int32 (-2147483648)
-  ,signed A.Int32 (-32769)
-  ,signed A.Int16 (-32768)
-  ,signed A.Int16 (-129)
-  ,signed A.Int8 (-128)
-  ,signed A.Int8 0
-  ,signed A.Int8 127
-  ,signed A.Int16 128
-  ,signed A.Int16 32767
-  ,signed A.Int32 32768
-  ,signed A.Int32 2147483647
-  ,signed A.Int64 2147483648
-  ,signed A.Int64 9223372036854775807
-  ,failSigned 9223372036854775808
- ]
- where
-  signed :: A.Type -> Integer -> Test
-  signed t n = TestCase $ testPass ("annotateIntTest: " ++ show n) (tag3 A.Literal DontCare t $ tag2 A.IntLiteral DontCare (show n)) 
-    (annotateIntLiteralTypes $ int64Literal n) (return ())
-  failSigned :: Integer -> Test
-  failSigned n = TestCase $ testPassShouldFail ("annotateIntTest: " ++ show n) (annotateIntLiteralTypes $ int64Literal n) (return ())
-
-
-annotateListLiteralTest :: Test
-annotateListLiteralTest = TestList
-  [
-   testList 0 A.Int32 [int32Literal 0, int32Literal 1]
-  ,testList 1 A.Any []
-  ,testList 2 A.Int32 [charLiteral 'c', int32Literal 6]
-  ,testList 3 A.Int64 [int32Literal 3, int32Literal 5, int64Literal 2,
-    int32Literal 2]
-   -- TODO test with variables (and implicit upcasting)
-
-   -- TODO test the type for lists of lists
-   -- TODO test ranges with variables too
-  ,testRange 1000 A.Int32 (int32Literal 0) (int32Literal 1)
-  ,testRange 1001 A.Int64 (int32Literal 0) (int64Literal 1)
-  ,testRange 1002 A.Int64 (int64Literal 0) (int32Literal 1)
-  ,testRange 1003 A.Int32 (charLiteral 'a') (int32Literal 1)
-  ,testRange 1004 A.Int32 (int32Literal 0) (charLiteral 'b')
-  ,testRange 1005 A.Int64 (charLiteral 'e') (int64Literal 1)
-  ,testRange 1006 A.Int64 (int64Literal 0) (charLiteral 'f')
-  ,testRange 1007 A.Byte (charLiteral 'd') (charLiteral 'f')
-  ]
-  where
-    testList :: Int -> A.Type -> [A.Expression] -> Test
-    testList n t es = TestCase $ testPass ("annotateListLiteralTest: " ++
-      show n) (mLiteral (A.List t) $ mListLiteral $ map (maybeConvert t) es)
-      (annotateListLiteralTypes $ A.Literal emptyMeta A.Any $ A.ListLiteral emptyMeta es)
-      (return ())
-
-    maybeConvert :: A.Type -> A.Expression -> A.Expression
-    maybeConvert t lit@(A.Literal _ lt _)
-      | t == lt   = lit
-      | otherwise = A.Conversion emptyMeta A.DefaultConversion t lit
-    
-    testRange :: Int -> A.Type -> A.Expression -> A.Expression -> Test
-    testRange n t b e = TestCase $ testPass ("annotateListLiteralTest: "
-      ++ show n) (mExprConstr $
-        mRangeConstr (A.List t) (maybeConvert t b) (maybeConvert t e))
-      (annotateListLiteralTypes $ A.ExprConstr emptyMeta $
-        A.RangeConstr emptyMeta A.Any b e)
-      (return ())
 
 -- | An amazing amount of tests for testing the Rain type-checker for all the different forms of statement,
 -- such as assignment, expressions, communications, etc etc.
@@ -520,8 +448,6 @@ ioTests :: IO Test
 ioTests = liftM (TestLabel "RainTypesTest" . TestList) $ sequence
  [
   return constantFoldTest
-  ,return annotateIntTest
-  ,return annotateListLiteralTest
   ,return checkExpressionTest
   ,return testUnify
   ,automaticTest FrontendRain "testcases/automatic/unify-types-1.rain.test"
