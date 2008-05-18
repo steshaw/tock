@@ -296,10 +296,10 @@ testParamPass ::
 
 testParamPass testName formals params transParams 
   = case transParams of 
-      Just act -> TestList [TestCase $ testPass (testName ++ "/process") (expProc act) (matchParamPass origProc) startStateProc,
-                            TestCase $ testPass (testName ++ "/function") (expFunc act) (matchParamPass origFunc) startStateFunc]
-      Nothing -> TestList [TestCase $ testPassShouldFail (testName ++ "/process") (matchParamPass origProc) startStateProc,
-                           TestCase $ testPassShouldFail (testName ++ "/function") (matchParamPass origFunc) startStateFunc]
+      Just act -> TestList [TestCase $ testPass (testName ++ "/process") (expProc act) (performTypeUnification origProc) startStateProc,
+                            TestCase $ testPass (testName ++ "/function") (expFunc act) (performTypeUnification origFunc) startStateFunc]
+      Nothing -> TestList [TestCase $ testPassShouldFail (testName ++ "/process") (performTypeUnification origProc) startStateProc,
+                           TestCase $ testPassShouldFail (testName ++ "/function") (performTypeUnification origFunc) startStateFunc]
   where
     startStateProc :: State CompState ()
     startStateProc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
@@ -378,8 +378,8 @@ testParamPass7 = testParamPass "testParamPass7"
 
 -- | Test calling something that is not a process:
 testParamPass8 :: Test
-testParamPass8 = TestList [TestCase $ testPassShouldFail "testParamPass8/process" (matchParamPass origProc) (startState'),
-                           TestCase $ testPassShouldFail "testParamPass8/function" (matchParamPass origFunc) (startState')]
+testParamPass8 = TestList [TestCase $ testPassShouldFail "testParamPass8/process" (performTypeUnification origProc) (startState'),
+                           TestCase $ testPassShouldFail "testParamPass8/function" (performTypeUnification origFunc) (startState')]
   where
     startState' :: State CompState ()
     startState' = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
