@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module RainTypes (checkExpressionTypes,constantFoldPass,performTypeUnification,recordInfNameTypes) where
+module RainTypes (constantFoldPass,performTypeUnification,recordInfNameTypes) where
 
 import Control.Monad.State
 import Data.Generics
@@ -96,7 +96,9 @@ performTypeUnification x
              <.< markParamPass
              <.< markAssignmentTypes
              <.< markCommTypes
-             $ x --TODO markup everything else
+             -- TODO mark up types in replicators
+             <.< markExpressionTypes
+             $ x
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
        res <- liftIO $ mapM (uncurry unifyType) prs
@@ -170,117 +172,14 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassFunc _ = return ()
 
 -- | Checks the types in expressions
-checkExpressionTypes :: Data t => t -> PassM t
-checkExpressionTypes = applyDepthM checkExpression
+markExpressionTypes :: Data t => t -> PassM t
+markExpressionTypes = checkDepthM checkExpression
   where
-    -- | Checks the types of an expression where at least one type involved
-    -- is Time.
-    checkTimeExpression :: Meta -> A.DyadicOp -> (A.Type, A.Expression) ->
-      (A.Type, A.Expression) -> PassM A.Expression
-    checkTimeExpression m op (tlhs, lhs) (trhs, rhs)
-      = case (validOpWithTime op tlhs trhs) of
-          Nothing -> diePC m $ formatCode
-            "Operator: \"%\" is not valid on types: \"%\" and \"%\"" op tlhs trhs
-          Just (destLHS, destRHS) -> 
-            if    (isImplicitConversionRain tlhs destLHS)
-               && (isImplicitConversionRain trhs destRHS)
-              then return $ A.Dyadic m op (convert destLHS tlhs lhs)
-                                          (convert destRHS trhs rhs)
-              else diePC m $ formatCode
-                "Operator: \"%\" is not valid on types: \"%\" and \"%\" (implicit conversions not possible)"
-                  op tlhs trhs
-
-    checkExpression :: A.Expression -> PassM A.Expression
-    checkExpression e@(A.Dyadic m op lhs rhs)
-      = do tlhs <- astTypeOf lhs
-           trhs <- astTypeOf rhs
-           if (tlhs == A.Time || trhs == A.Time)
-             -- Expressions with times can have asymmetric types,
-             -- so we handle them specially:
-             then checkTimeExpression m op (tlhs, lhs) (trhs, rhs)
-             else 
-               if (tlhs == trhs)
-                 then
-                   -- Types identical.  At this point we consider whether the
-                   -- user is adding two lists (in which case, correct the
-                   -- operator), otherwise we just need to check the operator
-                   -- is valid on the types (to avoid two channels of the same
-                   -- type being added, for example)
-                   case (tlhs, op) of
-                     (A.List _, A.Plus) -> return $ A.Dyadic m A.Concat lhs rhs 
-                     _ -> if validOpSameType op tlhs
-                            then return e
-                            else diePC m $ formatCode
-                              "Operator: \"%\" is not valid on type: \"%\""
-                              op tlhs
-                   -- Types differ.  If they are integers, we can look for
-                   -- a common (more general) type for both of them to be cast
-                   -- up into in order to perform the operation.
-                 else if (isIntegerType tlhs && isIntegerType trhs) 
-                        then case (leastGeneralSharedTypeRain [tlhs,trhs]) of
-                               Nothing -> diePC m $ formatCode "Cannot find a suitable type to convert expression to, types are: % and %" tlhs trhs
-                               Just t -> if validOpSameType op t then return $ A.Dyadic m op (convert t tlhs lhs) (convert t trhs rhs) else diePC m $
-                                 formatCode "Operator: \"%\" is not valid on type: \"%\"" op tlhs
-                        else --The operands are not equal, and are not integers, and neither of them is a time type.  Therefore this must be an error:
-                          diePC m $ formatCode "Mis-matched types; no operator applies to types: % and %" tlhs trhs
-    checkExpression e@(A.Monadic m op rhs)
-      = do trhs <- astTypeOf rhs
-           if (op == A.MonadicMinus)
-             then case trhs of
-                    A.Byte -> return $ A.Monadic m op $ convert A.Int16 trhs rhs
-                    A.UInt16 -> return $ A.Monadic m op $ convert A.Int32 trhs rhs
-                    A.UInt32 -> return $ A.Monadic m op $ convert A.Int64 trhs rhs
-                    A.UInt64 -> diePC m $ formatCode "Cannot apply unary minus to type: % because there is no type large enough to safely contain the result" trhs
-                    _ -> if (isIntegerType trhs) then return e else diePC m $ formatCode "Trying to apply unary minus to non-integer type: %" trhs
-             else if (op == A.MonadicNot)
-                    then
-                      case trhs of
-                        A.Bool -> return e
-                        _ -> diePC m $ formatCode "Cannot apply unary not to non-boolean type: %" trhs
-                    else dieP m $ "Invalid Rain operator: \"" ++ show op ++ "\""
-    checkExpression e@(A.Conversion m cm dest rhs)
-      = do src <- astTypeOf rhs
-           if (src == dest)
-             then return e
-             else if isImplicitConversionRain src dest
-                    then return e
-                    else diePC m $ formatCode "Invalid cast from: % to: %"
-                      src dest
-    checkExpression e = return e
-
-    convert :: A.Type -> A.Type -> A.Expression -> A.Expression
-    convert dest src e = if (dest == src)
-                           then e
-                           else A.Conversion (findMeta e) A.DefaultConversion dest e
-
-    validOpSameType :: A.DyadicOp -> A.Type -> Bool
-    validOpSameType A.Plus t = isIntegerType t
-    validOpSameType A.Minus t = isIntegerType t
-    validOpSameType A.Times t = isIntegerType t && t /= A.Time
-    validOpSameType A.Div t = isIntegerType t && t /= A.Time
-    validOpSameType A.Rem t = isIntegerType t && t /= A.Time
-    validOpSameType A.Eq _ = True
-    validOpSameType A.NotEq _ = True
-    validOpSameType A.Less t = haveOrder t
-    validOpSameType A.LessEq t = haveOrder t
-    validOpSameType A.More t = haveOrder t
-    validOpSameType A.MoreEq t = haveOrder t
-    validOpSameType A.And A.Bool = True
-    validOpSameType A.Or A.Bool = True
-    validOpSameType _ _ = False
-    
-    -- | Takes an operator, the types of LHS and RHS, and returns Nothing if no cast will fix it,
-    -- or Just (needTypeLHS,needTypeRHS) for what types will be okay
-    validOpWithTime :: A.DyadicOp -> A.Type -> A.Type -> Maybe (A.Type,A.Type)
-    validOpWithTime A.Times A.Time _ = Just (A.Time, A.Int64)
-    validOpWithTime A.Times _ A.Time = Just (A.Int64, A.Time)
-    validOpWithTime A.Div A.Time _ = Just (A.Time, A.Int64)
-    --Any other operators involving Time are symmetric:
-    validOpWithTime op tlhs trhs = if (tlhs == trhs && validOpSameType op tlhs) then Just (tlhs,trhs) else Nothing
-    
-    
-    haveOrder :: A.Type -> Bool
-    haveOrder t = (isIntegerType t) || (t == A.Time)
+    -- TODO also check in a later pass that the op is valid
+    checkExpression :: Check A.Expression
+    checkExpression (A.Dyadic _ _ lhs rhs)
+      = markUnify lhs rhs
+    checkExpression _ = return ()
 
 -- | Checks the types in assignments
 markAssignmentTypes :: Data t => t -> PassM t
