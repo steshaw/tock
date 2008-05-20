@@ -45,13 +45,11 @@ foldCon con es = case splitEither es of
 -- Pearl (2001)", citeseer: http://citeseer.ist.psu.edu/451401.html
 -- This in turn was taken from Luca Cardelli's "Basic Polymorphic Type Checking"
 
-unifyRainTypes :: forall k. (Ord k, Show k) => (Map.Map k (TypeExp A.Type)) -> [(k, k)] -> IO
-  (Either (PassM String) (Map.Map k A.Type))
+unifyRainTypes :: forall k. (Ord k, Show k) => (Map.Map k (TypeExp A.Type)) -> [(k, k)] ->
+  PassM (Map.Map k A.Type)
 unifyRainTypes m' prs
-  =   do outs <- mapM (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y m')) prs
-         case mapMaybe (either Just (const Nothing)) outs of
-                 (err:_) -> return $ Left err
-                 [] -> stToMap m'
+  =   do mapM_ (\(x,y) -> unifyType (lookupStartType x m') (lookupStartType y m')) prs
+         stToMap m'
   where
     lookupStartType :: k -> Map.Map k (TypeExp A.Type) -> TypeExp A.Type
     lookupStartType s m = case Map.lookup s m of
@@ -59,53 +57,56 @@ unifyRainTypes m' prs
       Nothing -> error $ "Could not find type for variable in map before unification: "
         ++ show s
 
-    stToMap :: Map.Map k (TypeExp A.Type) -> IO (Either (PassM String) (Map.Map k A.Type))
-    stToMap m = do m' <- mapMapWithKeyM (\k v -> prune v >>= read k) m
+    stToMap :: Map.Map k (TypeExp A.Type) -> PassM (Map.Map k A.Type)
+    stToMap m = do m' <- liftIO $ mapMapWithKeyM (\k v -> prune v >>= read k) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
-                     (e:_) -> return $ Left $ return e
-                     [] -> return $ Right mapOfRes
+                     ((m,e):_) -> dieP m e
+                     [] -> return mapOfRes
       where
-        read :: k -> TypeExp A.Type -> IO (Either String A.Type)
-        read k (OperType _ con vals) = do vals' <- mapM (read k) vals
-                                          return $ foldCon con vals'
-        read k (MutVar v) = readIORef v >>= \t -> case t of
-          Nothing -> return $ Left $ "Type error in unification, "
-            ++ "ambigious type remains for: " ++ show k
+        read :: k -> TypeExp A.Type -> IO (Either (Meta, String) A.Type)
+        read k (OperType m _ con vals)
+          = do vals' <- mapM (read k) vals
+               case foldCon con (map (either (Left . snd) Right) vals') of
+                 Left e -> return $ Left (m, e)
+                 Right x -> return $ Right x
+        read k (MutVar m v) = readIORef v >>= \t -> case t of
+          Nothing -> return $ Left (m, "Type error in unification, "
+            ++ "ambigious type remains for: " ++ show k)
           Just t' -> read k t'
-        read k (NumLit v) = readIORef v >>= \x -> case x of
-          Left _ -> return $ Left $ "Type error in unification, "
-            ++ "ambigious type remains for numeric literal: " ++ show k
+        read k (NumLit m v) = readIORef v >>= \x -> case x of
+          Left _ -> return $ Left (m, "Type error in unification, "
+            ++ "ambigious type remains for numeric literal: " ++ show k)
           Right t -> return $ Right t
 
-fromTypeExp :: Meta -> TypeExp A.Type -> PassM A.Type
-fromTypeExp m x = fromTypeExp' =<< (liftIO $ prune x)
+fromTypeExp :: TypeExp A.Type -> PassM A.Type
+fromTypeExp x = fromTypeExp' =<< (liftIO $ prune x)
   where
     fromTypeExp' :: TypeExp A.Type -> PassM A.Type
-    fromTypeExp' (MutVar {}) = dieP m "Unresolved type"
-    fromTypeExp' (GenVar {}) = dieP m "Template vars not yet supported"
-    fromTypeExp' (NumLit v) = liftIO (readIORef v) >>= \x -> case x of
+    fromTypeExp' (MutVar m _) = dieP m "Unresolved type"
+    fromTypeExp' (GenVar m _) = dieP m "Template vars not yet supported"
+    fromTypeExp' (NumLit m v) = liftIO (readIORef v) >>= \x -> case x of
       Left (n:_) -> dieP m $ "Ambigiously typed numeric literal: " ++ show n
       Right t -> return t
-    fromTypeExp' (OperType _ f ts) = mapM (fromTypeExp m) ts >>* f
+    fromTypeExp' (OperType _ _ f ts) = mapM fromTypeExp ts >>* f
 
 -- For debugging:
 showInErr :: TypeExp A.Type -> PassM String
 showInErr (MutVar {}) = return "MutVar"
 showInErr (GenVar {}) = return "GenVar"
 showInErr (NumLit {}) = return "NumLit"
-showInErr t@(OperType {}) = showCode =<< fromTypeExp undefined t
+showInErr t@(OperType {}) = showCode =<< fromTypeExp t
 
-giveErr :: String -> TypeExp A.Type -> TypeExp A.Type -> Either (PassM String) a
-giveErr msg tx ty
-  = Left $ do x <- showInErr tx
+giveErr :: Meta -> String -> TypeExp A.Type -> TypeExp A.Type -> PassM a
+giveErr m msg tx ty
+  =        do x <- showInErr tx
               y <- showInErr ty
-              return $ msg ++ x ++ " and " ++ y
+              dieP m $ msg ++ x ++ " and " ++ y
 
 prune :: Typeable a => TypeExp a -> IO (TypeExp a)
 prune t =
  case t of
-   MutVar r ->
+   MutVar _ r ->
      do m <- readIORef r
         case m of
           Nothing -> return t
@@ -119,80 +120,75 @@ occursInType :: Typeable a => Ptr a -> TypeExp a -> IO Bool
 occursInType r t =
   do t' <- prune t
      case t' of
-       MutVar r2 -> return $ r == r2
-       GenVar n -> return False
-       OperType _ _ ts -> mapM (occursInType r) ts >>* or
+       MutVar _ r2 -> return $ r == r2
+       GenVar _ n -> return False
+       OperType _ _ _ ts -> mapM (occursInType r) ts >>* or
 
-unifyType :: TypeExp A.Type -> TypeExp A.Type -> IO (Either (PassM String) ())
+unifyType :: TypeExp A.Type -> TypeExp A.Type -> PassM ()
 unifyType te1 te2
-  = do t1' <- prune te1
-       t2' <- prune te2
+  = do t1' <- liftIO $ prune te1
+       t2' <- liftIO $ prune te2
        case (t1',t2') of
-         (MutVar r1, MutVar r2) ->
+         (MutVar _ r1, MutVar _ r2) ->
            if r1 == r2
-             then return $ Right ()
-             else liftM Right $ writeIORef r1 (Just t2')
-         (MutVar r1, _) ->
-           do b <- occursInType r1 t2'
+             then return ()
+             else liftIO $ writeIORef r1 (Just t2')
+         (MutVar m r1, _) ->
+           do b <- liftIO $ occursInType r1 t2'
               if b
-                then return $ Left $ return "occurs in"
-                else liftM Right $ writeIORef r1 (Just t2')
-         (_,MutVar _) -> unifyType t2' t1'
-         (GenVar n,GenVar m) ->
-           if n == m then return $ Right () else return $ Left $ return "different genvars"
-         (OperType n1 _ ts1,OperType n2 _ ts2) ->
+                then dieP m "Infinitely recursive type formed"
+                else liftIO $ writeIORef r1 (Just t2')
+         (_,MutVar {}) -> unifyType t2' t1'
+         (GenVar m x,GenVar _ y) ->
+           if x == y then return () else dieP m $ "different template variables"
+             ++ " cannot be assumed to be equal"
+         (OperType m1 n1 _ ts1,OperType m2 n2 _ ts2) ->
            if n1 == n2
               then unifyArgs ts1 ts2
-              else return $ giveErr "Different constructors: " t1' t2'
-         (NumLit vns1, NumLit vns2) ->
-           do nst1 <- readIORef vns1
-              nst2 <- readIORef vns2
+              else giveErr m1 "Type cannot be matched: " t1' t2'
+         (NumLit m1 vns1, NumLit m2 vns2) ->
+           do nst1 <- liftIO $ readIORef vns1
+              nst2 <- liftIO $ readIORef vns2
               case (nst1, nst2) of
                 (Right t1, Right t2) ->
                   if t1 /= t2
-                    then return $ Left $ return "Numeric literals bound to different types"
-                    else return $ Right ()
+                    then dieP m1 "Numeric literals bound to different types"
+                    else return ()
                 (Left ns1, Left ns2) ->
-                  do writeIORef vns1 $ Left (ns1 ++ ns2)
-                     writeIORef vns2 $ Left (ns2 ++ ns1)
-                     return $ Right ()
+                  do liftIO $ writeIORef vns1 $ Left (ns1 ++ ns2)
+                     liftIO $ writeIORef vns2 $ Left (ns2 ++ ns1)
                 (Right {}, Left {}) -> unifyType t2' t1'
                 (Left ns1, Right t2) ->
-                  if all (willFit t2) ns1
-                    then do writeIORef vns1 (Right t2)
-                            return $ Right ()
-                    else return $ Left $ return "Numeric literals will not fit in concrete type"
+                  if all (willFit t2) (map snd ns1)
+                    then liftIO $ writeIORef vns1 (Right t2)
+                    else dieP m1 "Numeric literals will not fit in concrete type"
          (OperType {}, NumLit {}) -> unifyType t2' t1'
-         (NumLit vns1, OperType n1 f ts2) ->
-           do nst1 <- readIORef vns1
+         (NumLit m1 vns1, OperType m2 n2 f ts2) ->
+           do nst1 <- liftIO $ readIORef vns1
               case nst1 of
                 Right t ->
                   if null ts2 && t == f []
-                    then return $ Right ()
-                    else return $ Left $ return $ "numeric literal cannot be unified"
+                    then return ()
+                    else dieP m1 $ "numeric literal cannot be unified"
                            ++ " with two different types"
                 Left ns ->
                   if null ts2
-                    then if all (willFit $ f []) ns
-                           then do writeIORef vns1 $ Right (f [])
-                                   return $ Right ()
-                           else return $ Left $ return "Numeric literals will not fit in concrete type"
-                    else return $ Left $ return $ "Numeric literal cannot be unified"
+                    then if all (willFit $ f []) (map snd ns)
+                           then liftIO $  writeIORef vns1 $ Right (f [])
+                           else dieP m1 "Numeric literals will not fit in concrete type"
+                    else dieP m1 $  "Numeric literal cannot be unified"
                       ++ " with non-numeric type"
-         (_,_) -> return $ Left $ return "different types"
+         (t,_) -> dieP (findMeta t) "different types"
   where
-    unifyArgs (x:xs) (y:ys) = do r <- unifyType x y
-                                 case r of
-                                   Left _ -> return r
-                                   Right _ -> unifyArgs xs ys
-    unifyArgs [] [] = return $ Right ()
-    unifyArgs _ _ = return $ Left $ return "different lengths"
+    unifyArgs (x:xs) (y:ys) = unifyType x y >> unifyArgs xs ys
+    unifyArgs [] [] = return ()
+    unifyArgs xs ys = dieP (findMeta (xs,ys)) "different lengths"
 
 instantiate :: Typeable a => [TypeExp a] -> TypeExp a -> TypeExp a
 instantiate ts x = case x of
-  MutVar _ -> x
-  OperType nm f xs -> OperType nm f (map (instantiate ts) xs)
-  GenVar n -> ts !! n
+  MutVar _ _ -> x
+  OperType m nm f xs -> OperType m nm f (map (instantiate ts) xs)
+  GenVar _ n -> ts !! n
 
 willFit :: A.Type -> Integer -> Bool
 willFit t n = case bounds t of

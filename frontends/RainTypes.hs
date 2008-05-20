@@ -44,44 +44,45 @@ lookupMapElseMutVar k
        case Map.lookup k m of
          Just v -> return v
          Nothing -> do r <- liftIO $ newIORef Nothing
-                       let v = MutVar r
+                       let UnifyIndex (mt,_) = k
+                           v = MutVar mt r
                            m' = Map.insert k v m
                        put st {csUnifyLookup = m'}
                        return v
 
-ttte :: String -> (A.Type -> A.Type) -> A.Type -> PassM (TypeExp A.Type)
-ttte c f t = typeToTypeExp t >>= \t' -> return $ OperType c (\[x] -> f x) [t']
+ttte :: Meta -> String -> (A.Type -> A.Type) -> A.Type -> PassM (TypeExp A.Type)
+ttte m c f t = typeToTypeExp m t >>= \t' -> return $ OperType m c (\[x] -> f x) [t']
 
 -- Transforms the given type into a typeexp, such that the only inner types
 -- left will be the primitive types (integer types, float types, bool, time).  Arrays
 -- (which would require unification of dimensions and such) are not supported,
 -- neither are records.
 --  User data types should not be present in the input.
-typeToTypeExp :: A.Type -> PassM (TypeExp A.Type)
-typeToTypeExp (A.List t) = ttte "[]" A.List t
-typeToTypeExp (A.Chan A.DirInput at t) = ttte "?" (A.Chan A.DirInput at) t
-typeToTypeExp (A.Chan A.DirOutput at t) = ttte "!" (A.Chan A.DirOutput at) t
-typeToTypeExp (A.Chan A.DirUnknown at t) = ttte "channel" (A.Chan A.DirUnknown at) t
-typeToTypeExp (A.Mobile t) = ttte "MOBILE" A.Mobile t
-typeToTypeExp (A.UnknownVarType en)
+typeToTypeExp :: Meta -> A.Type -> PassM (TypeExp A.Type)
+typeToTypeExp m (A.List t) = ttte m "[]" A.List t
+typeToTypeExp m (A.Chan A.DirInput at t) = ttte m "?" (A.Chan A.DirInput at) t
+typeToTypeExp m (A.Chan A.DirOutput at t) = ttte m "!" (A.Chan A.DirOutput at) t
+typeToTypeExp m (A.Chan A.DirUnknown at t) = ttte m "channel" (A.Chan A.DirUnknown at) t
+typeToTypeExp m (A.Mobile t) = ttte m "MOBILE" A.Mobile t
+typeToTypeExp _ (A.UnknownVarType en)
   = case en of
       Left n -> lookupMapElseMutVar (UnifyIndex (A.nameMeta n, Right n))
       Right (m, i) -> lookupMapElseMutVar (UnifyIndex (m, Left i))
-typeToTypeExp (A.UnknownNumLitType m id n)
-  = do r <- liftIO . newIORef $ Left [n]
-       let v = NumLit r
+typeToTypeExp _ (A.UnknownNumLitType m id n)
+  = do r <- liftIO . newIORef $ Left [(m,n)]
+       let v = NumLit m r
        st <- get
        let mp = csUnifyLookup st
        put st {csUnifyLookup = Map.insert (UnifyIndex (m,Left id)) v mp}
        return v
-typeToTypeExp t = return $ OperType (show t) (const t) []
+typeToTypeExp m t = return $ OperType m (show t) (const t) []
 
-markUnify :: (Typed a, Typed b) => a  -> b -> PassM ()
+markUnify :: (Typed a, Typed b, Data a, Data b) => a -> b -> PassM ()
 markUnify x y
   = do tx <- astTypeOf x
        ty <- astTypeOf y
-       tex <- typeToTypeExp tx
-       tey <- typeToTypeExp ty
+       tex <- typeToTypeExp (findMeta x) tx
+       tey <- typeToTypeExp (findMeta y) ty
        modify $ \st -> st {csUnifyPairs = (tex,tey) : csUnifyPairs st}
 
 
@@ -101,11 +102,10 @@ performTypeUnification x
              $ x
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
-       res <- liftIO $ mapM (uncurry unifyType) prs
-       mapM (diePC emptyMeta) (fst $ splitEither res)
+       mapM_ (uncurry unifyType) prs
        -- Now put the types back in a map, and replace them through the tree:
        l <- get >>* csUnifyLookup
-       ts <- mapMapWithKeyM (\(UnifyIndex(m,_)) v -> fromTypeExp m v) l
+       ts <- mapMapM (\v -> fromTypeExp v) l
        get >>= substituteUnknownTypes ts >>= put
        substituteUnknownTypes ts x'
   where
@@ -116,7 +116,7 @@ performTypeUnification x
         shift' (rawName, d) = do mt <- typeOfSpec (A.ndType d)
                                  case mt of
                                    Nothing -> return Nothing
-                                   Just t -> do te <- typeToTypeExp t
+                                   Just t -> do te <- typeToTypeExp (A.ndMeta d) t
                                                 return $ Just (UnifyIndex (A.ndMeta d, Right name), te)
           where
             name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d, A.nameType

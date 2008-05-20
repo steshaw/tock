@@ -22,13 +22,14 @@ import Data.Generics
 import Data.IORef
 
 import qualified AST as A
+import Metadata
 
 type Ptr a = IORef (Maybe (TypeExp a))
 
 data Typeable a => TypeExp a
- = MutVar (Ptr a)
- | GenVar Int
+ = MutVar Meta (Ptr a)
+ | GenVar Meta Int
  -- Either a list of integers that must fit, or a concrete type
- | NumLit (IORef (Either [Integer] A.Type))
- | OperType String ([A.Type] -> A.Type) [ TypeExp a ]
+ | NumLit Meta (IORef (Either [(Meta, Integer)] A.Type))
+ | OperType Meta String ([A.Type] -> A.Type) [ TypeExp a ]
  deriving (Typeable, Data)
