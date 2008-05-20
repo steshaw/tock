@@ -203,6 +203,16 @@ markExpressionTypes = checkDepthM checkExpression
     checkExpression :: Check A.Expression
     checkExpression (A.Dyadic _ _ lhs rhs)
       = markUnify lhs rhs
+    checkExpression (A.Literal _ t (A.ListLiteral _ es))
+      = do ts <- mapM astTypeOf es
+           mapM_ (markUnify t . A.List) ts
+    checkExpression (A.ExprConstr _ con)
+      = case con of
+          A.RangeConstr _ t e e' ->
+            do astTypeOf e >>= markUnify t . A.List
+               astTypeOf e' >>= markUnify t . A.List
+          A.RepConstr _ t _ e ->
+            astTypeOf e >>= markUnify t . A.List
     checkExpression _ = return ()
 
 -- | Checks the types in assignments
