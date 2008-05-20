@@ -127,6 +127,7 @@ substituteUnknownTypes mt = applyDepthM sub
   where
     sub :: A.Type -> PassM A.Type
     sub (A.UnknownVarType (Left n)) = lookup $ UnifyIndex (A.nameMeta n, Right n)
+    sub (A.UnknownVarType (Right (m,i))) = lookup $ UnifyIndex (m,Left i)
     sub (A.UnknownNumLitType m i _) = lookup $ UnifyIndex (m, Left i)
     sub t = return t
 
