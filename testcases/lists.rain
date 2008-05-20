@@ -65,8 +65,8 @@ process comm_check_lint(![uint8]: out, [uint8]: msg, [int]: list)
 	channel [int]: c;
 	par
 	{
-		c ! list;
-		c ? tmp;
+		!c ! list;
+		?c ? tmp;
 	}
 	
 	assert_lint(out, msg, list, tmp);
@@ -75,10 +75,10 @@ process comm_check_lint(![uint8]: out, [uint8]: msg, [int]: list)
 process main (?uint8: in, ![uint8]: out, ![uint8]: err)
 {
 ### TODO fix handling of the empty list to allow the commented out lines
-	assert_lint(out, "Simple list assert 0", [int: 6],[int: 6]);
-	assert_lint(out, "Simple list assert 1", [int: 0,1,2], [int: 0,1,2]);
+	assert_lint(out, "Simple list assert 0", [6],[6]);
+	assert_lint(out, "Simple list assert 1", [0,1,2], [0,1,2]);
 ###	assert_lint(out, "Simple list assert 2", [], []);
-	assert_lint(out, "Simple list assert 3", [int: 5 .. 99], [int: 5 .. 99]);
+	assert_lint(out, "Simple list assert 3", [5 .. 99], [5 .. 99]);
 	###assert_lint(out, "Simple list assert 4", [5 .. 99], addOne([4 .. 98]));
 	
 	assert_luint8(out, "Simple list assert 10", "a","a");
@@ -86,10 +86,10 @@ process main (?uint8: in, ![uint8]: out, ![uint8]: err)
 ###	assert_luint8(out, "Simple list assert 12", "", "");	
 
 ###	comm_check_lint(out, "Comm check 0", []);
-	comm_check_lint(out, "Comm check 1", [int:5]);
-	comm_check_lint(out, "Comm check 2", [int:1,2,3]);
-	comm_check_lint(out, "Comm check 3", [int:5 .. 99]);
-	comm_check_lint(out, "Comm check 4", [int:5 .. 99] + [int:4 .. 6]);
+	comm_check_lint(out, "Comm check 1", [5]);
+	comm_check_lint(out, "Comm check 2", [1,2,3]);
+	comm_check_lint(out, "Comm check 3", [5 .. 99]);
+	comm_check_lint(out, "Comm check 4", [5 .. 99] ++ [4 .. 6]);
 
 	###TODO check with various variables and assignments
 
