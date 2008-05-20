@@ -237,7 +237,7 @@ instance ShowOccam A.Type where
   showOccamM A.Time = tell ["TIME"]
   showOccamM (A.UnknownVarType en)
     = do tell ["(inferred type for: "]
-         either showName (const $ return ()) en
+         either showName (tell . (:[]) . show) en
          tell [")"]
   showOccamM (A.UnknownNumLitType m _ n)
     = tell ["(inferred numeric type: ",show m," ",show n,")"]
@@ -283,7 +283,7 @@ instance ShowRain A.Type where
   showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
   showRainM (A.UnknownVarType en)
     = do tell ["(inferred type for: "]
-         either showName (const $ return ()) en
+         either showName (tell . (:[]) . show) en
          tell [")"]
   showRainM (A.UnknownNumLitType m _ n)
     = tell ["(inferred numeric type: ",show m," ",show n,")"]
