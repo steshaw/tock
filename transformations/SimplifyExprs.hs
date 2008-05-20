@@ -218,7 +218,7 @@ transformConstr = doGeneric `ext1M` doStructured
     --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
-      = do scope' <- doGeneric scope
+      = do scope' <- transformConstr scope
            case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
