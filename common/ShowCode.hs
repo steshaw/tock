@@ -312,6 +312,7 @@ instance ShowOccam A.DyadicOp where
   showOccamM A.LessEq = tell ["<="]
   showOccamM A.MoreEq = tell [">="]
   showOccamM A.After = tell ["AFTER"]
+  showOccamM A.Concat = tell ["CONCAT"]
 
 
 instance ShowRain A.DyadicOp where
@@ -328,6 +329,7 @@ instance ShowRain A.DyadicOp where
   showRainM A.More = tell [">"]
   showRainM A.LessEq = tell ["<="]
   showRainM A.MoreEq = tell [">="]
+  showRainM A.Concat = tell ["++"]
   showRainM x = tell ["<invalid Rain operator: ", show x, ">"]
 
 instance ShowOccam A.MonadicOp where
@@ -367,6 +369,7 @@ instance ShowRain A.LiteralRepr where
   showRainM (A.HexLiteral _ s) = tell ["#", s]
   showRainM (A.ByteLiteral _ s) = tell ["'", s, "'"]
   showRainM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
+  showRainM (A.ListLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
 
 
 instance ShowOccam A.Subscript where
@@ -422,6 +425,10 @@ instance ShowRain A.Expression where
   showRainM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showRainM e
   showRainM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showRainM t
   showRainM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showRainM t >> tell [" , "] >> showName n >> tell [")"]
+  showRainM (A.ExprConstr _ (A.RangeConstr _ _ e e'))
+    = showRainM e >> tell [".."] >> showRainM e'
+  showRainM (A.ExprConstr _ (A.RepConstr _ _ r e))
+    = tell ["["] >> showRainM e >> tell ["|"] >> showRainM r >> tell ["]"]
 
 
 instance ShowOccam A.Formal where
