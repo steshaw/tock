@@ -214,7 +214,15 @@ markAssignmentTypes = checkDepthM checkAssignment
       = do am <- abbrevModeOfVariable v
            when (am == A.ValAbbrev) $
              diePC m $ formatCode "Cannot assign to a constant variable: %" v
-           markUnify v e
+           -- Assignments also includes assignments to function names,
+           -- so we need a little extra logic:
+           case v of
+             A.Variable _ n ->
+               do st <- specTypeOfName n
+                  case st of
+                    A.Function _ _ [t] _ _ -> markUnify t e
+                    _ -> markUnify v e
+             _ -> markUnify v e
     checkAssignment (A.Assign m _ _) = dieInternal (Just m,"Rain checker found occam-style assignment")
     checkAssignment st = return ()
 
