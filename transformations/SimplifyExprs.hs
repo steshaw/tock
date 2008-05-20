@@ -336,8 +336,10 @@ pullUp pullUpArraysInsideRecords
     doLiteralRepr lr = doGeneric lr
 
     -- | Pull array expressions that aren't already non-subscripted variables.
+    -- Also pull lists that are literals or constructed
     doExpression :: A.Expression -> PassM A.Expression
     doExpression e
+              -- This part handles recursing into the expression first:
         =  do e' <- doExpression' e
               t <- astTypeOf e'
               case t of
@@ -347,6 +349,11 @@ pullUp pullUpArraysInsideRecords
                     A.ExprVariable _ (A.DirectedVariable _ _ _) -> return e'
                     --TODO work out whether to pull up DerefVariable
                     _ -> pull t e'
+                A.List _ ->
+                  case e' of
+                    A.ExprConstr {} -> pull t e'
+                    A.Literal {} -> pull t e'
+                    _ -> return e'
                 _ -> return e'
       where
         pull :: A.Type -> A.Expression -> PassM A.Expression
