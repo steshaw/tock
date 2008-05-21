@@ -136,15 +136,17 @@ cppgenTopLevel s
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
-          (chanType, writer, reader) <- 
+          (chanTypeRead, chanTypeWrite, writer, reader) <- 
                       do st <- getCompState
                          case csFrontend st of
                            FrontendOccam -> return ("tockSendableArrayOfBytes",
+                                                    "tockSendableArrayOfBytes",
                                                     "StreamWriterByteArray",
                                                     "StreamReaderByteArray")
-                           _ -> return ("uint8_t", "StreamWriter", "StreamReader")
+                           _ -> return ("uint8_t", "tockList<uint8_t>/**/","StreamWriterList", "StreamReader")
           
-          tell ["csp::One2OneChannel<",chanType,"> in,out,err;"]
+          tell ["csp::One2OneChannel<",chanTypeRead,"> in;"]
+          tell ["csp::One2OneChannel<",chanTypeWrite,"> out,err;"]
           tell [" csp::Run( csp::InParallel ",
                 "(new ",writer,"(std::cout,out.reader())) ",
                 "(new ",writer,"(std::cerr,err.reader())) ",

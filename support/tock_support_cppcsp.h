@@ -398,6 +398,41 @@ public:
 	}
 };
 
+class StreamWriterList : public csp::CSProcess
+{
+private:
+	std::ostream& out; 	
+	csp::Chanin< tockList<uint8_t> > in;
+protected:
+	virtual void run()
+	{
+		try
+		{
+			tockList<uint8_t> cs;
+			while (true)
+			{
+				in >> cs;
+				for (tockList<uint8_t>::iterator it = cs.beginSeqEach();it != cs.limitIterator();it++)
+				{
+					out << *it;
+				}
+				out.flush();
+			}
+		}
+		catch (csp::PoisonException& e)
+		{
+			in.poison();
+		}
+		out.flush();
+	}
+public:
+	inline StreamWriterList(std::ostream& _out,const csp::Chanin< tockList<uint8_t> >& _in)
+		:	out(_out),in(_in)
+	{
+	}
+};
+
+
 // Time addition and subtraction:
 
 inline csp::Time occam_plus_time (const csp::Time& a, const csp::Time& b, const char *)
