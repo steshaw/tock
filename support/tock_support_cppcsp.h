@@ -372,6 +372,30 @@ public:
 		return derefTockList(this);
 	}
 	
+	inline bool operator==(const tockList& _l) const
+	{
+		if (_l.data.size() != data.size())
+			return false;
+		
+		iterator it, it2;
+		for (it = data.begin(), it2 = _l.data.begin(); it != data.end();it++,it2++)
+		{
+			if (*it == *it2)
+			{
+				//Fine, continue
+			}
+			else
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	
+	inline bool operator!=(const tockList& _l) const
+	{
+		return !(*this == _l);
+	}
 };
 
 // Time addition and subtraction:
