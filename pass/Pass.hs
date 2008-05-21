@@ -82,6 +82,9 @@ instance Eq Property where
 instance Ord Property where
   compare x y = compare (propName x) (propName y)
 
+instance Show Property where
+  show = propName
+
 runPassR :: (A.AST -> PassMR A.AST) -> (A.AST -> PassM A.AST)
 runPassR p t 
            = do st <- get

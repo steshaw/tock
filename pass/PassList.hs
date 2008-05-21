@@ -20,9 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module PassList (calculatePassList, getPassList) where
 
 import Control.Monad.Error
-import Data.Graph.Inductive
 import Data.List
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import BackendPasses
@@ -31,6 +29,7 @@ import CompState
 import Errors
 import GenerateC
 import GenerateCPPCSP
+import Metadata
 import OccamPasses
 import Pass
 import qualified Properties as Prop
@@ -59,7 +58,7 @@ filterPasses :: CompState -> [Pass] -> [Pass]
 filterPasses opts = filter (\p -> passEnabled p opts)
 
 getPassList :: CompState -> [Pass]
-getPassList optsPS = filterPasses optsPS $ concat
+getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 [ occamPasses
                                 , rainPasses
                                 , commonPasses optsPS
@@ -67,96 +66,41 @@ getPassList optsPS = filterPasses optsPS $ concat
                                 , genCPPCSPPasses
                                 ]
 
-calculatePassList :: (Die m, CSMR m) => m [Pass]
-calculatePassList
-  = do st <- getCompState
-       let rawList = getPassList st
-       case buildGraph (csSanityCheck st) rawList of
-         Left err -> dieReport (Nothing, "Error working out pass list: " ++ err)
-         Right g -> return $ graphToList (g :: Gr Pass ())
+calculatePassList :: CSMR m => m [Pass]
+calculatePassList = getCompState >>* getPassList
 
--- Note that the pass execution is "strict" -- that is, all passes
--- are executed, it is only the order that is calculated.  In future,
--- providing we construct the post-conditions carefully, we could
--- have "lazy" passes where we only execute those that have a post-
--- condition that we need later on
-graphToList :: Graph gr => gr Pass () -> [Pass]
-graphToList = topsort'
+--TODO put back the sanity check option to enable the property checking
 
-buildGraph :: forall gr. Graph gr => Bool -> [Pass] -> Either String (gr Pass ())
-buildGraph runProps passes
-                  = do checked <- checkedRelations
-                       checkPassUnique
-                       checkGraph
-                       nodes <- labelledNodes
-                       edges <- edgeList checked
-                       return $ mkGraph nodes edges
+-- | If something isn't right, it gives back a list containing a single pass
+-- that will give an error.
+checkList :: [Pass] -> [Pass]
+checkList passes = case check [] passes of
+    Left err -> [Pass {passCode = const $ dieP emptyMeta err
+                      ,passName = "Pass List Error"
+                      ,passPre = Set.empty
+                      ,passPost = Set.empty
+                      ,passEnabled = const True}
+                ]
+    Right ps -> ps
   where
-    prefixPropName :: String -> String
-    prefixPropName = ("_prop_" ++)
-  
-    allProperties :: [Property] -- find all properties in the passes
-    allProperties = nub $ concatMap (\p -> Set.toList (passPre p) ++ Set.toList (passPost p)) passes
-  
-    propToPass :: Property -> Pass
-    propToPass prop = Pass {
-      passCode = if runProps then runPassR (\t -> propCheck prop t >> return t) else return
-     ,passName = prefixPropName (propName prop)
-     ,passPre  = Set.empty
-     ,passPost = Set.empty
-     ,passEnabled = const True}    
-  
-    passesAndProps :: [Pass]
-    passesAndProps = passes ++ map propToPass allProperties
-  
-    checkPassUnique :: Either String ()
-    checkPassUnique = when (length (nub passesAndProps) /= length passesAndProps) $
-                        throwError "Not all pass-names were unique"
-  
-    -- Maps a property from those with it as a post-condition to those with it as a pre-condition
-    relations :: Map.Map Property (Set.Set Pass, Set.Set Pass)
-    relations = Map.fromListWith merge $ concatMap toRelation passes
+    check :: [Pass] -> [Pass] -> Either String [Pass]
+    check prev [] = Right prev
+    check prev (p:ps)
+      = case filter givesPrereq ps of
+          -- Check that our pre-requisites are not supplied by a later pass:
+          (x:_) ->
+             Left $ "Pass order not correct; one of the pre-requisites"
+               ++ " for pass: " ++ (passName p) ++ " is supplied in a later"
+               ++ " pass: " ++ (passName x) ++ ", pre-requisites in question"
+               ++ " are: " ++ show (Set.intersection (passPost x) (passPre p))
+                -- Now check that someone supplied our pre-requisites:
+          [] -> if Set.null (passPre p) || any givesPrereq prev
+                  then check (prev ++ [p]) ps
+                  else Left $ "Pass order not correct; one of the pre-requisites"
+                   ++ " for pass: " ++ (passName p) ++ "is not supplied"
+                   ++ " by a prior pass, pre-requisites are: "
+                   ++ show (passPre p)
       where
-        merge :: (Ord a, Ord b) => (Set.Set a, Set.Set b) -> (Set.Set a, Set.Set b) -> (Set.Set a, Set.Set b)
-        merge (xa, xb) (ya, yb) = (Set.union xa ya, Set.union xb yb)
-        
-        toRelation :: Pass -> [(Property, (Set.Set Pass, Set.Set Pass))]
-        toRelation pass = map toPost (Set.toList $ passPost pass) ++ map toPre (Set.toList $ passPre pass)
-          where
-            toPost :: Property -> (Property, (Set.Set Pass, Set.Set Pass))
-            toPost prop = (prop, (Set.singleton pass, Set.empty))
-            toPre :: Property -> (Property, (Set.Set Pass, Set.Set Pass))
-            toPre prop = (prop, (Set.empty, Set.singleton pass))
-
-    checkedRelations :: Either String (Map.Map Property (Set.Set Pass, Set.Set Pass))
-    checkedRelations = liftM Map.fromList $ mapM check $ Map.toList relations
-      where
-        check :: (Property, (Set.Set Pass, Set.Set Pass)) -> Either String (Property, (Set.Set Pass, Set.Set Pass))
-        check (prop, (post, pre))
-          = do when (Set.null post && not (Set.null pre)) $
-                 throwError $ "Property in dependency graph is required by a pass but not provided by any: "
-                   ++ show (propName prop)
-               return (prop, (post, pre)) --TODO this is an identity transformation, so just check separately
-               
-    checkGraph :: Either String ()
-    checkGraph = return () -- TODO check for cycles
-
-    nodeLabels :: Map.Map Pass Node
-    nodeLabels = Map.fromList $ zip passesAndProps [0..]
-
-    lookupPass :: Pass -> Either String Node
-    lookupPass p = transformEither ("Internal, should-be-impossible error in lookupPass " ++) id  $ Map.lookup p nodeLabels
-
-    lookupProp :: Property -> Either String Node
-    lookupProp p = transformEither ("Internal, should-be-impossible error in lookupProp " ++) id  $ Map.lookup (propToPass p) nodeLabels
-
-    labelledNodes :: Either String [LNode Pass]
-    labelledNodes = mapM (\p -> do {lp <- lookupPass p; return (lp, p)}) passesAndProps
-    
-    edgeList :: Map.Map Property (Set.Set Pass, Set.Set Pass) -> Either String [LEdge ()]
-    edgeList = concatMapM (\(prop, (froms, tos)) ->
-      do tos' <- mapM lookupPass (Set.toList tos)
-         froms' <- mapM lookupPass (Set.toList froms)
-         prop' <- lookupProp prop
-         return $ [(f, prop', ()) | f <- froms'] ++ [(prop', t, ()) | t <- tos']) . Map.toList
-     
+        givesPrereq :: Pass -> Bool
+        givesPrereq p' = not $ Set.null $
+          Set.intersection (passPost p') (passPre p)
