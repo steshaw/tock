@@ -150,7 +150,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
              -- Update the definition of the proc
              nameDef <- lookupName n
-             defineName n (nameDef { A.ndType = st'' })
+             defineName n (nameDef { A.ndSpecType = st'' })
 
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them

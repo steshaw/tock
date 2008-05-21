@@ -72,7 +72,7 @@ data NameDef = NameDef {
     -- | The general type of the name.
     ndNameType :: NameType,
     -- | The specification type of the name's definition (see 'SpecType').
-    ndType :: SpecType,
+    ndSpecType :: SpecType,
     -- | The abbreviation mode of the name's definition (see 'AbbrevMode').
     ndAbbrevMode :: AbbrevMode,
     -- | The placement mode of the name's definition (see 'Placement').

@@ -91,7 +91,7 @@ declareSizesArray = doGeneric `ext1M` doStructured
                         ,A.ndName = A.nameName n
                         ,A.ndOrigName = A.nameName n
                         ,A.ndNameType = A.VariableName
-                        ,A.ndType = spec
+                        ,A.ndSpecType = spec
                         ,A.ndAbbrevMode = A.ValAbbrev
                         ,A.ndPlacement = A.Unplaced}
   
@@ -249,7 +249,7 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
       = do (args', newargs) <- transformFormals m args
            body' <- doGeneric body
            let newspec = A.Proc m' sm args' body'
-           modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndType = newspec }) (A.nameName n) (csNames cs)})
+           modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec }) (A.nameName n) (csNames cs)})
            mapM_ (recordArg m') newargs
            return $ A.Specification m n newspec
     doSpecification st = doGeneric st
@@ -261,7 +261,7 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
                         ,A.ndName = A.nameName n
                         ,A.ndOrigName = A.nameName n
                         ,A.ndNameType = A.VariableName
-                        ,A.ndType = A.Declaration m t
+                        ,A.ndSpecType = A.Declaration m t
                         ,A.ndAbbrevMode = A.ValAbbrev
                         ,A.ndPlacement = A.Unplaced}
     

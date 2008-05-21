@@ -739,7 +739,7 @@ inferTypes = applyX $ baseX
     doSpecification descend s@(A.Specification m n st)
         =  do st' <- doSpecType descend st
               -- Update the definition of each name after we handle it.
-              modifyName n (\nd -> nd { A.ndType = st' })
+              modifyName n (\nd -> nd { A.ndSpecType = st' })
               return $ A.Specification m n st'
 
     doSpecType :: ExplicitTrans A.SpecType

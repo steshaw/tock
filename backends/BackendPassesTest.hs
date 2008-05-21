@@ -324,7 +324,7 @@ defineTestName n sp am
          ,A.ndName = n
          ,A.ndOrigName = n
          ,A.ndNameType = A.VariableName
-         ,A.ndType = sp
+         ,A.ndSpecType = sp
          ,A.ndAbbrevMode = am
          ,A.ndPlacement = A.Unplaced
          }
@@ -336,7 +336,7 @@ checkName n spec am cs
              Nothing -> testFailure ("Could not find " ++ n) >> return undefined
            testEqual "ndName" n (A.ndName nd)
            testEqual "ndOrigName" n (A.ndOrigName nd)
-           testEqual "ndType" spec (A.ndType nd)
+           testEqual "ndSpecType" spec (A.ndSpecType nd)
            testEqual "ndAbbrevMode" am (A.ndAbbrevMode nd)
 
 

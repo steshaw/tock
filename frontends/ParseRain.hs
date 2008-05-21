@@ -525,7 +525,7 @@ parseRainProgram filename source
               do defineName rainTimerName $ A.NameDef {A.ndMeta = emptyMeta,
                    A.ndName = A.nameName rainTimerName,
                    A.ndOrigName = A.nameName rainTimerName,
-                   A.ndNameType = A.TimerName, A.ndType = A.Declaration emptyMeta
+                   A.ndNameType = A.TimerName, A.ndSpecType = A.Declaration emptyMeta
                      (A.Timer A.RainTimer),
                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
                  cs <- get

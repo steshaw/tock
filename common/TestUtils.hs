@@ -293,7 +293,7 @@ buildExpr (Func f es) = A.FunctionCall emptyMeta ((simpleName f) {A.nameType
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef
 simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
-                            A.ndType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+                            A.ndSpecType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
 -- | A simple definition of a declared variable
 simpleDefDecl :: String -> A.Type -> A.NameDef
@@ -315,7 +315,7 @@ defineThing s nt st am = defineName (simpleName s) $
       A.ndName = s,
       A.ndOrigName = s,
       A.ndNameType = nt,
-      A.ndType = st,
+      A.ndSpecType = st,
       A.ndAbbrevMode = am,
       A.ndPlacement = A.Unplaced
     }
@@ -444,10 +444,10 @@ checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
            case Map.lookup nm (csNames state) of
              Nothing -> assertFailure (testName ++ ": item with key \"" ++ key ++ "\" was not recorded in the state")
              Just nd -> evalStateT (
-                          do mtSpec <- typeOfSpec (A.ndType nd)
+                          do mtSpec <- typeOfSpec (A.ndSpecType nd)
                              case mtSpec of
                                Just tSpec -> liftIO $ assertEqual (testName ++ ": type not as expected for key \"" ++ key ++ "\"") t tSpec
-                               Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndType nd))
+                               Nothing -> liftIO $ assertFailure (testName ++ ": spec does not have identifiable type for key \"" ++ key ++ "\": " ++ show (A.ndSpecType nd))
                           ) state
 
 assertEither :: (Eq a, Show a) => String -> a -> Either String a -> Assertion

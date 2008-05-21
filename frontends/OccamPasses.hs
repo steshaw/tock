@@ -101,7 +101,7 @@ foldConstants = applyDepthM2 doExpression doSpecification
     -- so we just update them all.)
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification s@(A.Specification _ n st)
-        =  do modifyName n (\nd -> nd { A.ndType = st })
+        =  do modifyName n (\nd -> nd { A.ndSpecType = st })
               return s
 
 -- | Check that things that must be constant are.

@@ -306,7 +306,7 @@ defineNonce m s st nt am
                      A.ndName = ns,
                      A.ndOrigName = ns,
                      A.ndNameType = nt,
-                     A.ndType = st,
+                     A.ndSpecType = st,
                      A.ndAbbrevMode = am,
                      A.ndPlacement = A.Unplaced
                    }
@@ -359,7 +359,7 @@ findAllProcesses
   where
     findAllProcesses' :: (String, A.NameDef) -> Maybe (String, A.Process)
     findAllProcesses' (n, nd)
-      = case A.ndType nd of
+      = case A.ndSpecType nd of
           A.Proc _ _ _ p -> Just (n, p)
           _ -> Nothing
 

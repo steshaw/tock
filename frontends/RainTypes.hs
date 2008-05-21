@@ -113,7 +113,7 @@ performTypeUnification x
     shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
       where
         shift' :: (String, A.NameDef) -> PassM (Maybe (UnifyIndex, UnifyValue))
-        shift' (rawName, d) = do mt <- typeOfSpec (A.ndType d)
+        shift' (rawName, d) = do mt <- typeOfSpec (A.ndSpecType d)
                                  case mt of
                                    Nothing -> return Nothing
                                    Just t -> do te <- typeToTypeExp (A.ndMeta d) t
@@ -144,7 +144,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
     recordInfNameTypes' input@(A.ForEach m n e)
       = do let innerT = A.UnknownVarType $ Left n
            defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndType = (A.Declaration m innerT), 
+                                   A.ndNameType = A.VariableName, A.ndSpecType = (A.Declaration m innerT), 
                                    A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}
            return input
     recordInfNameTypes' r = return r
@@ -173,7 +173,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassProc :: Check A.Process
     matchParamPassProc (A.ProcCall m n actualParams)
       = do def <- lookupNameOrError n $ dieP m ("Process name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
-           case A.ndType def of
+           case A.ndSpecType def of
              A.Proc _ _ expectedParams _ ->
                if (length expectedParams) == (length actualParams)
                then mapM_ (uncurry markUnify) (zip expectedParams actualParams)
@@ -185,7 +185,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassFunc :: Check A.Expression
     matchParamPassFunc (A.FunctionCall m n actualParams)
       = do def <- lookupNameOrError n $ dieP m ("Function name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
-           case A.ndType def of
+           case A.ndSpecType def of
              A.Function _ _ _ expectedParams _ ->
                if (length expectedParams) == (length actualParams)
                then mapM_ (uncurry markUnify) (zip expectedParams actualParams)
@@ -193,7 +193,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
              _ -> dieP m $ "Attempt to make a function call with something"
                         ++ " that is not a function: \"" ++ A.nameName n
                         ++ "\"; is actually: " ++ showConstr (toConstr $
-                          A.ndType def)
+                          A.ndSpecType def)
     matchParamPassFunc _ = return ()
 
 -- | Checks the types in expressions
