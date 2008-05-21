@@ -32,7 +32,7 @@ module Types
 
     , leastGeneralSharedTypeRain
     
-    , Typed(..)
+    , ASTTypeable(..)
   ) where
 
 import Control.Monad.State
@@ -54,10 +54,10 @@ import ShowCode
 import TypeSizes
 import Utils
 
-class Typed a where
+class ASTTypeable a where
   astTypeOf :: (CSMR m, Die m) => a -> m A.Type
 
-instance Typed A.Type where
+instance ASTTypeable A.Type where
   astTypeOf = return
 
 -- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
@@ -70,13 +70,13 @@ abbrevModeOfName :: (CSMR m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
     = liftM A.ndAbbrevMode (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find abbreviation mode in abbrevModeOfName for: " ++ (show $ A.nameName n))
 
-instance Typed A.Name where
+instance ASTTypeable A.Name where
   astTypeOf = typeOfName
 
-instance Typed A.Formal where
+instance ASTTypeable A.Formal where
   astTypeOf (A.Formal _ t _) = return t
 
-instance Typed A.Actual where
+instance ASTTypeable A.Actual where
   astTypeOf (A.ActualVariable v) = astTypeOf v
   astTypeOf (A.ActualExpression e) = astTypeOf e
 
@@ -183,7 +183,7 @@ trivialSubscriptType _ (A.Array [d] t) = return t
 trivialSubscriptType _ (A.Array (d:ds) t) = return $ A.Array ds t
 trivialSubscriptType m t = diePC m $ formatCode "not plain array type: %" t
 
-instance Typed A.Variable where
+instance ASTTypeable A.Variable where
   astTypeOf = typeOfVariable
 
 -- | Gets the 'A.Type' of a 'A.Variable' by looking at the types recorded in the 'CompState'.
@@ -219,7 +219,7 @@ dyadicIsBoolean A.MoreEq = True
 dyadicIsBoolean A.After = True
 dyadicIsBoolean _ = False
 
-instance Typed A.Expression where
+instance ASTTypeable A.Expression where
   astTypeOf = typeOfExpression
 
 -- | Gets the 'A.Type' of an 'A.Expression'.  This function assumes that the expression has already been type-checked.

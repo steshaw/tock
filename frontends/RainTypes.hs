@@ -77,7 +77,7 @@ typeToTypeExp _ (A.UnknownNumLitType m id n)
        return v
 typeToTypeExp m t = return $ OperType m (show t) (const t) []
 
-markUnify :: (Typed a, Typed b, Data a, Data b) => a -> b -> PassM ()
+markUnify :: (ASTTypeable a, ASTTypeable b, Data a, Data b) => a -> b -> PassM ()
 markUnify x y
   = do tx <- astTypeOf x
        ty <- astTypeOf y
