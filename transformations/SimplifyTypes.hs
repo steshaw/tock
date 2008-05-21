@@ -21,20 +21,24 @@ module SimplifyTypes (simplifyTypes) where
 
 import Control.Monad.State
 import Data.Generics
-import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST as A
-import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
 import Types
 
 simplifyTypes :: [Pass]
-simplifyTypes = makePassesDep
-      [ ("Resolve types in AST", resolveNamedTypes, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.typesResolvedInAST])
-      , ("Resolve types in state", rntState, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.typesResolvedInState])
-      ]
+simplifyTypes = [resolveAllNamedTypes]
+
+resolveAllNamedTypes :: Pass
+resolveAllNamedTypes = Pass
+  {passCode = \t -> (get >>= resolveNamedTypes >>= put) >> resolveNamedTypes t
+  ,passName = "Resolve types in AST and state"
+  ,passPre = Set.fromList $ Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked]
+  ,passPost = Set.fromList [Prop.typesResolvedInAST, Prop.typesResolvedInState]
+  ,passEnabled = const True}
 
 -- | Turn named data types into their underlying types.
 resolveNamedTypes :: Data t => t -> PassM t
@@ -46,17 +50,3 @@ resolveNamedTypes = doGeneric `extM` doType
     doType :: A.Type -> PassM A.Type
     doType t@(A.UserDataType _) = underlyingType emptyMeta t
     doType t = doGeneric t
-
--- | Resolve named types in CompState.
-rntState :: Data t => t -> PassM t
-rntState p = (get >>= nullBodies >>= resolveNamedTypes >>= put) >> return p
-  where
-    nullBodies :: CompState -> PassM CompState
-    nullBodies st = return $ st {csNames = Map.map nullProcFuncDefs (csNames st)}
-    
-    nullProcFuncDefs :: A.NameDef -> A.NameDef
-    nullProcFuncDefs (A.NameDef m n on nt (A.Proc m' sm fs _) am pl) = (A.NameDef m n on nt (A.Proc m' sm fs (A.Skip m')) am pl)
-    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Left _)) am pl) = (A.NameDef m n on nt (A.Function m' sm ts fs (Left $ A.Several m' [])) am pl)
-    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Right _)) am pl) = (A.NameDef m n on nt (A.Function m' sm ts fs (Right $ A.Skip m')) am pl)
-    nullProcFuncDefs x = x
-

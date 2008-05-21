@@ -20,9 +20,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module PassList (calculatePassList, getPassList) where
 
 import Control.Monad.Error
+import Control.Monad.State
 import Data.List
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import qualified AST as A
 import BackendPasses
 import Check
 import CompState
@@ -58,9 +61,31 @@ commonPasses opts = concat $
 filterPasses :: CompState -> [Pass] -> [Pass]
 filterPasses opts = filter (\p -> passEnabled p opts)
 
+-- This pass is so small that we may as well just give it here:
+nullStateBodies :: Pass
+nullStateBodies = Pass
+  {passCode = \t ->
+    ((get >>* \st -> st {csNames = Map.map nullProcFuncDefs (csNames st)}) >>= put)
+    >> return t
+  ,passName = "Remove process and function bodies from compiler state"
+  ,passPre = Set.empty
+  ,passPost = Set.empty
+  ,passEnabled = const True}
+  where
+    nullProcFuncDefs :: A.NameDef -> A.NameDef
+    nullProcFuncDefs (A.NameDef m n on nt (A.Proc m' sm fs _) am pl)
+      = (A.NameDef m n on nt (A.Proc m' sm fs (A.Skip m')) am pl)
+    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Left _)) am pl)
+      = (A.NameDef m n on nt (A.Function m' sm ts fs (Left $ A.Several m' [])) am pl)
+    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Right _)) am pl)
+      = (A.NameDef m n on nt (A.Function m' sm ts fs (Right $ A.Skip m')) am pl)
+    nullProcFuncDefs x = x
+    
+
 getPassList :: CompState -> [Pass]
 getPassList optsPS = checkList $ filterPasses optsPS $ concat
-                                [ occamPasses
+                                [ [nullStateBodies]
+                                , occamPasses
                                 , rainPasses
                                 , commonPasses optsPS
                                 , genCPasses
