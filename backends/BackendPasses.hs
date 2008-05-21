@@ -35,11 +35,11 @@ import Utils
 
 squashArrays :: [Pass]
 squashArrays = makePassesDep
-  [ ("Declare array-size arrays", declareSizesArray, prereq ++ [Prop.slicesSimplified,
+  [ ("Simplify array slices", simplifySlices, prereq, [Prop.slicesSimplified])
+  , ("Declare array-size arrays", declareSizesArray, prereq ++ [Prop.slicesSimplified,
     Prop.arrayConstructorsRemoved], [Prop.arraySizesDeclared])
   , ("Add array-size arrays to PROC headers", addSizesFormalParameters, prereq ++ [Prop.arraySizesDeclared], [])
   , ("Add array-size arrays to PROC calls", addSizesActualParameters, prereq ++ [Prop.arraySizesDeclared], [])
-  , ("Simplify array slices", simplifySlices, prereq, [Prop.slicesSimplified])
   ]
   where
     prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]

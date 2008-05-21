@@ -37,7 +37,13 @@ import Types
 -- | Occam-specific frontend passes.
 occamPasses :: [Pass]
 occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
-    [ ("Fold constants", foldConstants,
+    [ ("Dummy occam pass", dummyOccamPass,
+       [],
+       Prop.agg_namesDone ++ [Prop.mainTagged])
+    , ("Infer types", inferTypes,
+       [],
+       [Prop.inferredTypesRecorded])
+    , ("Fold constants", foldConstants,
        [Prop.inferredTypesRecorded],
        [Prop.constantsFolded])
     , ("Fix the types of array constructors", fixConstructorTypes,
@@ -46,9 +52,6 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
     , ("Check mandatory constants", checkConstants,
        [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
        [Prop.constantsChecked])
-    , ("Infer types", inferTypes,
-       [],
-       [Prop.inferredTypesRecorded])
     , ("Resolve ambiguities", resolveAmbiguities,
        [Prop.inferredTypesRecorded],
        [Prop.ambiguitiesResolved])
@@ -56,9 +59,6 @@ occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
        [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved],
        [Prop.expressionTypesChecked, Prop.processTypesChecked,
         Prop.functionTypesChecked, Prop.retypesChecked])
-    , ("Dummy occam pass", dummyOccamPass,
-       [],
-       Prop.agg_namesDone ++ [Prop.mainTagged])
     ]
 
 -- | Fixed the types of array constructors according to the replicator count

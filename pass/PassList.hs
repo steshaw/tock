@@ -47,10 +47,10 @@ commonPasses opts = concat $
   , makePassesDep' csUsageChecking [("Usage checking", runPassR usageCheckPass, Prop.agg_namesDone, [Prop.parUsageChecked])]
   -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
   , makePassesDep' (not . csUsageChecking) [("Usage checking turned OFF", return, Prop.agg_namesDone, [Prop.parUsageChecked])]
+  , simplifyComms
   , simplifyExprs
   , simplifyProcs
   , unnest
-  , simplifyComms
   , squashArrays
   ]
 
