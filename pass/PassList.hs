@@ -43,7 +43,8 @@ import Utils
 
 commonPasses :: CompState -> [Pass]
 commonPasses opts = concat $
-  [ simplifyTypes
+  -- Rain does simplifyTypes separately:
+  [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
   , makePassesDep' csUsageChecking [("Usage checking", runPassR usageCheckPass, Prop.agg_namesDone, [Prop.parUsageChecked])]
   -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
   , makePassesDep' (not . csUsageChecking) [("Usage checking turned OFF", return, Prop.agg_namesDone, [Prop.parUsageChecked])]
@@ -86,8 +87,9 @@ checkList passes = case check [] passes of
     check :: [Pass] -> [Pass] -> Either String [Pass]
     check prev [] = Right prev
     check prev (p:ps)
-      = case filter givesPrereq ps of
-          -- Check that our pre-requisites are not supplied by a later pass:
+      = case filter givesPrereq (p:ps) of
+          -- Check that our pre-requisites are not supplied by a later pass
+          -- or supplied by the pass that needs them:
           (x:_) ->
              Left $ "Pass order not correct; one of the pre-requisites"
                ++ " for pass: " ++ (passName p) ++ " is supplied in a later"

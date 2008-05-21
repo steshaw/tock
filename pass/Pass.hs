@@ -105,6 +105,10 @@ makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.from
 makePassesDep' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
 makePassesDep' f = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) f)
 
+enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
+enablePassesWhen f = map (\p -> p
+  {passEnabled = \c -> f c && (passEnabled p c)})
+
 -- | Compose a list of passes into a single pass by running them in the order given.
 runPasses :: [Pass] -> (A.AST -> PassM A.AST)
 runPasses [] ast = return ast

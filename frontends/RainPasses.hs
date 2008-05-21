@@ -31,6 +31,7 @@ import Errors
 import Pass
 import qualified Properties as Prop
 import RainTypes
+import SimplifyTypes
 import TreeUtils
 import Types
 
@@ -38,22 +39,24 @@ import Types
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [Pass]
-rainPasses = makePassesDep' ((== FrontendRain) . csFrontend)
+rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in f
      [ ("AST Validity check, Rain #1", excludeNonRainFeatures, [], []) -- TODO work out some dependencies
        ,("Dummy Rain pass", return, [], [Prop.retypesChecked])
        ,("Resolve Int -> Int64", transformInt, [], [Prop.noInt])
        ,("Uniquify variable declarations, record declared types and resolve variable names",
            uniquifyAndResolveVars, [Prop.noInt], Prop.agg_namesDone \\ [Prop.inferredTypesRecorded])
-            
-       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ Prop.agg_namesDone
-            ++ Prop.agg_typesDone, [Prop.constantsFolded, Prop.constantsChecked])
-       ,("Rain Type Checking", performTypeUnification, [Prop.noInt] ++ Prop.agg_namesDone,
-         Prop.agg_typesDone)
-       
        ,("Record inferred name types in dictionary", recordInfNameTypes,
            Prop.agg_namesDone \\ [Prop.inferredTypesRecorded], [Prop.inferredTypesRecorded])
+            
+       ,("Rain Type Checking", performTypeUnification, [Prop.noInt] ++ Prop.agg_namesDone,
+         [Prop.expressionTypesChecked, Prop.functionTypesChecked, Prop.processTypesChecked,
+          Prop.retypesChecked])
+       ,("Fold all constant expressions", constantFoldPass, [Prop.noInt] ++ Prop.agg_namesDone
+            ++ [Prop.inferredTypesRecorded], [Prop.constantsFolded, Prop.constantsChecked])
+
+     ] ++ enablePassesWhen ((== FrontendRain) . csFrontend) simplifyTypes ++ f [
        
-       ,("Find and tag the main function", findMain, Prop.agg_namesDone, [Prop.mainTagged])
+        ("Find and tag the main function", findMain, Prop.agg_namesDone, [Prop.mainTagged])
        ,("Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR",
          transformEachRange, Prop.agg_typesDone ++ [Prop.constantsFolded], [Prop.eachRangeTransformed])
        ,("Pull up foreach-expressions", pullUpForEach,
