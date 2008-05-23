@@ -23,46 +23,99 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
-data GraphFuncs n e a = GF {
+data GraphFuncs n e result = GF {
    -- (Node, Edge) -> previous assumed input -> current aggregate effect -> new aggregate effect
-   nodeFunc :: (n,e) -> a -> Maybe a -> a
-   ,prevNodes :: n -> [(n,e)]
-   ,nextNodes :: n -> [(n,e)]
-   -- defVal is the default starting value for all the nodes (except the entry node)
-   ,defVal :: a
+   -- If it is the first node to be processed for this iteration, it will be
+   -- given Nothing, otherwise the result is fed back when processing the next
+   -- node.  The second parameter is from the last iteration.
+   nodeFunc :: (n,e) -> result -> Maybe result -> result
+
+   -- For forward data-flow, this should be the predecessor nodes.  For backward
+   -- data-flow, this should be the successor nodes
+   ,nodesToProcess :: n -> [(n,e)]
+
+   -- For forward data-flow, this should be the successor nodes.  For backward
+   -- data-flow, this should be the predecessor nodes
+   ,nodesToReAdd :: n -> [(n,e)]
+
+   -- defVal is the default starting value for all the nodes (except the first node)
+   ,defVal :: result
   }
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.  All the nodes in the list should be connected to
--- the entry node, and there should be no nodes without predecessors in the list.
-flowAlgorithm :: forall n e a. (Ord n, Show n, Eq a) => GraphFuncs n e a -> [n] -> (n, a) -> Either String (Map.Map n a)
+-- the starting node, and there should be no nodes without nodes to process
+-- (i.e. where nodesToProcess returns the empty list) in the list except the
+-- starting node.
+--
+-- The general idea of iterative data-flow is that all nodes start out with
+-- a default "guessed" value.  Then each node is processed in turn by using
+-- the previous value (to start with, the default value), and the values of
+-- all nodesToProcess in the graph.  This algorithm is performed repeatedly,
+-- processing all nodes, and if a node changes its value, re-adding all its
+-- nodes in the other direction (nodesToReAdd) to the worklist to be processed again.
+--
+-- The function is agnostic as to the representation of the graph, provided
+-- it supports the two required operations (nodesToProcess and nodesToReAdd).
+--  It can also do forward or backward data flow by just swapping those two
+-- functions over.
+flowAlgorithm :: forall n e result. (Ord n, Show n, Eq result) =>
+  GraphFuncs n e result -- ^ The set of functions to handle the graph.
+  -> [n] -- ^ The list of all nodes to process
+  -> (n, result) -- ^ The starting node (can also be in the list) and its
+                 -- starting guess
+  -> Either String (Map.Map n result) -- ^ Either an error or the map from
+                                      -- nodes to results
 flowAlgorithm funcs nodes (startNode, startVal)
   = iterate
       (Set.fromList nonStartNodes)
       (Map.fromList $ (startNode, startVal):(zip nonStartNodes (repeat (defVal funcs))))
   where
+    -- The nodes list, with the start node removed:
+    nonStartNodes :: [n]
     nonStartNodes = (filter ((/=) startNode) nodes)
-    
-    foldWithMaybe :: (b -> Maybe a -> Either String a) -> Maybe a -> [b] -> Either String a
+
+    -- | Folds left, but with maybe types involved.  Gives an error if there
+    -- are no nodes in the given list at the start (i.e. when its second parameter
+    -- is Nothing).  Otherwise feeds the aggregate result back round on each
+    -- iteration of the list, but stops at the first error while folding (so
+    -- a bit like foldM)
+    foldWithMaybe :: (b -> Maybe result -> Either String result) ->
+      Maybe result -> [b] -> Either String result
     foldWithMaybe _ Nothing [] = throwError "empty list for previous nodes in flowAlgorithm"
     foldWithMaybe _ (Just a) [] = return a
     foldWithMaybe f ma (b:bs)
       = do b' <- f b ma
            foldWithMaybe f (Just b') bs
 
-    iterateNode :: Map.Map n a -> (n,e) -> Maybe a -> Either String a
+    -- | Given a map from node to current results, a node and edge to process
+    -- (the node is from nodesToProcess, and the edge connects it to the current
+    -- node), an aggregate result (Nothing if nothing processed yet), returns
+    -- an error or a new result by processing the node
+    iterateNode :: Map.Map n result -> (n,e) -> Maybe result -> Either String result
     iterateNode vals ne ma
       = case Map.lookup (fst ne) vals of
           Nothing -> throwError $ "Value not found for node edge: " ++ show (fst ne)
           Just v -> return $ nodeFunc funcs ne v ma
-  
-    iterate :: Set.Set n -> Map.Map n a -> Either String (Map.Map n a)
+
+    -- | Iterates the dataflow analysis.  It is given a set of nodes to process,
+    -- a map from nodes to current results, and iterates until it gives back
+    -- an error or the list of final results  
+    iterate :: Set.Set n -> Map.Map n result -> Either String (Map.Map n result)
     iterate workList vals
+      -- No nodes left to process, finished:
       | Set.null workList = Right vals
       | otherwise
+               -- Pick the next node from the list and remove it:
           = do let (node, workList') = Set.deleteFindMin workList
-               total <- foldWithMaybe (iterateNode vals) Nothing (prevNodes funcs node)
+               -- Process that node:
+               total <- foldWithMaybe (iterateNode vals) Nothing (nodesToProcess funcs node)
                nodeVal <- Map.lookup node vals
                if total /= nodeVal
-                 then iterate (workList' `Set.union` (Set.fromList $ map fst $ nextNodes funcs node)) (Map.insert node total vals)
+                 -- If the value has changed, that will cascade to affect all
+                 -- its dependents, so add all
+                 -- of them back to the work list:
+                 then iterate (workList' `Set.union` (Set.fromList $ map fst $ nodesToReAdd funcs node)) (Map.insert node total vals)
+                 -- If the value hasn't changed, forget it and go on to the
+                 -- next one:
                  else iterate workList' vals

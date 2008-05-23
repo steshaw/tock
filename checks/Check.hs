@@ -178,8 +178,8 @@ checkInitVar m graph startNode
     graphFuncs = GF
       {
        nodeFunc = nodeFunction
-       ,prevNodes = lpre graph
-       ,nextNodes = lsuc graph
+       ,nodesToProcess = lpre graph
+       ,nodesToReAdd = lsuc graph
        ,defVal = Everything
       }
       

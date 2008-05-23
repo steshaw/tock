@@ -137,8 +137,8 @@ findReachDef graph startNode
     graphFuncs = GF
       {
         nodeFunc = processNode
-        ,prevNodes = lpre graph
-        ,nextNodes = lsuc graph
+        ,nodesToProcess = lpre graph
+        ,nodesToReAdd = lsuc graph
         ,defVal = Map.empty
       }
 
