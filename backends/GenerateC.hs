@@ -44,7 +44,6 @@ import qualified Data.Set as Set
 import Control.Monad.State
 import System.IO
 import Text.Printf
-import Text.Regex
 
 import qualified AST as A
 import BackendPasses
