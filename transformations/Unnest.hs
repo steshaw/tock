@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Flatten nested declarations.
 module Unnest (unnest) where
 
+import Control.Monad.Identity
 import Control.Monad.State
 import Data.Generics
 import Data.List
@@ -32,6 +33,7 @@ import EvalConstants
 import Metadata
 import Pass
 import qualified Properties as Prop
+import Traversal
 import Types
 
 unnest :: [Pass]
@@ -86,33 +88,21 @@ freeNamesIn = doGeneric
 
 -- | Replace names.
 replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
-replaceNames map = doGeneric `extT` doName
+replaceNames map v = runIdentity $ applyDepthM doName v
   where
-    doGeneric :: Data t => t -> t
-    doGeneric = (gmapT (replaceNames map))
-                                   `extT` (id :: String -> String)
-                                   `extT` (id :: Meta -> Meta)  
-    smap = [(A.nameName f, t) | (f, t) <- map]
+    smap = Map.fromList [(A.nameName f, t) | (f, t) <- map]
 
-    doName :: A.Name -> A.Name
-    doName n
-        = case lookup (A.nameName n) smap of
-            Just n' -> n'
-            Nothing -> n
+    doName :: A.Name -> Identity A.Name
+    doName n = return $ Map.findWithDefault n (A.nameName n) smap
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: Data t => t -> PassM t
-removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
+removeFreeNames :: PassType
+removeFreeNames = applyDepthM2 doSpecification doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric removeFreeNames
-
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
-        A.Specification m n st@(A.Proc _ _ _ _) ->
-          do st'@(A.Proc mp sm fs p) <- removeFreeNames st
-
-             -- If this is the top-level process, we shouldn't add new args --
+        A.Specification m n st@(A.Proc mp sm fs p) ->
+          do -- If this is the top-level process, we shouldn't add new args --
              -- we know it's not going to be moved by removeNesting, so anything
              -- that it had in scope originally will still be in scope.
              ps <- get
@@ -120,7 +110,7 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
              let isTLP = (snd $ head $ csMainLocals ps) == n
 
              -- Figure out the free names.
-             let freeNames' = if isTLP then [] else Map.elems $ freeNamesIn st'
+             let freeNames' = if isTLP then [] else Map.elems $ freeNamesIn st
              let freeNames'' = [n | n <- freeNames',
                                     case A.nameType n of
                                       A.ChannelName -> True
@@ -145,12 +135,12 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
 
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             let st'' = A.Proc mp sm (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
-             let spec' = A.Specification m n st''
+             let st' = A.Proc mp sm (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
+             let spec' = A.Specification m n st'
 
              -- Update the definition of the proc
              nameDef <- lookupName n
-             defineName n (nameDef { A.ndSpecType = st'' })
+             defineName n (nameDef { A.ndSpecType = st' })
 
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
@@ -163,42 +153,43 @@ removeFreeNames = doGeneric `extM` doSpecification `extM` doProcess
                modify $ (\ps -> ps { csAdditionalArgs = Map.insert (A.nameName n) newAs (csAdditionalArgs ps) })
 
              return spec'
-        _ -> doGeneric spec
+        _ -> return spec
 
     -- | Add the extra arguments we recorded when we saw the definition.
     doProcess :: A.Process -> PassM A.Process
     doProcess p@(A.ProcCall m n as)
         =  do st <- get
               case Map.lookup (A.nameName n) (csAdditionalArgs st) of
-                Just add -> doGeneric $ A.ProcCall m n (as ++ add)
-                Nothing -> doGeneric p
-    doProcess p = doGeneric p
+                Just add -> return $ A.ProcCall m n (as ++ add)
+                Nothing -> return p
+    doProcess p = return p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: forall a. Data a => A.Structured a -> PassM (A.Structured a)
-removeNesting p
+removeNesting :: Data t => Transform (A.Structured t)
+removeNesting s
     =  do pushPullContext
-          p' <- pullSpecs p
-          s <- applyPulled p'
+          s' <- (makeRecurse ops) s >>= applyPulled
           popPullContext
-          return s
+          return s'
   where
-    pullSpecs :: Data t => t -> PassM t
-    pullSpecs = doGeneric `ext1M` doStructured
+    ops :: Ops
+    ops = baseOp `extOpS` doStructured
 
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric pullSpecs
+    recurse :: Recurse
+    recurse = makeRecurse ops
+    descend :: Descend
+    descend = makeDescend ops
 
-    doStructured :: Data t => A.Structured t -> PassM (A.Structured t)
-    doStructured s@(A.Spec m spec@(A.Specification _ n st) subS)
-        = do isConst <- isConstantName n
+    doStructured :: Data t => Transform (A.Structured t)
+    doStructured s@(A.Spec m spec subS)
+        = do spec'@(A.Specification _ n st) <- recurse spec
+             isConst <- isConstantName n
              if isConst || canPull st then
                  do debug $ "removeNesting: pulling up " ++ show n
-                    spec' <- doGeneric spec
                     addPulled $ (m, Left spec')
                     doStructured subS
-               else doGeneric s
-    doStructured s = doGeneric s
+               else descend s
+    doStructured s = descend s
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _ _) = True

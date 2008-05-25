@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -30,6 +30,7 @@ import Metadata
 import Pass
 import PrettyShow
 import qualified Properties as Prop
+import Traversal
 import Types
 import Utils
 
@@ -44,19 +45,16 @@ squashArrays = makePassesDep
   where
     prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
 
-transformWaitFor :: Data t => t -> PassM t
-transformWaitFor = doGeneric `extM` doAlt
+transformWaitFor :: PassType
+transformWaitFor = applyDepthM doAlt
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformWaitFor
-  
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
       = do (s',(specs,code)) <- runStateT (applyToOnly doWaitFor s) ([],[])
            if (null specs && null code)
              then return a
              else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.Only m $ A.Alt m pri s'])) specs
-    doAlt p = doGeneric p
+    doAlt p = return p
     
     addSpec :: Data a => (A.Structured a -> A.Structured a) -> A.Structured a -> A.Structured a
     addSpec spec inner = spec inner
@@ -81,8 +79,8 @@ append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-declareSizesArray :: Data t => t -> PassM t
-declareSizesArray = doGeneric `ext1M` doStructured
+declareSizesArray :: PassType
+declareSizesArray = applyDepthSM doStructured
   where
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
@@ -175,10 +173,6 @@ declareSizesArray = doGeneric `ext1M` doStructured
            defineSizesName m n_sizes sizeSpecType
            return $ A.Specification m n_sizes sizeSpecType
 
-
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric declareSizesArray
-
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
@@ -207,14 +201,12 @@ declareSizesArray = doGeneric `ext1M` doStructured
                                 sizeSpec = A.Specification m' n_sizes sizeSpecType
                             defineSizesName m' n_sizes sizeSpecType
                             return sizeSpec
-                  s' <- doStructured s
-                  return (A.Spec m sizeSpec $ A.Spec m sp $ s')
+                  return (A.Spec m sizeSpec $ A.Spec m sp $ s)
              (A.RecordType m _ fs, _) ->
-                do s' <- doStructured s
-                   fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s' fs
+                do fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s fs
                    return $ A.Spec m sp fieldDeclarations
-             _ -> doGeneric str
-    doStructured s = doGeneric s
+             _ -> return str
+    doStructured s = return s
 
     makeStaticSizeSpec :: Meta -> A.Name -> [A.Dimension] -> A.SpecType
     makeStaticSizeSpec m n ds = makeDynamicSizeSpec m n es
@@ -238,21 +230,17 @@ declareSizesArray = doGeneric `ext1M` doStructured
 
 -- | A pass for adding _sizes parameters to PROC arguments
 -- TODO in future, only add _sizes for variable-sized parameters
-addSizesFormalParameters :: Data t => t -> PassM t
-addSizesFormalParameters = doGeneric `extM` doSpecification
+addSizesFormalParameters :: PassType
+addSizesFormalParameters = applyDepthM doSpecification
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric addSizesFormalParameters
-    
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
       = do (args', newargs) <- transformFormals m args
-           body' <- doGeneric body
-           let newspec = A.Proc m' sm args' body'
+           let newspec = A.Proc m' sm args' body
            modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec }) (A.nameName n) (csNames cs)})
            mapM_ (recordArg m') newargs
            return $ A.Specification m n newspec
-    doSpecification st = doGeneric st
+    doSpecification st = return st
     
     recordArg :: Meta -> A.Formal -> PassM ()
     recordArg m (A.Formal am t n)
@@ -277,15 +265,12 @@ addSizesFormalParameters = doGeneric `extM` doSpecification
                   return (f : rest, new)
 
 -- | A pass for adding _sizes parameters to actuals in PROC calls
-addSizesActualParameters :: Data t => t -> PassM t
-addSizesActualParameters = doGeneric `extM` doProcess
+addSizesActualParameters :: PassType
+addSizesActualParameters = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric addSizesActualParameters
-    
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params) = concatMapM transformActual params >>* A.ProcCall m n
-    doProcess p = doGeneric p
+    doProcess p = return p
     
     transformActual :: A.Actual -> PassM [A.Actual]
     transformActual a@(A.ActualVariable v)
@@ -306,25 +291,16 @@ addSizesActualParameters = doGeneric `extM` doProcess
     transformActualVariable a _ = return [a]
 
 -- | Transforms all slices into the FromFor form.
-simplifySlices :: Data t => t -> PassM t
-simplifySlices = doGeneric `extM` doVariable
+simplifySlices :: PassType
+simplifySlices = applyDepthM doVariable
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric simplifySlices
-    
-    -- We recurse into the subscripts in case they contain subscripts:    
     doVariable :: A.Variable -> PassM A.Variable
     doVariable (A.SubscriptedVariable m (A.SubscriptFor m' for) v)
-      = do for' <- doGeneric for
-           v' <- doGeneric v
-           return (A.SubscriptedVariable m (A.SubscriptFromFor m' (makeConstant m' 0) for') v')
+      = return (A.SubscriptedVariable m (A.SubscriptFromFor m' (makeConstant m' 0) for) v)
     doVariable (A.SubscriptedVariable m (A.SubscriptFrom m' from) v)
-      = do v' <- doGeneric v
-           A.Array (d:_) _ <- astTypeOf v'
+      = do A.Array (d:_) _ <- astTypeOf v
            limit <- case d of
              A.Dimension n -> return n
-             A.UnknownDimension -> return $ A.SizeVariable m' v'
-           from' <- doGeneric from
-           return (A.SubscriptedVariable m (A.SubscriptFromFor m' from' (A.Dyadic m A.Subtr limit from')) v')
-    -- We must recurse, to handle nested variables, and variables inside subscripts!
-    doVariable v = doGeneric v
+             A.UnknownDimension -> return $ A.SizeVariable m' v
+           return (A.SubscriptedVariable m (A.SubscriptFromFor m' from (A.Dyadic m A.Subtr limit from)) v)
+    doVariable v = return v

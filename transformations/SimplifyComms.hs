@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -20,7 +20,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyComms where
 
 import Control.Monad.State
-import Data.Generics
 import Data.List
 
 import qualified AST as A
@@ -28,6 +27,7 @@ import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
+import Traversal
 import Types
 import Utils
 
@@ -38,12 +38,9 @@ simplifyComms = makePassesDep
        ,("Flatten sequential protocol inputs into multiple inputs", transformProtocolInput, Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved], [Prop.seqInputsFlattened])
       ]
 
-outExprs :: Data t => t -> PassM t
-outExprs = doGeneric `extM` doProcess
+outExprs :: PassType
+outExprs = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric outExprs
-
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
@@ -53,7 +50,7 @@ outExprs = doGeneric `extM` doProcess
         =  do (ois', specs) <- mapAndUnzipM changeItem ois
               let foldedSpec = foldFuncs specs
               return $ A.Seq m (foldedSpec $ A.Only m $ A.OutputCase m c tag ois')
-    doProcess p = doGeneric p
+    doProcess p = return p
   
     changeItem :: A.OutputItem -> PassM (A.OutputItem, A.Structured A.Process -> A.Structured A.Process)
     changeItem (A.OutExpression m e) = do (e', spec) <- transExpr m e
@@ -133,12 +130,9 @@ ALT
          -- process D
 -}
 
-transformInputCase :: Data t => t -> PassM t
-transformInputCase = doGeneric `extM` doProcess
+transformInputCase :: PassType
+transformInputCase = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformInputCase
-
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
@@ -149,15 +143,14 @@ transformInputCase = doGeneric `extM` doProcess
     doProcess (A.Alt m pri s)
       = do s' <- doStructuredA s
            return (A.Alt m pri s')
-    doProcess p = doGeneric p
+    doProcess p = return p
 
     -- Can't easily use generics here as we're switching from one type of Structured to another
     doStructuredV :: A.Variable -> A.Structured A.Variant -> PassM (A.Structured A.Option)
     -- These entries all just burrow deeper into the structured:
     doStructuredV v (A.ProcThen m p s)
       = do s' <- doStructuredV v s
-           p' <- doProcess p
-           return (A.ProcThen m p' s')
+           return (A.ProcThen m p s')
     doStructuredV v (A.Spec m sp st)
       = do st' <- doStructuredV v st
            return (A.Spec m sp st')
@@ -171,20 +164,18 @@ transformInputCase = doGeneric `extM` doProcess
     doStructuredV chanVar (A.Only m (A.Variant m' n iis p))
       = do (Right items) <- protocolItems chanVar
            let (Just idx) = elemIndex n (fst $ unzip items)
-           p' <- doProcess p
            return $ A.Only m $ A.Option m' [makeConstant m' idx] $
              if (length iis == 0)
-               then p'
+               then p
                else A.Seq m' $ A.Several m'
-                      [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis)
-                      ,A.Only (findMeta p') p'] 
+                      [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis),
+                       A.Only (findMeta p) p]
  
     doStructuredA :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative)
-    -- TODO use generics instead of this boilerplate, but don't omit the doProcess call in ProcThen!
+    -- TODO use generics instead of this boilerplate
     doStructuredA (A.ProcThen m p s)
       = do s' <- doStructuredA s
-           p' <- doProcess p
-           return (A.ProcThen m p' s')
+           return (A.ProcThen m p s')
     doStructuredA (A.Spec m sp st)
       = do st' <- doStructuredA st
            return (A.Spec m sp st')
@@ -206,22 +197,18 @@ transformInputCase = doGeneric `extM` doProcess
     -- Leave other guards (and parts of Structured) untouched:
     doStructuredA s = return s
     
-transformProtocolInput :: Data t => t -> PassM t
-transformProtocolInput = doGeneric `extM` doProcess `extM` doAlternative
+transformProtocolInput :: PassType
+transformProtocolInput = applyDepthM2 doProcess doAlternative
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformProtocolInput
-    
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))
       = return $ A.Seq m $ A.Several m $
           map (A.Only m . A.Input m v . A.InputSimple m' . singleton) iis
-    doProcess p = doGeneric p
+    doProcess p = return p
 
     doAlternative :: A.Alternative -> PassM A.Alternative
     doAlternative (A.Alternative m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
-      = do body' <- doProcess body
-           return $ A.Alternative m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
+      = return $ A.Alternative m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
              map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
-             ++ [A.Only m' body']
-    doAlternative s = doGeneric s
+             ++ [A.Only m' body]
+    doAlternative s = return s

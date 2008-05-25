@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -31,6 +31,7 @@ import Metadata
 import Pass
 import qualified Properties as Prop
 import ShowCode
+import Traversal
 import Types
 import Utils
 
@@ -48,12 +49,9 @@ simplifyExprs = makePassesDep
 --      ++ makePassesDep' ((== BackendCPPCSP) . csBackend) [("Pull up definitions (C++)", pullUp True, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])]
 
 -- | Convert FUNCTION declarations to PROCs.
-functionsToProcs :: Data t => t -> PassM t
-functionsToProcs = doGeneric `extM` doSpecification
+functionsToProcs :: PassType
+functionsToProcs = applyDepthM doSpecification
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric functionsToProcs
-
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
         = do -- Create new names for the return values.
@@ -76,8 +74,8 @@ functionsToProcs = doGeneric `extM` doSpecification
                         A.ndPlacement = A.Unplaced
                       }
              defineName n nd
-             doGeneric spec
-    doSpecification s = doGeneric s
+             return spec
+    doSpecification s = return s
 
     vpToSeq :: Meta -> A.Name -> Either (A.Structured A.ExpressionList) A.Process -> [A.Variable] -> A.Process
     vpToSeq m n (Left el) vs = A.Seq m $ vpToSeq' el vs
@@ -101,40 +99,32 @@ functionsToProcs = doGeneric `extM` doSpecification
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
-removeAfter :: Data t => t -> PassM t
-removeAfter = doGeneric `extM` doExpression
+removeAfter :: PassType
+removeAfter = applyDepthM doExpression
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric removeAfter
-
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Dyadic m A.After a b)
-        =  do a' <- removeAfter a
-              b' <- removeAfter b
-              t <- astTypeOf a'
+        =  do t <- astTypeOf a
               case t of
                 A.Byte -> do let one = A.Literal m t $ A.IntLiteral m "1"
                                  oneTwoSeven = A.Literal m t $ A.IntLiteral m "127"
-                             return $ A.Dyadic m A.Less (A.Dyadic m A.Minus (A.Dyadic m A.Minus a' b') one) oneTwoSeven
+                             return $ A.Dyadic m A.Less (A.Dyadic m A.Minus (A.Dyadic m A.Minus a b) one) oneTwoSeven
                 _ -> do let zero = A.Literal m t $ A.IntLiteral m "0"
-                        return $ A.Dyadic m A.More (A.Dyadic m A.Minus a' b') zero
-    doExpression e = doGeneric e
+                        return $ A.Dyadic m A.More (A.Dyadic m A.Minus a b) zero
+    doExpression e = return e
 
--- | For array literals that include other arrays, burst them into their elements.
-expandArrayLiterals :: Data t => t -> PassM t
-expandArrayLiterals = doGeneric `extM` doArrayElem
+-- | For array literals that include other arrays, burst them into their
+-- elements.
+expandArrayLiterals :: PassType
+expandArrayLiterals = applyDepthM doArrayElem
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric expandArrayLiterals
-
     doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
     doArrayElem ae@(A.ArrayElemExpr e)
-        =  do e' <- expandArrayLiterals e
-              t <- astTypeOf e'
+        =  do t <- astTypeOf e
               case t of
                 A.Array ds _ -> expand ds e
-                _ -> doGeneric ae
-    doArrayElem ae = doGeneric ae
+                _ -> return ae
+    doArrayElem ae = return ae
 
     expand :: [A.Dimension] -> A.Expression -> PassM A.ArrayElem
     expand [] e = return $ A.ArrayElemExpr e
@@ -159,26 +149,21 @@ expandArrayLiterals = doGeneric `extM` doArrayElem
 -- Therefore, we only need to pull up the counts for sequential replicators
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
-pullRepCounts :: Data t => t -> PassM t
-pullRepCounts = doGeneric `extM` doProcess
+pullRepCounts :: PassType
+pullRepCounts = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric pullRepCounts
-    
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
-    doProcess p = doGeneric p
+    doProcess p = return p
     
     pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    pullRepCountSeq (A.Only m p) = doProcess p >>* A.Only m
+    pullRepCountSeq s@(A.Only _ _) = return s
     pullRepCountSeq (A.Spec m sp str)
-      = do sp' <- pullRepCounts sp
-           str' <- pullRepCountSeq str
-           return $ A.Spec m sp' str'
+      = do str' <- pullRepCountSeq str
+           return $ A.Spec m sp str'
     pullRepCountSeq (A.ProcThen m p s)
-      = do p' <- doProcess p
-           s' <- pullRepCountSeq s
-           return $ A.ProcThen m p' s'
+      = do s' <- pullRepCountSeq s
+           return $ A.ProcThen m p s'
     pullRepCountSeq (A.Several m ss) = mapM pullRepCountSeq ss >>* A.Several m
     pullRepCountSeq (A.Rep m (A.For m' n from for) s)
       = do t <- astTypeOf for
@@ -190,12 +175,9 @@ pullRepCounts = doGeneric `extM` doProcess
       = do s' <- pullRepCountSeq s
            return $ A.Rep m rep s'
 
-transformConstr :: Data t => t -> PassM t
-transformConstr = doGeneric `ext1M` doStructured
+transformConstr :: PassType
+transformConstr = applyDepthSM doStructured
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformConstr
-
     -- For arrays, this takes a constructor expression:
     --   VAL type name IS [i = rep | expr]:
     --   ...
@@ -218,8 +200,7 @@ transformConstr = doGeneric `ext1M` doStructured
     --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
-      = do scope' <- transformConstr scope
-           case t of
+      = do case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
                   let indexVar = A.Variable m'' indexName
@@ -232,11 +213,11 @@ transformConstr = doGeneric `ext1M` doStructured
                             [ assignItem indexVar
                             , incrementIndex indexVar ]
                     ])
-                    scope'
+                    scope
              A.List {} ->
                return $ declDest $ A.ProcThen m''
                  (A.Seq m'' $ A.Rep m'' rep $ appendItem)
-                 scope'
+                 scope
              _ -> diePC m $ formatCode "Unsupported type for array constructor: %" t
       where
         declDest :: Data a => A.Structured a -> A.Structured a
@@ -261,26 +242,26 @@ transformConstr = doGeneric `ext1M` doStructured
             (A.ExprVariable m'' $ A.Variable m'' n)
             (A.Literal m'' t $ A.ListLiteral m'' [exp])]
 
-    doStructured s = doGeneric s
+    doStructured s = return s
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
-pullUp :: Data t => Bool -> t -> PassM t
-pullUp pullUpArraysInsideRecords
-       = doGeneric
-          `ext1M` doStructured
-          `extM` doProcess
-          `extM` doSpecification
-          `extM` doLiteralRepr
-          `extM` doExpression
-          `extM` doVariable
-          `extM` doExpressionList
+pullUp :: Bool -> PassType
+pullUp pullUpArraysInsideRecords = recurse
   where
-    pullUpRecur :: Data t => t -> PassM t
-    pullUpRecur = pullUp pullUpArraysInsideRecords
-  
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric pullUpRecur
+    ops :: Ops
+    ops = baseOp
+          `extOpS` doStructured
+          `extOp` doProcess
+          `extOp` doSpecification
+          `extOp` doLiteralRepr
+          `extOp` doExpression
+          `extOp` doVariable
+          `extOp` doExpressionList
+    recurse :: Recurse
+    recurse = makeRecurse ops
+    descend :: Descend
+    descend = makeDescend ops
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
@@ -288,7 +269,7 @@ pullUp pullUpArraysInsideRecords
     doStructured s
         =  do pushPullContext
               -- Recurse over the body, then apply the pulled items to it
-              s' <- doGeneric s >>= applyPulled
+              s' <- descend s >>= applyPulled
               -- ... and restore the original pulled items
               popPullContext
               return s'
@@ -298,7 +279,7 @@ pullUp pullUpArraysInsideRecords
     doProcess :: A.Process -> PassM A.Process
     doProcess p
         =  do pushPullContext
-              p' <- doGeneric p
+              p' <- descend p
               pulled <- havePulled
               p'' <- if pulled
                        then liftM (A.Seq emptyMeta) $ applyPulled (A.Only emptyMeta p')
@@ -310,11 +291,11 @@ pullUp pullUpArraysInsideRecords
     doSpecification :: A.Specification -> PassM A.Specification
     -- Iss might be SubscriptedVars -- which is fine; the backend can deal with that.
     doSpecification (A.Specification m n (A.Is m' am t v))
-        =  do v' <- doGeneric v    -- note doGeneric rather than pullUp
+        =  do v' <- descend v    -- note descend rather than pullUp
               return $ A.Specification m n (A.Is m' am t v')
     -- IsExprs might be SubscriptedExprs, and if so we have to convert them.
     doSpecification (A.Specification m n (A.IsExpr m' am t e))
-        =  do e' <- doExpression' e  -- note doExpression' rather than pullUp
+        =  do e' <- doExpression' e  -- note doExpression' rather than recurse
               return $ A.Specification m n (A.IsExpr m' am t e')
     -- Convert RetypesExpr into Retypes of a variable.
     doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
@@ -323,7 +304,7 @@ pullUp pullUpArraysInsideRecords
               spec@(A.Specification _ n' _) <- makeNonceIsExpr "retypes_expr" m' fromT e'
               addPulled $ (m', Left spec)
               return $ A.Specification m n (A.Retypes m' am toT (A.Variable m' n'))
-    doSpecification s = doGeneric s
+    doSpecification s = descend s
 
     -- | Filter what can be pulled in LiteralReprs.
     doLiteralRepr :: A.LiteralRepr -> PassM A.LiteralRepr
@@ -331,9 +312,9 @@ pullUp pullUpArraysInsideRecords
     -- for nested array literals.
     -- Don't pull up array expressions that are fields of record literals.
     doLiteralRepr (A.RecordLiteral m es)
-        =  do es' <- mapM (if pullUpArraysInsideRecords then doExpression else doExpression') es    -- note doExpression' rather than pullUp
+        =  do es' <- mapM (if pullUpArraysInsideRecords then doExpression else doExpression') es    -- note doExpression' rather than recurse
               return $ A.RecordLiteral m es'
-    doLiteralRepr lr = doGeneric lr
+    doLiteralRepr lr = descend lr
 
     -- | Pull array expressions that aren't already non-subscripted variables.
     -- Also pull lists that are literals or constructed
@@ -366,7 +347,7 @@ pullUp pullUpArraysInsideRecords
     -- | Pull any variable subscript that results in an array.
     doVariable :: A.Variable -> PassM A.Variable
     doVariable v@(A.SubscriptedVariable m _ _)
-        =  do v' <- doGeneric v
+        =  do v' <- descend v
               t <- astTypeOf v'
               case t of
                 A.Array _ _ ->
@@ -376,12 +357,12 @@ pullUp pullUpArraysInsideRecords
                      addPulled $ (m, Left spec)
                      return $ A.Variable m n
                 _ -> return v'
-    doVariable v = doGeneric v
+    doVariable v = descend v
 
     -- | Convert a FUNCTION call into some variables and a PROC call.
     convertFuncCall :: Meta -> A.Name -> [A.Expression] -> PassM [A.Variable]
     convertFuncCall m n es
-        = do es' <- pullUpRecur es
+        = do es' <- recurse es
              ets <- sequence [astTypeOf e | e <- es']
 
              ps <- get
@@ -403,18 +384,18 @@ pullUp pullUpArraysInsideRecords
              return $ A.ExprVariable m v
     -- Convert SubscriptedExprs into SubscriptedVariables.
     doExpression' (A.SubscriptedExpr m s e)
-        = do e' <- pullUpRecur e
-             s' <- pullUpRecur s
+        = do e' <- recurse e
+             s' <- recurse s
              t <- astTypeOf e'
              spec@(A.Specification _ n _) <- makeNonceIsExpr "subscripted_expr" m t e'
              addPulled $ (m, Left spec)
              return $ A.ExprVariable m (A.SubscriptedVariable m s' (A.Variable m n))
-    doExpression' e = doGeneric e
+    doExpression' e = descend e
 
     doExpressionList :: A.ExpressionList -> PassM A.ExpressionList
     -- Convert multi-valued function calls.
     doExpressionList (A.FunctionCallList m n es)
         = do vs <- convertFuncCall m n es
              return $ A.ExpressionList m [A.ExprVariable m v | v <- vs]
-    doExpressionList el = doGeneric el
+    doExpressionList el = descend el
 

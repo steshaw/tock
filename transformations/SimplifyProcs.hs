@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -28,6 +28,7 @@ import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
+import Traversal
 import Types
 
 simplifyProcs :: [Pass]
@@ -38,47 +39,37 @@ simplifyProcs = makePassesDep
       ]
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
-parsToProcs :: Data t => t -> PassM t
-parsToProcs = doGeneric `extM` doProcess
+parsToProcs :: PassType
+parsToProcs = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric parsToProcs
-
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Par m pm s)
         =  do s' <- doStructured s
               return $ A.Par m pm s'
-    doProcess p = doGeneric p
+    doProcess p = return p
 
     -- FIXME This should be generic and in Pass.
     doStructured :: A.Structured A.Process -> PassM (A.Structured A.Process)
     doStructured (A.Rep m r s)
-        =  do r' <- parsToProcs r
-              s' <- doStructured s
-              return $ A.Rep m r' s'
+        =  do s' <- doStructured s
+              return $ A.Rep m r s'
     doStructured (A.Spec m spec s)
-        =  do spec' <- parsToProcs spec
-              s' <- doStructured s
-              return $ A.Spec m spec' s'
+        =  do s' <- doStructured s
+              return $ A.Spec m spec s'
     doStructured (A.ProcThen m p s)
-        =  do p' <- parsToProcs p
-              s' <- doStructured s
-              return $ A.ProcThen m p' s'
+        =  do s' <- doStructured s
+              return $ A.ProcThen m p s'
     doStructured (A.Only m p)
-        =  do p' <- parsToProcs p
-              s@(A.Specification _ n _) <- makeNonceProc m p'
+        =  do s@(A.Specification _ n _) <- makeNonceProc m p
               modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
               return $ A.Spec m s (A.Only m (A.ProcCall m n []))
     doStructured (A.Several m ss)
         = liftM (A.Several m) $ mapM doStructured ss
 
 -- | Turn parallel assignment into multiple single assignments through temporaries.
-removeParAssign :: Data t => t -> PassM t
-removeParAssign = doGeneric `extM` doProcess
+removeParAssign :: PassType
+removeParAssign = applyDepthM doProcess
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric removeParAssign
-
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
         =  do ts <- mapM astTypeOf vs
@@ -87,27 +78,26 @@ removeParAssign = doGeneric `extM` doProcess
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
               let second = [A.Assign m [v] (A.ExpressionList m [A.ExprVariable m v']) | (v, v') <- zip vs temps]
               return $ A.Seq m $ foldl (\s spec -> A.Spec m spec s) (A.Several m (map (A.Only m) (first ++ second))) specs
-    doProcess p = doGeneric p
+    doProcess p = return p
 
 -- | Turn assignment of arrays and records into multiple assignments.
-flattenAssign :: Data t => t -> PassM t
-flattenAssign = doGeneric `extM` doProcess `ext1M` doStructured
+flattenAssign :: PassType
+flattenAssign = makeRecurse ops
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric flattenAssign
+    ops :: Ops
+    ops = extOpD (extOpSD baseOp ops doStructured) ops doProcess
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m [v] (A.ExpressionList m' [e]))
         =  do t <- astTypeOf v
               assign m t v m' e
-    doProcess p = doGeneric p
-    
+    doProcess p = return p
+
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n t@(A.RecordType _ _ fs)) s)
       = do procSpec <- recordCopyProc n m fs
-           s' <- doStructured s
-           return $ A.Spec m (A.Specification m' n t) (procSpec s')
-    doStructured s = doGeneric s
+           return $ A.Spec m (A.Specification m' n t) (procSpec s)
+    doStructured s = return s
 
     assign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
     assign m t@(A.Array _ _) v m' e = complexAssign m t v m' e

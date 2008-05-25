@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -32,6 +32,7 @@ import Pass
 import qualified Properties as Prop
 import RainTypes
 import SimplifyTypes
+import Traversal
 import TreeUtils
 import Types
 
@@ -69,8 +70,8 @@ rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in f
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
-transformInt :: Data t => t -> PassM t
-transformInt = everywhereM (mkM transformInt')
+transformInt :: PassType
+transformInt = applyDepthM transformInt'
   where
     transformInt' :: A.Type -> PassM A.Type
     transformInt' A.Int = return A.Int64
@@ -89,8 +90,8 @@ transformInt = everywhereM (mkM transformInt')
 --
 -- This pass works because everywhereM goes bottom-up, so declarations are
 --resolved from the bottom upwards.
-uniquifyAndResolveVars :: Data t => t -> PassM t
-uniquifyAndResolveVars = everywhereM (mk1M uniquifyAndResolveVars')
+uniquifyAndResolveVars :: PassType
+uniquifyAndResolveVars = applyDepthSM uniquifyAndResolveVars'
   where
     uniquifyAndResolveVars' :: Data a => A.Structured a -> PassM (A.Structured a)
     
@@ -158,13 +159,13 @@ replaceNameName ::
 replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
 -- | A pass that finds and tags the main process, and also mangles its name (to avoid problems in the C\/C++ backends with having a function called main).
-findMain :: Data t => t -> PassM t
+findMain :: PassType
 --Because findMain runs after uniquifyAndResolveVars, the types of all the process will have been recorded
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
 --in the CompState, and pull it out into csMainLocals
 findMain x = do newMainName <- makeNonce "main_"
                 modify (findMain' newMainName)
-                everywhereM (mkM $ return . (replaceNameName "main" newMainName)) x
+                applyDepthM (return . (replaceNameName "main" newMainName)) x
   where
     --We have to mangle the main name because otherwise it will cause problems on some backends (including C and C++)
     findMain' :: String -> CompState -> CompState 
@@ -183,32 +184,25 @@ checkIntegral (A.ByteLiteral _ s) = Nothing -- TODO support char literals
 checkIntegral _ = Nothing
 
 -- | Transforms seqeach\/pareach loops over things like [0..99] into SEQ i = 0 FOR 100 loops
-transformEachRange :: Data t => t -> PassM t
-transformEachRange = doGeneric `ext1M` doStructured
+transformEachRange :: PassType
+transformEachRange = applyDepthSM doStructured
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformEachRange
-    
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
       _ (A.RangeConstr _ _ begin end))) body)
-        =   do body' <- doStructured body
-               -- Need to change the stored abbreviation mode to original:
+        =   do -- Need to change the stored abbreviation mode to original:
                modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
                return $ A.Rep repMeta (A.For eachMeta loopVar begin
-                 (addOne $ subExprs end begin)) body'
-    doStructured s = doGeneric s
+                 (addOne $ subExprs end begin)) body
+    doStructured s = return s
 
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
 --
 -- TODO make sure when the range has a bad order that an empty list is
 -- returned
-transformRangeRep :: Data t => t -> PassM t
-transformRangeRep = doGeneric `extM` doExpression
+transformRangeRep :: PassType
+transformRangeRep = applyDepthM doExpression
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric transformRangeRep
-    
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
           =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
@@ -216,11 +210,11 @@ transformRangeRep = doGeneric `extM` doExpression
                       return $ A.ExprConstr m $ A.RepConstr m t
                         (A.For m rep begin count)
                           (A.ExprVariable m $ A.Variable m rep)
-    doExpression e = doGeneric e
+    doExpression e = return e
 
 -- TODO this is almost certainly better figured out from the CFG
-checkFunction :: Data t => t -> PassM t
-checkFunction = return -- everywhereM (mkM checkFunction')
+checkFunction :: PassType
+checkFunction = return -- applyDepthM checkFunction'
   where
     checkFunction' :: A.Specification -> PassM A.Specification
     checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Right body)))
@@ -246,12 +240,9 @@ checkFunction = return -- everywhereM (mkM checkFunction')
 -- backend we need it to be a variable so we can use begin() and end() (in
 -- C++); these will only be valid if exactly the same list is used
 -- throughout the loop.
-pullUpForEach :: Data t => t -> PassM t
-pullUpForEach = doGeneric `ext1M` doStructured
+pullUpForEach :: PassType
+pullUpForEach = applyDepthSM doStructured
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric pullUpForEach
-
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Rep m (A.ForEach m' loopVar loopExp) s)
      = do (extra, loopExp') <- case loopExp of
@@ -260,13 +251,12 @@ pullUpForEach = doGeneric `ext1M` doStructured
                     spec@(A.Specification _ n _) <- makeNonceIsExpr
                       "loop_expr" m' t loopExp
                     return (A.Spec m' spec, A.ExprVariable m' (A.Variable m' n))
-          s' <- doStructured s
-          return $ extra $ A.Rep m (A.ForEach m' loopVar loopExp') s'
-    doStructured s = doGeneric s
+          return $ extra $ A.Rep m (A.ForEach m' loopVar loopExp') s
+    doStructured s = return s
       
     
-pullUpParDeclarations :: Data t => t -> PassM t
-pullUpParDeclarations = everywhereM (mkM pullUpParDeclarations')
+pullUpParDeclarations :: PassType
+pullUpParDeclarations = applyDepthM pullUpParDeclarations'
   where
     pullUpParDeclarations' :: A.Process -> PassM A.Process
     pullUpParDeclarations' p@(A.Par m mode inside) 

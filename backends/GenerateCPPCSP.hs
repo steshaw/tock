@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -47,6 +47,7 @@ import Pass
 import qualified Properties as Prop
 import ShowCode
 import TLP
+import Traversal
 import Types
 import Utils
 
@@ -93,7 +94,7 @@ genCPPCSPPasses = makePassesDep' ((== BackendCPPCSP) . csBackend)
   [ ("Transform channels to ANY", chansToAny, [Prop.processTypesChecked], [Prop.allChansToAnyOrProtocol])
   ]
 
-chansToAny :: Data t => t -> PassM t
+chansToAny :: PassType
 chansToAny x = do st <- get
                   case csFrontend st of
                     FrontendOccam ->
@@ -104,13 +105,10 @@ chansToAny x = do st <- get
     chansToAny' :: A.Type -> PassM A.Type
     chansToAny' c@(A.Chan _ _ (A.UserProtocol {})) = return c
     chansToAny' (A.Chan a b _) = return $ A.Chan a b A.Any
-    chansToAny' t = doGeneric t
+    chansToAny' t = return t
     
     chansToAnyM :: Data t => t -> PassM t
-    chansToAnyM = doGeneric `extM` chansToAny'
-    
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric chansToAnyM
+    chansToAnyM = applyDepthM chansToAny'
     
     chansToAnyInCompState :: PassM ()
     chansToAnyInCompState = do st <- get

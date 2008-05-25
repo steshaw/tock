@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -48,9 +48,9 @@ import Errors
 import EvalLiterals
 import Intrinsics
 import Metadata
-import Pass
 import PrettyShow
 import ShowCode
+import Traversal
 import TypeSizes
 import Utils
 
@@ -311,22 +311,14 @@ abbrevModeOfSpec s
 
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
-
 underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-underlyingType m = underlyingType'
+underlyingType m = applyDepthM doType
   where
-    underlyingType' :: Data t => t -> m t
-    underlyingType' = doGeneric `extM` underlyingType''
-    
-    doGeneric :: Data t => t -> m t
-    doGeneric = makeGeneric underlyingType'
-  
-    underlyingType'' :: A.Type -> m A.Type
-    underlyingType'' t@(A.UserDataType _)
-      = resolveUserType m t >>= underlyingType m
-    underlyingType'' (A.Array ds t)
-      = underlyingType m t >>* addDimensions ds
-    underlyingType'' t = doGeneric t
+    doType :: A.Type -> m A.Type
+    -- This is fairly subtle: after resolving a user type, we have to recurse
+    -- on the resulting type.
+    doType t@(A.UserDataType _) = resolveUserType m t >>= underlyingType m
+    doType t = return t
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of

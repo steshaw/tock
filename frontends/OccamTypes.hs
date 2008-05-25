@@ -616,25 +616,33 @@ inSubscriptedContext m body
 --{{{  inferTypes
 
 -- | Infer types.
-inferTypes :: Data t => t -> PassM t
-inferTypes = applyX $ baseX
-                      `extX` doExpression
-                      `extX` doDimension
-                      `extX` doSubscript
-                      `extX` doArrayConstr
-                      `extX` doReplicator
-                      `extX` doAlternative
-                      `extX` doInputMode
-                      `extX` doSpecification
-                      `extX` doProcess
-                      `extX` doVariable
+inferTypes :: PassType
+inferTypes = recurse
   where
-    doExpression :: ExplicitTrans A.Expression
-    doExpression descend outer
+    ops :: Ops
+    ops = baseOp
+          `extOp` doExpression
+          `extOp` doDimension
+          `extOp` doSubscript
+          `extOp` doArrayConstr
+          `extOp` doReplicator
+          `extOp` doAlternative
+          `extOp` doInputMode
+          `extOp` doSpecification
+          `extOp` doProcess
+          `extOp` doVariable
+
+    recurse :: Recurse
+    recurse = makeRecurse ops
+    descend :: Descend
+    descend = makeDescend ops
+
+    doExpression :: Transform A.Expression
+    doExpression outer
         = case outer of
             -- Literals are what we're really looking for here.
             A.Literal m t lr ->
-               do t' <- inferTypes t
+               do t' <- recurse t
                   ctx <- getTypeContext
                   let wantT = case (ctx, t') of
                                 -- No type specified on the literal,
@@ -643,7 +651,7 @@ inferTypes = applyX $ baseX
                                 -- Use the explicit type of the literal, or the
                                 -- default.
                                 _ -> t'
-                  (realT, realLR) <- doLiteral descend (wantT, lr)
+                  (realT, realLR) <- doLiteral (wantT, lr)
                   return $ A.Literal m realT realLR
 
             -- Expressions that aren't literals, but that modify the type
@@ -651,14 +659,14 @@ inferTypes = applyX $ baseX
             A.Dyadic m op le re ->
               let -- Both types are the same.
                   bothSame
-                    =  do lt <- inferTypes le >>= astTypeOf
-                          rt <- inferTypes re >>= astTypeOf
+                    =  do lt <- recurse le >>= astTypeOf
+                          rt <- recurse re >>= astTypeOf
                           inTypeContext (Just $ betterType lt rt) $
                             descend outer
                   -- The RHS type is always A.Int.
                   intOnRight
-                    =  do le' <- inferTypes le
-                          re' <- inTypeContext (Just A.Int) $ inferTypes re
+                    =  do le' <- recurse le
+                          re' <- inTypeContext (Just A.Int) $ recurse re
                           return $ A.Dyadic m op le' re'
               in case classifyOp op of
                    ComparisonOp -> noTypeContext $ bothSame
@@ -675,9 +683,9 @@ inferTypes = applyX $ baseX
                   ctx' <- case ctx of
                             Just t -> unsubscriptType s t >>* Just
                             Nothing -> return Nothing
-                  e' <- inTypeContext ctx' $ inferTypes e
+                  e' <- inTypeContext ctx' $ recurse e
                   t <- astTypeOf e'
-                  s' <- inferTypes s >>= fixSubscript t
+                  s' <- recurse s >>= fixSubscript t
                   return $ A.SubscriptedExpr m s' e'
             A.BytesInExpr _ _ -> noTypeContext $ descend outer
             -- FIXME: ExprConstr
@@ -694,19 +702,19 @@ inferTypes = applyX $ baseX
     doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> Transform [a]
     doActuals m n fs as
         =  do checkActualCount m n fs as
-              sequence [inTypeContext (Just t) $ inferTypes a
+              sequence [inTypeContext (Just t) $ recurse a
                         | (A.Formal _ t _, a) <- zip fs as]
 
-    doDimension :: ExplicitTrans A.Dimension
-    doDimension descend dim = inTypeContext (Just A.Int) $ descend dim
+    doDimension :: Transform A.Dimension
+    doDimension dim = inTypeContext (Just A.Int) $ descend dim
 
-    doSubscript :: ExplicitTrans A.Subscript
-    doSubscript descend s = inTypeContext (Just A.Int) $ descend s
+    doSubscript :: Transform A.Subscript
+    doSubscript s = inTypeContext (Just A.Int) $ descend s
 
     -- FIXME: RepConstr shouldn't contain the type -- and this won't fill it in.
     -- (That is, it should just be a kind of literal.)
-    doArrayConstr :: ExplicitTrans A.ArrayConstr
-    doArrayConstr descend ac
+    doArrayConstr :: Transform A.ArrayConstr
+    doArrayConstr ac
         = case ac of
             A.RangeConstr m t _ _ -> inSubscriptedContext m $ descend ac
             A.RepConstr m t _ _ -> inSubscriptedContext m $ descend ac
@@ -718,46 +726,46 @@ inferTypes = applyX $ baseX
                do es' <- doFunctionCall m n es
                   return $ A.FunctionCallList m n es'
             A.ExpressionList m es ->
-               do es' <- sequence [inTypeContext (Just t) $ inferTypes e
+               do es' <- sequence [inTypeContext (Just t) $ recurse e
                                    | (t, e) <- zip ts es]
                   return $ A.ExpressionList m es'
 
-    doReplicator :: ExplicitTrans A.Replicator
-    doReplicator descend rep
+    doReplicator :: Transform A.Replicator
+    doReplicator rep
         = case rep of
             A.For _ _ _ _ -> inTypeContext (Just A.Int) $ descend rep
             A.ForEach _ _ _ -> noTypeContext $ descend rep
 
-    doAlternative :: ExplicitTrans A.Alternative
-    doAlternative descend a = inTypeContext (Just A.Bool) $ descend a
+    doAlternative :: Transform A.Alternative
+    doAlternative a = inTypeContext (Just A.Bool) $ descend a
 
-    doInputMode :: ExplicitTrans A.InputMode
-    doInputMode descend im = inTypeContext (Just A.Int) $ descend im
+    doInputMode :: Transform A.InputMode
+    doInputMode im = inTypeContext (Just A.Int) $ descend im
 
     -- FIXME: This should be shared with foldConstants.
-    doSpecification :: ExplicitTrans A.Specification
-    doSpecification descend s@(A.Specification m n st)
-        =  do st' <- doSpecType descend st
+    doSpecification :: Transform A.Specification
+    doSpecification s@(A.Specification m n st)
+        =  do st' <- doSpecType st
               -- Update the definition of each name after we handle it.
               modifyName n (\nd -> nd { A.ndSpecType = st' })
               return $ A.Specification m n st'
 
-    doSpecType :: ExplicitTrans A.SpecType
-    doSpecType descend st
+    doSpecType :: Transform A.SpecType
+    doSpecType st
         = case st of
             A.Place _ _ -> inTypeContext (Just A.Int) $ descend st
             A.Is m am t v ->
-               do am' <- inferTypes am
-                  t' <- inferTypes t
-                  v' <- inTypeContext (Just t') $ inferTypes v
+               do am' <- recurse am
+                  t' <- recurse t
+                  v' <- inTypeContext (Just t') $ recurse v
                   t'' <- case t' of
                            A.Infer -> astTypeOf v'
                            _ -> return t'
                   return $ A.Is m am' t'' v'
             A.IsExpr m am t e ->
-               do am' <- inferTypes am
-                  t' <- inferTypes t
-                  e' <- inTypeContext (Just t') $ inferTypes e
+               do am' <- recurse am
+                  t' <- recurse t
+                  e' <- inTypeContext (Just t') $ recurse e
                   t'' <- case t' of
                            A.Infer -> astTypeOf e'
                            _ -> return t'
@@ -765,8 +773,8 @@ inferTypes = applyX $ baseX
             A.IsChannelArray m t vs ->
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".
-               do t' <- inferTypes t
-                  vs' <- mapM inferTypes vs
+               do t' <- recurse t
+                  vs' <- mapM recurse vs
                   let dim = makeDimension m $ length vs'
                   t'' <- case (t', vs') of
                            (A.Infer, (v:_)) ->
@@ -777,9 +785,9 @@ inferTypes = applyX $ baseX
                            _ -> return $ applyDimension dim t'
                   return $ A.IsChannelArray m t'' vs'
             A.Function m sm ts fs (Left sel) ->
-               do sm' <- inferTypes sm
-                  ts' <- inferTypes ts
-                  fs' <- inferTypes fs
+               do sm' <- recurse sm
+                  ts' <- recurse ts
+                  fs' <- recurse fs
                   sel' <- doFuncDef ts sel
                   return $ A.Function m sm' ts' fs' (Left sel')
             A.RetypesExpr _ _ _ _ -> noTypeContext $ descend st
@@ -791,27 +799,27 @@ inferTypes = applyX $ baseX
         -- form.)
         doFuncDef :: [A.Type] -> Transform (A.Structured A.ExpressionList)
         doFuncDef ts (A.Spec m spec s)
-            =  do spec' <- inferTypes spec
+            =  do spec' <- recurse spec
                   s' <- doFuncDef ts s
                   return $ A.Spec m spec' s'
         doFuncDef ts (A.ProcThen m p s)
-            =  do p' <- inferTypes p
+            =  do p' <- recurse p
                   s' <- doFuncDef ts s
                   return $ A.ProcThen m p' s'
         doFuncDef ts (A.Only m el)
             =  do el' <- doExpressionList ts el
                   return $ A.Only m el'
 
-    doProcess :: ExplicitTrans A.Process
-    doProcess descend p
+    doProcess :: Transform A.Process
+    doProcess p
         = case p of
             A.Assign m vs el ->
-               do vs' <- inferTypes vs
+               do vs' <- recurse vs
                   ts <- mapM astTypeOf vs'
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
             A.Output m v ois ->
-               do v' <- inferTypes v
+               do v' <- recurse v
                   -- At this point we must resolve the "c ! x" ambiguity:
                   -- we definitely know what c is, and we must know what x is
                   -- before trying to infer its type.
@@ -828,14 +836,14 @@ inferTypes = applyX $ baseX
                     else do ois' <- doOutputItems m v' Nothing ois
                             return $ A.Output m v' ois'
             A.OutputCase m v tag ois ->
-               do v' <- inferTypes v
+               do v' <- recurse v
                   ois' <- doOutputItems m v' (Just tag) ois
                   return $ A.OutputCase m v' tag ois'
             A.If _ _ -> inTypeContext (Just A.Bool) $ descend p
             A.Case m e so ->
-               do e' <- inferTypes e
+               do e' <- recurse e
                   t <- astTypeOf e'
-                  so' <- inTypeContext (Just t) $ inferTypes so
+                  so' <- inTypeContext (Just t) $ recurse so
                   return $ A.Case m e' so'
             A.While _ _ _ -> inTypeContext (Just A.Bool) $ descend p
             A.Processor _ _ _ -> inTypeContext (Just A.Int) $ descend p
@@ -867,19 +875,19 @@ inferTypes = applyX $ baseX
 
         doOutputItem :: A.Type -> Transform A.OutputItem
         doOutputItem (A.Counted ct at) (A.OutCounted m ce ae)
-            =  do ce' <- inTypeContext (Just ct) $ inferTypes ce
-                  ae' <- inTypeContext (Just at) $ inferTypes ae
+            =  do ce' <- inTypeContext (Just ct) $ recurse ce
+                  ae' <- inTypeContext (Just at) $ recurse ae
                   return $ A.OutCounted m ce' ae'
-        doOutputItem A.Any o = noTypeContext $ inferTypes o
-        doOutputItem t o = inTypeContext (Just t) $ inferTypes o
+        doOutputItem A.Any o = noTypeContext $ recurse o
+        doOutputItem t o = inTypeContext (Just t) $ recurse o
 
-    doVariable :: ExplicitTrans A.Variable
-    doVariable descend (A.SubscriptedVariable m s v)
-        =  do v' <- inferTypes v
+    doVariable :: Transform A.Variable
+    doVariable (A.SubscriptedVariable m s v)
+        =  do v' <- recurse v
               t <- astTypeOf v'
-              s' <- inferTypes s >>= fixSubscript t
+              s' <- recurse s >>= fixSubscript t
               return $ A.SubscriptedVariable m s' v'
-    doVariable descend v = descend v
+    doVariable v = descend v
 
     -- | Resolve the @v[s]@ ambiguity: this takes the type that @v@ is, and
     -- returns the correct 'Subscript'.
@@ -901,8 +909,8 @@ inferTypes = applyX $ baseX
 
     -- | Process a 'LiteralRepr', taking the type it's meant to represent or
     -- 'Infer', and returning the type it really is.
-    doLiteral :: ExplicitTrans (A.Type, A.LiteralRepr)
-    doLiteral descend (wantT, lr)
+    doLiteral :: Transform (A.Type, A.LiteralRepr)
+    doLiteral (wantT, lr)
         = case lr of
             A.ArrayLiteral m aes ->
                do (t, A.ArrayElemArray aes') <-
@@ -960,7 +968,7 @@ inferTypes = applyX $ baseX
                       return (bestT, aes')
         -- An expression: descend into it with the right context.
         doArrayElem wantT (A.ArrayElemExpr e)
-            =  do e' <- inTypeContext (Just wantT) $ doExpression descend e
+            =  do e' <- inTypeContext (Just wantT) $ doExpression e
                   t <- astTypeOf e'
                   checkType (findMeta e') wantT t
                   return (t, A.ArrayElemExpr e')
@@ -1005,7 +1013,7 @@ inferTypes = applyX $ baseX
 -- | Check the AST for type consistency.
 -- This is actually a series of smaller passes that check particular types
 -- inside the AST, but it doesn't really make sense to split it up.
-checkTypes :: Data t => t -> PassM t
+checkTypes :: PassType
 checkTypes t =
     checkVariables t >>=
     checkExpressions >>=
@@ -1014,7 +1022,7 @@ checkTypes t =
 
 --{{{  checkVariables
 
-checkVariables :: Data t => t -> PassM t
+checkVariables :: PassType
 checkVariables = checkDepthM doVariable
   where
     doVariable :: Check A.Variable
@@ -1036,7 +1044,7 @@ checkVariables = checkDepthM doVariable
 --}}}
 --{{{  checkExpressions
 
-checkExpressions :: Data t => t -> PassM t
+checkExpressions :: PassType
 checkExpressions = checkDepthM doExpression
   where
     doExpression :: Check A.Expression
@@ -1091,7 +1099,7 @@ checkExpressions = checkDepthM doExpression
 --}}}
 --{{{  checkSpecTypes
 
-checkSpecTypes :: Data t => t -> PassM t
+checkSpecTypes :: PassType
 checkSpecTypes = checkDepthM doSpecType
   where
     doSpecType :: Check A.SpecType
@@ -1170,7 +1178,7 @@ checkSpecTypes = checkDepthM doSpecType
 --}}}
 --{{{  checkProcesses
 
-checkProcesses :: Data t => t -> PassM t
+checkProcesses :: PassType
 checkProcesses = checkDepthM doProcess
   where
     doProcess :: Check A.Process

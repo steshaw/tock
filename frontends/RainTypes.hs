@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -86,7 +86,7 @@ markUnify x y
        modify $ \st -> st {csUnifyPairs = (tex,tey) : csUnifyPairs st}
 
 
-performTypeUnification :: Data t => t -> PassM t
+performTypeUnification :: PassType
 performTypeUnification x
   = do -- First, we copy the known types into the unify map:
        st <- get
@@ -122,7 +122,7 @@ performTypeUnification x
             name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d, A.nameType
               = A.ndNameType d}
 
-substituteUnknownTypes :: Data t => Map.Map UnifyIndex A.Type -> t -> PassM t
+substituteUnknownTypes :: Map.Map UnifyIndex A.Type -> PassType
 substituteUnknownTypes mt = applyDepthM sub
   where
     sub :: A.Type -> PassM A.Type
@@ -137,8 +137,8 @@ substituteUnknownTypes mt = applyDepthM sub
       Nothing -> dieP m "Could not deduce type"
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
-recordInfNameTypes :: Data t => t -> PassM t
-recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
+recordInfNameTypes :: PassType
+recordInfNameTypes = applyDepthM recordInfNameTypes'
   where
     recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
@@ -149,7 +149,7 @@ recordInfNameTypes = everywhereM (mkM recordInfNameTypes')
            return input
     recordInfNameTypes' r = return r
 
-markReplicators :: Data t => t -> PassM t
+markReplicators :: PassType
 markReplicators = checkDepthM mark
   where
     mark :: Check A.Replicator
@@ -157,7 +157,7 @@ markReplicators = checkDepthM mark
       = astTypeOf n >>= \t -> markUnify (A.List t) e
 
 -- | Folds all constants.
-constantFoldPass :: Data t => t -> PassM t
+constantFoldPass :: PassType
 constantFoldPass = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
@@ -166,7 +166,7 @@ constantFoldPass = applyDepthM doExpression
 -- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the
 -- AST, and checks that the actual parameters are valid inputs, given
 -- the 'A.Formal' parameters in the process's type
-markParamPass :: Data t => t -> PassM t
+markParamPass :: PassType
 markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
   where
     --Picks out the parameters of a process call, checks the number is correct, and maps doParam over them
@@ -197,7 +197,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassFunc _ = return ()
 
 -- | Checks the types in expressions
-markExpressionTypes :: Data t => t -> PassM t
+markExpressionTypes :: PassType
 markExpressionTypes = checkDepthM checkExpression
   where
     -- TODO also check in a later pass that the op is valid
@@ -217,7 +217,7 @@ markExpressionTypes = checkDepthM checkExpression
     checkExpression _ = return ()
 
 -- | Checks the types in assignments
-markAssignmentTypes :: Data t => t -> PassM t
+markAssignmentTypes :: PassType
 markAssignmentTypes = checkDepthM checkAssignment
   where
     checkAssignment :: Check A.Process
@@ -238,7 +238,7 @@ markAssignmentTypes = checkDepthM checkAssignment
     checkAssignment st = return ()
 
 -- | Checks the types in if and while conditionals
-markConditionalTypes :: Data t => t -> PassM t
+markConditionalTypes :: PassType
 markConditionalTypes = checkDepthM2 checkWhile checkIf
   where
     checkWhile :: Check A.Process
@@ -251,7 +251,7 @@ markConditionalTypes = checkDepthM2 checkWhile checkIf
       = markUnify exp A.Bool
 
 -- | Checks the types in inputs and outputs, including inputs in alts
-markCommTypes :: Data t => t -> PassM t
+markCommTypes :: PassType
 markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM ()

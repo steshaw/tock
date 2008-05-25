@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -20,13 +20,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyTypes (simplifyTypes) where
 
 import Control.Monad.State
-import Data.Generics
 import qualified Data.Set as Set
 
 import qualified AST as A
 import Metadata
 import Pass
 import qualified Properties as Prop
+import Traversal
 import Types
 
 simplifyTypes :: [Pass]
@@ -41,12 +41,9 @@ resolveAllNamedTypes = Pass
   ,passEnabled = const True}
 
 -- | Turn named data types into their underlying types.
-resolveNamedTypes :: Data t => t -> PassM t
-resolveNamedTypes = doGeneric `extM` doType
+resolveNamedTypes :: PassType
+resolveNamedTypes = applyDepthM doType
   where
-    doGeneric :: Data t => t -> PassM t
-    doGeneric = makeGeneric resolveNamedTypes
-
     doType :: A.Type -> PassM A.Type
     doType t@(A.UserDataType _) = underlyingType emptyMeta t
-    doType t = doGeneric t
+    doType t = return t

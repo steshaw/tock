@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -31,7 +31,6 @@ import System.IO
 import qualified AST as A
 import CompState
 import Errors
-import Metadata
 import PrettyShow
 import TreeUtils
 import Utils
@@ -52,7 +51,13 @@ instance Warn PassM where
 instance Warn PassMR where
   warnReport w = lift $ lift $ modify (++ [w])
 
--- | The type of an AST-mangling pass.
+-- | The type of a pass function.
+-- This is as generic as possible. Passes are used on 'A.AST' in normal use,
+-- but for explicit descent and testing it's useful to be able to run them
+-- against AST fragments of other types as well.
+type PassType = (forall s. Data s => s -> PassM s)
+
+-- | A description of an AST-mangling pass.
 data Monad m => Pass_ m = Pass {
   passCode :: A.AST -> m A.AST
  ,passName :: String 
@@ -67,10 +72,10 @@ instance Monad m => Eq (Pass_ m) where
 instance Monad m => Ord (Pass_ m) where
   compare x y = compare (passName x) (passName y)
 
-
 type Pass = Pass_ PassM
 type PassR = Pass_ PassMR
 
+-- | A property that can be asserted and tested against the AST.
 data Property = Property {
   propName :: String
  ,propCheck :: A.AST -> PassMR ()
@@ -157,19 +162,8 @@ applyToOnly f (A.ProcThen m p s) = applyToOnly f s >>* A.ProcThen m p
 applyToOnly f (A.Several m ss) = mapM (applyToOnly f) ss >>* A.Several m
 applyToOnly f (A.Only m o) = f o >>* A.Only m
 
--- | Make a generic rule for a pass.
-makeGeneric :: forall m t. (Data t, Monad m) => (forall s. Data s => s -> m s) -> t -> m t
-makeGeneric top
-    = (gmapM top)
-        `extM` (return :: String -> m String)
-        `extM` (return :: Meta -> m Meta)
-
 excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 
   = if null items then return x else dieInternal (Nothing, "Excluded item still remains in source tree: " ++ (show $ head items) ++ " tree is: " ++ pshow x)
       where
         items = checkTreeForConstr cons x
-
-mk1M :: (Monad m, Data a, Typeable1 t) => (forall d . Data d => t d -> m (t d)) -> a -> m a
-mk1M = ext1M return
-
