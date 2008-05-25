@@ -366,7 +366,7 @@ data Choice = Choice Meta Expression Process
 
 -- | A guard in an @ALT@.
 data Alternative =
-  -- | A plain/conditional guard.
+  -- | A plain or conditional guard.
   -- The channel or timer is the 'Variable', and the destination (or @AFTER@
   -- clause) is inside the 'InputMode'. The process is the body of the guard.
   -- The 'Expression' is the pre-condition.

@@ -57,8 +57,8 @@ parseAsmLine s
 
         -- The x86 stack goes downwards, so subl makes the stack deeper.
         ["subl", '$':arg, "%esp"] -> parseInc arg
-        -- ... but GCC will sometimes generate "addl $-n" rather than "subl
-        -- $n".
+        -- ... but GCC will sometimes generate "addl \$-n" rather than "subl
+        -- \$n".
         ["addl", '$':'-':arg, "%esp"] -> parseInc arg
         -- A plain push also makes the stack deeper.
         ("pushl":_) -> Just $ AsmStackInc 4
