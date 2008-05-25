@@ -31,6 +31,7 @@ import System.IO
 import qualified AST as A
 import CompState
 import Errors
+import Metadata
 import PrettyShow
 import TreeUtils
 import Utils
@@ -155,12 +156,16 @@ debugAST p
           veryDebug $ pshow ps
           veryDebug $ "}}}"
 
-applyToOnly :: (Monad m, Data a) => (a -> m a) -> A.Structured a -> m (A.Structured a)
-applyToOnly f (A.Rep m r s) = applyToOnly f s >>* A.Rep m r
-applyToOnly f (A.Spec m sp s) = applyToOnly f s >>* A.Spec m sp
-applyToOnly f (A.ProcThen m p s) = applyToOnly f s >>* A.ProcThen m p
-applyToOnly f (A.Several m ss) = mapM (applyToOnly f) ss >>* A.Several m
-applyToOnly f (A.Only m o) = f o >>* A.Only m
+-- | Transform the 'A.Only' items in a 'A.Structured'.
+-- This can be used to convert one kind of 'A.Structured' into another.
+transformOnly :: (Monad m, Data a, Data b) =>
+               (Meta -> a -> m (A.Structured b))
+               -> A.Structured a -> m (A.Structured b)
+transformOnly f (A.Rep m r s) = transformOnly f s >>* A.Rep m r
+transformOnly f (A.Spec m sp s) = transformOnly f s >>* A.Spec m sp
+transformOnly f (A.ProcThen m p s) = transformOnly f s >>* A.ProcThen m p
+transformOnly f (A.Several m ss) = mapM (transformOnly f) ss >>* A.Several m
+transformOnly f (A.Only m o) = f m o
 
 excludeConstr :: (Data a, CSMR m) => [Constr] -> a -> m a
 excludeConstr cons x 

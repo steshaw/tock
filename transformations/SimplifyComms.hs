@@ -145,58 +145,35 @@ transformInputCase = applyDepthM doProcess
            return (A.Alt m pri s')
     doProcess p = return p
 
-    -- Can't easily use generics here as we're switching from one type of Structured to another
+    -- Convert Structured Variant into the equivalent Structured Option.
     doStructuredV :: A.Variable -> A.Structured A.Variant -> PassM (A.Structured A.Option)
-    -- These entries all just burrow deeper into the structured:
-    doStructuredV v (A.ProcThen m p s)
-      = do s' <- doStructuredV v s
-           return (A.ProcThen m p s')
-    doStructuredV v (A.Spec m sp st)
-      = do st' <- doStructuredV v st
-           return (A.Spec m sp st')
-    doStructuredV v (A.Several m ss)
-      = do ss' <- mapM (doStructuredV v) ss
-           return (A.Several m ss')
-    doStructuredV v (A.Rep m rep s)
-      = do s' <- doStructuredV v s
-           return (A.Rep m rep s')
-    -- Transform variant options:
-    doStructuredV chanVar (A.Only m (A.Variant m' n iis p))
-      = do (Right items) <- protocolItems chanVar
-           let (Just idx) = elemIndex n (fst $ unzip items)
-           return $ A.Only m $ A.Option m' [makeConstant m' idx] $
-             if (length iis == 0)
-               then p
-               else A.Seq m' $ A.Several m'
-                      [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis),
-                       A.Only (findMeta p) p]
- 
-    doStructuredA :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative)
-    -- TODO use generics instead of this boilerplate
-    doStructuredA (A.ProcThen m p s)
-      = do s' <- doStructuredA s
-           return (A.ProcThen m p s')
-    doStructuredA (A.Spec m sp st)
-      = do st' <- doStructuredA st
-           return (A.Spec m sp st')
-    doStructuredA (A.Several m ss)
-      = do ss' <- mapM doStructuredA ss
-           return (A.Several m ss')
-    doStructuredA (A.Rep m rep s)
-      = do s' <- doStructuredA s
-           return (A.Rep m rep s')
+    doStructuredV chanVar = transformOnly transform
+      where
+        transform m (A.Variant m' n iis p)
+            =  do (Right items) <- protocolItems chanVar
+                  let (Just idx) = elemIndex n (fst $ unzip items)
+                  return $ A.Only m $ A.Option m' [makeConstant m' idx] $
+                    if length iis == 0
+                      then p
+                      else A.Seq m' $ A.Several m'
+                             [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis),
+                              A.Only (findMeta p) p]
 
-    -- Transform alt guards:
-    -- The processes that are the body of input-case guards are always skip, so we can discard them:
-    doStructuredA (A.Only m (A.Alternative m' e v (A.InputCase m'' s) _))
-      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
-           s' <- doStructuredV v s
-           return $ A.Spec m' spec $ A.Only m $ 
-             A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
-             A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
-    -- Leave other guards (and parts of Structured) untouched:
-    doStructuredA s = return s
-    
+    -- Transform alt guards.
+    doStructuredA :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative)
+    doStructuredA = transformOnly doAlternative
+      where
+        -- The processes that are the body of input-case guards are always
+        -- skip, so we can discard them.
+        doAlternative m (A.Alternative m' e v (A.InputCase m'' s) _)
+          = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+               s' <- doStructuredV v s
+               return $ A.Spec m' spec $ A.Only m $ 
+                 A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
+                 A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
+        -- Leave other guards untouched.
+        doAlternative m a = return $ A.Only m a
+
 transformProtocolInput :: PassType
 transformProtocolInput = applyDepthM2 doProcess doAlternative
   where

@@ -50,7 +50,7 @@ transformWaitFor = applyDepthM doAlt
   where
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
-      = do (s',(specs,code)) <- runStateT (applyToOnly doWaitFor s) ([],[])
+      = do (s',(specs,code)) <- runStateT (transformOnly doWaitFor s) ([],[])
            if (null specs && null code)
              then return a
              else return $ A.Seq m $ foldr addSpec (A.Several m (code ++ [A.Only m $ A.Alt m pri s'])) specs
@@ -59,8 +59,8 @@ transformWaitFor = applyDepthM doAlt
     addSpec :: Data a => (A.Structured a -> A.Structured a) -> A.Structured a -> A.Structured a
     addSpec spec inner = spec inner
 
-    doWaitFor :: A.Alternative -> StateT ([A.Structured A.Process -> A.Structured A.Process], [A.Structured A.Process]) PassM A.Alternative
-    doWaitFor a@(A.Alternative m cond tim (A.InputTimerFor m' e) p)
+    doWaitFor :: Meta -> A.Alternative -> StateT ([A.Structured A.Process -> A.Structured A.Process], [A.Structured A.Process]) PassM (A.Structured A.Alternative)
+    doWaitFor m'' a@(A.Alternative m cond tim (A.InputTimerFor m' e) p)
       = do (specs, init) <- get
            id <- lift $ makeNonce "waitFor"
            let n = (A.Name m A.VariableName id)
@@ -69,9 +69,9 @@ transformWaitFor = applyDepthM doAlt
                 init ++ [A.Only m $ A.Input m tim
                            (A.InputTimerRead m (A.InVariable m var)),
                          A.Only m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
-           return $ A.Alternative m cond tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
+           return $ A.Only m'' $ A.Alternative m cond tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
                
-    doWaitFor a = return a
+    doWaitFor m a = return $ A.Only m a
 
 append_sizes :: A.Name -> A.Name
 append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}

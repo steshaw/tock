@@ -516,29 +516,15 @@ checkNamesDistinct m ns
     dupes :: [A.Name]
     dupes = nub (ns \\ nub ns)
 
--- | Check a 'Replicator'.
-checkReplicator :: Check A.Replicator
-checkReplicator (A.For _ _ start count)
-    =  do checkExpressionInt start
-          checkExpressionInt count
-checkReplicator (A.ForEach _ _ e)
-    =  do t <- astTypeOf e
-          checkSequence (findMeta e) t
-
 -- | Check a 'Structured', applying the given check to each item found inside
 -- it. This assumes that processes and specifications will be checked
 -- elsewhere.
 checkStructured :: Data t => Check t -> Check (A.Structured t)
-checkStructured doInner (A.Rep _ rep s)
-    = checkReplicator rep >> checkStructured doInner s
-checkStructured doInner (A.Spec _ spec s)
-    = checkStructured doInner s
-checkStructured doInner (A.ProcThen _ p s)
-    = checkStructured doInner s
-checkStructured doInner (A.Only _ i)
-    = doInner i
-checkStructured doInner (A.Several _ ss)
-    = mapM_ (checkStructured doInner) ss
+checkStructured doInner s = transformOnly checkInner s >> return ()
+  where
+    checkInner m v
+      =  do doInner v
+            return $ A.Only m v
 
 --}}}
 --{{{  retyping checks
@@ -1018,7 +1004,8 @@ checkTypes t =
     checkVariables t >>=
     checkExpressions >>=
     checkSpecTypes >>=
-    checkProcesses
+    checkProcesses >>=
+    checkReplicators
 
 --{{{  checkVariables
 
@@ -1304,6 +1291,20 @@ checkProcesses = checkDepthM doProcess
               case wantT of
                 A.Any -> checkCommunicable (findMeta e) t
                 _ -> checkType (findMeta e) wantT t
+
+--}}}
+--{{{  checkReplicators
+
+checkReplicators :: PassType
+checkReplicators = checkDepthM doReplicator
+  where
+    doReplicator :: Check A.Replicator
+    doReplicator (A.For _ _ start count)
+        =  do checkExpressionInt start
+              checkExpressionInt count
+    doReplicator (A.ForEach _ _ e)
+        =  do t <- astTypeOf e
+              checkSequence (findMeta e) t
 
 --}}}
 

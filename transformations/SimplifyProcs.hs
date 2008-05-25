@@ -50,21 +50,12 @@ parsToProcs = applyDepthM doProcess
 
     -- FIXME This should be generic and in Pass.
     doStructured :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    doStructured (A.Rep m r s)
-        =  do s' <- doStructured s
-              return $ A.Rep m r s'
-    doStructured (A.Spec m spec s)
-        =  do s' <- doStructured s
-              return $ A.Spec m spec s'
-    doStructured (A.ProcThen m p s)
-        =  do s' <- doStructured s
-              return $ A.ProcThen m p s'
-    doStructured (A.Only m p)
-        =  do s@(A.Specification _ n _) <- makeNonceProc m p
-              modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
-              return $ A.Spec m s (A.Only m (A.ProcCall m n []))
-    doStructured (A.Several m ss)
-        = liftM (A.Several m) $ mapM doStructured ss
+    doStructured = transformOnly wrapProcess
+      where
+        wrapProcess m p
+          =  do s@(A.Specification _ n _) <- makeNonceProc m p
+                modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
+                return $ A.Spec m s (A.Only m (A.ProcCall m n []))
 
 -- | Turn parallel assignment into multiple single assignments through temporaries.
 removeParAssign :: PassType
