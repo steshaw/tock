@@ -84,15 +84,15 @@ declareSizesArray = applyDepthSM doStructured
   where
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
-      = defineName n $ A.NameDef {
-                         A.ndMeta = m
-                        ,A.ndName = A.nameName n
-                        ,A.ndOrigName = A.nameName n
-                        ,A.ndNameType = A.VariableName
-                        ,A.ndSpecType = spec
-                        ,A.ndAbbrevMode = A.ValAbbrev
-                        ,A.ndPlacement = A.Unplaced}
-  
+      = defineName n $ A.NameDef { A.ndMeta = m
+                                 , A.ndName = A.nameName n
+                                 , A.ndOrigName = A.nameName n
+                                 , A.ndNameType = A.VariableName
+                                 , A.ndSpecType = spec
+                                 , A.ndAbbrevMode = A.ValAbbrev
+                                 , A.ndPlacement = A.Unplaced
+                                 }
+
     -- Strips all the array subscripts from a variable:
     findInnerVar :: A.Variable -> (Maybe A.Expression, A.Variable)
     findInnerVar wv@(A.SubscriptedVariable m sub v) = case sub of
