@@ -164,12 +164,12 @@ declareSizesArray = applyDepthSM doStructured
            let sizeDiff = length srcDs - length ds
                subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
                sizeType = A.Array [makeDimension m $ length ds] A.Int
-               sizeSpecType = case sliceSize of
+               sizeExpr = case sliceSize of
                  Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
-                   A.IsExpr m A.ValAbbrev sizeType $
-                     A.Literal m sizeType $ A.ArrayLiteral m $
-                       [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims
-                 Nothing -> A.Is m A.ValAbbrev sizeType subSrcSizeVar
+                   A.Literal m sizeType $ A.ArrayLiteral m $
+                     [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims
+                 Nothing -> A.ExprVariable m subSrcSizeVar
+               sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeExpr
            defineSizesName m n_sizes sizeSpecType
            return $ A.Specification m n_sizes sizeSpecType
 
