@@ -84,9 +84,11 @@ extOpS ops f
 
 -- | Generate an operation that applies a 'TransformM' with automatic
 -- depth-first descent.
-makeDepth :: (Monad m, Data t) => OpsM m -> TransformM m t -> TransformM m t
+makeDepth :: forall m t. (Monad m, Data t) =>
+             OpsM m -> TransformM m t -> TransformM m t
 makeDepth ops f v = descend v >>= f
   where
+    descend :: DescendM m
     descend = makeDescend ops
 
 -- | Add a 'TransformM' to a set, to be applied with automatic depth-first
@@ -104,9 +106,11 @@ extOpSD ops ops0 f = ops `extOpS` (makeDepth ops0 f)
 
 -- | Generate an operation that applies a 'CheckM' with automatic
 -- depth-first descent.
-makeCheck :: (Monad m, Data t) => OpsM m -> CheckM m t -> TransformM m t
+makeCheck :: forall m t. (Monad m, Data t) =>
+             OpsM m -> CheckM m t -> TransformM m t
 makeCheck ops f v = descend v >> f v >> return v
   where
+    descend :: DescendM m
     descend = makeDescend ops
 
 -- | Add a 'CheckM' to a set, to be applied with automatic depth-first descent.
