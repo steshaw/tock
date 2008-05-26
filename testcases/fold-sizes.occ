@@ -1,0 +1,10 @@
+-- Test that _sizes arrays for constants are themselves constant.
+-- (This testcase taken from cgtest03.)
+PROC p ()
+  [10]BYTE dest:
+  INT y:
+  SEQ
+    y := 5
+    s IS [dest FROM 2 FOR y]:
+    s := "hello"
+:

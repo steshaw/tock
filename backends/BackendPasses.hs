@@ -97,7 +97,7 @@ declareSizesArray = applyDepthSM doStructured
     findInnerVar :: A.Variable -> (Maybe A.Expression, A.Variable)
     findInnerVar wv@(A.SubscriptedVariable m sub v) = case sub of
       A.SubscriptField {} -> (Nothing, wv)
-      A.SubscriptFromFor _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
+      A.SubscriptFromFor _ _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
       A.Subscript {} -> findInnerVar v
     findInnerVar v = (Nothing, v)
 
@@ -162,7 +162,7 @@ declareSizesArray = applyDepthSM doStructured
            (A.Array srcDs _) <- astTypeOf innerV
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
-               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
+               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m A.NoCheck (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
                sizeType = A.Array [makeDimension m $ length ds] A.Int
                sizeExpr = case sliceSize of
                  Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
@@ -295,12 +295,12 @@ simplifySlices :: PassType
 simplifySlices = applyDepthM doVariable
   where
     doVariable :: A.Variable -> PassM A.Variable
-    doVariable (A.SubscriptedVariable m (A.SubscriptFor m' for) v)
-      = return (A.SubscriptedVariable m (A.SubscriptFromFor m' (makeConstant m' 0) for) v)
-    doVariable (A.SubscriptedVariable m (A.SubscriptFrom m' from) v)
+    doVariable (A.SubscriptedVariable m (A.SubscriptFor m' check for) v)
+      = return (A.SubscriptedVariable m (A.SubscriptFromFor m' check (makeConstant m' 0) for) v)
+    doVariable (A.SubscriptedVariable m (A.SubscriptFrom m' check from) v)
       = do A.Array (d:_) _ <- astTypeOf v
            limit <- case d of
              A.Dimension n -> return n
              A.UnknownDimension -> return $ A.SizeVariable m' v
-           return (A.SubscriptedVariable m (A.SubscriptFromFor m' from (A.Dyadic m A.Subtr limit from)) v)
+           return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (A.Dyadic m A.Subtr limit from)) v)
     doVariable v = return v

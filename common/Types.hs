@@ -141,15 +141,15 @@ subscriptType sub A.Infer
     = return $ A.Infer
 subscriptType sub t@(A.UserDataType _)
     = resolveUserType (findMeta sub) t >>= subscriptType sub
-subscriptType (A.SubscriptFromFor m _ count) (A.Array (_:ds) t)
+subscriptType (A.SubscriptFromFor m _ _ count) (A.Array (_:ds) t)
     = return $ A.Array (dimensionFromExpr count : ds) t
-subscriptType (A.SubscriptFrom m base) (A.Array (d:ds) t)
+subscriptType (A.SubscriptFrom m _ base) (A.Array (d:ds) t)
     = return $ A.Array (dim : ds) t
   where
     dim = case d of
             A.Dimension size -> dimensionFromExpr $ A.Dyadic m A.Subtr size base
             _ -> A.UnknownDimension
-subscriptType (A.SubscriptFor m count) (A.Array (_:ds) t)
+subscriptType (A.SubscriptFor m _ count) (A.Array (_:ds) t)
     = return $ A.Array (dimensionFromExpr count : ds) t
 subscriptType (A.SubscriptField m tag) t = typeOfRecordField m t tag
 subscriptType (A.Subscript m _ _) t = plainSubscriptType m t
@@ -160,11 +160,11 @@ subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %
 unsubscriptType :: (CSMR m, Die m) => A.Subscript -> A.Type -> m A.Type
 unsubscriptType _ A.Infer
     = return $ A.Infer
-unsubscriptType (A.SubscriptFromFor _ _ _) t
+unsubscriptType (A.SubscriptFromFor _ _ _ _) t
     = return $ removeFixedDimension t
-unsubscriptType (A.SubscriptFrom _ _) t
+unsubscriptType (A.SubscriptFrom _ _ _) t
     = return $ removeFixedDimension t
-unsubscriptType (A.SubscriptFor _ _) t
+unsubscriptType (A.SubscriptFor _ _ _) t
     = return $ removeFixedDimension t
 unsubscriptType (A.SubscriptField m _) t
     = dieP m $ "unsubscript of record type (but we can't tell which one)"

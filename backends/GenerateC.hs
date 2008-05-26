@@ -780,20 +780,23 @@ cgenVariable' checkValid v
                   outerInd = if indirectedType t then -1 else 0
               return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
 
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' start count) v) mt
+    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' subCheck start count) v) mt
         = return (
-           do tell ["(&"]
+           do let check = if checkValid then subCheck else A.NoCheck
+              tell ["(&"]
               join $ liftM fst $ inner ind v mt
               call genArraySubscript A.NoCheck v [(m',
-                do tell ["occam_check_slice("]
-                   call genExpression start
-                   genComma
-                   call genExpression count
-                   genComma
-                   call genExpression (A.SizeVariable m' v)
-                   genComma
-                   genMeta m'
-                   tell [")"]
+                case check of
+                  A.NoCheck -> call genExpression start
+                  _ -> do tell ["occam_check_slice("]
+                          call genExpression start
+                          genComma
+                          call genExpression count
+                          genComma
+                          call genExpression (A.SizeVariable m' v)
+                          genComma
+                          genMeta m'
+                          tell [")"]
                 )]
               tell [")"], 0)
     

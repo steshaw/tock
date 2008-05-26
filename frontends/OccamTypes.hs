@@ -229,10 +229,10 @@ checkSubscript m s rawT
           -- Check the subscript itself.
           case s of
             A.Subscript m _ e -> checkExpressionInt e
-            A.SubscriptFromFor m e f ->
+            A.SubscriptFromFor m _ e f ->
               checkExpressionInt e >> checkExpressionInt f
-            A.SubscriptFrom m e -> checkExpressionInt e
-            A.SubscriptFor m e -> checkExpressionInt e
+            A.SubscriptFrom m _ e -> checkExpressionInt e
+            A.SubscriptFor m _ e -> checkExpressionInt e
             _ -> ok
 
 -- | Classes of operators.

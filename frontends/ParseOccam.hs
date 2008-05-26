@@ -289,13 +289,13 @@ maybeSliced inner subscripter
                    "FROM" ->
                      (do f <- tryXV sFOR expression
                          sRight
-                         return $ A.SubscriptFromFor m e f)
+                         return $ A.SubscriptFromFor m A.CheckBoth e f)
                      <|>
                      (do sRight
-                         return $ A.SubscriptFrom m e)
+                         return $ A.SubscriptFrom m A.CheckBoth e)
                    "FOR" ->
                      do sRight
-                        return $ A.SubscriptFor m e
+                        return $ A.SubscriptFor m A.CheckBoth e
 
           return $ subscripter m sub v
   where

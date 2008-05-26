@@ -383,7 +383,7 @@ testArraySlice = TestList
    testSlice index exp nm start count ds
      = testBothSameS ("genSlice " ++ show index) exp
       (tcall genVariable
-        (A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta (intLiteral start) (intLiteral count)) (variable nm))
+        (A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta A.CheckBoth (intLiteral start) (intLiteral count)) (variable nm))
       )
       (defineName (simpleName nm) $ simpleDefDecl nm (A.Array ds A.Int))
 

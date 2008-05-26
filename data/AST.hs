@@ -208,13 +208,13 @@ data Subscript =
   -- inclusive.
   -- The second 'Expression' is the @FOR@; the count of items to include in the
   -- slice.
-  | SubscriptFromFor Meta Expression Expression
+  | SubscriptFromFor Meta SubscriptCheck Expression Expression
   -- | Like 'SubscriptFromFor', but without a @FOR@; it goes to the end of the
   -- array.
-  | SubscriptFrom Meta Expression
+  | SubscriptFrom Meta SubscriptCheck Expression
   -- | Like 'SubscriptFromFor', but without a @FROM@; it starts from the
   -- beginning of the array.
-  | SubscriptFor Meta Expression
+  | SubscriptFor Meta SubscriptCheck Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | The representation of a literal.

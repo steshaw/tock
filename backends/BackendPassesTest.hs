@@ -260,6 +260,7 @@ qcTestDeclareSizes =
         specSizes = A.IsExpr emptyMeta A.ValAbbrev (A.Array [dimension $ length destDims] A.Int) $
           A.ExprVariable m $
             A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta
+              A.NoCheck
               (intLiteral $ toInteger $ length srcDims - length destDims)
               (intLiteral $ toInteger $ length destDims)
               ) (variable "src_sizes")

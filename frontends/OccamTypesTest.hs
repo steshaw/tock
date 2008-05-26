@@ -88,12 +88,12 @@ testOccamTypes = TestList
     -- Subscript expressions
       testOK     0 $ subex $ A.Subscript m A.NoCheck intE
     , testFail   1 $ subex $ A.Subscript m A.NoCheck byteE
-    , testOK     2 $ subex $ A.SubscriptFromFor m intE intE
-    , testFail   3 $ subex $ A.SubscriptFromFor m byteE byteE
-    , testOK     4 $ subex $ A.SubscriptFrom m intE
-    , testFail   5 $ subex $ A.SubscriptFrom m byteE
-    , testOK     6 $ subex $ A.SubscriptFor m intE
-    , testFail   7 $ subex $ A.SubscriptFor m byteE
+    , testOK     2 $ subex $ A.SubscriptFromFor m A.NoCheck intE intE
+    , testFail   3 $ subex $ A.SubscriptFromFor m A.NoCheck byteE byteE
+    , testOK     4 $ subex $ A.SubscriptFrom m A.NoCheck intE
+    , testFail   5 $ subex $ A.SubscriptFrom m A.NoCheck byteE
+    , testOK     6 $ subex $ A.SubscriptFor m A.NoCheck intE
+    , testFail   7 $ subex $ A.SubscriptFor m A.NoCheck byteE
 
     -- Trivial literals
     , testOK    20 $ intE

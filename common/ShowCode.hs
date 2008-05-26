@@ -375,11 +375,11 @@ instance ShowRain A.LiteralRepr where
 instance ShowOccam A.Subscript where
   showOccamM (A.Subscript _ _ e) = getTempItem >> tell ["["] >> showOccamM e >> tell ["]"]
   showOccamM (A.SubscriptField _ n) = getTempItem >> tell ["["] >> showName n >> tell ["]"]
-  showOccamM (A.SubscriptFromFor _ start count)
+  showOccamM (A.SubscriptFromFor _ _ start count)
     = tell ["["] >> getTempItem >> tell [" FROM "] >> showOccamM start >> tell [" FOR "] >> showOccamM count >> tell ["]"]
-  showOccamM (A.SubscriptFor _ count)
+  showOccamM (A.SubscriptFor _ _ count)
     = tell ["["] >> getTempItem >> tell [" FOR "] >> showOccamM count >> tell ["]"]
-  showOccamM (A.SubscriptFrom _ start)
+  showOccamM (A.SubscriptFrom _ _ start)
     = tell ["["] >> getTempItem >> tell [" FROM "] >> showOccamM start >> tell ["]"]        
   
 
