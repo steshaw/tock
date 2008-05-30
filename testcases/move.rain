@@ -8,19 +8,19 @@ process foo (?[int]: in, ![int]: out)
     {
       in ? xs;
       in ? ys;
-      out ! xs; 
-      out ! ys; 
+      out ! xs; ### Copy
+      out ! ys; ### Move
       ys = [];
       seqeach (i : xs)
       {
-      	ys = ys ++ [i + 5];
+      	ys = ys ++ [i + 5]; ### Move (ys)
       }
-      out ! xs;
-      out ! ys; 
+      out ! xs; ### Copy
+      out ! ys; ### Move
     }
-  out ! xs;
-  ys = xs;
-  out ! ys;
+  out ! xs; ### Copy
+  ys = xs; ### Move
+  out ! ys; ### Move
 }
 
 process main (?uint8: in, ![uint8]: out, ![uint8]: err)
