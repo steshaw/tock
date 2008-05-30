@@ -69,22 +69,25 @@ dieIO (Just m@(Meta (Just fn) line column),s) = liftIO $
     do fileContents <- catch (readFile fn) (\_ -> printError (show m ++ s))
        let startingLine = max 1 (line - contextLines)
        let lines = map replaceTabs $ getLines fileContents (startingLine) ((2 * contextLines) + 1)
-       putStrLn $ fn ++ ":"
+       printLn $ fn ++ ":"
        printLines startingLine (take (line - startingLine + 1) lines)
-       putStr "Here"
-       replicateM_ column (putChar '-')   -- column is unit-based, but we want an extra dash anyway
-       putStrLn "^"
+       print "Here"
+       replicateM_ column (hPutChar stderr '-')   -- column is unit-based, but we want an extra dash anyway
+       printLn "^"
        printLines (line + 1) (drop (line - startingLine + 1) lines)
-       putStrLn ""
+       printLn ""
        printError $ (show m) ++ " " ++ s
          where
            contextLines :: Int
            contextLines = 5
+           
            -- start is unit-based, so we need to convert to zero-based
            getLines :: String -> Int -> Int -> [String]
            getLines all start total = take total (drop (start - 1) (lines all))
+           
            printLines :: Int -> [String] -> IO ()
-           printLines n lines = mapM_ (\(n,s) -> (putStrLn . ((++) (justify5 n) )) s) (zip [n..] lines)
+           printLines n lines = mapM_ (\(n,s) -> (printLn . ((++) (justify5 n) )) s) (zip [n..] lines)
+           
            --Makes sure line number and colon are exactly 5 characters long:
            justify5 :: Int -> String
            justify5 num = if n <= 4 then s ++ ":" ++ (replicate (4 - n) ' ') else "x" ++ (drop (n - 3) s) ++ ":"
@@ -96,6 +99,9 @@ dieIO (Just m@(Meta (Just fn) line column),s) = liftIO $
            replaceTabs [] = []
            replaceTabs ('\t':ss) = (replicate 8 ' ') ++ replaceTabs ss
            replaceTabs (s:ss) = (s : replaceTabs ss)
+        
+           printLn = hPutStrLn stderr
+           print = hPutStr stderr
 
 dieIO (_,s) = printError s
 
