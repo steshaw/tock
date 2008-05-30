@@ -80,6 +80,9 @@ data UsageLabel = Usage
   ,nodeDecl :: Maybe Decl
   ,nodeVars :: Vars}
 
+instance Show UsageLabel where
+  show = const ""
+
 transformParItems :: (a -> b) -> ParItems a -> ParItems b
 transformParItems f (SeqItems xs) = SeqItems $ map f xs
 transformParItems f (ParItems ps) = ParItems $ map (transformParItems f) ps
