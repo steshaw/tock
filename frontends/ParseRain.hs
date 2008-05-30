@@ -174,7 +174,7 @@ dataType
     <?> "data type"
 
 variable :: RainParser A.Variable
-variable = do {v <- name ; return $ A.Variable (findMeta v) v}
+variable = do {v <- name ; return $ A.Variable (A.nameMeta v) v}
              <|> try (do {m <- sIn ; v <- variable ; return $ A.DirectedVariable m A.DirInput v})
              <|> try (do {m <- sOut ; v <- variable ; return $ A.DirectedVariable m A.DirOutput v})
              <?> "variable"
@@ -479,11 +479,11 @@ tupleDef = do {sLeftR ; tm <- sepBy tupleDefMember sComma ; sRightR ; return tm}
     tupleDefMember = do {t <- dataType ; sColon ; n <- name ; return (n,t)}
 
 declaration :: Data a => RainParser (Meta, A.Structured a -> A.Structured a)
-declaration = try $ do {t <- dataType; sColon ; ns <- name `sepBy1` sComma ; sSemiColon ; 
-                          return (findMeta t, \x -> foldr (foldSpec t) x ns) }
+declaration = try $ do {t <- dataType; m <- sColon ; ns <- name `sepBy1` sComma ; sSemiColon ; 
+                          return (m, \x -> foldr (foldSpec t) x ns) }
   where
     foldSpec :: Data a => A.Type -> A.Name -> (A.Structured a -> A.Structured a)
-    foldSpec t n = A.Spec (findMeta t) $ A.Specification (findMeta t) n $ A.Declaration (findMeta t) t
+    foldSpec t n = A.Spec (A.nameMeta n) $ A.Specification (A.nameMeta n) n $ A.Declaration (A.nameMeta n) t
 
 terminator :: Data a => A.Structured a
 terminator = A.Several emptyMeta []
