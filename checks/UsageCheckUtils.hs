@@ -34,18 +34,11 @@ import ShowCode
 import Types
 import Utils
 
-newtype Var = Var A.Variable deriving (Data, Show, Typeable)
+newtype Var = Var A.Variable
+  deriving (ASTTypeable, Data, Ord, Show, ShowOccam, ShowRain, Typeable)
 
 instance Eq Var where
   a == b = EQ == compare a b
-
-instance Ord Var where
-  compare (Var a) (Var b) = compare a b
-
-instance ShowOccam Var where
-  showOccamM (Var v) = showOccamM v
-instance ShowRain Var where
-  showRainM (Var v) = showRainM v
 
 instance ShowOccam (Set.Set Var) where
   showOccamM s
