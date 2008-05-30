@@ -37,8 +37,6 @@ import Traversal
 import TreeUtils
 import Types
 
---TODO change this whole module to stop using everywhere
-
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [Pass]
 rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in f
