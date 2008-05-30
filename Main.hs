@@ -306,7 +306,8 @@ compile mode fn outHandle
                  -- since it is never used.  Then we used graphsTyped (rather than graphs)
                  -- to prevent a compiler warning at graphsTyped being unused;
                  -- graphs is of course identical to graphsTyped, as you can see here:
-                 let (graphsTyped :: [Maybe (FlowGraph' Identity String A.Process)]) = map (transformMaybe fst) graphs
+                 let (graphsTyped :: [Maybe (FlowGraph' Identity String A.Process)])
+                       = map (transformMaybe $ \(x,_,_) -> x) graphs
                  -- TODO: output each process to a separate file, rather than just taking the first:
                  liftIO $ hPutStr outHandle $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
             ModeCompile ->

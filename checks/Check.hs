@@ -48,7 +48,7 @@ usageCheckPass :: A.AST -> PassMR A.AST
 usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
-                        Right (g,rs) -> return (g,rs)
+                        Right (g,rs,_) -> return (g,rs)
                       checkPar nodeRep (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t

@@ -328,9 +328,10 @@ addNewSubProcFunc :: (Monad mLabel, Monad mAlter) =>
 addNewSubProcFunc m args body argsRoute
   = do root <- addNode' m labelStartNode (m, args) (AlterArguments argsRoute)
        denoteRootNode root
-       bodyNode <- case body of
-         Left (p,route) -> buildProcess p route >>* fst
-         Right (s,route) -> buildStructuredEL s route >>* fst
+       (bodyNode, termNode) <- case body of
+         Left (p,route) -> buildProcess p route
+         Right (s,route) -> buildStructuredEL s route
+       denoteTerminatorNode termNode
        addEdge ESeq root bodyNode
 
 buildProcess :: (Monad mLabel, Monad mAlter) => A.Process -> ASTModifier mAlter A.Process structType -> GraphMaker mLabel mAlter label structType (Node, Node)
@@ -385,24 +386,29 @@ buildProcess p route = addNode' (findMeta p) labelProcess p (AlterProcess route)
 -- the parameters, only in the result.  The mLabel monad is the monad in
 -- which the labelling must be done; hence the flow-graph is returned inside
 -- the label monad.
+--
+-- Returns the flow graph, a list of start-roots and a list of terminator nodes
+-- ("end-roots")
 buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   GraphLabelFuncs mLabel label ->
   A.AST  ->
-  mLabel (Either String (FlowGraph' mAlter label (), [Node]))
+  mLabel (Either String (FlowGraph' mAlter label (), [Node], [Node]))
 buildFlowGraph funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s id
+  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s id
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right _,(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, roots)
+                  (Right _,(_,_,(nodes, edges),roots,terminators))
+                    -> Right (mkGraph nodes edges, roots, terminators)
 
 buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   GraphLabelFuncs mLabel label ->
   A.Structured A.Process ->
-  mLabel (Either String (FlowGraph' mAlter label A.Process, [Node]))
+  mLabel (Either String (FlowGraph' mAlter label A.Process, [Node], [Node]))
 buildFlowGraphP funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s id
+  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s id
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right (root,_),(_,_,(nodes, edges),roots)) -> Right (mkGraph nodes edges, root : roots)
+                  (Right (root,_),(_,_,(nodes, edges),roots, terminators))
+                    -> Right (mkGraph nodes edges, root : roots, terminators)
 
     
