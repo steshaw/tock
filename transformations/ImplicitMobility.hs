@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ImplicitMobility where
+module ImplicitMobility (implicitMobility) where
 
 import Control.Monad
 import Control.Monad.Trans
@@ -36,6 +36,9 @@ import Pass
 import UsageCheckUtils
 import Utils
 
+-- | Calculates a map from each node to a set of variables that will be
+-- used again afterwards.  Used in this context means it can possibly be
+-- read from before being written to
 calculateUsedAgainAfter :: Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node
  (Set.Set Var))
 calculateUsedAgainAfter g startNode
@@ -67,21 +70,45 @@ calculateUsedAgainAfter g startNode
 -- will look like x is used again on the next loop iteration
 
 -- TODO look at the types, too!
-printMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> Node -> PassM ()
-printMoveCopyDecisions gr n
-  = case calculateUsedAgainAfter gr n of
-      Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
-      Right mvs -> mapMapWithKeyM f mvs >> return ()
+printMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> [Node] -> PassM ()
+printMoveCopyDecisions gr ns
+  = do decs <- makeMoveCopyDecisions gr ns
+       mapM_ printDec $ Map.toList decs
   where
-    f :: Node -> (Set.Set Var) -> PassM (Set.Set Var)
-    f n vs = case liftM (readVars . nodeVars . getNodeData) $ lab gr n of
-               Nothing -> dieP emptyMeta "Did not find label in pmcd"
-               Just rv -> (mapM_ g $ Set.toList rv) >> return vs
-      where
-        g :: Var -> PassM ()
-        g v | Set.member v vs = liftIO . putStrLn $ show (findMeta v) ++ " COPY"
-            | otherwise = liftIO . putStrLn $ show (findMeta v) ++ " MOVE"
+    printDec :: ((Node, Var), Decision) -> PassM ()
+    printDec ((_,v), dec) = liftIO $ putStrLn $
+      show (findMeta v) ++ show v ++ " " ++ show dec
 
+data Decision = Move | Copy deriving (Show, Ord, Eq)
+
+makeMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> [Node] ->
+  PassM (Map.Map (Node, Var) Decision)
+makeMoveCopyDecisions gr
+  = foldM processConnected (Map.empty)
+  where
+    -- Processes the entire sub-graph that is connected to the given node
+    processConnected :: Map.Map (Node, Var) Decision -> Node ->
+      PassM (Map.Map (Node, Var) Decision)
+    processConnected m n = case calculateUsedAgainAfter gr n of
+      Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
+      Right mvs -> foldM (processNode mvs) m $ Map.keys mvs
+
+    -- Processes all the variables at a given node
+    processNode :: Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision
+      -> Node -> PassM (Map.Map (Node, Var) Decision)
+    processNode mvs m n 
+      = case fmap (readVars . nodeVars . getNodeData) $ lab gr n of
+          Nothing -> dieP emptyMeta "Did not find node label during implicit mobility"
+          Just rvs -> return $ foldl (process n mvs) m $ Set.toList rvs
+
+    -- Processes a single variable at a given node
+    process :: Node -> Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision ->
+      Var -> Map.Map (Node, Var) Decision
+    process n useAgain prev v =
+      Map.insert (n, v)
+        (if v `Set.member` Map.findWithDefault Set.empty n useAgain
+           then Copy
+           else Move) prev
 
 implicitMobility :: A.AST -> PassM A.AST
 implicitMobility t
@@ -93,7 +120,6 @@ implicitMobility t
          Right (g, roots, terms) ->
            -- We go from the terminator nodes, because we are performing backward
            -- data-flow analysis
-           (liftIO $ putStrLn $ makeFlowGraphInstr g) >>
-           mapM_ (printMoveCopyDecisions g) terms
+           printMoveCopyDecisions g terms
        return t
 
