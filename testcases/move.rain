@@ -23,7 +23,7 @@ process foo (?[int]: in, ![int]: out)
   out ! ys;
 }
 
-process main (?uint8: in, !uint8: out, !uint8: err)
+process main (?uint8: in, ![uint8]: out, ![uint8]: err)
 {
 	channel [int]: c;
 	foo(?c,!c);
