@@ -53,9 +53,13 @@ calculateUsedAgainAfter g startNode
 
     iterate :: (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set
       Var
-    iterate node _ mvs = case lab g (fst node) of
-      Just ul -> let nvars = writtenVars $ nodeVars $ getNodeData ul in
-        maybe nvars (Set.union nvars) mvs
+    iterate node prevVars maybeVars = case lab g (fst node) of
+      Just ul ->
+        let vs = nodeVars $ getNodeData ul
+            readFromVars = readVars vs
+            writtenToVars = writtenVars vs
+            addTo = fromMaybe prevVars maybeVars
+        in (readFromVars `Set.union` addTo) `Set.difference` writtenToVars
       Nothing -> error "Node label not found in calculateUsedAgainAfter"
 
 --TODO rememember to take note of declarations/scope, otherwise this:
