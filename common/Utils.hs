@@ -312,5 +312,9 @@ mapMapWithKeyM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
     f' (x,y) = do y' <- f x y
                   return (x, y')
 
+-- | Transforms an Either into a Maybe.  If it's a Left value, it is transformed
+-- into Nothing.  If it is a Right value, it is transformed into Just.
+eitherToMaybe :: Either a b -> Maybe b
+eitherToMaybe = either (const Nothing) Just
 
 
