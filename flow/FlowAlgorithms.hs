@@ -23,6 +23,8 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
+import Utils
+
 data GraphFuncs n e result = GF {
    -- (Node, Edge) -> previous assumed input -> current aggregate effect -> new aggregate effect
    -- If it is the first node to be processed for this iteration, it will be
@@ -40,6 +42,9 @@ data GraphFuncs n e result = GF {
 
    -- defVal is the default starting value for all the nodes (except the first node)
    ,defVal :: result
+
+   -- Used to give a helpful error message about a node
+   ,userErrLabel :: n -> String
   }
 
 -- | Given the graph functions, a list of nodes and an entry node, performs
@@ -75,18 +80,33 @@ flowAlgorithm funcs nodes (startNode, startVal)
     nonStartNodes :: [n]
     nonStartNodes = (filter ((/=) startNode) nodes)
 
-    -- | Folds left, but with maybe types involved.  Gives an error if there
+    -- | Folds left, but with either types involved.  Gives an error if there
     -- are no nodes in the given list at the start (i.e. when its second parameter
-    -- is Nothing).  Otherwise feeds the aggregate result back round on each
+    -- is Left).  Otherwise feeds the aggregate result back round on each
     -- iteration of the list, but stops at the first error while folding (so
     -- a bit like foldM)
-    foldWithMaybe :: (b -> Maybe result -> Either String result) ->
-      Maybe result -> [b] -> Either String result
-    foldWithMaybe _ Nothing [] = throwError "empty list for previous nodes in flowAlgorithm"
-    foldWithMaybe _ (Just a) [] = return a
-    foldWithMaybe f ma (b:bs)
-      = do b' <- f b ma
-           foldWithMaybe f (Just b') bs
+    foldWithEither ::
+      (b -- ^ The list value being folded
+       -> Maybe result
+         -- ^ The current accumulated result.  Nothing if it is the first item
+         -- in the list
+       -> Either String result
+         -- ^ Either give back an error or a new accumulated result
+      )
+      -> Either String result
+            -- ^ The starting value should be (Left errorMessageForEmptyList)
+            -- and thereafter it will be Right result.
+      -> [b] -- ^ The list to fold over
+      -> Either String result
+            -- ^ Either an error or the result.  Errors can
+            -- be caused by a starting empty list, or an error in processing
+            -- an individual item
+    foldWithEither _ (Left err) [] = throwError $ "empty list for previous nodes in flowAlgorithm:"
+      ++ err
+    foldWithEither _ (Right a) [] = return a
+    foldWithEither f ea (b:bs)
+      = do b' <- f b $ eitherToMaybe ea
+           foldWithEither f (Right b') bs
 
     -- | Given a map from node to current results, a node and edge to process
     -- (the node is from nodesToProcess, and the edge connects it to the current
@@ -109,7 +129,9 @@ flowAlgorithm funcs nodes (startNode, startVal)
                -- Pick the next node from the list and remove it:
           = do let (node, workList') = Set.deleteFindMin workList
                -- Process that node:
-               total <- foldWithMaybe (iterateNode vals) Nothing (nodesToProcess funcs node)
+               total <- foldWithEither (iterateNode vals) (Left $ show workList
+                 ++ userErrLabel
+                 funcs node) (nodesToProcess funcs node)
                nodeVal <- Map.lookup node vals
                if total /= nodeVal
                  -- If the value has changed, that will cascade to affect all

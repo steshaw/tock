@@ -181,6 +181,7 @@ checkInitVar m graph startNode
        ,nodesToProcess = lpre graph
        ,nodesToReAdd = lsuc graph
        ,defVal = Everything
+       ,userErrLabel = show
       }
       
     getMeta :: Node -> Meta

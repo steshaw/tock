@@ -140,6 +140,7 @@ findReachDef graph startNode
         ,nodesToProcess = lpre graph
         ,nodesToReAdd = lsuc graph
         ,defVal = Map.empty
+        ,userErrLabel = show
       }
 
     readInNode' :: Node -> Var -> a -> Bool
