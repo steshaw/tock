@@ -1047,8 +1047,6 @@ retypesReshapes :: OccParser ()
 retypesReshapes
     = sRETYPES <|> sRESHAPES
 
--- FIXME: Retypes checking is currently disabled; it will be moved into a
--- separate pass.
 retypesAbbrev :: OccParser A.Specification
 retypesAbbrev
     =   do m <- md
