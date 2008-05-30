@@ -1,0 +1,30 @@
+process foo (?[int]: in, ![int]: out)
+{
+	[int]: xs;
+	[int]: ys;
+	int: n;
+    n = 0;
+    while (n <> -1)
+    {
+      in ? xs;
+      in ? ys;
+      out ! xs; 
+      out ! ys; 
+      ys = [];
+      seqeach (i : xs)
+      {
+      	ys = ys ++ [i + 5];
+      }
+      out ! xs;
+      out ! ys; 
+    }
+  out ! xs;
+  ys = xs;
+  out ! ys;
+}
+
+process main (?uint8: in, !uint8: out, !uint8: err)
+{
+	channel [int]: c;
+	foo(?c,!c);
+}

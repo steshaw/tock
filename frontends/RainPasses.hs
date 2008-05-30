@@ -28,6 +28,7 @@ import Data.Maybe
 import qualified AST as A
 import CompState
 import Errors
+import ImplicitMobility
 import Pass
 import qualified Properties as Prop
 import RainTypes
@@ -67,6 +68,8 @@ rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in f
        ,("Transform Rain functions into the occam form",checkFunction, Prop.agg_typesDone, [])
          --TODO add an export property.  Maybe check other things too (lack of comms etc -- but that could be combined with occam?)
        ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
+
+       ,("Implicit mobility pass", implicitMobility, [], [])
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
