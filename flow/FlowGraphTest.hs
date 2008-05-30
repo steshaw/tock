@@ -116,7 +116,8 @@ testGraph' testName nodes roots edges str = testGraphF testName nodes roots edge
 testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
 testOps = GLF nextId nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
 
-testGraphF :: Data structType => String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> State (Map.Map Meta Int) (Either String (FlowGraph' Identity Int structType, [Node])) -> Test
+testGraphF :: Data structType => String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> State (Map.Map Meta Int) (Either String (FlowGraph' Identity Int structType, [Node],
+  [Node])) -> Test
 testGraphF testName nodes roots edges grF
   = TestCase $ 
       case evalState grF Map.empty of
@@ -129,8 +130,9 @@ testGraphF testName nodes roots edges grF
 --    deNode :: Monad m => FNode' m a b -> (Meta, a)
     deNode nd = (getNodeMeta nd, getNodeData nd)
         
-    checkGraphEquality :: (Data a, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, EdgeLabel)]) -> (FlowGraph' m Int a, [Int]) -> Assertion
-    checkGraphEquality (nodes, roots, edges) (g, actRoots)
+    checkGraphEquality :: (Data a, Monad m) => ([(Int, Meta)], [Int], [(Int, Int, EdgeLabel)]) -> (FlowGraph' m Int a, [Int],
+      [Int]) -> Assertion
+    checkGraphEquality (nodes, roots, edges) (g, actRoots, _)
       = do let (remainingNodes, nodeLookup, ass) = foldl checkNodeEquality (Map.fromList (map revPair nodes),Map.empty, return ()) (map (transformPair id deNode) $ labNodes g)
            ass
            assertBool (testName ++ " Expected graph had nodes not found in the real graph: " ++ show remainingNodes ++ ", real graph: " ++ showGraph g) (Map.null remainingNodes)
@@ -697,7 +699,8 @@ genProcess' = (1, genProcess)
 -- | Generates a flow-graph from the given AST.
 -- TODO put this in proper error monad
 genGraph :: A.Structured A.Process -> FlowGraph' Identity () A.Process
-genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s) fst $ runIdentity $ buildFlowGraphP funcs s
+genGraph s = either (\e -> error $ "QuickCheck graph did not build properly: " ++ e ++ ", from: " ++ pshow s)
+  (\(x,_,_) -> x) $ runIdentity $ buildFlowGraphP funcs s
   where
     funcs :: GraphLabelFuncs Identity ()
     funcs = mkLabelFuncsConst (return ())
