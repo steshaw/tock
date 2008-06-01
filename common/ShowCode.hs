@@ -344,6 +344,7 @@ instance ShowOccam A.Variable where
   showOccamM (A.DirectedVariable _ A.DirUnknown v) = showOccamM v
   showOccamM (A.DirectedVariable _ A.DirInput v) = showOccamM v >> tell ["?"]
   showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v >> tell ["!"]
+  showOccamM (A.DerefVariable _ v) = tell ["DEREF "] >> showOccamM v
   
 instance ShowRain A.Variable where
   showRainM (A.Variable _ n) = showName n
