@@ -391,6 +391,10 @@ cgenBytesIn m t v
       = do tell ["sizeof("]
            call genType t
            tell [")"]
+    genBytesIn' (A.Mobile _)
+      = tell ["sizeof(void*)"]
+    genBytesIn' (A.List _)
+      = tell ["sizeof(void*)"]
     genBytesIn' t
       = do f <- fget getScalarType
            case f t of
