@@ -69,7 +69,8 @@ rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in f
          --TODO add an export property.  Maybe check other things too (lack of comms etc -- but that could be combined with occam?)
        ,("Pull up par declarations", pullUpParDeclarations, [], [Prop.rainParDeclarationsPulledUp])
 
-       ,("Implicit mobility pass", implicitMobility, [], [])
+       ,("Mobilise lists", mobiliseLists, [], []) --TODO properties
+       ,("Implicit mobility pass", implicitMobility, [], []) --TODO properties
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
@@ -274,6 +275,13 @@ pullUpParDeclarations = applyDepthM pullUpParDeclarations'
           Nothing -> Just (A.Spec m spec,inner)
           Just (trans,inner') -> Just ( (A.Spec m spec) . trans,inner')
     chaseSpecs _ = Nothing
+
+mobiliseLists :: PassType
+mobiliseLists x = (get >>= applyDepthM mobilise >>= put) >> applyDepthM mobilise x
+  where
+    mobilise :: A.Type -> PassM A.Type
+    mobilise t@(A.List _) = return $ A.Mobile t
+    mobilise t = return t
 
 -- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
 excludeNonRainFeatures :: (Data t, CSMR m) => t -> m t
