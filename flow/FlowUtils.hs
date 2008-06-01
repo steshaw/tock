@@ -61,22 +61,23 @@ data AlterAST m structType =
  |AlterSpec (ASTModifier m A.Specification structType)
  |AlterNothing
 
-data Monad m => FNode' m a b = Node (Meta, a, AlterAST m b)
+data Monad mAlter => FNode' mAlter label structType
+  = Node (Meta, label, AlterAST mAlter structType)
 
 -- | The label for a node.  A Meta tag, a custom label, and a function
 -- for altering the part of the AST that this node came from
-type FNode m a = FNode' m a ()
+type FNode mAlter label = FNode' mAlter label ()
 --type FEdge = (Node, EdgeLabel, Node)
 
 instance (Monad m, Show a) => Show (FNode' m a b) where
   show (Node (m,x,_)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
 
-type FlowGraph' m a b = Gr (FNode' m a b) EdgeLabel
+type FlowGraph' mAlter label structType = Gr (FNode' mAlter label structType) EdgeLabel
 
--- | The main FlowGraph type.  The m parameter is the monad
+-- | The main FlowGraph type.  The mAlter parameter is the monad
 -- in which alterations to the AST (based on the FlowGraph)
--- must occur.  The a parameter is the type of the node labels.
-type FlowGraph m a = FlowGraph' m a ()
+-- must occur.  The label parameter is the type of the node labels.
+type FlowGraph mAlter label = FlowGraph' mAlter label ()
 
 -- | A list of nodes and edges.  Used for building up the graph.
 type NodesEdges m a b = ([LNode (FNode' m a b)],[LEdge EdgeLabel])
