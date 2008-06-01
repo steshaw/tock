@@ -20,6 +20,7 @@ module ImplicitMobility (implicitMobility) where
 
 import Control.Monad
 import Control.Monad.Trans
+import Data.Generics
 import Data.Graph.Inductive
 import Data.Graph.Inductive.Query.DFS
 import qualified Data.Map as Map
@@ -33,8 +34,42 @@ import FlowGraph
 import FlowUtils
 import Metadata
 import Pass
+import Types
 import UsageCheckUtils
 import Utils
+
+effectDecision :: Var -> Decision -> AlterAST PassM () -> A.AST -> PassM A.AST
+effectDecision _ Move _ = return -- Move is the default
+effectDecision targetVar Copy (AlterProcess wrapper) = wrapper alterProc
+  where
+    derefExp :: A.Expression -> PassM A.Expression
+    derefExp e
+      = do t <- astTypeOf e
+           case t of
+             A.Mobile (A.List _) -> return ()
+             A.List _ -> return ()
+             _ -> dieP (findMeta e) $
+               "Cannot dereference a non-list assignment RHS: " ++ show t
+           case e of
+             A.ExprVariable m' v ->
+               if (Var v == targetVar)
+                 then return $ A.ExprVariable m' $ A.DerefVariable m' v
+                 else return e
+             -- TODO handle concat expressions with repeated vars
+             A.Dyadic m A.Concat lhs rhs ->
+               do lhs' <- derefExp lhs
+                  rhs' <- derefExp rhs
+                  return $ A.Dyadic m A.Concat lhs' rhs'
+             _ -> return e
+    alterProc :: A.Process -> PassM A.Process
+    alterProc (A.Assign m lhs (A.ExpressionList m' [e]))
+      = do e' <- derefExp e
+           return $ A.Assign m lhs $ A.ExpressionList m' [e']
+    alterProc (A.Output m cv [A.OutExpression m' e])
+      = do e' <- derefExp e
+           return $ A.Output m cv [A.OutExpression m' e']
+    alterProc x = dieP (findMeta x) "Cannot alter process to copy"
+effectDecision _ Copy _ = return
 
 -- | Calculates a map from each node to a set of variables that will be
 -- used again afterwards.  Used in this context means it can possibly be
@@ -70,19 +105,18 @@ calculateUsedAgainAfter g startNode
 -- will look like x is used again on the next loop iteration
 
 -- TODO look at the types, too!
-printMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> [Node] -> PassM ()
-printMoveCopyDecisions gr ns
-  = do decs <- makeMoveCopyDecisions gr ns
-       mapM_ printDec $ Map.toList decs
+printMoveCopyDecisions :: Decisions -> PassM ()
+printMoveCopyDecisions decs
+  = mapM_ printDec $ Map.toList decs
   where
     printDec :: ((Node, Var), Decision) -> PassM ()
-    printDec ((_,v), dec) = liftIO $ putStrLn $
-      show (findMeta v) ++ show v ++ " " ++ show dec
+    printDec ((_,v), dec) = astTypeOf v >>= \t -> (liftIO $ putStrLn $
+      show (findMeta v) ++ show v ++ " " ++ show t ++ " " ++ show dec)
 
 data Decision = Move | Copy deriving (Show, Ord, Eq)
 
 makeMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> [Node] ->
-  PassM (Map.Map (Node, Var) Decision)
+  PassM Decisions
 makeMoveCopyDecisions gr
   = foldM processConnected (Map.empty)
   where
@@ -110,6 +144,17 @@ makeMoveCopyDecisions gr
            then Copy
            else Move) prev
 
+type Decisions = Map.Map (Node, Var) Decision
+
+effectMoveCopyDecisions :: FlowGraph PassM UsageLabel -> Decisions -> A.AST -> PassM A.AST
+effectMoveCopyDecisions g decs = foldFuncsM $ map effect $ Map.toList decs
+  where
+    effect :: ((Node, Var), Decision) -> A.AST -> PassM A.AST
+    effect ((n, v), dec)
+      = case fmap getNodeFunc $ lab g n of
+          Nothing -> const $ dieP (findMeta v) "Could not find label for node"
+          Just mod -> effectDecision v dec mod
+
 implicitMobility :: A.AST -> PassM A.AST
 implicitMobility t
   = do g' <- buildFlowGraph labelFunctions t
@@ -120,6 +165,7 @@ implicitMobility t
          Right (g, roots, terms) ->
            -- We go from the terminator nodes, because we are performing backward
            -- data-flow analysis
-           printMoveCopyDecisions g terms
-       return t
+           do decs <- makeMoveCopyDecisions g terms
+              printMoveCopyDecisions decs
+              effectMoveCopyDecisions g decs t
 
