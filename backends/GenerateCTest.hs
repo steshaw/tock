@@ -279,11 +279,11 @@ testGenType = TestList
 
 
   -- List types:
-  ,testBothS "GenType 2000" "ListInt16" "tockList<int16_t>" (tcall genType $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2001" "ListListInt16" "tockList<tockList<int16_t>>" (tcall genType $ A.List $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2010" "ListInt16*" "tockList<int16_t>" (tcall genType $ A.Mobile $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2011" "ListListInt16*" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2012" "ListMobileListInt16*" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.Mobile $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2000" "GQueue*" "tockList<int16_t>" (tcall genType $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2001" "GQueue*" "tockList<tockList<int16_t>>" (tcall genType $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2010" "GQueue**" "tockList<int16_t>" (tcall genType $ A.Mobile $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2011" "GQueue**" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2012" "GQueue**" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.Mobile $ A.List A.Int16) markRainTest
  ]
 
 testStop :: Test
