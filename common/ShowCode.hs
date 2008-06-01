@@ -583,6 +583,9 @@ instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
   --TODO functioncalllist
 
+instance ShowRain A.ExpressionList where
+  showRainM (A.ExpressionList _ [e]) = showRainM e
+
 outerOccam :: (Data a, ShowOccam a) => String -> A.Structured a -> CodeWriter ()
 outerOccam keyword (A.Rep _ rep str)
   = do showOccamLine (tell [keyword] >> showOccamM rep)
@@ -684,8 +687,8 @@ instance ShowRain A.Replicator where
 
 
 --TEMP:
-instance ShowRain a where
-  showRainM = const $ tell ["$"]
+instance Data a => ShowRain a where
+  showRainM = tell . singleton . gshow
 
 instance ShowOccam a => ShowOccam [a] where
   showOccamM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
