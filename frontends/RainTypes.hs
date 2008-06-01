@@ -138,16 +138,15 @@ substituteUnknownTypes mt = applyDepthM sub
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
 recordInfNameTypes :: PassType
-recordInfNameTypes = applyDepthM recordInfNameTypes'
+recordInfNameTypes = checkDepthM recordInfNameTypes'
   where
-    recordInfNameTypes' :: A.Replicator -> PassM A.Replicator
+    recordInfNameTypes' :: Check A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
-      = do let innerT = A.UnknownVarType $ Left n
-           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndSpecType = (A.Declaration m innerT), 
+      = let innerT = A.UnknownVarType $ Left n in
+           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
+                                   A.ndNameType = A.VariableName, A.ndSpecType = A.Declaration m innerT,
                                    A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}
-           return input
-    recordInfNameTypes' r = return r
+    recordInfNameTypes' _ = return ()
 
 markReplicators :: PassType
 markReplicators = checkDepthM mark
