@@ -359,11 +359,20 @@ public:
 			:	ref(_ref)
 		{
 		}
-
+		
+		/*
 		//If you dereference both sides, you get a proper copy-assignment:
 		inline void operator=(const derefTockList& _rhs)
 		{
 			ref->data = _rhs.ref->data;
+		}
+		*/
+		
+		inline operator tockList<T>()
+		{
+			tockList<T> x;
+			x.data = ref->data;
+			return x;
 		}
 	};
 	

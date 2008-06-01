@@ -278,8 +278,8 @@ instance ShowRain A.Type where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  
   showRainM A.Time = tell ["time"]
-  -- Mobility is not explicit in Rain:
-  showRainM (A.Mobile t) = showRainM t
+  -- Mobility is not explicit in Rain, but we should indicate it:
+  showRainM (A.Mobile t) = tell ["<mobile>"] >> showRainM t
   showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
   showRainM (A.UnknownVarType en)
     = do tell ["(inferred type for: "]
@@ -430,7 +430,6 @@ instance ShowRain A.Expression where
     = showRainM e >> tell [".."] >> showRainM e'
   showRainM (A.ExprConstr _ (A.RepConstr _ _ r e))
     = tell ["["] >> showRainM e >> tell ["|"] >> showRainM r >> tell ["]"]
-
 
 instance ShowOccam A.Formal where
   showOccamM (A.Formal am t n) = (maybeVal am)

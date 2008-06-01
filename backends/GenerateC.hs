@@ -1506,6 +1506,7 @@ cgenAssign m [v] (A.ExpressionList _ [e])
              A.Chan A.DirInput _ _ -> doAssign v e
              A.Chan A.DirOutput _ _ -> doAssign v e
              A.List _ -> call genListAssign v e
+             A.Mobile (A.List _) -> call genListAssign v e
              _ -> call genMissingC $ formatCode "assignment of type %" t
   where
     doAssign :: A.Variable -> A.Expression -> CGen ()
