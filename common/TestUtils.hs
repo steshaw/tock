@@ -260,9 +260,6 @@ makeLiteralStringRainPattern = (stopCaringPattern emptyMeta) . mkPattern . makeL
 makeLiteralCharPattern :: Char -> Pattern
 makeLiteralCharPattern c = tag3 A.Literal DontCare A.Byte (tag2 A.ByteLiteral DontCare [c])
 
-makeListLiteralPattern :: [Pattern] -> Pattern
-makeListLiteralPattern items = mLiteral (A.List A.Any) (mListLiteral items)
-
 data ExprHelper = 
   Dy ExprHelper A.DyadicOp ExprHelper
   | Mon A.MonadicOp ExprHelper

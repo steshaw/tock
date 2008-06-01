@@ -47,7 +47,7 @@ import Metadata (Meta,emptyMeta)
 import qualified ParseRain as RP
 import Pattern
 import TagAST
-import TestUtils
+import TestUtils hiding (intLiteral, intLiteralPattern) -- See definitions below
 import TreeUtils
 
 data ParseTest a = Show a => ExpPass (String, RP.RainParser a , (a -> Assertion)) | ExpFail (String, RP.RainParser a)
@@ -62,10 +62,28 @@ fail x = ExpFail x
 
 -- | Takes the given AST fragment and returns a Pattern that ignores all the Meta tags in it.
 pat :: Data a => a -> Pattern
-pat = (stopCaringPattern emptyMeta) . mkPattern
+pat = (stopCaringPattern emptyMeta) . (stopCaringPattern (818181 :: Int)) .
+  mkPattern
 
 m :: Meta
 m = emptyMeta
+
+inferVarType :: String -> A.Type
+inferVarType = A.UnknownVarType . Left . simpleName
+
+inferExpType :: A.Type
+inferExpType = A.UnknownVarType $ Right $ (emptyMeta, 818181)
+
+-- In the parser, integer literals have an unknown type:
+intLiteral :: Integer -> A.Expression
+intLiteral n = integerLiteral (A.UnknownNumLitType emptyMeta 818181 n) n
+
+intLiteralPattern :: Integer -> Pattern
+intLiteralPattern = pat . intLiteral
+
+makeListLiteralPattern :: [Pattern] -> Pattern
+makeListLiteralPattern items = mLiteral (A.List inferExpType) (mListLiteral items)
+
 
 -- | Runs a parse test, given a tuple of: (source text, parser function, assertion)
 -- There will be success if the parser succeeds, and the output succeeds against the given assertion.
@@ -206,7 +224,8 @@ testExprs =
  ]
  where
    passE :: (String,Int,ExprHelper) -> ParseTest A.Expression
-   passE (code,index,expr) = pass(code,RP.expression,assertPatternMatch ("testExprs " ++ show index) (buildExprPattern expr))
+   passE (code,index,expr) = pass(code,RP.expression,assertPatternMatch ("testExprs " ++ show index)
+     (pat $ buildExprPattern expr))
    failE x = fail (x,RP.expression)
 
 --TODO add support for shared ? and shared !, as well as any2any channels etc
@@ -266,13 +285,13 @@ testLiteral =
   ,fail ("'\\n\\n'",RP.literal)  
 
   -- Lists:
-  ,pass ("[0]", RP.literal, assertPatternMatch "testLiteral 400" $
+  ,pass ("[0]", RP.literal, assertPatternMatch "testLiteral 400" $ pat $
     makeListLiteralPattern [intLiteralPattern 0])
-  ,pass ("[]", RP.literal, assertPatternMatch "testLiteral 401" $
+  ,pass ("[]", RP.literal, assertPatternMatch "testLiteral 401" $ pat $ 
     makeListLiteralPattern [])
-  ,pass ("[0,1,2]", RP.literal, assertPatternMatch "testLiteral 400" $
+  ,pass ("[0,1,2]", RP.literal, assertPatternMatch "testLiteral 402" $ pat $
     makeListLiteralPattern $ map intLiteralPattern [0,1,2])
-  ,pass ("['0']", RP.literal, assertPatternMatch "testLiteral 400" $
+  ,pass ("['0']", RP.literal, assertPatternMatch "testLiteral 403" $ pat $
     makeListLiteralPattern [makeLiteralCharPattern '0'])
 
   ,fail ("[", RP.literal)
@@ -287,11 +306,11 @@ testRange :: [ParseTest A.Expression]
 testRange =
  [
   pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral 0) (intLiteral 1))
+    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral 0) (intLiteral 1))
   ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 1" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral 0) (intLiteral 10000))
+    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral 0) (intLiteral 10000))
   ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 2" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List A.Any) (intLiteral $ -3) (intLiteral $ -1))
+    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral $ -3) (intLiteral $ -1))
   ,pass("[sint16: 0..1]", RP.expression, rangePattern 4 (A.List A.Int16)
     (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 0))
     (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 1)))
@@ -302,7 +321,7 @@ testRange =
  where
    rangePattern :: Int -> A.Type -> Pattern -> Pattern -> (A.Expression -> Assertion)
    rangePattern n t start end = assertPatternMatch ("testRange " ++ show n) $
-     mExprConstr $ mRangeConstr t start end
+     pat $ mExprConstr $ mRangeConstr t start end
 
 --Helper function for ifs:
 makeIf :: [(A.Expression,A.Process)] -> A.Process
@@ -454,10 +473,10 @@ testEach =
  [
   pass ("seqeach (c : \"1\") par {c = 7;}", RP.statement,
     assertPatternMatch  "Each Test 0" (pat $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) $    
-      A.Only m $ makePar [(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "7")))] ))
+      A.Only m $ makePar [makeAssign (variable "c") (intLiteral 7)] ))
   ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
     assertPatternMatch "Each Test 1" $ pat $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "345")) $ 
-      A.Only m $ makeSeq[(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "1"))),(makeAssign (variable "c") (A.Literal m A.Int (A.IntLiteral m "2")))] )      
+      A.Only m $ makeSeq[makeAssign (variable "c") (intLiteral 1),makeAssign (variable "c") (intLiteral 2)] )      
  ]
 
 testTopLevelDecl :: [ParseTest A.AST]
