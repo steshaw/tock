@@ -33,10 +33,10 @@ import Utils
 
 simplifyComms :: [Pass]
 simplifyComms =
-      [ outExprs
-       ,transformInputCase
-       ,transformProtocolInput
-      ]
+    [ outExprs
+    , transformInputCase
+    , transformProtocolInput
+    ]
 
 outExprs :: Pass
 outExprs = pass "Define temporary variables for outputting expressions"

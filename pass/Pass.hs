@@ -60,12 +60,12 @@ type PassType = (forall s. Data s => s -> PassM s)
 
 -- | A description of an AST-mangling pass.
 data Monad m => Pass_ m = Pass {
-  passCode :: forall t. Data t => t -> m t
- ,passName :: String 
- ,passPre :: Set.Set Property
- ,passPost :: Set.Set Property
- ,passEnabled :: CompState -> Bool
-}
+    passCode :: forall t. Data t => t -> m t
+  , passName :: String
+  , passPre :: Set.Set Property
+  , passPost :: Set.Set Property
+  , passEnabled :: CompState -> Bool
+  }
 
 instance Monad m => Eq (Pass_ m) where
   x == y = passName x == passName y
@@ -78,13 +78,13 @@ type PassR = Pass_ PassMR
 
 -- | A property that can be asserted and tested against the AST.
 data Property = Property {
-  propName :: String
- ,propCheck :: A.AST -> PassMR ()
-}
+    propName :: String
+  , propCheck :: A.AST -> PassMR ()
+  }
 
 instance Eq Property where
   x == y = propName x == propName y
-  
+
 instance Ord Property where
   compare x y = compare (propName x) (propName y)
 
@@ -92,41 +92,44 @@ instance Show Property where
   show = propName
 
 runPassR :: (A.AST -> PassMR A.AST) -> (A.AST -> PassM A.AST)
-runPassR p t 
-           = do st <- get
-                (r,w) <- liftIO $ flip runStateT [] $ runReaderT (runErrorT (p t)) st
-                case r of
-                  Left err -> throwError err
-                  Right result -> mapM_ warnReport w >> return result
+runPassR p t
+    =  do st <- get
+          (r, w) <- liftIO $ flip runStateT [] $ runReaderT (runErrorT (p t)) st
+          case r of
+            Left err -> throwError err
+            Right result -> mapM_ warnReport w >> return result
 
 runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState, [WarningReport])
-runPassM cs pass = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runErrorT pass
+runPassM cs pass
+    = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runErrorT pass
   where
-    flatten :: ((a, b),c) -> (a, b, c)
+    flatten :: ((a, b), c) -> (a, b, c)
     flatten ((x, y), z) = (x, y, z)
 
 enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
-enablePassesWhen f = map (\p -> p
-  {passEnabled = \c -> f c && (passEnabled p c)})
+enablePassesWhen f
+    = map (\p -> p { passEnabled = \c -> f c && (passEnabled p c) })
 
 -- | A helper to run a pass at the top-level, or deliver an error otherwise
 passOnlyOnAST :: forall t. Data t => String -> (A.AST -> PassM A.AST) -> t -> PassM t
 passOnlyOnAST name func x
-  = case cast x :: Maybe A.AST of
-      Nothing -> dieP emptyMeta $ name ++ " only operates at top-level"
-      Just x' -> func x' >>= \y -> case cast y :: Maybe t of
-        Nothing -> dieP emptyMeta $ name ++ " crazy cast error at top-level"
-        Just y' -> return y'
+    = case cast x :: Maybe A.AST of
+        Nothing -> dieP emptyMeta $ name ++ " only operates at top-level"
+        Just x' ->
+           do y <- func x'
+              case cast y :: Maybe t of
+                Nothing -> dieP emptyMeta $ name ++ " crazy cast error at top-level"
+                Just y' -> return y'
 
 type PassMaker = String -> [Property] -> [Property] -> (forall t. Data t => t -> PassM t) -> Pass
 
 passMakerHelper :: (CompState -> Bool) -> PassMaker
 passMakerHelper f name pre post code
-  = Pass {passCode = code
-         ,passName = name
-         ,passPre = Set.fromList pre
-         ,passPost = Set.fromList post
-         ,passEnabled = f
+  = Pass { passCode = code
+         , passName = name
+         , passPre = Set.fromList pre
+         , passPost = Set.fromList post
+         , passEnabled = f
          }
 
 rainOnlyPass :: PassMaker
@@ -141,14 +144,13 @@ cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 cppOnlyPass :: PassMaker
 cppOnlyPass = passMakerHelper $ (== BackendCPPCSP) . csBackend
 
-
 pass :: String -> [Property] -> [Property] -> (forall t. Data t => t -> PassM t) -> Pass
 pass name pre post code
-  = Pass {passCode = code
-         ,passName = name
-         ,passPre = Set.fromList pre
-         ,passPost = Set.fromList post
-         ,passEnabled = const True
+  = Pass { passCode = code
+         , passName = name
+         , passPre = Set.fromList pre
+         , passPost = Set.fromList post
+         , passEnabled = const True
          }
 
 -- | Compose a list of passes into a single pass by running them in the order given.
