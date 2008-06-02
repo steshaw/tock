@@ -198,6 +198,9 @@ liftF f x = lift (f x)
 (<.<) :: Monad m => (b -> m c) -> (a -> m b) -> (a -> m c)
 (<.<) f1 f0 x = f0 x >>= f1
 
+-- | The <.< operator, flipped
+(>.>) :: Monad m => (a -> m b) -> (b -> m c) -> (a -> m c)
+(>.>) = flip (<.<)
 
 -- | A size 3 version of the standard uncurry function.
 uncurry3 :: (a -> b -> c -> d) -> (a,b,c) -> d
