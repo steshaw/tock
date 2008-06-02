@@ -212,7 +212,8 @@ testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "hello")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames0" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)
+      (tag6 A.NameDef DontCare "c" "c"
+        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
       
 -- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
 testRecordInfNames1 :: Test
@@ -223,7 +224,8 @@ testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)      
+      (tag6 A.NameDef DontCare "c" "c"
+        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
 
 -- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
 testRecordInfNames2 :: Test
@@ -235,15 +237,13 @@ testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" ex
       A.Only m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.List A.Byte) ) A.Abbrev A.Unplaced)
+                      (tag6 A.NameDef DontCare "c" "c"
+                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
+                          "c") A.Abbrev A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
-                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)                          
-
--- | checks that doing a foreach over a non-array type is barred:
-testRecordInfNames3 :: Test
-testRecordInfNames3 = TestCase $ testPassShouldFail "testRecordInfNames3" (recordInfNameTypes orig) (return ())
-  where
-    orig = A.Rep m (A.ForEach m (simpleName "c") (intLiteral 0)) skipP
+                      (tag6 A.NameDef DontCare "d" "d"
+                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
+                          "d") A.Abbrev A.Unplaced)
 
 --Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
 (>>>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c

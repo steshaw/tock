@@ -141,10 +141,14 @@ recordInfNameTypes = checkDepthM recordInfNameTypes'
   where
     recordInfNameTypes' :: Check A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
-      = do let innerT = A.UnknownVarType $ Left n
-           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
-                                   A.ndNameType = A.VariableName, A.ndSpecType = (A.Declaration m innerT), 
-                                   A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}
+      = let innerT = A.UnknownVarType $ Left n in
+           defineName n A.NameDef { A.ndMeta = m
+                                  , A.ndName = A.nameName n
+                                  , A.ndOrigName = A.nameName n
+                                  , A.ndSpecType = A.Declaration m innerT
+                                  , A.ndAbbrevMode = A.Abbrev
+                                  , A.ndPlacement = A.Unplaced
+                                  }
     recordInfNameTypes' _ = return ()
 
 markReplicators :: PassType
