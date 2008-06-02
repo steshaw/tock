@@ -30,6 +30,7 @@ import EvalConstants
 import Intrinsics
 import Metadata
 import Pass
+import qualified Properties as Prop
 import ShowCode
 import Traversal
 import Types
@@ -602,8 +603,11 @@ inSubscriptedContext m body
 --{{{  inferTypes
 
 -- | Infer types.
-inferTypes :: PassType
-inferTypes = recurse
+inferTypes :: Pass
+inferTypes = occamOnlyPass "Infer types"
+  []
+  [Prop.inferredTypesRecorded]
+  $ recurse
   where
     ops :: Ops
     ops = baseOp
@@ -999,12 +1003,15 @@ inferTypes = recurse
 -- | Check the AST for type consistency.
 -- This is actually a series of smaller passes that check particular types
 -- inside the AST, but it doesn't really make sense to split it up.
-checkTypes :: PassType
-checkTypes t =
-    checkVariables t >>=
-    checkExpressions >>=
-    checkSpecTypes >>=
-    checkProcesses >>=
+checkTypes :: Pass
+checkTypes = occamOnlyPass "Check types"
+  [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved]
+  [Prop.expressionTypesChecked, Prop.processTypesChecked,
+    Prop.functionTypesChecked, Prop.retypesChecked]
+  $ checkVariables >.>
+    checkExpressions >.>
+    checkSpecTypes >.>
+    checkProcesses >.>
     checkReplicators
 
 --{{{  checkVariables

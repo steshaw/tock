@@ -28,7 +28,7 @@ import TestUtils
 
 -- | Test 'preprocessOccam' when we're expecting it to succeed.
 testPP :: Int -> [TokenType] -> [TokenType] -> Test
-testPP n itts etts = TestCase $ testPass ("testPP " ++ show n) (makeTokens etts) pass (return ())
+testPP n itts etts = TestCase $ testPass' ("testPP " ++ show n) (makeTokens etts) pass (return ())
   where
     makeTokens = zip (repeat emptyMeta)
     pass = preprocessOccam (makeTokens itts)
@@ -47,21 +47,21 @@ testPPCond n = testPPCondAfter n []
 
 -- | Test 'preprocessOccam' when we're expecting it to fail.
 testPPFail :: Int -> [TokenType] -> Test
-testPPFail n itts = TestCase $ testPassShouldFail ("testPPFail " ++ show n) pass (return ())
+testPPFail n itts = TestCase $ testPassShouldFail' ("testPPFail " ++ show n) pass (return ())
   where
     makeTokens = zip (repeat emptyMeta)
     pass = preprocessOccam (makeTokens itts)
 
 -- | Test 'expandIncludes' when we're expecting it to succeed.
 testEI :: Int -> [TokenType] -> [TokenType] -> Test
-testEI n itts etts = TestCase $ testPass ("testEI " ++ show n) (makeTokens etts) pass (return ())
+testEI n itts etts = TestCase $ testPass' ("testEI " ++ show n) (makeTokens etts) pass (return ())
   where
     makeTokens = zip (repeat emptyMeta)
     pass = expandIncludes (makeTokens itts)
 
 -- | Test 'expandIncludes' when we're expecting it to fail.
 testEIFail :: Int -> [TokenType] -> Test
-testEIFail n itts = TestCase $ testPassShouldFail ("testEIFail " ++ show n) pass (return ())
+testEIFail n itts = TestCase $ testPassShouldFail' ("testEIFail " ++ show n) pass (return ())
   where
     makeTokens = zip (repeat emptyMeta)
     pass = expandIncludes (makeTokens itts)

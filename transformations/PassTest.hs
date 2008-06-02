@@ -74,7 +74,7 @@ singleParamSpecExp body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValA
 
 -- | Tests a function with a single return, and a single parameter.
 testFunctionsToProcs0 :: Test
-testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs0" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs0" exp functionsToProcs orig (return ()) check
   where
     orig = singleParamFunc valof0
     exp = tag3 A.Specification DontCare (simpleName "foo") procSpec
@@ -91,7 +91,7 @@ testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 
 -- | Tests a function with multiple returns, and multiple parameters.
 testFunctionsToProcs1 :: Test
-testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp functionsToProcs orig (return ()) check
   where
     orig = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int,A.Real32] 
       [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] (Left $ valofTwo "param0" "param1"))
@@ -121,7 +121,7 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 -- Currently I have chosen to put DontCare for the body of the function as stored in the NameDef.
 -- This behaviour is not too important, and may change at a later date.
 testFunctionsToProcs2 :: Test
-testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs2 A" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs2 A" exp functionsToProcs orig (return ()) check
   where
     orig = A.Specification m (simpleName "fooOuter") (A.Function m A.PlainSpec [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0")] $ Left $
       A.Spec m (singleParamFunc valof0) valof0)
@@ -152,7 +152,7 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 
 -- | Tests a function with a single return, and a single parameter, with a Process body
 testFunctionsToProcs3 :: Test
-testFunctionsToProcs3 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs3" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs3 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs3" exp functionsToProcs orig (return ()) check
   where
     orig = singleParamFuncProc $ A.Seq m $ A.Only m $ A.Assign m [variable "foo"] $ A.ExpressionList m [intLiteral 0]
     exp = tag3 A.Specification DontCare (simpleName "foo") procSpec
@@ -169,7 +169,7 @@ testFunctionsToProcs3 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 
 -- | Tests a function with multiple returns, and multiple parameters.
 testFunctionsToProcs4 :: Test
-testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs4 A" exp (functionsToProcs orig) (return ()) check
+testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs4 A" exp functionsToProcs orig (return ()) check
   where
     orig = A.Specification m (simpleName "foo") (A.Function m A.PlainSpec [A.Int,A.Real32] 
       [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] $
@@ -202,7 +202,7 @@ skipP = A.Only m (A.Skip m)
 
 -- | Tests that a simple constructor (with no expression, nor function call) gets converted into the appropriate initialisation code
 testTransformConstr0 :: Test
-testTransformConstr0 = TestCase $ testPass "transformConstr0" exp (transformConstr orig) startState
+testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConstr orig startState
   where
     startState :: State CompState ()
     startState = defineConst "x" A.Int (intLiteral 42)
@@ -242,7 +242,7 @@ testOutExprs = TestList
       (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
-    (outExprs $ 
+    outExprs (
       A.Output emptyMeta chan [outXM 1]
     )
     (defineName (xName) $ simpleDefDecl "x" A.Int)
@@ -254,7 +254,7 @@ testOutExprs = TestList
       (mOnlyP $ tag3 A.Output emptyMeta chan
         [outX])
     )
-    (outExprs $ 
+    outExprs (
       A.Output emptyMeta chan [outX]
     )
     (return ())
@@ -269,7 +269,7 @@ testOutExprs = TestList
         ]
       )
     )
-    (outExprs $
+    outExprs (
       A.Output emptyMeta chan [outXM 1,outX,A.OutExpression emptyMeta $ intLiteral 2]
     )
     (defineName (xName) $ simpleDefDecl "x" A.Byte)
@@ -285,7 +285,7 @@ testOutExprs = TestList
         ]
       )
     )
-    (outExprs $
+    outExprs (
       A.Output emptyMeta chan [A.OutCounted emptyMeta (eXM 1) (exprVariable "x")]
     )
     (defineName (xName) $ simpleDefDecl "x" A.Byte)
@@ -297,7 +297,7 @@ testOutExprs = TestList
       (mOnlyP $ tag4 A.OutputCase emptyMeta chan (simpleName "foo")
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
-    (outExprs $ 
+    outExprs (
       A.OutputCase emptyMeta chan (simpleName "foo") [outXM 1]
     )
     (defineName (xName) $ simpleDefDecl "x" A.Int)
@@ -309,7 +309,7 @@ testOutExprs = TestList
     (tag2 A.Seq DontCare $
       (mOnlyP $ A.OutputCase emptyMeta chan (simpleName "foo") [])
     )
-    (outExprs $ 
+    outExprs (
       A.OutputCase emptyMeta chan (simpleName "foo") []
     )
     (return ())
@@ -354,7 +354,7 @@ testInputCase = TestList
            mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
          ]
      )
-     (transformInputCase $ 
+     transformInputCase (
        A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
      )
      (defineMyProtocol >> defineC)
@@ -402,7 +402,7 @@ testInputCase = TestList
           ]
          ]
      )
-     (transformInputCase $ 
+     transformInputCase (
        A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
          [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
          ,A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
@@ -460,7 +460,7 @@ testInputCase = TestList
           ]
          ]
      )
-     (transformInputCase $ 
+     transformInputCase (
        A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
          [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
          ,specInt "z" $ A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
@@ -494,7 +494,7 @@ testInputCase = TestList
           tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
            mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
      )
-     (transformInputCase $ 
+     transformInputCase (
        A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True emptyMeta) c 
         (A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0)
         (A.Skip emptyMeta)
@@ -529,30 +529,30 @@ testTransformProtocolInput = TestList
   [
     TestCase $ testPass "testTransformProtocolInput0"
       (seqItems [ii0])
-      (transformProtocolInput $ seqItems [ii0])
+      transformProtocolInput (seqItems [ii0])
       (return ())
    ,TestCase $ testPass "testTransformProtocolInput1"
       (A.Seq emptyMeta $ A.Several emptyMeta $ map onlySingle [ii0, ii1, ii2])
-      (transformProtocolInput $ seqItems [ii0, ii1, ii2])
+      transformProtocolInput (seqItems [ii0, ii1, ii2])
       (return ())
    
    ,TestCase $ testPass "testTransformProtocolInput2"
       (A.Alt emptyMeta False $ onlySingleAlt ii0)
-      (transformProtocolInput $ A.Alt emptyMeta False $ onlySingleAlt ii0)
+      transformProtocolInput (A.Alt emptyMeta False $ onlySingleAlt ii0)
       (return ())
 
    ,TestCase $ testPass "testTransformProtocolInput3"
       (A.Alt emptyMeta True $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
         emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
         A.Seq emptyMeta $ A.Several emptyMeta $ onlySingle ii1 : [A.Only emptyMeta $ A.Skip emptyMeta])
-      (transformProtocolInput $ A.Alt emptyMeta True $ A.Only emptyMeta $ altItems [ii0, ii1])
+      transformProtocolInput (A.Alt emptyMeta True $ A.Only emptyMeta $ altItems [ii0, ii1])
       (return ())
 
    ,TestCase $ testPass "testTransformProtocolInput4"
       (A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
         emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
         A.Seq emptyMeta $ A.Several emptyMeta $ map onlySingle [ii1,ii2] ++ [A.Only emptyMeta $ A.Skip emptyMeta])
-      (transformProtocolInput $ A.Alt emptyMeta False $ A.Only emptyMeta $ altItems [ii0, ii1, ii2])
+      transformProtocolInput (A.Alt emptyMeta False $ A.Only emptyMeta $ altItems [ii0, ii1, ii2])
       (return ())
   ]
   where
@@ -581,7 +581,7 @@ testPullRepCounts = TestList
        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
          A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (exprVariable "nonce")) $ A.Several emptyMeta [])
        
-     (pullRepCounts $ A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $ A.Several emptyMeta [])
+     pullRepCounts (A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $ A.Several emptyMeta [])
      (return ())
 
    ,TestCase $ testPass "testPullRepCounts 6"
@@ -591,7 +591,7 @@ testPullRepCounts = TestList
            A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce2") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8)) $
              A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (exprVariable "nonce2")) $ A.Several emptyMeta [])
        
-     (pullRepCounts $ A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $
+     pullRepCounts (A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $
         A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (intLiteral 8)) $ A.Several emptyMeta [])
      (return ())
   ]
@@ -600,7 +600,7 @@ testPullRepCounts = TestList
     testUnchanged n f = TestCase $ testPass
       ("testPullRepCounts/testUnchanged " ++ show n)
       code
-      (pullRepCounts code)
+      pullRepCounts code
       (return ())
       where 
         code = (f $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 5)) $ A.Several emptyMeta [])

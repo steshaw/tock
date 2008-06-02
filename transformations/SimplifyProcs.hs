@@ -32,15 +32,18 @@ import Traversal
 import Types
 
 simplifyProcs :: [Pass]
-simplifyProcs = makePassesDep
-      [ ("Wrap PAR subprocesses in PROCs", parsToProcs, [Prop.parUsageChecked], [Prop.parsWrapped])
-      , ("Remove parallel assignment", removeParAssign, [Prop.parUsageChecked, Prop.functionsRemoved, Prop.functionCallsRemoved], [Prop.assignParRemoved])
-      , ("Flatten assignment", flattenAssign, Prop.agg_typesDone ++ [Prop.assignParRemoved], [Prop.assignFlattened])
+simplifyProcs =
+      [ parsToProcs
+      , removeParAssign
+      , flattenAssign
       ]
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
-parsToProcs :: PassType
-parsToProcs = applyDepthM doProcess
+parsToProcs :: Pass
+parsToProcs = pass "Wrap PAR subprocesses in PROCs"
+  [Prop.parUsageChecked]
+  [Prop.parsWrapped]
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Par m pm s)
@@ -58,8 +61,11 @@ parsToProcs = applyDepthM doProcess
                 return $ A.Spec m s (A.Only m (A.ProcCall m n []))
 
 -- | Turn parallel assignment into multiple single assignments through temporaries.
-removeParAssign :: PassType
-removeParAssign = applyDepthM doProcess
+removeParAssign :: Pass
+removeParAssign = pass "Remove parallel assignment"
+  [Prop.parUsageChecked, Prop.functionsRemoved, Prop.functionCallsRemoved]
+  [Prop.assignParRemoved]
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
@@ -72,8 +78,11 @@ removeParAssign = applyDepthM doProcess
     doProcess p = return p
 
 -- | Turn assignment of arrays and records into multiple assignments.
-flattenAssign :: PassType
-flattenAssign = makeRecurse ops
+flattenAssign :: Pass
+flattenAssign = pass "Flatten assignment"
+  (Prop.agg_typesDone ++ [Prop.assignParRemoved])
+  [Prop.assignFlattened]
+  $ makeRecurse ops
   where
     ops :: Ops
     ops = extOpD (extOpSD baseOp ops doStructured) ops doProcess

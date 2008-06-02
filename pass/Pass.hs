@@ -105,13 +105,6 @@ runPassM cs pass = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runEr
     flatten :: ((a, b),c) -> (a, b, c)
     flatten ((x, y), z) = (x, y, z)
 
-
-makePassesDep :: [(String, forall t. Data t => t -> PassM t, [Property], [Property])] -> [Pass]
-makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) (const True))
-
-makePassesDep' :: (CompState -> Bool) -> [(String, forall t. Data t => t -> PassM t, [Property], [Property])] -> [Pass]
-makePassesDep' f = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) f)
-
 enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
 enablePassesWhen f = map (\p -> p
   {passEnabled = \c -> f c && (passEnabled p c)})
@@ -157,7 +150,6 @@ pass name pre post code
          ,passPost = Set.fromList post
          ,passEnabled = const True
          }
-
 
 -- | Compose a list of passes into a single pass by running them in the order given.
 runPasses :: [Pass] -> (A.AST -> PassM A.AST)

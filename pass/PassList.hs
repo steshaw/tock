@@ -48,10 +48,13 @@ commonPasses :: CompState -> [Pass]
 commonPasses opts = concat $
   -- Rain does simplifyTypes separately:
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
-  , makePassesDep' csUsageChecking [("Usage checking", passOnlyOnAST "usageCheckPass"
-    $ runPassR usageCheckPass, Prop.agg_namesDone, [Prop.parUsageChecked])]
+  , enablePassesWhen csUsageChecking
+    [pass "Usage checking" Prop.agg_namesDone [Prop.parUsageChecked]
+      $ passOnlyOnAST "usageCheckPass" $ runPassR usageCheckPass]
   -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
-  , makePassesDep' (not . csUsageChecking) [("Usage checking turned OFF", return, Prop.agg_namesDone, [Prop.parUsageChecked])]
+  , enablePassesWhen (not . csUsageChecking)
+    [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
+      return]
   , simplifyComms
   , simplifyExprs
   , simplifyProcs

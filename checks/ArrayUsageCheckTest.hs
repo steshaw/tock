@@ -955,10 +955,6 @@ assertEquivalentProblems title exp act
     sortProblem :: [(EqualityProblem, InequalityProblem)] -> [(EqualityProblem, InequalityProblem)]
     sortProblem = sort
 
-checkRight :: (Show a, TestMonad m r) => Either a b -> m b
-checkRight (Left err) = testFailure ("Not Right: " ++ show err) >> return undefined
-checkRight (Right x) = return x
-
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing answers.
 -- Combine this with a randomly generated matrix of coefficients for equalities

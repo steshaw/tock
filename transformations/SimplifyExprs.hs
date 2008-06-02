@@ -36,21 +36,22 @@ import Types
 import Utils
 
 simplifyExprs :: [Pass]
-simplifyExprs = makePassesDep
-      [ ("Convert FUNCTIONs to PROCs", functionsToProcs, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
-        Prop.functionTypesChecked], [Prop.functionsRemoved])
-      , ("Convert AFTER to MINUS", removeAfter, [Prop.expressionTypesChecked], [Prop.afterRemoved])
-      , ("Expand array literals", expandArrayLiterals, [Prop.expressionTypesChecked, Prop.processTypesChecked], [Prop.arrayLiteralsExpanded])
-      , ("Pull up replicator counts for SEQs", pullRepCounts, Prop.agg_namesDone ++ Prop.agg_typesDone,  [])
-      , ("Pull up definitions", pullUp False, Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.functionsRemoved, Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])
-      , ("Transform array constructors into initialisation code", transformConstr, Prop.agg_namesDone ++ Prop.agg_typesDone
-        ++ [Prop.subscriptsPulledUp], [Prop.arrayConstructorsRemoved])
+simplifyExprs =
+      [ functionsToProcs
+      , removeAfter
+      , expandArrayLiterals
+      , pullRepCounts
+      , pullUp False
+      , transformConstr
       ]
---      ++ makePassesDep' ((== BackendCPPCSP) . csBackend) [("Pull up definitions (C++)", pullUp True, Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.functionsRemoved, Prop.processTypesChecked,Prop.seqInputsFlattened], [Prop.functionCallsRemoved, Prop.subscriptsPulledUp])]
 
 -- | Convert FUNCTION declarations to PROCs.
-functionsToProcs :: PassType
-functionsToProcs = applyDepthM doSpecification
+functionsToProcs :: Pass
+functionsToProcs = pass "Convert FUNCTIONs to PROCs"
+  (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
+        Prop.functionTypesChecked])
+  [Prop.functionsRemoved]
+  $ applyDepthM doSpecification
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
@@ -98,8 +99,11 @@ functionsToProcs = applyDepthM doSpecification
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
-removeAfter :: PassType
-removeAfter = applyDepthM doExpression
+removeAfter :: Pass
+removeAfter = pass "Convert AFTER to MINUS"
+  [Prop.expressionTypesChecked]
+  [Prop.afterRemoved]
+  $ applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Dyadic m A.After a b)
@@ -114,8 +118,11 @@ removeAfter = applyDepthM doExpression
 
 -- | For array literals that include other arrays, burst them into their
 -- elements.
-expandArrayLiterals :: PassType
-expandArrayLiterals = applyDepthM doArrayElem
+expandArrayLiterals :: Pass
+expandArrayLiterals = pass "Expand array literals"
+  [Prop.expressionTypesChecked, Prop.processTypesChecked]
+  [Prop.arrayLiteralsExpanded]
+  $ applyDepthM doArrayElem
   where
     doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
     doArrayElem ae@(A.ArrayElemExpr e)
@@ -148,8 +155,11 @@ expandArrayLiterals = applyDepthM doArrayElem
 -- Therefore, we only need to pull up the counts for sequential replicators
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
-pullRepCounts :: PassType
-pullRepCounts = applyDepthM doProcess
+pullRepCounts :: Pass
+pullRepCounts = pass "Pull up replicator counts for SEQs"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone)
+  []
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
@@ -174,8 +184,11 @@ pullRepCounts = applyDepthM doProcess
       = do s' <- pullRepCountSeq s
            return $ A.Rep m rep s'
 
-transformConstr :: PassType
-transformConstr = applyDepthSM doStructured
+transformConstr :: Pass
+transformConstr = pass "Transform array constructors into initialisation code"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.subscriptsPulledUp])
+  [Prop.arrayConstructorsRemoved]
+  $ applyDepthSM doStructured
   where
     -- For arrays, this takes a constructor expression:
     --   VAL type name IS [i = rep | expr]:
@@ -245,8 +258,11 @@ transformConstr = applyDepthSM doStructured
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
-pullUp :: Bool -> PassType
-pullUp pullUpArraysInsideRecords = recurse
+pullUp :: Bool -> Pass
+pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.functionsRemoved, Prop.seqInputsFlattened])
+  [Prop.functionCallsRemoved, Prop.subscriptsPulledUp]
+  recurse
   where
     ops :: Ops
     ops = baseOp

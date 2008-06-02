@@ -30,13 +30,13 @@ import TreeUtils
 
 -- | Test 'structureOccam' when we're expecting it to succeed.
 testS :: Int -> [Token] -> [Pattern] -> Test
-testS n its etts = TestCase $ testPass ("testS " ++ show n) ets (structureOccam its) (return ())
+testS n its etts = TestCase $ testPass' ("testS " ++ show n) ets (structureOccam its) (return ())
   where
     ets = zip (repeat DontCare) etts
 
 -- | Test 'structureOccam' when we're expecting it to fail.
 testSFail :: Int -> [Token] -> Test
-testSFail n its = TestCase $ testPassShouldFail ("testSFail " ++ show n) (structureOccam its) (return ())
+testSFail n its = TestCase $ testPassShouldFail' ("testSFail " ++ show n) (structureOccam its) (return ())
 
 --{{{  0xxx  simple stuff
 testSimple :: Test

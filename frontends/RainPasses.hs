@@ -40,7 +40,7 @@ import Types
 
 -- | An ordered list of the Rain-specific passes to be run.
 rainPasses :: [Pass]
-rainPasses = let f = makePassesDep' ((== FrontendRain) . csFrontend) in
+rainPasses =
      [ excludeNonRainFeatures
      , rainOnlyPass "Dummy Rain pass" [] [Prop.retypesChecked] return
      , transformInt

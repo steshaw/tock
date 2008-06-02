@@ -90,12 +90,13 @@ cppgenOps = cgenOps {
 --}}}
 
 genCPPCSPPasses :: [Pass]
-genCPPCSPPasses = makePassesDep' ((== BackendCPPCSP) . csBackend)
-  [ ("Transform channels to ANY", chansToAny, [Prop.processTypesChecked], [Prop.allChansToAnyOrProtocol])
-  ]
+genCPPCSPPasses = [chansToAny]
 
-chansToAny :: PassType
-chansToAny x = do st <- get
+chansToAny :: Pass
+chansToAny = cppOnlyPass "Transform channels to ANY"
+  [Prop.processTypesChecked]
+  [Prop.allChansToAnyOrProtocol]
+  $      \x -> do st <- get
                   case csFrontend st of
                     FrontendOccam ->
                       do chansToAnyInCompState

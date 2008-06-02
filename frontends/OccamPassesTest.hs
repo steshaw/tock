@@ -90,7 +90,7 @@ testFoldConstants = TestList
   where
     test :: Data a => Int -> a -> a -> Test
     test n orig exp = TestCase $ testPass ("testFoldConstants" ++ show n)
-                                          exp (OccamPasses.foldConstants orig)
+                                          exp OccamPasses.foldConstants orig
                                           startState
 
     testSame :: Int -> A.Expression -> Test
@@ -138,13 +138,13 @@ testCheckConstants = TestList
     testOK :: (Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testCheckConstants" ++ show n)
-                              orig (OccamPasses.checkConstants orig)
+                              orig OccamPasses.checkConstants orig
                               (return ())
 
     testFail :: (Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)
-                                        (OccamPasses.checkConstants orig)
+                                        OccamPasses.checkConstants orig
                                         (return ())
 
     dim10 = A.Dimension $ intLiteral 10

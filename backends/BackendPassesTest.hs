@@ -61,13 +61,13 @@ mGetTime v = mInput (mVariable timerName) (mInputTimerRead $ mInVariable v)
 
 -- | Test WaitUntil guard (should be unchanged)
 testTransformWaitFor0 :: Test
-testTransformWaitFor0 = TestCase $ testPass "testTransformWaitFor0" orig (transformWaitFor orig) (return ())
+testTransformWaitFor0 = TestCase $ testPass "testTransformWaitFor0" orig transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Only m $ waitUntil (exprVariable "t") (A.Skip m)
     
 -- | Test pulling out a single WaitFor:
 testTransformWaitFor1 :: Test
-testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transformWaitFor orig) (return ())
+testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Only m $ waitFor (exprVariable "t") (A.Skip m)
     exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
@@ -83,7 +83,7 @@ testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transfo
 
 -- | Test pulling out two WaitFors:
 testTransformWaitFor2 :: Test
-testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transformWaitFor orig) (return ())
+testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ waitFor (exprVariable "t0") (A.Skip m),
                                        A.Only m $ waitFor (exprVariable "t1") (A.Skip m)]
@@ -108,7 +108,7 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transfo
 
 -- | Test pulling out a single WaitFor with an expression:
 testTransformWaitFor3 :: Test
-testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transformWaitFor orig) (return ())
+testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Only m $ waitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
     exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
@@ -125,7 +125,7 @@ testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transfo
 
 -- | Test pulling out a single WaitFor with some slight nesting in the ALT:
 testTransformWaitFor4 :: Test
-testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transformWaitFor orig) (return ())
+testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ waitFor (exprVariable "t") (A.Skip m)]
     exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
@@ -142,7 +142,7 @@ testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transfo
 
 -- | Test pulling out two WaitFors that use the same variable:
 testTransformWaitFor5 :: Test
-testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transformWaitFor orig) (return ())
+testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp transformWaitFor orig (return ())
   where
     orig = A.Alt m True $ A.Several m [A.Only m $ waitFor (exprVariable "t") (A.Skip m),
                                        A.Only m $ waitFor (exprVariable "t") (A.Skip m)]
@@ -313,7 +313,7 @@ qcTestDeclareSizes =
     term = A.Only emptyMeta ()
     
     test :: TestMonad m r => Int -> A.Structured () -> A.Structured () -> State CompState () -> (CompState -> m ()) -> m ()
-    test n exp inp st chk = testPassWithStateCheck label exp (declareSizesArray inp) st chk
+    test n exp inp st chk = testPassWithStateCheck label exp declareSizesArray inp st chk
       where
         label = "testDeclareSizes " ++ show n
 
@@ -354,7 +354,7 @@ qcTestSizeParameters =
     testActual :: TestMonad m r => [A.Type] -> m ()
     testActual ts = testPassWithStateCheck "qcTestSizeParameters Actual"
       (procCall "p" argsWithSizes)
-      (addSizesActualParameters $ procCall "p" args)
+      addSizesActualParameters (procCall "p" args)
       (do recordProcDef args
           recordProcFormals args)
       (const $ return ())
@@ -369,7 +369,7 @@ qcTestSizeParameters =
     testFormal :: TestMonad m r => [A.Type] -> m ()
     testFormal ts = testPassWithStateCheck "qcTestSizeParameters Formal"
       (wrapSpec "p" $ makeProcDef argsWithSizes)
-      (addSizesFormalParameters $ wrapSpec "p" $ makeProcDef args)
+      addSizesFormalParameters (wrapSpec "p" $ makeProcDef args)
       (do recordProcDef args
           recordProcFormals args)
       (\x -> do checkProcDef argsWithSizes x

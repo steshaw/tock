@@ -36,34 +36,22 @@ import Types
 
 -- | Occam-specific frontend passes.
 occamPasses :: [Pass]
-occamPasses = makePassesDep' ((== FrontendOccam) . csFrontend)
-    [ ("Dummy occam pass", dummyOccamPass,
-       [],
-       Prop.agg_namesDone ++ [Prop.mainTagged])
-    , ("Infer types", inferTypes,
-       [],
-       [Prop.inferredTypesRecorded])
-    , ("Fold constants", foldConstants,
-       [Prop.inferredTypesRecorded],
-       [Prop.constantsFolded])
-    , ("Fix the types of array constructors", fixConstructorTypes,
-       [Prop.constantsFolded],
-       [Prop.arrayConstructorTypesDone])
-    , ("Check mandatory constants", checkConstants,
-       [Prop.constantsFolded, Prop.arrayConstructorTypesDone],
-       [Prop.constantsChecked])
-    , ("Resolve ambiguities", resolveAmbiguities,
-       [Prop.inferredTypesRecorded],
-       [Prop.ambiguitiesResolved])
-    , ("Check types", checkTypes,
-       [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved],
-       [Prop.expressionTypesChecked, Prop.processTypesChecked,
-        Prop.functionTypesChecked, Prop.retypesChecked])
+occamPasses =
+    [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
+    , inferTypes
+    , foldConstants
+    , fixConstructorTypes
+    , checkConstants
+    , resolveAmbiguities
+    , checkTypes
     ]
 
 -- | Fixed the types of array constructors according to the replicator count
-fixConstructorTypes :: Data t => t -> PassM t
-fixConstructorTypes = applyDepthM doExpression
+fixConstructorTypes :: Pass
+fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
+  [Prop.constantsFolded]
+  [Prop.arrayConstructorTypesDone]
+  $ applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr m (A.RepConstr m' _ rep expr))
@@ -74,8 +62,11 @@ fixConstructorTypes = applyDepthM doExpression
     doExpression e = return e
 
 -- | Handle ambiguities in the occam syntax that the parser can't resolve.
-resolveAmbiguities :: Data t => t -> PassM t
-resolveAmbiguities = applyDepthM doExpressionList
+resolveAmbiguities :: Pass
+resolveAmbiguities = occamOnlyPass "Resolve ambiguities"
+  [Prop.inferredTypesRecorded]
+  [Prop.ambiguitiesResolved]
+  $ applyDepthM doExpressionList
   where
     doExpressionList :: Transform A.ExpressionList
     -- A single function call inside an ExpressionList is actually a
@@ -85,8 +76,11 @@ resolveAmbiguities = applyDepthM doExpressionList
     doExpressionList e = return e
 
 -- | Fold constant expressions.
-foldConstants :: Data t => t -> PassM t
-foldConstants = applyDepthM2 doExpression doSpecification
+foldConstants :: Pass
+foldConstants = occamOnlyPass "Fold constants"
+  [Prop.inferredTypesRecorded]
+  [Prop.constantsFolded]
+  $ applyDepthM2 doExpression doSpecification
   where
     -- Try to fold all expressions we encounter. Since we've recursed into the
     -- expression first, this'll also fold subexpressions of non-constant
@@ -105,8 +99,11 @@ foldConstants = applyDepthM2 doExpression doSpecification
               return s
 
 -- | Check that things that must be constant are.
-checkConstants :: Data t => t -> PassM t
-checkConstants = applyDepthM2 doDimension doOption
+checkConstants :: Pass
+checkConstants = occamOnlyPass "Check mandatory constants"
+  [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
+  [Prop.constantsChecked]
+  $ applyDepthM2 doDimension doOption
   where
     -- Check array dimensions are constant.
     doDimension :: A.Dimension -> PassM A.Dimension
@@ -125,7 +122,4 @@ checkConstants = applyDepthM2 doDimension doOption
               return o
     doOption o = return o
 
--- | A dummy pass for things that haven't been separated out into passes yet.
-dummyOccamPass :: Data t => t -> PassM t
-dummyOccamPass = return
 

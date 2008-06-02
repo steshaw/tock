@@ -32,14 +32,17 @@ import Types
 import Utils
 
 simplifyComms :: [Pass]
-simplifyComms = makePassesDep
-      [ ("Define temporary variables for outputting expressions", outExprs, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.outExpressionRemoved])
-       ,("Transform ? CASE statements/guards into plain CASE", transformInputCase, Prop.agg_namesDone ++ Prop.agg_typesDone, [Prop.inputCaseRemoved])
-       ,("Flatten sequential protocol inputs into multiple inputs", transformProtocolInput, Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved], [Prop.seqInputsFlattened])
+simplifyComms =
+      [ outExprs
+       ,transformInputCase
+       ,transformProtocolInput
       ]
 
-outExprs :: PassType
-outExprs = applyDepthM doProcess
+outExprs :: Pass
+outExprs = pass "Define temporary variables for outputting expressions"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone)
+  [Prop.outExpressionRemoved]
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
@@ -130,8 +133,11 @@ ALT
          -- process D
 -}
 
-transformInputCase :: PassType
-transformInputCase = applyDepthM doProcess
+transformInputCase :: Pass
+transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone)
+  [Prop.inputCaseRemoved]
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
@@ -174,8 +180,11 @@ transformInputCase = applyDepthM doProcess
         -- Leave other guards untouched.
         doAlternative m a = return $ A.Only m a
 
-transformProtocolInput :: PassType
-transformProtocolInput = applyDepthM2 doProcess doAlternative
+transformProtocolInput :: Pass
+transformProtocolInput = pass "Flatten sequential protocol inputs into multiple inputs"
+  (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved])
+  [Prop.seqInputsFlattened]
+  $ applyDepthM2 doProcess doAlternative
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))

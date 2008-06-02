@@ -62,9 +62,7 @@ import Utils
 
 --{{{  passes related to C generation
 genCPasses :: [Pass]
-genCPasses = makePassesDep' ((== BackendC) . csBackend)
-  [ ("Transform wait for guards into wait until guards", transformWaitFor, [], [Prop.waitForRemoved])
-  ]
+genCPasses = [transformWaitFor]
 --}}}
 
 cPreReq :: [Property]

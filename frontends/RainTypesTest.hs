@@ -63,10 +63,10 @@ constantFoldTest = TestList
    two63 = 9223372036854775808
  
    foldVar :: Int -> ExprHelper -> Test
-   foldVar n e = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern e) (constantFoldPass $ buildExpr e) state
+   foldVar n e = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern e) constantFoldPass (buildExpr e) state
 
    foldCon :: Int -> ExprHelper -> ExprHelper -> Test
-   foldCon n exp orig = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern exp) (constantFoldPass $ buildExpr orig) state
+   foldCon n exp orig = TestCase $ testPass ("constantFoldTest " ++ show n) (buildExprPattern exp) constantFoldPass (buildExpr orig) state
 
    state :: State CompState ()
    state = defineVariable "x" A.Int64

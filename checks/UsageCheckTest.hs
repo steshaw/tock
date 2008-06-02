@@ -109,7 +109,7 @@ testGetVarProc = TestList (map doTest tests)
    -- TestUtils.
    doTest :: (Int,[Var],[Var],[Var],A.Process) -> Test
    doTest (index, r, w, u, proc)
-      = TestCase $ do result <- runPass (getVarProc proc) startState
+      = TestCase $ do result <- runPass' (getVarProc proc) startState
                       case result of
                         (_, Left err) ->
                           testFailure $ name ++ " failed: " ++ show err

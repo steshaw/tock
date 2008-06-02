@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Passes associated with the backends
-module BackendPasses where
+module BackendPasses (addSizesActualParameters, addSizesFormalParameters, declareSizesArray, simplifySlices, squashArrays, transformWaitFor) where
 
 import Control.Monad.State
 import Data.Generics
@@ -35,18 +35,21 @@ import Types
 import Utils
 
 squashArrays :: [Pass]
-squashArrays = makePassesDep
-  [ ("Simplify array slices", simplifySlices, prereq, [Prop.slicesSimplified])
-  , ("Declare array-size arrays", declareSizesArray, prereq ++ [Prop.slicesSimplified,
-    Prop.arrayConstructorsRemoved], [Prop.arraySizesDeclared])
-  , ("Add array-size arrays to PROC headers", addSizesFormalParameters, prereq ++ [Prop.arraySizesDeclared], [])
-  , ("Add array-size arrays to PROC calls", addSizesActualParameters, prereq ++ [Prop.arraySizesDeclared], [])
+squashArrays =
+  [ simplifySlices
+  , declareSizesArray
+  , addSizesFormalParameters
+  , addSizesActualParameters
   ]
-  where
-    prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
 
-transformWaitFor :: PassType
-transformWaitFor = applyDepthM doAlt
+prereq :: [Property]
+prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
+
+transformWaitFor :: Pass
+transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
+  []
+  [Prop.waitForRemoved]
+  $ applyDepthM doAlt
   where
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
@@ -79,8 +82,11 @@ append_sizes n = n {A.nameName = A.nameName n ++ "_sizes"}
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-declareSizesArray :: PassType
-declareSizesArray = applyDepthSM doStructured
+declareSizesArray :: Pass
+declareSizesArray = occamOnlyPass "Declare array-size arrays"
+  (prereq ++ [Prop.slicesSimplified, Prop.arrayConstructorsRemoved])
+  [Prop.arraySizesDeclared]
+  $ applyDepthSM doStructured
   where
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
@@ -229,8 +235,11 @@ declareSizesArray = applyDepthSM doStructured
 
 -- | A pass for adding _sizes parameters to PROC arguments
 -- TODO in future, only add _sizes for variable-sized parameters
-addSizesFormalParameters :: PassType
-addSizesFormalParameters = applyDepthM doSpecification
+addSizesFormalParameters :: Pass
+addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
+  (prereq ++ [Prop.arraySizesDeclared])
+  []
+  $ applyDepthM doSpecification
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
@@ -263,8 +272,11 @@ addSizesFormalParameters = applyDepthM doSpecification
                   return (f : rest, new)
 
 -- | A pass for adding _sizes parameters to actuals in PROC calls
-addSizesActualParameters :: PassType
-addSizesActualParameters = applyDepthM doProcess
+addSizesActualParameters :: Pass
+addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
+  (prereq ++ [Prop.arraySizesDeclared])
+  []
+  $ applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params) = concatMapM transformActual params >>* A.ProcCall m n
@@ -289,8 +301,11 @@ addSizesActualParameters = applyDepthM doProcess
     transformActualVariable a _ = return [a]
 
 -- | Transforms all slices into the FromFor form.
-simplifySlices :: PassType
-simplifySlices = applyDepthM doVariable
+simplifySlices :: Pass
+simplifySlices = occamOnlyPass "Simplify array slices"
+  prereq
+  [Prop.slicesSimplified]
+  $ applyDepthM doVariable
   where
     doVariable :: A.Variable -> PassM A.Variable
     doVariable (A.SubscriptedVariable m (A.SubscriptFor m' check for) v)

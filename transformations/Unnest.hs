@@ -37,9 +37,9 @@ import Traversal
 import Types
 
 unnest :: [Pass]
-unnest = makePassesDep
-      [ ("Convert free names to arguments", removeFreeNames, [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved], [Prop.freeNamesToArgs])
-      , ("Pull nested definitions to top level", removeNesting, [Prop.freeNamesToArgs], [Prop.nestedPulled])
+unnest =
+      [ removeFreeNames
+      , removeNesting
       ]
 
 type NameMap = Map.Map String A.Name
@@ -94,8 +94,11 @@ replaceNames map v = runIdentity $ applyDepthM doName v
     doName n = return $ Map.findWithDefault n (A.nameName n) smap
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: PassType
-removeFreeNames = applyDepthM2 doSpecification doProcess
+removeFreeNames :: Pass
+removeFreeNames = pass "Convert free names to arguments"
+  [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved]
+  [Prop.freeNamesToArgs]
+  $ applyDepthM2 doSpecification doProcess
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
@@ -181,8 +184,11 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
     doProcess p = return p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: Data t => Transform t
-removeNesting = passOnlyOnAST "removeNesting" $ \s ->
+removeNesting :: Pass
+removeNesting = pass "Pull nested definitions to top level"
+  [Prop.freeNamesToArgs]
+  [Prop.nestedPulled]
+  $ passOnlyOnAST "removeNesting" $ \s ->
        do pushPullContext
           s' <- (makeRecurse ops) s >>= applyPulled
           popPullContext
