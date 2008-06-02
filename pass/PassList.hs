@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Lists of passes
 module PassList (calculatePassList, getPassList) where
 
-import Control.Monad.Error
 import Control.Monad.State
 import Data.List
 import qualified Data.Map as Map
