@@ -155,9 +155,12 @@ effectMoveCopyDecisions g decs = foldFuncsM $ map effect $ Map.toList decs
           Nothing -> const $ dieP (findMeta v) "Could not find label for node"
           Just mod -> effectDecision v dec mod
 
-implicitMobility :: A.AST -> PassM A.AST
-implicitMobility t
-  = do g' <- buildFlowGraph labelFunctions t
+implicitMobility :: Pass
+implicitMobility 
+  = rainOnlyPass "Implicit mobility optimisation"
+    [] [] --TODO properties
+   $ passOnlyOnAST "implicitMobility" $ \t -> do
+       g' <- buildFlowGraph labelFunctions t
               :: PassM (Either String (FlowGraph' PassM UsageLabel (), [Node],
                 [Node]))
        case g' of

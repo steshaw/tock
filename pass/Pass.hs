@@ -60,7 +60,7 @@ type PassType = (forall s. Data s => s -> PassM s)
 
 -- | A description of an AST-mangling pass.
 data Monad m => Pass_ m = Pass {
-  passCode :: A.AST -> m A.AST
+  passCode :: forall t. Data t => t -> m t
  ,passName :: String 
  ,passPre :: Set.Set Property
  ,passPost :: Set.Set Property
@@ -105,15 +105,34 @@ runPassM cs pass = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runEr
     flatten :: ((a, b),c) -> (a, b, c)
     flatten ((x, y), z) = (x, y, z)
 
-makePassesDep :: [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
+
+makePassesDep :: [(String, forall t. Data t => t -> PassM t, [Property], [Property])] -> [Pass]
 makePassesDep = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) (const True))
 
-makePassesDep' :: (CompState -> Bool) -> [(String, A.AST -> PassM A.AST, [Property], [Property])] -> [Pass]
+makePassesDep' :: (CompState -> Bool) -> [(String, forall t. Data t => t -> PassM t, [Property], [Property])] -> [Pass]
 makePassesDep' f = map (\(s, p, pre, post) -> Pass p s (Set.fromList pre) (Set.fromList post) f)
 
 enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
 enablePassesWhen f = map (\p -> p
   {passEnabled = \c -> f c && (passEnabled p c)})
+
+-- | A helper to run a pass at the top-level, or deliver an error otherwise
+passOnlyOnAST :: forall t. Data t => String -> (A.AST -> PassM A.AST) -> t -> PassM t
+passOnlyOnAST name func x
+  = case cast x :: Maybe A.AST of
+      Nothing -> dieP emptyMeta $ name ++ " only operates at top-level"
+      Just x' -> func x' >>= \y -> case cast y :: Maybe t of
+        Nothing -> dieP emptyMeta $ name ++ " crazy cast error at top-level"
+        Just y' -> return y'
+
+rainOnlyPass :: String -> [Property] -> [Property] -> (forall t. Data t => t -> PassM t) -> Pass
+rainOnlyPass name pre post code
+  = Pass {passCode = code
+         ,passName = name
+         ,passPre = Set.fromList pre
+         ,passPost = Set.fromList post
+         ,passEnabled = (== FrontendRain) . csFrontend
+         }
 
 -- | Compose a list of passes into a single pass by running them in the order given.
 runPasses :: [Pass] -> (A.AST -> PassM A.AST)

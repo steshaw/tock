@@ -181,12 +181,12 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
     doProcess p = return p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: Data t => Transform (A.Structured t)
-removeNesting s
-    =  do pushPullContext
+removeNesting :: Data t => Transform t
+removeNesting = passOnlyOnAST "removeNesting" $ \s ->
+       do pushPullContext
           s' <- (makeRecurse ops) s >>= applyPulled
           popPullContext
-          return s'
+          return $ fromJust $ cast s'
   where
     ops :: Ops
     ops = baseOp `extOpS` doStructured

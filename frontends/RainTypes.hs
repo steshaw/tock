@@ -20,6 +20,7 @@ module RainTypes (constantFoldPass,performTypeUnification,recordInfNameTypes) wh
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.IORef
@@ -30,6 +31,7 @@ import Errors
 import EvalConstants
 import Metadata
 import Pass
+import qualified Properties as Prop
 import ShowCode
 import Traversal
 import Types
@@ -86,9 +88,11 @@ markUnify x y
        modify $ \st -> st {csUnifyPairs = (tex,tey) : csUnifyPairs st}
 
 
-performTypeUnification :: PassType
-performTypeUnification x
-  = do -- First, we copy the known types into the unify map:
+performTypeUnification :: Pass
+performTypeUnification = rainOnlyPass "Rain Type Checking"
+  ([Prop.noInt] ++ Prop.agg_namesDone)
+  [Prop.expressionTypesChecked, Prop.functionTypesChecked, Prop.processTypesChecked, Prop.retypesChecked]
+  $ \x -> do -- First, we copy the known types into the unify map:
        st <- get
        ul <- shift $ csNames st
        put st {csUnifyPairs = [], csUnifyLookup = ul}
@@ -136,8 +140,10 @@ substituteUnknownTypes mt = applyDepthM sub
       Nothing -> dieP m "Could not deduce type"
 
 -- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
-recordInfNameTypes :: PassType
-recordInfNameTypes = checkDepthM recordInfNameTypes'
+recordInfNameTypes :: Pass
+recordInfNameTypes = rainOnlyPass "Record inferred name types in dictionary"
+  (Prop.agg_namesDone \\ [Prop.inferredTypesRecorded]) [Prop.inferredTypesRecorded]
+  $ checkDepthM recordInfNameTypes'
   where
     recordInfNameTypes' :: Check A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
@@ -159,8 +165,11 @@ markReplicators = checkDepthM mark
       = astTypeOf n >>= \t -> markUnify (A.List t) e
 
 -- | Folds all constants.
-constantFoldPass :: PassType
-constantFoldPass = applyDepthM doExpression
+constantFoldPass :: Pass
+constantFoldPass = rainOnlyPass "Fold all constant expressions"
+  ([Prop.noInt] ++ Prop.agg_namesDone ++ [Prop.inferredTypesRecorded])
+  [Prop.constantsFolded, Prop.constantsChecked]
+  $ applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
