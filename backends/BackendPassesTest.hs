@@ -42,23 +42,22 @@ import Utils
 m :: Meta
 m = emptyMeta
 
+timerName :: A.Name
+timerName = simpleName "rain_timer"
+
 waitFor :: A.Expression -> A.Process -> A.Alternative
-waitFor e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta $ simpleName
-  (ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix)) (A.InputTimerFor emptyMeta e)
+waitFor e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta timerName) (A.InputTimerFor emptyMeta e)
     body
 
 waitUntil :: A.Expression -> A.Process -> A.Alternative
-waitUntil e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta $ simpleName
-  (ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix)) (A.InputTimerAfter emptyMeta e)
+waitUntil e body = A.Alternative emptyMeta (A.True emptyMeta) (A.Variable emptyMeta timerName) (A.InputTimerAfter emptyMeta e)
     body
 
 mWaitUntil :: (Data a, Data b) => a -> b -> Pattern
-mWaitUntil e body = mAlternative (A.True emptyMeta) (mVariable $ simpleName (ghostVarPrefix ++ "raintimer"
-  ++ ghostVarSuffix)) (mInputTimerAfter e) body
+mWaitUntil e body = mAlternative (A.True emptyMeta) (mVariable timerName) (mInputTimerAfter e) body
 
 mGetTime :: Pattern -> Pattern
-mGetTime v = mInput (mVariable $ simpleName (ghostVarPrefix ++ "raintimer"
-  ++ ghostVarSuffix)) (mInputTimerRead $ mInVariable v)
+mGetTime v = mInput (mVariable timerName) (mInputTimerRead $ mInVariable v)
 
 -- | Test WaitUntil guard (should be unchanged)
 testTransformWaitFor0 :: Test

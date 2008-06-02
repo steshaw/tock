@@ -58,9 +58,7 @@ freeNamesIn = doGeneric
     ignore s = Map.empty
 
     doName :: A.Name -> NameMap
-    doName n | ghostVarPrefix `isPrefixOf` (A.nameName n)
-               && ghostVarSuffix `isSuffixOf` (A.nameName n) = Map.empty
-             | otherwise =  Map.singleton (A.nameName n) n
+    doName n = Map.singleton (A.nameName n) n
 
     doStructured :: Data a => A.Structured a -> NameMap
     doStructured (A.Rep _ rep s) = doRep rep s
@@ -150,7 +148,7 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
 
     -- | Return whether a 'Name' could be considered a free name.
     --
-    -- Unscoped names aren't.
+    -- Unscoped and ghost names aren't.
     -- Things like data types and PROCs aren't, because they'll be the same
     -- for all instances of a PROC.
     -- Constants aren't, because they'll be pulled up anyway.
@@ -158,7 +156,8 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
     isFreeName n
         =  do st <- specTypeOfName n
               isConst <- isConstantName n
-              return $ isFreeST st && not isConst
+              isGhost <- isGhostName n
+              return $ isFreeST st && not (isConst || isGhost)
       where
         isFreeST :: A.SpecType -> Bool
         isFreeST st

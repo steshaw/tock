@@ -510,23 +510,29 @@ rainSourceFile
            s <- getState
            return (p, s)
 
+-- | A ghost variable for Rain's single timer.
+-- This is used for all timer operations.
 rainTimerName :: A.Name
-rainTimerName = A.Name {A.nameName = ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix,
-  A.nameMeta = emptyMeta}
+rainTimerName = A.Name emptyMeta "rain_timer"
+
+rainTimerNameDef :: A.NameDef
+rainTimerNameDef
+    = A.NameDef { A.ndMeta = emptyMeta
+                , A.ndName = A.nameName rainTimerName
+                , A.ndOrigName = A.nameName rainTimerName
+                , A.ndSpecType = A.Declaration emptyMeta (A.Timer A.RainTimer)
+                , A.ndAbbrevMode = A.Original
+                , A.ndPlacement = A.Unplaced
+                }
 
 -- | Parse Rain source text (with filename for error messages)
 parseRainProgram :: FilePath -> String -> PassM A.AST
 parseRainProgram filename source
-    =  do lexOut <- liftIO $ L.runLexer filename source          
+    =  do lexOut <- liftIO $ L.runLexer filename source
           case lexOut of
             Left merr -> dieP merr $ "Parse (lexing) error"
             Right toks ->
-              do defineName rainTimerName $ A.NameDef {A.ndMeta = emptyMeta,
-                   A.ndName = A.nameName rainTimerName,
-                   A.ndOrigName = A.nameName rainTimerName,
-                   A.ndSpecType = A.Declaration emptyMeta
-                     (A.Timer A.RainTimer),
-                   A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
+              do defineGhostName rainTimerName rainTimerNameDef
                  cs <- get
                  case runParser rainSourceFile cs filename toks of
                    Left err -> dieP (sourcePosToMeta $ errorPos err) $ "Parse error: " ++ show err

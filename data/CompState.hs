@@ -35,6 +35,7 @@ import Errors (Die, dieP, ErrorReport, Warn, warnP)
 import Metadata
 import OrdAST ()
 import UnifyType
+import Utils
 
 -- | Modes that Tock can run in.
 data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull
@@ -111,6 +112,7 @@ data CompState = CompState {
     csMainLocals :: [(String, (A.Name, NameType))],
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
+    csGhostNames :: Set A.Name,
     csNameCounter :: Int,
 
     -- Set by passes
@@ -145,6 +147,7 @@ emptyState = CompState {
     csMainLocals = [],
     csNames = Map.empty,
     csUnscopedNames = Map.empty,
+    csGhostNames = Set.empty,
     csNameCounter = 0,
 
     csTypeContext = [],
@@ -202,6 +205,12 @@ defineName :: CSM m => A.Name -> A.NameDef -> m ()
 defineName n nd
     = modify $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
 
+-- | Add the definition of a ghost name.
+defineGhostName :: CSM m => A.Name -> A.NameDef -> m ()
+defineGhostName n nd
+    =  do defineName n nd
+          modify (\cs -> cs { csGhostNames = Set.insert n (csGhostNames cs) })
+
 -- | Modify the definition of a name.
 modifyName :: CSM m => A.Name -> (A.NameDef -> A.NameDef) -> m ()
 modifyName n f
@@ -246,6 +255,13 @@ findUnscopedName n@(A.Name m s)
                                     }
                  defineName n nd
                  return n
+
+-- | Determine whether a name is a ghost name.
+isGhostName :: CSMR m => A.Name -> m Bool
+isGhostName n
+    =  do ghostNames <- getCompState >>* csGhostNames
+          return $ n `Set.member` ghostNames
+
 --}}}
 
 --{{{  pulled items
@@ -379,14 +395,6 @@ findAllProcesses
       = case A.ndSpecType nd of
           A.Proc _ _ _ p -> Just (n, p)
           _ -> Nothing
-
--- | A prefix put on all ghost variables, such as Rain's timers
-ghostVarPrefix :: String
-ghostVarPrefix = "##"
-
--- | A suffix put on all ghost variables, such as Rain's timers
-ghostVarSuffix :: String
-ghostVarSuffix = "_##"
 
 -- | A new identifer for the unify types in the tree
 getUniqueIdentifer :: CSM m => m Int
