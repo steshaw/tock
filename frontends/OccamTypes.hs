@@ -311,6 +311,7 @@ checkAbbrev m orig new
     = case (orig, new) of
         (_, A.Original) -> bad
         (A.ValAbbrev, A.ValAbbrev) -> ok
+        (A.ValAbbrev, A.InitialAbbrev) -> ok
         (A.ValAbbrev, _) -> bad
         _ -> ok
   where
@@ -320,7 +321,9 @@ checkAbbrev m orig new
     showAM :: A.AbbrevMode -> String
     showAM A.Original = "an original declaration"
     showAM A.Abbrev = "a reference abbreviation"
-    showAM A.ValAbbrev = "a value abbreviation"
+    showAM A.ValAbbrev = "a VAL abbreviation"
+    showAM A.InitialAbbrev = "an INITIAL abbreviation"
+    showAM A.ResultAbbrev = "a RESULT abbreviation"
 
 -- | Check a list of actuals is the right length for a list of formals.
 checkActualCount :: Meta -> A.Name -> [A.Formal] -> [a] -> PassM ()
@@ -1102,13 +1105,13 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType (A.Is m am t v)
         =  do tv <- astTypeOf v
               checkType (findMeta v) t tv
-              when (am /= A.Abbrev) $ unexpectedAM m
+              checkRefAM m am
               amv <- abbrevModeOfVariable v
               checkAbbrev m amv am
     doSpecType (A.IsExpr m am t e)
         =  do te <- astTypeOf e
               checkType (findMeta e) t te
-              when (am /= A.ValAbbrev) $ unexpectedAM m
+              checkValAM m am
               checkAbbrev m A.ValAbbrev am
     doSpecType (A.IsChannelArray m rawT cs)
         =  do t <- resolveUserType m rawT
@@ -1159,12 +1162,31 @@ checkSpecTypes = checkDepthM doSpecType
         doFunctionBody rs (Left s) = checkStructured (checkExpressionList rs) s
         -- FIXME: Need to know the name of the function to do this
         doFunctionBody rs (Right p) = dieP m "Cannot check function process body"
-    doSpecType (A.Retypes m _ t v)
+    doSpecType (A.Retypes m am t v)
         =  do fromT <- astTypeOf v
               checkRetypes m fromT t
-    doSpecType (A.RetypesExpr m _ t e)
+              checkRefAM m am
+              amv <- abbrevModeOfVariable v
+              checkAbbrev m amv am
+    doSpecType (A.RetypesExpr m am t e)
         =  do fromT <- astTypeOf e
               checkRetypes m fromT t
+              checkValAM m am
+              checkAbbrev m A.ValAbbrev am
+
+    checkValAM :: Meta -> A.AbbrevMode -> PassM ()
+    checkValAM m am
+        = case am of
+            A.ValAbbrev -> ok
+            A.InitialAbbrev -> ok
+            _ -> unexpectedAM m
+
+    checkRefAM :: Meta -> A.AbbrevMode -> PassM ()
+    checkRefAM m am
+        = case am of
+            A.Abbrev -> ok
+            A.ResultAbbrev -> ok
+            _ -> unexpectedAM m
 
     unexpectedAM :: Check Meta
     unexpectedAM m = dieP m "Unexpected abbreviation mode"

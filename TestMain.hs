@@ -64,7 +64,7 @@ import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
 import qualified OccamPassesTest (tests)
-import qualified OccamTypesTest (tests)
+import qualified OccamTypesTest (ioTests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
@@ -181,7 +181,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
               ,noqc OccamPassesTest.tests
-              ,noqc OccamTypesTest.tests
+              ,noqcButIO OccamTypesTest.ioTests
               ,noqc ParseRainTest.tests
               ,noqc PassTest.tests
               ,noqc PreprocessOccamTest.tests

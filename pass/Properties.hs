@@ -42,6 +42,7 @@ module Properties
   , functionsRemoved
   , functionTypesChecked
   , inferredTypesRecorded
+  , initialRemoved
   , inputCaseRemoved
   , intLiteralsInBounds
   , listsGivenType
@@ -55,6 +56,7 @@ module Properties
   , processTypesChecked
   , rainParDeclarationsPulledUp
   , rangeTransformed
+  , resultRemoved
   , retypesChecked
   , seqInputsFlattened
   , slicesSimplified
@@ -402,3 +404,14 @@ slicesSimplified = Property "slicesSimplified" $
 
 listsGivenType :: Property
 listsGivenType = Property "listsGivenType" checkTODO
+
+initialRemoved :: Property
+initialRemoved
+    = Property "initialRemoved" $
+        checkNull "initialRemoved" . listify (== A.InitialAbbrev)
+
+resultRemoved :: Property
+resultRemoved
+    = Property "resultRemoved" $
+        checkNull "resultRemoved" . listify (== A.ResultAbbrev)
+

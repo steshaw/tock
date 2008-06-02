@@ -20,6 +20,6 @@ CHAN for CHAN OF, and PLACE for PLACE AT.
 
 PLACE IN WORKSPACE and PLACE IN VECSPACE, both currently ignored.
 
-INITIAL variables.
+INITIAL and RESULT abbreviations.
 
 Array constructors.

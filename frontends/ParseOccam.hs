@@ -254,6 +254,12 @@ tryVVXX a b c d = try (do { av <- a; bv <- b; c; d; return (av, bv) })
 
 tryVVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b, d)
 tryVVXV a b c d = try (do { av <- a; bv <- b; c; dv <- d; return (av, bv, dv) })
+
+tryVVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b, c)
+tryVVVX a b c d = try (do { av <- a; bv <- b; cv <- c; d; return (av, bv, cv) })
+
+tryVVVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser e -> OccParser (a, b, c, e)
+tryVVVXV a b c d e = try (do { av <- a; bv <- b; cv <- c; d; ev <- e; return (av, bv, cv, ev) })
 --}}}
 
 --{{{ subscripts
@@ -949,62 +955,60 @@ declOf spec nt
 
 abbreviation :: OccParser NameSpec
 abbreviation
-    =   valIsAbbrev
-    <|> initialIsAbbrev
-    <|> isAbbrev variable VariableName
-    <|> isAbbrev channel ChannelName
+    =   valAbbrev
+    <|> refAbbrev variable VariableName
+    <|> refAbbrev channel ChannelName
     <|> chanArrayAbbrev
-    <|> isAbbrev timer TimerName
-    <|> isAbbrev port PortName
+    <|> refAbbrev timer TimerName
+    <|> refAbbrev port PortName
     <?> "abbreviation"
 
-valIsAbbrev :: OccParser NameSpec
-valIsAbbrev
+maybeInfer :: OccParser A.Type -> OccParser A.Type
+maybeInfer spec
+    =   try spec
+    <|> return A.Infer
+    <?> "optional specifier"
+
+valAbbrevMode :: OccParser A.AbbrevMode
+valAbbrevMode
+    =   (sVAL     >> return A.ValAbbrev)
+    <|> (sINITIAL >> return A.InitialAbbrev)
+
+valAbbrev :: OccParser NameSpec
+valAbbrev
     =  do m <- md
-          (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; return (n, A.Infer, e) }
-                       <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expression; sColon; eol; return (n, s, e) }
-          return (A.Specification m n $ A.IsExpr m A.ValAbbrev t e, VariableName)
-    <?> "VAL IS abbreviation"
+          (am, t, n) <-
+            tryVVVX valAbbrevMode (maybeInfer dataSpecifier) newVariableName sIS
+          e <- expression
+          sColon
+          eol
+          return (A.Specification m n $ A.IsExpr m am t e, VariableName)
+    <?> "abbreviation by value"
 
-initialIsAbbrev :: OccParser NameSpec
-initialIsAbbrev
-    =   do m <- md
-           (t, n) <- tryXVVX sINITIAL dataSpecifier newVariableName sIS
-           e <- expression
-           sColon
-           eol
-           return (A.Specification m n $ A.IsExpr m A.Original t e, VariableName)
-    <?> "INITIAL IS abbreviation"
+refAbbrevMode :: OccParser A.AbbrevMode
+refAbbrevMode
+    =   (sRESULT >> return A.ResultAbbrev)
+    <|> return A.Abbrev
 
-isAbbrev :: OccParser A.Variable -> NameType -> OccParser NameSpec
-isAbbrev oldVar nt
-    =   do m <- md
-           (n, v) <- tryVXV (newName nt) sIS oldVar
-           sColon
-           eol
-           return (A.Specification m n $ A.Is m A.Abbrev A.Infer v, nt)
-    <|> do m <- md
-           (s, n, v) <- tryVVXV specifier (newName nt) sIS oldVar
-           sColon
-           eol
-           return (A.Specification m n $ A.Is m A.Abbrev s v, nt)
-    <?> "IS abbreviation"
+refAbbrev :: OccParser A.Variable -> NameType -> OccParser NameSpec
+refAbbrev oldVar nt
+    =  do m <- md
+          (am, t, n, v) <-
+            tryVVVXV refAbbrevMode (maybeInfer specifier) (newName nt) sIS oldVar
+          sColon
+          eol
+          return (A.Specification m n $ A.Is m am t v, nt)
+    <?> "abbreviation by reference"
 
 chanArrayAbbrev :: OccParser NameSpec
 chanArrayAbbrev
-    =   do m <- md
-           (n, cs) <- tryVXXV newChannelName sIS sLeft (sepBy1 channel sComma)
-           sRight
-           sColon
-           eol
-           return (A.Specification m n $ A.IsChannelArray m A.Infer cs, ChannelName)
-    <|> do m <- md
-           (s, n) <- tryVVXX channelSpecifier newChannelName sIS sLeft
-           cs <- sepBy1 channel sComma
-           sRight
-           sColon
-           eol
-           return (A.Specification m n $ A.IsChannelArray m s cs, ChannelName)
+    =  do m <- md
+          (t, n, cs) <-
+            tryVVXV (maybeInfer channelSpecifier) newChannelName (sIS >> sLeft) (sepBy1 channel sComma)
+          sRight
+          sColon
+          eol
+          return (A.Specification m n $ A.IsChannelArray m t cs, ChannelName)
     <?> "channel array abbreviation"
 
 specMode :: OccParser () -> OccParser A.SpecMode
@@ -1049,18 +1053,14 @@ definition
     <|> retypesAbbrev
     <?> "definition"
 
-retypesReshapes :: OccParser ()
-retypesReshapes
-    = sRETYPES <|> sRESHAPES
-
 retypesAbbrev :: OccParser NameSpec
 retypesAbbrev
     =   do m <- md
-           (s, n) <- tryVVX dataSpecifier newVariableName retypesReshapes
+           (am, s, n) <- tryVVVX refAbbrevMode dataSpecifier newVariableName retypesReshapes
            v <- variable
            sColon
            eol
-           return (A.Specification m n $ A.Retypes m A.Abbrev s v, VariableName)
+           return (A.Specification m n $ A.Retypes m am s v, VariableName)
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
            c <- channel
@@ -1068,12 +1068,16 @@ retypesAbbrev
            eol
            return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName)
     <|> do m <- md
-           (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
+           (am, s, n) <- tryVVVX valAbbrevMode dataSpecifier newVariableName retypesReshapes
            e <- expression
            sColon
            eol
-           return (A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e, VariableName)
+           return (A.Specification m n $ A.RetypesExpr m am s e, VariableName)
     <?> "RETYPES/RESHAPES abbreviation"
+  where
+    retypesReshapes :: OccParser ()
+    retypesReshapes
+        = sRETYPES <|> sRESHAPES
 
 dataSpecifier :: OccParser A.Type
 dataSpecifier
@@ -1151,11 +1155,13 @@ formalArgSet
 
 formalVariableType :: OccParser (A.AbbrevMode, A.Type)
 formalVariableType
-    =   do sVAL
-           s <- dataSpecifier
-           return (A.ValAbbrev, s)
-    <|> do s <- dataSpecifier
-           return (A.Abbrev, s)
+    =  do am <-
+            (sVAL >> return A.ValAbbrev)
+            <|> (sINITIAL >> return A.InitialAbbrev)
+            <|> (sRESULT >> return A.ResultAbbrev)
+            <|> return A.Abbrev
+          s <- dataSpecifier
+          return (am, s)
     <?> "formal variable type"
 
 valueProcess :: OccParser (A.Structured A.ExpressionList)

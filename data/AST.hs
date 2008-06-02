@@ -456,6 +456,10 @@ data AbbrevMode =
   | Abbrev
   -- | An abbreviation by value.
   | ValAbbrev
+  -- | An abbreviation by value that can be modified.
+  | InitialAbbrev
+  -- | An abbreviation by reference that is initially undefined.
+  | ResultAbbrev
   deriving (Show, Eq, Typeable, Data)
 
 -- | Anything that introduces a new name.

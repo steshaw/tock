@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2008  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -37,6 +37,7 @@ import OccamPasses
 import Pass
 import qualified Properties as Prop
 import RainPasses
+import SimplifyAbbrevs
 import SimplifyComms
 import SimplifyExprs
 import SimplifyProcs
@@ -55,6 +56,7 @@ commonPasses opts = concat $
   , enablePassesWhen (not . csUsageChecking)
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
       return]
+  , simplifyAbbrevs
   , simplifyComms
   , simplifyExprs
   , simplifyProcs

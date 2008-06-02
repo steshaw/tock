@@ -1,0 +1,81 @@
+-- This file tests INITIAL and RESULT abbreviations.
+
+PROC main ()
+  INT var:
+  REAL32 var.r:
+  BYTE var.b:
+  VAL INT const IS 42:
+  VAL REAL32 const.r IS 9.8:
+  VAL BYTE const.b IS 'x':
+%%
+  SKIP
+:
+
+%PASS Normal kinds of abbreviations
+  INT abbrev IS var:
+  inferred.abbrev IS var:
+  VAL INT val IS var:
+  VAL inferred.val IS var:
+  VAL INT val.const IS const:
+  VAL inferred.val.const IS const:
+
+%PASS Initial-abbreviate var
+  INITIAL INT init IS var:
+
+%PASS Initial-abbreviate const
+  INITIAL INT init IS const:
+
+%FAIL Initial-abbreviate wrong type
+  INITIAL INT init IS const.r:
+
+%PASS Initial-abbreviate inferred type
+  INITIAL init IS const:
+
+%PASS Result-abbreviate var
+  RESULT INT result IS var:
+
+%FAIL Result-abbreviate const
+  RESULT INT result IS const:
+
+%FAIL Result-abbreviate wrong type
+  RESULT INT result IS var.r:
+
+%PASS Result-abbreviate inferred type from var
+  RESULT result IS var:
+
+%FAIL Result-abbreviate inferred type from const
+  RESULT result IS const:
+
+%PASS Normal kinds of retypings
+  INT32 retyped RETYPES var.r:
+  VAL INT32 val.retypes RETYPES var.r:
+  VAL INT32 val.retypes.const RETYPES const.r:
+
+%FAIL Normal kind of retyping from wrong size var
+  INT32 retyped RETYPES var.b:
+
+%FAIL Normal kind of retyping from wrong size const
+  VAL INT32 retyped RETYPES const.b:
+
+%PASS Initial retyping from var
+  INITIAL INT32 retyped RETYPES var.r:
+
+%PASS Initial retyping from const
+  INITIAL INT32 retyped RETYPES const.r:
+
+%FAIL Initial retyping from wrong size var
+  INITIAL INT32 retyped RETYPES var.b:
+
+%FAIL Initial retyping from wrong size const
+  INITIAL INT32 retyped RETYPES const.b:
+
+%PASS Result retyping from var
+  RESULT INT32 retyped RETYPES var.r:
+
+%FAIL Result retyping from const
+  RESULT INT32 retyped RETYPES const.r:
+
+%FAIL Result retyping from wrong size
+  RESULT INT32 retyped RETYPES var.b:
+
+%

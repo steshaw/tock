@@ -1,0 +1,46 @@
+-- This file tests INITIAL and RESULT formals and actuals.
+
+PROC main ()
+  INT var:
+  REAL32 var.r:
+  VAL INT const IS 42:
+  VAL REAL32 const.r IS 9.8:
+
+  PROC on.init (INITIAL INT init)
+    init := init + 1
+  :
+  PROC on.result (RESULT INT result)
+    result := 42
+  :
+
+%%
+:
+
+%PASS Just the PROCs
+  SKIP
+
+%PASS Initial actual from var
+  on.init (var)
+
+%PASS Initial actual from const
+  on.init (const)
+
+%FAIL Initial actual from wrong type
+  on.init (const.r)
+
+%PASS Result actual from var
+  on.result (var)
+
+%FAIL Result actual from const
+  on.result (const)
+
+%FAIL Result actual from wrong type
+  on.result (var.r)
+
+%FAIL Initial formal in FUNCTION
+  INT FUNCTION function (INITIAL INT arg) IS 42:
+
+%FAIL Result formal in FUNCTION
+  INT FUNCTION function (RESULT INT arg) IS 42:
+
+%

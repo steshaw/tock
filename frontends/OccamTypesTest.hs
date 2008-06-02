@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | Tests for 'OccamTypes'.
-module OccamTypesTest (tests) where
+module OccamTypesTest (ioTests) where
 
 import Control.Monad.State
 import Data.Generics
@@ -29,6 +29,7 @@ import qualified AST as A
 import CompState
 import Metadata
 import qualified OccamTypes
+import TestHarness
 import TestUtils
 
 m :: Meta
@@ -606,7 +607,7 @@ testOccamTypes = TestList
     returnOne = Left $ A.Only m $ A.ExpressionList m [intE]
     returnTwo = Left $ A.Only m $ A.ExpressionList m [intE, intE]
 
-    retypesV = A.Retypes m A.ValAbbrev
+    retypesV = A.Retypes m A.Abbrev
     retypesE = A.RetypesExpr m A.ValAbbrev
     known1 = A.Array [dimension 4] A.Byte
     known2 = A.Array [dimension 2, dimension 2] A.Byte
@@ -616,7 +617,12 @@ testOccamTypes = TestList
 
     --}}}
 
-tests :: Test
-tests = TestLabel "OccamTypesTest" $ TestList
-    [ testOccamTypes
-    ]
+ioTests :: IO Test
+ioTests = liftM (TestLabel "OccamTypesTest" . TestList) $ sequence $
+    map return
+        [ testOccamTypes
+        ]
+    ++ map (automaticTest FrontendOccam)
+        [ "testcases/automatic/initial-result-1.occ.test"
+        , "testcases/automatic/initial-result-2.occ.test"
+        ]
