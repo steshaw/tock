@@ -117,12 +117,10 @@ calculatePassList
         props = Set.difference (passPost p) checked
         checked' = Set.union checked props
 
-        checks = [Pass { passCode = runPassR $ checkProp prop
-                       , passName = "[" ++ propName prop ++ "]"
-                       , passPre = Set.empty
-                       , passPost = Set.empty
-                       , passEnabled = const True
-                       }
+        checks = [pass ("[" ++ propName prop ++ "]")
+                       []
+                       []
+                       (passOnlyOnAST "prop" $ runPassR $ checkProp prop)
                   | prop <- Set.toList props]
 
         checkProp :: Property -> A.AST -> PassMR A.AST
@@ -131,14 +129,14 @@ calculatePassList
 -- | If something isn't right, it gives back a list containing a single pass
 -- that will give an error.
 checkList :: [Pass] -> [Pass]
-checkList passes = case check [] passes of
-    Left err -> [Pass {passCode = const $ dieP emptyMeta err
-                      ,passName = "Pass List Error"
-                      ,passPre = Set.empty
-                      ,passPost = Set.empty
-                      ,passEnabled = const True}
-                ]
-    Right ps -> ps
+checkList passes
+    = case check [] passes of
+        Left err -> [pass "Pass list internal error"
+                          []
+                          []
+                          (const $ dieP emptyMeta err)
+                    ]
+        Right ps -> ps
   where
     check :: [Pass] -> [Pass] -> Either String [Pass]
     check prev [] = Right prev
