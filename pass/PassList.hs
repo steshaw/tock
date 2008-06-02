@@ -23,6 +23,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Data.List
 import qualified Data.Map as Map
+import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -93,9 +94,36 @@ getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 ]
 
 calculatePassList :: CSMR m => m [Pass]
-calculatePassList = getCompState >>* getPassList
+calculatePassList
+    =  do optsPS <- getCompState
+          let passes = getPassList optsPS
+          return $ if csSanityCheck optsPS
+                     then addChecks passes
+                     else passes
+  where
+    -- | Add extra passes to check that properties hold.
+    -- Each property will be checked after the last pass that provides it has
+    -- run.
+    addChecks :: [Pass] -> [Pass]
+    addChecks = reverse . (addChecks' Set.empty) . reverse
 
---TODO put back the sanity check option to enable the property checking
+    addChecks' :: Set Property -> [Pass] -> [Pass]
+    addChecks' _ [] = []
+    addChecks' checked (p:ps) = checks ++ [p] ++ addChecks' checked' ps
+      where
+        props = Set.difference (passPost p) checked
+        checked' = Set.union checked props
+
+        checks = [Pass { passCode = runPassR $ checkProp prop
+                       , passName = "[" ++ propName prop ++ "]"
+                       , passPre = Set.empty
+                       , passPost = Set.empty
+                       , passEnabled = const True
+                       }
+                  | prop <- Set.toList props]
+
+        checkProp :: Property -> A.AST -> PassMR A.AST
+        checkProp prop ast = propCheck prop ast >> return ast
 
 -- | If something isn't right, it gives back a list containing a single pass
 -- that will give an error.
