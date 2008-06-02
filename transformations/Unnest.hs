@@ -107,20 +107,13 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
              -- that it had in scope originally will still be in scope.
              ps <- get
              when (null $ csMainLocals ps) (dieReport (Nothing,"No main process found"))
-             let isTLP = (snd $ head $ csMainLocals ps) == n
+             let isTLP = (fst $ snd $ head $ csMainLocals ps) == n
 
              -- Figure out the free names.
-             let freeNames' = if isTLP then [] else Map.elems $ freeNamesIn st
-             let freeNames'' = [n | n <- freeNames',
-                                    case A.nameType n of
-                                      A.ChannelName -> True
-                                      A.PortName -> True
-                                      A.TimerName -> True
-                                      A.VariableName -> True
-                                      _ -> False]
-
-             -- Don't bother with constants -- they get pulled up anyway.
-             freeNames <- filterM (liftM not . isConstantName) freeNames''
+             freeNames <- if isTLP
+                            then return []
+                            else filterM isFreeName
+                                         (Map.elems $ freeNamesIn st)
              types <- mapM astTypeOf freeNames
              origAMs <- mapM abbrevModeOfName freeNames
              let ams = map makeAbbrevAM origAMs
@@ -154,6 +147,30 @@ removeFreeNames = applyDepthM2 doSpecification doProcess
 
              return spec'
         _ -> return spec
+
+    -- | Return whether a 'Name' could be considered a free name.
+    --
+    -- Unscoped names aren't.
+    -- Things like data types and PROCs aren't, because they'll be the same
+    -- for all instances of a PROC.
+    -- Constants aren't, because they'll be pulled up anyway.
+    isFreeName :: A.Name -> PassM Bool
+    isFreeName n
+        =  do st <- specTypeOfName n
+              isConst <- isConstantName n
+              return $ isFreeST st && not isConst
+      where
+        isFreeST :: A.SpecType -> Bool
+        isFreeST st
+            = case st of
+                -- Declaration also covers PROC formals.
+                A.Declaration {} -> True
+                A.Is {} -> True
+                A.IsExpr {} -> True
+                A.IsChannelArray {} -> True
+                A.Retypes {} -> True
+                A.RetypesExpr {} -> True
+                _ -> False
 
     -- | Add the extra arguments we recorded when we saw the definition.
     doProcess :: A.Process -> PassM A.Process

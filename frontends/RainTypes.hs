@@ -119,8 +119,7 @@ performTypeUnification x
                                    Just t -> do te <- typeToTypeExp (A.ndMeta d) t
                                                 return $ Just (UnifyIndex (A.ndMeta d, Right name), te)
           where
-            name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d, A.nameType
-              = A.ndNameType d}
+            name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d}
 
 substituteUnknownTypes :: Map.Map UnifyIndex A.Type -> PassType
 substituteUnknownTypes mt = applyDepthM sub
@@ -142,9 +141,9 @@ recordInfNameTypes = checkDepthM recordInfNameTypes'
   where
     recordInfNameTypes' :: Check A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
-      = let innerT = A.UnknownVarType $ Left n in
-           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
-                                   A.ndNameType = A.VariableName, A.ndSpecType = A.Declaration m innerT,
+      = do let innerT = A.UnknownVarType $ Left n
+           defineName n A.NameDef {A.ndMeta = m, A.ndName = A.nameName n, A.ndOrigName = A.nameName n, 
+                                   A.ndNameType = A.VariableName, A.ndSpecType = (A.Declaration m innerT), 
                                    A.ndAbbrevMode = A.Abbrev, A.ndPlacement = A.Unplaced}
     recordInfNameTypes' _ = return ()
 

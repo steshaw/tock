@@ -376,9 +376,9 @@ checkIntrinsicFunctionCall m n es
         Just (rs, args) ->
            do when (length rs /= 1) $
                 dieP m $ "Function " ++ n ++ " used in an expression returns more than one value"
-              let fs = [A.Formal A.ValAbbrev t (A.Name m A.VariableName s)
+              let fs = [A.Formal A.ValAbbrev t (A.Name m s)
                         | (t, s) <- args]
-              checkActuals m (A.Name m A.ProcName n)
+              checkActuals m (A.Name m n)
                            fs (map A.ActualExpression es)
         Nothing -> dieP m $ n ++ " is not an intrinsic function"
 
@@ -889,9 +889,9 @@ inferTypes = recurse
 
     -- | Given a name that should really have been a tag, make it one.
     nameToUnscoped :: A.Name -> PassM A.Name
-    nameToUnscoped n@(A.Name m nt _)
+    nameToUnscoped n@(A.Name m _)
         =  do nd <- lookupName n
-              findUnscopedName (A.Name m A.FieldName (A.ndOrigName nd))
+              findUnscopedName (A.Name m (A.ndOrigName nd))
 
     -- | Process a 'LiteralRepr', taking the type it's meant to represent or
     -- 'Infer', and returning the type it really is.
@@ -1203,9 +1203,9 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.IntrinsicProcCall m n as)
         = case lookup n intrinsicProcs of
             Just args ->
-              do let fs = [A.Formal am t (A.Name m A.VariableName s)
+              do let fs = [A.Formal am t (A.Name m s)
                            | (am, t, s) <- args]
-                 checkActuals m (A.Name m A.ProcName n) fs as
+                 checkActuals m (A.Name m n) fs as
             Nothing -> dieP m $ n ++ " is not an intrinsic procedure"
 
     doAlternative :: Check A.Alternative

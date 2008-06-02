@@ -149,7 +149,7 @@ reserved word
 name :: RainParser A.Name
 name 
     =   do (m,s) <- identifier
-           return $ A.Name m (A.VariableName) s --A.VariableName is a placeholder until a later pass
+           return $ A.Name m s
     <?> "name"
 
 
@@ -170,7 +170,7 @@ dataType
     <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sLeftQ ; inner <- dataType ; sRightQ ; return $ A.List inner}
-    <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n, A.nameType = A.DataTypeName}}
+    <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n}}
     <?> "data type"
 
 variable :: RainParser A.Variable
@@ -313,8 +313,7 @@ functionCall =  do funcName <- name
                      Just _ -> return $ A.IntrinsicFunctionCall (A.nameMeta
                        funcName) (A.nameName funcName) es
                      Nothing -> return $
-                       A.FunctionCall (A.nameMeta funcName)
-                         (funcName {A.nameType = A.FunctionName}) es
+                       A.FunctionCall (A.nameMeta funcName) funcName es
 
 data InnerBlockLineState = Decls | NoMoreDecls | Mixed deriving (Eq)
 
@@ -427,7 +426,7 @@ runProcess :: RainParser A.Process
 runProcess = do (mProcess,processName) <- identifier
                 items <- tuple
                 sSemiColon
-                return $ A.ProcCall mProcess A.Name {A.nameName = processName, A.nameMeta = mProcess, A.nameType = A.ProcName} (map convertItem items)
+                return $ A.ProcCall mProcess A.Name {A.nameName = processName, A.nameMeta = mProcess} (map convertItem items)
   where
     convertItem :: A.Expression -> A.Actual
     convertItem (A.ExprVariable _ v) = A.ActualVariable v
@@ -513,7 +512,7 @@ rainSourceFile
 
 rainTimerName :: A.Name
 rainTimerName = A.Name {A.nameName = ghostVarPrefix ++ "raintimer" ++ ghostVarSuffix,
-  A.nameMeta = emptyMeta, A.nameType = A.TimerName}
+  A.nameMeta = emptyMeta}
 
 -- | Parse Rain source text (with filename for error messages)
 parseRainProgram :: FilePath -> String -> PassM A.AST
@@ -525,7 +524,7 @@ parseRainProgram filename source
               do defineName rainTimerName $ A.NameDef {A.ndMeta = emptyMeta,
                    A.ndName = A.nameName rainTimerName,
                    A.ndOrigName = A.nameName rainTimerName,
-                   A.ndNameType = A.TimerName, A.ndSpecType = A.Declaration emptyMeta
+                   A.ndSpecType = A.Declaration emptyMeta
                      (A.Timer A.RainTimer),
                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
                  cs <- get

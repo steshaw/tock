@@ -78,7 +78,7 @@ testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp (transfo
                 ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ mWaitUntil evar (A.Skip m)
               ]
-    varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
+    varName = (tag2 A.Name DontCare $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
     evar = tag2 A.ExprVariable DontCare var
 
@@ -100,10 +100,10 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp (transfo
                   [mOnlyA $ mWaitUntil evar0 (A.Skip m)
                   ,mOnlyA $ mWaitUntil evar1 (A.Skip m)]
               ]
-    varName0 = (tag3 A.Name DontCare A.VariableName $ Named "nowt0" DontCare)
+    varName0 = (tag2 A.Name DontCare $ Named "nowt0" DontCare)
     var0 = tag2 A.Variable DontCare varName0
     evar0 = tag2 A.ExprVariable DontCare var0
-    varName1 = (tag3 A.Name DontCare A.VariableName $ Named "nowt1" DontCare)
+    varName1 = (tag2 A.Name DontCare $ Named "nowt1" DontCare)
     var1 = tag2 A.Variable DontCare varName1
     evar1 = tag2 A.ExprVariable DontCare var1
 
@@ -120,7 +120,7 @@ testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp (transfo
                   (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1"))]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ mWaitUntil evar (A.Skip m)
               ]
-    varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
+    varName = (tag2 A.Name DontCare $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
     evar = tag2 A.ExprVariable DontCare var
 
@@ -137,7 +137,7 @@ testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp (transfo
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
                   [mOnlyA $ mWaitUntil evar (A.Skip m)]
               ]
-    varName = (tag3 A.Name DontCare A.VariableName $ Named "nowt" DontCare)
+    varName = (tag2 A.Name DontCare $ Named "nowt" DontCare)
     var = tag2 A.Variable DontCare varName
     evar = tag2 A.ExprVariable DontCare var
 
@@ -159,10 +159,10 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp (transfo
                   [mOnlyA $ mWaitUntil evar0 (A.Skip m)
                   ,mOnlyA $ mWaitUntil evar1 (A.Skip m)]
               ]
-    varName0 = (tag3 A.Name DontCare A.VariableName $ Named "nowt0" DontCare)
+    varName0 = (tag2 A.Name DontCare $ Named "nowt0" DontCare)
     var0 = tag2 A.Variable DontCare varName0
     evar0 = tag2 A.ExprVariable DontCare var0
-    varName1 = (tag3 A.Name DontCare A.VariableName $ Named "nowt1" DontCare)
+    varName1 = (tag2 A.Name DontCare $ Named "nowt1" DontCare)
     var1 = tag2 A.Variable DontCare varName1
     evar1 = tag2 A.ExprVariable DontCare var1
 
@@ -325,7 +325,6 @@ defineTestName n sp am
           A.ndMeta = emptyMeta
          ,A.ndName = n
          ,A.ndOrigName = n
-         ,A.ndNameType = A.VariableName
          ,A.ndSpecType = sp
          ,A.ndAbbrevMode = am
          ,A.ndPlacement = A.Unplaced

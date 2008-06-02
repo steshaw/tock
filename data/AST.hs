@@ -30,22 +30,10 @@ import Data.Generics
 
 import Metadata
 
--- | The general type of a name.
--- This is used by the parser to indicate what sort of name it's expecting in a
--- particular context; in later passes you can look at how the name is actually
--- defined, which is more useful.
-data NameType =
-  ChannelName | DataTypeName | FunctionName | FieldName | PortName
-  | ProcName | ProtocolName | RecordName | TagName | TimerName | VariableName
-  deriving (Show, Eq, Typeable, Data)
-
 -- | An identifier defined in the source code.
--- This can be any of the 'NameType' types.
 data Name = Name {
     -- | Metadata.
     nameMeta :: Meta,
-    -- | The general type of the name.
-    nameType :: NameType,
     -- | The internal version of the name.
     -- This isn't necessary the same as it appeared in the source code; if
     -- you're displaying it to the user in an error message, you should
@@ -62,15 +50,13 @@ instance Eq Name where
 
 -- | The definition of a name.
 data NameDef = NameDef {
-    -- | Metadata.
+    -- | Metadata for where the name was originally defined.
     ndMeta :: Meta,
     -- | The internal version of the name.
     ndName :: String,
     -- | The name as it appeared in the source code.
     -- This can be used for error reporting.
     ndOrigName :: String,
-    -- | The general type of the name.
-    ndNameType :: NameType,
     -- | The specification type of the name's definition (see 'SpecType').
     ndSpecType :: SpecType,
     -- | The abbreviation mode of the name's definition (see 'AbbrevMode').
@@ -510,6 +496,9 @@ data SpecType =
   | Retypes Meta AbbrevMode Type Variable
   -- | Declare a retyping abbreviation of an expression.
   | RetypesExpr Meta AbbrevMode Type Expression
+  -- | A fake declaration of an unscoped name, such as a protocol tag.
+  -- This allows 'SpecType' to be used to describe any identifier.
+  | Unscoped Meta
   deriving (Show, Eq, Typeable, Data)
 
 -- | Specification mode for @PROC@s and @FUNCTION@s.

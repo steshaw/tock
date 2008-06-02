@@ -55,6 +55,15 @@ data PreprocDef =
   | PreprocString String
   deriving (Show, Data, Typeable, Eq)
 
+-- | The general type of a name.
+-- This is used by the parser to indicate what sort of name it's expecting in a
+-- particular context; in later passes you can look at how the name is actually
+-- defined, which is more useful.
+data NameType =
+  ChannelName | DataTypeName | FunctionName | FieldName | PortName
+  | ProcName | ProtocolName | RecordName | TagName | TimerName | VariableName
+  deriving (Show, Eq, Typeable, Data)
+
 -- | An item that has been pulled up.
 type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
 
@@ -98,8 +107,8 @@ data CompState = CompState {
     csDefinitions :: Map String PreprocDef,
 
     -- Set by Parse
-    csLocalNames :: [(String, A.Name)],
-    csMainLocals :: [(String, A.Name)],
+    csLocalNames :: [(String, (A.Name, NameType))],
+    csMainLocals :: [(String, (A.Name, NameType))],
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
@@ -220,14 +229,23 @@ makeUniqueName s
 
 -- | Find an unscoped name -- or define a new one if it doesn't already exist.
 findUnscopedName :: CSM m => A.Name -> m A.Name
-findUnscopedName n@(A.Name m nt s)
+findUnscopedName n@(A.Name m s)
     =  do st <- get
           case Map.lookup s (csUnscopedNames st) of
-            Just s' -> return $ A.Name m nt s'
+            Just s' -> return $ A.Name m s'
             Nothing ->
               do s' <- makeUniqueName s
                  modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
-                 return $ A.Name m nt s'
+                 let n = A.Name m s'
+                 let nd = A.NameDef { A.ndMeta = m
+                                    , A.ndName = s'
+                                    , A.ndOrigName = s
+                                    , A.ndSpecType = A.Unscoped m
+                                    , A.ndAbbrevMode = A.Original
+                                    , A.ndPlacement = A.Unplaced
+                                    }
+                 defineName n nd
+                 return n
 --}}}
 
 --{{{  pulled items
@@ -297,15 +315,14 @@ makeNonce s
           return $ s ++ "_n" ++ show i
 
 -- | Generate and define a nonce specification.
-defineNonce :: CSM m => Meta -> String -> A.SpecType -> A.NameType -> A.AbbrevMode -> m A.Specification
-defineNonce m s st nt am
+defineNonce :: CSM m => Meta -> String -> A.SpecType -> A.AbbrevMode -> m A.Specification
+defineNonce m s st am
     =  do ns <- makeNonce s
-          let n = A.Name m nt ns
+          let n = A.Name m ns
           let nd = A.NameDef {
                      A.ndMeta = m,
                      A.ndName = ns,
                      A.ndOrigName = ns,
-                     A.ndNameType = nt,
                      A.ndSpecType = st,
                      A.ndAbbrevMode = am,
                      A.ndPlacement = A.Unplaced
@@ -316,28 +333,28 @@ defineNonce m s st nt am
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: CSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
-    = defineNonce m "wrapper_proc" (A.Proc m A.PlainSpec [] p) A.ProcName A.Abbrev
+    = defineNonce m "wrapper_proc" (A.Proc m A.PlainSpec [] p) A.Abbrev
 
 -- | Generate and define a counter for a replicator.
 makeNonceCounter :: CSM m => String -> Meta -> m A.Name
 makeNonceCounter s m
-    =  do (A.Specification _ n _) <- defineNonce m s (A.Declaration m A.Int) A.VariableName A.ValAbbrev
+    =  do (A.Specification _ n _) <- defineNonce m s (A.Declaration m A.Int) A.ValAbbrev
           return n
 
 -- | Generate and define a variable abbreviation.
 makeNonceIs :: CSM m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
 makeNonceIs s m t am v
-    = defineNonce m s (A.Is m am t v) A.VariableName am
+    = defineNonce m s (A.Is m am t v) am
 
 -- | Generate and define an expression abbreviation.
 makeNonceIsExpr :: CSM m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
 makeNonceIsExpr s m t e
-    = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+    = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.ValAbbrev
 
 -- | Generate and define a variable.
-makeNonceVariable :: CSM m => String -> Meta -> A.Type -> A.NameType -> A.AbbrevMode -> m A.Specification
-makeNonceVariable s m t nt am
-    = defineNonce m s (A.Declaration m t) nt am
+makeNonceVariable :: CSM m => String -> Meta -> A.Type -> A.AbbrevMode -> m A.Specification
+makeNonceVariable s m t am
+    = defineNonce m s (A.Declaration m t) am
 --}}}
 
 diePC :: (CSMR m, Die m) => Meta -> m String -> m a

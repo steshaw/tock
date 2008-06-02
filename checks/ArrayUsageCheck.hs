@@ -81,8 +81,8 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     -- String (array-name) and Meta are only used for printing out error messages
     checkIndexes :: Meta -> (String,ParItems ([A.Expression],[A.Expression])) -> m ()
     checkIndexes m (arrName, indexes)
-      = do userArrName <- getRealName (A.Name undefined undefined arrName)
-           arrType <- astTypeOf (A.Name undefined undefined arrName)
+      = do userArrName <- getRealName (A.Name undefined arrName)
+           arrType <- astTypeOf (A.Name undefined arrName)
            arrLength <- case arrType of
              A.Array (A.Dimension d:_) _ -> return d
              -- Unknown dimension, use the maximum value for a (assumed 32-bit for INT) integer:

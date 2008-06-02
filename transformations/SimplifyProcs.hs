@@ -64,7 +64,7 @@ removeParAssign = applyDepthM doProcess
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
         =  do ts <- mapM astTypeOf vs
-              specs <- sequence [makeNonceVariable "assign_temp" m t A.VariableName A.Original | t <- ts]
+              specs <- sequence [makeNonceVariable "assign_temp" m t A.Original | t <- ts]
               let temps = [A.Variable m n | A.Specification _ n _ <- specs]
               let first = [A.Assign m [v] (A.ExpressionList m [e]) | (v, e) <- zip temps es]
               let second = [A.Assign m [v] (A.ExpressionList m [A.ExprVariable m v']) | (v, v') <- zip vs temps]
@@ -136,9 +136,9 @@ flattenAssign = makeRecurse ops
                       -- Record assignments become a sequence of
                       -- assignments, one for each field.
                     = do let t = A.Record n
-                         (A.Specification _ nonceLHS _) <- makeNonceVariable "record_copy_arg" m t A.VariableName A.Abbrev 
+                         (A.Specification _ nonceLHS _) <- makeNonceVariable "record_copy_arg" m t A.Abbrev
                          let destV = A.Variable m nonceLHS
-                         (A.Specification _ nonceRHS _) <- makeNonceVariable "record_copy_arg" m t A.VariableName A.Abbrev 
+                         (A.Specification _ nonceRHS _) <- makeNonceVariable "record_copy_arg" m t A.Abbrev
                          let srcV = A.Variable m nonceRHS
                          assigns <-
                            sequence [do let sub = A.SubscriptField m fName

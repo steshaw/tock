@@ -28,7 +28,6 @@ import Data.Maybe
 import qualified AST as A
 import CompState
 import Errors
-import ImplicitMobility
 import Pass
 import qualified Properties as Prop
 import RainTypes
@@ -101,7 +100,7 @@ uniquifyAndResolveVars = applyDepthSM uniquifyAndResolveVars'
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration {})) scope) 
       = do n' <- makeNonce $ A.nameName n
            defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
-                                                       A.ndNameType = A.VariableName, A.ndSpecType = decl, 
+                                                       A.ndSpecType = decl, 
                                                        A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
@@ -111,7 +110,7 @@ uniquifyAndResolveVars = applyDepthSM uniquifyAndResolveVars'
       = do (params',procBody') <- doFormals params procBody
            let newProc = (A.Proc m'' procMode params' procBody')
            defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
-                                   A.ndNameType = A.ProcName, A.ndSpecType = newProc, 
+                                   A.ndSpecType = newProc, 
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newProc) scope
     -- Functions:
@@ -120,7 +119,7 @@ uniquifyAndResolveVars = applyDepthSM uniquifyAndResolveVars'
       = do (params', funcBody') <- doFormals params funcBody
            let newFunc = (A.Function m'' funcMode retTypes params' funcBody')
            defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
-                                   A.ndNameType = A.FunctionName, A.ndSpecType = newFunc,
+                                   A.ndSpecType = newFunc,
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newFunc) scope
 
@@ -147,7 +146,7 @@ uniquifyAndResolveVars = applyDepthSM uniquifyAndResolveVars'
            let newName = (n {A.nameName = n'})
            let m = A.nameMeta n
            defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
-                                         A.ndNameType = A.VariableName, A.ndSpecType = (A.Declaration m t),
+                                         A.ndSpecType = (A.Declaration m t),
                                          A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return (A.Formal am t newName, scope')
@@ -170,15 +169,24 @@ findMain x = do newMainName <- makeNonce "main_"
                 applyDepthM (return . (replaceNameName "main" newMainName)) x
   where
     --We have to mangle the main name because otherwise it will cause problems on some backends (including C and C++)
-    findMain' :: String -> CompState -> CompState 
-    findMain' newn st = case (Map.lookup "main" (csNames st)) of
-      Just n -> st {csNames = changeMainName newn (csNames st) , csMainLocals = [(newn,A.Name {A.nameName = newn, A.nameMeta = A.ndMeta n, A.nameType = A.ndNameType n})]}
-      Nothing -> st 
+    findMain' :: String -> CompState -> CompState
+    findMain' newn st = case Map.lookup "main" (csNames st) of
+      Just n -> st { csNames = changeMainName newn (csNames st)
+                   , csMainLocals = makeMainLocals (findMeta n) newn
+                   }
+      Nothing -> st
+
     changeMainName :: String -> Map.Map String A.NameDef -> Map.Map String A.NameDef
-    changeMainName n m = case (Map.lookup "main" m) of
+    changeMainName newn m = case Map.lookup "main" m of
+      Just nd -> Map.insert newn (nd {A.ndName = newn}) $
+                   Map.delete "main" m
       Nothing -> m
-      Just nd -> ((Map.insert n (nd {A.ndName = n})) . (Map.delete "main")) m     
-    
+
+    -- The Rain parser doesn't set csMainLocals, so this pass constructs it
+    -- from scratch.
+    makeMainLocals :: Meta -> String -> [(String, (A.Name, NameType))]
+    makeMainLocals m newn = [(newn, (A.Name m newn, ProcName))]
+
 checkIntegral :: A.LiteralRepr -> Maybe Integer
 checkIntegral (A.IntLiteral _ s) = Just $ read s
 checkIntegral (A.HexLiteral _ s) = Nothing -- TODO support hex literals
@@ -207,7 +215,7 @@ transformRangeRep = applyDepthM doExpression
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
-          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.VariableName A.ValAbbrev
+          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.ValAbbrev
                       let count = addOne $ subExprs end begin
                       return $ A.ExprConstr m $ A.RepConstr m t
                         (A.For m rep begin count)

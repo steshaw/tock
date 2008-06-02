@@ -55,7 +55,7 @@ functionsToProcs = applyDepthM doSpecification
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
         = do -- Create new names for the return values.
-             specs <- sequence [makeNonceVariable "return_formal" mf t A.VariableName A.Abbrev | t <- rts]
+             specs <- sequence [makeNonceVariable "return_formal" mf t A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
              -- Note the return types so we can fix calls later.
              modify $ (\ps -> ps { csFunctionReturns = Map.insert (A.nameName n) rts (csFunctionReturns ps) })
@@ -68,7 +68,6 @@ functionsToProcs = applyDepthM doSpecification
                         A.ndMeta = mf,
                         A.ndName = A.nameName n,
                         A.ndOrigName = A.nameName n,
-                        A.ndNameType = A.ProcName,
                         A.ndSpecType = st,
                         A.ndAbbrevMode = A.Original,
                         A.ndPlacement = A.Unplaced
@@ -202,7 +201,7 @@ transformConstr = applyDepthSM doStructured
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
       = do case t of
              A.Array {} ->
-               do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.VariableName A.Original
+               do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.Original
                   let indexVar = A.Variable m'' indexName
                   
                   return $ declDest $ A.ProcThen m''
@@ -367,7 +366,7 @@ pullUp pullUpArraysInsideRecords = recurse
 
              ps <- get
              rts <- Map.lookup (A.nameName n) (csFunctionReturns ps)
-             specs <- sequence [makeNonceVariable "return_actual" m t A.VariableName A.Original | t <- rts]
+             specs <- sequence [makeNonceVariable "return_actual" m t A.Original | t <- rts]
              sequence_ [addPulled $ (m, Left spec) | spec <- specs]
 
              let names = [n | A.Specification _ n _ <- specs]

@@ -63,7 +63,7 @@ transformWaitFor = applyDepthM doAlt
     doWaitFor m'' a@(A.Alternative m cond tim (A.InputTimerFor m' e) p)
       = do (specs, init) <- get
            id <- lift $ makeNonce "waitFor"
-           let n = (A.Name m A.VariableName id)
+           let n = A.Name m id
            let var = A.Variable m n
            put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time))], 
                 init ++ [A.Only m $ A.Input m tim
@@ -87,7 +87,6 @@ declareSizesArray = applyDepthSM doStructured
       = defineName n $ A.NameDef { A.ndMeta = m
                                  , A.ndName = A.nameName n
                                  , A.ndOrigName = A.nameName n
-                                 , A.ndNameType = A.VariableName
                                  , A.ndSpecType = spec
                                  , A.ndAbbrevMode = A.ValAbbrev
                                  , A.ndPlacement = A.Unplaced
@@ -157,7 +156,7 @@ declareSizesArray = applyDepthSM doStructured
              A.Variable _ srcN -> return (A.Variable m $ append_sizes srcN)
              A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
                do A.Record recordName <- astTypeOf recordV
-                  return (A.Variable m $ A.Name m A.VariableName $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+                  return (A.Variable m $ A.Name m $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
            -- Get the dimensions of the source variable:
            (A.Array srcDs _) <- astTypeOf innerV
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
@@ -248,7 +247,6 @@ addSizesFormalParameters = applyDepthM doSpecification
                          A.ndMeta = m
                         ,A.ndName = A.nameName n
                         ,A.ndOrigName = A.nameName n
-                        ,A.ndNameType = A.VariableName
                         ,A.ndSpecType = A.Declaration m t
                         ,A.ndAbbrevMode = A.ValAbbrev
                         ,A.ndPlacement = A.Unplaced}

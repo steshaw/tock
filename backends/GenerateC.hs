@@ -258,7 +258,7 @@ genRightB = tell ["}"]
 cgenOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 cgenOverArray m var func
     =  do A.Array ds _ <- astTypeOf var
-          specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.VariableName A.Original | _ <- ds]
+          specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
           let arg = (\var -> foldl (\v s -> A.SubscriptedVariable m s v) var [A.Subscript m A.NoCheck $ A.ExprVariable m i | i <- indices])

@@ -582,7 +582,7 @@ testDecl =
   passd ("bool: b;",0,pat $ A.Specification m (simpleName "b") $ A.Declaration m A.Bool)
   ,passd ("uint8: x;",1,pat $ A.Specification m (simpleName "x") $ A.Declaration m A.Byte)
   ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.Chan A.DirInput nonShared A.Bool))
-  ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m A.DataTypeName "a"))
+  ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m "a"))
 
   ,passd2 ("bool: b0,b1;",100,pat $ A.Specification m (simpleName "b0") $ A.Declaration m A.Bool,
                               pat $ A.Specification m (simpleName "b1") $ A.Declaration m A.Bool)

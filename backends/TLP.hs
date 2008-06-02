@@ -29,23 +29,28 @@ import CompState
 import Errors
 import Metadata
 import Types
+import Utils
 
 data TLPChannel = TLPIn | TLPOut | TLPError
   deriving (Show, Eq, Typeable, Data)
 
 -- | Get the name of the TLP and the channels it uses.
 -- Fail if the process isn't using a valid interface.
-tlpInterface :: (CSMR m, Die m) => m ( A.Name, [(A.Direction, TLPChannel)] )
+tlpInterface :: (CSMR m, Die m) => m (A.Name, [(A.Direction, TLPChannel)])
 tlpInterface
-    =  do ps <- getCompState
-          when (null $ csMainLocals ps) (dieReport (Nothing,"No main process found"))
-          let mainName = snd $ head $ csMainLocals ps
+    =  do mainLocals <- getCompState >>* csMainLocals
+          when (null mainLocals) $
+            dieReport (Nothing, "No main process found")
+          let (_, (mainName, _)) = head mainLocals
           st <- specTypeOfName mainName
-          (m,formals) <- case st of
-                       A.Proc m _ fs _ -> return (m,fs)
-                       _ -> dieP (findMeta mainName) "Last definition is not a PROC"
+          (m, formals) <-
+            case st of
+              A.Proc m _ fs _ -> return (m, fs)
+              _ -> dieP (findMeta mainName) "Last definition is not a PROC"
           chans <- mapM (tlpChannel m) formals
-          when ((nub (map snd chans)) /= (map snd chans)) $ dieP (findMeta mainName) "Channels used more than once in TLP"
+          let chanIds = map snd chans
+          when (nub chanIds /= chanIds) $
+            dieP (findMeta mainName) "Channels used more than once in TLP"
           return (mainName, chans)
   where
     tlpChannel :: (CSMR m, Die m) => Meta -> A.Formal -> m (A.Direction, TLPChannel)
@@ -55,7 +60,7 @@ tlpInterface
               case lookup origN tlpChanNames of
                 Just c ->
                   if (dir == A.DirUnknown || dir == (tlpDir c))
-                    then return (dir,c)
+                    then return (dir, c)
                     else dieP m $ "TLP formal " ++ show n ++ " has wrong direction for its name"
                 _ -> dieP m $ "TLP formal " ++ show n ++ " has unrecognised name"
     tlpChannel m (A.Formal _ _ n)

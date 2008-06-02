@@ -315,7 +315,7 @@ maybeIndentedList m msg inner
     <|> do addWarning m msg
            return []
 
-handleSpecs :: OccParser [A.Specification] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
+handleSpecs :: OccParser [NameSpec] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
 handleSpecs specs inner specMarker
     =   do m <- md
            ss <- specs
@@ -341,66 +341,69 @@ intersperseP (f:fs) sep
 --}}}
 
 --{{{ name scoping
-findName :: A.Name -> OccParser A.Name
-findName thisN
+findName :: A.Name -> NameType -> OccParser A.Name
+findName thisN thisNT
     =  do st <- get
-          origN <- case lookup (A.nameName thisN) (csLocalNames st) of
-                     Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
-                     Just n -> return n
-          if A.nameType thisN /= A.nameType origN
-            then dieP (A.nameMeta thisN) $ "expected " ++ show (A.nameType thisN) ++ " (" ++ A.nameName origN ++ " is " ++ show (A.nameType origN) ++ ")"
+          (origN, origNT) <-
+            case lookup (A.nameName thisN) (csLocalNames st) of
+              Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
+              Just def -> return def
+          if thisNT /= origNT
+            then dieP (A.nameMeta thisN) $ "expected " ++ show thisNT ++ " (" ++ A.nameName origN ++ " is " ++ show origNT ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
-scopeIn :: A.Name -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
-scopeIn n@(A.Name m nt s) specType am
-    =  do st <- getState
-          s' <- makeUniqueName s
+scopeIn :: A.Name -> NameType -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
+scopeIn n@(A.Name m s) nt specType am
+    =  do s' <- makeUniqueName s
           let n' = n { A.nameName = s' }
           let nd = A.NameDef {
             A.ndMeta = m,
             A.ndName = s',
             A.ndOrigName = s,
-            A.ndNameType = A.nameType n',
             A.ndSpecType = specType,
             A.ndAbbrevMode = am,
             A.ndPlacement = A.Unplaced
           }
           defineName n' nd
-          modify $ (\st -> st {
-                             csLocalNames = (s, n') : (csLocalNames st)
-                           })
+          st <- get
+          put $ st { csLocalNames = (s, (n', nt)) : (csLocalNames st) }
           return n'
 
 scopeOut :: A.Name -> OccParser ()
-scopeOut n@(A.Name m nt s)
+scopeOut n@(A.Name m _)
     =  do st <- get
-          let lns' = case csLocalNames st of
-                       (s, _):ns -> ns
-                       otherwise -> dieInternal (Just m, "scopeOut trying to scope out the wrong name")
-          put $ st { csLocalNames = lns' }
+          case csLocalNames st of
+            (_:rest) -> put $ st { csLocalNames = rest }
+            _ -> dieInternal (Just m, "scoping out name when stack is empty")
 
 scopeInRep :: A.Replicator -> OccParser A.Replicator
 scopeInRep (A.For m n b c)
-    =  do n' <- scopeIn n (A.Declaration m A.Int) A.ValAbbrev
+    =  do n' <- scopeIn n VariableName (A.Declaration m A.Int) A.ValAbbrev
           return $ A.For m n' b c
 
 scopeOutRep :: A.Replicator -> OccParser ()
 scopeOutRep (A.For m n b c) = scopeOut n
 
-scopeInSpec :: A.Specification -> OccParser A.Specification
-scopeInSpec (A.Specification m n st)
-    =  do n' <- scopeIn n st (abbrevModeOfSpec st)
+-- | A specification, along with the 'NameType' of the name it defines.
+type NameSpec = (A.Specification, NameType)
+
+scopeInSpec :: NameSpec -> OccParser A.Specification
+scopeInSpec (A.Specification m n st, nt)
+    =  do n' <- scopeIn n nt st (abbrevModeOfSpec st)
           return $ A.Specification m n' st
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec (A.Specification _ n _) = scopeOut n
 
-scopeInFormal :: A.Formal -> OccParser A.Formal
-scopeInFormal (A.Formal am t n)
-    =  do n' <- scopeIn n (A.Declaration (A.nameMeta n) t) am
+-- | A formal, along with the 'NameType' of the name it defines.
+type NameFormal = (A.Formal, NameType)
+
+scopeInFormal :: NameFormal -> OccParser A.Formal
+scopeInFormal (A.Formal am t n, nt)
+    =  do n' <- scopeIn n nt (A.Declaration (A.nameMeta n) t) am
           return (A.Formal am t n')
 
-scopeInFormals :: [A.Formal] -> OccParser [A.Formal]
+scopeInFormals :: [NameFormal] -> OccParser [A.Formal]
 scopeInFormals fs = mapM scopeInFormal fs
 
 scopeOutFormals :: [A.Formal] -> OccParser ()
@@ -419,55 +422,56 @@ scopeOutFormals fs = sequence_ [scopeOut n | (A.Formal am t n) <- fs]
 -- ambiguities will be resolved later.
 
 --{{{ names
-anyName :: A.NameType -> OccParser A.Name
+anyName :: NameType -> OccParser A.Name
 anyName nt
     =   do m <- md
            s <- identifier
-           return $ A.Name m nt s
+           return $ A.Name m s
     <?> show nt
 
-name :: A.NameType -> OccParser A.Name
+name :: NameType -> OccParser A.Name
 name nt
     =   do n <- anyName nt
-           findName n
+           findName n nt
 
-newName :: A.NameType -> OccParser A.Name
+newName :: NameType -> OccParser A.Name
 newName nt = anyName nt
 
 channelName, dataTypeName, functionName, portName, procName, protocolName,
   recordName, timerName, variableName
     :: OccParser A.Name
 
-channelName = name A.ChannelName
-dataTypeName = name A.DataTypeName
-functionName = name A.FunctionName
-portName = name A.PortName
-procName = name A.ProcName
-protocolName = name A.ProtocolName
-recordName = name A.RecordName
-timerName = name A.TimerName
-variableName = name A.VariableName
+channelName = name ChannelName
+dataTypeName = name DataTypeName
+functionName = name FunctionName
+portName = name PortName
+procName = name ProcName
+protocolName = name ProtocolName
+recordName = name RecordName
+timerName = name TimerName
+variableName = name VariableName
 
-newChannelName, newDataTypeName, newFunctionName, newPortName, newProcName, newProtocolName,
-  newRecordName, newTimerName, newVariableName
+newChannelName, newDataTypeName, newFunctionName, newPortName,
+  newProcName, newProtocolName, newRecordName, newTimerName,
+  newVariableName
     :: OccParser A.Name
 
-newChannelName = newName A.ChannelName
-newDataTypeName = newName A.DataTypeName
-newFunctionName = newName A.FunctionName
-newPortName = newName A.PortName
-newProcName = newName A.ProcName
-newProtocolName = newName A.ProtocolName
-newRecordName = newName A.RecordName
-newTimerName = newName A.TimerName
-newVariableName = newName A.VariableName
+newChannelName = newName ChannelName
+newDataTypeName = newName DataTypeName
+newFunctionName = newName FunctionName
+newPortName = newName PortName
+newProcName = newName ProcName
+newProtocolName = newName ProtocolName
+newRecordName = newName RecordName
+newTimerName = newName TimerName
+newVariableName = newName VariableName
 
 -- | A name that isn't scoped.
 -- This is for things like record fields: we don't need to track their scope
 -- because they're only valid with the particular record they're defined in,
 -- but we do need to add a unique suffix so that they don't collide with
 -- keywords in the target language
-unscopedName :: A.NameType -> OccParser A.Name
+unscopedName :: NameType -> OccParser A.Name
 unscopedName nt
     =  do n <- anyName nt
           findUnscopedName n
@@ -475,10 +479,10 @@ unscopedName nt
 
 fieldName, tagName, newFieldName, newTagName :: OccParser A.Name
 
-fieldName = unscopedName A.FieldName
-tagName = unscopedName A.TagName
-newFieldName = unscopedName A.FieldName
-newTagName = unscopedName A.TagName
+fieldName = unscopedName FieldName
+tagName = unscopedName TagName
+newFieldName = unscopedName FieldName
+newTagName = unscopedName TagName
 --}}}
 --{{{ types
 -- | A sized array of a production.
@@ -732,7 +736,7 @@ functionCall
   where
     intrinsicFunctionName :: OccParser String
     intrinsicFunctionName
-        =  do s <- anyName A.FunctionName >>* A.nameName
+        =  do s <- anyName FunctionName >>* A.nameName
               case lookup s intrinsicFunctions of
                 Just _ -> return s
                 Nothing -> pzero
@@ -896,7 +900,7 @@ replicator
     <?> "replicator"
 --}}}
 --{{{ specifications, declarations, allocations
-allocation :: OccParser [A.Specification]
+allocation :: OccParser [NameSpec]
 allocation
     =   do m <- md
            sPLACE
@@ -919,86 +923,88 @@ placement
            return $ A.PlaceInVecspace
     <?> "placement"
 
-specification :: OccParser [A.Specification]
+specification :: OccParser [NameSpec]
 specification
-    =   do { m <- md; (ns, d) <- declaration; return [A.Specification m n d | n <- ns] }
+    =   do m <- md
+           (ns, d, nt) <- declaration
+           return [(A.Specification m n d, nt) | n <- ns]
     <|> do { a <- abbreviation; return [a] }
     <|> do { d <- definition; return [d] }
     <?> "specification"
 
-declaration :: OccParser ([A.Name], A.SpecType)
+declaration :: OccParser ([A.Name], A.SpecType, NameType)
 declaration
-    =   declOf dataType newVariableName
-    <|> declOf channelType newChannelName
-    <|> declOf timerType newTimerName
-    <|> declOf portType newPortName
+    =   declOf dataType VariableName
+    <|> declOf channelType ChannelName
+    <|> declOf timerType TimerName
+    <|> declOf portType PortName
     <?> "declaration"
 
-declOf :: OccParser A.Type -> OccParser A.Name -> OccParser ([A.Name], A.SpecType)
-declOf spec newName
+declOf :: OccParser A.Type -> NameType -> OccParser ([A.Name], A.SpecType, NameType)
+declOf spec nt
     =  do m <- md
-          (d, ns) <- tryVVX spec (sepBy1 newName sComma) sColon
+          (d, ns) <- tryVVX spec (sepBy1 (newName nt) sComma) sColon
           eol
-          return (ns, A.Declaration m d)
+          return (ns, A.Declaration m d, nt)
 
-abbreviation :: OccParser A.Specification
+abbreviation :: OccParser NameSpec
 abbreviation
     =   valIsAbbrev
     <|> initialIsAbbrev
-    <|> isAbbrev newVariableName variable
-    <|> isAbbrev newChannelName channel
+    <|> isAbbrev variable VariableName
+    <|> isAbbrev channel ChannelName
     <|> chanArrayAbbrev
-    <|> isAbbrev newTimerName timer
-    <|> isAbbrev newPortName port
+    <|> isAbbrev timer TimerName
+    <|> isAbbrev port PortName
     <?> "abbreviation"
 
-valIsAbbrev :: OccParser A.Specification
+valIsAbbrev :: OccParser NameSpec
 valIsAbbrev
     =  do m <- md
           (n, t, e) <- do { n <- tryXVX sVAL newVariableName sIS; e <- expression; sColon; eol; return (n, A.Infer, e) }
                        <|> do { (s, n) <- tryXVVX sVAL dataSpecifier newVariableName sIS; e <- expression; sColon; eol; return (n, s, e) }
-          return $ A.Specification m n $ A.IsExpr m A.ValAbbrev t e
+          return (A.Specification m n $ A.IsExpr m A.ValAbbrev t e, VariableName)
     <?> "VAL IS abbreviation"
 
-initialIsAbbrev :: OccParser A.Specification
+initialIsAbbrev :: OccParser NameSpec
 initialIsAbbrev
     =   do m <- md
            (t, n) <- tryXVVX sINITIAL dataSpecifier newVariableName sIS
            e <- expression
            sColon
            eol
-           return $ A.Specification m n $ A.IsExpr m A.Original t e
+           return (A.Specification m n $ A.IsExpr m A.Original t e, VariableName)
     <?> "INITIAL IS abbreviation"
 
-isAbbrev :: OccParser A.Name -> OccParser A.Variable -> OccParser A.Specification
-isAbbrev newName oldVar
+isAbbrev :: OccParser A.Variable -> NameType -> OccParser NameSpec
+isAbbrev oldVar nt
     =   do m <- md
-           (n, v) <- tryVXV newName sIS oldVar
+           (n, v) <- tryVXV (newName nt) sIS oldVar
            sColon
            eol
-           return $ A.Specification m n $ A.Is m A.Abbrev A.Infer v
+           return (A.Specification m n $ A.Is m A.Abbrev A.Infer v, nt)
     <|> do m <- md
-           (s, n, v) <- tryVVXV specifier newName sIS oldVar
+           (s, n, v) <- tryVVXV specifier (newName nt) sIS oldVar
            sColon
            eol
-           return $ A.Specification m n $ A.Is m A.Abbrev s v
+           return (A.Specification m n $ A.Is m A.Abbrev s v, nt)
     <?> "IS abbreviation"
 
-chanArrayAbbrev :: OccParser A.Specification
+chanArrayAbbrev :: OccParser NameSpec
 chanArrayAbbrev
     =   do m <- md
            (n, cs) <- tryVXXV newChannelName sIS sLeft (sepBy1 channel sComma)
            sRight
            sColon
            eol
-           return $ A.Specification m n $ A.IsChannelArray m A.Infer cs
+           return (A.Specification m n $ A.IsChannelArray m A.Infer cs, ChannelName)
     <|> do m <- md
            (s, n) <- tryVVXX channelSpecifier newChannelName sIS sLeft
            cs <- sepBy1 channel sComma
            sRight
            sColon
            eol
-           return $ A.Specification m n $ A.IsChannelArray m s cs
+           return (A.Specification m n $ A.IsChannelArray m s cs, ChannelName)
     <?> "channel array abbreviation"
 
 specMode :: OccParser () -> OccParser A.SpecMode
@@ -1009,18 +1015,18 @@ specMode keyword
            return A.PlainSpec
     <?> "specification mode"
 
-definition :: OccParser A.Specification
+definition :: OccParser NameSpec
 definition
     =   do m <- md
            sDATA
            sTYPE
-           do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol; return $ A.Specification m n (A.DataType m t) }
-             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return $ A.Specification m n rec }
+           do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol; return (A.Specification m n (A.DataType m t), DataTypeName) }
+             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return (A.Specification m n rec, DataTypeName) }
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
-           do { sIS; p <- sequentialProtocol; sColon; eol; return $ A.Specification m n $ A.Protocol m p }
-             <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return $ A.Specification m n $ A.ProtocolCase m ps }
+           do { sIS; p <- sequentialProtocol; sColon; eol; return (A.Specification m n $ A.Protocol m p, ProtocolName) }
+             <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return (A.Specification m n $ A.ProtocolCase m ps, ProtocolName) }
     <|> do m <- md
            sm <- specMode sPROC
            n <- newProcName
@@ -1033,13 +1039,13 @@ definition
            outdent
            sColon
            eol
-           return $ A.Specification m n $ A.Proc m sm fs' p
+           return (A.Specification m n $ A.Proc m sm fs' p, ProcName)
     <|> do m <- md
            (rs, sm) <- tryVV (sepBy1 dataType sComma) (specMode sFUNCTION)
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left $ A.Only m el) }
-             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return $ A.Specification m n $ A.Function m sm rs fs' (Left vp) }
+           do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return (A.Specification m n $ A.Function m sm rs fs' (Left $ A.Only m el), FunctionName) }
+             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return (A.Specification m n $ A.Function m sm rs fs' (Left vp), FunctionName) }
     <|> retypesAbbrev
     <?> "definition"
 
@@ -1047,26 +1053,26 @@ retypesReshapes :: OccParser ()
 retypesReshapes
     = sRETYPES <|> sRESHAPES
 
-retypesAbbrev :: OccParser A.Specification
+retypesAbbrev :: OccParser NameSpec
 retypesAbbrev
     =   do m <- md
            (s, n) <- tryVVX dataSpecifier newVariableName retypesReshapes
            v <- variable
            sColon
            eol
-           return $ A.Specification m n $ A.Retypes m A.Abbrev s v
+           return (A.Specification m n $ A.Retypes m A.Abbrev s v, VariableName)
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
            c <- channel
            sColon
            eol
-           return $ A.Specification m n $ A.Retypes m A.Abbrev s c
+           return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName)
     <|> do m <- md
            (s, n) <- tryXVVX sVAL dataSpecifier newVariableName retypesReshapes
            e <- expression
            sColon
            eol
-           return $ A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e
+           return (A.Specification m n $ A.RetypesExpr m A.ValAbbrev s e, VariableName)
     <?> "RETYPES/RESHAPES abbreviation"
 
 dataSpecifier :: OccParser A.Type
@@ -1103,7 +1109,7 @@ specifier
     <?> "specifier"
 
 --{{{ PROCs and FUNCTIONs
-formalList :: OccParser [A.Formal]
+formalList :: OccParser [NameFormal]
 formalList
     =  do m <- md
           sLeftR
@@ -1112,18 +1118,18 @@ formalList
           return fs
     <?> "formal list"
 
-formalItem :: OccParser (A.AbbrevMode, A.Type) -> OccParser A.Name -> OccParser [A.Formal]
-formalItem spec name
+formalItem :: OccParser (A.AbbrevMode, A.Type) -> NameType -> OccParser [NameFormal]
+formalItem spec nt
     =   do (am, t) <- spec
            names am t
   where
-    names :: A.AbbrevMode -> A.Type -> OccParser [A.Formal]
+    names :: A.AbbrevMode -> A.Type -> OccParser [NameFormal]
     names am t
-        = do n <- name
+        = do n <- newName nt
              fs <- tail am t
-             return $ (A.Formal am t n) : fs
+             return $ (A.Formal am t n, nt) : fs
 
-    tail :: A.AbbrevMode -> A.Type -> OccParser [A.Formal]
+    tail :: A.AbbrevMode -> A.Type -> OccParser [NameFormal]
     tail am t
         =   do sComma
                -- We must try formalArgSet first here, so that we don't
@@ -1133,12 +1139,12 @@ formalItem spec name
         <|> return []
 
 -- | Parse a set of formal arguments.
-formalArgSet :: OccParser [A.Formal]
+formalArgSet :: OccParser [NameFormal]
 formalArgSet
-    =   formalItem formalVariableType newVariableName
-    <|> formalItem (aa channelSpecifier) newChannelName
-    <|> formalItem (aa timerSpecifier) newTimerName
-    <|> formalItem (aa portSpecifier) newPortName
+    =   formalItem formalVariableType VariableName
+    <|> formalItem (aa channelSpecifier) ChannelName
+    <|> formalItem (aa timerSpecifier) TimerName
+    <|> formalItem (aa portSpecifier) PortName
   where
     aa :: OccParser A.Type -> OccParser (A.AbbrevMode, A.Type)
     aa = liftM (\t -> (A.Abbrev, t))
@@ -1562,10 +1568,10 @@ actual (A.Formal am t n)
 --{{{ intrinsic PROC call
 intrinsicProcName :: OccParser (String, [A.Formal])
 intrinsicProcName
-    =  do n <- anyName A.ProcName
+    =  do n <- anyName ProcName
           let s = A.nameName n
           case lookup s intrinsicProcs of
-            Just atns -> return (s, [A.Formal am t (A.Name emptyMeta A.VariableName n)
+            Just atns -> return (s, [A.Formal am t (A.Name emptyMeta n)
                                      | (am, t, n) <- atns])
             Nothing -> pzero
 

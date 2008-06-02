@@ -67,7 +67,7 @@ outExprs = applyDepthM doProcess
     
     abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured A.Process -> A.Structured A.Process)
     abbrevExpr m e = do t <- astTypeOf e
-                        specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.VariableName A.ValAbbrev
+                        specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.ValAbbrev
                         return (nm, A.Spec m specification)
 
 {- The explanation for this pass is taken from my (Neil's) mailing list post "Case protocols" on tock-discuss, dated 10th October 2007:
@@ -135,7 +135,7 @@ transformInputCase = applyDepthM doProcess
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
-      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+      = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.Original
            s' <- doStructuredV v s
            return $ A.Seq m $ A.Spec m' spec $ A.Several m'
              [A.Only m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
@@ -166,7 +166,7 @@ transformInputCase = applyDepthM doProcess
         -- The processes that are the body of input-case guards are always
         -- skip, so we can discard them.
         doAlternative m (A.Alternative m' e v (A.InputCase m'' s) _)
-          = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.VariableName A.Original
+          = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.Original
                s' <- doStructuredV v s
                return $ A.Spec m' spec $ A.Only m $ 
                  A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $

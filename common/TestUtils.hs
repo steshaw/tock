@@ -114,33 +114,33 @@ testCheck config property =
 dimension :: Int -> A.Dimension
 dimension n = makeDimension emptyMeta n
 
--- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.VariableName'.
+-- | Creates a 'A.Name' object with the given 'String' as 'A.nameName'.
 simpleName :: String -> A.Name
-simpleName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.VariableName }
+simpleName s = A.Name { A.nameName = s, A.nameMeta = emptyMeta }
 
--- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.ProcName'.
+-- | Creates a 'A.Name' object with the given 'String' as 'A.nameName'.
 procName :: String -> A.Name
-procName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.ProcName }
+procName = simpleName
 
--- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.DataTypeName'.
+-- | Creates a 'A.Name' object with the given 'String' as 'A.nameName'.
 typeName :: String -> A.Name
-typeName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.DataTypeName }
+typeName = simpleName
 
--- | Creates a 'A.Name' object with the given 'String' as 'A.nameName', and 'A.nameType' as 'A.FunctionName'.
+-- | Creates a 'A.Name' object with the given 'String' as 'A.nameName'.
 funcName :: String -> A.Name
-funcName s = A.Name { A.nameName = s , A.nameMeta = emptyMeta , A.nameType = A.FunctionName }
+funcName = simpleName
 
 -- | Creates a 'Pattern' to match a 'A.Name' instance.
 -- @'assertPatternMatch' ('simpleNamePattern' x) ('simpleName' x)@ will always succeed.
 -- All meta tags are ignored.
 simpleNamePattern :: String -> Pattern
-simpleNamePattern s = tag3 A.Name DontCare A.VariableName s
+simpleNamePattern s = tag2 A.Name DontCare s
 
 -- | Creates a 'Pattern' to match a 'A.Name' instance.
 -- @'assertPatternMatch' ('procNamePattern' x) ('procName' x)@ will always succeed.
 -- All meta tags are ignored.
 procNamePattern :: String -> Pattern
-procNamePattern s = tag3 A.Name DontCare A.ProcName s
+procNamePattern s = tag2 A.Name DontCare s
 
 -- | Creates a 'A.Variable' with the given 'String' as the name.
 variable :: String -> A.Variable
@@ -284,12 +284,11 @@ buildExpr (Lit e) = e
 buildExpr EHTrue = A.True emptyMeta
 buildExpr (Range t begin end) = A.ExprConstr emptyMeta $ A.RangeConstr emptyMeta t
   (buildExpr begin) (buildExpr end)
-buildExpr (Func f es) = A.FunctionCall emptyMeta ((simpleName f) {A.nameType
-  = A.FunctionName}) (map buildExpr es)
+buildExpr (Func f es) = A.FunctionCall emptyMeta (simpleName f) (map buildExpr es)
 
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef
-simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n, A.ndNameType = A.VariableName,
+simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n,
                             A.ndSpecType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
 -- | A simple definition of a declared variable
@@ -298,20 +297,19 @@ simpleDefDecl n t = simpleDef n (A.Declaration emptyMeta t)
 
 -- | A pattern that will match simpleDef, with a different abbreviation mode
 simpleDefPattern :: String -> A.AbbrevMode -> Pattern -> Pattern
-simpleDefPattern n am sp = tag7 A.NameDef DontCare n n A.VariableName sp am A.Unplaced
+simpleDefPattern n am sp = tag6 A.NameDef DontCare n n sp am A.Unplaced
 
 --}}}
 --{{{  defining things
 
 -- | Define something in the initial state.
-defineThing :: String -> A.NameType -> A.SpecType -> A.AbbrevMode
+defineThing :: String -> A.SpecType -> A.AbbrevMode
                -> State CompState ()
-defineThing s nt st am = defineName (simpleName s) $
+defineThing s st am = defineName (simpleName s) $
     A.NameDef {
       A.ndMeta = emptyMeta,
       A.ndName = s,
       A.ndOrigName = s,
-      A.ndNameType = nt,
       A.ndSpecType = st,
       A.ndAbbrevMode = am,
       A.ndPlacement = A.Unplaced
@@ -320,39 +318,41 @@ defineThing s nt st am = defineName (simpleName s) $
 -- | Define a @VAL IS@ constant.
 defineConst :: String -> A.Type -> A.Expression -> State CompState ()
 defineConst s t e
-    = defineThing s A.VariableName (A.IsExpr emptyMeta A.ValAbbrev t e)
+    = defineThing s (A.IsExpr emptyMeta A.ValAbbrev t e)
                   A.ValAbbrev
 
 -- | Define an @IS@ abbreviation.
 defineIs :: String -> A.Type -> A.Variable -> State CompState ()
 defineIs s t v
-    = defineThing s A.VariableName (A.Is emptyMeta A.Abbrev t v) A.Abbrev
+    = defineThing s (A.Is emptyMeta A.Abbrev t v) A.Abbrev
+
+-- | Define something original.
+defineOriginal :: String -> A.Type -> State CompState ()
+defineOriginal s t
+    = defineThing s (A.Declaration emptyMeta t) A.Original
 
 -- | Define a variable.
 defineVariable :: String -> A.Type -> State CompState ()
-defineVariable s t
-    = defineThing s A.VariableName (A.Declaration emptyMeta t) A.Original
+defineVariable = defineOriginal
 
 -- | Define a channel.
 defineChannel :: String -> A.Type -> State CompState ()
-defineChannel s t
-    = defineThing s A.ChannelName (A.Declaration emptyMeta t) A.Original
+defineChannel = defineOriginal
 
 -- | Define a timer.
 defineTimer :: String -> A.Type -> State CompState ()
-defineTimer s t
-    = defineThing s A.TimerName (A.Declaration emptyMeta t) A.Original
+defineTimer = defineOriginal
 
 -- | Define a user data type.
 defineUserDataType :: String -> A.Type -> State CompState ()
 defineUserDataType s t
-    = defineThing s A.DataTypeName (A.DataType emptyMeta t) A.Original
+    = defineThing s (A.DataType emptyMeta t) A.Original
 
 -- | Define a record type.
 -- (The fields are unscoped names, and thus don't need defining.)
 defineRecordType :: String -> [(String, A.Type)] -> State CompState ()
 defineRecordType s fs
-    = defineThing s A.RecordName st A.Original
+    = defineThing s st A.Original
   where
     st = A.RecordType emptyMeta False [(simpleName s, t) | (s, t) <- fs]
 
@@ -360,7 +360,7 @@ defineRecordType s fs
 defineFunction :: String -> [A.Type] -> [(String, A.Type)]
                   -> State CompState ()
 defineFunction s rs as
-    = defineThing s A.FunctionName st A.Original
+    = defineThing s st A.Original
   where
     st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
@@ -368,7 +368,7 @@ defineFunction s rs as
 -- | Define a proc.
 defineProc :: String -> [(String, A.AbbrevMode, A.Type)] -> State CompState ()
 defineProc s as
-    = defineThing s A.ProcName st A.Original
+    = defineThing s st A.Original
   where
     st = A.Proc emptyMeta A.PlainSpec fs $ A.Skip emptyMeta
     fs = [A.Formal am t (simpleName s) | (s, am, t) <- as]
@@ -376,12 +376,12 @@ defineProc s as
 -- | Define a protocol.
 defineProtocol :: String -> [A.Type] -> State CompState ()
 defineProtocol s ts
-    = defineThing s A.ProtocolName (A.Protocol emptyMeta ts) A.Original
+    = defineThing s (A.Protocol emptyMeta ts) A.Original
 
 -- | Define a variant protocol.
 defineProtocolCase :: String -> [(A.Name, [A.Type])] -> State CompState ()
 defineProtocolCase s ntss
-    = defineThing s A.ProtocolName (A.ProtocolCase emptyMeta ntss) A.Original
+    = defineThing s (A.ProtocolCase emptyMeta ntss) A.Original
 
 --}}}
 --{{{  custom assertions
@@ -437,7 +437,7 @@ checkTempVarTypes testName vars is = mapM_ (checkTempVarType testName is) vars
   where
     checkTempVarType :: String -> (Items, CompState) -> (String, A.Type) -> Assertion
     checkTempVarType testName (items, state) (key, t)
-      = do (A.Name _ _ nm) <- castOrFail testName key items
+      = do (A.Name _ nm) <- castOrFail testName key items
            case Map.lookup nm (csNames state) of
              Nothing -> assertFailure (testName ++ ": item with key \"" ++ key ++ "\" was not recorded in the state")
              Just nd -> evalStateT (

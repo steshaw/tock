@@ -120,7 +120,7 @@ testUnique0 = TestCase $ testPassWithItemsStateCheck "testUnique0" exp (uniquify
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique0: Variable was not made unique" "c" (A.nameName newcName)
            assertVarDef "testUnique0: Variable was not recorded" state (A.nameName newcName)
-             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte) A.Original A.Unplaced)
+             (tag6 A.NameDef DontCare (A.nameName newcName) "c" (A.Declaration m A.Byte) A.Original A.Unplaced)
 
 -- | Tests that two declarations of a variable with the same name are indeed made unique:
 testUnique1 :: Test
@@ -137,9 +137,9 @@ testUnique1 = TestCase $ testPassWithItemsStateCheck "testUnique1" exp (uniquify
                      assertNotEqual "testUnique1: Variable was not made unique" "c" (A.nameName newc1Name)
                      assertNotEqual "testUnique1: Variables were not made unique" (A.nameName newc0Name) (A.nameName newc1Name)
                      assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc0Name)
-                       (tag7 A.NameDef DontCare (A.nameName newc0Name) "c" A.VariableName (A.Declaration m A.Byte ) A.Original A.Unplaced)
+                       (tag6 A.NameDef DontCare (A.nameName newc0Name) "c" (A.Declaration m A.Byte ) A.Original A.Unplaced)
                      assertVarDef "testUnique1: Variable was not recorded" state (A.nameName newc1Name)
-                       (tag7 A.NameDef DontCare (A.nameName newc1Name) "c" A.VariableName (A.Declaration m A.Int64 ) A.Original A.Unplaced)
+                       (tag6 A.NameDef DontCare (A.nameName newc1Name) "c" (A.Declaration m A.Int64 ) A.Original A.Unplaced)
 
 -- | Tests that the unique pass does resolve the variables that are in scope
 testUnique2 :: Test
@@ -173,7 +173,7 @@ testUnique3 = TestCase $ testPassWithItemsStateCheck "testUnique3" exp (uniquify
     orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [] $ A.Skip m) (A.Only m $ A.ProcCall m (procName "foo") [])
     exp = orig
     check (items,state) = assertVarDef "testUnique3: Variable was not recorded" state "foo"
-                            (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (A.Proc m A.PlainSpec [] $ A.Skip m) A.Original A.Unplaced)
+                            (tag6 A.NameDef DontCare "foo" "foo" (A.Proc m A.PlainSpec [] $ A.Skip m) A.Original A.Unplaced)
 
 -- | Tests that parameters are uniquified and resolved:
 testUnique4 :: Test
@@ -196,9 +196,9 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp (uniquify
       = do newcName <- castAssertADI (Map.lookup "newc" items)
            assertNotEqual "testUnique4: Variable was not made unique" "c" (A.nameName newcName)
            assertVarDef "testUnique4: Variable was not recorded" state (A.nameName newcName)
-             (tag7 A.NameDef DontCare (A.nameName newcName) "c" A.VariableName (A.Declaration m A.Byte ) A.ValAbbrev A.Unplaced)
+             (tag6 A.NameDef DontCare (A.nameName newcName) "c" (A.Declaration m A.Byte ) A.ValAbbrev A.Unplaced)
            assertVarDef "testUnique4: Variable was not recorded" state "foo"
-             (tag7 A.NameDef DontCare "foo" "foo" A.ProcName (tag4 A.Proc DontCare A.PlainSpec 
+             (tag6 A.NameDef DontCare "foo" "foo" (tag4 A.Proc DontCare A.PlainSpec 
                [tag3 A.Formal A.ValAbbrev A.Byte newcName] (bodyPattern newcName)) A.Original A.Unplaced)
            
 -- TODO check that doing {int : c; { int: c; } } does give an error
@@ -212,8 +212,7 @@ testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "hello")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames0" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName
-        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)
       
 -- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
 testRecordInfNames1 :: Test
@@ -224,8 +223,7 @@ testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" ex
     orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
     exp = orig
     check state = assertVarDef "testRecordInfNames1" state "c" 
-      (tag7 A.NameDef DontCare "c" "c" A.VariableName
-        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
+      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)      
 
 -- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
 testRecordInfNames2 :: Test
@@ -237,13 +235,15 @@ testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" ex
       A.Only m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
     exp = orig
     check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag7 A.NameDef DontCare "c" "c" A.VariableName
-                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
-                          "c") A.Abbrev A.Unplaced)
+                      (tag7 A.NameDef DontCare "c" "c" A.VariableName (A.Declaration m (A.List A.Byte) ) A.Abbrev A.Unplaced)
                      assertVarDef "testRecordInfNames2" state "d" 
-                      (tag7 A.NameDef DontCare "d" "d" A.VariableName
-                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
-                          "d") A.Abbrev A.Unplaced)
+                      (tag7 A.NameDef DontCare "d" "d" A.VariableName (A.Declaration m A.Byte ) A.Abbrev A.Unplaced)                          
+
+-- | checks that doing a foreach over a non-array type is barred:
+testRecordInfNames3 :: Test
+testRecordInfNames3 = TestCase $ testPassShouldFail "testRecordInfNames3" (recordInfNameTypes orig) (return ())
+  where
+    orig = A.Rep m (A.ForEach m (simpleName "c") (intLiteral 0)) skipP
 
 --Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
 (>>>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
@@ -257,35 +257,35 @@ testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" ex
 testFindMain0 :: Test
 testFindMain0 = TestCase $ testPassWithItemsStateCheck "testFindMain0" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m [] :: A.AST
-    exp = mSpecAST (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName ("main"@@DontCare)) $
+    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m [] :: A.AST
+    exp = mSpecAST (tag3 A.Specification DontCare (tag2 A.Name DontCare ("main"@@DontCare)) $
       tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) $ mSeveralAST ([] :: [A.AST])
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
            assertNotEqual "testFindMain0 A" "main" mainName
-           assertEqual "testFindMain0 B" [(mainName,(A.Name m A.ProcName mainName))] (csMainLocals state)
+           assertEqual "testFindMain0 B" [(mainName, (A.Name m mainName, ProcName))] (csMainLocals state)
            assertVarDef "testFindMain0 C" state mainName
-                       (tag7 A.NameDef DontCare mainName "main" A.ProcName DontCare A.Original A.Unplaced)
+                       (tag6 A.NameDef DontCare mainName "main" DontCare A.Original A.Unplaced)
 
 testFindMain1 :: Test
 testFindMain1 = TestCase $ testPassWithStateCheck "testFindMain1" orig ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m ([] :: [A.AST])
+    orig = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m ([] :: [A.AST])
     check state = assertEqual "testFindMain1" [] (csMainLocals state)
     
 testFindMain2 :: Test
 testFindMain2 = TestCase $ testPassWithItemsStateCheck "testFindMain2" exp ((uniquifyAndResolveVars >>> findMain) orig) (return ()) check
   where
-    inner = A.Spec m (A.Specification m (A.Name m A.ProcName "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+    inner = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
                A.Several m ([] :: [A.AST])
-    orig = A.Spec m (A.Specification m (A.Name m A.ProcName "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) inner
+    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) inner
              
-    exp = mSpecAST (tag3 A.Specification DontCare (tag3 A.Name DontCare A.ProcName ("main"@@DontCare)) $
+    exp = mSpecAST (tag3 A.Specification DontCare (tag2 A.Name DontCare ("main"@@DontCare)) $
       tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) (stopCaringPattern m $ mkPattern inner)
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
            assertNotEqual "testFindMain2 A" "main" mainName
-           assertEqual "testFindMain2 B" [(mainName,(A.Name m A.ProcName mainName))] (csMainLocals state)
+           assertEqual "testFindMain2 B" [(mainName, (A.Name m mainName, ProcName))] (csMainLocals state)
 
 testParamPass :: 
   String              -- ^ The test name

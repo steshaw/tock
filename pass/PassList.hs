@@ -73,12 +73,12 @@ nullStateBodies = Pass
   ,passEnabled = const True}
   where
     nullProcFuncDefs :: A.NameDef -> A.NameDef
-    nullProcFuncDefs (A.NameDef m n on nt (A.Proc m' sm fs _) am pl)
-      = (A.NameDef m n on nt (A.Proc m' sm fs (A.Skip m')) am pl)
-    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Left _)) am pl)
-      = (A.NameDef m n on nt (A.Function m' sm ts fs (Left $ A.Several m' [])) am pl)
-    nullProcFuncDefs (A.NameDef m n on nt (A.Function m' sm ts fs (Right _)) am pl)
-      = (A.NameDef m n on nt (A.Function m' sm ts fs (Right $ A.Skip m')) am pl)
+    nullProcFuncDefs (A.NameDef m n on (A.Proc m' sm fs _) am pl)
+      = (A.NameDef m n on (A.Proc m' sm fs (A.Skip m')) am pl)
+    nullProcFuncDefs (A.NameDef m n on (A.Function m' sm ts fs (Left _)) am pl)
+      = (A.NameDef m n on (A.Function m' sm ts fs (Left $ A.Several m' [])) am pl)
+    nullProcFuncDefs (A.NameDef m n on (A.Function m' sm ts fs (Right _)) am pl)
+      = (A.NameDef m n on (A.Function m' sm ts fs (Right $ A.Skip m')) am pl)
     nullProcFuncDefs x = x
     
 
