@@ -42,7 +42,7 @@ outExprs :: Pass
 outExprs = pass "Define temporary variables for outputting expressions"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   [Prop.outExpressionRemoved]
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
@@ -137,7 +137,7 @@ transformInputCase :: Pass
 transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   [Prop.inputCaseRemoved]
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
@@ -184,7 +184,7 @@ transformProtocolInput :: Pass
 transformProtocolInput = pass "Flatten sequential protocol inputs into multiple inputs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved])
   [Prop.seqInputsFlattened]
-  $ applyDepthM2 doProcess doAlternative
+  (applyDepthM2 doProcess doAlternative)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))

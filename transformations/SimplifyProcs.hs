@@ -43,7 +43,7 @@ parsToProcs :: Pass
 parsToProcs = pass "Wrap PAR subprocesses in PROCs"
   [Prop.parUsageChecked]
   [Prop.parsWrapped]
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Par m pm s)
@@ -65,7 +65,7 @@ removeParAssign :: Pass
 removeParAssign = pass "Remove parallel assignment"
   [Prop.parUsageChecked, Prop.functionsRemoved, Prop.functionCallsRemoved]
   [Prop.assignParRemoved]
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m vs@(_:_:_) (A.ExpressionList _ es))
@@ -82,7 +82,7 @@ flattenAssign :: Pass
 flattenAssign = pass "Flatten assignment"
   (Prop.agg_typesDone ++ [Prop.assignParRemoved])
   [Prop.assignFlattened]
-  $ makeRecurse ops
+  (makeRecurse ops)
   where
     ops :: Ops
     ops = extOpD (extOpSD baseOp ops doStructured) ops doProcess

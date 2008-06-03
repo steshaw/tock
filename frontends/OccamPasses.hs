@@ -51,7 +51,7 @@ fixConstructorTypes :: Pass
 fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   [Prop.constantsFolded]
   [Prop.arrayConstructorTypesDone]
-  $ applyDepthM doExpression
+  (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr m (A.RepConstr m' _ rep expr))
@@ -66,7 +66,7 @@ resolveAmbiguities :: Pass
 resolveAmbiguities = occamOnlyPass "Resolve ambiguities"
   [Prop.inferredTypesRecorded]
   [Prop.ambiguitiesResolved]
-  $ applyDepthM doExpressionList
+  (applyDepthM doExpressionList)
   where
     doExpressionList :: Transform A.ExpressionList
     -- A single function call inside an ExpressionList is actually a
@@ -80,7 +80,7 @@ foldConstants :: Pass
 foldConstants = occamOnlyPass "Fold constants"
   [Prop.inferredTypesRecorded]
   [Prop.constantsFolded]
-  $ applyDepthM2 doExpression doSpecification
+  (applyDepthM2 doExpression doSpecification)
   where
     -- Try to fold all expressions we encounter. Since we've recursed into the
     -- expression first, this'll also fold subexpressions of non-constant
@@ -103,7 +103,7 @@ checkConstants :: Pass
 checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
   [Prop.constantsChecked]
-  $ applyDepthM2 doDimension doOption
+  (applyDepthM2 doDimension doOption)
   where
     -- Check array dimensions are constant.
     doDimension :: A.Dimension -> PassM A.Dimension

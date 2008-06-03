@@ -49,7 +49,7 @@ transformWaitFor :: Pass
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
   []
   [Prop.waitForRemoved]
-  $ applyDepthM doAlt
+  (applyDepthM doAlt)
   where
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
@@ -86,7 +86,7 @@ declareSizesArray :: Pass
 declareSizesArray = occamOnlyPass "Declare array-size arrays"
   (prereq ++ [Prop.slicesSimplified, Prop.arrayConstructorsRemoved])
   [Prop.arraySizesDeclared]
-  $ applyDepthSM doStructured
+  (applyDepthSM doStructured)
   where
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
@@ -239,7 +239,7 @@ addSizesFormalParameters :: Pass
 addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
   (prereq ++ [Prop.arraySizesDeclared])
   []
-  $ applyDepthM doSpecification
+  (applyDepthM doSpecification)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
@@ -276,7 +276,7 @@ addSizesActualParameters :: Pass
 addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
   (prereq ++ [Prop.arraySizesDeclared])
   []
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params) = concatMapM transformActual params >>* A.ProcCall m n
@@ -305,7 +305,7 @@ simplifySlices :: Pass
 simplifySlices = occamOnlyPass "Simplify array slices"
   prereq
   [Prop.slicesSimplified]
-  $ applyDepthM doVariable
+  (applyDepthM doVariable)
   where
     doVariable :: A.Variable -> PassM A.Variable
     doVariable (A.SubscriptedVariable m (A.SubscriptFor m' check for) v)

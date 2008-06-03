@@ -51,7 +51,7 @@ commonPasses opts = concat $
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
   , enablePassesWhen csUsageChecking
     [pass "Usage checking" Prop.agg_namesDone [Prop.parUsageChecked]
-      $ passOnlyOnAST "usageCheckPass" $ runPassR usageCheckPass]
+      (passOnlyOnAST "usageCheckPass" $ runPassR usageCheckPass)]
   -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
   , enablePassesWhen (not . csUsageChecking)
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]

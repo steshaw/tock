@@ -610,7 +610,7 @@ inferTypes :: Pass
 inferTypes = occamOnlyPass "Infer types"
   []
   [Prop.inferredTypesRecorded]
-  $ recurse
+  recurse
   where
     ops :: Ops
     ops = baseOp
@@ -1011,11 +1011,11 @@ checkTypes = occamOnlyPass "Check types"
   [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved]
   [Prop.expressionTypesChecked, Prop.processTypesChecked,
     Prop.functionTypesChecked, Prop.retypesChecked]
-  $ checkVariables >.>
+  ( checkVariables >.>
     checkExpressions >.>
     checkSpecTypes >.>
     checkProcesses >.>
-    checkReplicators
+    checkReplicators)
 
 --{{{  checkVariables
 

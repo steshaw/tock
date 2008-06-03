@@ -92,7 +92,7 @@ performTypeUnification :: Pass
 performTypeUnification = rainOnlyPass "Rain Type Checking"
   ([Prop.noInt] ++ Prop.agg_namesDone)
   [Prop.expressionTypesChecked, Prop.functionTypesChecked, Prop.processTypesChecked, Prop.retypesChecked]
-  $ \x -> do -- First, we copy the known types into the unify map:
+  (\x -> do -- First, we copy the known types into the unify map:
        st <- get
        ul <- shift $ csNames st
        put st {csUnifyPairs = [], csUnifyLookup = ul}
@@ -111,7 +111,7 @@ performTypeUnification = rainOnlyPass "Rain Type Checking"
        l <- get >>* csUnifyLookup
        ts <- mapMapM (\v -> fromTypeExp v) l
        get >>= substituteUnknownTypes ts >>= put
-       substituteUnknownTypes ts x'
+       substituteUnknownTypes ts x')
   where
     shift :: Map.Map String A.NameDef -> PassM (Map.Map UnifyIndex UnifyValue)
     shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
@@ -143,7 +143,7 @@ substituteUnknownTypes mt = applyDepthM sub
 recordInfNameTypes :: Pass
 recordInfNameTypes = rainOnlyPass "Record inferred name types in dictionary"
   (Prop.agg_namesDone \\ [Prop.inferredTypesRecorded]) [Prop.inferredTypesRecorded]
-  $ checkDepthM recordInfNameTypes'
+  (checkDepthM recordInfNameTypes')
   where
     recordInfNameTypes' :: Check A.Replicator
     recordInfNameTypes' input@(A.ForEach m n e)
@@ -169,7 +169,7 @@ constantFoldPass :: Pass
 constantFoldPass = rainOnlyPass "Fold all constant expressions"
   ([Prop.noInt] ++ Prop.agg_namesDone ++ [Prop.inferredTypesRecorded])
   [Prop.constantsFolded, Prop.constantsChecked]
-  $ applyDepthM doExpression
+  (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold

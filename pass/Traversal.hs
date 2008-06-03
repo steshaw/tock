@@ -160,8 +160,8 @@ makeDescend ops@(tks, _) = gmapMFor ts recurse
     recurse = makeRecurse ops
 
 -- | Apply a transformation, recursing depth-first.
-applyDepthM :: forall m t1 s. (Monad m, Data t1, Data s) =>
-               TransformM m t1 -> s -> m s
+applyDepthM :: forall m t1. (Monad m, Data t1) =>
+               TransformM m t1 -> (forall s. Data s => s -> m s)
 applyDepthM f1 = makeRecurse ops
   where
     ops :: OpsM m

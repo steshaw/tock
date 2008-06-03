@@ -98,7 +98,7 @@ removeFreeNames :: Pass
 removeFreeNames = pass "Convert free names to arguments"
   [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved]
   [Prop.freeNamesToArgs]
-  $ applyDepthM2 doSpecification doProcess
+  (applyDepthM2 doSpecification doProcess)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
@@ -188,11 +188,11 @@ removeNesting :: Pass
 removeNesting = pass "Pull nested definitions to top level"
   [Prop.freeNamesToArgs]
   [Prop.nestedPulled]
-  $ passOnlyOnAST "removeNesting" $ \s ->
+  (passOnlyOnAST "removeNesting" $ \s ->
        do pushPullContext
           s' <- (makeRecurse ops) s >>= applyPulled
           popPullContext
-          return $ fromJust $ cast s'
+          return $ fromJust $ cast s')
   where
     ops :: Ops
     ops = baseOp `extOpS` doStructured

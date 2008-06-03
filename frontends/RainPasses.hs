@@ -60,7 +60,7 @@ rainPasses =
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
 transformInt :: Pass
-transformInt = rainOnlyPass "Resolve Int -> Int64" [] [Prop.noInt] $ applyDepthM transformInt'
+transformInt = rainOnlyPass "Resolve Int -> Int64" [] [Prop.noInt] (applyDepthM transformInt')
   where
     transformInt' :: A.Type -> PassM A.Type
     transformInt' A.Int = return A.Int64
@@ -83,7 +83,7 @@ uniquifyAndResolveVars :: Pass
 uniquifyAndResolveVars = rainOnlyPass
   "Uniquify variable declarations, record declared types and resolve variable names"
   [Prop.noInt] (Prop.agg_namesDone \\ [Prop.inferredTypesRecorded])
-  $ applyDepthSM uniquifyAndResolveVars'
+  (applyDepthSM uniquifyAndResolveVars')
   where
     uniquifyAndResolveVars' :: Data a => A.Structured a -> PassM (A.Structured a)
     
@@ -156,9 +156,9 @@ findMain :: Pass
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
 --in the CompState, and pull it out into csMainLocals
 findMain = rainOnlyPass "Find and tag the main function" Prop.agg_namesDone [Prop.mainTagged]
-  $    \x -> do newMainName <- makeNonce "main_"
+  (    \x -> do newMainName <- makeNonce "main_"
                 modify (findMain' newMainName)
-                applyDepthM (return . (replaceNameName "main" newMainName)) x
+                applyDepthM (return . (replaceNameName "main" newMainName)) x)
   where
     --We have to mangle the main name because otherwise it will cause problems on some backends (including C and C++)
     findMain' :: String -> CompState -> CompState
@@ -189,7 +189,7 @@ checkIntegral _ = Nothing
 transformEachRange :: Pass
 transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR"
   (Prop.agg_typesDone ++ [Prop.constantsFolded]) [Prop.eachRangeTransformed]
-  $ applyDepthSM doStructured
+  (applyDepthSM doStructured)
   where
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
@@ -208,7 +208,7 @@ transformRangeRep :: Pass
 transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into more general array constructors"
   (Prop.agg_typesDone ++ [Prop.eachRangeTransformed])
   [Prop.rangeTransformed]
-  $ applyDepthM doExpression
+  (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
@@ -250,7 +250,7 @@ checkFunction = return -- applyDepthM checkFunction'
 pullUpForEach :: Pass
 pullUpForEach = rainOnlyPass "Pull up foreach-expressions"
   (Prop.agg_typesDone ++ [Prop.constantsFolded]) [Prop.eachTransformed]
-  $ applyDepthSM doStructured
+  (applyDepthSM doStructured)
   where
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Rep m (A.ForEach m' loopVar loopExp) s)
@@ -267,7 +267,7 @@ pullUpForEach = rainOnlyPass "Pull up foreach-expressions"
 pullUpParDeclarations :: Pass
 pullUpParDeclarations = rainOnlyPass "Pull up par declarations"
   [] [Prop.rainParDeclarationsPulledUp]
-  $ applyDepthM pullUpParDeclarations'
+  (applyDepthM pullUpParDeclarations')
   where
     pullUpParDeclarations' :: A.Process -> PassM A.Process
     pullUpParDeclarations' p@(A.Par m mode inside) 
@@ -285,7 +285,7 @@ pullUpParDeclarations = rainOnlyPass "Pull up par declarations"
 
 mobiliseLists :: Pass
 mobiliseLists = rainOnlyPass "Mobilise lists" [] [] --TODO properties
-  $ \x -> (get >>= applyDepthM mobilise >>= put) >> applyDepthM mobilise x
+  (\x -> (get >>= applyDepthM mobilise >>= put) >> applyDepthM mobilise x)
   where
     mobilise :: A.Type -> PassM A.Type
     mobilise t@(A.List _) = return $ A.Mobile t
@@ -293,8 +293,8 @@ mobiliseLists = rainOnlyPass "Mobilise lists" [] [] --TODO properties
 
 -- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
 excludeNonRainFeatures :: Pass
-excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] [] $
-  excludeConstr
+excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] []
+  (excludeConstr
   [ con0 A.Real32
    ,con0 A.Real64
    ,con2 A.Counted
@@ -314,5 +314,5 @@ excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] [] $
    ,con1 A.Stop
    ,con3 A.Processor
    ,con3 A.IntrinsicProcCall
-  ]
+  ])
 

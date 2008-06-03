@@ -60,7 +60,7 @@ type PassType = (forall s. Data s => s -> PassM s)
 
 -- | A description of an AST-mangling pass.
 data Monad m => Pass_ m = Pass {
-    passCode :: forall t. Data t => t -> m t
+    passCode :: PassType
   , passName :: String
   , passPre :: Set.Set Property
   , passPost :: Set.Set Property
@@ -121,7 +121,13 @@ passOnlyOnAST name func x
                 Nothing -> dieP emptyMeta $ name ++ " crazy cast error at top-level"
                 Just y' -> return y'
 
-type PassMaker = String -> [Property] -> [Property] -> (forall t. Data t => t -> PassM t) -> Pass
+-- For all functions of this type, do NOT use dollar before the pass.
+-- That is, do not write: pass "" [] [] $ some code
+-- On GHC 6.6 (without impredicative polymorphism from 6.8.1) this
+-- will force the RHS (some code) to become monomorphic, where in fact
+-- it needs to remain polymorphic.  So just bracket the code for the
+-- pass instead, and everything will be fine
+type PassMaker = String -> [Property] -> [Property] -> PassType -> Pass
 
 passMakerHelper :: (CompState -> Bool) -> PassMaker
 passMakerHelper f name pre post code
@@ -144,14 +150,8 @@ cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 cppOnlyPass :: PassMaker
 cppOnlyPass = passMakerHelper $ (== BackendCPPCSP) . csBackend
 
-pass :: String -> [Property] -> [Property] -> (forall t. Data t => t -> PassM t) -> Pass
-pass name pre post code
-  = Pass { passCode = code
-         , passName = name
-         , passPre = Set.fromList pre
-         , passPost = Set.fromList post
-         , passEnabled = const True
-         }
+pass :: PassMaker
+pass = passMakerHelper (const True)
 
 -- | Compose a list of passes into a single pass by running them in the order given.
 runPasses :: [Pass] -> (A.AST -> PassM A.AST)

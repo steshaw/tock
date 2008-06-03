@@ -51,7 +51,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
         Prop.functionTypesChecked])
   [Prop.functionsRemoved]
-  $ applyDepthM doSpecification
+  (applyDepthM doSpecification)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
@@ -103,7 +103,7 @@ removeAfter :: Pass
 removeAfter = pass "Convert AFTER to MINUS"
   [Prop.expressionTypesChecked]
   [Prop.afterRemoved]
-  $ applyDepthM doExpression
+  (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Dyadic m A.After a b)
@@ -122,7 +122,7 @@ expandArrayLiterals :: Pass
 expandArrayLiterals = pass "Expand array literals"
   [Prop.expressionTypesChecked, Prop.processTypesChecked]
   [Prop.arrayLiteralsExpanded]
-  $ applyDepthM doArrayElem
+  (applyDepthM doArrayElem)
   where
     doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
     doArrayElem ae@(A.ArrayElemExpr e)
@@ -159,7 +159,7 @@ pullRepCounts :: Pass
 pullRepCounts = pass "Pull up replicator counts for SEQs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
-  $ applyDepthM doProcess
+  (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
@@ -188,7 +188,7 @@ transformConstr :: Pass
 transformConstr = pass "Transform array constructors into initialisation code"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.subscriptsPulledUp])
   [Prop.arrayConstructorsRemoved]
-  $ applyDepthSM doStructured
+  (applyDepthSM doStructured)
   where
     -- For arrays, this takes a constructor expression:
     --   VAL type name IS [i = rep | expr]:
