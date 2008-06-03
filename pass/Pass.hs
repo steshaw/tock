@@ -20,11 +20,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Pass where
 
 import Control.Monad.Error
-import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics
 import Data.List
+import Data.Ord
 import qualified Data.Set as Set
 import System.IO
 
@@ -38,18 +38,11 @@ import Utils
 
 -- | The monad in which AST-mangling passes operate.
 type PassM = ErrorT ErrorReport (StateT CompState (StateT [WarningReport]  IO))
-type PassMR = ErrorT ErrorReport (ReaderT CompState (StateT [WarningReport]  IO))
 
 instance Die PassM where
   dieReport = throwError
 
-instance Die PassMR where
-  dieReport = throwError
-  
 instance Warn PassM where
-  warnReport w = lift $ lift $ modify (++ [w])
-
-instance Warn PassMR where
   warnReport w = lift $ lift $ modify (++ [w])
 
 -- | The type of a pass function.
@@ -59,45 +52,34 @@ instance Warn PassMR where
 type PassType = (forall s. Data s => s -> PassM s)
 
 -- | A description of an AST-mangling pass.
-data Monad m => Pass_ m = Pass {
+data Pass = Pass {
     passCode :: PassType
   , passName :: String
   , passPre :: Set.Set Property
   , passPost :: Set.Set Property
   , passEnabled :: CompState -> Bool
-  }
+}
 
-instance Monad m => Eq (Pass_ m) where
+instance Eq Pass where
   x == y = passName x == passName y
 
-instance Monad m => Ord (Pass_ m) where
-  compare x y = compare (passName x) (passName y)
-
-type Pass = Pass_ PassM
-type PassR = Pass_ PassMR
+instance Ord Pass where
+  compare = comparing passName
 
 -- | A property that can be asserted and tested against the AST.
 data Property = Property {
     propName :: String
-  , propCheck :: A.AST -> PassMR ()
+  , propCheck :: A.AST -> PassM ()
   }
 
 instance Eq Property where
   x == y = propName x == propName y
 
 instance Ord Property where
-  compare x y = compare (propName x) (propName y)
+  compare = comparing propName
 
 instance Show Property where
   show = propName
-
-runPassR :: (A.AST -> PassMR A.AST) -> (A.AST -> PassM A.AST)
-runPassR p t
-    =  do st <- get
-          (r, w) <- liftIO $ flip runStateT [] $ runReaderT (runErrorT (p t)) st
-          case r of
-            Left err -> throwError err
-            Right result -> mapM_ warnReport w >> return result
 
 runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState, [WarningReport])
 runPassM cs pass

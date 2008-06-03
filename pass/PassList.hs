@@ -51,7 +51,7 @@ commonPasses opts = concat $
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
   , enablePassesWhen csUsageChecking
     [pass "Usage checking" Prop.agg_namesDone [Prop.parUsageChecked]
-      (passOnlyOnAST "usageCheckPass" $ runPassR usageCheckPass)]
+      (passOnlyOnAST "usageCheckPass" usageCheckPass)]
   -- If usage checking is turned off, the pass list will break unless we insert this dummy item:
   , enablePassesWhen (not . csUsageChecking)
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
@@ -122,10 +122,10 @@ calculatePassList
         checks = [pass ("[" ++ propName prop ++ "]")
                        []
                        []
-                       (passOnlyOnAST "prop" $ runPassR $ checkProp prop)
+                       (passOnlyOnAST "prop" $ checkProp prop)
                   | prop <- Set.toList props]
 
-        checkProp :: Property -> A.AST -> PassMR A.AST
+        checkProp :: Property -> A.AST -> PassM A.AST
         checkProp prop ast = propCheck prop ast >> return ast
 
 -- | If something isn't right, it gives back a list containing a single pass
