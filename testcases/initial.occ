@@ -1,6 +1,6 @@
 PROC P ()
   INITIAL INT x IS 1234:
-  INITIAL []BYTE cs IS "hello, world":
+  INITIAL [12]BYTE cs IS "hello, world":
   SEQ
     SEQ i = 0 FOR SIZE cs
       cs[i] := 'A'

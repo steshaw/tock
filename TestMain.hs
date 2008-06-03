@@ -44,6 +44,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "RainTypesTest"
 --
+-- * "SimplifyAbbrevsTest"
+--
 -- * "StructureOccamTest"
 --
 -- * "UsageCheckTest"
@@ -70,6 +72,7 @@ import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
 import qualified RainPassesTest (tests)
 import qualified RainTypesTest (ioTests)
+import qualified SimplifyAbbrevsTest (tests)
 import qualified StructureOccamTest (tests)
 import qualified UsageCheckTest (tests)
 import TestUtils
@@ -187,6 +190,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               ,noqc PreprocessOccamTest.tests
               ,noqc RainPassesTest.tests
               ,noqcButIO RainTypesTest.ioTests
+              ,noqc SimplifyAbbrevsTest.tests
               ,noqc StructureOccamTest.tests
               ,noqc UsageCheckTest.tests
             ]

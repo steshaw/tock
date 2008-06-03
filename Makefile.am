@@ -181,6 +181,7 @@ tocktest_SOURCES += frontends/RainPassesTest.hs
 tocktest_SOURCES += frontends/RainTypesTest.hs
 tocktest_SOURCES += frontends/StructureOccamTest.hs
 tocktest_SOURCES += transformations/PassTest.hs
+tocktest_SOURCES += transformations/SimplifyAbbrevsTest.hs
 
 pregen_sources = data/AST.hs
 pregen_sources += pregen/PregenUtils.hs
