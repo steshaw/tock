@@ -163,6 +163,7 @@ removeFreeNames = pass "Convert free names to arguments"
                 A.IsChannelArray {} -> True
                 A.Retypes {} -> True
                 A.RetypesExpr {} -> True
+                A.Rep {} -> True
                 _ -> False
 
     -- | Add the extra arguments we recorded when we saw the definition.
