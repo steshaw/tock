@@ -294,13 +294,7 @@ testParamPass1 = testParamPass "testParamPass1"
   [A.ActualVariable (variable "x")]
   (Just [A.ActualVariable (variable "x")])
 
--- | Test up-casts:
-testParamPass2 :: Test
-testParamPass2 = testParamPass "testParamPass2"
-  (Just [A.Formal A.ValAbbrev A.Int32 (simpleName "p0"),A.Formal A.ValAbbrev A.UInt32 (simpleName "p1")])
-  [A.ActualVariable (variable "x"),A.ActualVariable (variable "x")]
-  (Just [A.ActualExpression $ A.Conversion m A.DefaultConversion A.Int32 (exprVariable "x"),
-         A.ActualExpression $ A.Conversion m A.DefaultConversion A.UInt32 (exprVariable "x")])
+-- testParamPass2 was no longer applicable
 
 -- | Test invalid implicit down-cast:
 testParamPass3 :: Test
@@ -420,7 +414,6 @@ tests = TestLabel "RainPassesTest" $ TestList
    ,testFindMain2
    ,testParamPass0
    ,testParamPass1
-   ,testParamPass2
    ,testParamPass3
    ,testParamPass4
    ,testParamPass5
