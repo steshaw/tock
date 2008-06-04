@@ -118,7 +118,7 @@ testGraph' :: String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> A.A
 testGraph' testName nodes roots edges str = testGraphF testName nodes roots edges (buildFlowGraph testOps str)
 
 testOps :: GraphLabelFuncs (State (Map.Map Meta Int)) Int
-testOps = GLF nextId nextId nextId nextId nextId nextId nextId (nextId' 100) (nextId' 100)
+testOps = GLF nextId nextId nextId nextId nextId nextId (nextId . snd) (nextId' 100) (nextId' 100)
 
 testGraphF :: Data structType => String -> [(Int, Meta)] -> [Int] -> [(Int, Int, EdgeLabel)] -> State (Map.Map Meta Int) (Either String (FlowGraph' Identity Int structType, [Node],
   [Node])) -> Test
