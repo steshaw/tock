@@ -24,6 +24,7 @@ module GenerateC
   , cgenType
   , cintroduceSpec
   , cPreReq
+  , cremoveSpec
   , genComma
   , genCPasses
   , generate

@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec,
+import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cremoveSpec,
   generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
 import GenerateCBased
 import Metadata
@@ -522,7 +522,8 @@ cppremoveSpec (A.Specification m n (A.Declaration _ t))
                Nothing -> return ()
   where
     var = A.Variable m n
-cppremoveSpec _ = return ()
+-- Otherwise, defer to the C implementation:
+cppremoveSpec sp = cremoveSpec sp
 
 --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
 --and also changed to use infixComma.
