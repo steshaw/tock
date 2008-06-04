@@ -164,16 +164,19 @@ pullRepCounts = pass "Pull up replicator counts for SEQs"
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
     doProcess p = return p
-    
+
+    -- Don't want to apply this using applyDepthM, because then nested PARs
+    -- inside the SEQ would also be processed, which is unnecessary
     pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
     pullRepCountSeq s@(A.Only _ _) = return s
     pullRepCountSeq (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
       from for))) scope)
       = do t <- astTypeOf for
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
+           scope' <- pullRepCountSeq scope
            return $ A.Spec mspec spec $
              A.Spec m (A.Specification mspec n (A.Rep mrep
-               (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))) scope
+               (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))) scope'
     pullRepCountSeq (A.Spec m sp str)
       = do str' <- pullRepCountSeq str
            return $ A.Spec m sp str'

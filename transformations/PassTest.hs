@@ -597,7 +597,8 @@ testPullRepCounts = TestList
        
      pullRepCounts (A.Seq emptyMeta $ A.Spec emptyMeta (A.Specification emptyMeta
        (simpleName "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6))) $
-        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 8))) $ A.Several emptyMeta [])
+        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j") $
+          A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 8))) $ A.Several emptyMeta [])
      (return ())
   ]
   where
