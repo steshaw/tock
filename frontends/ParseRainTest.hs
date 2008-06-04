@@ -472,10 +472,12 @@ testEach :: [ParseTest A.Process]
 testEach =
  [
   pass ("seqeach (c : \"1\") par {c = 7;}", RP.statement,
-    assertPatternMatch  "Each Test 0" (pat $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "1")) $    
+    assertPatternMatch  "Each Test 0" (pat $ A.Seq m $ A.Spec m (A.Specification
+      m (simpleName "c") $ A.Rep m (A.ForEach m (makeLiteralStringRain "1"))) $
       A.Only m $ makePar [makeAssign (variable "c") (intLiteral 7)] ))
   ,pass ("pareach (c : \"345\") {c = 1; c = 2;}", RP.statement,
-    assertPatternMatch "Each Test 1" $ pat $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "345")) $ 
+    assertPatternMatch "Each Test 1" $ pat $ A.Par m A.PlainPar $ A.Spec m
+      (A.Specification m (simpleName "c") $ A.Rep m (A.ForEach m (makeLiteralStringRain "345"))) $ 
       A.Only m $ makeSeq[makeAssign (variable "c") (intLiteral 1),makeAssign (variable "c") (intLiteral 2)] )      
  ]
 

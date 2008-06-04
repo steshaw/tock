@@ -211,7 +211,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
 
     orig = A.Spec m (A.Specification m (simpleName "arr") $
       A.IsExpr m A.ValAbbrev t $ A.ExprConstr m $
-        A.RepConstr m t (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10))
+        A.RepConstr m t (simpleName "x") (A.For m (intLiteral 0) (intLiteral 10))
         (exprVariable "x")) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
     exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m t)) $
@@ -220,7 +220,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
           (A.Declaration m A.Int)) $
         A.Several m [A.Only m $ A.Assign m [variable "i"] $
             A.ExpressionList m [intLiteral 0],
-          A.Rep m (A.For m (simpleName "x") (intLiteral 0) (intLiteral 10)) $
+          A.Spec m (A.Specification m (simpleName "x") $ A.Rep m (A.For m (intLiteral 0) (intLiteral 10))) $
             A.Only m $ A.Seq m $ A.Several m
               [A.Only m $ A.Assign m
                 [A.SubscriptedVariable m (A.Subscript m A.NoCheck $
@@ -579,20 +579,25 @@ testPullRepCounts = TestList
    ,TestCase $ testPass "testPullRepCounts 5"
      (nameAndStopCaringPattern "nonce" "nonce" $ mkPattern $ A.Seq emptyMeta $
        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
-         A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (exprVariable "nonce")) $ A.Several emptyMeta [])
+         A.Spec emptyMeta (A.Specification emptyMeta (simpleName "i") $
+           A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce"))) $ A.Several emptyMeta [])
        
-     pullRepCounts (A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $ A.Several emptyMeta [])
+     pullRepCounts (A.Seq emptyMeta $ A.Spec emptyMeta (A.Specification emptyMeta
+       (simpleName "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6))) $ A.Several emptyMeta [])
      (return ())
 
    ,TestCase $ testPass "testPullRepCounts 6"
      (nameAndStopCaringPattern "nonce" "nonce" $ nameAndStopCaringPattern "nonce2" "nonce2" $ mkPattern $ A.Seq emptyMeta $
        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
-         A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (exprVariable "nonce")) $
+         A.Spec emptyMeta (A.Specification emptyMeta (simpleName "i")
+             $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce"))) $
            A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce2") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8)) $
-             A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (exprVariable "nonce2")) $ A.Several emptyMeta [])
+             A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j")
+             $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce2"))) $ A.Several emptyMeta [])
        
-     pullRepCounts (A.Seq emptyMeta $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 6)) $
-        A.Rep emptyMeta (A.For emptyMeta (simpleName "j") (intLiteral 0) (intLiteral 8)) $ A.Several emptyMeta [])
+     pullRepCounts (A.Seq emptyMeta $ A.Spec emptyMeta (A.Specification emptyMeta
+       (simpleName "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6))) $
+        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 8))) $ A.Several emptyMeta [])
      (return ())
   ]
   where
@@ -603,7 +608,8 @@ testPullRepCounts = TestList
       pullRepCounts code
       (return ())
       where 
-        code = (f $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 5)) $ A.Several emptyMeta [])
+        code = (f $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
+          "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 5))) $ A.Several emptyMeta [])
 
 
 --Returns the list of tests:

@@ -68,13 +68,13 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
         getArrayIndex _ = Nothing
 
     -- Turns a replicator into background knowledge about that replicator
-    makeRepBounds :: A.Replicator -> [BackgroundKnowledge]
-    makeRepBounds (A.For m n from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Subtr (A.Dyadic m A.Add from for) (makeConstant m 1)]
+    makeRepBounds :: (A.Name, A.Replicator) -> [BackgroundKnowledge]
+    makeRepBounds (n, A.For m from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Subtr (A.Dyadic m A.Add from for) (makeConstant m 1)]
       where
         ev = A.ExprVariable m (A.Variable m n)
 
     -- Gets all the replicators present in the argument
-    listReplicators :: ParItems UsageLabel -> [A.Replicator]
+    listReplicators :: ParItems UsageLabel -> [(A.Name, A.Replicator)]
     listReplicators p = mapMaybe nodeRep $ flattenParItems p
 
     -- Checks the given ParItems of writes and reads against each other.  The
@@ -244,7 +244,7 @@ data ArrayAccessType = AAWrite | AARead
 -- | Transforms the ParItems (from the control-flow graph) into the more suitable ArrayAccess
 -- data type used by this array usage checker.
 parItemToArrayAccessM :: Monad m =>
-  (  [(A.Replicator, Bool)] -> 
+  (  [((A.Name, A.Replicator), Bool)] -> 
      a ->
      m [(label, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
   ) -> 
@@ -441,7 +441,7 @@ makeEquations otherInfo accesses bound
     -- | Given a list of replicators (marked enabled\/disabled by a flag), the writes and reads, 
     -- turns them into a single list of accesses with all the relevant information.  The writes and reads
     -- can be grouped together because they are differentiated by the ArrayAccessType in the result
-    mkEq :: [(A.Replicator, Bool)] ->
+    mkEq :: [((A.Name, A.Replicator), Bool)] ->
             ([A.Expression], [A.Expression]) ->
              StateT [(CoeffIndex, CoeffIndex)]
                (StateT VarMap (Either String))
@@ -452,8 +452,8 @@ makeEquations otherInfo accesses bound
         ws' = zip (repeat AAWrite) ws
         rs' = zip (repeat AARead) rs
         
-        makeRepVarEq :: (A.Replicator, Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
-        makeRepVarEq (A.For m varName from for, _)
+        makeRepVarEq :: ((A.Name, A.Replicator), Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
+        makeRepVarEq ((varName, A.For m from for), _)
           = do from' <- makeSingleEq from "replication start"
                upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
                return (A.Variable m varName, from', upper)
@@ -472,9 +472,9 @@ makeEquations otherInfo accesses bound
                               _ -> throwError "Replicated group found unexpectedly"
 
     -- | Turns all instances of the variable from the given replicator into their primed version in the given expression
-    mirrorFlaggedVars :: [FlattenedExp] -> (A.Replicator,Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
+    mirrorFlaggedVars :: [FlattenedExp] -> ((A.Name, A.Replicator),Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
     mirrorFlaggedVars exp (_,False) = return exp
-    mirrorFlaggedVars exp (A.For m varName from for, True)
+    mirrorFlaggedVars exp ((varName, A.For m from for), True)
       = do varIndexes <- lift $ seqPair (varIndex (Scale 1 (A.ExprVariable emptyMeta var,0)), varIndex (Scale 1 (A.ExprVariable emptyMeta var,1)))
            modify (varIndexes :)
            return $ setIndexVar var 1 exp

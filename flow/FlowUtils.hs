@@ -106,7 +106,7 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelAlternative :: A.Alternative -> m label
     ,labelExpression :: A.Expression -> m label
     ,labelExpressionList :: A.ExpressionList -> m label
-    ,labelReplicator :: A.Replicator -> m label
+    ,labelReplicator :: (A.Name, A.Replicator) -> m label
     ,labelScopeIn :: A.Specification -> m label
     ,labelScopeOut :: A.Specification -> m label
   }

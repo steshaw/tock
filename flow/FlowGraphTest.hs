@@ -81,6 +81,10 @@ sm9 = A.Skip m9
 sm10 = A.Skip m10
 sm11 = A.Skip m11
 
+rep :: Data a => Meta -> A.Structured a -> A.Structured a
+rep m = A.Spec mU (A.Specification mU (simpleName "i") (A.Rep m (A.For m undefined
+  undefined)))
+
 -- | Shows a graph as a node and edge list.
 showGraph :: (Graph g, Show a, Show b) => g a b -> String
 showGraph g = " Nodes: " ++ show (labNodes g) ++ " Edges: " ++ show (labEdges g)
@@ -187,19 +191,19 @@ testSeq = TestLabel "testSeq" $ TestList
   -- Replicated SEQ:
   
   ,testSeq' 100 [(0,m10), (1,m3), (2,m5)] [(0,1,ESeq), (1,2,ESeq), (2,0,ESeq)]
-    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
+    (rep m10 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
 
   ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [3] [(3,0,ESeq),(0,1,ESeq), (1,2,ESeq), (2,0,ESeq),(0,4,ESeq)]
     (A.Only mU $ A.Seq m6 $ A.Several m7
       [A.Only mU sm9
-      ,(A.Rep m8 (A.For m8 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
+      ,(rep m8 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
       ,A.Only mU sm11])
 
   ,testSeq' 102 [(0,m10), (1,m1)] [(0,1,ESeq), (1,0,ESeq)]
-    (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m1 [])
+    (rep m10 $ A.Several m1 [])
 
   ,testSeq' 103 [(1,m10), (0,m1), (2,m2), (3,m3)] [(0,1,ESeq),(1,3,ESeq), (3,1,ESeq),(1,2,ESeq)]
-    (A.Several mU [A.Only mU sm1, (A.Rep m10 (A.For m10 undefined undefined undefined) $ A.Several m3 []), A.Only mU sm2])
+    (A.Several mU [A.Only mU sm1, (rep m10 $ A.Several m3 []), A.Only mU sm2])
 
  ]
   where
@@ -246,7 +250,7 @@ testPar = TestLabel "testPar" $ TestList
   
   ,testPar' 100 [(1,m6), (2,m3), (3,m5), (4, sub m6 1)]
     [(0,1,EStartPar 0), (1,2,EStartPar 1), (2,4,EEndPar 1), (1,3,EStartPar 1), (3,4,EEndPar 1), (4,99,EEndPar 0)]
-    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])  
+    (rep m6 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])  
 
   ,testPar' 101 [(1,m1), (2,m2), (3,m3), (11,sub m1 1), (4,m4), (5,m5), (6,m6), (7,m7), (15, sub m5 1)]
     -- The links in the main PAR:
@@ -257,13 +261,13 @@ testPar = TestLabel "testPar" $ TestList
     ,(5,6,EStartPar 2), (6,15,EEndPar 2), (5,7,EStartPar 2), (7,15,EEndPar 2)]
       
     (A.Several mU
-      [(A.Rep m1 (A.For m1 undefined undefined undefined) $ A.Several mU [A.Only mU sm2,A.Only mU sm3])
+      [(rep m1 $ A.Several mU [A.Only mU sm2,A.Only mU sm3])
       ,A.Only mU sm4
-      ,(A.Rep m5 (A.For m5 undefined undefined undefined) $ A.Several mU [A.Only mU sm6,A.Only mU sm7])])
+      ,(rep m5 $ A.Several mU [A.Only mU sm6,A.Only mU sm7])])
 
   ,testPar' 102 [(1,m6), (4, sub m6 1)]
     [(0,1,EStartPar 0), (1,4,ESeq), (4,99,EEndPar 0)]
-    (A.Rep m6 (A.For m6 undefined undefined undefined) $ A.Several mU [])
+    (rep m6 $ A.Several mU [])
  ]
   where
     testPar' :: Int -> [(Int, Meta)] -> [(Int, Int, EdgeLabel)] -> A.Structured A.Process -> Test
@@ -316,16 +320,16 @@ testIf = TestLabel "testIf" $ TestList
 
   ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5)] [0]
     [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 5, ESeq)]
-    (A.If m0 $ A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3)])
+    (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3)])
 
   ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7)] [0]
     [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq)]
-    (A.If m0 $ A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
+    (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
 
   ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9)] [0]
     [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq), (5,8,ESeq),
      (8,9,ESeq), (9,1,ESeq)]
-    (A.If m0 $ A.Several mU [A.Rep mU (A.For m5 undefined (A.True mU) (A.True mU)) $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
+    (A.If m0 $ A.Several mU [rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
                             , ifs mU [(A.True m8, sm9)]])
  ]
  where
@@ -643,13 +647,14 @@ genOption' :: (Int, Int -> GenL A.Option)
 genOption' = (1, genOption)
 
 genReplicator :: GenL A.Replicator
-genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem4 A.For m (comb0 $ simpleName "i") genExpression genExpression
+genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem3 A.For m genExpression genExpression
 
 class ReplicatorAnnotation a where
   replicatorItem :: (Int, Int -> GenL a) -> Maybe (Int, Int -> GenL (A.Structured a))
 
 replicatorItem' :: (ReplicatorAnnotation a, Data a) => (Int, Int -> GenL a) -> (Int, Int -> GenL (A.Structured a))
-replicatorItem' x = (4, comb2 (A.Rep emptyMeta) genReplicator . genStructured x . sub3)
+replicatorItem' x = (4, comb2 (A.Spec emptyMeta . A.Specification emptyMeta
+  (simpleName "i") . A.Rep emptyMeta) genReplicator . genStructured x . sub3)
 
    --Replicators are allowed in ALTs, IFs, SEQs and PARs:
 instance ReplicatorAnnotation A.Process where replicatorItem = Just . replicatorItem'

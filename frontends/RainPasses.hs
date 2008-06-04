@@ -45,7 +45,6 @@ rainPasses =
      , rainOnlyPass "Dummy Rain pass" [] [Prop.retypesChecked] return
      , transformInt
      , uniquifyAndResolveVars
-     , recordInfNameTypes
      , performTypeUnification
      , constantFoldPass
      ] ++ enablePassesWhen ((== FrontendRain) . csFrontend) simplifyTypes ++
@@ -86,16 +85,7 @@ uniquifyAndResolveVars = rainOnlyPass
   (applyDepthSM uniquifyAndResolveVars')
   where
     uniquifyAndResolveVars' :: Data a => A.Structured a -> PassM (A.Structured a)
-    
-    --Variable declarations:
-    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl@(A.Declaration {})) scope) 
-      = do n' <- makeNonce $ A.nameName n
-           defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
-                                                       A.ndSpecType = decl, 
-                                                       A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
-           let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
-           return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
-           
+             
     --Processes:
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n (A.Proc m'' procMode params procBody)) scope) 
       = do (params',procBody') <- doFormals params procBody
@@ -114,12 +104,15 @@ uniquifyAndResolveVars = rainOnlyPass
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newFunc) scope
 
-    -- replicator names have their types recorded later, but are
-    -- uniquified and resolved here
-    uniquifyAndResolveVars' (A.Rep m (A.ForEach m' n e) scope)
+    --Variable declarations and replicators:
+    uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl) scope) 
       = do n' <- makeNonce $ A.nameName n
+           defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
+                                                       A.ndSpecType = decl, 
+                                                       A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
-           return $ A.Rep m (A.ForEach m' (n {A.nameName = n'}) e) scope'
+           return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
+
     --Other:
     uniquifyAndResolveVars' s = return s
 
@@ -189,16 +182,16 @@ checkIntegral _ = Nothing
 transformEachRange :: Pass
 transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR"
   (Prop.agg_typesDone ++ [Prop.constantsFolded]) [Prop.eachRangeTransformed]
-  (applyDepthSM doStructured)
+  (applyDepthM doSpec)
   where
-    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Rep repMeta (A.ForEach eachMeta loopVar (A.ExprConstr
-      _ (A.RangeConstr _ _ begin end))) body)
+    doSpec :: A.Specification -> PassM A.Specification
+    doSpec (A.Specification mspec loopVar (A.Rep repMeta (A.ForEach eachMeta (A.ExprConstr
+      _ (A.RangeConstr _ _ begin end)))))
         =   do -- Need to change the stored abbreviation mode to original:
                modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
-               return $ A.Rep repMeta (A.For eachMeta loopVar begin
-                 (addOne $ subExprs end begin)) body
-    doStructured s = return s
+               return $ A.Specification mspec loopVar $ A.Rep repMeta $ A.For eachMeta begin
+                 (addOne $ subExprs end begin)
+    doSpec s = return s
 
 -- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
 --
@@ -214,8 +207,8 @@ transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into mo
     doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
           =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.ValAbbrev
                       let count = addOne $ subExprs end begin
-                      return $ A.ExprConstr m $ A.RepConstr m t
-                        (A.For m rep begin count)
+                      return $ A.ExprConstr m $ A.RepConstr m t rep
+                        (A.For m begin count)
                           (A.ExprVariable m $ A.Variable m rep)
     doExpression e = return e
 
@@ -253,14 +246,15 @@ pullUpForEach = rainOnlyPass "Pull up foreach-expressions"
   (applyDepthSM doStructured)
   where
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Rep m (A.ForEach m' loopVar loopExp) s)
+    doStructured (A.Spec mstr (A.Specification mspec loopVar (A.Rep m (A.ForEach m' loopExp))) s)
      = do (extra, loopExp') <- case loopExp of
             A.ExprVariable {} -> return (id, loopExp)
             _ -> do t <- astTypeOf loopExp
                     spec@(A.Specification _ n _) <- makeNonceIsExpr
                       "loop_expr" m' t loopExp
                     return (A.Spec m' spec, A.ExprVariable m' (A.Variable m' n))
-          return $ extra $ A.Rep m (A.ForEach m' loopVar loopExp') s
+          return $ extra $ A.Spec mstr (A.Specification mspec loopVar $ A.Rep m $
+            A.ForEach m' loopExp') s
     doStructured s = return s
       
     

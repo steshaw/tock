@@ -99,6 +99,12 @@ typeOfSpec st
             A.IsChannelArray _ t _ -> return $ Just t
             A.Retypes _ _ t _ -> return $ Just t
             A.RetypesExpr _ _ t _ -> return $ Just t
+            A.Rep _ (A.For _ _ e) -> astTypeOf e >>* Just
+            A.Rep _ (A.ForEach _ e) -> do t <- astTypeOf e
+                                          case t of
+                                            A.List t' -> return $ Just t'
+                                            A.Array _ t' -> return $ Just t'
+                                            _ -> return Nothing
             _ -> return Nothing
 
 --{{{  identifying types
@@ -256,7 +262,7 @@ typeOfExpression e
         A.BytesInType m t -> return A.Int
         A.OffsetOf m t n -> return A.Int
         A.ExprConstr m (A.RangeConstr _ t _ _) -> return t
-        A.ExprConstr m (A.RepConstr _ t _ _) -> return t
+        A.ExprConstr m (A.RepConstr _ t _ _ _) -> return t
         A.AllocMobile _ t _ -> return t
 --}}}
 
@@ -624,7 +630,7 @@ bytesInType _ = return $ BIUnknown
 
 -- | Get the number of items a replicator produces.
 countReplicator :: A.Replicator -> A.Expression
-countReplicator (A.For _ _ _ count) = count
+countReplicator (A.For _ _ count) = count
 
 -- | Get the number of items in a Structured as an expression.
 countStructured :: Data a => A.Structured a -> A.Expression
@@ -632,7 +638,7 @@ countStructured = computeStructured (\m _ -> makeConstant m 1)
 
 -- | Compute an expression over a Structured.
 computeStructured :: Data a => (Meta -> a -> A.Expression) -> A.Structured a -> A.Expression
-computeStructured f (A.Rep m rep s)
+computeStructured f (A.Spec _ (A.Specification _ _ (A.Rep m rep)) s)
     = A.Dyadic m A.Times (countReplicator rep) (computeStructured f s)
 computeStructured f (A.Spec _ _ s) = computeStructured f s
 computeStructured f (A.ProcThen _ _ s) = computeStructured f s

@@ -715,9 +715,9 @@ cppgenListConcat a b
        call genExpression b
        tell [")"]
 
-cppgenReplicatorLoop :: A.Replicator -> CGen ()
-cppgenReplicatorLoop rep@(A.For {}) = cgenReplicatorLoop rep
-cppgenReplicatorLoop (A.ForEach m n (A.ExprVariable _ v))
+cppgenReplicatorLoop :: A.Name -> A.Replicator -> CGen ()
+cppgenReplicatorLoop n rep@(A.For {}) = cgenReplicatorLoop n rep
+cppgenReplicatorLoop n (A.ForEach m (A.ExprVariable _ v))
   = do t <- astTypeOf v
        call genType t
        tell ["::iterator "]

@@ -37,26 +37,27 @@ joinCheckParFunctions f g x = seqPair (f x, g x)
 
 -- | Given a function to check a list of graph labels and a flow graph,
 -- checks all PAR items in the flow graph
-checkPar :: forall m a b. Monad m => (a -> Maybe A.Replicator) -> ((Meta, ParItems a) -> m b) -> FlowGraph m a -> m [b]
+checkPar :: forall m a b. Monad m => (a -> Maybe (A.Name, A.Replicator)) -> ((Meta, ParItems a) -> m b) -> FlowGraph m a -> m [b]
 checkPar getRep f g = mapM f =<< allParItems
   where
-    allStartParEdges :: m (Map.Map Int (Maybe A.Replicator, [(Node,Node)]))
+    allStartParEdges :: m (Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]))
     allStartParEdges = foldM helper Map.empty parEdges
       where
         parEdges = mapMaybe tagStartParEdge $ labEdges g
 
-        helper :: Map.Map Int (Maybe A.Replicator, [(Node,Node)]) -> (Node,Node,Int) ->
-          m (Map.Map Int (Maybe A.Replicator, [(Node,Node)]))
+        helper :: Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]) -> (Node,Node,Int) ->
+          m (Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]))
         helper mp (s,e,n)
           | r == Nothing = fail "Could not find label for node"
           | prevR == Nothing || prevR == r =  return $ Map.insertWith add n (join r,[(s,e)]) mp
           | otherwise = fail $ "Replicator not the same for all nodes at beginning of PAR: "
-             ++ show r ++ " ; " ++ show (Map.lookup n mp :: Maybe (Maybe A.Replicator, [(Node, Node)]))
+             ++ show r ++ " ; " ++ show (Map.lookup n mp :: Maybe (Maybe (A.Name,
+               A.Replicator), [(Node, Node)]))
           where
             add (newR, newNS) (oldR, oldNS) = (newR, oldNS ++ newNS)
-            prevR :: Maybe (Maybe A.Replicator)
+            prevR :: Maybe (Maybe (A.Name, A.Replicator))
             prevR = liftM fst $ Map.lookup n mp
-            r :: Maybe (Maybe A.Replicator)
+            r :: Maybe (Maybe (A.Name, A.Replicator))
             r = lab g s >>* (getRep . getNodeData)
   
     tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Int)
@@ -76,10 +77,10 @@ checkPar getRep f g = mapM f =<< allParItems
           where
             distinctItems = nub $ map fst ns
 
-        findMetaAndNodes :: (Int,(Maybe A.Replicator, [(Node,Node)])) -> m (Meta, ParItems a)
+        findMetaAndNodes :: (Int,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> m (Meta, ParItems a)
         findMetaAndNodes x@(_,(_,ns)) = seqPair (checkAndGetMeta ns, return $ findNodes x)
 
-        findNodes :: (Int,(Maybe A.Replicator, [(Node,Node)])) -> ParItems a
+        findNodes :: (Int,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> ParItems a
         findNodes (n, (mr, ses)) = maybe id RepParItem mr $ ParItems $ map (makeSeqItems n . snd) ses
         
         makeSeqItems :: Int -> Node -> ParItems a

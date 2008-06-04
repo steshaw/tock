@@ -288,12 +288,12 @@ testOccamTypes = TestList
     , testFail 1186 $ A.Input m tim $ A.InputTimerFor m realE
 
     -- Replicators
-    , testOK   1200 $ testRep $ A.For m i intE intE
-    , testFail 1201 $ testRep $ A.For m i realE intE
-    , testFail 1202 $ testRep $ A.For m i intE realE
-    , testOK   1203 $ testRep $ A.ForEach m i twoIntsE
-    , testOK   1204 $ testRep $ A.ForEach m i listE
-    , testFail 1205 $ testRep $ A.ForEach m i intE
+    , testOK   1200 $ testRep i $ A.For m intE intE
+    , testFail 1201 $ testRep i $ A.For m realE intE
+    , testFail 1202 $ testRep i $ A.For m intE realE
+    , testOK   1203 $ testRep i $ A.ForEach m twoIntsE
+    , testOK   1204 $ testRep i $ A.ForEach m listE
+    , testFail 1205 $ testRep i $ A.ForEach m intE
 
     -- Choices
     , testOK   1300 $ testChoice $ A.Choice m boolE skip
@@ -591,7 +591,7 @@ testOccamTypes = TestList
     vari tag iis = A.Variant m (simpleName tag) iis skip
     outputSimple c ois = A.Output m c ois
     outputCase c tag ois = A.OutputCase m c (simpleName tag) ois
-    testRep r = A.Seq m (A.Rep m r sskip)
+    testRep n r = A.Seq m $ A.Spec m (A.Specification m n (A.Rep m r)) sskip
     testChoice c = A.If m $ A.Only m c
     testOption e o = A.Case m e $ A.Only m o
     inv = A.InVariable m

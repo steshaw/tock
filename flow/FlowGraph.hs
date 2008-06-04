@@ -112,19 +112,18 @@ buildStructuredEL s _ = throwError $ "Unexpected element in function: " ++ show 
 
 buildStructuredAltNoSpecs :: (Monad mLabel, Monad mAlter) => (Node,Node) -> A.Structured A.Alternative -> ASTModifier mAlter (A.Structured A.Alternative) structType ->
   GraphMaker mLabel mAlter label structType ()
+  -- On the matter of replicators:
+  -- A replicated ALT has several guards, which will be replicated for
+  -- different values of i (or whatever).  But leaving aside the issue
+  -- of constraints on i (TODO record the replicators in ALTs somehow)
+  -- only one of the replicated guards will be chosen, so we can effectively
+  -- ignore the replication (in terms of the flow graph at least)
 buildStructuredAltNoSpecs se (A.Spec _ _ str) route = buildStructuredAltNoSpecs se str (route33 route A.Spec)
 buildStructuredAltNoSpecs se (A.Several m ss) route
   = mapMR (route22 route A.Several) (buildStructuredAltNoSpecs se) ss >> return ()
 buildStructuredAltNoSpecs se (A.ProcThen _ _ str) route
   -- ProcThen is considered part of the specs, so we ignore it here
   = buildStructuredAltNoSpecs se str (route33 route A.ProcThen)
-buildStructuredAltNoSpecs se (A.Rep m rep str) route
-  -- A replicated ALT has several guards, which will be replicated for
-  -- different values of i (or whatever).  But leaving aside the issue
-  -- of constraints on i (TODO record the replicators in ALTs somehow)
-  -- only one of the replicated guards will be chosen, so we can effectively
-  -- ignore the replication (in terms of the flow graph at least)
-  = buildStructuredAltNoSpecs se str (route33 route A.Rep)
 buildStructuredAltNoSpecs (nStart, nEnd) (A.Only _ guard) route
   = do (s,e) <- buildOnlyAlternative (route22 route A.Only) guard
        addEdge ESeq nStart s
@@ -162,14 +161,19 @@ buildJustSpecs (A.ProcThen m p str) route
          Just ((innerInStart, innerInEnd), innerOut) ->
            do addEdge ESeq procNodeEnd innerInStart
               return $ Just ((procNodeStart, innerInEnd), innerOut)
-buildJustSpecs (A.Rep _ _ str) route -- TODO should probably record the replicator somehow
-  = return Nothing -- TODO
 
 buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
   GraphMaker mLabel mAlter label structType (Node, Node)
 buildStructuredSeq (A.Several m ss) route
   = do nodes <- mapMR (route22 route A.Several) buildStructuredSeq ss
        joinPairs m nodes
+buildStructuredSeq (A.Spec m (A.Specification mspec nm (A.Rep mrep rep)) str) route
+  = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
+    do n <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
+       (s,e) <- buildStructuredSeq str (route33 route A.Spec)
+       addEdge ESeq n s
+       addEdge ESeq e n
+       return (n, n)
 buildStructuredSeq (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
@@ -177,13 +181,6 @@ buildStructuredSeq (A.Spec m spec str) route
        addEdge ESeq n s
        addEdge ESeq e n'
        return (n, n')
-buildStructuredSeq (A.Rep m rep str) route
-  = let alter = AlterReplicator $ route23 route A.Rep in
-    do n <- addNode' (findMeta rep) labelReplicator rep alter
-       (s,e) <- buildStructuredSeq str (route33 route A.Rep)
-       addEdge ESeq n s
-       addEdge ESeq e n
-       return (n, n)
 buildStructuredSeq (A.Only _ p) route = buildProcess p (route22 route A.Only)
 buildStructuredSeq (A.ProcThen _ p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
@@ -198,6 +195,18 @@ buildStructuredPar pId (nStart, nEnd) (A.Several m ss) route
   = do nodes <- mapMRE (route22 route A.Several) (buildStructuredPar pId (nStart, nEnd)) ss
        addParEdges pId (nStart, nEnd) $ either (const []) id nodes
        return $ Left $ nonEmpty nodes
+buildStructuredPar pId (nStart, nEnd) (A.Spec mstr (A.Specification mspec nm (A.Rep m rep)) str) route
+  = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
+    do s <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
+       e <- addDummyNode m
+       pId' <- getNextParEdgeId
+       nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Spec)
+       case nodes of
+         Left False -> addEdge ESeq s e
+         Left True -> return ()
+         Right (s',e') -> do addEdge (EStartPar pId') s s'
+                             addEdge (EEndPar pId') e' e
+       return $ Right (s,e)
 buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        pId' <- getNextParEdgeId
@@ -209,18 +218,6 @@ buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
          Right (s,e) -> do addEdge ESeq n s
                            addEdge ESeq e n'
        return $ Right (n,n')
-buildStructuredPar pId (nStart, nEnd) (A.Rep m rep str) route
-  = let alter = AlterReplicator $ route23 route A.Rep in
-    do s <- addNode' (findMeta rep) labelReplicator rep alter
-       e <- addDummyNode m
-       pId' <- getNextParEdgeId
-       nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Rep)
-       case nodes of
-         Left False -> addEdge ESeq s e
-         Left True -> return ()
-         Right (s',e') -> do addEdge (EStartPar pId') s s'
-                             addEdge (EEndPar pId') e' e
-       return $ Right (s,e)
 buildStructuredPar _ _ (A.Only _ p) route = buildProcess p (route22 route A.Only) >>* Right
 buildStructuredPar pId (nStart, nEnd) (A.ProcThen m p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
@@ -249,7 +246,6 @@ buildStructuredCase (nStart, nEnd) (A.Spec _ spec str) route
        addEdge ESeq nStart n
        addEdge ESeq n' nEnd
        buildStructuredCase (n, n') str (route33 route A.Spec)
-buildStructuredCase _ s _ = throwError $ "Unexpected element in CASE statement: " ++ show s
 
 buildStructuredIf :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType ->
   GraphMaker mLabel mAlter label structType Node
@@ -264,6 +260,13 @@ buildStructuredIf (prev, end) (A.ProcThen _ p str) route
        buildStructuredIf (pe, end) str (route33 route A.ProcThen)
 buildStructuredIf (prev, end) (A.Only _ c) route
   = buildOnlyChoice (prev, end) (route22 route A.Only) c
+buildStructuredIf (prev, end) (A.Spec _ (A.Specification _ nm (A.Rep _ rep)) str) route
+  = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
+    do repNode <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
+       lastNode <- buildStructuredIf (repNode, end) str (route33 route A.Spec)
+       addEdge ESeq prev repNode
+       addEdge ESeq lastNode repNode
+       return repNode
 buildStructuredIf (prev, end) (A.Spec _ spec str) route
        -- Specs are tricky in IFs, because they can scope out either
        -- at the end of a choice-block, or when moving on to the next
@@ -280,12 +283,6 @@ buildStructuredIf (prev, end) (A.Spec _ spec str) route
          addEdge ESeq nOutBlock end
        addEdge ESeq last nOutNext
        return nOutNext
-buildStructuredIf (prev, end) (A.Rep _ rep str) route
-  = do repNode <- addNode' (findMeta rep) labelReplicator rep (AlterReplicator $ route23 route A.Rep)
-       lastNode <- buildStructuredIf (repNode, end) str (route33 route A.Rep)
-       addEdge ESeq prev repNode
-       addEdge ESeq lastNode repNode
-       return repNode
 
 buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType Node
 buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)

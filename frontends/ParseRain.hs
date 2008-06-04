@@ -380,9 +380,10 @@ assignOp
 
 each :: RainParser A.Process
 each = do { m <- sPareach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
-             return $ A.Par m A.PlainPar $ A.Rep m (A.ForEach m n exp) $ A.Only m st }
+             return $ A.Par m A.PlainPar $ A.Spec m (A.Specification m n $
+                A.Rep m (A.ForEach m exp)) $ A.Only m st }
        <|> do { m <- sSeqeach ; sLeftR ; n <- name ; sColon ; exp <- expression ; sRightR ; st <- block ; 
-             return $ A.Seq m $ A.Rep m (A.ForEach m n exp) $ A.Only m st }
+             return $ A.Seq m $ A.Spec m (A.Specification m n $ A.Rep m (A.ForEach m exp)) $ A.Only m st }
 
 comm :: Bool -> RainParser A.Process
 comm isAlt

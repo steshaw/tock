@@ -65,11 +65,11 @@ data Decl = ScopeIn Bool String | ScopeOut String deriving (Show, Eq)
 data ParItems a
   = SeqItems [a] -- ^ A list of items that happen only in sequence (i.e. none are in parallel with each other)
   | ParItems [ParItems a] -- ^ A list of items that are all in parallel with each other
-  | RepParItem A.Replicator (ParItems a) -- ^ A list of replicated items that happen in parallel
+  | RepParItem (A.Name, A.Replicator) (ParItems a) -- ^ A list of replicated items that happen in parallel
   deriving (Show)
 
 data UsageLabel = Usage
-  {nodeRep :: Maybe A.Replicator
+  {nodeRep :: Maybe (A.Name, A.Replicator)
   ,nodeDecl :: Maybe Decl
   ,nodeVars :: Vars}
 
@@ -211,8 +211,8 @@ getVarFormals m = mapUnionVars (getVarFormal m)
     getVarFormal m (A.Formal _ _ n) = processVarW $ A.Variable m n
 
 getVarRepExp :: A.Replicator -> Vars
-getVarRepExp (A.For _ _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
-getVarRepExp (A.ForEach _ _ e) = getVarExp e
+getVarRepExp (A.For _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
+getVarRepExp (A.ForEach _ e) = getVarExp e
 
 getVarAlternative :: A.Alternative -> Vars
 getVarAlternative = const emptyVars -- TODO
@@ -226,7 +226,7 @@ labelFunctions = GLF
   ,labelProcess = singleM getVarProc
   ,labelAlternative = single getVarAlternative
   ,labelStartNode = single (uncurry getVarFormals)
-  ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp x))
+  ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp $ snd x))
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
   ,labelScopeIn = pair (getDecl $ ScopeIn False) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)

@@ -61,7 +61,6 @@ freeNamesIn = doGeneric
     doName n = Map.singleton (A.nameName n) n
 
     doStructured :: Data a => A.Structured a -> NameMap
-    doStructured (A.Rep _ rep s) = doRep rep s
     doStructured (A.Spec _ spec s) = doSpec spec s
     doStructured s = doGeneric s
 
@@ -71,17 +70,12 @@ freeNamesIn = doGeneric
       where
         fns = freeNamesIn st
 
-    doRep :: Data t => A.Replicator -> t -> NameMap
-    doRep rep child
-        = Map.union fns $ Map.delete (A.nameName repName) $ freeNamesIn child
-      where
-        (repName, fns) = case rep of
-          A.For _ n b c -> (n, Map.union (freeNamesIn b) (freeNamesIn c))
-          A.ForEach _ n b -> (n, freeNamesIn b)
-
     doSpecType :: A.SpecType -> NameMap
     doSpecType (A.Proc _ _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
     doSpecType (A.Function _ _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
+    doSpecType (A.Rep _ rep) = case rep of 
+      A.For _ b c -> Map.union (freeNamesIn b) (freeNamesIn c)
+      A.ForEach _ b -> freeNamesIn b
     doSpecType st = doGeneric st
 
 -- | Replace names.

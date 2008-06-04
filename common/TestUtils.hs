@@ -228,7 +228,8 @@ makePar procList = A.Par emptyMeta A.PlainPar $ A.Several emptyMeta (map (A.Only
 
 -- | Wraps the given process in a replicated 'A.Par' of the form PAR i = 0 FOR 3.
 makeRepPar :: A.Process -> A.Process
-makeRepPar proc = A.Par emptyMeta A.PlainPar $ A.Rep emptyMeta (A.For emptyMeta (simpleName "i") (intLiteral 0) (intLiteral 3)) (A.Only emptyMeta proc)
+makeRepPar proc = A.Par emptyMeta A.PlainPar $ A.Spec emptyMeta
+  (A.Specification emptyMeta (simpleName "i") (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 3)))) (A.Only emptyMeta proc)
 
 -- | Creates an assignment to the given 'A.Variable' from the given 'A.Expression.'
 makeAssign :: A.Variable -> A.Expression -> A.Process

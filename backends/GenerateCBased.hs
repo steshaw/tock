@@ -155,10 +155,10 @@ data GenOps = GenOps {
     genProcCall :: A.Name -> [A.Actual] -> CGen (),
     genProcess :: A.Process -> CGen (),
     genRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen (),
-    -- | Generates a replicator loop, given the replicator and body
-    genReplicator :: A.Replicator -> CGen () -> CGen (),
+    genReplicatorStart :: A.Name -> A.Replicator -> CGen (),
+    genReplicatorEnd :: A.Replicator -> CGen (),
     -- | Generates the three bits of a for loop (e.g. @int i = 0; i < 10; i++@ for the given replicator)
-    genReplicatorLoop :: A.Replicator -> CGen (),
+    genReplicatorLoop :: A.Name -> A.Replicator -> CGen (),
     genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: A.Structured A.Process -> CGen (),
     genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),

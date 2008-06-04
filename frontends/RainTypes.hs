@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module RainTypes (constantFoldPass,performTypeUnification,recordInfNameTypes) where
+module RainTypes (constantFoldPass, performTypeUnification) where
 
 import Control.Monad.State
 import Data.Generics
@@ -139,30 +139,13 @@ substituteUnknownTypes mt = applyDepthM sub
       Just t -> return t
       Nothing -> dieP m "Could not deduce type"
 
--- | A pass that records inferred types.  Currently the only place where types are inferred is in seqeach\/pareach loops.
-recordInfNameTypes :: Pass
-recordInfNameTypes = rainOnlyPass "Record inferred name types in dictionary"
-  (Prop.agg_namesDone \\ [Prop.inferredTypesRecorded]) [Prop.inferredTypesRecorded]
-  (checkDepthM recordInfNameTypes')
-  where
-    recordInfNameTypes' :: Check A.Replicator
-    recordInfNameTypes' input@(A.ForEach m n e)
-      = let innerT = A.UnknownVarType $ Left n in
-           defineName n A.NameDef { A.ndMeta = m
-                                  , A.ndName = A.nameName n
-                                  , A.ndOrigName = A.nameName n
-                                  , A.ndSpecType = A.Declaration m innerT
-                                  , A.ndAbbrevMode = A.Abbrev
-                                  , A.ndPlacement = A.Unplaced
-                                  }
-    recordInfNameTypes' _ = return ()
-
 markReplicators :: PassType
 markReplicators = checkDepthM mark
   where
-    mark :: Check A.Replicator
-    mark (A.ForEach _m n e)
+    mark :: Check A.Specification
+    mark (A.Specification _ n (A.Rep _ (A.ForEach _m e)))
       = astTypeOf n >>= \t -> markUnify (A.List t) e
+    mark _ = return ()
 
 -- | Folds all constants.
 constantFoldPass :: Pass
@@ -223,7 +206,7 @@ markExpressionTypes = checkDepthM checkExpression
           A.RangeConstr _ t e e' ->
             do astTypeOf e >>= markUnify t . A.List
                astTypeOf e' >>= markUnify t . A.List
-          A.RepConstr _ t _ e ->
+          A.RepConstr _ t n _ e ->
             astTypeOf e >>= markUnify t . A.List
     checkExpression _ = return ()
 

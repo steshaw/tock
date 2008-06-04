@@ -292,7 +292,6 @@ findParWithProcess (A.Par _ _ s) = findParProcess s
     findParProcess :: A.Structured A.Process -> Bool
     findParProcess (A.Only _ (A.ProcCall {})) = False
     findParProcess (A.Only {}) = True
-    findParProcess (A.Rep _ _ s) = findParProcess s
     findParProcess (A.ProcThen _ _ s) = findParProcess s
     findParProcess (A.Spec _ _ s) = findParProcess s
     findParProcess (A.Several _ ss) = or $ map findParProcess ss

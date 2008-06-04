@@ -122,8 +122,7 @@ flattenAssign = pass "Flatten assignment"
                       -- inside.
                       do counter <- makeNonceCounter "i" m
                          let zero = A.Literal m A.Int $ A.IntLiteral m "0"
-                         let rep = A.For m counter zero
-                                                   (A.SizeVariable m srcV)
+                         let rep = A.For m zero (A.SizeVariable m srcV)
                          itemT <- trivialSubscriptType m t
                          -- Don't need to check bounds, as we'll always be within bounds
                          let sub = A.Subscript m A.NoCheck (A.ExprVariable m
@@ -132,7 +131,7 @@ flattenAssign = pass "Flatten assignment"
                                          (A.SubscriptedVariable m sub destV) m'
                                          (A.ExprVariable m'
                                            (A.SubscriptedVariable m' sub srcV))
-                         return $ A.Rep m rep $ A.Only m inner
+                         return $ A.Spec m (A.Specification m counter (A.Rep m rep)) $ A.Only m inner
                     A.Record n ->
                       return $ A.Only m $ A.ProcCall m (n {A.nameName = "copy_" ++ A.nameName n})
                         [A.ActualVariable destV, A.ActualVariable srcV]

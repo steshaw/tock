@@ -248,7 +248,7 @@ data ArrayConstr =
   RangeConstr Meta Type Expression Expression
   -- | A more general and powerful array constructor as used in occam-pi.
   -- The first item is the replicator, the second is the expression
-  | RepConstr Meta Type Replicator Expression
+  | RepConstr Meta Type Name Replicator Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | An expression.
@@ -339,11 +339,11 @@ data Replicator =
   -- | Count up in 1s from a start value.
   -- The 'Name' names the replicator index, the first expression is the base
   -- and the second expression is the count.
-  For Meta Name Expression Expression
+  For Meta Expression Expression
   -- | Iterate over a list.
   -- The 'Name' names the loop variable and the expression is the list to
   -- iterate over.
-  | ForEach Meta Name Expression
+  | ForEach Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | A choice in an @IF@ process.
@@ -381,8 +381,7 @@ data Variant = Variant Meta Name [InputItem] Process
 -- | This represents something that can contain local replicators and
 -- specifications.
 data Data a => Structured a =
-  Rep Meta Replicator (Structured a)
-  | Spec Meta Specification (Structured a)
+  Spec Meta Specification (Structured a)
   | ProcThen Meta Process (Structured a)
   | Only Meta a
   | Several Meta [Structured a]
@@ -393,40 +392,35 @@ data Data a => Structured a =
 -- something that leaving GHC to handle deriving (Data) will not achieve.
 -- Therefore we have no choice but to provide our own instance long-hand here.
 
-_struct_RepConstr, _struct_SpecConstr, _struct_ProcThenConstr,
+_struct_SpecConstr, _struct_ProcThenConstr,
   _struct_OnlyConstr, _struct_SeveralConstr :: Constr
 _struct_DataType :: DataType
 
-_struct_RepConstr      = mkConstr _struct_DataType "Rep"  [] Prefix
 _struct_SpecConstr     = mkConstr _struct_DataType "Spec" [] Prefix
 _struct_ProcThenConstr = mkConstr _struct_DataType "ProcThen" [] Prefix
 _struct_OnlyConstr     = mkConstr _struct_DataType "Only" [] Prefix
 _struct_SeveralConstr  = mkConstr _struct_DataType "Several" [] Prefix
 _struct_DataType = mkDataType "AST.Structured"
-  [ _struct_RepConstr
-  , _struct_SpecConstr
+  [ _struct_SpecConstr
   , _struct_ProcThenConstr
   , _struct_OnlyConstr
   , _struct_SeveralConstr
   ]
 
 instance Data a => Data (Structured a) where
-  gfoldl f z (Rep m r s)      = z Rep `f` m `f` r `f` s
   gfoldl f z (Spec m sp str)  = z Spec `f` m `f` sp `f` str
   gfoldl f z (ProcThen m p s) = z ProcThen `f` m `f` p `f` s
   gfoldl f z (Only m x)       = z Only `f` m `f` x
   gfoldl f z (Several m ss)   = z Several `f` m `f` ss
-  toConstr (Rep {})      = _struct_RepConstr
   toConstr (Spec {})     = _struct_SpecConstr
   toConstr (ProcThen {}) = _struct_ProcThenConstr
   toConstr (Only {})     = _struct_OnlyConstr
   toConstr (Several {})  = _struct_SeveralConstr
   gunfold k z c = case constrIndex c of
-                    1 -> (k . k . k) (z Rep)
-                    2 -> (k . k . k) (z Spec)
-                    3 -> (k . k . k) (z ProcThen)
-                    4 -> (k . k) (z Only)
-                    5 -> (k . k) (z Several)
+                    1 -> (k . k . k) (z Spec)
+                    2 -> (k . k . k) (z ProcThen)
+                    3 -> (k . k) (z Only)
+                    4 -> (k . k) (z Several)
                     _ -> error "gunfold"
   dataTypeOf _ = _struct_DataType
   dataCast1 f  = gcast1 f
@@ -503,6 +497,9 @@ data SpecType =
   -- | A fake declaration of an unscoped name, such as a protocol tag.
   -- This allows 'SpecType' to be used to describe any identifier.
   | Unscoped Meta
+  -- | A replicator (as in SEQ i = 0 FOR 6).  The scope of the replicator is
+  -- the code that is replicated according to this replicator.
+  | Rep Meta Replicator
   deriving (Show, Eq, Typeable, Data)
 
 -- | Specification mode for @PROC@s and @FUNCTION@s.

@@ -428,8 +428,9 @@ instance ShowRain A.Expression where
   showRainM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showRainM t >> tell [" , "] >> showName n >> tell [")"]
   showRainM (A.ExprConstr _ (A.RangeConstr _ _ e e'))
     = showRainM e >> tell [".."] >> showRainM e'
-  showRainM (A.ExprConstr _ (A.RepConstr _ _ r e))
-    = tell ["["] >> showRainM e >> tell ["|"] >> showRainM r >> tell ["]"]
+  showRainM (A.ExprConstr _ (A.RepConstr _ _ n r e))
+    = tell ["["] >> showRainM e >> tell ["|"] >> showName n >>
+      showRainM r >> tell ["]"]
 
 instance ShowOccam A.Formal where
   showOccamM (A.Formal am t n) = (maybeVal am)
@@ -507,6 +508,11 @@ instance ShowOccam A.Specification where
     = showOccamLine $ maybeVal am >> showOccamM t >> space >> showName n >> tell [" RETYPES "] >> showOccamM v >> colon
   showOccamM (A.Specification _ n (A.RetypesExpr _ am t e))
     = showOccamLine $ maybeVal am >> showOccamM t >> space >> showName n >> tell [" RETYPES "] >> showOccamM e >> colon
+  showOccamM (A.Specification _ n (A.Rep _ rep))
+    = do item <- currentContext
+         (showOccamLine (return (item ++ " ") >> showName n >> showOccamM rep))
+           -- TODO handle the indent
+
   
 showProtocolItem :: (A.Name, [A.Type]) -> CodeWriter ()
 showProtocolItem (n,ts) = sequence_ $ intersperse (tell [" ; "]) $
@@ -554,8 +560,8 @@ instance ShowOccam A.Alternative where
          occamOutdent
   
 instance ShowOccam A.Replicator where
-  showOccamM (A.For _ n start count) = tell [" "] >> showName n >> tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count
-  showOccamM (A.ForEach _ n e) = tell [" "] >> showName n >> tell [" IN "] >> showOccamM e
+  showOccamM (A.For _ start count) = tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count
+  showOccamM (A.ForEach _ e) = tell [" IN "] >> showOccamM e
 
 instance ShowOccam A.Choice where
   showOccamM (A.Choice _ e p) = showOccamLine (showOccamM e) >> occamBlock (showOccamM p)
@@ -566,9 +572,6 @@ instance ShowOccam A.Option where
 
 instance (Data a, ShowOccam a) => ShowOccam (A.Structured a) where
   showOccamM (A.Spec _ spec str) = showOccamM spec >> showOccamM str
-  showOccamM (A.Rep _ rep str)
-    = do item <- currentContext
-         (showOccamLine (return (item ++ " ") >> showOccamM rep)) >> occamIndent >> showOccamM str >> occamOutdent
   showOccamM (A.Only _ p) = showOccamM p
   showOccamM (A.Several _ ss) = sequence_ $ map showOccamM ss
   showOccamM (A.ProcThen _ p str) = showOccamLine (tell ["VALOF"]) >> occamBlock (showOccamM p >> showOccamLine (tell ["RESULT "] >> showOccamM str))
@@ -587,19 +590,23 @@ instance ShowRain A.ExpressionList where
   showRainM (A.ExpressionList _ [e]) = showRainM e
 
 outerOccam :: (Data a, ShowOccam a) => String -> A.Structured a -> CodeWriter ()
-outerOccam keyword (A.Rep _ rep str)
+{- TODO get replicators working properly
+outerOccam keyword (A.Rep _ n rep str)
   = do showOccamLine (tell [keyword] >> showOccamM rep)
        beginStr keyword
        showOccamM str
        endStr
+-}
 outerOccam keyword str = doStr keyword (showOccamM str)
 
 outerRain :: (Data a, ShowRain a) => String -> A.Structured a -> CodeWriter ()
+{- TODO get replicators working properly
 outerRain keyword (A.Rep _ rep str)
   = do showRainLine (tell [keyword] >> showRainM rep)
        pushContext keyword
        rainBlock $ showRainM str
        popContext
+-}
 outerRain keyword str = pushContext keyword >> (rainBlock $ showRainM str)
   >> popContext
 
@@ -629,9 +636,6 @@ instance ShowOccam A.Process where
 -- TODO make this properly rain:
 instance (Data a, ShowRain a) => ShowRain (A.Structured a) where
   showRainM (A.Spec _ spec str) = showRainM spec >> showRainM str
-  showRainM (A.Rep _ rep str)
-    = do item <- currentContext
-         (showRainLine (return (item ++ " ") >> showRainM rep)) >> rainIndent >> showRainM str >> rainOutdent
   showRainM (A.Only _ p) = showRainM p
   showRainM (A.Several _ ss) = sequence_ $ map showRainM ss
   showRainM (A.ProcThen _ p str) = showRainLine (tell ["VALOF"]) >> rainBlock (showRainM p >> showRainLine (tell ["RESULT "] >> showRainM str))
@@ -681,10 +685,8 @@ instance ShowRain A.Process where
   showRainM (A.Par _ A.PlacedPar str) = outerRain "placed par" str
 
 instance ShowRain A.Replicator where
-  showRainM (A.For _ n start count) = tell [" "] >> showName n >> tell [" = "] >> showRainM start >> tell [" for "] >> showRainM count
-  showRainM (A.ForEach _ n e) = tell ["each ("] >> showName n >> colon >> showRainM e
-
-
+  showRainM (A.For _ start count) = tell [" = "] >> showRainM start >> tell [" for "] >> showRainM count
+  showRainM (A.ForEach _ e) = tell ["each ("] >> colon >> showRainM e
 
 --TEMP:
 instance Data a => ShowRain a where

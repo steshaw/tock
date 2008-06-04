@@ -54,11 +54,11 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.ExprConstr m (A.RepConstr m' _ rep expr))
+    doExpression (A.ExprConstr m (A.RepConstr m' _ n rep expr))
       = do t <- astTypeOf expr
            let count = countReplicator rep
                t' = A.Array [A.Dimension count] t
-           return $ A.ExprConstr m $ A.RepConstr m' t' rep expr
+           return $ A.ExprConstr m $ A.RepConstr m' t' n rep expr
     doExpression e = return e
 
 -- | Handle ambiguities in the occam syntax that the parser can't resolve.

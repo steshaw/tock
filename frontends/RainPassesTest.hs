@@ -69,46 +69,46 @@ makeRange b e = A.Dyadic emptyMeta A.Add (intLiteral 1)
 testEachRangePass0 :: Test
 testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp transformEachRange orig (return ())
   where
-    orig = A.Par m A.PlainPar $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m
-                 undefined (intLiteral 0) (intLiteral 9))))
+    orig = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
+               $ A.Rep m (A.ForEach m (A.ExprConstr m (A.RangeConstr m
+                 undefined (intLiteral 0) (intLiteral 9)))))
                (A.Only m (makeSimpleAssign "c" "x"))
-    exp = A.Par m A.PlainPar $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 0) (makeRange 0 9))
+    exp = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
+               $ A.Rep m (A.For m (intLiteral 0) (makeRange 0 9)))
                (A.Only m (makeSimpleAssign "c" "x"))
                
 testEachRangePass1 :: Test
 testEachRangePass1 = TestCase $ testPass "testEachRangePass1" exp transformEachRange orig (return ())
   where
-    orig = A.Par m A.PlainPar $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
-                 (intLiteral (-5)) (intLiteral (-2)))))
+    orig = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
+               $ A.Rep m (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral (-5)) (intLiteral (-2))))))
                (A.Only m (makeSimpleAssign "c" "x"))
-    exp = A.Par m A.PlainPar $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral (-5)) (makeRange (-5)
-                 (-2)))
+    exp = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
+               $ A.Rep m (A.For m (intLiteral (-5)) (makeRange (-5)
+                 (-2))))
                (A.Only m (makeSimpleAssign "c" "x"))                            
 
 testEachRangePass2 :: Test
 testEachRangePass2 = TestCase $ testPass "testEachRangePass2" exp transformEachRange orig (return ())
   where
-    orig = A.Seq m $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
-                 (intLiteral 6) (intLiteral 6))))
+    orig = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
+               (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral 6) (intLiteral 6)))))
                (A.Only m (makeSimpleAssign "c" "x"))
-    exp = A.Seq m $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 6) (makeRange 6 6))
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
+               (A.For m (intLiteral 6) (makeRange 6 6)))
                (A.Only m (makeSimpleAssign "c" "x"))
                
 testEachRangePass3 :: Test
 testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp transformEachRange orig (return ())
   where
-    orig = A.Seq m $ A.Rep m
-               (A.ForEach m (simpleName "x") (A.ExprConstr m (A.RangeConstr m undefined
-                 (intLiteral 6) (intLiteral 0))))
+    orig = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
+               (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
+                 (intLiteral 6) (intLiteral 0)))))
                (A.Only m (makeSimpleAssign "c" "x"))
-    exp = A.Seq m $ A.Rep m
-               (A.For m (simpleName "x") (intLiteral 6) (makeRange 6 0))
+    exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
+               (A.For m (intLiteral 6) (makeRange 6 0)))
                (A.Only m (makeSimpleAssign "c" "x"))               
 
 
@@ -206,46 +206,6 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyA
 -- TODO check that doing {int : c; { int: c; } } does give an error
 -- TODO check that declaring a new proc with the same name as an old one does give an error
 
-
--- | checks that c's type is recorded in: ***each (c : "hello") {}
-testRecordInfNames0 :: Test
-testRecordInfNames0 = TestCase $ testPassWithStateCheck "testRecordInfNames0" exp recordInfNameTypes orig (return ()) check
-  where
-    orig =  (A.Rep m (A.ForEach m (simpleName "c") (makeLiteralStringRain "hello")) skipP)
-    exp = orig
-    check state = assertVarDef "testRecordInfNames0" state "c" 
-      (tag6 A.NameDef DontCare "c" "c"
-        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
-      
--- | checks that c's type is recorded in: ***each (c : str) {}, where str is known to be of type string
-testRecordInfNames1 :: Test
-testRecordInfNames1 = TestCase $ testPassWithStateCheck "testRecordInfNames1" exp recordInfNameTypes orig (startState') check
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "str") $ simpleDef "str" (A.Declaration m (A.List A.Byte) )
-    orig =  (A.Rep m (A.ForEach m (simpleName "c") (exprVariable "str")) skipP)
-    exp = orig
-    check state = assertVarDef "testRecordInfNames1" state "c" 
-      (tag6 A.NameDef DontCare "c" "c"
-        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName "c") A.Abbrev A.Unplaced)
-
--- | checks that c's and d's type are recorded in: ***each (c : multi) { seqeach (d : c) {} } where multi is known to be of type [string]
-testRecordInfNames2 :: Test
-testRecordInfNames2 = TestCase $ testPassWithStateCheck "testRecordInfNames2" exp recordInfNameTypes orig (startState') check
-  where
-    startState' :: State CompState ()
-    startState' = do defineName (simpleName "multi") $ simpleDef "multi" (A.Declaration m (A.List $ A.List A.Byte) )
-    orig =  A.Rep m (A.ForEach m (simpleName "c") (exprVariable "multi")) $
-      A.Only m $ A.Seq m $ A.Rep m (A.ForEach m (simpleName "d") (exprVariable "c")) skipP
-    exp = orig
-    check state = do assertVarDef "testRecordInfNames2" state "c" 
-                      (tag6 A.NameDef DontCare "c" "c"
-                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
-                          "c") A.Abbrev A.Unplaced)
-                     assertVarDef "testRecordInfNames2" state "d" 
-                      (tag6 A.NameDef DontCare "d" "d"
-                        (A.Declaration m $ A.UnknownVarType $ Left $ simpleName
-                          "d") A.Abbrev A.Unplaced)
 
 --Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
 (>>>) :: Pass -> Pass -> Pass
@@ -395,8 +355,8 @@ testRangeRepPass0 :: Test
 testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp transformRangeRep orig (return())
   where
     orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 0) (intLiteral 1)
-    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte
-        (mFor ("repIndex"@@DontCare) (intLiteral 0) (makeRange 0 1))
+    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte ("repIndex"@@DontCare)
+        (mFor (intLiteral 0) (makeRange 0 1))
       (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ "repIndex"@@DontCare)
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
@@ -455,9 +415,6 @@ tests = TestLabel "RainPassesTest" $ TestList
    ,testUnique2b
    ,testUnique3
    ,testUnique4
-   ,testRecordInfNames0
-   ,testRecordInfNames1
-   ,testRecordInfNames2
    ,testFindMain0
    ,testFindMain1
    ,testFindMain2

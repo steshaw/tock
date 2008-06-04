@@ -382,13 +382,12 @@ scopeOut n@(A.Name m _)
             (_:rest) -> put $ st { csLocalNames = rest }
             _ -> dieInternal (Just m, "scoping out name when stack is empty")
 
-scopeInRep :: A.Replicator -> OccParser A.Replicator
-scopeInRep (A.For m n b c)
-    =  do n' <- scopeIn n VariableName (A.Declaration m A.Int) A.ValAbbrev
-          return $ A.For m n' b c
+scopeInRep :: A.Name -> OccParser A.Name
+scopeInRep n
+    = scopeIn n VariableName (A.Declaration (A.nameMeta n) A.Int) A.ValAbbrev
 
-scopeOutRep :: A.Replicator -> OccParser ()
-scopeOutRep (A.For m n b c) = scopeOut n
+scopeOutRep :: A.Name -> OccParser ()
+scopeOutRep n = scopeOut n
 
 -- | A specification, along with the 'NameType' of the name it defines.
 type NameSpec = (A.Specification, NameType)
@@ -698,13 +697,13 @@ arrayConstructor :: OccParser A.Expression
 arrayConstructor
     =  do m <- md
           sLeft
-          r <- replicator
+          (n, r) <- replicator
           sBar
-          r' <- scopeInRep r
+          n' <- scopeInRep n
           e <- expression
-          scopeOutRep r'
+          scopeOutRep n'
           sRight
-          return $ A.ExprConstr m $ A.RepConstr m A.Infer r' e
+          return $ A.ExprConstr m $ A.RepConstr m A.Infer n' r e
     <?> "array constructor expression"
 
 associativeOpExpression :: OccParser A.Expression
@@ -895,14 +894,14 @@ taggedProtocol
     <?> "tagged protocol"
 --}}}
 --{{{ replicators
-replicator :: OccParser A.Replicator
+replicator :: OccParser (A.Name, A.Replicator)
 replicator
     =  do m <- md
           n <- tryVX newVariableName sEq
           b <- expression
           sFOR
           c <- expression
-          return $ A.For m n b c
+          return (n, A.For m b c)
     <?> "replicator"
 --}}}
 --{{{ specifications, declarations, allocations
@@ -1368,7 +1367,9 @@ seqProcess
     =   do m <- md
            sSEQ
            do { eol; ps <- maybeIndentedList m "empty SEQ" process; return $ A.Seq m (A.Several m (map (A.Only m) ps)) }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Seq m (A.Rep m r' (A.Only m p)) }
+             <|> do { (n, r) <- replicator; eol; indent;
+                      n' <- scopeInRep n; p <- process; scopeOutRep n'; outdent;
+                      return $ A.Seq m (A.Spec m (A.Specification m n' (A.Rep m r)) (A.Only m p)) }
     <?> "SEQ process"
 --}}}
 --{{{ IF
@@ -1384,7 +1385,9 @@ conditional
     =   do m <- md
            sIF
            do { eol; cs <- maybeIndentedList m "empty IF" ifChoice; return $ A.Several m cs }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; c <- ifChoice; scopeOutRep r'; outdent; return $ A.Rep m r' c }
+             <|> do { (n, r) <- replicator; eol; indent;
+                      n' <- scopeInRep n; c <- ifChoice; scopeOutRep n'; outdent;
+                      return $ A.Spec m (A.Specification m n' (A.Rep m r)) c }
     <?> "conditional"
 
 ifChoice :: OccParser (A.Structured A.Choice)
@@ -1453,7 +1456,10 @@ parallel
     =   do m <- md
            isPri <- parKeyword
            do { eol; ps <- maybeIndentedList m "empty PAR" process; return $ A.Par m isPri (A.Several m (map (A.Only m) ps)) }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; p <- process; scopeOutRep r'; outdent; return $ A.Par m isPri (A.Rep m r' (A.Only m p)) }
+             <|> do { (n, r) <- replicator; eol; indent;
+                      n' <- scopeInRep n; p <- process; scopeOutRep n'; outdent;
+                      return $ A.Par m isPri (A.Spec m (A.Specification m n'
+                        (A.Rep m r)) (A.Only m p)) }
     <|> processor
     <?> "PAR process"
 
@@ -1489,7 +1495,9 @@ alternation
     =   do m <- md
            isPri <- altKeyword
            do { eol; as <- maybeIndentedList m "empty ALT" alternative; return (isPri, A.Several m as) }
-             <|> do { r <- replicator; eol; indent; r' <- scopeInRep r; a <- alternative; scopeOutRep r'; outdent; return (isPri, A.Rep m r' a) }
+             <|> do { (n, r) <- replicator; eol; indent;
+                      n' <- scopeInRep n; a <- alternative; scopeOutRep n'; outdent;
+                      return (isPri, A.Spec m (A.Specification m n' (A.Rep m r)) a) }
     <?> "alternation"
 
 altKeyword :: OccParser Bool

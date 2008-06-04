@@ -710,7 +710,7 @@ inferTypes = occamOnlyPass "Infer types"
     doArrayConstr ac
         = case ac of
             A.RangeConstr m t _ _ -> inSubscriptedContext m $ descend ac
-            A.RepConstr m t _ _ -> inSubscriptedContext m $ descend ac
+            A.RepConstr m t _ _ _ -> inSubscriptedContext m $ descend ac
 
     doExpressionList :: [A.Type] -> Transform A.ExpressionList
     doExpressionList ts el
@@ -726,8 +726,8 @@ inferTypes = occamOnlyPass "Infer types"
     doReplicator :: Transform A.Replicator
     doReplicator rep
         = case rep of
-            A.For _ _ _ _ -> inTypeContext (Just A.Int) $ descend rep
-            A.ForEach _ _ _ -> noTypeContext $ descend rep
+            A.For _ _ _ -> inTypeContext (Just A.Int) $ descend rep
+            A.ForEach _ _ -> noTypeContext $ descend rep
 
     doAlternative :: Transform A.Alternative
     doAlternative a = inTypeContext (Just A.Bool) $ descend a
@@ -1014,8 +1014,8 @@ checkTypes = occamOnlyPass "Check types"
   ( checkVariables >.>
     checkExpressions >.>
     checkSpecTypes >.>
-    checkProcesses >.>
-    checkReplicators)
+    checkProcesses
+  )
 
 --{{{  checkVariables
 
@@ -1173,6 +1173,13 @@ checkSpecTypes = checkDepthM doSpecType
               checkRetypes m fromT t
               checkValAM m am
               checkAbbrev m A.ValAbbrev am
+    doSpecType (A.Rep _ (A.For _ start count))
+        =  do checkExpressionInt start
+              checkExpressionInt count
+    doSpecType (A.Rep _ (A.ForEach _ e))
+        =  do t <- astTypeOf e
+              checkSequence (findMeta e) t
+
 
     checkValAM :: Meta -> A.AbbrevMode -> PassM ()
     checkValAM m am
@@ -1320,20 +1327,6 @@ checkProcesses = checkDepthM doProcess
               case wantT of
                 A.Any -> checkCommunicable (findMeta e) t
                 _ -> checkType (findMeta e) wantT t
-
---}}}
---{{{  checkReplicators
-
-checkReplicators :: PassType
-checkReplicators = checkDepthM doReplicator
-  where
-    doReplicator :: Check A.Replicator
-    doReplicator (A.For _ _ start count)
-        =  do checkExpressionInt start
-              checkExpressionInt count
-    doReplicator (A.ForEach _ _ e)
-        =  do t <- astTypeOf e
-              checkSequence (findMeta e) t
 
 --}}}
 

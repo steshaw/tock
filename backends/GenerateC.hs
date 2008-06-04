@@ -122,7 +122,8 @@ cgenOps = GenOps {
     genProcCall = cgenProcCall,
     genProcess = cgenProcess,
     genRecordTypeSpec = cgenRecordTypeSpec,
-    genReplicator = cgenReplicator,
+    genReplicatorStart = cgenReplicatorStart,
+    genReplicatorEnd = cgenReplicatorEnd,
     genReplicatorLoop = cgenReplicatorLoop,
     genRetypeSizes = cgenRetypeSizes,
     genSeq = cgenSeq,
@@ -282,7 +283,6 @@ cgenOverArray m var func
 
 -- | Generate code for one of the Structured types.
 cgenStructured :: Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen ()
-cgenStructured (A.Rep _ rep s) def = call genReplicator rep (call genStructured s def)
 cgenStructured (A.Spec _ spec s) def = call genSpec spec (call genStructured s def)
 cgenStructured (A.ProcThen _ p s) def = call genProcess p >> call genStructured s def
 cgenStructured (A.Several _ ss) def = sequence_ [call genStructured s def | s <- ss]
@@ -1078,20 +1078,20 @@ cgenOutputItem c (A.OutExpression m e)
 --}}}
 
 --{{{  replicators
-cgenReplicator :: A.Replicator -> CGen () -> CGen ()
-cgenReplicator rep body
+cgenReplicatorStart :: A.Name -> A.Replicator -> CGen ()
+cgenReplicatorStart n rep
     =  do tell ["for("]
-          call genReplicatorLoop rep
+          call genReplicatorLoop n rep
           tell ["){"]
-          body
-          tell ["}"]
+cgenReplicatorEnd :: A.Replicator -> CGen ()
+cgenReplicatorEnd rep = tell ["}"]
 
 isZero :: A.Expression -> Bool
 isZero (A.Literal _ A.Int (A.IntLiteral _ "0")) = True
 isZero _ = False
 
-cgenReplicatorLoop :: A.Replicator -> CGen ()
-cgenReplicatorLoop (A.For m index base count)
+cgenReplicatorLoop :: A.Name -> A.Replicator -> CGen ()
+cgenReplicatorLoop index (A.For m base count)
     = if isZero base
         then simple
         else general
@@ -1120,7 +1120,7 @@ cgenReplicatorLoop (A.For m index base count)
               tell [";", counter, ">0;", counter, "--,"]
               genName index
               tell ["++"]
-cgenReplicatorLoop _ = cgenMissing "ForEach loops not yet supported in the C backend"
+cgenReplicatorLoop _ _ = cgenMissing "ForEach loops not yet supported in the C backend"
 --}}}
 
 --{{{  abbreviations
@@ -1349,6 +1349,8 @@ cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
           rhs
           tell [";"]
           call genRetypeSizes m t n origT v
+cintroduceSpec (A.Specification _ n (A.Rep m rep))
+   = call genReplicatorStart n rep
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec n = call genMissing $ "introduceSpec " ++ show n
 
@@ -1376,6 +1378,8 @@ cremoveSpec (A.Specification m n (A.Declaration _ t))
         Nothing -> return ()
   where
     var = A.Variable m n
+cremoveSpec (A.Specification _ n (A.Rep _ rep))
+  = call genReplicatorEnd rep
 cremoveSpec _ = return ()
 
 cgenSpecMode :: A.SpecMode -> CGen ()
@@ -1691,7 +1695,6 @@ cgenAlt isPri s
           tell [label, ":\n;\n"]
   where
     containsTimers :: A.Structured A.Alternative -> Bool
-    containsTimers (A.Rep _ _ s) = containsTimers s
     containsTimers (A.Spec _ _ s) = containsTimers s
     containsTimers (A.ProcThen _ _ s) = containsTimers s
     containsTimers (A.Only _ a)

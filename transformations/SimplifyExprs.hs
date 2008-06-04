@@ -167,6 +167,13 @@ pullRepCounts = pass "Pull up replicator counts for SEQs"
     
     pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
     pullRepCountSeq s@(A.Only _ _) = return s
+    pullRepCountSeq (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
+      from for))) scope)
+      = do t <- astTypeOf for
+           spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
+           return $ A.Spec mspec spec $
+             A.Spec m (A.Specification mspec n (A.Rep mrep
+               (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))) scope
     pullRepCountSeq (A.Spec m sp str)
       = do str' <- pullRepCountSeq str
            return $ A.Spec m sp str'
@@ -174,15 +181,6 @@ pullRepCounts = pass "Pull up replicator counts for SEQs"
       = do s' <- pullRepCountSeq s
            return $ A.ProcThen m p s'
     pullRepCountSeq (A.Several m ss) = mapM pullRepCountSeq ss >>* A.Several m
-    pullRepCountSeq (A.Rep m (A.For m' n from for) s)
-      = do t <- astTypeOf for
-           spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" m' t for
-           s' <- pullRepCountSeq s
-           return $ A.Spec m spec $ A.Rep m (A.For m' n from (A.ExprVariable m' $ A.Variable m' nonceName)) s'
-    -- Other replicators (such as ForEach)
-    pullRepCountSeq (A.Rep m rep s)
-      = do s' <- pullRepCountSeq s
-           return $ A.Rep m rep s'
 
 transformConstr :: Pass
 transformConstr = pass "Transform array constructors into initialisation code"
@@ -211,7 +209,8 @@ transformConstr = pass "Transform array constructors into initialisation code"
     --   SEQ i = rep
     --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _ expr@(A.ExprConstr m'' (A.RepConstr _ t rep exp)))) scope)
+    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _
+      expr@(A.ExprConstr m'' (A.RepConstr _ t repn rep exp)))) scope)
       = do case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.Original
@@ -220,7 +219,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
                   return $ declDest $ A.ProcThen m''
                     (A.Seq m'' $ A.Spec m'' indexVarSpec $
                       A.Several m'' [assignIndex0 indexVar,
-                        A.Rep m'' rep $ A.Only m'' $ A.Seq m'' $
+                        replicateCode $ A.Only m'' $ A.Seq m'' $
                           A.Several m''
                             [ assignItem indexVar
                             , incrementIndex indexVar ]
@@ -228,7 +227,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
                     scope
              A.List {} ->
                return $ declDest $ A.ProcThen m''
-                 (A.Seq m'' $ A.Rep m'' rep $ appendItem)
+                 (A.Seq m'' $ replicateCode $ appendItem)
                  scope
              _ -> diePC m $ formatCode "Unsupported type for array constructor: %" t
       where
@@ -253,6 +252,9 @@ transformConstr = pass "Transform array constructors into initialisation code"
           A.ExpressionList m'' [A.Dyadic m'' A.Concat
             (A.ExprVariable m'' $ A.Variable m'' n)
             (A.Literal m'' t $ A.ListLiteral m'' [exp])]
+
+        replicateCode :: Data a => A.Structured a -> A.Structured a
+        replicateCode = A.Spec m'' (A.Specification m'' repn (A.Rep m'' rep))
 
     doStructured s = return s
 

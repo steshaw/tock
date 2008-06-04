@@ -181,7 +181,6 @@ debugAST p
 transformOnly :: (Monad m, Data a, Data b) =>
                (Meta -> a -> m (A.Structured b))
                -> A.Structured a -> m (A.Structured b)
-transformOnly f (A.Rep m r s) = transformOnly f s >>* A.Rep m r
 transformOnly f (A.Spec m sp s) = transformOnly f s >>* A.Spec m sp
 transformOnly f (A.ProcThen m p s) = transformOnly f s >>* A.ProcThen m p
 transformOnly f (A.Several m ss) = mapM (transformOnly f) ss >>* A.Several m
