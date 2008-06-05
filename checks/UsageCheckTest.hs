@@ -114,7 +114,7 @@ testGetVarProc = TestList (map doTest tests)
                         (_, Left err) ->
                           testFailure $ name ++ " failed: " ++ show err
                         (_, Right result) ->
-                          assertEqual name (vars r w u) result
+                          assertEqual name (vars r (zip w $ repeat Nothing) u) result
     where
       name = "testGetVarProc" ++ show index
 
@@ -136,7 +136,8 @@ buildTestFlowGraph ns es start end v
       ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
   where
     transNode :: (Int, [Var], [Var]) -> (Int, FNode TestM UsageLabel)
-    transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing $ vars r w []))
+    transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing $ vars r (zip
+      w $ repeat Nothing) []))
 
 testInitVar :: Test
 testInitVar = TestList

@@ -21,6 +21,7 @@ module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, get
 import Control.Monad.Writer (tell)
 import Data.Generics hiding (GT)
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
@@ -54,7 +55,7 @@ instance ShowRain (Set.Set Var) where
 
 data Vars = Vars {
   readVars :: Set.Set Var
-  ,writtenVars :: Set.Set Var
+  ,writtenVars :: Map.Map Var (Maybe A.Expression)
   ,usedVars :: Set.Set Var -- for channels, barriers, etc
 } deriving (Eq, Show)
 
@@ -92,22 +93,22 @@ flattenParItems (RepParItem _ p) = flattenParItems p
 
 
 emptyVars :: Vars
-emptyVars = Vars Set.empty Set.empty Set.empty
+emptyVars = Vars Set.empty Map.empty Set.empty
 
 mkReadVars :: [Var] -> Vars
-mkReadVars ss = Vars (Set.fromList ss) Set.empty Set.empty
+mkReadVars ss = Vars (Set.fromList ss) Map.empty Set.empty
 
-mkWrittenVars :: [Var] -> Vars
-mkWrittenVars ss = Vars Set.empty (Set.fromList ss) Set.empty
+mkWrittenVars :: [(Var, Maybe A.Expression)] -> Vars
+mkWrittenVars ss = Vars Set.empty (Map.fromList ss) Set.empty
 
 mkUsedVars :: [Var] -> Vars
-mkUsedVars vs = Vars Set.empty Set.empty (Set.fromList vs)
+mkUsedVars vs = Vars Set.empty Map.empty (Set.fromList vs)
 
-vars :: [Var] -> [Var] -> [Var] -> Vars
-vars mr mw  u = Vars (Set.fromList mr) (Set.fromList mw) (Set.fromList u)
+vars :: [Var] -> [(Var, Maybe A.Expression)] -> [Var] -> Vars
+vars mr mw  u = Vars (Set.fromList mr) (Map.fromList mw) (Set.fromList u)
 
 unionVars :: Vars -> Vars -> Vars
-unionVars (Vars mr mw u) (Vars mr' mw' u') = Vars (mr `Set.union` mr') (mw `Set.union` mw') (u `Set.union` u')
+unionVars (Vars mr mw u) (Vars mr' mw' u') = Vars (mr `Set.union` mr') (mw `Map.union` mw') (u `Set.union` u')
 
 foldUnionVars :: [Vars] -> Vars
 foldUnionVars = foldl unionVars emptyVars
@@ -125,7 +126,7 @@ getVarProc (A.Assign _ vars expList)
         --Join together:
       = return $ unionVars
           --The written-to variables on the LHS:
-          (mapUnionVars processVarW vars) 
+          (mapUnionVars (uncurry processVarW) $ annotateVars expList vars) 
           --All variables read on the RHS:
           (getVarExpList expList)
 getVarProc (A.Output _ chanVar outItems)
@@ -141,9 +142,9 @@ getVarProc (A.Input _ chanVar (A.InputSimple _ iis))
   where
     getVarInputItem :: A.InputItem -> Vars
     getVarInputItem (A.InCounted _ cv av)
-        = mkWrittenVars [variableToVar cv,variableToVar av]
+        = mkWrittenVars [(variableToVar cv, Nothing), (variableToVar av, Nothing)]
     getVarInputItem (A.InVariable _ v)
-        = mkWrittenVars [variableToVar v]
+        = mkWrittenVars [(variableToVar v, Nothing)]
 getVarProc p@(A.ProcCall _ _ _)
     = getVarProcCall p >>* foldUnionVars
 getVarProc _ = return emptyVars
@@ -161,7 +162,7 @@ getVarActual _ (A.ActualExpression e) = return $ getVarExp e
 getVarActual (A.Formal am _ _) (A.ActualVariable v)
     = case am of
         A.ValAbbrev -> return $ processVarR v
-        _ -> return $ processVarW v
+        _ -> return $ processVarW v Nothing
 
     {-
       Near the beginning, this piece of code was too clever for itself and applied processVarW using "everything".
@@ -173,8 +174,8 @@ getVarActual (A.Formal am _ _) (A.ActualVariable v)
     -}    
     
     --Pull out all the subscripts into the read category, but leave the given var in the written category:
-processVarW :: A.Variable -> Vars
-processVarW v = mkWrittenVars [variableToVar v]
+processVarW :: A.Variable -> Maybe A.Expression -> Vars
+processVarW v me = mkWrittenVars [(variableToVar v, me)]
     
 processVarR :: A.Variable -> Vars
 processVarR v = mkReadVars [variableToVar v]
@@ -184,6 +185,10 @@ processVarUsed v = mkUsedVars [variableToVar v]
 
 variableToVar :: A.Variable -> Var
 variableToVar = Var
+
+annotateVars :: A.ExpressionList -> [A.Variable] -> [(A.Variable, Maybe A.Expression)]
+annotateVars (A.FunctionCallList {}) vs = zip vs (repeat Nothing)
+annotateVars (A.ExpressionList _ es) vs = zip vs (map Just es ++ repeat Nothing)
 
 getVarExpList :: A.ExpressionList -> Vars
 getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
@@ -211,7 +216,7 @@ getVarFormals m = mapUnionVars (getVarFormal m)
     -- We treat formal parameters as being written-to, so that they
     -- appear initialised at the beginning of the function
     getVarFormal :: Meta -> A.Formal -> Vars
-    getVarFormal m (A.Formal _ _ n) = processVarW $ A.Variable m n
+    getVarFormal m (A.Formal _ _ n) = processVarW (A.Variable m n) Nothing
 
 getVarRepExp :: A.Replicator -> Vars
 getVarRepExp (A.For _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1

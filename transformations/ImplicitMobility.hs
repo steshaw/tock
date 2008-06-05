@@ -97,7 +97,7 @@ calculateUsedAgainAfter g startNode
             readFromVars = readVars vs
             writtenToVars = writtenVars vs
             addTo = fromMaybe prevVars maybeVars
-        in (readFromVars `Set.union` addTo) `Set.difference` writtenToVars
+        in (readFromVars `Set.union` addTo) `Set.difference` Map.keysSet writtenToVars
       Nothing -> error "Node label not found in calculateUsedAgainAfter"
 
 --TODO rememember to take note of declarations/scope, otherwise this:

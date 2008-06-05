@@ -98,8 +98,9 @@ checkPlainVarUsage (m, p) = check p
              diePC m $ formatCode
                "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
       where
-        writtenTwice = filterPlain $ writtenVars item `Set.intersection` writtenVars otherVars
-        writtenAndRead = filterPlain $ writtenVars item `Set.intersection` readVars otherVars
+        writtenTwice = filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
+          (writtenVars otherVars)
+        writtenAndRead = filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars
         otherVars = foldUnionVars rest
 
 -- | A custom Set wrapper that allows for easy representation of the "everything" set.
@@ -166,7 +167,7 @@ checkInitVar m graph startNode
   
     -- Gets all variables written-to in a particular node
     writeNode :: FNode m UsageLabel -> ExSet Var
-    writeNode nd = NormalSet $ writtenVars $ nodeVars $ getNodeData nd
+    writeNode nd = NormalSet $ Map.keysSet $ writtenVars $ nodeVars $ getNodeData nd
     
     -- Nothing is treated as if were the set of all possible variables:
     nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
@@ -212,7 +213,8 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
            checkArrayUsage (m, mockedupParItems)
       where
         mockedupParItems :: ParItems UsageLabel
-        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v] | v <- vs]
+        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v
+          Nothing] | v <- vs]
 
 
 checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
