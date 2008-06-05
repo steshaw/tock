@@ -24,6 +24,7 @@ import Control.Monad.State
 import Data.Array.IArray
 import Data.List
 import Data.Generics (Data)
+import Data.Graph.Inductive
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Ord
@@ -222,6 +223,20 @@ product3 (l0,l1,l2) = [(x0,x1,x2) | x0 <- l0, x1 <- l1, x2 <- l2]
 product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
 product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
 
+-- Given a list of lists, picks one item from each list and returns all the
+-- possibilities of doing so.
+--
+-- So, given: [[0,1,2],[3],[],[4,5]], it should return:
+-- [[0,3,4],[1,3,4],[2,3,4],[0,3,5],[1,3,5],[2,3,5]] (or some permutation thereof)
+productN :: [[a]] -> [[a]]
+productN [] = []
+productN ([]:xss) = productN xss
+productN (xs:xss) = [ y : ys | y <- xs, ys <- yss]
+  where
+    yss = case productN xss of
+      [] -> [[]]
+      z -> z
+
 -- | Given a list, produces all possible distinct pairings of the elements.
 -- That is, for each pair returned, (A,B), B will not be the same element as A, and the pair (B,A)
 -- will not be in the list.  Note that this is not the same as B /= A; if the source list contains
@@ -320,4 +335,5 @@ mapMapWithKeyM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe = either (const Nothing) Just
 
-
+labelMapWithNodeId :: DynGraph gr => (Node -> a -> b) -> gr a c -> gr b c
+labelMapWithNodeId f = gmap (\(x,n,l,y) -> (x,n,f n l,y))
