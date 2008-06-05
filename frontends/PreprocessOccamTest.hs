@@ -26,11 +26,14 @@ import Metadata
 import PreprocessOccam
 import TestUtils
 
+-- | Turn a list of token types into a list of tokens with no metadata.
+makeTokens :: [TokenType] -> [Token]
+makeTokens = map (Token emptyMeta)
+
 -- | Test 'preprocessOccam' when we're expecting it to succeed.
 testPP :: Int -> [TokenType] -> [TokenType] -> Test
 testPP n itts etts = TestCase $ testPass' ("testPP " ++ show n) (makeTokens etts) pass (return ())
   where
-    makeTokens = zip (repeat emptyMeta)
     pass = preprocessOccam (makeTokens itts)
 
 -- | Test a preprocessor condition string after a series of tokens.
@@ -49,21 +52,18 @@ testPPCond n = testPPCondAfter n []
 testPPFail :: Int -> [TokenType] -> Test
 testPPFail n itts = TestCase $ testPassShouldFail' ("testPPFail " ++ show n) pass (return ())
   where
-    makeTokens = zip (repeat emptyMeta)
     pass = preprocessOccam (makeTokens itts)
 
 -- | Test 'expandIncludes' when we're expecting it to succeed.
 testEI :: Int -> [TokenType] -> [TokenType] -> Test
 testEI n itts etts = TestCase $ testPass' ("testEI " ++ show n) (makeTokens etts) pass (return ())
   where
-    makeTokens = zip (repeat emptyMeta)
     pass = expandIncludes (makeTokens itts)
 
 -- | Test 'expandIncludes' when we're expecting it to fail.
 testEIFail :: Int -> [TokenType] -> Test
 testEIFail n itts = TestCase $ testPassShouldFail' ("testEIFail " ++ show n) pass (return ())
   where
-    makeTokens = zip (repeat emptyMeta)
     pass = expandIncludes (makeTokens itts)
 
 --{{{  0xxx  simple stuff

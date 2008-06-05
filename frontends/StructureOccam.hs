@@ -38,17 +38,17 @@ continuationWords
 -- and `EndOfLine` markers.
 structureOccam :: [Token] -> PassM [Token]
 structureOccam [] = return []
-structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
+structureOccam ts = analyse 1 firstLine ts (Token emptyMeta EndOfLine)
   where
     -- Find the first line that's actually got something on it.
     firstLine
-        = case ts of ((m, _):_) -> metaLine m
+        = case ts of ((Token m _):_) -> metaLine m
 
     analyse :: Int -> Int -> [Token] -> Token -> PassM [Token]
     -- Add extra EndOfLine at the end of the file.
-    analyse prevCol _ [] _ = return $ (emptyMeta, EndOfLine) : out
-      where out = replicate (prevCol `div` 2) (emptyMeta, Outdent)
-    analyse prevCol prevLine (t@(m, tokType):ts) prevTok
+    analyse prevCol _ [] _ = return $ Token emptyMeta EndOfLine : out
+      where out = replicate (prevCol `div` 2) (Token emptyMeta Outdent)
+    analyse prevCol prevLine (t@(Token m tokType):ts) prevTok
       | line /= prevLine && not isContinuation
         = do rest <- analyse col line ts t
              newLine $ t : rest
@@ -60,19 +60,20 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
         line = metaLine m
 
         isContinuation = case prevTok of
-                           (_, TokReserved s) -> s `elem` continuationWords
-                           (_, TokStringCont _) -> True
+                           Token _ (TokReserved s) ->
+                             s `elem` continuationWords
+                           Token _ (TokStringCont _) -> True
                            _ -> False
 
         -- A new line -- look to see what's going on with the indentation.
         newLine :: [Token] -> PassM [Token]
         newLine rest
-          | col == prevCol + 2   = withEOL $ (m, Indent) : rest
+          | col == prevCol + 2   = withEOL $ Token m Indent : rest
           -- FIXME: If col > prevCol, then look to see if there's a VALOF
           -- coming up before the next column change...
           | col < prevCol
               = if (prevCol - col) `mod` 2 == 0
-                  then withEOL $ replicate steps (m, Outdent) ++ rest
+                  then withEOL $ replicate steps (Token m Outdent) ++ rest
                   else bad
           | col == prevCol       = withEOL rest
           | otherwise            = bad
@@ -82,5 +83,5 @@ structureOccam ts = analyse 1 firstLine ts (emptyMeta, EndOfLine)
               bad = dieP m "Invalid indentation"
               -- This is actually the position at which the new line starts
               -- rather than the end of the previous line.
-              withEOL ts = return $ (m, EndOfLine) : ts
+              withEOL ts = return $ Token m EndOfLine : ts
 

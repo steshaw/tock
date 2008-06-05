@@ -91,17 +91,18 @@ preprocessSource m realFilename s
 -- | Expand 'IncludeFile' markers in a token stream.
 expandIncludes :: [Token] -> PassM [Token]
 expandIncludes [] = return []
-expandIncludes ((m, IncludeFile filename) : (_, EndOfLine) : ts)
+expandIncludes (Token m (IncludeFile filename) : Token _ EndOfLine : ts)
     =  do contents <- preprocessFile m filename
           rest <- expandIncludes ts
           return $ contents ++ rest
-expandIncludes ((m, IncludeFile _):_) = error "IncludeFile token should be followed by EndOfLine"
+expandIncludes (Token m (IncludeFile _) : _)
+    = error "IncludeFile token should be followed by EndOfLine"
 expandIncludes (t:ts) = expandIncludes ts >>* (t :)
 
 -- | Preprocess a token stream.
 preprocessOccam :: [Token] -> PassM [Token]
 preprocessOccam [] = return []
-preprocessOccam ((m, TokPreprocessor s):ts)
+preprocessOccam (Token m (TokPreprocessor s) : ts)
     = handleDirective m (stripPrefix s) ts >>= preprocessOccam
   where
     stripPrefix :: String -> String
@@ -109,7 +110,7 @@ preprocessOccam ((m, TokPreprocessor s):ts)
     stripPrefix ('\t':cs) = stripPrefix cs
     stripPrefix ('#':cs) = cs
     stripPrefix _ = error "bad TokPreprocessor prefix"
-preprocessOccam ((_, TokReserved "##") : (m, TokIdentifier var) : ts)
+preprocessOccam (Token _ (TokReserved "##") : Token m (TokIdentifier var) : ts)
     =  do st <- get
           case Map.lookup var (csDefinitions st) of
             Just (PreprocInt num)    -> toToken $ TokIntLiteral num
@@ -119,8 +120,8 @@ preprocessOccam ((_, TokReserved "##") : (m, TokIdentifier var) : ts)
   where
     toToken tt
         =  do rest <- preprocessOccam ts
-              return $ (m, tt) : rest
-preprocessOccam ((m, TokReserved "##"):_)
+              return $ Token m tt : rest
+preprocessOccam (Token m (TokReserved "##") : _)
     = dieP m "Invalid macro expansion syntax"
 preprocessOccam (t:ts)
     =  do rest <- preprocessOccam ts
@@ -174,7 +175,7 @@ handleUnmatched m _ = dieP m "Unmatched #ELSE/#ENDIF"
 -- | Handle the @#INCLUDE@ directive.
 handleInclude :: DirectiveFunc
 handleInclude m [incName]
-    = return (\ts -> return $ (m, IncludeFile incName) : ts)
+    = return (\ts -> return $ Token m (IncludeFile incName) : ts)
 
 -- | Handle the @#USE@ directive.
 -- This is a bit of a hack at the moment, since it just includes the file
@@ -221,14 +222,14 @@ handleIf m [condition]
     skipCondition _ _ [] = dieP m "Couldn't find a matching #ENDIF"
 
     -- At level 0, we flip state on ELSE and finish on ENDIF.
-    skipCondition b 0 (t@(_, TokPreprocessor pp):ts)
+    skipCondition b 0 (t@(Token _ (TokPreprocessor pp)) : ts)
         | "#IF" `isPrefixOf` pp       = skipCondition b 1 ts >>* (t :)
         | "#ELSE" `isPrefixOf` pp     = skipCondition (not b) 0 ts
         | "#ENDIF" `isPrefixOf` pp    = return ts
         | otherwise                   = copyThrough b 0 t ts
 
     -- At higher levels, we just count up and down on IF and ENDIF.
-    skipCondition b n (t@(_, TokPreprocessor pp):ts)
+    skipCondition b n (t@(Token _ (TokPreprocessor pp)) : ts)
         | "#IF" `isPrefixOf` pp       = skipCondition b (n + 1) ts >>* (t :)
         | "#ENDIF" `isPrefixOf` pp    = skipCondition b (n - 1) ts >>* (t :)
         | otherwise                   = copyThrough b n t ts

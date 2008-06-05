@@ -63,7 +63,7 @@ instance Die (GenParser tok st) where
 --{{{ matching rules for raw tokens
 -- | Extract source position from a `Token`.
 tokenPos :: Token -> SourcePos
-tokenPos (m, _) = metaToSourcePos m
+tokenPos (Token m _) = metaToSourcePos m
 
 genToken :: (Token -> Maybe a) -> OccParser a
 genToken test = token show tokenPos test
@@ -71,20 +71,20 @@ genToken test = token show tokenPos test
 reserved :: String -> OccParser ()
 reserved name = genToken test
   where
-    test (_, TokReserved name')
+    test (Token _ (TokReserved name'))
         = if name' == name then Just () else Nothing
     test _ = Nothing
 
 identifier :: OccParser String
 identifier = genToken test
   where
-    test (_, TokIdentifier s) = Just s
+    test (Token _ (TokIdentifier s)) = Just s
     test _ = Nothing
 
 plainToken :: TokenType -> OccParser ()
 plainToken t = genToken test
   where
-    test (_, t') = if t == t' then Just () else Nothing
+    test (Token _ t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
 sAmp, sAssign, sBang, sBar, sColon, sColons, sComma, sEq, sLeft, sLeftR,
@@ -567,7 +567,7 @@ real
            genToken (test m)
     <?> "real literal"
   where
-    test m (_, TokRealLiteral s) = Just $ A.RealLiteral m s
+    test m (Token _ (TokRealLiteral s)) = Just $ A.RealLiteral m s
     test _ _ = Nothing
 
 integer :: OccParser A.LiteralRepr
@@ -576,8 +576,8 @@ integer
           genToken (test m)
     <?> "integer literal"
   where
-    test m (_, TokIntLiteral s) = Just $ A.IntLiteral m s
-    test m (_, TokHexLiteral s) = Just $ A.HexLiteral m (drop 1 s)
+    test m (Token _ (TokIntLiteral s)) = Just $ A.IntLiteral m s
+    test m (Token _ (TokHexLiteral s)) = Just $ A.HexLiteral m (drop 1 s)
     test _ _ = Nothing
 
 byte :: OccParser A.LiteralRepr
@@ -586,7 +586,7 @@ byte
           genToken (test m)
     <?> "byte literal"
   where
-    test m (_, TokCharLiteral s)
+    test m (Token _ (TokCharLiteral s))
         = case splitStringLiteral m (chop 1 1 s) of [lr] -> Just lr
     test _ _ = Nothing
 
@@ -638,7 +638,7 @@ stringLiteral
               rest <- stringCont <|> stringLit
               return $ (splitStringLiteral m s) ++ rest
       where
-        test (_, TokStringCont s) = Just (chop 1 2 s)
+        test (Token _ (TokStringCont s)) = Just (chop 1 2 s)
         test _ = Nothing
 
     stringLit :: OccParser [A.LiteralRepr]
@@ -647,7 +647,7 @@ stringLiteral
               s <- genToken test
               return $ splitStringLiteral m s
       where
-        test (_, TokStringLiteral s) = Just (chop 1 1 s)
+        test (Token _ (TokStringLiteral s)) = Just (chop 1 1 s)
         test _ = Nothing
 
 -- | Parse a string literal.

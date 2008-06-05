@@ -42,22 +42,26 @@ testSFail n its = TestCase $ testPassShouldFail' ("testSFail " ++ show n) (struc
 testSimple :: Test
 testSimple = TestLabel "testSimple" $ TestList
   -- Basic structuring
-  [ testS       0 [] []
-  , testS      10 [(m 1 1, foo), (m 2 1, foo)] [fooP, eolP, fooP, eolP]
-  , testS      20 [(m 1 1, foo), (m 2 3, foo)] [fooP, eolP, inP, fooP, eolP, outP]
-  , testS      30 [(m 1 1, foo), (m 2 3, foo), (m 3 1, foo)] [fooP, eolP, inP, fooP, eolP, outP, fooP, eolP]
-  , testS      40 [(m 1 1, foo), (m 2 3, foo), (m 3 5, foo), (m 4 1, foo)]
+  [ testS       0 []
+                  []
+  , testS      10 [t 1 1 foo, t 2 1 foo]
+                  [fooP, eolP, fooP, eolP]
+  , testS      20 [t 1 1 foo, t 2 3 foo]
+                  [fooP, eolP, inP, fooP, eolP, outP]
+  , testS      30 [t 1 1 foo, t 2 3 foo, t 3 1 foo]
+                  [fooP, eolP, inP, fooP, eolP, outP, fooP, eolP]
+  , testS      40 [t 1 1 foo, t 2 3 foo, t 3 5 foo, t 4 1 foo]
                   [fooP, eolP, inP, fooP, eolP, inP, fooP, eolP, outP, outP, fooP, eolP]
-  , testS      50 [(m 1 1, foo), (m 2 3, foo), (m 3 3, foo), (m 4 3, foo)]
+  , testS      50 [t 1 1 foo, t 2 3 foo, t 3 3 foo, t 4 3 foo]
                   [fooP, eolP, inP, fooP, eolP, fooP, eolP, fooP, eolP, outP]
 
   -- Ignoring include markers
-  , testS     100 [(m 1 1, IncludeFile "bar"), (m 2 1, foo)]
+  , testS     100 [t 1 1 (IncludeFile "bar"), t 2 1 foo]
                   [tag1 IncludeFile "bar", eolP, fooP, eolP]
 
   -- Things that should fail
-  , testSFail  900 [(m 1 1, foo), (m 2 2, foo)]
-  , testSFail  910 [(m 1 1, foo), (m 2 5, foo)]
+  , testSFail  900 [t 1 1 foo, t 2 2 foo]
+  , testSFail  910 [t 1 1 foo, t 2 5 foo]
   ]
   where
     foo = TokIdentifier "foo"
@@ -65,7 +69,11 @@ testSimple = TestLabel "testSimple" $ TestList
     eolP = tag0 EndOfLine
     inP = tag0 Indent
     outP = tag0 Outdent
-    m l c = emptyMeta { metaFile = Just "simulated.occ", metaLine = l, metaColumn = c }
+    t l c tt = Token (emptyMeta { metaFile = Just "simulated.occ"
+                                , metaLine = l
+                                , metaColumn = c
+                                })
+                     tt
 --}}}
 
 tests :: Test
