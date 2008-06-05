@@ -81,6 +81,9 @@ transformParItems f (SeqItems xs) = SeqItems $ map f xs
 transformParItems f (ParItems ps) = ParItems $ map (transformParItems f) ps
 transformParItems f (RepParItem r p) = RepParItem r (transformParItems f p)
 
+instance Functor ParItems where
+  fmap = transformParItems
+
 -- Gets all the items inside a ParItems and returns them in a flat list.
 flattenParItems :: ParItems a -> [a]
 flattenParItems (SeqItems xs) = xs
