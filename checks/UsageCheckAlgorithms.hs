@@ -132,7 +132,7 @@ checkPar getRep f g = mapM f =<< allParItems
 findReachDef :: forall m. Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set (Maybe
   A.Expression))))
 findReachDef graph startNode
-  = do r <- flowAlgorithm graphFuncs (nodes graph) (startNode, Map.empty)
+  = do r <- flowAlgorithm graphFuncs (udfs [startNode] graph) (startNode, Map.empty)
        -- These lines remove the maps where the variable is not read in that particular node:
        let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
        return $ Map.filter (not . Map.null) r'

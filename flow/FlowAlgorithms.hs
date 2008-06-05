@@ -53,6 +53,11 @@ data GraphFuncs n e result = GF {
 -- (i.e. where nodesToProcess returns the empty list) in the list except the
 -- starting node.
 --
+-- The implication of the above is that you should /not/ pass as the second
+-- parameter all the nodes in the graph (unless you /know/ that it is fully
+-- connected).  Instead you should pass the connected nodes, using @(udfs [startNode]
+-- graph)@.
+--
 -- The general idea of iterative data-flow is that all nodes start out with
 -- a default "guessed" value.  Then each node is processed in turn by using
 -- the previous value (to start with, the default value), and the values of

@@ -159,7 +159,7 @@ checkInitVar m graph startNode
        -- Now we check that for every variable read in each node, it has already been written to by then
        mapM_ (checkInitVar' vwb) (map readNode labelledConnectedNodes)
   where
-    connectedNodes = dfs [startNode] graph
+    connectedNodes = udfs [startNode] graph
 
     -- Gets all variables read-from in a particular node, and the node identifier
     readNode :: (Node, FNode m UsageLabel) -> (Node, ExSet Var)
