@@ -452,8 +452,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
                   | otherwise = [((m,[]),(n',[])) | n' <- [(m + 1) .. n]] ++ labelNums (m + 1) n 
     
 
-    makeParItems :: [A.Expression] -> ParItems ([A.Expression],[A.Expression])
-    makeParItems es = ParItems $ map (\e -> SeqItems [([e],[])]) es
+    makeParItems :: [A.Expression] -> ParItems (BK, [A.Expression],[A.Expression])
+    makeParItems es = ParItems $ map (\e -> SeqItems [([],[e],[])]) es
   
     lookup :: [A.Expression] -> (Int, a) -> (A.Expression, a)
     lookup es (n,b) = (es !! n, b)
@@ -462,13 +462,13 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     test' (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations [] (makeParItems exprs) upperBound)
+          =<< (checkRight $ makeEquations (makeParItems exprs) upperBound)
   
     testRep' :: (Integer,[(((Int,[ModuloCase]), (Int,[ModuloCase])), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations [] (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor) $ makeParItems exprs) upperBound)
+          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor) $ makeParItems exprs) upperBound)
   
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
@@ -524,9 +524,9 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
 testMakeEquation :: TestMonad m r => ([(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression) -> m ()
 testMakeEquation (problems, exprs, upperBound) =
  assertEquivalentProblems ""
-   (map (\(x,y,z) -> (x, y, uncurry makeConsistent z)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations [] (transformParItems pairWithEmpty exprs) upperBound)
+   (map (\(x,y,z) -> (x, y, uncurry makeConsistent z)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (transformParItems pairWithEmpty exprs) upperBound)
   where
-    pairWithEmpty a = (a,[])
+    pairWithEmpty a = ([],a,[])
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
 -- TODO add background knowledge

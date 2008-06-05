@@ -16,11 +16,12 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, showFlattenedExp, VarMap) where
+module ArrayUsageCheck (BackgroundKnowledge(..), BK, checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, showFlattenedExp, VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Array.IArray
+import Data.Generics hiding (GT)
 import Data.Int
 import Data.List
 import qualified Data.Map as Map
@@ -38,27 +39,40 @@ import Types
 import UsageCheckUtils
 import Utils
 
+-- Each list is a possible set of background knowledge mapping vars to a list
+-- of constraints.  So it is a disjunction of map from variables to conjunctions
+type BK = [Map.Map Var [BackgroundKnowledge]]
+type BK' = [Map.Map Var (EqualityProblem, InequalityProblem)]
+
 -- | A check-pass that checks the given ParItems (usually generated from a control-flow graph)
 -- for any overlapping array indices.
-checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems UsageLabel) -> m ()
+checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
-    groupArrayIndexes $ transformParItems nodeVars p
+    groupArrayIndexes $ fmap (transformPair id nodeVars) p
   where
     -- Takes a ParItems Vars, and returns a map from array-variable-name to a list of writes and a list of reads for that array.
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
-    groupArrayIndexes :: ParItems Vars -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
-    groupArrayIndexes vs = filterByKey $ transformParItems (uncurry (zipMap join) . (transformPair (makeList . writtenVars) (makeList . readVars)) . mkPair) vs
+    groupArrayIndexes :: ParItems (BK, Vars) -> Map.Map String (ParItems (BK, [A.Expression], [A.Expression]))
+    groupArrayIndexes = filterByKey . fmap
+      (\(bk,vs) -> zipMap (join bk) (makeList $ Map.keysSet $ writtenVars vs) (makeList $ readVars vs))
       where
-        join :: Maybe [a] -> Maybe [a] -> Maybe ([a],[a])
-        join x y = Just (fromMaybe [] x, fromMaybe [] y)
+        join :: b -> Maybe [a] -> Maybe [a] -> Maybe (b, [a],[a])
+        join k x y = Just (k, fromMaybe [] x, fromMaybe [] y)
         
         -- Turns a set of variables into a map (from array-name to list of index-expressions)
         makeList :: Set.Set Var -> Map.Map String [A.Expression]
         makeList = Set.fold (maybe id (uncurry $ Map.insertWith (++)) . getArrayIndex) Map.empty
         
         -- Lifts a map (from array-name to expression-lists) inside a ParItems to being a map (from array-name to ParItems of expression lists)
-        filterByKey :: ParItems (Map.Map String ([A.Expression], [A.Expression])) -> Map.Map String (ParItems ([A.Expression], [A.Expression]))
-        filterByKey p = Map.fromList $ map (\k -> (k, transformParItems (Map.findWithDefault ([],[]) k) p)) (concatMap Map.keys $ flattenParItems p)
+        filterByKey :: ParItems (Map.Map String (BK, [A.Expression], [A.Expression])) -> Map.Map String (ParItems (BK,
+          [A.Expression], [A.Expression]))
+        filterByKey p = Map.fromList $ map trans keys
+          where
+            keys :: [String]
+            keys = concatMap Map.keys $ flattenParItems p
+
+            trans :: String -> (String, ParItems (BK, [A.Expression], [A.Expression]))
+            trans k = (k, fmap (Map.findWithDefault ([], [], []) k) p)
       
         -- Gets the (array-name, indexes) from a Var.
         -- TODO this is quite hacky, and doesn't yet deal with slices and so on:
@@ -67,19 +81,9 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
           = Just (A.nameName n, [e])
         getArrayIndex _ = Nothing
 
-    -- Turns a replicator into background knowledge about that replicator
-    makeRepBounds :: (A.Name, A.Replicator) -> [BackgroundKnowledge]
-    makeRepBounds (n, A.For m from for) = [LessThanOrEqual from ev, LessThanOrEqual ev $ A.Dyadic m A.Subtr (A.Dyadic m A.Add from for) (makeConstant m 1)]
-      where
-        ev = A.ExprVariable m (A.Variable m n)
-
-    -- Gets all the replicators present in the argument
-    listReplicators :: ParItems UsageLabel -> [(A.Name, A.Replicator)]
-    listReplicators p = mapMaybe nodeRep $ flattenParItems p
-
     -- Checks the given ParItems of writes and reads against each other.  The
     -- String (array-name) and Meta are only used for printing out error messages
-    checkIndexes :: Meta -> (String,ParItems ([A.Expression],[A.Expression])) -> m ()
+    checkIndexes :: Meta -> (String, ParItems (BK, [A.Expression], [A.Expression])) -> m ()
     checkIndexes m (arrName, indexes)
       = do userArrName <- getRealName (A.Name undefined arrName)
            arrType <- astTypeOf (A.Name undefined arrName)
@@ -89,7 +93,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
              A.Array (A.UnknownDimension:_) _ -> return $ makeConstant m $ fromInteger $ toInteger (maxBound :: Int32)
              -- It's not an array:
              _ -> dieP m $ "Cannot usage check array \"" ++ userArrName ++ "\"; found to be of type: " ++ show arrType
-           case makeEquations (concatMap makeRepBounds $ listReplicators p) indexes arrLength of
+           case makeEquations indexes arrLength of
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
                Right problems ->
@@ -311,6 +315,34 @@ data ModuloCase =
  | XNegYNegAZero | XNegYNegANonZero
  deriving (Show, Eq, Ord)
 
+-- | Transforms background knowledge into problems
+-- TODO allow modulo in background knowledge
+transformBK :: BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
+transformBK (Equal eL eR)     = do eL' <- makeSingleEq eL "background knowledge"
+                                   eR' <- makeSingleEq eR "background knowledge"
+                                   let e = addEq eL' (amap negate eR')
+                                   return ([e],[])
+transformBK (LessThanOrEqual eL eR)
+      = do eL' <- makeSingleEq eL "background knowledge"
+           eR' <- makeSingleEq eR "background knowledge"
+           -- eL <= eR implies eR - eL >= 0
+           let e = addEq (amap negate eL') eR'
+           return ([],[e])
+
+transformBKList :: [BackgroundKnowledge] -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
+transformBKList bk = mapM transformBK bk >>* foldl accumProblem ([],[])
+
+-- | Turns a single expression into an equation-item.  An error is given if the resulting 
+-- expression is anything complicated (for example, modulo or divide)
+makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
+makeSingleEq e desc = lift (flatten e) >>= makeEquation e [{-TODO-}] (error $ "Type is irrelevant for " ++ desc)
+  >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
+
+-- | A helper function for joining two problems
+accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
+accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
+
+
 -- | Given a list of (written,read) expressions, an expression representing the upper array bound, returns either an error
 -- (because the expressions can't be handled, typically) or a set of equalities, inequalities and mapping from
 -- (unique, munged) variable name to variable-index in the equations.
@@ -337,37 +369,22 @@ data ModuloCase =
 -- squareAndPair.
 --
 -- TODO probably want to take this into the PassM monad at some point, to use the Meta in the error message
-makeEquations :: [BackgroundKnowledge] -> ParItems ([A.Expression],[A.Expression]) -> A.Expression ->
+makeEquations :: ParItems (BK, [A.Expression], [A.Expression]) -> A.Expression ->
   Either String [(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap, (EqualityProblem, InequalityProblem))]
-makeEquations otherInfo accesses bound
-  = do ((v,h,o,repVarIndexes),s) <- (flip runStateT) Map.empty $
+makeEquations accesses bound
+  = do ((v,h,repVarIndexes),s) <- (flip runStateT) Map.empty $
           do (accesses',repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
              high <- makeSingleEq bound "upper bound"
-             other <- mapM transformBK otherInfo
-             let other' = foldl accumProblem ([],[]) other
-             return (accesses', high, other', nub repVars)
-       return $ squareAndPair o repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
+             return (accesses', high, nub repVars)
+       return $ squareAndPair lookupBK (\(x,y,_) -> (x,y)) repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
   where
-    -- | Transforms background knowledge into problems
-    -- TODO make sure only relevant background knowledge is used (somehow?)
-    -- TODO allow modulo in background knowledge
-    transformBK :: BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
-    transformBK (Equal eL eR) = do eL' <- makeSingleEq eL "background knowledge"
-                                   eR' <- makeSingleEq eR "background knowledge"
-                                   let e = addEq eL' (amap negate eR')
-                                   return ([e],[])
-    transformBK (LessThanOrEqual eL eR)
-      = do eL' <- makeSingleEq eL "background knowledge"
-           eR' <- makeSingleEq eR "background knowledge"
-           -- eL <= eR implies eR - eL >= 0
-           let e = addEq (amap negate eL') eR'
-           return ([],[e])
-
-    -- | A helper function for joining two problems
-    accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
-    accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
-
+    lookupBK :: (A.Expression, [ModuloCase], BK') -> [(EqualityProblem, InequalityProblem)]
+    lookupBK (e,_,bk) = map (foldl accumProblem ([],[]) . map snd . filter (\(v,eq) -> v `elem` vs) . Map.toList) bk
+      where
+        vs :: [Var]
+        vs = map Var $ listify (const True :: A.Variable -> Bool) e
+    
     -- | A front-end to the setIndexVar' function
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]
     setIndexVar tv ti = map (setIndexVar' tv ti)
@@ -387,67 +404,16 @@ makeEquations otherInfo accesses bound
         bottom' = Set.map (setIndexVar' tv ti) bottom
     setIndexVar' _ _ e = e
 
-    -- | Turns a single expression into an equation-item.  An error is given if the resulting 
-    -- expression is anything complicated (for example, modulo or divide)
-    makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
-    makeSingleEq e desc = lift (flatten e) >>= makeEquation e (error $ "Type is irrelevant for " ++ desc)
-      >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
-
-    -- | A helper function that takes a list of replicated variables and lower and upper bounds, then
-    -- looks to add the bounds to any array accesses that feature the replicated variable in either
-    -- its plain or primed version (the bounds are left plain or primed appropriately).
-    makeEquationWithPossibleRepBounds :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] -> 
-      ArrayAccess label -> StateT (VarMap) (Either String) (ArrayAccess label)
-    makeEquationWithPossibleRepBounds [] item = return item
-    makeEquationWithPossibleRepBounds ((v,lower,upper):vars) item
-           -- We fold over the variables, altering the items one at a time via mapM:
-      = do item' <- makeEquationWithPossibleRepBounds vars item
-           flip addPossibleRepBound' (v,0,lower,upper) item' >>=
-             flip addPossibleRepBound' (v,1,lower,upper) 
-
-    -- | Applies addPossibleRepBound everywhere in an ArrayAccess
-    addPossibleRepBound' :: ArrayAccess label ->
-      (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
-      StateT (VarMap) (Either String) (ArrayAccess label)
-    addPossibleRepBound' (Group accesses) v = sequence [addPossibleRepBound acc v >>* (\acc' -> (l,t,acc')) | (l,t,acc) <- accesses ] >>* Group
-    addPossibleRepBound' (Replicated acc0 acc1) v
-      = do acc0' <- mapM (flip addPossibleRepBound' v) acc0
-           acc1' <- mapM (flip addPossibleRepBound' v) acc1
-           return $ Replicated acc0' acc1'
-
-    -- | Adds a replicated bound if any of the item, equalities or inequalities feature
-    -- the variable in question
-    addPossibleRepBound :: (EqualityConstraintEquation, EqualityProblem, InequalityProblem) ->
-      (A.Variable, Int, EqualityConstraintEquation, EqualityConstraintEquation) ->
-      StateT (VarMap) (Either String) (EqualityConstraintEquation, EqualityProblem, InequalityProblem)
-    addPossibleRepBound (item,eq,ineq) (var,index,lower,upper)
-      = do vindex <- varIndex (Scale 1 $ (A.ExprVariable emptyMeta var, index))
-           let boundEqs = if elemPresent vindex item || any (elemPresent vindex) eq || any (elemPresent vindex) ineq
-                            then [add (vindex,1) $ amap negate lower,add (vindex,-1) upper]
-                            else []
-           return (item,eq,ineq ++ boundEqs)
-      where
-        elemPresent index item = arrayLookupWithDefault 0 item index /= 0
-      
-        -- | A function to add an amount to the specified index, without the possibility of
-        -- screwing up the array by adding a number that is beyond its current size (in that
-        -- case, the array is resized appropriately)
-        add :: (CoeffIndex, Integer) -> Array CoeffIndex Integer -> Array CoeffIndex Integer
-        add (ind,val) a = (makeArraySize (newMin, newMax) 0 a) // [(ind, (arrayLookupWithDefault 0 a ind) + val)]
-          where
-            newMin = minimum [fst $ bounds a, ind]
-            newMax = maximum [snd $ bounds a, ind]        
-
     -- | Given a list of replicators (marked enabled\/disabled by a flag), the writes and reads, 
     -- turns them into a single list of accesses with all the relevant information.  The writes and reads
     -- can be grouped together because they are differentiated by the ArrayAccessType in the result
     mkEq :: [((A.Name, A.Replicator), Bool)] ->
-            ([A.Expression], [A.Expression]) ->
+            (BK, [A.Expression], [A.Expression]) ->
              StateT [(CoeffIndex, CoeffIndex)]
                (StateT VarMap (Either String))
-                 [((A.Expression, [ModuloCase]), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
-    mkEq reps (ws,rs) = do repVarEqs <- mapM (liftF makeRepVarEq) reps
-                           concatMapM (mkEq' repVarEqs) (ws' ++ rs')
+                 [((A.Expression, [ModuloCase], BK'), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
+    mkEq reps (bk, ws, rs) = do repVarEqs <- mapM (liftF makeRepVarEq) reps
+                                concatMapM (mkEq' repVarEqs) (ws' ++ rs')
       where
         ws' = zip (repeat AAWrite) ws
         rs' = zip (repeat AARead) rs
@@ -457,16 +423,16 @@ makeEquations otherInfo accesses bound
           = do from' <- makeSingleEq from "replication start"
                upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
                return (A.Variable m varName, from', upper)
-        
+
         mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
                  (ArrayAccessType, A.Expression) ->
                  StateT [(CoeffIndex,CoeffIndex)]
                    (StateT VarMap (Either String))
-                     [((A.Expression, [ModuloCase]), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
+                     [((A.Expression, [ModuloCase], BK'), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
         mkEq' repVarEqs (aat, e) 
                        = do f <- lift . lift $ flatten e
                             f' <- foldM mirrorFlaggedVars f reps
-                            g <- lift $ makeEquationWithPossibleRepBounds repVarEqs =<< makeEquation e aat f'
+                            g <- lift $ makeEquation e bk aat f'
                             case g of
                               Group g' -> return g'
                               _ -> throwError "Replicated group found unexpectedly"
@@ -589,16 +555,22 @@ flatten e = return [Scale 1 (e,0)]
 --      will produce both "i = i' + 1" and "i + 1 = i'" so there is no need
 --      to vary the inequality itself.
 squareAndPair ::
-  (EqualityProblem, InequalityProblem) ->
+  (label -> [(EqualityProblem, InequalityProblem)]) ->
+  (label -> labelStripped) ->
   [(CoeffIndex, CoeffIndex)] ->
   VarMap ->
   [ArrayAccess label] ->
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
-  [((label, label), VarMap, (EqualityProblem, InequalityProblem))] 
-squareAndPair (bkEq, bkIneq) repVars s v lh
-  = [(labels, s,squareEquations (bkEq ++ eq, bkIneq ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
+  [((labelStripped, labelStripped), VarMap, (EqualityProblem, InequalityProblem))] 
+squareAndPair lookupBK strip repVars s v lh
+  = [(transformPair strip strip labels, s,squareEquations (bkEqA ++ bkEqB ++
+    eq, bkIneqA ++ bkIneqB ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
     | (labels, eq,ineq) <- pairEqsAndBounds v lh
       ,and (map (primeImpliesPlain (eq,ineq)) repVars)
+      ,((bkEqA, bkIneqA), (bkEqB, bkIneqB)) <-
+        case product2 (lookupBK (fst labels), lookupBK (snd labels)) of
+          [] -> [(([],[]),([],[]))] -- No BK
+          xs -> xs
     ]
   where
     itemPresent :: CoeffIndex -> [Array CoeffIndex Integer] -> Bool
@@ -708,11 +680,13 @@ getIneqs (low, high) = concatMap getLH
 
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
-makeEquation :: label -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess (label,[ModuloCase]))
-makeEquation l t summedItems
+makeEquation :: label -> BK -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess (label,[ModuloCase],
+  BK'))
+makeEquation l bk t summedItems
       = do eqs <- process summedItems
+           bk' <- mapM (mapMapM transformBKList) bk
            let eqs' = map (transformQuad id mapToArray (map mapToArray) (map mapToArray)) eqs :: [([ModuloCase], EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
-           return $ Group [((l,c),t,(e0,e1,e2)) | (c,e0,e1,e2) <- eqs']
+           return $ Group [((l,c,bk'),t,(e0,e1,e2)) | (c,e0,e1,e2) <- eqs']
       where
         process :: [FlattenedExp] -> StateT VarMap (Either String) [([ModuloCase], Map.Map Int Integer,[Map.Map Int Integer], [Map.Map Int Integer])]
         process = foldM makeEquation' empty

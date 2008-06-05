@@ -49,11 +49,25 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right (g,rs,_) -> return (g,rs)
-                      checkPar nodeRep (joinCheckParFunctions checkArrayUsage checkPlainVarUsage) g
+                      reach <- case mapM (findReachDef g) roots >>* foldl Map.union
+                        Map.empty of
+                          Left err -> dieP emptyMeta $ "findReachDef: " ++
+                            err
+                          Right g -> return g
+                      checkPar (nodeRep . snd)
+                        (joinCheckParFunctions
+                          checkArrayUsage
+                          (checkPlainVarUsage . transformPair id (fmap snd)))
+                          $ nmap (addBK reach g) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
                       mapM_ (checkInitVar (findMeta t) g) roots
                       return t
+
+addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) -> FlowGraph PassM UsageLabel -> FNode
+  PassM UsageLabel -> FNode PassM (BK, UsageLabel)
+addBK _ _ = fmap ((,) []) --TODO
+
 
 filterPlain :: Set.Set Var -> Set.Set Var
 filterPlain = Set.filter plain
@@ -210,7 +224,7 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
     checkParAssign :: A.Process -> m ()
     checkParAssign (A.Assign m vs _)
       = do checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, mockedupParItems)
+           checkArrayUsage (m, fmap ((,) []) mockedupParItems) -- TODO add BK properly
       where
         mockedupParItems :: ParItems UsageLabel
         mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v
@@ -232,4 +246,4 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
            let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing v]
                                             | v <- vars]
            checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, mockedupParItems)
+           checkArrayUsage (m, fmap ((,) []) mockedupParItems)
