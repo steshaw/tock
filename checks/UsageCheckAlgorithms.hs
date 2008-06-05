@@ -127,14 +127,17 @@ checkPar getRep f g = mapM f =<< allParItems
         customSucc c = [n | (n,e) <- lsuc' c, e /= endEdge]
 
 -- | Returns either an error, or map *from* the node with a read, *to* the node whose definitions might be available at that point
-findReachDef :: forall m. Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set Node)))
+-- The neat thing about using Set (Maybe A.Expression) is that all the Nothing
+-- values collapse into a single entry
+findReachDef :: forall m. Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node (Map.Map Var (Set.Set (Maybe
+  A.Expression))))
 findReachDef graph startNode
   = do r <- flowAlgorithm graphFuncs (nodes graph) (startNode, Map.empty)
        -- These lines remove the maps where the variable is not read in that particular node:
        let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
        return $ Map.filter (not . Map.null) r'
   where
-    graphFuncs :: GraphFuncs Node EdgeLabel (Map.Map Var (Set.Set Node))
+    graphFuncs :: GraphFuncs Node EdgeLabel (Map.Map Var (Set.Set (Maybe A.Expression)))
     graphFuncs = GF
       {
         nodeFunc = processNode
@@ -150,24 +153,27 @@ findReachDef graph startNode
     readInNode :: Var -> Maybe (FNode m UsageLabel) -> Bool
     readInNode v (Just nd) = (Set.member v . readVars . nodeVars) (getNodeData nd)
     
-    writeNode :: FNode m UsageLabel -> Set.Set Var
+    writeNode :: FNode m UsageLabel -> Map.Map Var (Maybe A.Expression)
     writeNode nd = writtenVars $ nodeVars $ getNodeData nd
       
     -- | A confusiing function used by processNode.   It takes a node and node label, and uses
     -- these to form a multi-map modifier function that replaces all node-sources for variables
-    -- written to by the given with node with a singleton set containing the given node.
+    -- written to by the given node with a singleton set containing the given expression
+    -- written at that node.
     -- That is, nodeLabelToMapInsert N (Node (_,Vars _ written _ _)) is a function that replaces
     -- the sets for each v (v in written) with a singleton set {N}.
-    nodeLabelToMapInsert :: Node -> FNode m UsageLabel -> Map.Map Var (Set.Set Node) -> Map.Map Var (Set.Set Node)
-    nodeLabelToMapInsert n = foldFuncs . (map (\v -> Map.insert v (Set.singleton n) )) . Set.toList . writeNode
+    nodeLabelToMapInsert :: Node -> FNode m UsageLabel -> Map.Map Var (Set.Set (Maybe
+      A.Expression)) -> Map.Map Var (Set.Set (Maybe A.Expression))
+    nodeLabelToMapInsert n = foldFuncs . (map (\(v,e) -> Map.insert v (Set.singleton e) )) . Map.toList . writeNode
       
-    processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set Node) -> Maybe (Map.Map Var (Set.Set Node)) -> Map.Map Var (Set.Set Node)
+    processNode :: (Node, EdgeLabel) -> Map.Map Var (Set.Set (Maybe A.Expression)) -> Maybe (Map.Map Var (Set.Set (Maybe
+      A.Expression))) -> Map.Map Var (Set.Set (Maybe A.Expression))
     processNode (n,_) inputVal mm = mergeMultiMaps modifiedInput prevAgg
       where
-        prevAgg :: Map.Map Var (Set.Set Node)
+        prevAgg :: Map.Map Var (Set.Set (Maybe A.Expression))
         prevAgg = fromMaybe Map.empty mm
         
-        modifiedInput :: Map.Map Var (Set.Set Node)
+        modifiedInput :: Map.Map Var (Set.Set (Maybe A.Expression))
         modifiedInput = (maybe id (nodeLabelToMapInsert n) $ lab graph n) inputVal
     
     -- | Merges two "multi-maps" (maps to sets) using union

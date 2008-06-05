@@ -237,7 +237,7 @@ testInitVar = TestList
    
    variable = Var . A.Variable emptyMeta . simpleName
 
-
+{-
 testReachDef :: Test
 testReachDef = TestList
  [
@@ -286,11 +286,11 @@ testReachDef = TestList
   
    fst3 :: (a,b,c) -> a
    fst3(x,_,_) = x
-
+-}
 tests :: Test
 tests = TestLabel "RainUsageCheckTest" $ TestList
  [
   testGetVarProc
   ,testInitVar
-  ,testReachDef
+--  ,testReachDef
  ]
