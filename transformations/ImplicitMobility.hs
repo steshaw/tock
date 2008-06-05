@@ -160,7 +160,7 @@ implicitMobility
   = rainOnlyPass "Implicit mobility optimisation"
     [] [] --TODO properties
    (passOnlyOnAST "implicitMobility" $ \t -> do
-       g' <- buildFlowGraph labelFunctions t
+       g' <- buildFlowGraph labelUsageFunctions t
               :: PassM (Either String (FlowGraph' PassM UsageLabel (), [Node],
                 [Node]))
        case g' of

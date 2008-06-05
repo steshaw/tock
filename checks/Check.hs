@@ -45,7 +45,7 @@ import UsageCheckUtils
 import Utils
 
 usageCheckPass :: A.AST -> PassM A.AST
-usageCheckPass t = do g' <- buildFlowGraph labelFunctions t
+usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right (g,rs,_) -> return (g,rs)

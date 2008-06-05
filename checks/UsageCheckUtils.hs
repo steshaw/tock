@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarProcCall, getVarProc, labelFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
+module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarProcCall, getVarProc, labelUsageFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Control.Monad.Writer (tell)
 import Data.Generics hiding (GT)
@@ -217,8 +217,8 @@ getVarRepExp (A.ForEach _ e) = getVarExp e
 getVarAlternative :: A.Alternative -> Vars
 getVarAlternative = const emptyVars -- TODO
 
-labelFunctions :: forall m. (Die m, CSMR m) => GraphLabelFuncs m UsageLabel
-labelFunctions = GLF
+labelUsageFunctions :: forall m. (Die m, CSMR m) => GraphLabelFuncs m UsageLabel
+labelUsageFunctions = GLF
  {
    labelExpression = single getVarExp
   ,labelExpressionList = single getVarExpList
