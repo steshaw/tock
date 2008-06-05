@@ -105,10 +105,11 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                         cx <- showCode (fst lx)
                         cy <- showCode (fst ly)
                         prob <- formatProblem varMapping problem
---                        debug $ "Found solution for problem: " ++ prob
+--                        liftIO $ putStrLn $ "Found solution for problem: " ++ prob
+--                         ++ show p
 --                        liftIO $ putStrLn $ "Succeeded on problem: " ++ prob
 --                        allProbs <- concatMapM (\(_,_,p) -> formatProblem varMapping p >>* (++ "\n#\n")) problems
---                        svm <- mapM showFlattenedExp $ Map.keys varMapping
+--                        svm <- mapM (showFlattenedExp showCode) $ Map.keys varMapping
 --                        liftIO $ putStrLn $ "All problems: " ++ allProbs ++ "\n" ++ (concat $ intersperse " ; " $ svm)
                         dieP m $ "Indexes of array \"" ++ userArrName ++ "\" "
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
