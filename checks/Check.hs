@@ -53,20 +53,33 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                         Map.empty of
                           Left err -> dieP emptyMeta $ "findReachDef: " ++
                             err
-                          Right g -> return g
+                          Right r -> return r
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
                           checkArrayUsage
                           (checkPlainVarUsage . transformPair id (fmap snd)))
-                          $ nmap (addBK reach g) g
+                          $ labelMapWithNodeId (addBK reach g) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
                       mapM_ (checkInitVar (findMeta t) g) roots
                       return t
 
-addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) -> FlowGraph PassM UsageLabel -> FNode
-  PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK _ _ = fmap ((,) []) --TODO
+addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) -> FlowGraph PassM UsageLabel ->
+  Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
+addBK mp g nid n = fmap ((,) $ map Map.fromList $ productN values) n
+  where
+    nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
+    nodeInQuestion = fromMaybe Map.empty $ Map.lookup nid mp
+    
+    -- Each list (xs) in the whole thing (xss) relates to a different variable
+    -- Each item in a list xs is a different possible constraint on that variable
+    -- (effectively joined together by OR)
+    -- The items in the list of BackgroundKnowledge are joined together with
+    -- AND
+    values :: [[(Var, [BackgroundKnowledge])]]
+    values = [ [(Var v, maybeToList $ fmap (Equal $ A.ExprVariable (findMeta v)
+      v) val)  | val <- Set.toList vals]
+             | (Var v, vals) <- Map.toList nodeInQuestion]
 
 
 filterPlain :: Set.Set Var -> Set.Set Var

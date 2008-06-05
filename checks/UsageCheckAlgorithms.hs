@@ -134,8 +134,7 @@ findReachDef :: forall m. Monad m => FlowGraph m UsageLabel -> Node -> Either St
 findReachDef graph startNode
   = do r <- flowAlgorithm graphFuncs (udfs [startNode] graph) (startNode, Map.empty)
        -- These lines remove the maps where the variable is not read in that particular node:
-       let r' = Map.mapWithKey (\n -> Map.filterWithKey (readInNode' n)) r
-       return $ Map.filter (not . Map.null) r'
+       return $ Map.filter (not . Map.null) r
   where
     graphFuncs :: GraphFuncs Node EdgeLabel (Map.Map Var (Set.Set (Maybe A.Expression)))
     graphFuncs = GF
@@ -147,12 +146,6 @@ findReachDef graph startNode
         ,userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
 
-    readInNode' :: Node -> Var -> a -> Bool
-    readInNode' n v _ = readInNode v (lab graph n)
-
-    readInNode :: Var -> Maybe (FNode m UsageLabel) -> Bool
-    readInNode v (Just nd) = (Set.member v . readVars . nodeVars) (getNodeData nd)
-    
     writeNode :: FNode m UsageLabel -> Map.Map Var (Maybe A.Expression)
     writeNode nd = writtenVars $ nodeVars $ getNodeData nd
       
