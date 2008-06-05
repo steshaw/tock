@@ -61,18 +61,21 @@ data AlterAST m structType =
  |AlterSpec (ASTModifier m A.Specification structType)
  |AlterNothing
 
-data Monad mAlter => FNode' mAlter label structType
+data Monad mAlter => FNode' structType mAlter label
   = Node (Meta, label, AlterAST mAlter structType)
+
+instance Monad m => Functor (FNode' s m) where
+  fmap f (Node (m, l, a)) = Node (m, f l, a)
 
 -- | The label for a node.  A Meta tag, a custom label, and a function
 -- for altering the part of the AST that this node came from
-type FNode mAlter label = FNode' mAlter label ()
+type FNode mAlter label = FNode' () mAlter label
 --type FEdge = (Node, EdgeLabel, Node)
 
-instance (Monad m, Show a) => Show (FNode' m a b) where
+instance (Monad m, Show a) => Show (FNode' b m a) where
   show (Node (m,x,_)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
 
-type FlowGraph' mAlter label structType = Gr (FNode' mAlter label structType) EdgeLabel
+type FlowGraph' mAlter label structType = Gr (FNode' structType mAlter label) EdgeLabel
 
 -- | The main FlowGraph type.  The mAlter parameter is the monad
 -- in which alterations to the AST (based on the FlowGraph)
@@ -80,7 +83,7 @@ type FlowGraph' mAlter label structType = Gr (FNode' mAlter label structType) Ed
 type FlowGraph mAlter label = FlowGraph' mAlter label ()
 
 -- | A list of nodes and edges.  Used for building up the graph.
-type NodesEdges m a b = ([LNode (FNode' m a b)],[LEdge EdgeLabel])
+type NodesEdges m a b = ([LNode (FNode' b m a)],[LEdge EdgeLabel])
 
 -- | The state carried around when building up the graph.  In order they are:
 -- * The next node identifier
@@ -111,13 +114,13 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelScopeOut :: A.Specification -> m label
   }
 
-getNodeMeta :: Monad m => FNode' m a b -> Meta
+getNodeMeta :: Monad m => FNode' b m a -> Meta
 getNodeMeta (Node (m,_,_)) = m
 
-getNodeData :: Monad m => FNode' m a b -> a
+getNodeData :: Monad m => FNode' b m a -> a
 getNodeData (Node (_,d,_)) = d
 
-getNodeFunc :: Monad m => FNode' m a b -> AlterAST m b
+getNodeFunc :: Monad m => FNode' b m a -> AlterAST m b
 getNodeFunc (Node (_,_,f)) = f
 
 makeTestNode :: Monad m => Meta -> a -> FNode m a
