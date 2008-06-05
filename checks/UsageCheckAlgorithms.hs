@@ -141,7 +141,7 @@ findReachDef graph startNode
         ,nodesToProcess = lpre graph
         ,nodesToReAdd = lsuc graph
         ,defVal = Map.empty
-        ,userErrLabel = show
+        ,userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
 
     readInNode' :: Node -> Var -> a -> Bool

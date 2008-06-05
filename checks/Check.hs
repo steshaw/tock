@@ -181,7 +181,7 @@ checkInitVar m graph startNode
        ,nodesToProcess = lpre graph
        ,nodesToReAdd = lsuc graph
        ,defVal = Everything
-       ,userErrLabel = show
+       ,userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
       
     getMeta :: Node -> Meta

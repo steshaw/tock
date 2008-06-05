@@ -129,9 +129,10 @@ flowAlgorithm funcs nodes (startNode, startVal)
                -- Pick the next node from the list and remove it:
           = do let (node, workList') = Set.deleteFindMin workList
                -- Process that node:
-               total <- foldWithEither (iterateNode vals) (Left $ show workList
-                 ++ userErrLabel
-                 funcs node) (nodesToProcess funcs node)
+               total <- foldWithEither (iterateNode vals) (Left $
+                 "Nodes still to process: " ++ show workList
+                 ++ " " ++ userErrLabel funcs node)
+                 (nodesToProcess funcs node)
                nodeVal <- Map.lookup node vals
                if total /= nodeVal
                  -- If the value has changed, that will cascade to affect all
