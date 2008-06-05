@@ -1,0 +1,32 @@
+-- This file tests array uses with prior knowledge
+
+PROC p(INT x, y, z)
+  INT i,j:
+  [10]INT a:
+%%
+:
+
+PROC m()
+  SKIP
+:
+
+%PASS Distinct variables
+  SEQ
+    i, j := 1,2
+    PAR
+      a[i] := 0
+      a[j] := 0
+%FAIL Same variable
+  SEQ
+    i, j := 1, 1
+    PAR
+      a[i] := 0
+      a[j] := 0
+%PASS Distinct variable based on earlier equality
+  SEQ
+    i := j
+    PAR
+      a[i] := 0
+      a[j + 1] := 0
+
+%
