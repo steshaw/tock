@@ -25,7 +25,7 @@ module Types
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, makeDimension, addOne, addExprs, subExprs,
+    , makeAbbrevAM, makeConstant, makeDimension, addOne, subOne, addExprs, subExprs,
       mulExprs, divExprs
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , recordFields, protocolItems
@@ -651,6 +651,11 @@ computeStructured f (A.Several m ss)
 -- | Add one to an expression.
 addOne :: A.Expression -> A.Expression
 addOne e = A.Dyadic m A.Add (makeConstant m 1) e
+  where m = findMeta e
+
+-- | Subtrace one from an expression.
+subOne :: A.Expression -> A.Expression
+subOne e = A.Dyadic m A.Subtr e (makeConstant m 1)
   where m = findMeta e
 
 -- | Add two expressions.
