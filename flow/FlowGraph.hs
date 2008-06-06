@@ -55,6 +55,9 @@ import Metadata
 import FlowUtils
 import Utils
 
+-- Helper for add a standard sequential edge:
+(-->) :: (Monad mLabel, Monad mAlter) => Node -> Node -> GraphMaker mLabel mAlter label structType ()
+(-->) = addEdge ESeq
 
 addSpecNodes :: (Monad mAlter, Monad mLabel, Data a) => A.Specification -> ASTModifier mAlter (A.Structured a) structType -> GraphMaker mLabel mAlter label structType (Node, Node)
 addSpecNodes spec route
@@ -99,14 +102,14 @@ buildStructuredEL (A.Only m el) route = addNodeExpressionList m el (route22 rout
 buildStructuredEL (A.ProcThen _ p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
        (ss, se) <- buildStructuredEL str (route33 route A.ProcThen)
-       addEdge ESeq pe ss
+       pe --> ss
        return (ps, se)
 buildStructuredEL (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
        (s,e) <- buildStructuredEL str (route33 route A.Spec)
-       addEdge ESeq n s
-       addEdge ESeq e n'
+       n --> s
+       e --> n'
        return (n, n')
 buildStructuredEL s _ = throwError $ "Unexpected element in function: " ++ show s
 
@@ -126,8 +129,8 @@ buildStructuredAltNoSpecs se (A.ProcThen _ _ str) route
   = buildStructuredAltNoSpecs se str (route33 route A.ProcThen)
 buildStructuredAltNoSpecs (nStart, nEnd) (A.Only _ guard) route
   = do (s,e) <- buildOnlyAlternative (route22 route A.Only) guard
-       addEdge ESeq nStart s
-       addEdge ESeq e nEnd
+       nStart --> s
+       e --> nEnd
 
 foldSpecs :: forall mAlter mLabel label structType. (Monad mLabel, Monad mAlter) => [Maybe ((Node, Node), (Node, Node))] -> GraphMaker mLabel mAlter label structType (Maybe ((Node, Node), (Node, Node)))
 foldSpecs sps = case catMaybes sps of
@@ -136,8 +139,8 @@ foldSpecs sps = case catMaybes sps of
   where
     fold :: ((Node, Node), (Node, Node)) -> ((Node, Node), (Node, Node)) -> GraphMaker mLabel mAlter label structType ((Node, Node), (Node, Node))
     fold ((inStartA, inEndA), (outStartA, outEndA)) ((inStartB, inEndB), (outStartB, outEndB))
-      = do addEdge ESeq inEndA inStartB
-           addEdge ESeq outEndB outStartA
+      = do inEndA --> inStartB
+           outEndB --> outStartA
            return ((inStartA, inEndB), (outStartB, outEndA))
 
 buildJustSpecs :: (Monad mLabel, Monad mAlter, Data a) => A.Structured a -> ASTModifier mAlter (A.Structured a) structType ->
@@ -150,8 +153,8 @@ buildJustSpecs (A.Spec _ spec str) route
        case inner of
          Nothing -> return $ Just ((scopeIn, scopeIn), (scopeOut, scopeOut))
          Just ((innerInStart, innerInEnd), (innerOutStart, innerOutEnd)) ->
-           do addEdge ESeq scopeIn innerInStart
-              addEdge ESeq innerOutEnd scopeOut
+           do scopeIn --> innerInStart
+              innerOutEnd --> scopeOut
               return $ Just ((scopeIn, innerInEnd), (innerOutStart, scopeOut))
 buildJustSpecs (A.ProcThen m p str) route
   = do inner <- buildJustSpecs str (route33 route A.ProcThen)
@@ -159,7 +162,7 @@ buildJustSpecs (A.ProcThen m p str) route
        case inner of
          Nothing -> throwError "ProcThen was used without an inner specification"
          Just ((innerInStart, innerInEnd), innerOut) ->
-           do addEdge ESeq procNodeEnd innerInStart
+           do procNodeEnd --> innerInStart
               return $ Just ((procNodeStart, innerInEnd), innerOut)
 
 buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
@@ -171,21 +174,21 @@ buildStructuredSeq (A.Spec m (A.Specification mspec nm (A.Rep mrep rep)) str) ro
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do n <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
        (s,e) <- buildStructuredSeq str (route33 route A.Spec)
-       addEdge ESeq n s
-       addEdge ESeq e n
+       n --> s
+       e --> n
        return (n, n)
 buildStructuredSeq (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
        (s,e) <- buildStructuredSeq str (route33 route A.Spec)
-       addEdge ESeq n s
-       addEdge ESeq e n'
+       n --> s
+       e --> n'
        return (n, n')
 buildStructuredSeq (A.Only _ p) route = buildProcess p (route22 route A.Only)
 buildStructuredSeq (A.ProcThen _ p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
        (ss, se) <- buildStructuredSeq str (route33 route A.ProcThen)
-       addEdge ESeq pe ss
+       pe --> ss
        return (ps, se)
 
 buildStructuredPar :: (Monad mLabel, Monad mAlter) => Int -> (Node, Node) ->
@@ -202,7 +205,7 @@ buildStructuredPar pId (nStart, nEnd) (A.Spec mstr (A.Specification mspec nm (A.
        pId' <- getNextParEdgeId
        nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Spec)
        case nodes of
-         Left False -> addEdge ESeq s e
+         Left False -> s --> e
          Left True -> return ()
          Right (s',e') -> do addEdge (EStartPar pId') s s'
                              addEdge (EEndPar pId') e' e
@@ -213,10 +216,10 @@ buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
        nodes <- buildStructuredPar pId' (n, n') str (route33 route A.Spec)
        case nodes of
-         Left False -> do addEdge ESeq n n'
+         Left False -> n --> n'
          Left True -> return ()
-         Right (s,e) -> do addEdge ESeq n s
-                           addEdge ESeq e n'
+         Right (s,e) -> do n --> s
+                           e --> n'
        return $ Right (n,n')
 buildStructuredPar _ _ (A.Only _ p) route = buildProcess p (route22 route A.Only) >>* Right
 buildStructuredPar pId (nStart, nEnd) (A.ProcThen m p str) route
@@ -227,7 +230,7 @@ buildStructuredPar pId (nStart, nEnd) (A.ProcThen m p str) route
        case nodes of
          Left False -> return $ Right (ps, pe)
          Left True -> return $ Right (ps, n)
-         Right (s,e) -> do addEdge ESeq pe s
+         Right (s,e) -> do pe --> s
                            return $ Right (ps, e)
 
 buildStructuredCase :: (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Option -> ASTModifier mAlter (A.Structured A.Option) structType ->
@@ -237,14 +240,14 @@ buildStructuredCase (nStart, nEnd) (A.Several _ ss) route
        return ()
 buildStructuredCase (nStart, nEnd) (A.ProcThen _ p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
-       addEdge ESeq nStart ps
+       nStart --> ps
        buildStructuredCase (pe, nEnd) str (route33 route A.ProcThen)
 buildStructuredCase (nStart, nEnd) (A.Only _ o) route
   = buildOnlyOption (nStart, nEnd) (route22 route A.Only) o
 buildStructuredCase (nStart, nEnd) (A.Spec _ spec str) route
   = do (n, n') <- addSpecNodes spec route
-       addEdge ESeq nStart n
-       addEdge ESeq n' nEnd
+       nStart --> n
+       n' --> nEnd
        buildStructuredCase (n, n') str (route33 route A.Spec)
 
 buildStructuredIf :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType ->
@@ -256,7 +259,7 @@ buildStructuredIf (prev, end) (A.Several _ ss) route
         foldIf prev (ind, s) = buildStructuredIf (prev, end) s $ route22 route A.Several @-> (routeList ind)
 buildStructuredIf (prev, end) (A.ProcThen _ p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
-       addEdge ESeq prev ps
+       prev --> ps
        buildStructuredIf (pe, end) str (route33 route A.ProcThen)
 buildStructuredIf (prev, end) (A.Only _ c) route
   = buildOnlyChoice (prev, end) (route22 route A.Only) c
@@ -264,8 +267,8 @@ buildStructuredIf (prev, end) (A.Spec _ (A.Specification _ nm (A.Rep _ rep)) str
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do repNode <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
        lastNode <- buildStructuredIf (repNode, end) str (route33 route A.Spec)
-       addEdge ESeq prev repNode
-       addEdge ESeq lastNode repNode
+       prev --> repNode
+       lastNode --> repNode
        return repNode
 buildStructuredIf (prev, end) (A.Spec _ spec str) route
        -- Specs are tricky in IFs, because they can scope out either
@@ -278,19 +281,19 @@ buildStructuredIf (prev, end) (A.Spec _ spec str) route
        
        last <- buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
        
-       addEdge ESeq prev nIn
+       prev --> nIn
        when (last /= prev) $ -- Only add the edge if there was a block it's connected to!
-         addEdge ESeq nOutBlock end
-       addEdge ESeq last nOutNext
+         nOutBlock --> end
+       last --> nOutNext
        return nOutNext
 
 buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType Node
 buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
   = do nexp <- addNodeExpression (findMeta exp) exp $ route23 route A.Choice
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
-       addEdge ESeq nexp nbodys
-       addEdge ESeq cPrev nexp
-       addEdge ESeq nbodye cEnd
+       nexp --> nbodys
+       cPrev --> nexp
+       nbodye --> cEnd
        return nexp
 
 buildOnlyOption :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Option structType -> A.Option -> GraphMaker mLabel mAlter label structType ()
@@ -301,11 +304,11 @@ buildOnlyOption (cStart, cEnd) route opt
              nexpNodes <- mapMR (route23 route A.Option) (\e r -> addNodeExpression (findMeta e) e r >>* mkPair) es
              (nexps, nexpe) <- joinPairs m nexpNodes
              (nbodys, nbodye) <- buildProcess p $ route33 route A.Option
-             addEdge ESeq nexpe nbodys
+             nexpe --> nbodys
              return (nexps,nbodye)
            (A.Else _ p) -> buildProcess p $ route22 route A.Else
-       addEdge ESeq cStart s
-       addEdge ESeq e cEnd
+       cStart --> s
+       e --> cEnd
        return ()
 
 buildOnlyAlternative :: (Monad mLabel, Monad mAlter) => ASTModifier mAlter A.Alternative structType -> A.Alternative ->
@@ -316,7 +319,7 @@ buildOnlyAlternative route alt
               (A.AlternativeSkip m _ p) -> (m,p, route33 route A.AlternativeSkip)
        guardNode <- addNode' m labelAlternative alt (AlterAlternative route)
        (bodyNodeStart, bodyNodeEnd) <- buildProcess p r
-       addEdge ESeq guardNode bodyNodeStart
+       guardNode --> bodyNodeStart
        return (guardNode, bodyNodeEnd)
 
 addNewSubProcFunc :: (Monad mLabel, Monad mAlter) => 
@@ -329,7 +332,7 @@ addNewSubProcFunc m args body argsRoute
          Left (p,route) -> buildProcess p route
          Right (s,route) -> buildStructuredEL s route
        denoteTerminatorNode termNode
-       addEdge ESeq root bodyNode
+       root --> bodyNode
 
 buildProcess :: (Monad mLabel, Monad mAlter) => A.Process -> ASTModifier mAlter A.Process structType -> GraphMaker mLabel mAlter label structType (Node, Node)
 buildProcess (A.Seq m s) route
@@ -340,7 +343,7 @@ buildProcess (A.Par m _ s) route
        pId <- getNextParEdgeId
        nodes <- buildStructuredPar pId (nStart, nEnd) s (route33 route A.Par)
        case nodes of
-         Left False -> do addEdge ESeq nStart nEnd -- no processes in PAR, join start and end with simple ESeq link
+         Left False -> nStart --> nEnd -- no processes in PAR, join start and end with simple ESeq link
          Left True -> return () -- already wired up
          Right (start, end) ->
               do addEdge (EStartPar pId) nStart start
@@ -349,8 +352,8 @@ buildProcess (A.Par m _ s) route
 buildProcess (A.While _ e p) route
   = do n <- addNodeExpression (findMeta e) e (route23 route A.While)
        (start, end) <- buildProcess p (route33 route A.While)
-       addEdge ESeq n start
-       addEdge ESeq end n
+       n --> start
+       end --> n
        return (n, n)
 buildProcess (A.Case m e s) route
   = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
@@ -368,8 +371,8 @@ buildProcess (A.Alt m _ s) route
        specNodes <- buildJustSpecs s (route33 route A.Alt)
        (nStart', nEnd') <- case specNodes of
          Just ((nInStart, nInEnd), (nOutStart, nOutEnd)) ->
-           do addEdge ESeq nStart nInStart
-              addEdge ESeq nOutEnd nEnd
+           do nStart --> nInStart
+              nOutEnd --> nEnd
               return (nInEnd, nOutStart)
          Nothing -> return (nStart, nEnd)
        buildStructuredAltNoSpecs (nStart', nEnd') s (route33 route A.Alt)
