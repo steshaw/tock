@@ -137,7 +137,7 @@ foldSpecs sps = case catMaybes sps of
     fold :: ((Node, Node), (Node, Node)) -> ((Node, Node), (Node, Node)) -> GraphMaker mLabel mAlter label structType ((Node, Node), (Node, Node))
     fold ((inStartA, inEndA), (outStartA, outEndA)) ((inStartB, inEndB), (outStartB, outEndB))
       = do addEdge ESeq inEndA inStartB
-           addEdge ESeq outEndB outEndA
+           addEdge ESeq outEndB outStartA
            return ((inStartA, inEndB), (outStartB, outEndA))
 
 buildJustSpecs :: (Monad mLabel, Monad mAlter, Data a) => A.Structured a -> ASTModifier mAlter (A.Structured a) structType ->
