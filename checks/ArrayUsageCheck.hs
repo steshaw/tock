@@ -453,16 +453,16 @@ makeEquations accesses bound
 flatten :: A.Expression -> Either String [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
 flatten e@(A.Dyadic m op lhs rhs)
-                                | op == A.Add   = combine' (flatten lhs) (flatten rhs)
-                                | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
-                                | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
-                                | op == A.Rem   = liftM2L (Modulo 1) (flatten lhs) (flatten rhs)
-                                | op == A.Div   = do rhs' <- flatten rhs
-                                                     case onlyConst rhs' of
-                                                       Just _ -> liftM2L (Divide 1) (flatten lhs) (return rhs')
-                                                       -- Can't deal with variable divisors, leave expression as-is:
-                                                       Nothing -> return [Scale 1 (e,0)]
-                                | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
+  | op == A.Add   = combine' (flatten lhs) (flatten rhs)
+  | op == A.Subtr = combine' (flatten lhs) (mapM (scale (-1)) =<< flatten rhs)
+  | op == A.Mul   = multiplyOut' (flatten lhs) (flatten rhs)
+  | op == A.Rem   = liftM2L (Modulo 1) (flatten lhs) (flatten rhs)
+  | op == A.Div   = do rhs' <- flatten rhs
+                       case onlyConst rhs' of
+                         Just _ -> liftM2L (Divide 1) (flatten lhs) (return rhs')
+                         -- Can't deal with variable divisors, leave expression as-is:
+                         Nothing -> return [Scale 1 (e,0)]
+  | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
   where
 --    liftM2L :: (Ord a, Ord b, Monad m) => (Set.Set a -> Set.Set b -> c) -> m [a] -> m [b] -> m [c]
     liftM2L f x y = liftM singleton $ liftM2 f (x >>= makeExpSet) (y >>= makeExpSet)
