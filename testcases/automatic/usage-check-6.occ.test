@@ -28,5 +28,14 @@ PROC m()
     PAR
       a[i] := 0
       a[j + 1] := 0
-
+%PASS Distinct variables due to bounds
+  SEQ k = 0 FOR 4
+    PAR
+      a[4] := 0
+      a[k] := 0
+%FAIL Non-distinct variables due to bounds
+  SEQ k = 0 FOR 4
+    PAR
+      a[3] := 0
+      a[k] := 0
 %
