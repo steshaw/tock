@@ -114,9 +114,11 @@ testGetVarProc = TestList (map doTest tests)
                         (_, Left err) ->
                           testFailure $ name ++ " failed: " ++ show err
                         (_, Right result) ->
-                          assertEqual name (vars r (zip w $ repeat Nothing) u) result
+                          assertEqual name (vars r (zip w $ repeat Nothing) u) (blankDef result)
     where
       name = "testGetVarProc" ++ show index
+      blankDef :: Vars -> Vars
+      blankDef (Vars r w u) = Vars r (Map.map (const Nothing) w) u
 
    startState :: CompState
    startState = emptyState
