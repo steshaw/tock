@@ -442,7 +442,6 @@ data InputMode =
 
 -- | Abbreviation mode.
 -- This describes how a name is being accessed.
--- In the future this will have additional modes for @RESULT@, @INITIAL@, etc.
 data AbbrevMode =
   -- | The original declaration of a name.
   Original
