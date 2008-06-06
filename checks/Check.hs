@@ -40,6 +40,7 @@ import FlowGraph
 import Metadata
 import Pass
 import ShowCode
+import Types
 import UsageCheckAlgorithms
 import UsageCheckUtils
 import Utils
@@ -66,7 +67,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
 
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp g nid n = fmap ((,) $ map Map.fromList $ productN values) n
+addBK mp g nid n = fmap ((,) $ (map Map.fromList $ productN $ repBK ++ values)) n
   where
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
     nodeInQuestion = fromMaybe Map.empty $ Map.lookup nid mp
@@ -80,7 +81,23 @@ addBK mp g nid n = fmap ((,) $ map Map.fromList $ productN values) n
     values = [ [(Var v, maybeToList $ fmap (Equal $ A.ExprVariable (findMeta v)
       v) val)  | val <- Set.toList vals]
              | (Var v, vals) <- Map.toList nodeInQuestion]
+    -- Add bk based on replicator bounds
+    -- Search for the node containing the replicator definition,
+    -- TODO Then use background knowledge related to any variables mentioned in
+    -- the bounds *at that node* not at the current node-in-question
 
+    repBK :: [[(Var, [BackgroundKnowledge])]]
+    repBK = mapMaybe (fmap mkBK . nodeRep . getNodeData . snd) $ labNodes g
+      where
+        --TODO only really need consider the connected nodes...
+
+        mkBK :: (A.Name, A.Replicator) -> [(Var, [BackgroundKnowledge])]
+        mkBK (n, A.For _ low count) = [(Var v, bk)]
+          where
+            m = A.nameMeta n
+            v = A.Variable m n
+            bk = [ RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)]
+    
 
 filterPlain :: Set.Set Var -> Set.Set Var
 filterPlain = Set.filter plain

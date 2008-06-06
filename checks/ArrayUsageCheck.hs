@@ -303,7 +303,10 @@ makeExpSet = foldM makeExpSet' Set.empty
 type VarMap = Map.Map FlattenedExp CoeffIndex
 
 -- | Background knowledge about a problem; either an equality or an inequality.
-data BackgroundKnowledge = Equal A.Expression A.Expression | LessThanOrEqual A.Expression A.Expression
+data BackgroundKnowledge
+  = Equal A.Expression A.Expression
+    | LessThanOrEqual A.Expression A.Expression
+    | RepBoundsIncl A.Variable A.Expression A.Expression
 
 -- | The names relate to the equations given in my Omega Test presentation.
 -- X is the top, Y is the bottom, A is the other var (x REM y = x + a)
@@ -329,6 +332,20 @@ transformBK (LessThanOrEqual eL eR)
            -- eL <= eR implies eR - eL >= 0
            let e = addEq (amap negate eL') eR'
            return ([],[e])
+transformBK (RepBoundsIncl v low high)
+  = do eLow <- makeSingleEq low "background knowledge, lower bound"
+       eHigh <- makeSingleEq high "background knowledge, upper bound"
+       -- v <= eH implies eH - v >= 0
+       -- eL <= v implies v - eL >= 0
+       ev <- makeEquation v [] (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 0)]
+         >>= getSingleAccessItem ("Modulo or divide impossible")
+       ev' <- makeEquation v [] (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 1)]
+         >>= getSingleAccessItem ("Modulo or divide impossible")
+       return ([], [ addEq (amap negate ev) eHigh
+                   , addEq (amap negate ev') eHigh
+                   , addEq (amap negate eLow) ev
+                   , addEq (amap negate eLow) ev'
+                   ])
 
 transformBKList :: [BackgroundKnowledge] -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
 transformBKList bk = mapM transformBK bk >>* foldl accumProblem ([],[])
