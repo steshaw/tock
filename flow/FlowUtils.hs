@@ -108,6 +108,7 @@ data Monad m => GraphLabelFuncs m label = GLF {
     ,labelProcess :: A.Process -> m label
     ,labelAlternative :: A.Alternative -> m label
     ,labelExpression :: A.Expression -> m label
+    , labelConditionalExpression :: A.Expression -> m label
     ,labelExpressionList :: A.ExpressionList -> m label
     ,labelReplicator :: (A.Name, A.Replicator) -> m label
     ,labelScopeIn :: A.Specification -> m label
@@ -139,6 +140,7 @@ joinLabelFuncs fx fy = GLF
   labelProcess = joinItem labelProcess,
   labelAlternative = joinItem labelAlternative,
   labelExpression = joinItem labelExpression,
+  labelConditionalExpression = joinItem labelConditionalExpression,
   labelExpressionList = joinItem labelExpressionList,
   labelReplicator = joinItem labelReplicator,
   labelScopeIn = joinItem labelScopeIn,
@@ -154,10 +156,10 @@ joinLabelFuncs fx fy = GLF
                          return (x0,x1)
 
 mkLabelFuncsConst :: Monad m => m label -> GraphLabelFuncs m label
-mkLabelFuncsConst v = GLF (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v)
+mkLabelFuncsConst v = GLF (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v) (const v)
 
 mkLabelFuncsGeneric :: Monad m => (forall t. Data t => t -> m label) -> GraphLabelFuncs m label
-mkLabelFuncsGeneric f = GLF f f f f f f f f f
+mkLabelFuncsGeneric f = GLF f f f f f f f f f f
 
   
 run :: forall mLabel mAlter label structType b. (Monad mLabel, Monad mAlter) => (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> GraphMaker mLabel mAlter label structType label

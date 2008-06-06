@@ -257,8 +257,8 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
            checkArrayUsage (m, fmap ((,) []) mockedupParItems) -- TODO add BK properly
       where
         mockedupParItems :: ParItems UsageLabel
-        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing $ processVarW v
-          Nothing] | v <- vs]
+        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing
+          $ processVarW v Nothing] | v <- vs]
 
 
 checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
@@ -273,7 +273,7 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
     checkArgs :: A.Process -> m ()
     checkArgs p@(A.ProcCall m _ _)
       = do vars <- getVarProcCall p
-           let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing v]
+           let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing v]
                                             | v <- vars]
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)

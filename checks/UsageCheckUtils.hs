@@ -70,9 +70,11 @@ data ParItems a
   deriving (Show)
 
 data UsageLabel = Usage
-  {nodeRep :: Maybe (A.Name, A.Replicator)
-  ,nodeDecl :: Maybe Decl
-  ,nodeVars :: Vars}
+  { nodeRep :: Maybe (A.Name, A.Replicator)
+  , nodeDecl :: Maybe Decl
+  , nodeCond :: Maybe A.Expression
+  , nodeVars :: Vars
+  }
 
 instance Show UsageLabel where
   show = const ""
@@ -229,22 +231,24 @@ labelUsageFunctions :: forall m. (Die m, CSMR m) => GraphLabelFuncs m UsageLabel
 labelUsageFunctions = GLF
  {
    labelExpression = single getVarExp
+  ,labelConditionalExpression
+    = \e -> return $ Usage Nothing Nothing (Just e) (getVarExp e)
   ,labelExpressionList = single getVarExpList
-  ,labelDummy = const (return $ Usage Nothing Nothing emptyVars)
+  ,labelDummy = const (return $ Usage Nothing Nothing Nothing emptyVars)
   ,labelProcess = singleM getVarProc
   ,labelAlternative = single getVarAlternative
   ,labelStartNode = single (uncurry getVarFormals)
-  ,labelReplicator = \x -> return (Usage (Just x) Nothing (getVarRepExp $ snd x))
+  ,labelReplicator = \x -> return (Usage (Just x) Nothing Nothing (getVarRepExp $ snd x))
   --don't forget about the variables used as initialisers in declarations (hence getVarSpec)
   ,labelScopeIn = pair (getDecl $ ScopeIn False) getVarSpec
   ,labelScopeOut = pair (getDecl ScopeOut) (const emptyVars)
  }
   where
     single :: (a -> Vars) -> (a -> m UsageLabel)
-    single f x = return $ Usage Nothing Nothing (f x)
+    single f x = return $ Usage Nothing Nothing Nothing (f x)
 
     singleM :: (a -> m Vars) -> (a -> m UsageLabel)
-    singleM f x = f x >>* Usage Nothing Nothing
+    singleM f x = f x >>* Usage Nothing Nothing Nothing
 
     pair :: (a -> Maybe Decl) -> (a -> Vars) -> (a -> m UsageLabel)
-    pair f0 f1 x = return $ Usage Nothing (f0 x) (f1 x)
+    pair f0 f1 x = return $ Usage Nothing (f0 x) Nothing (f1 x)
