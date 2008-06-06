@@ -174,35 +174,35 @@ testSeq = TestLabel "testSeq" $ TestList
    testSeq' 0 [(0,m1)] [] (A.Several m1 [])
   ,testSeq' 1 [(0,m2)] [] (A.Only m1 sm2)
   ,testSeq' 2 [(0,m3)] [] (A.Several m1 [A.Only m2 sm3])
-  ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
-  ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq),(1,2,ESeq)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7])
-  ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq)] (A.Several m1 [A.Several m1 [A.Only m2 sm3],A.Several m1 [A.Only m4 sm5]])
-  ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq),(1,2,ESeq),(2,3,ESeq)] 
+  ,testSeq' 3 [(0,m3),(1,m5)] [(0,1,ESeq Nothing)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
+  ,testSeq' 4 [(0,m3),(1,m5),(2,m7)] [(0,1,ESeq Nothing),(1,2,ESeq Nothing)] (A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7])
+  ,testSeq' 5 [(0,m3),(1,m5)] [(0,1,ESeq Nothing)] (A.Several m1 [A.Several m1 [A.Only m2 sm3],A.Several m1 [A.Only m4 sm5]])
+  ,testSeq' 6 [(0,m3),(1,m5),(2,m7),(3,m9)] [(0,1,ESeq Nothing),(1,2,ESeq Nothing),(2,3,ESeq Nothing)] 
     (A.Several m1 [A.Several m1 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7], A.Only m8 sm9])
     
-  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq),(1,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Only m3 sm4)
+  ,testSeq' 10 [(0,m1),(1,m4),(100,sub m1 100)] [(0,1,ESeq Nothing),(1,100,ESeq Nothing)] (A.Spec mU (someSpec m1) $ A.Only m3 sm4)
   ,testSeq'' 11
     [(1,m1),(3,m4),(5,m5),(7,m7),(9,m10),(101,sub m1 100),(105,sub m5 100),(107,sub m7 100)] [1]
-    [(1,3,ESeq),(3,101,ESeq),(101,5,ESeq),(5,7,ESeq),(7,9,ESeq),(9,107,ESeq),(107,105,ESeq)]
+    [(1,3,ESeq Nothing),(3,101,ESeq Nothing),(101,5,ESeq Nothing),(5,7,ESeq Nothing),(7,9,ESeq Nothing),(9,107,ESeq Nothing),(107,105,ESeq Nothing)]
     (A.Several m11 [A.Spec mU (someSpec m1) $ A.Only m3 sm4,A.Spec mU (someSpec m5) $ A.Spec mU (someSpec m7) $ A.Only m9 sm10])
 
-  ,testSeq' 12 [(0,m1),(4,m4),(100,sub m1 100)] [(0,4,ESeq),(4,100,ESeq)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+  ,testSeq' 12 [(0,m1),(4,m4),(100,sub m1 100)] [(0,4,ESeq Nothing),(4,100,ESeq Nothing)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   -- Replicated SEQ:
   
-  ,testSeq' 100 [(0,m10), (1,m3), (2,m5)] [(0,1,ESeq), (1,2,ESeq), (2,0,ESeq)]
+  ,testSeq' 100 [(0,m10), (1,m3), (2,m5)] [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,0,ESeq Nothing)]
     (rep m10 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
 
-  ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [3] [(3,0,ESeq),(0,1,ESeq), (1,2,ESeq), (2,0,ESeq),(0,4,ESeq)]
+  ,testSeq'' 101 [(0,m8), (1,m3), (2,m5),(3,m9),(4,m11)] [3] [(3,0,ESeq Nothing),(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,0,ESeq Nothing),(0,4,ESeq Nothing)]
     (A.Only mU $ A.Seq m6 $ A.Several m7
       [A.Only mU sm9
       ,(rep m8 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5])
       ,A.Only mU sm11])
 
-  ,testSeq' 102 [(0,m10), (1,m1)] [(0,1,ESeq), (1,0,ESeq)]
+  ,testSeq' 102 [(0,m10), (1,m1)] [(0,1,ESeq Nothing), (1,0,ESeq Nothing)]
     (rep m10 $ A.Several m1 [])
 
-  ,testSeq' 103 [(1,m10), (0,m1), (2,m2), (3,m3)] [(0,1,ESeq),(1,3,ESeq), (3,1,ESeq),(1,2,ESeq)]
+  ,testSeq' 103 [(1,m10), (0,m1), (2,m2), (3,m3)] [(0,1,ESeq Nothing),(1,3,ESeq Nothing), (3,1,ESeq Nothing),(1,2,ESeq Nothing)]
     (A.Several mU [A.Only mU sm1, (rep m10 $ A.Several m3 []), A.Only mU sm2])
 
  ]
@@ -216,7 +216,7 @@ testSeq = TestLabel "testSeq" $ TestList
 testPar :: Test
 testPar = TestLabel "testPar" $ TestList
  [
-   testPar' 0 [] [(0,99,ESeq)] (A.Several m1 [])
+   testPar' 0 [] [(0,99,ESeq Nothing)] (A.Several m1 [])
   ,testPar' 1 [(1,m2)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Only m1 sm2)
   ,testPar' 2 [(1,m3)] [(0,1,EStartPar 0), (1,99,EEndPar 0)] (A.Several m1 [A.Only m2 sm3])
   ,testPar' 3 [(1, m3), (2, m5)]
@@ -234,14 +234,14 @@ testPar = TestLabel "testPar" $ TestList
               (A.Several m1 [A.Several m10 [A.Only m2 sm3,A.Only m4 sm5,A.Only m6 sm7], A.Only m8 sm9])
 
   ,testPar' 10 [(1, m3), (2, m5), (6, m6),(106,sub m6 100)]
-               [(0,6,EStartPar 0),(6,1,ESeq),(1,106,ESeq),(106,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
+               [(0,6,EStartPar 0),(6,1,ESeq Nothing),(1,106,ESeq Nothing),(106,99,EEndPar 0), (0,2,EStartPar 0), (2,99,EEndPar 0)]
                (A.Several m1 [A.Spec mU (someSpec m6) $ A.Only m2 sm3,A.Only m4 sm5])
   ,testPar' 11 [(1, m3), (2, m5), (3,m7), (6, m6),(106,sub m6 100)]
                [(0,6,EStartPar 0),(6,1,EStartPar 1),(6,2,EStartPar 1),(1,106,EEndPar 1),(2,106,EEndPar 1)
                ,(106,99,EEndPar 0), (0,3,EStartPar 0), (3,99,EEndPar 0)]
                (A.Several m1 [A.Spec mU (someSpec m6) $ A.Several mU [A.Only mU sm3, A.Only mU sm5], A.Only mU sm7])
 
-  ,testPar' 20 [(1,m1),(100,sub m1 100)] [(0,1,EStartPar 0),(1,100,ESeq),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
+  ,testPar' 20 [(1,m1),(100,sub m1 100)] [(0,1,EStartPar 0),(1,100,ESeq Nothing),(100,99,EEndPar 0)] (A.Spec mU (someSpec m1) $ A.Several m4 [])
 
   --TODO test nested pars
 
@@ -266,7 +266,7 @@ testPar = TestLabel "testPar" $ TestList
       ,(rep m5 $ A.Several mU [A.Only mU sm6,A.Only mU sm7])])
 
   ,testPar' 102 [(1,m6), (4, sub m6 1)]
-    [(0,1,EStartPar 0), (1,4,ESeq), (4,99,EEndPar 0)]
+    [(0,1,EStartPar 0), (1,4,ESeq Nothing), (4,99,EEndPar 0)]
     (rep m6 $ A.Several mU [])
  ]
   where
@@ -276,26 +276,26 @@ testPar = TestLabel "testPar" $ TestList
 testWhile :: Test
 testWhile = TestLabel "testWhile" $ TestList
  [
-    testGraph "testWhile 0" [(0,m0), (1,m1)] [0] [(0,1,ESeq), (1,0,ESeq)] (A.While mU (A.True m0) sm1)
-   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [2] [(2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+    testGraph "testWhile 0" [(0,m0), (1,m1)] [0] [(0,1,ESeq Nothing), (1,0,ESeq Nothing)] (A.While mU (A.True m0) sm1)
+   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [2] [(2,3,ESeq Nothing), (3,2,ESeq Nothing), (2,5,ESeq Nothing)] 
       (A.Seq m0 $ A.Several m1 [A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
-   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [7] [(7,2,ESeq), (2,3,ESeq), (3,2,ESeq), (2,5,ESeq)] 
+   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [7] [(7,2,ESeq Nothing), (2,3,ESeq Nothing), (3,2,ESeq Nothing), (2,5,ESeq Nothing)] 
       (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
-   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [7] [(7,2,ESeq), (2,3,ESeq), (3,9,ESeq), (9,2,ESeq), (2,5,ESeq)] 
+   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [7] [(7,2,ESeq Nothing), (2,3,ESeq Nothing), (3,9,ESeq Nothing), (9,2,ESeq Nothing), (2,5,ESeq Nothing)] 
       (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.Only mU sm3,A.Only mU sm9],A.Only m4 sm5])
  ]
 
 testCase :: Test
 testCase = TestLabel "testCase" $ TestList
  [
-   testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [0] [(0,2,ESeq),(2,1,ESeq)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
+   testGraph "testCase 0" [(0,m10),(1,m0),(2,m3)] [0] [(0,2,ESeq Nothing),(2,1,ESeq Nothing)] (A.Case m0 (A.True m10) $ cases m1 [A.Else m2 sm3])
   ,testGraph "testCase 1"
      [(0,m10),(1,m0),(2,m2),(3,m3)] [0]
-     [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+     [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing)]
      (A.Case m0 (A.True m10) $ cases mU [A.Option mU [A.True m2] sm3])
   ,testGraph "testCase 2"
      [(0,m10),(1,m0), (2,m2), (3,m3), (4, m4), (5,m5)] [0]
-     [(0,2,ESeq), (2,3,ESeq), (3,1,ESeq), (0,4,ESeq), (4,5,ESeq), (5,1,ESeq)]
+     [(0,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (0,4,ESeq Nothing), (4,5,ESeq Nothing), (5,1,ESeq Nothing)]
      (A.Case m0 (A.True m10) $ cases m1 [A.Option mU [A.True m2] sm3, A.Option mU [A.True m4] sm5])
   --TODO test case statements that have specs
  ]
@@ -309,26 +309,34 @@ testIf = TestLabel "testIf" $ TestList
    -- Remember that the last branch of an IF doesn't link to the end of the IF, because
    -- occam stops if no option is found.
  
-   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [0] [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq)]
+   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [0] [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
   ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] [0]
-                        [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq)]
+                        [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing), (2,4,ESeq Nothing),(4,5,ESeq Nothing),(5,1,ESeq Nothing)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5)])
   ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] [0]
-                        [(0,2,ESeq),(2,3,ESeq),(3,1,ESeq), (2,4,ESeq),(4,5,ESeq),(5,1,ESeq), (4,6,ESeq),(6,7,ESeq),(7,1,ESeq)]
+                        [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing), (2,4,ESeq Nothing),(4,5,ESeq Nothing),(5,1,ESeq Nothing), (4,6,ESeq Nothing),(6,7,ESeq Nothing),(7,1,ESeq Nothing)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
 
+{-
+  -- TODO test specs in Ifs
+  #error
+   testGraph "testIf 3" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, sub m4 1), (6, sub m4 2)] [0]
+     [(0,4,ESeq Nothing),(4,2,ESeq Nothing),(2,3,ESeq Nothing),(3,5,ESeq Nothing), (5,1,ESeq Nothing), ]
+     (A.If m0 $ A.Spec mU (someSpec m4) $ ifs mU [(A.True m2, sm3)])  
+-}     
+
   ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5)] [0]
-    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 5, ESeq)]
+    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 5, ESeq Nothing)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3)])
 
   ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7)] [0]
-    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq)]
+    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 6, ESeq Nothing), (6,7,ESeq Nothing), (7,1,ESeq Nothing), (6, 5, ESeq Nothing)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
 
   ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9)] [0]
-    [(0,5,ESeq), (5,2,ESeq), (2,3,ESeq), (3,1,ESeq), (2, 6, ESeq), (6,7,ESeq), (7,1,ESeq), (6, 5, ESeq), (5,8,ESeq),
-     (8,9,ESeq), (9,1,ESeq)]
+    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 6, ESeq Nothing), (6,7,ESeq Nothing), (7,1,ESeq Nothing), (6, 5, ESeq Nothing), (5,8,ESeq Nothing),
+     (8,9,ESeq Nothing), (9,1,ESeq Nothing)]
     (A.If m0 $ A.Several mU [rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
                             , ifs mU [(A.True m8, sm9)]])
  ]
@@ -340,17 +348,17 @@ testProcFuncSpec :: Test
 testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
   [
    -- Single spec of process (with SKIP body) in AST (not connected up):
-    testGraph' "testProcFuncSpec 0" [(0, m0), (5,m5)] [5] [(5,0,ESeq)]
+    testGraph' "testProcFuncSpec 0" [(0, m0), (5,m5)] [5] [(5,0,ESeq Nothing)]
       (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several mU [])
       
    -- Single spec of process (with body with SEQ SKIP SKIP):
-   ,testGraph' "testProcFuncSpec 1" [(0, m3), (4,m5), (9,m9)] [9] ([(9,0,ESeq), (0,4,ESeq)])
+   ,testGraph' "testProcFuncSpec 1" [(0, m3), (4,m5), (9,m9)] [9] ([(9,0,ESeq Nothing), (0,4,ESeq Nothing)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
         A.Seq m0 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5]
       ) $ A.Several mU [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
    ,testGraph' "testProcFuncSpec 2" [(3,m2),(4,m3),(5,m4),(6,m5), (10,m10), (11, m11)] [10,11]
-      ([(10,3,ESeq), (3,4,ESeq)] ++ [(11,5,ESeq), (5,6,ESeq)])
+      ([(10,3,ESeq Nothing), (3,4,ESeq Nothing)] ++ [(11,5,ESeq Nothing), (5,6,ESeq Nothing)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
         A.Seq mU $ A.Several mU [A.Only mU sm2,A.Only mU sm3]
       ) $ 
@@ -360,7 +368,7 @@ testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
       $ A.Several mU [])
       
    -- Single spec of process (with SKIP body) in a SEQ (connected up):
-   ,testGraph "testProcFuncSpec 10" [(0, m0),(1,m1),(2,sub m1 100), (3, m3), (5,m5)] [1,5] [(5,0,ESeq), (1,3,ESeq), (3,2,ESeq)]
+   ,testGraph "testProcFuncSpec 10" [(0, m0),(1,m1),(2,sub m1 100), (3, m3), (5,m5)] [1,5] [(5,0,ESeq Nothing), (1,3,ESeq Nothing), (3,2,ESeq Nothing)]
       (A.Seq mU $ A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several m3 [])
       
   ]
@@ -372,25 +380,25 @@ testAlt = TestLabel "testAlt" $ TestList
     -- branching to a guard, then doing the guard and body, then scoping everything out.
     
     testGraph "testAlt 0" [(0, m1), (1, sub m1 1), (4,m4), (5,m5)] [0]
-      [(0,4,ESeq), (4,5,ESeq), (5,1,ESeq)]
+      [(0,4,ESeq Nothing), (4,5,ESeq Nothing), (5,1,ESeq Nothing)]
       (A.Alt m1 False $ A.Only mU guard45)
    ,testGraph "testAlt 1" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7)] [0]
-      [(0,4,ESeq), (0,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,1,ESeq), (7,1,ESeq)]
+      [(0,4,ESeq Nothing), (0,6,ESeq Nothing), (4,5,ESeq Nothing), (6,7,ESeq Nothing), (5,1,ESeq Nothing), (7,1,ESeq Nothing)]
       (A.Alt m1 False $ A.Several mU $ map (A.Only mU) [guard45, guard67])
 
    ,testGraph "testAlt 2" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (8,m8), (18, sub m8 100)] [0]
-      [(0,8,ESeq), (8,4,ESeq), (4,5,ESeq), (5,18,ESeq), (18,1,ESeq)]
+      [(0,8,ESeq Nothing), (8,4,ESeq Nothing), (4,5,ESeq Nothing), (5,18,ESeq Nothing), (18,1,ESeq Nothing)]
       (A.Alt m1 False $ spec8 $ A.Only mU guard45)
    ,testGraph "testAlt 3" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (8,m8), (18, sub m8 100), (9,m9), (19, sub m9 100)] [0]
-      [(0,8,ESeq), (8,9,ESeq), (9,4,ESeq), (4,5,ESeq), (5,19,ESeq), (19,18,ESeq), (18,1,ESeq)]
+      [(0,8,ESeq Nothing), (8,9,ESeq Nothing), (9,4,ESeq Nothing), (4,5,ESeq Nothing), (5,19,ESeq Nothing), (19,18,ESeq Nothing), (18,1,ESeq Nothing)]
       (A.Alt m1 False $ spec8 $ spec9 $ A.Only mU guard45)      
 
    ,testGraph "testAlt 4" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7), (8,m8), (18, sub m8 100)] [0]
-      [(0,8,ESeq), (8,4,ESeq), (8,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,18,ESeq), (7,18,ESeq), (18, 1, ESeq)]
+      [(0,8,ESeq Nothing), (8,4,ESeq Nothing), (8,6,ESeq Nothing), (4,5,ESeq Nothing), (6,7,ESeq Nothing), (5,18,ESeq Nothing), (7,18,ESeq Nothing), (18, 1, ESeq Nothing)]
       (A.Alt m1 False $ A.Several mU $ [A.Only mU guard45, spec8 $ A.Only mU guard67])
 
    ,testGraph "testAlt 5" [(0, m1), (1, sub m1 1), (4,m4), (5,m5), (6, m6), (7, m7), (8,m8), (18, sub m8 100), (9,m9), (19, sub m9 100)] [0]
-      [(0,9,ESeq), (9,8,ESeq),(8,4,ESeq), (8,6,ESeq), (4,5,ESeq), (6,7,ESeq), (5,18,ESeq), (7,18,ESeq), (18, 19, ESeq), (19,1,ESeq)]
+      [(0,9,ESeq Nothing), (9,8,ESeq Nothing),(8,4,ESeq Nothing), (8,6,ESeq Nothing), (4,5,ESeq Nothing), (6,7,ESeq Nothing), (5,18,ESeq Nothing), (7,18,ESeq Nothing), (18, 19, ESeq Nothing), (19,1,ESeq Nothing)]
       (A.Alt m1 False $ A.Several mU $ [spec9 $ A.Only mU guard45, spec8 $ A.Only mU guard67])
 
    -- TODO test replicated ALTs

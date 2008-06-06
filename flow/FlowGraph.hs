@@ -57,7 +57,7 @@ import Utils
 
 -- Helper for add a standard sequential edge:
 (-->) :: (Monad mLabel, Monad mAlter) => Node -> Node -> GraphMaker mLabel mAlter label structType ()
-(-->) = addEdge ESeq
+(-->) = addEdge (ESeq Nothing)
 
 addSpecNodes :: (Monad mAlter, Monad mLabel, Data a) => A.Specification -> ASTModifier mAlter (A.Structured a) structType -> GraphMaker mLabel mAlter label structType (Node, Node)
 addSpecNodes spec route

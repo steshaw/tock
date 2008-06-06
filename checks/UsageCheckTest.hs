@@ -134,12 +134,14 @@ instance Warn TestM where
 buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph TestM UsageLabel
 buildTestFlowGraph ns es start end v
   = mkGraph
-      ([(-1,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeIn False v) emptyVars),(-2,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeOut v) emptyVars)] ++ (map transNode ns))
-      ([(-1,start,ESeq),(end,-2,ESeq)] ++ es)
+      ([(-1,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeIn False v) Nothing
+        emptyVars),(-2,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeOut v) Nothing
+          emptyVars)] ++ (map transNode ns))
+      ([(-1,start,ESeq Nothing),(end,-2,ESeq Nothing)] ++ es)
   where
     transNode :: (Int, [Var], [Var]) -> (Int, FNode TestM UsageLabel)
-    transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing $ vars r (zip
-      w $ repeat Nothing) []))
+    transNode (n,r,w) = (n,makeTestNode emptyMeta (Usage Nothing Nothing Nothing
+      $ vars r (zip w $ repeat Nothing) []))
 
 testInitVar :: Test
 testInitVar = TestList
@@ -155,9 +157,9 @@ testInitVar = TestList
   ,testInitVarFail 3 [(0,[variable "x"],[variable "x"])] [] 0 0 "x"
 
   -- Two nodes, x written to then read
-  ,testInitVarPass 10 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,ESeq)] 0 1 "x"
+  ,testInitVarPass 10 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,ESeq Nothing)] 0 1 "x"
   -- Two nodes, x read then written to (FAIL)
-  ,testInitVarFail 11 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(1,0,ESeq)] 1 0 "x"
+  ,testInitVarFail 11 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(1,0,ESeq Nothing)] 1 0 "x"
   -- As test 10 (x written to then read) but using the par edges.
   ,testInitVarPass 13 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,EStartPar 0)] 0 1 "x"
   ,testInitVarPass 14 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,EEndPar 0)] 0 1 "x"
@@ -165,25 +167,25 @@ testInitVar = TestList
   -- Diamond tests (0 branches to 1 and 2, which both merge to 3):
   -- x written to in 0 and 1, then read in 3
   ,testInitVarPass 20 [(0,[],[]),(1,[],[variable "x"]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- x written to only in 2 then read in 3 (FAIL)
   ,testInitVarFail 21 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- x definitely written to in 2, but not 1 (FAIL)
   ,testInitVarFail 22 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- like test 21, but the link missing from 1 to 3, so test will pass
   ,testInitVarPass 23 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- variable written to in 0, read in 3
   ,testInitVarPass 24 [(0,[],[variable "x"]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- variable never written to, but read in 3
   ,testInitVarFail 25 [(0,[],[]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
   -- variable written to in 2 and 3, but read in 1 (FAIL):
   ,testInitVarFail 26 [(0,[],[]),(1,[variable "x"],[]), (2,[],[variable "x"]), (3,[],[variable "x"])]
-    [(0,1,ESeq),(0,2,ESeq),(1,3,ESeq),(2,3,ESeq)] 0 3 "x"
+    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
 
   -- Test parallel diamonds:
   -- written to in 1 and 2, read in 3
@@ -210,22 +212,22 @@ testInitVar = TestList
   -- Test loops (0 -> 1, 1 -> 2 -> 3 -> 1, 1 -> 4)
   -- Loop, nothing happens:
   ,testInitVarPass 100 [(0,[],[]),(1,[],[]),(2,[],[]),(3,[],[]),(4,[],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
   -- Loop, written to before the loop, read afterwards:
   ,testInitVarPass 101 [(0,[],[variable "x"]),(1,[],[]),(2,[],[]),(3,[],[]),(4,[variable "x"],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
   -- Loop, written to before the loop, read during the loop
   ,testInitVarPass 102 [(0,[],[variable "x"]),(1,[],[]),(2,[],[]),(3,[variable "x"],[]),(4,[],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
   -- Loop, written to during the loop, read afterwards (FAIL - loop might not be executed)
   ,testInitVarFail 103 [(0,[],[]),(1,[],[]),(2,[],[variable "x"]),(3,[],[]),(4,[variable "x"],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
   -- Loop, written to and then read during the loop:
   ,testInitVarPass 104 [(0,[],[]),(1,[],[]),(2,[],[variable "x"]),(3,[variable "x"],[]),(4,[],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
   -- Loop, read then written to during the loop (FAIL):    
   ,testInitVarFail 105 [(0,[],[]),(1,[],[]),(2,[variable "x"],[]),(3,[],[variable "x"]),(4,[],[])]
-    [(0,1,ESeq), (1,2,ESeq), (2,3,ESeq), (3,1,ESeq), (1,4,ESeq)] 0 4 "x"
+    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
     
   -- TODO work out (and test) par loops
   -- TODO test dereferenced variables

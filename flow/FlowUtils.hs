@@ -38,7 +38,7 @@ import Utils
 -- Multiple Seq links means choice.
 -- Multiple Par links means a parallel branch.  All outgoing par links should have the same identifier,
 -- and this identifier is unique and matches a later endpar link
-data EdgeLabel = ESeq | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
+data EdgeLabel = ESeq (Maybe Bool) | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
@@ -258,7 +258,8 @@ nonEmpty (Right nodes) = not (null nodes)
     
 joinPairs :: (Monad mLabel, Monad mAlter) => Meta -> [(Node, Node)] -> GraphMaker mLabel mAlter label structType (Node, Node)
 joinPairs m [] = addDummyNode m >>* mkPair
-joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge ESeq s e) nodes
+joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq
+                         Nothing) s e) nodes
                        return (fst (head nodes), snd (last nodes))
 
 decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
