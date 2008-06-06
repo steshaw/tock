@@ -30,9 +30,7 @@ import TreeUtils
 
 -- | Test 'structureOccam' when we're expecting it to succeed.
 testS :: Int -> [Token] -> [Pattern] -> Test
-testS n its etts = TestCase $ testPass' ("testS " ++ show n) ets (structureOccam its) (return ())
-  where
-    ets = zip (repeat DontCare) etts
+testS n its ets = TestCase $ testPass' ("testS " ++ show n) ets (structureOccam its) (return ())
 
 -- | Test 'structureOccam' when we're expecting it to fail.
 testSFail :: Int -> [Token] -> Test
@@ -57,7 +55,7 @@ testSimple = TestLabel "testSimple" $ TestList
 
   -- Ignoring include markers
   , testS     100 [t 1 1 (IncludeFile "bar"), t 2 1 foo]
-                  [tag1 IncludeFile "bar", eolP, fooP, eolP]
+                  [tag2 Token DontCare $ tag1 IncludeFile "bar", eolP, fooP, eolP]
 
   -- Things that should fail
   , testSFail  900 [t 1 1 foo, t 2 2 foo]
@@ -65,10 +63,10 @@ testSimple = TestLabel "testSimple" $ TestList
   ]
   where
     foo = TokIdentifier "foo"
-    fooP = tag1 TokIdentifier "foo"
-    eolP = tag0 EndOfLine
-    inP = tag0 Indent
-    outP = tag0 Outdent
+    fooP = tag2 Token DontCare $ tag1 TokIdentifier "foo"
+    eolP = tag2 Token DontCare $ tag0 EndOfLine
+    inP = tag2 Token DontCare $ tag0 Indent
+    outP = tag2 Token DontCare $ tag0 Outdent
     t l c tt = Token (emptyMeta { metaFile = Just "simulated.occ"
                                 , metaLine = l
                                 , metaColumn = c
