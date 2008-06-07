@@ -38,4 +38,10 @@ PROC m()
     PAR
       a[3] := 0
       a[k] := 0
+%PASS Distinct due to IF
+  IF
+    i = 3
+      PAR
+        a[i] := 0
+        a[4] := 0
 %
