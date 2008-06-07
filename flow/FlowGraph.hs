@@ -289,10 +289,12 @@ buildStructuredIf (prev, end) (A.Spec _ spec str) route
 
 buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType Node
 buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
-  = do nexp <- addNodeExpression (findMeta exp) exp $ route23 route A.Choice
+  = do nexp <- addNode' (findMeta exp) labelConditionalExpression exp
+                 $ AlterExpression $ route23 route A.Choice
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
-       nexp --> nbodys
-       cPrev --> nexp
+       addEdge (ESeq $ Just True) nexp nbodys
+       addEdge (ESeq $ Just False) cPrev nexp -- Not technically a false branch, if
+         -- node before was the dummy node at the start of the IF
        nbodye --> cEnd
        return nexp
 
@@ -317,6 +319,8 @@ buildOnlyAlternative route alt
   = do let (m,p,r) = case alt of
               (A.Alternative m _ _ _ p) -> (m,p, route55 route A.Alternative)
               (A.AlternativeSkip m _ p) -> (m,p, route33 route A.AlternativeSkip)
+              -- TODO label the pre-conditions, and use separate nodes for
+              -- them
        guardNode <- addNode' m labelAlternative alt (AlterAlternative route)
        (bodyNodeStart, bodyNodeEnd) <- buildProcess p r
        guardNode --> bodyNodeStart
@@ -349,12 +353,15 @@ buildProcess (A.Par m _ s) route
               do addEdge (EStartPar pId) nStart start
                  addEdge (EEndPar pId) end nEnd
        return (nStart, nEnd)
-buildProcess (A.While _ e p) route
-  = do n <- addNodeExpression (findMeta e) e (route23 route A.While)
+buildProcess (A.While m e p) route
+  = do n <- addNode' (findMeta e) labelConditionalExpression e (AlterExpression
+         $ route23 route A.While)
+       nAfter <- addDummyNode m
        (start, end) <- buildProcess p (route33 route A.While)
-       n --> start
+       addEdge (ESeq $ Just True) n start
+       addEdge (ESeq $ Just False) n nAfter
        end --> n
-       return (n, n)
+       return (n, nAfter)
 buildProcess (A.Case m e s) route
   = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
        nEnd <- addDummyNode m
