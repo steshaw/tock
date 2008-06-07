@@ -55,22 +55,50 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                           Left err -> dieP emptyMeta $ "findReachDef: " ++
                             err
                           Right r -> return r
+                      cons <- case mapM (findConstraints g) roots
+                                     >>* foldl Map.union Map.empty of
+                                Left err -> dieP emptyMeta $ "findConstraints:"
+                                  ++ err
+                                Right c -> return c
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
                           checkArrayUsage
                           (checkPlainVarUsage . transformPair id (fmap snd)))
-                          $ labelMapWithNodeId (addBK reach g) g
+                          $ labelMapWithNodeId (addBK reach cons g) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
                       mapM_ (checkInitVar (findMeta t) g) roots
                       return t
 
-addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) -> FlowGraph PassM UsageLabel ->
+addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
+  Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp g nid n = fmap ((,) $ (map Map.fromList $ productN $ repBK ++ values)) n
+addBK mp mp2 g nid n = fmap ((,) $ (map Map.fromList $ productN $ conBK ++
+  repBK ++ values)) n
   where
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
     nodeInQuestion = fromMaybe Map.empty $ Map.lookup nid mp
+
+    consInQuestion :: [A.Expression]
+    consInQuestion = fromMaybe [] $ Map.lookup nid mp2
+
+    conInterMed :: [([Var], [BackgroundKnowledge])]
+    conInterMed = map f consInQuestion
+      where
+        f :: A.Expression -> ([Var], [BackgroundKnowledge])
+        f e = (map Var $ listify (const True) e, g e)
+
+        g :: A.Expression -> [BackgroundKnowledge]
+        g (A.Dyadic _ op lhs rhs)
+          | op == A.And = g lhs ++ g rhs
+          | op == A.Eq = [Equal lhs rhs]
+          | op == A.LessEq = [LessThanOrEqual lhs rhs]
+          | op == A.MoreEq = [LessThanOrEqual rhs lhs]
+        g _ = []
+
+    conBK :: [[(Var, [BackgroundKnowledge])]]
+    conBK = [ [(v, concatMap snd $ filter (elem v . fst) conInterMed)]
+            | v <- nub $ concatMap fst conInterMed]
     
     -- Each list (xs) in the whole thing (xss) relates to a different variable
     -- Each item in a list xs is a different possible constraint on that variable
