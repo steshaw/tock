@@ -479,7 +479,6 @@ flatten e@(A.Dyadic m op lhs rhs)
                          Just _ -> liftM2L (Divide 1) (flatten lhs) (return rhs')
                          -- Can't deal with variable divisors, leave expression as-is:
                          Nothing -> return [Scale 1 (e,0)]
-  | otherwise     = throwError ("Unhandleable operator found in expression: " ++ show op)
   where
 --    liftM2L :: (Ord a, Ord b, Monad m) => (Set.Set a -> Set.Set b -> c) -> m [a] -> m [b] -> m [c]
     liftM2L f x y = liftM singleton $ liftM2 f (x >>= makeExpSet) (y >>= makeExpSet)
