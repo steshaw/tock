@@ -16,9 +16,10 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module UsageCheckAlgorithms (checkPar, findReachDef, joinCheckParFunctions) where
+module UsageCheckAlgorithms (checkPar, findConstraints, findReachDef, joinCheckParFunctions) where
 
 import Control.Monad
+import Data.Generics
 import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map
@@ -143,7 +144,7 @@ findReachDef graph startNode
         ,nodesToProcess = lpre graph
         ,nodesToReAdd = lsuc graph
         ,defVal = Map.empty
-        ,userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab graph
+        ,userErrLabel = (++ " in graph: " ++ makeFlowGraphInstr graph) . ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
 
     writeNode :: FNode m UsageLabel -> Map.Map Var (Maybe A.Expression)
@@ -172,3 +173,38 @@ findReachDef graph startNode
     -- | Merges two "multi-maps" (maps to sets) using union
     mergeMultiMaps :: (Ord k, Ord a) => Map.Map k (Set.Set a) -> Map.Map k (Set.Set a) -> Map.Map k (Set.Set a)
     mergeMultiMaps = Map.unionWith (Set.union)
+
+-- | Finds all the constraints on the basis of conditions (IF, WHILE, guard
+-- pre-conditions) at a given point in the program.  For a condition to apply,
+-- the values of all its variables must not have changed between the point
+-- of the condition and the actual point in the program we're looking at
+--
+-- All the expressions will be boolean; either variables (that are boolean),
+-- equalities, inequalities etc, including conjunctions and disjunctions
+findConstraints :: Monad m => FlowGraph m UsageLabel -> Node -> Either String
+  (Map.Map Node [A.Expression])
+findConstraints graph startNode
+  = flowAlgorithm graphFuncs (udfs [startNode] graph) (startNode, [])
+      >>* Map.filter (not . null)
+  where
+    graphFuncs :: GraphFuncs Node EdgeLabel [A.Expression]
+    graphFuncs = GF
+      {
+          nodeFunc = processNode
+        , nodesToProcess = lpre graph
+        , nodesToReAdd = lsuc graph
+        , defVal = []
+        , userErrLabel = (++ " in graph: " ++ makeFlowGraphInstr graph) . ("for node at: " ++) . show . fmap getNodeMeta . lab graph
+      }
+
+    processNode :: (Node, EdgeLabel) -> [A.Expression] -> Maybe [A.Expression]
+      -> [A.Expression]
+    processNode (n, e) nodeVal curAgg = case fmap getNodeData $ lab graph n of
+      Just u ->
+        let valFilt = filter (\e -> null $ intersect (listify (const
+              True) e) [v | Var v <- Map.keys $ writtenVars $ nodeVars u]) $
+                nub $ nodeVal ++ if e == ESeq (Just True) then maybeToList (nodeCond u)
+                  else [] in
+        nub $ valFilt ++ fromMaybe [] curAgg
+      Nothing -> []
+       
