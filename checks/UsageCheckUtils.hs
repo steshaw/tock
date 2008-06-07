@@ -207,7 +207,24 @@ getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
     getVarExp' _ = emptyVars
 
 getVarSpec :: A.Specification -> Vars
-getVarSpec = const emptyVars -- TODO
+getVarSpec (A.Specification _ n st) = get st
+  where
+    dv = A.Variable (A.nameMeta n) n
+    
+    get :: A.SpecType -> Vars
+    get (A.Is _ am _ v) = abbrev am v
+    get (A.IsExpr _ _ _ e) = getVarExp e `unionVars` processVarW dv (Just e)
+    get (A.IsChannelArray _ _ vs) = vars vs' ((Var dv,Nothing):(zip vs' $ repeat Nothing)) []
+      where
+        vs' = map Var vs
+    get (A.Retypes _ am _ v) = abbrev am v
+    get (A.RetypesExpr _ _ _ e) = getVarExp e `unionVars` processVarW dv (Just e)
+    get _ = emptyVars
+
+    abbrev :: A.AbbrevMode -> A.Variable -> Vars
+    abbrev A.Abbrev v = vars [Var v] [(Var v, Nothing), (Var dv, Just $ A.ExprVariable (findMeta v) v)] []
+    abbrev _ v = processVarR v `unionVars` processVarW dv
+      (Just $ A.ExprVariable (findMeta v) v)
 
 getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
 getDecl _ _ = Nothing -- TODO
