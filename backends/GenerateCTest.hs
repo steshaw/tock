@@ -623,7 +623,7 @@ testSpec = TestList
   ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=(&bar);","")) (\t -> A.Is emptyMeta A.Abbrev t (variable "bar")) [chanInt,A.Record foo]
   --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
   --C abbreviations will be of type Channel*, so they can just copy the channel address.
-  ,testAllForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=&bar;","")) (\t -> ("$(" ++ show t ++ ") foo=bar;",""))
+  ,testAllForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=bar;","")) (\t -> ("$(" ++ show t ++ ") foo=bar;",""))
     (\t -> A.Is emptyMeta A.Abbrev t (variable "bar")) [chanIntIn,chanIntOut]
   
   ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=bar;","")) (\t -> A.Is emptyMeta A.ValAbbrev t (variable "bar")) [A.Int,A.Time]

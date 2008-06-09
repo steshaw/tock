@@ -1133,6 +1133,7 @@ cgenVariableAM v am
                case (indirectedType t, t) of
                  (True, _) -> return ()
                  (False, A.Array {}) -> return ()
+                 (False, A.Chan {}) -> return ()
                  _ -> tell ["&"]
           call genVariable v
 
