@@ -249,7 +249,20 @@ instance ShowOccam A.Type where
                 A.Dimension n -> tell ["["] >> showOccamM n >> tell ["]"]
                 A.UnknownDimension -> tell ["[]"]
               | d <- ds]
-  showOccamM (A.Chan _ _ t) = tell ["CHAN "] >> showOccamM t
+  showOccamM (A.Chan dir ca t)
+      = tell [shared, "CHAN", direction, " "] >> showOccamM t
+    where
+      shared
+          = case (A.caWritingShared ca, A.caReadingShared ca) of
+              (False, False) -> ""
+              (True, False) -> "SHARED! "
+              (False, True) -> "SHARED? "
+              (True, True) -> "SHARED "
+      direction
+          = case dir of
+              A.DirInput -> "?"
+              A.DirOutput -> "!"
+              A.DirUnknown -> ""
   showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
   showOccamM (A.Port t) = tell ["PORT "] >> showOccamM t
   showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
