@@ -1,0 +1,173 @@
+-- This file tests direction decorators for abbreviations.
+
+PROC main ()
+  CHAN INT c, d:
+  [10]CHAN INT cs:
+  SEQ
+%%
+    SKIP
+:
+
+%PASS Nothing to do
+
+%PASS Normal kinds of abbreviations
+    -- Actually, these probably shouldn't be allowed, since they're
+    -- abbreviating a whole channel.
+    CHAN INT abbrev IS c:
+    inferred.abbrev IS c:
+
+    []CHAN INT chan.array IS [c, d]:
+    []CHAN INT chans IS cs:
+
+%FAIL Abbreviate channel array to channel
+    CHAN INT chan IS cs:
+
+%PASS Abbreviate output end (no dir)
+    CHAN INT out! IS c:
+
+%PASS Abbreviate output end
+    CHAN INT out! IS c!:
+
+%FAIL Abbreviate output end (bad dir)
+    CHAN INT out! IS c?:
+
+%PASS Abbreviate input end (no dir)
+    CHAN INT in? IS c:
+
+%PASS Abbreviate input end
+    CHAN INT in? IS c?:
+
+%FAIL Abbreviate input end (bad dir)
+    CHAN INT in? IS c!:
+
+%PASS Abbreviate output end from array (no dir)
+    CHAN INT out! IS cs[0]:
+
+%PASS Abbreviate output end from array
+    CHAN INT out! IS cs[0]!:
+
+%FAIL Abbreviate output end from array (bad dir)
+    CHAN INT out! IS cs[0]?:
+
+%PASS Abbreviate input end from array (no dir)
+    CHAN INT in? IS cs[0]:
+
+%PASS Abbreviate input end from array
+    CHAN INT in? IS cs[0]?:
+
+%FAIL Abbreviate input end from array (bad dir)
+    CHAN INT in? IS cs[0]!:
+
+%PASS Abbreviate input ends of array (no dir)
+    []CHAN INT ins? IS cs:
+
+%PASS Abbreviate input ends of array
+    []CHAN INT ins? IS cs?:
+
+%FAIL Abbreviate input ends of array (bad dir)
+    []CHAN INT ins? IS cs!:
+
+%PASS Abbreviate output ends of array (no dir)
+    []CHAN INT outs! IS cs:
+
+%PASS Abbreviate output ends of array
+    []CHAN INT outs! IS cs!:
+
+%FAIL Abbreviate output ends of array (bad dir)
+    []CHAN INT outs! IS cs?:
+
+%PASS Abbreviate output end of abbreviation (no dir)
+    CHAN INT out! IS c!:
+    CHAN INT out.2! IS out:
+
+%PASS Abbreviate output end of abbreviation
+    CHAN INT out! IS c!:
+    CHAN INT out.2! IS out!:
+
+%FAIL Abbreviate output end of abbreviation (bad dir)
+    CHAN INT out! IS c!:
+    CHAN INT out.2! IS out?:
+
+%FAIL Abbreviate output end of abbreviation (to input, mismatched)
+    CHAN INT out! IS c!:
+    CHAN INT in? IS out!:
+
+%FAIL Abbreviate output end of abbreviation (to input, matched)
+    CHAN INT out! IS c!:
+    CHAN INT in? IS out?:
+
+%PASS Abbreviate input end of abbreviation (no dir)
+    CHAN INT in? IS c?:
+    CHAN INT in.2? IS in:
+
+%PASS Abbreviate input end of abbreviation
+    CHAN INT in? IS c?:
+    CHAN INT in.2? IS in?:
+
+%FAIL Abbreviate input end of abbreviation (bad dir)
+    CHAN INT in? IS c?:
+    CHAN INT in.2? IS in!:
+
+%FAIL Abbreviate input end of abbreviation (to output, mismatched)
+    CHAN INT in? IS c?:
+    CHAN INT out! IS in?:
+
+%FAIL Abbreviate input end of abbreviation (to output, matched)
+    CHAN INT in? IS c?:
+    CHAN INT out! IS in!:
+
+%PASS Abbreviate input ends of abbreviation (no dir)
+    []CHAN INT ins? IS cs:
+    []CHAN INT ins.2? IS ins:
+
+%PASS Abbreviate input ends of abbreviation
+    []CHAN INT ins? IS cs:
+    []CHAN INT ins.2? IS ins?:
+
+%FAIL Abbreviate input ends of abbreviation (bad dir)
+    []CHAN INT ins? IS cs:
+    []CHAN INT ins.2? IS ins!:
+
+%FAIL Abbreviate input ends of abbreviation (to outputs, mismatched)
+    []CHAN INT ins? IS cs:
+    []CHAN INT outs! IS ins?:
+
+%FAIL Abbreviate input ends of abbreviation (to outputs, matched)
+    []CHAN INT ins? IS cs:
+    []CHAN INT outs! IS ins!:
+
+%FAIL Abbreviate channels to end
+    CHAN INT out! IS cs:
+
+%FAIL Abbreviate channel to ends
+    []CHAN INT outs! IS c:
+
+%PASS Abbreviate output ends array (no dirs)
+    []CHAN INT outs! IS [c, d]:
+
+%PASS Abbreviate output ends array
+    []CHAN INT outs! IS [c!, d!]:
+
+%FAIL Abbreviate output ends array (both bad)
+    []CHAN INT outs! IS [c?, d?]:
+
+%FAIL Abbreviate output ends array (inconsistent 1)
+    []CHAN INT outs! IS [c?, d!]:
+
+%FAIL Abbreviate output ends array (inconsistent 2)
+    []CHAN INT outs! IS [c!, d?]:
+
+%PASS Abbreviate input ends array
+    []CHAN INT ins? IS [c?, d?]:
+
+%FAIL Can't use directions on inferred-type abbreviations
+    out! IS c:
+
+%FAIL Can't use directions on things that aren't channels
+    INT x:
+    INT y! IS x:
+
+%FAIL Can't use multiple directions
+    CHAN INT out!!!! IS c:
+
+%

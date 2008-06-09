@@ -1,0 +1,61 @@
+-- This file tests direction decorators for formals.
+
+PROC main ()
+  INT n:
+
+  SEQ
+%%
+    SKIP
+:
+
+%PASS Nothing to do
+
+%PASS Abbreviate unknown as input
+    PROC p (CHAN INT c)
+      CHAN INT in? IS c?:
+      SKIP
+    :
+
+%PASS Abbreviate input as input
+    PROC p (CHAN INT c?)
+      CHAN INT in? IS c?:
+      SKIP
+    :
+
+%FAIL Abbreviate input as output
+    PROC p (CHAN INT c?)
+      CHAN INT out! IS c?:
+      SKIP
+    :
+
+%PASS Use unknown as input
+    PROC p (CHAN INT c)
+      c ? n
+    :
+
+%PASS Use input as input
+    PROC p (CHAN INT c?)
+      c ? n
+    :
+
+%FAIL Use input as output
+    PROC p (CHAN INT c?)
+      c ! 42
+    :
+
+%PASS Use unknown array as input
+    PROC p ([]CHAN INT cs)
+      cs[0] ? n
+    :
+
+%PASS Use input array as input
+    PROC p ([]CHAN INT cs?)
+      cs[0] ? n
+    :
+
+%FAIL Use input array as output
+    PROC p ([]CHAN INT cs?)
+      cs[0] ! 42
+    :
+
+%

@@ -1,0 +1,85 @@
+-- This file tests direction decorators for actuals.
+
+PROC main ()
+  CHAN INT c:
+  [10]CHAN INT cs:
+  INT n:
+
+  CHAN INT out! IS c!:
+  CHAN INT in? IS c?:
+
+  PROC unknown (CHAN INT c)
+    SKIP
+  :
+  PROC known.out (CHAN INT c!)
+    c ! 42
+  :
+  PROC known.in (CHAN INT c?)
+    c ? n
+  :
+  PROC known.outs ([]CHAN INT cs!)
+    cs[0] ! 42
+  :
+  PROC known.ins ([]CHAN INT cs?)
+    cs[0] ? n
+  :
+
+  SEQ
+%%
+    SKIP
+:
+
+%PASS Nothing to do
+
+%PASS Unknown for unknown
+    unknown (c)
+
+%FAIL Unknown for output
+    unknown (out!)
+
+%FAIL Unknown for input
+    unknown (in?)
+
+%PASS Output for unknown
+    known.out (c)
+
+%PASS Output for directed unknown
+    known.out (c!)
+
+%FAIL Output for directed unknown (wrong dir)
+    known.out (c?)
+
+%PASS Output for output
+    known.out (out!)
+
+%FAIL Output for output (wrong dir)
+    known.out (out?)
+
+%FAIL Output for input
+    known.out (in?)
+
+%FAIL Output for input (wrong dir)
+    known.out (in!)
+
+%PASS Input for unknown
+    known.in (c)
+
+%PASS Input for directed unknown
+    known.in (c?)
+
+%FAIL Input for directed unknown (wrong dir)
+    known.in (c!)
+
+%FAIL Input for output
+    known.in (out!)
+
+%FAIL Input for output (wrong dir)
+    known.in (out?)
+
+%PASS Input for input
+    known.in (in?)
+
+%FAIL Input for input (wrong dir)
+    known.in (in!)
+
+%

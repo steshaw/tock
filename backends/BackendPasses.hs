@@ -36,7 +36,8 @@ import Utils
 
 squashArrays :: [Pass]
 squashArrays =
-  [ simplifySlices
+  [ removeDirections
+  , simplifySlices
   , declareSizesArray
   , addSizesFormalParameters
   , addSizesActualParameters
@@ -44,6 +45,20 @@ squashArrays =
 
 prereq :: [Property]
 prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
+
+-- | Remove all variable directions.
+-- They're unimportant in occam code once the directions have been checked,
+-- and this somewhat simplifies the work of the later passes.
+removeDirections :: Pass
+removeDirections
+    = occamOnlyPass "Remove variable directions"
+                    prereq
+                    [Prop.directionsRemoved]
+                    (applyDepthM (return . doVariable))
+  where
+    doVariable :: A.Variable -> A.Variable
+    doVariable (A.DirectedVariable _ _ v) = v
+    doVariable v = v
 
 transformWaitFor :: Pass
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"

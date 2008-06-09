@@ -721,7 +721,7 @@ sizeExpr
           do { t <- dataType; return $ A.SizeType m t }
             <|> do v <- operand
                    return $ A.SizeExpr m v
-            <|> do v <- (channel <|> timer <|> port)
+            <|> do v <- (directedChannel <|> timer <|> port)
                    return $ A.SizeVariable m v
     <?> "SIZE expression"
 
@@ -846,6 +846,36 @@ channel'
     <|> maybeSliced channel A.SubscriptedVariable
     <?> "channel'"
 
+direction :: OccParser A.Direction
+direction
+    =   (sQuest >> return A.DirInput)
+    <|> (sBang  >> return A.DirOutput)
+    <|> return A.DirUnknown
+    <?> "direction decorator"
+
+-- | Parse a production with an optional direction specifier,
+-- returning a function to apply the direction specifier to a type and the
+-- result of the inner production.
+maybeDirected :: OccParser t -> OccParser (A.Type -> OccParser A.Type, t)
+maybeDirected inner
+    =  do v <- inner
+          m <- md
+          dir <- direction
+          return (case dir of
+                    A.DirUnknown -> return
+                    _ -> applyDirection m dir,
+                  v)
+
+-- | Parse a channel followed by an optional direction specifier.
+directedChannel :: OccParser A.Variable
+directedChannel
+    =  do c <- channel
+          m <- md
+          dir <- direction
+          case dir of
+            A.DirUnknown -> return c
+            _ -> return $ A.DirectedVariable m dir c
+
 timer :: OccParser A.Variable
 timer
     =   maybeSubscripted "timer" timer' A.SubscriptedVariable
@@ -956,7 +986,7 @@ abbreviation :: OccParser NameSpec
 abbreviation
     =   valAbbrev
     <|> refAbbrev variable VariableName
-    <|> refAbbrev channel ChannelName
+    <|> refAbbrev directedChannel ChannelName
     <|> chanArrayAbbrev
     <|> refAbbrev timer TimerName
     <|> refAbbrev port PortName
@@ -992,22 +1022,31 @@ refAbbrevMode
 refAbbrev :: OccParser A.Variable -> NameType -> OccParser NameSpec
 refAbbrev oldVar nt
     =  do m <- md
-          (am, t, n, v) <-
-            tryVVVXV refAbbrevMode (maybeInfer specifier) (newName nt) sIS oldVar
+          (am, t, (direct, n), v) <-
+            tryVVVXV refAbbrevMode
+                     (maybeInfer specifier)
+                     (maybeDirected $ newName nt)
+                     sIS
+                     oldVar
           sColon
           eol
-          return (A.Specification m n $ A.Is m am t v, nt)
+          t' <- direct t
+          return (A.Specification m n $ A.Is m am t' v, nt)
     <?> "abbreviation by reference"
 
 chanArrayAbbrev :: OccParser NameSpec
 chanArrayAbbrev
     =  do m <- md
-          (t, n, cs) <-
-            tryVVXV (maybeInfer channelSpecifier) newChannelName (sIS >> sLeft) (sepBy1 channel sComma)
+          (t, (direct, n), cs) <-
+            tryVVXV (maybeInfer channelSpecifier)
+                    (maybeDirected newChannelName)
+                    (sIS >> sLeft)
+                    (sepBy1 directedChannel sComma)
           sRight
           sColon
           eol
-          return (A.Specification m n $ A.IsChannelArray m t cs, ChannelName)
+          t' <- direct t
+          return (A.Specification m n $ A.IsChannelArray m t' cs, ChannelName)
     <?> "channel array abbreviation"
 
 specMode :: OccParser () -> OccParser A.SpecMode
@@ -1062,7 +1101,7 @@ retypesAbbrev
            return (A.Specification m n $ A.Retypes m am s v, VariableName)
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
-           c <- channel
+           c <- directedChannel
            sColon
            eol
            return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName)
@@ -1128,9 +1167,10 @@ formalItem spec nt
   where
     names :: A.AbbrevMode -> A.Type -> OccParser [NameFormal]
     names am t
-        = do n <- newName nt
+        = do (direct, n) <- maybeDirected $ newName nt
              fs <- tail am t
-             return $ (A.Formal am t n, nt) : fs
+             t' <- direct t
+             return $ (A.Formal am t' n, nt) : fs
 
     tail :: A.AbbrevMode -> A.Type -> OccParser [NameFormal]
     tail am t
@@ -1571,7 +1611,7 @@ actual (A.Formal am t n)
             A.ValAbbrev -> expression >>* A.ActualExpression
             _ ->
               case stripArrayType t of
-                A.Chan {} -> var channel
+                A.Chan {} -> var directedChannel
                 A.Timer {} -> var timer
                 A.Port _ -> var port
                 _ -> var variable

@@ -77,16 +77,26 @@ areValidDimensions (d1:ds1) (d2:ds2)
            else return False
 areValidDimensions _ _ = return False
 
+-- | Check that the second direction can be used in a context where the first
+-- is expected.
+isValidDirection :: A.Direction -> A.Direction -> Bool
+isValidDirection _ A.DirUnknown = True
+isValidDirection ed rd = ed == rd
+
 -- | Check that a type we've inferred matches the type we expected.
 checkType :: Meta -> A.Type -> A.Type -> PassM ()
 checkType m et rt
     = case (et, rt) of
         (A.Infer, _) -> ok
-        ((A.Array ds t), (A.Array ds' t')) ->
+        (A.Array ds t, A.Array ds' t') ->
           do valid <- areValidDimensions ds ds'
              if valid
                then checkType m t t'
                else bad
+        (A.Chan dir ca t, A.Chan dir' ca' t') ->
+          if isValidDirection dir dir' && (ca == ca')
+            then checkType m t t'
+            else bad
         _ ->
           do same <- sameType rt et
              when (not same) $ bad
@@ -1026,11 +1036,17 @@ checkVariables = checkDepthM doVariable
     doVariable (A.SubscriptedVariable m s v)
         =  do t <- astTypeOf v
               checkSubscript m s t
-    doVariable (A.DirectedVariable m _ v)
+    doVariable (A.DirectedVariable m dir v)
         =  do t <- astTypeOf v >>= resolveUserType m
               case t of
-                A.Chan _ _ _ -> ok
-                _ -> dieP m $ "Direction applied to non-channel variable"
+                A.Chan oldDir _ _ -> checkDir oldDir
+                A.Array _ (A.Chan oldDir _ _) -> checkDir oldDir
+                _ -> dieP m $ "Direction specified on non-channel variable"
+      where
+        checkDir oldDir
+            = if isValidDirection dir oldDir
+                then ok
+                else dieP m "Direction specified does not match existing direction"
     doVariable (A.DerefVariable m v)
         =  do t <- astTypeOf v >>= resolveUserType m
               case t of

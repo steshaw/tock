@@ -623,6 +623,9 @@ ioTests = liftM (TestLabel "OccamTypesTest" . TestList) $ sequence $
         [ testOccamTypes
         ]
     ++ map (automaticTest FrontendOccam)
-        [ "testcases/automatic/initial-result-1.occ.test"
+        [ "testcases/automatic/direction-decorators-1.occ.test"
+        , "testcases/automatic/direction-decorators-2.occ.test"
+        , "testcases/automatic/direction-decorators-3.occ.test"
+        , "testcases/automatic/initial-result-1.occ.test"
         , "testcases/automatic/initial-result-2.occ.test"
         ]

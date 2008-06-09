@@ -34,6 +34,7 @@ module Properties
   , declarationsUnique
   , declarationTypesRecorded
   , declaredNamesResolved
+  , directionsRemoved
   , eachRangeTransformed
   , eachTransformed
   , expressionTypesChecked
@@ -414,3 +415,11 @@ resultRemoved
     = Property "resultRemoved" $
         checkNull "resultRemoved" . listify (== A.ResultAbbrev)
 
+directionsRemoved :: Property
+directionsRemoved
+    = Property "directionsRemoved" $
+        checkNull "directionsRemoved" . listify findVariable
+  where
+    findVariable :: A.Variable -> Bool
+    findVariable (A.DirectedVariable {}) = True
+    findVariable _ = False

@@ -28,6 +28,7 @@ module Types
     , makeAbbrevAM, makeConstant, makeDimension, addOne, subOne, addExprs, subExprs,
       mulExprs, divExprs
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
+    , applyDirection
     , recordFields, protocolItems
 
     , leastGeneralSharedTypeRain
@@ -200,13 +201,15 @@ typeOfVariable (A.SubscriptedVariable m s v)
 typeOfVariable (A.DerefVariable m v)
     = do t <- typeOfVariable v
          case t of
-           (A.Mobile innerT) -> return innerT
-           _ -> dieP m $ "Tried to dereference a non-mobile variable: " ++ show v
+           A.Mobile innerT -> return innerT
+           _ -> dieP m $ "Dereference applied to non-mobile variable"
 typeOfVariable (A.DirectedVariable m dir v)
     = do t <- typeOfVariable v
-         case t of 
-           (A.Chan A.DirUnknown attr innerT) -> return (A.Chan dir attr innerT)
-           _ -> dieP m $ "Used specifier on something that was not a directionless channel: " ++ show v
+         case t of
+           A.Chan _ attr innerT -> return $ A.Chan dir attr innerT
+           A.Array ds (A.Chan _ attr innerT)
+             -> return $ A.Array ds (A.Chan dir attr innerT)
+           _ -> dieP m $ "Direction specified on non-channel variable"
 
 -- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (CSMR m, Die m) => A.Variable -> m A.AbbrevMode
@@ -378,6 +381,16 @@ makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
 -- | Generate a constant dimension from an integer.
 makeDimension :: Meta -> Int -> A.Dimension
 makeDimension m n = A.Dimension $ makeConstant m n
+
+-- | Apply a direction to a type.
+applyDirection :: Die m => Meta -> A.Direction -> A.Type -> m A.Type
+applyDirection m dir (A.Array ds t)
+    = applyDirection m dir t >>* A.Array ds
+applyDirection m dir (A.Chan idir ca t)
+  | (idir == A.DirUnknown || idir == dir) = return $ A.Chan dir ca t
+  | otherwise = dieP m "Direction specified does not match existing direction"
+applyDirection m _ t
+    = dieP m "Direction specified on non-channel type"
 
 -- | Checks whether a given conversion can be done implicitly in Rain
 -- Parameters are src dest

@@ -821,7 +821,8 @@ cgenVariable' checkValid v
     collectSubs v = do t <- astTypeOf v
                        return ([], v, t)
 
-
+-- | Return whether a type is one that is declared as a structure, but
+-- abbreviated as a pointer.
 indirectedType :: A.Type -> Bool
 indirectedType (A.Record {}) = True
 indirectedType (A.Chan A.DirUnknown _ _) = True

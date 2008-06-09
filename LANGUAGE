@@ -23,3 +23,6 @@ PLACE IN WORKSPACE and PLACE IN VECSPACE, both currently ignored.
 INITIAL and RESULT abbreviations.
 
 Array constructors.
+
+Direction decorators.
+
