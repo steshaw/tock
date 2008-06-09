@@ -843,7 +843,7 @@ channel
 channel' :: OccParser A.Variable
 channel'
     =   do { m <- md; n <- try channelName; return $ A.Variable m n }
-    <|> maybeSliced channel A.SubscriptedVariable
+    <|> maybeSliced directedChannel A.SubscriptedVariable
     <?> "channel'"
 
 direction :: OccParser A.Direction
