@@ -181,35 +181,41 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
-           case (spec,t) of
-             (_,Just (A.Array ds elemT)) -> 
-               do sizeSpec <- if elem A.UnknownDimension ds
-                    then 
+           case (spec, t) of
+             (_, Just (A.Array ds elemT)) ->
+               do let n_sizes = append_sizes n
+                  let defineStaticSizes ds
+                        = do let st = makeStaticSizeSpec m' n_sizes ds
+                             defineSizesName m' n_sizes st
+                             return $ A.Specification m' n_sizes st
+                  sizeSpec <-
+                    if elem A.UnknownDimension ds
                       -- At least one unknown dimension:
-                      case spec of
-                        -- TODO I think retyping a channel array ends up here, and probably isn't handled right
-                        (A.Retypes _ _ _ v) -> retypesSizes m' (append_sizes n) ds elemT v
-                        _ ->
-                          let n_sizes = append_sizes n in
-                          case spec of
-                            A.Is _ _ _ v -> abbrevVarSizes m n_sizes ds v
-                            A.IsExpr _ _ _ (A.ExprVariable _ v) -> abbrevVarSizes m n_sizes ds v
-                            -- The dimensions in a literal should all be static:
-                            A.IsExpr _ _ _ (A.Literal _ (A.Array ds _) _) ->
-                              do let sizeSpecType = makeStaticSizeSpec m' n_sizes ds
-                                 defineSizesName m' n_sizes sizeSpecType
-                                 return $ A.Specification m' n_sizes sizeSpecType
-                            _ -> dieP m $ "Could not handle unknown array spec: " ++ pshow spec
-                    -- Everything is statically sized:
-                    else do let n_sizes = append_sizes n
-                                sizeSpecType = makeStaticSizeSpec m' n_sizes ds
-                                sizeSpec = A.Specification m' n_sizes sizeSpecType
-                            defineSizesName m' n_sizes sizeSpecType
-                            return sizeSpec
+                      then case spec of
+                             -- TODO I think retyping a channel array ends up
+                             -- here, and probably isn't handled right
+                             A.Retypes _ _ _ v ->
+                               retypesSizes m' n_sizes ds elemT v
+                             A.Is _ _ _ v ->
+                               abbrevVarSizes m n_sizes ds v
+                             A.IsChannelArray _ _ vs ->
+                               defineStaticSizes [makeDimension m' (length vs)]
+                             A.IsExpr _ _ _ (A.ExprVariable _ v) ->
+                               abbrevVarSizes m n_sizes ds v
+                             -- The dimensions in a literal should all be
+                             -- static:
+                             A.IsExpr _ _ _ (A.Literal _ (A.Array ds' _) _) ->
+                               defineStaticSizes ds'
+                             _ ->
+                               dieP m $ "Could not handle unknown array spec: "
+                                        ++ pshow spec
+                      -- Everything is statically sized:
+                      else defineStaticSizes ds
                   return (A.Spec m sizeSpec $ A.Spec m sp $ s)
              (A.RecordType m _ fs, _) ->
-                do fieldDeclarations <- foldM (declareFieldSizes (A.nameName n) m) s fs
-                   return $ A.Spec m sp fieldDeclarations
+               do fieldDeclarations <-
+                    foldM (declareFieldSizes (A.nameName n) m) s fs
+                  return $ A.Spec m sp fieldDeclarations
              _ -> return str
     doStructured s = return s
 
@@ -279,9 +285,10 @@ addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
   (applyDepthM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
-    doProcess (A.ProcCall m n params) = concatMapM transformActual params >>* A.ProcCall m n
+    doProcess (A.ProcCall m n params)
+      = concatMapM transformActual params >>* A.ProcCall m n
     doProcess p = return p
-    
+
     transformActual :: A.Actual -> PassM [A.Actual]
     transformActual a@(A.ActualVariable v)
       = transformActualVariable a v
@@ -317,3 +324,4 @@ simplifySlices = occamOnlyPass "Simplify array slices"
              A.UnknownDimension -> return $ A.SizeVariable m' v
            return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (A.Dyadic m A.Subtr limit from)) v)
     doVariable v = return v
+
