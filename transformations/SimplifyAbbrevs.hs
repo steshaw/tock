@@ -27,6 +27,7 @@ import Data.Generics
 
 import qualified AST as A
 import CompState
+import Control.Monad.State
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -37,6 +38,7 @@ simplifyAbbrevs :: [Pass]
 simplifyAbbrevs =
     [ removeInitial
     , removeResult
+    , updateAbbrevsInState
     ]
 
 -- | Rewrite 'InitialAbbrev' into a variable and an assignment.
@@ -168,3 +170,15 @@ removeResult
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
 
+-- | Rewrite abbreviation modes in the state.
+updateAbbrevsInState :: Pass
+updateAbbrevsInState
+    = pass "Update INITIAL and RESULT abbreviations in state"
+           [Prop.initialRemoved, Prop.resultRemoved]
+           []
+           (\v -> get >>= applyDepthM (return . doAbbrevMode) >>= put >> return v)
+  where
+    doAbbrevMode :: A.AbbrevMode -> A.AbbrevMode
+    doAbbrevMode A.InitialAbbrev = A.Original
+    doAbbrevMode A.ResultAbbrev = A.Abbrev
+    doAbbrevMode s = s
