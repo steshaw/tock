@@ -20,7 +20,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyTypes (simplifyTypes) where
 
 import Control.Monad.State
-import qualified Data.Set as Set
 
 import qualified AST as A
 import Metadata
@@ -30,20 +29,23 @@ import Traversal
 import Types
 
 simplifyTypes :: [Pass]
-simplifyTypes = [resolveAllNamedTypes]
-
-resolveAllNamedTypes :: Pass
-resolveAllNamedTypes = Pass
-  {passCode = \t -> (get >>= resolveNamedTypes >>= put) >> resolveNamedTypes t
-  ,passName = "Resolve types in AST and state"
-  ,passPre = Set.fromList $ Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.processTypesChecked]
-  ,passPost = Set.fromList [Prop.typesResolvedInAST, Prop.typesResolvedInState]
-  ,passEnabled = const True}
+simplifyTypes
+  = [ resolveNamedTypes
+    ]
 
 -- | Turn named data types into their underlying types.
-resolveNamedTypes :: PassType
-resolveNamedTypes = applyDepthM doType
+resolveNamedTypes :: Pass
+resolveNamedTypes
+    = pass "Resolve user-defined types"
+           (Prop.agg_namesDone
+            ++ [Prop.expressionTypesChecked, Prop.processTypesChecked])
+           [Prop.typesResolvedInAST, Prop.typesResolvedInState]
+           (\t -> do get >>= resolve >>= put
+                     resolve t)
   where
-    doType :: A.Type -> PassM A.Type
-    doType t@(A.UserDataType _) = underlyingType emptyMeta t
-    doType t = return t
+    resolve :: PassType
+    resolve = applyDepthM doType
+      where
+        doType :: A.Type -> PassM A.Type
+        doType t@(A.UserDataType _) = underlyingType emptyMeta t
+        doType t = return t
