@@ -100,12 +100,41 @@ containsTypes x targets
                             Just set -> target `IntSet.member` set
                             Nothing -> True  -- can't tell, so it might be
 
+-- | A decision about what to do when we find a particular type during a
+-- generic operation.
+data TypeDecision =
+  -- | This is one of the types we're looking for.
+  Hit
+  -- | This isn't one of the types we're looking for, but it might contain one
+  -- of them.
+  | Through
+  -- | This isn't one of the types we're looking for, and there's no need to
+  -- look inside it.
+  | Miss
+
 -- | A set of type information for use by 'gmapMFor'.
-type TypeSet = [TypeKey]
+type TypeSet = IntMap TypeDecision
 
 -- | Make a 'TypeSet' from a list of 'TypeKey's.
 makeTypeSet :: [TypeKey] -> TypeSet
-makeTypeSet tks = tks
+makeTypeSet targets
+    = IntMap.fromList [(tk, decide tk)
+                       | tk <- IntMap.keys contains]
+  where
+    decide :: TypeKey -> TypeDecision
+    decide tk
+      | tk `elem` targets             = Hit
+      | tk `IntSet.member` allThrough = Through
+      | otherwise                     = Miss
+
+    allThrough :: IntSet
+    allThrough
+        = IntSet.fromList $ filter containsThis $ IntMap.keys contains
+      where
+        containsThis tk
+            = case IntMap.lookup tk contains of
+                Just set -> or $ map (`IntSet.member` set) targets
+                Nothing -> False
 
 -- | Type-smart generic mapM.
 -- This is like 'gmapM', but it only applies the function to arguments that
@@ -114,9 +143,13 @@ gmapMFor :: (Monad m, Data t) =>
             TypeSet                           -- ^ Target types
             -> (forall s. Data s => s -> m s) -- ^ Function to apply
             -> (t -> m t)                     -- ^ Generic operation
-gmapMFor targets f = gmapM (each f)
+gmapMFor typeset f = gmapM (each f)
   where
     each :: (Monad m, Data t) =>
             (forall s. Data s => s -> m s) -> (t -> m t)
     each f x
-        = if containsTypes x targets then f x else return x
+        = case IntMap.lookup (typeKey x) typeset of
+            Just Hit -> f x
+            Just Through -> gmapM (each f) x
+            Just Miss -> return x
+            Nothing -> return x
