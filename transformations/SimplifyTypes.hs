@@ -17,7 +17,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Simplify types in the AST.
-module SimplifyTypes (simplifyTypes) where
+module SimplifyTypes (
+    simplifyTypes
+  , resolveNamedTypes
+  ) where
 
 import Control.Monad.State
 
