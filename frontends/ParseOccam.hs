@@ -532,7 +532,7 @@ timerType
 
 portType :: OccParser A.Type
 portType
-    =   do { sPORT; sOF; p <- dataType; return $ A.Port p }
+    =   do { sPORT; optional sOF; p <- dataType; return $ A.Port p }
     <|> arrayType portType
     <?> "port type"
 --}}}
