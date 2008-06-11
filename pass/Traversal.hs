@@ -37,7 +37,7 @@ import GenericUtils
 import Pass
 
 -- | A set of generic operations.
-type OpsM m = ([TypeKey], DescendM m -> RecurseM m)
+type OpsM m = ([TypeKey], TypeSet, DescendM m -> RecurseM m)
 
 -- | As 'OpsM', but specialised for 'PassM'.
 type Ops = OpsM PassM
@@ -58,14 +58,18 @@ type Check t = CheckM PassM t
 
 -- | An empty set of operations.
 baseOp :: forall m. Monad m => OpsM m
-baseOp = ([], id)
+baseOp = ([], makeTypeSet [], id)
 
 -- | Add a 'TransformM' to a set, to be applied with explicit descent
 -- (that is, the transform will be responsible for recursing into child
 -- elements itself).
 extOp :: forall m t. (Monad m, Data t) => OpsM m -> TransformM m t -> OpsM m
-extOp (tks, g) f = ((typeKey (undefined :: t)) : tks,
-                    (\descend -> g descend `extM` f))
+extOp (tks, _, g) f
+    = (tks',
+       makeTypeSet tks',
+       (\descend -> g descend `extM` f))
+  where
+    tks' = typeKey (undefined :: t) : tks
 
 -- | As 'extOp', but for transformations that work on all 'A.Structured' types.
 extOpS :: forall m. Monad m =>
@@ -132,7 +136,7 @@ type Recurse = RecurseM PassM
 
 -- | Build a 'RecurseM' function from a set of operations.
 makeRecurse :: forall m. Monad m => OpsM m -> RecurseM m
-makeRecurse ops@(_, f) = f descend
+makeRecurse ops@(_, _, f) = f descend
   where
     descend :: DescendM m
     descend = makeDescend ops
@@ -151,11 +155,8 @@ type Descend = DescendM PassM
 
 -- | Build a 'DescendM' function from a set of operations.
 makeDescend :: forall m. Monad m => OpsM m -> DescendM m
-makeDescend ops@(tks, _) = gmapMFor ts recurse
+makeDescend ops@(_, ts, _) = gmapMFor ts recurse
   where
-    ts :: TypeSet
-    ts = makeTypeSet tks
-
     recurse :: RecurseM m
     recurse = makeRecurse ops
 
