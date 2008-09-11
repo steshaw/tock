@@ -77,7 +77,7 @@ effectDecision _ Copy _ = return
 calculateUsedAgainAfter :: Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node
  (Set.Set Var))
 calculateUsedAgainAfter g startNode
-  = flowAlgorithm funcs (udfs [startNode] g) (startNode, Set.empty)
+  = flowAlgorithm funcs (rdfs [startNode] g) (startNode, Set.empty)
   where
     funcs :: GraphFuncs Node EdgeLabel (Set.Set Var)
     funcs = GF     

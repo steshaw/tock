@@ -55,8 +55,11 @@ data GraphFuncs n e result = GF {
 --
 -- The implication of the above is that you should /not/ pass as the second
 -- parameter all the nodes in the graph (unless you /know/ that it is fully
--- connected).  Instead you should pass the connected nodes, using @(udfs [startNode]
--- graph)@.
+-- connected).  Instead you should pass the connected nodes.  If you are doing
+-- forward data flow (using @nodesToProcess = lpre graph@), you can find the connected
+-- nodes using @(dfs [initNode] graph)@.  If you are doing backward data flow
+-- (using @nodesToProcess = lsuc graph@), you can find the connected nodes using
+-- @(rdfs [initNode] graph)@.
 --
 -- The general idea of iterative data-flow is that all nodes start out with
 -- a default "guessed" value.  Then each node is processed in turn by using
@@ -78,14 +81,23 @@ flowAlgorithm :: forall n e result. (Ord n, Show n, Eq result) =>
                                       -- nodes to results
 flowAlgorithm funcs nodes (startNode, startVal)
   = iterate
-      (Set.fromList nonStartNodes)
+      nonStartNodesSet
       (Map.fromList $ (startNode, startVal):(zip nonStartNodes (repeat (defVal funcs))))
   where
     -- The nodes list, with the start node removed:
     nonStartNodes :: [n]
     nonStartNodes = (filter ((/=) startNode) nodes)
 
-    -- | Folds left, but with either types involved.  Gives an error if there
+    nonStartNodesSet :: Set.Set n
+    nonStartNodesSet = Set.fromList nonStartNodes
+
+    allNodesSet :: Set.Set n
+    allNodesSet = Set.singleton startNode `Set.union` nonStartNodesSet
+
+    filtNodes :: [(n,e)] -> [(n,e)]
+    filtNodes = filter ((`Set.member` allNodesSet) . fst)
+
+    -- | Folds left, but with Either types involved.  Gives an error if there
     -- are no nodes in the given list at the start (i.e. when its second parameter
     -- is Left).  Otherwise feeds the aggregate result back round on each
     -- iteration of the list, but stops at the first error while folding (so
@@ -137,13 +149,14 @@ flowAlgorithm funcs nodes (startNode, startVal)
                total <- foldWithEither (iterateNode vals) (Left $
                  "Nodes still to process: " ++ show workList
                  ++ " " ++ userErrLabel funcs node)
-                 (nodesToProcess funcs node)
+                 (filtNodes $ nodesToProcess funcs node)
                nodeVal <- Map.lookup node vals
                if total /= nodeVal
                  -- If the value has changed, that will cascade to affect all
                  -- its dependents, so add all
                  -- of them back to the work list:
-                 then iterate (workList' `Set.union` (Set.fromList $ map fst $ nodesToReAdd funcs node)) (Map.insert node total vals)
+                 then iterate (workList' `Set.union` (Set.fromList $
+                   map fst $ filtNodes $ nodesToReAdd funcs node)) (Map.insert node total vals)
                  -- If the value hasn't changed, forget it and go on to the
                  -- next one:
                  else iterate workList' vals
