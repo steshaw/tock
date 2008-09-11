@@ -727,7 +727,6 @@ genProcess n = nextIdT >>* makeMeta' >>= \m -> (flip oneofLS) n
    ,(1,const $ genElem1 A.Stop m)
    ,(1,comb1 (A.Seq emptyMeta) . genStructured genProcess')
    ,(1,comb1 (A.Par emptyMeta A.PlainPar) . genStructured genProcess')
-   ,(3,genElem3 A.While m genExpression . genProcess . sub2)
    ,(1,comb1 (A.If emptyMeta) . genStructured genChoice')
    ,(2,comb2 (A.Case emptyMeta) genExpression . genStructured genOption' . sub1)
    ,(2,const $ genElem3 A.Assign m (comb0 [variable "x"]) genExpressionList)
