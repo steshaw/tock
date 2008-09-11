@@ -554,6 +554,8 @@ data Process =
   -- legal outside a @PLACED PAR@.
   | Processor Meta Expression Process
   | Alt Meta Bool (Structured Alternative)
+  -- | Poisons the given channel(-end) (or barrier, in future)
+  | InjectPoison Meta Variable
   | ProcCall Meta Name [Actual]
   -- | A call of a built-in @PROC@.
   -- This may go away in the future, since which @PROC@s are intrinsics depends
