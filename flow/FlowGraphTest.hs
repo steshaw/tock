@@ -276,13 +276,23 @@ testPar = TestLabel "testPar" $ TestList
 testWhile :: Test
 testWhile = TestLabel "testWhile" $ TestList
  [
-    testGraph "testWhile 0" [(0,m0), (1,m1)] [0] [(0,1,ESeq Nothing), (1,0,ESeq Nothing)] (A.While mU (A.True m0) sm1)
-   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5)] [2] [(2,3,ESeq Nothing), (3,2,ESeq Nothing), (2,5,ESeq Nothing)] 
-      (A.Seq m0 $ A.Several m1 [A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
-   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7)] [7] [(7,2,ESeq Nothing), (2,3,ESeq Nothing), (3,2,ESeq Nothing), (2,5,ESeq Nothing)] 
-      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only m9 $ A.While mU (A.True m2) sm3,A.Only m4 sm5])
-   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9)] [7] [(7,2,ESeq Nothing), (2,3,ESeq Nothing), (3,9,ESeq Nothing), (9,2,ESeq Nothing), (2,5,ESeq Nothing)] 
-      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only mU $ A.While mU (A.True m2) $ A.Seq mU $ A.Several mU [A.Only mU sm3,A.Only mU sm9],A.Only m4 sm5])
+    testGraph "testWhile 0" [(0,m0), (1,m1), (2, m2)] [0] [(0,1,ESeq $ Just True), (1,0,ESeq Nothing),
+      (0,2, ESeq $ Just False)] (A.While m2 (A.True m0) sm1)
+
+   ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5), (8, m8)] [2]
+      [(2,3,ESeq $ Just True), (3,2,ESeq Nothing), (8,5,ESeq Nothing), (2,8, ESeq
+        $ Just False)] 
+      (A.Seq m0 $ A.Several m1 [A.Only m9 $ A.While m8 (A.True m2) sm3,A.Only m4 sm5])
+
+   ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7), (8, m8)] [7]
+     [(7,2,ESeq Nothing), (2,3,ESeq $ Just True), (3,2,ESeq Nothing), (2, 8, ESeq
+       $ Just False), (8,5,ESeq Nothing)] 
+      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only m9 $ A.While m8 (A.True m2) sm3,A.Only m4 sm5])
+
+   ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9), (8, m8)] [7]
+     [(7,2,ESeq Nothing), (2,3,ESeq $ Just True), (3,9,ESeq Nothing), (9,2,ESeq Nothing), (2,
+       8, ESeq $ Just False), (8,5,ESeq Nothing)] 
+      (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only mU $ A.While m8 (A.True m2) $ A.Seq mU $ A.Several mU [A.Only mU sm3,A.Only mU sm9],A.Only m4 sm5])
  ]
 
 testCase :: Test
