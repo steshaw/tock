@@ -291,12 +291,13 @@ buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier m
 buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
   = do nexp <- addNode' (findMeta exp) labelConditionalExpression exp
                  $ AlterExpression $ route23 route A.Choice
+       nexpf <- addDummyNode m
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
+       cPrev --> nexp
        addEdge (ESeq $ Just True) nexp nbodys
-       addEdge (ESeq $ Just False) cPrev nexp -- Not technically a false branch, if
-         -- node before was the dummy node at the start of the IF
+       addEdge (ESeq $ Just False) nexp nexpf
        nbodye --> cEnd
-       return nexp
+       return nexpf
 
 buildOnlyOption :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Option structType -> A.Option -> GraphMaker mLabel mAlter label structType ()
 buildOnlyOption (cStart, cEnd) route opt

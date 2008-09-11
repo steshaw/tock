@@ -319,38 +319,53 @@ testIf = TestLabel "testIf" $ TestList
    -- Remember that the last branch of an IF doesn't link to the end of the IF, because
    -- occam stops if no option is found.
  
-   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (3,m3)] [0] [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing)]
+   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (4, sub m2 1), (3,m3)] [0]
+     [(0,2,nt),(2,3,tr), (2,4, fal), (3,1,nt)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
-  ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5)] [0]
-                        [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing), (2,4,ESeq Nothing),(4,5,ESeq Nothing),(5,1,ESeq Nothing)]
+
+  ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3),
+                         (4,m4), (14, m4 `sub` 1), (5, m5)] [0]
+                        [(0,2,nt),(2,3,tr),(3,1,nt),(2,12, fal), (12, 4, nt),
+                         (4,5,tr),(5,1,nt),(4,14,fal)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5)])
-  ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, m5), (6, m6), (7, m7)] [0]
-                        [(0,2,ESeq Nothing),(2,3,ESeq Nothing),(3,1,ESeq Nothing), (2,4,ESeq Nothing),(4,5,ESeq Nothing),(5,1,ESeq Nothing), (4,6,ESeq Nothing),(6,7,ESeq Nothing),(7,1,ESeq Nothing)]
+
+  ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3),
+                         (4,m4), (14, m4 `sub` 1), (5, m5), (6, m6), (16, m6 `sub` 1),(7, m7)] [0]
+                        [(0,2,nt),(2,3,tr),(3,1,nt),(2,12,fal),(12,4,nt),
+                         (4,5,tr),(5,1,nt),(4,14,fal),
+                         (14,6,nt),(6,7,tr),(7,1,nt),(6,16,fal)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
 
 {-
   -- TODO test specs in Ifs
   #error
    testGraph "testIf 3" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (4,m4), (5, sub m4 1), (6, sub m4 2)] [0]
-     [(0,4,ESeq Nothing),(4,2,ESeq Nothing),(2,3,ESeq Nothing),(3,5,ESeq Nothing), (5,1,ESeq Nothing), ]
+     [(0,4,nt),(4,2,nt),(2,3,nt),(3,5,nt), (5,1,nt), ]
      (A.If m0 $ A.Spec mU (someSpec m4) $ ifs mU [(A.True m2, sm3)])  
 -}     
 
-  ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5)] [0]
-    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 5, ESeq Nothing)]
+  ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3), (5, m5)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12, fal), (12, 5, nt)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3)])
 
-  ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7)] [0]
-    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 6, ESeq Nothing), (6,7,ESeq Nothing), (7,1,ESeq Nothing), (6, 5, ESeq Nothing)]
+  ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3), (5, m5), (6, m6), (16,
+    m6 `sub` 1), (7, m7)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12,fal), (12, 6, nt), (6,7,tr), (7,1,nt), (6,16,fal),(16, 5, nt)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
 
-  ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9)] [0]
-    [(0,5,ESeq Nothing), (5,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (2, 6, ESeq Nothing), (6,7,ESeq Nothing), (7,1,ESeq Nothing), (6, 5, ESeq Nothing), (5,8,ESeq Nothing),
-     (8,9,ESeq Nothing), (9,1,ESeq Nothing)]
+  ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9),
+    (12, m2 `sub` 1), (16,  m6 `sub` 1), (18,  m8 `sub` 1)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12,fal), (12, 6, nt),
+     (6,7,tr), (7,1,nt), (6,16,fal), (16, 5, nt), (5,8,nt),
+     (8,9,tr), (9,1,nt),(8,18,fal)]
     (A.If m0 $ A.Several mU [rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
                             , ifs mU [(A.True m8, sm9)]])
  ]
  where
+   fal = ESeq $ Just False
+   tr = ESeq $ Just True
+   nt = ESeq Nothing
+   
    ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured A.Choice
    ifs m = (A.Several m) . (map (\(e,p) -> A.Only mU $ A.Choice (findMeta e) e p))
 
