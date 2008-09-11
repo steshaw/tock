@@ -66,7 +66,7 @@ mU = makeMeta (-1)
 sub :: Meta -> Int -> Meta
 sub m n = m {metaColumn = n}
 
-sm0, sm1, sm2, sm3, sm4, sm5, sm6, sm7, sm8, sm9, sm10, sm11 :: A.Process
+sm0, sm1, sm2, sm3, sm4, sm5, sm6, sm7, {- sm8,-} sm9, sm10, sm11 :: A.Process
 -- Various abbreviations for unique A.Process items
 sm0 = A.Skip m0
 sm1 = A.Skip m1
@@ -76,7 +76,7 @@ sm4 = A.Skip m4
 sm5 = A.Skip m5
 sm6 = A.Skip m6
 sm7 = A.Skip m7
-sm8 = A.Skip m8
+--sm8 = A.Skip m8
 sm9 = A.Skip m9
 sm10 = A.Skip m10
 sm11 = A.Skip m11
@@ -433,7 +433,8 @@ testAlt = TestLabel "testAlt" $ TestList
   where
     guard45 = A.AlternativeSkip m4 (A.True mU) sm5
     guard67 = A.Alternative m6 (A.True mU) (variable "c") (A.InputSimple mU []) sm7
-    
+
+    spec8, spec9 :: Data a => A.Structured a -> A.Structured a
     spec8 = A.Spec mU (A.Specification m8 undefined undefined)
     spec9 = A.Spec mU (A.Specification m9 undefined undefined)
 
@@ -493,8 +494,8 @@ genElem2 f m = comb2 f (genMeta m)
 genElem3 :: (Meta -> a0 -> a1 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL b
 genElem3 f m = comb3 f (genMeta m) 
 
-genElem4 :: (Meta -> a0 -> a1 -> a2 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
-genElem4 f m = comb4 f (genMeta m) 
+--genElem4 :: (Meta -> a0 -> a1 -> a2 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
+--genElem4 f m = comb4 f (genMeta m) 
 
 -- | A helper function for turning any item that can't be replaced into a GenL form (esp.
 -- for use as a parameter of genElemN).
@@ -523,11 +524,13 @@ comb3 func list0 list1 list2 = (liftM3 (,,)) list0 list1 list2 >>* product3 >>* 
     process3 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],b)
     process3 (keys0, val0) (keys1, val1) (keys2, val2) = (keys0++keys1++keys2, func val0 val1 val2)
 
+{-
 comb4 :: forall a0 a1 a2 a3 b. (a0 -> a1 -> a2 -> a3 -> b) -> GenL a0 -> GenL a1 -> GenL a2 -> GenL a3 -> GenL b
 comb4 func list0 list1 list2 list3 = (liftM4 (,,,)) list0 list1 list2 list3 >>* product4 >>* map (uncurry4 process4)
   where
     process4 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],a3) -> ([Meta],b)
     process4 (keys0, val0) (keys1, val1) (keys2, val2) (keys3, val3) = (keys0++keys1++keys2++keys3, func val0 val1 val2 val3)
+-}
 
 -- | Wrapper for Quickcheck.
 -- In order to stop conflict with Quickcheck's in-built rules for things such as pairs
