@@ -92,4 +92,17 @@ cb ! b;
 ?cb ? true;
 %FAIL Invalid channel comm -- bad recv #3
 cb ? x;
+
+%PASS Valid poison
+poison !cb;
+poison !cx;
+poison !cxi8;
+poison ?cb;
+poison ?cx;
+poison ?cxi8;
+%FAIL Poison non-channel
+poison b;
+%FAIL Poison indeterminate channel-end
+poison cb;
+
 %
