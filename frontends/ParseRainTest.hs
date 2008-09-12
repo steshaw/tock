@@ -731,7 +731,18 @@ testTime =
  ]
  where
    timer = mVariable RP.rainTimerName
-        
+
+testPoison :: [ParseTest A.Process]
+testPoison =
+ [
+  pass ("poison x;", RP.statement, assertPatternMatch "testPoison 0" $
+    mInjectPoison $ variablePattern "x")
+  ,fail ("poison 0;", RP.statement)
+  ,fail ("poison 0", RP.statement)
+  ,fail ("poison;", RP.statement)
+  ,fail ("poison", RP.statement)
+ ]
+
 --Returns the list of tests:
 tests :: Test
 tests = TestLabel "ParseRainTest" $ TestList
@@ -752,6 +763,7 @@ tests = TestLabel "ParseRainTest" $ TestList
   parseTests testTime,
   parseTests testRun,
   parseTests testDecl,
+  parseTests testPoison,
   parseTests testTopLevelDecl
  ]
 --TODO test:

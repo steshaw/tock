@@ -56,7 +56,7 @@ instance Die (GenParser tok st) where
 sLeftQ, sRightQ, sLeftR, sRightR, sLeftC, sRightC, sSemiColon, sColon,
   sComma, sIn, sOut, sDots, sPar, sSeq, sAlt, sPri, sSeqeach, sPareach,
   sChannel, sOne2One, sIf, sElse, sWhile, sProcess, sFunction, sReturn,
-  sWait, sFor, sUntil :: RainParser Meta
+  sWait, sFor, sUntil, sPoison :: RainParser Meta
 
 --{{{ Symbols
 sLeftQ = reserved "["
@@ -92,6 +92,7 @@ sReturn = reserved "return"
 sWait = reserved "wait"
 sFor = reserved "for"
 sUntil = reserved "until"
+sPoison = reserved "poison"
 --}}}
 
 --{{{Operators
@@ -462,6 +463,7 @@ statement
       rainTimerName) wm}
     <|> try (comm False)
     <|> alt
+    <|> do {m <- sPoison ; ch <- lvalue; sSemiColon ; return $ A.InjectPoison m ch}
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
                (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
