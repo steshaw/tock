@@ -1500,6 +1500,7 @@ cgenProcess p = case p of
   -- PROCESSOR does nothing special.
   A.Processor m e p -> call genProcess p
   A.Alt m b s -> call genAlt b s
+  A.InjectPoison m ch -> call genPoison m ch
   A.ProcCall m n as -> call genProcCall n as
   A.IntrinsicProcCall m s as -> call genIntrinsicProc m s as
 

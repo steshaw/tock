@@ -74,6 +74,7 @@ cppgenOps = cgenOps {
     genOutputCase = cppgenOutputCase,
     genOutputItem = cppgenOutputItem,
     genPar = cppgenPar,
+    genPoison = cppgenPoison,
     genProcCall = cppgenProcCall,
     genReplicatorLoop = cppgenReplicatorLoop,
     genStop = cppgenStop,
@@ -201,6 +202,11 @@ genCPPCSPChannelOutput var
          (A.Chan A.DirUnknown _ _) -> do call genVariable var
                                          tell ["->writer()"]
          _ -> call genMissing $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
+
+cppgenPoison :: Meta -> A.Variable -> CGen ()
+cppgenPoison _m var
+  = do call genVariable var
+       tell ["->poison();"]
 --}}}
 
 -- | C++CSP2 returns the number of seconds since the epoch as the time

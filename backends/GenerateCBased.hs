@@ -152,6 +152,7 @@ data GenOps = GenOps {
     -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
     genOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
     genPar :: A.ParMode -> A.Structured A.Process -> CGen (),
+    genPoison :: Meta -> A.Variable -> CGen (),
     genProcCall :: A.Name -> [A.Actual] -> CGen (),
     genProcess :: A.Process -> CGen (),
     genRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen (),
