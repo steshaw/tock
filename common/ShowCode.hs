@@ -235,7 +235,7 @@ instance ShowOccam A.Type where
   showOccamM A.Any = tell ["ANY"]
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
-  showOccamM (A.UnknownVarType en)
+  showOccamM (A.UnknownVarType _ en)
     = do tell ["(inferred type for: "]
          either showName (tell . (:[]) . show) en
          tell [")"]
@@ -294,7 +294,7 @@ instance ShowRain A.Type where
   -- Mobility is not explicit in Rain, but we should indicate it:
   showRainM (A.Mobile t) = tell ["<mobile>"] >> showRainM t
   showRainM (A.List t) = tell ["["] >> showRainM t >> tell ["]"]
-  showRainM (A.UnknownVarType en)
+  showRainM (A.UnknownVarType _ en)
     = do tell ["(inferred type for: "]
          either showName (tell . (:[]) . show) en
          tell [")"]

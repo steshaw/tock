@@ -225,7 +225,7 @@ listLiteral :: RainParser A.Expression
 listLiteral
   = try $ do m <- sLeftQ
              u <- getUniqueIdentifer
-             let t = A.List $ A.UnknownVarType (Right (m,u))
+             let t = A.List $ A.UnknownVarType (A.TypeRequirements False) (Right (m,u))
              (do try sRightQ
                  return $ A.Literal m t $ A.ListLiteral m []
               <|> do e0 <- try expression
@@ -270,7 +270,8 @@ range = try $ do m <- sLeftQ
                      (A.Conversion mc A.DefaultConversion t begin)
                      (A.Conversion mc A.DefaultConversion t end)
                    Nothing -> do u <- getUniqueIdentifer
-                                 let t = A.List $ A.UnknownVarType (Right (m,u))
+                                 let t = A.List $ A.UnknownVarType (A.TypeRequirements
+                                           False) (Right (m,u))
                                  return $ A.ExprConstr m $ A.RangeConstr m
                                    t begin end
 

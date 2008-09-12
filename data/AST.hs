@@ -132,10 +132,14 @@ data Type =
   | Infer
   -- | A type that will be inferred by type unification.  Either for a named
   -- variable, or for an anonymous, uniquely identified, expression
-  | UnknownVarType (Either Name (Meta, Int))
+  | UnknownVarType TypeRequirements (Either Name (Meta, Int))
   -- | A numeric type to be inferred later, that must be able to hold the given
   -- value.  The Int is a unique identifier, the Integer is the number to hold
   | UnknownNumLitType Meta Int Integer
+  deriving (Show, Eq, Typeable, Data)
+
+data TypeRequirements = TypeRequirements
+  { mustBePoisonable :: Bool }
   deriving (Show, Eq, Typeable, Data)
 
 -- | An array dimension.

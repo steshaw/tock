@@ -39,13 +39,13 @@ import TypeUnification
 import UnifyType
 import Utils
 
-lookupMapElseMutVar :: UnifyIndex -> PassM (TypeExp A.Type)
-lookupMapElseMutVar k
+lookupMapElseMutVar :: A.TypeRequirements -> UnifyIndex -> PassM (TypeExp A.Type)
+lookupMapElseMutVar reqs k
   = do st <- get
        let m = csUnifyLookup st
        case Map.lookup k m of
          Just v -> return v
-         Nothing -> do r <- liftIO $ newIORef Nothing
+         Nothing -> do r <- liftIO $ newIORef (reqs, Nothing)
                        let UnifyIndex (mt,_) = k
                            v = MutVar mt r
                            m' = Map.insert k v m
@@ -66,10 +66,10 @@ typeToTypeExp m (A.Chan A.DirInput at t) = ttte m "?" (A.Chan A.DirInput at) t
 typeToTypeExp m (A.Chan A.DirOutput at t) = ttte m "!" (A.Chan A.DirOutput at) t
 typeToTypeExp m (A.Chan A.DirUnknown at t) = ttte m "channel" (A.Chan A.DirUnknown at) t
 typeToTypeExp m (A.Mobile t) = ttte m "MOBILE" A.Mobile t
-typeToTypeExp _ (A.UnknownVarType en)
+typeToTypeExp _ (A.UnknownVarType reqs en)
   = case en of
-      Left n -> lookupMapElseMutVar (UnifyIndex (A.nameMeta n, Right n))
-      Right (m, i) -> lookupMapElseMutVar (UnifyIndex (m, Left i))
+      Left n -> lookupMapElseMutVar reqs (UnifyIndex (A.nameMeta n, Right n))
+      Right (m, i) -> lookupMapElseMutVar reqs (UnifyIndex (m, Left i))
 typeToTypeExp _ (A.UnknownNumLitType m id n)
   = do r <- liftIO . newIORef $ Left [(m,n)]
        let v = NumLit m r
@@ -101,6 +101,7 @@ performTypeUnification = rainOnlyPass "Rain Type Checking"
              <.< markParamPass
              <.< markAssignmentTypes
              <.< markCommTypes
+             <.< markPoisonTypes
              <.< markReplicators
              <.< markExpressionTypes
              $ x
@@ -129,8 +130,8 @@ substituteUnknownTypes :: Map.Map UnifyIndex A.Type -> PassType
 substituteUnknownTypes mt = applyDepthM sub
   where
     sub :: A.Type -> PassM A.Type
-    sub (A.UnknownVarType (Left n)) = lookup $ UnifyIndex (A.nameMeta n, Right n)
-    sub (A.UnknownVarType (Right (m,i))) = lookup $ UnifyIndex (m,Left i)
+    sub (A.UnknownVarType _ (Left n)) = lookup $ UnifyIndex (A.nameMeta n, Right n)
+    sub (A.UnknownVarType _ (Right (m,i))) = lookup $ UnifyIndex (m,Left i)
     sub (A.UnknownNumLitType m i _) = lookup $ UnifyIndex (m, Left i)
     sub t = return t
 
@@ -243,6 +244,16 @@ markConditionalTypes = checkDepthM2 checkWhile checkIf
     checkIf :: Check A.Choice
     checkIf c@(A.Choice m exp _)
       = markUnify exp A.Bool
+
+-- | Marks types in poison statements
+markPoisonTypes :: PassType
+markPoisonTypes = checkDepthM checkPoison
+  where
+    checkPoison :: Check A.Process
+    checkPoison (A.InjectPoison m ch)
+      = do u <- getUniqueIdentifer
+           markUnify ch $ A.UnknownVarType (A.TypeRequirements True) $ Right (m, u)
+    checkPoison _ = return ()
 
 -- | Checks the types in inputs and outputs, including inputs in alts
 markCommTypes :: PassType

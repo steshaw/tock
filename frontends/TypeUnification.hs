@@ -45,6 +45,8 @@ foldCon con es = case splitEither es of
 -- Pearl (2001)", citeseer: http://citeseer.ist.psu.edu/451401.html
 -- This in turn was taken from Luca Cardelli's "Basic Polymorphic Type Checking"
 
+-- | Given a map from keys to non-unified types and a list of pairs of types to unify,
+-- gives back the resulting map from keys to actual types.
 unifyRainTypes :: forall k. (Ord k, Show k) => (Map.Map k (TypeExp A.Type)) -> [(k, k)] ->
   PassM (Map.Map k A.Type)
 unifyRainTypes m' prs
@@ -57,8 +59,10 @@ unifyRainTypes m' prs
       Nothing -> error $ "Could not find type for variable in map before unification: "
         ++ show s
 
+    -- | Given a map containing simplified types (no mutvar/pointers or numlits
+    -- remaining, just actual types), turns them into the actual type representations
     stToMap :: Map.Map k (TypeExp A.Type) -> PassM (Map.Map k A.Type)
-    stToMap m = do m' <- liftIO $ mapMapWithKeyM (\k v -> prune v >>= read k) m
+    stToMap m = do m' <- mapMapWithKeyM (\k v -> prune Nothing v >>= liftIO . read k) m
                    let (mapOfErrs, mapOfRes) = Map.mapEitherWithKey (const id) m'
                    case Map.elems mapOfErrs of
                      ((m,e):_) -> dieP m e
@@ -70,7 +74,7 @@ unifyRainTypes m' prs
                case foldCon con (map (either (Left . snd) Right) vals') of
                  Left e -> return $ Left (m, e)
                  Right x -> return $ Right x
-        read k (MutVar m v) = readIORef v >>= \t -> case t of
+        read k (MutVar m v) = readIORef v >>= \(_,t) -> case t of
           Nothing -> return $ Left (m, "Type error in unification, "
             ++ "ambigious type remains for: " ++ show k)
           Just t' -> read k t'
@@ -80,7 +84,7 @@ unifyRainTypes m' prs
           Right t -> return $ Right t
 
 fromTypeExp :: TypeExp A.Type -> PassM A.Type
-fromTypeExp x = fromTypeExp' =<< (liftIO $ prune x)
+fromTypeExp x = fromTypeExp' =<< prune Nothing x
   where
     fromTypeExp' :: TypeExp A.Type -> PassM A.Type
     fromTypeExp' (MutVar m _) = dieP m "Unresolved type"
@@ -103,41 +107,65 @@ giveErr m msg tx ty
               y <- showInErr ty
               dieP m $ msg ++ x ++ " and " ++ y
 
-prune :: Typeable a => TypeExp a -> IO (TypeExp a)
-prune t =
- case t of
-   MutVar _ r ->
-     do m <- readIORef r
-        case m of
-          Nothing -> return t
-          Just t2 ->
-            do t' <- prune t2
-               writeIORef r (Just t')
-               return t'
-   _ -> return t
+-- | Merges two lots of attributes into a union of the requirements
+mergeAttr :: A.TypeRequirements -> A.TypeRequirements -> A.TypeRequirements
+mergeAttr (A.TypeRequirements p) (A.TypeRequirements p') = A.TypeRequirements (p || p')
 
-occursInType :: Typeable a => Ptr a -> TypeExp a -> IO Bool
+-- | Checks the attributes match a non-mutvar variable
+checkAttrMatch :: A.TypeRequirements -> TypeExp A.Type -> PassM ()
+checkAttrMatch (A.TypeRequirements False) _ = return () -- no need to check
+checkAttrMatch (A.TypeRequirements True) (NumLit m _)
+  = dieP m "Numeric literal can never be poisonable"
+checkAttrMatch (A.TypeRequirements True) t@(OperType m str _ _)
+  = case str of
+      "?" -> return ()
+      "!" -> return ()
+      _ -> do err <- showInErr t
+              dieP m $ "Type cannot be poisoned: " ++ err
+
+-- | Reduces chains of MutVars down to just a single pointer.
+prune :: Maybe A.TypeRequirements -> TypeExp A.Type -> PassM (TypeExp A.Type)
+prune attr mv@(MutVar m r)
+  =  do (attr', x) <- liftIO $ readIORef r
+        let merged = maybe attr' (mergeAttr attr') attr
+        case x of
+          Nothing -> do liftIO $ writeIORef r (merged, Nothing)
+                        return mv
+          Just t2 ->
+            do t' <- prune (Just merged) t2
+               liftIO $ writeIORef r (merged, Just t')
+               return t'
+prune Nothing t = return t
+prune (Just attr) t = checkAttrMatch attr t >> return t
+
+-- | Checks if the given pointer occurs in the given type, returning True if so.
+--  Used to stop the type checker performing infinite loops around a type-cycle.
+occursInType :: Ptr A.Type -> TypeExp A.Type -> PassM Bool
 occursInType r t =
-  do t' <- prune t
+  do t' <- prune Nothing t
      case t' of
        MutVar _ r2 -> return $ r == r2
        GenVar _ n -> return False
        OperType _ _ _ ts -> mapM (occursInType r) ts >>* or
 
+-- | Unifies two types, giving an error if it's not possible
 unifyType :: TypeExp A.Type -> TypeExp A.Type -> PassM ()
 unifyType te1 te2
-  = do t1' <- liftIO $ prune te1
-       t2' <- liftIO $ prune te2
+  = do t1' <- prune Nothing te1
+       t2' <- prune Nothing te2
        case (t1',t2') of
          (MutVar _ r1, MutVar _ r2) ->
            if r1 == r2
              then return ()
-             else liftIO $ writeIORef r1 (Just t2')
+             else do attr <- liftIO $ readIORef r1 >>* fst
+                     attr' <- liftIO $ readIORef r2 >>* fst
+                     liftIO $ writeIORef r1 (mergeAttr attr attr', Just t2')
          (MutVar m r1, _) ->
-           do b <- liftIO $ occursInType r1 t2'
+           do b <- occursInType r1 t2'
               if b
                 then dieP m "Infinitely recursive type formed"
-                else liftIO $ writeIORef r1 (Just t2')
+                else do attr <- liftIO $ readIORef r1 >>* fst
+                        liftIO $ writeIORef r1 (attr, Just t2')
          (_,MutVar {}) -> unifyType t2' t1'
          (GenVar m x,GenVar _ y) ->
            if x == y then return () else dieP m $ "different template variables"
@@ -190,6 +218,7 @@ instantiate ts x = case x of
   OperType m nm f xs -> OperType m nm f (map (instantiate ts) xs)
   GenVar _ n -> ts !! n
 
+-- | Checks if the given number will fit in the given type
 willFit :: A.Type -> Integer -> Bool
 willFit t n = case bounds t of
   Just (l,h) -> l <= n && n <= h

@@ -69,10 +69,10 @@ m :: Meta
 m = emptyMeta
 
 inferVarType :: String -> A.Type
-inferVarType = A.UnknownVarType . Left . simpleName
+inferVarType = A.UnknownVarType (A.TypeRequirements False) . Left . simpleName
 
 inferExpType :: A.Type
-inferExpType = A.UnknownVarType $ Right $ (emptyMeta, 818181)
+inferExpType = A.UnknownVarType (A.TypeRequirements False) $ Right $ (emptyMeta, 818181)
 
 -- In the parser, integer literals have an unknown type:
 intLiteral :: Integer -> A.Expression

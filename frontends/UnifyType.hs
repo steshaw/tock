@@ -24,7 +24,7 @@ import Data.IORef
 import qualified AST as A
 import Metadata
 
-type Ptr a = IORef (Maybe (TypeExp a))
+type Ptr a = IORef (A.TypeRequirements, Maybe (TypeExp a))
 
 data Typeable a => TypeExp a
  = MutVar Meta (Ptr a)
