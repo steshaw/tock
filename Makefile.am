@@ -113,6 +113,7 @@ tock_SOURCES_hs += backends/GenerateCPPCSP.hs
 tock_SOURCES_hs += backends/TLP.hs
 tock_SOURCES_hs += checks/ArrayUsageCheck.hs
 tock_SOURCES_hs += checks/Check.hs
+tock_SOURCES_hs += checks/ExSet.hs
 tock_SOURCES_hs += checks/Omega.hs
 tock_SOURCES_hs += checks/UsageCheckAlgorithms.hs
 tock_SOURCES_hs += checks/UsageCheckUtils.hs

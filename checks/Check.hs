@@ -35,6 +35,7 @@ import ArrayUsageCheck
 import qualified AST as A
 import CompState
 import Errors
+import ExSet
 import FlowAlgorithms
 import FlowGraph
 import Metadata
@@ -174,40 +175,6 @@ checkPlainVarUsage (m, p) = check p
           (writtenVars otherVars)
         writtenAndRead = filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars
         otherVars = foldUnionVars rest
-
--- | A custom Set wrapper that allows for easy representation of the "everything" set.
--- In most instances, we could actually build the everything set, but
--- representing it this way is easier, more efficient, and more readable.
--- As you would expect, Everything `intersection` x = x, and Everything `union` x = Everything.
-data Ord a => ExSet a = Everything | NormalSet (Set.Set a) deriving (Eq, Show)
-
-intersection :: Ord a => ExSet a -> ExSet a -> ExSet a
-intersection Everything x = x
-intersection x Everything = x
-intersection (NormalSet a) (NormalSet b) = NormalSet (Set.intersection a b)
-
-union :: Ord a => ExSet a -> ExSet a -> ExSet a
-union Everything _ = Everything
-union _ Everything = Everything
-union (NormalSet a) (NormalSet b) = NormalSet (Set.union a b)
-
-unions :: Ord a => [ExSet a] -> ExSet a
-unions [] = emptySet
-unions ss = foldl1 union ss
-
-emptySet :: Ord a => ExSet a
-emptySet = NormalSet (Set.empty)
-
-isSubsetOf :: Ord a => ExSet a -> ExSet a -> Bool
--- Clause order is important here.  Everything is a subset of Everything so this must come first:
-isSubsetOf _ Everything = True
-isSubsetOf Everything _ = False
-isSubsetOf (NormalSet a) (NormalSet b) = Set.isSubsetOf a b
-
-difference :: Ord a => ExSet a -> ExSet a -> ExSet a
-difference _ Everything = NormalSet Set.empty
-difference Everything _ = Everything
-difference (NormalSet a) (NormalSet b) = NormalSet $ Set.difference a b
 
 showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
