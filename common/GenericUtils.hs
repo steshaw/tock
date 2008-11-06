@@ -27,8 +27,11 @@ module GenericUtils (
   , TypeSet, makeTypeSet
   , containsTypes
   , gmapMFor
+  , gmapMForRoute
   ) where
 
+import Control.Monad.Identity()
+import Control.Monad.State
 import Data.Generics
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
@@ -39,6 +42,7 @@ import Data.Typeable
 import System.IO.Unsafe
 
 import qualified AST as A
+import TreeUtils
 import Utils
 
 -- | A type identifier.
@@ -153,3 +157,29 @@ gmapMFor typeset f = gmapM (each f)
             Just Through -> gmapM (each f) x
             Just Miss -> return x
             Nothing -> return x
+
+gmapMForRoute :: forall m t. (Monad m, Data t) =>
+  TypeSet ->
+  (forall s. Data s => (s, (forall n. Monad n => (s -> n s) -> (t -> n t))) -> m s)
+  -> (t -> m t)
+gmapMForRoute typeset f = gmapMWithRoute (each f)
+  where
+    each :: Data u => (forall s. Data s => (s, (forall n. Monad n => (s -> n s) -> (t -> n t))) -> m s)
+             -> ((u, (forall n. Monad n => (u -> n u) -> (t -> n t))) -> m u)
+    each f (x, route)
+        = case IntMap.lookup (typeKey x) typeset of
+            Just Hit -> f (x, route)
+            Just Through -> gmapMWithRoute (\(y, route') -> each f (y, route . route')) x
+            Just Miss -> return x
+            Nothing -> return x
+
+gmapMWithRoute :: forall a m. (Monad m, Data a) => (forall b. Data b => (b, (forall n. Monad n => (b -> n b) ->
+  (a -> n a))) -> m b) -> a -> m a
+gmapMWithRoute f = gmapFuncs [GM {unGM = f' n} | n <- [0..]]
+  where
+    f' :: Int -> (forall b. Data b => b -> m b)
+    f' n x = f (x, makeRoute n)
+
+-- Given a number, makes a route function for that child:
+makeRoute :: (Data s, Data t, Monad m) => Int -> (s -> m s) -> (t -> m t)
+makeRoute target f = gmapFuncs [mkM' (if n == target then f else return) | n <- [0..]]

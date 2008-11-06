@@ -26,6 +26,7 @@ module TreeUtils (
   checkTreeForConstr,
   con0, con1, con2, con3, con4, con5, con6, con7
   , decomp1, decomp2, decomp3, decomp4, decomp5
+  , mkM', gmapFuncs
   ) where
 
 import Control.Monad.State
