@@ -148,11 +148,14 @@ forAnyAST origF = CheckOptM $ do
     apply :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
              (a, Route a A.AST) -> RestartT A.AST a CheckOptM a
     apply typeSet f (x, route)
-      = (RestartT $ ((local (const route) $ getRestartT (f x))))
+      = (RestartT $ (local (const route) $ getRestartT (wrap f x)))
         >> (liftRestartT (CheckOptM get) >>* ast >>* routeGet route)
         >>= gmapMForRoute typeSet (extTransformRoute baseTransformRoute $
               \(y, route') -> apply typeSet f (y, route @-> route'))
 
+    wrap :: (a -> RestartT A.AST a CheckOptM ()) -> (a -> RestartT A.AST a CheckOptM
+      ())
+    wrap f x = join (liftIO $ onlyIfPatternMatch (return ()) f x)
 
 -- | For both of these functions I'm going to need to mark all analyses as no longer
 -- valid, but more difficult will be to maintain the current position (if possible
