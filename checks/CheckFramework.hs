@@ -28,6 +28,7 @@ import Control.Exception
 import qualified AST as A
 import UsageCheckUtils
 import GenericUtils
+import Pass
 import Traversal
 import Utils
 
@@ -40,14 +41,14 @@ data CheckOptData = CheckOptData
 invalidateAll :: CheckOptData -> A.AST -> CheckOptData
 invalidateAll d t = d { ast = t, parItems = Nothing}
 
-newtype CheckOptM a = CheckOptM (ErrorT String (State CheckOptData) a)
-  deriving (Monad, MonadError String {-, MonadState CheckOptData-})
+newtype CheckOptM a = CheckOptM (ErrorT String (StateT CheckOptData PassM) a)
+  deriving (Monad, MonadIO, MonadError String {-, MonadState CheckOptData-})
 
-deCheckOptM :: CheckOptM a -> ErrorT String (State CheckOptData) a
+deCheckOptM :: CheckOptM a -> ErrorT String (StateT CheckOptData PassM) a
 deCheckOptM (CheckOptM x) = x
 
 newtype CheckOptM' t a = CheckOptM' (RestartT A.AST t CheckOptM a)
-  deriving (Monad{-, MonadState (Route t A.AST)-})
+  deriving (Monad, MonadIO {-, MonadState (Route t A.AST)-})
 
 deCheckOptM' :: CheckOptM' t a -> RestartT A.AST t CheckOptM a
 deCheckOptM' (CheckOptM' x) = x
@@ -67,6 +68,9 @@ instance Monad m => Monad (RestartT outer t m) where
     case x of
       Left (route, cont) -> return $ Left (route, f <.< cont)
       Right x' -> let m'' = getRestartT $ f x' in m''
+
+instance MonadIO m => MonadIO (RestartT outer t m) where
+  liftIO f = RestartT $ lift (liftIO f) >>= (return . Right)
 
 liftRestartT :: Monad m => m a -> RestartT outer t m a
 liftRestartT m = RestartT $ lift (m >>* Right)
@@ -90,11 +94,11 @@ forAnyAST origF = CheckOptM $ do
     -- location to begin at and an AST, transforms the tree.  Handles any restarts
     -- that are requested.
     doTree :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
-      [Int] -> A.AST -> ErrorT String (State CheckOptData) ()
+      [Int] -> A.AST -> ErrorT String (StateT CheckOptData PassM) ()
     doTree typeSet f route tr
       = do x <- traverse typeSet f (Just route) tr
            case x of
-             Left (route', cont) -> do
+             Left (route', cont) -> do -- Restart
                tr' <- get >>* ast
                doTree typeSet (\x -> cont x >> return ()) (maybe [] routeId route') tr'
              Right _ -> return ()
@@ -103,12 +107,18 @@ forAnyAST origF = CheckOptM $ do
     -- location to begin at and an AST, transforms the tree.  If any restarts are
     -- requested, that is indicated in the return value
     traverse :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
-      ErrorT String (State CheckOptData)
+      ErrorT String (StateT CheckOptData PassM)
         (Either (Maybe (Route a A.AST), a -> RestartT A.AST a CheckOptM A.AST) A.AST)
-    traverse typeSet f route tr = (deCheckOptM $ flip runReaderT undefined (getRestartT $ flip
-      evalStateT (case route of
-        Just r -> Just r
-        Nothing -> Just []) $ gen tr))
+    traverse typeSet f route tr
+      = deCheckOptM $ flip runReaderT undefined
+          -- We use undefined because we don't have a real default value, and the user-supplied
+          -- function will only be called from inside a "local".  Perhaps with
+          -- some rearrangement we could remove this awkwardness (runReaderT instead
+          -- of local).
+          (getRestartT $ flip evalStateT (case route of
+             Just r -> Just r
+             Nothing -> Just [] -- No route, means start from the beginning
+          ) $ gen tr)
       where
         -- We can't use routeModify with the route to jump to the right place,
         -- because then applying gen gets much more difficult, and I can't find
@@ -121,15 +131,18 @@ forAnyAST origF = CheckOptM $ do
         gen x = gmapMForRoute typeSet (baseTransformRoute `extTransformRoute` (\(y, route) ->
           do st <- get
              case st of
+               -- We are past the target start point:
                Nothing -> lift $ apply typeSet f (y, route)
-               Just targetRoute -> if targetRoute > routeId route then return y else do
-                 put Nothing
-                 lift $ apply typeSet f (y, route)
+               Just targetRoute -> if targetRoute > routeId route
+                 then return y {- Not reached start point yet -} else do
+                   put Nothing -- Blank the start point now we've found it
+                   lift $ apply typeSet f (y, route)
           )) x
 
     -- The return of this function is ignored.  All changes should be done in the
     -- state.
-    apply :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> (a, Route a A.AST) -> RestartT A.AST a CheckOptM a
+    apply :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
+             (a, Route a A.AST) -> RestartT A.AST a CheckOptM a
     apply typeSet f (x, route)
       = (RestartT $ ((local (const route) $ getRestartT (f x))))
         >> (liftRestartT (CheckOptM get) >>* ast >>* routeGet route)
