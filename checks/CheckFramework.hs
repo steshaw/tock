@@ -185,6 +185,10 @@ onlyIfPatternMatch def f x = evaluate x >>= (\x' -> catchJust onlyPatternFail (e
     onlyPatternFail (PatternMatchFail {}) = Just ()
     onlyPatternFail _ = Nothing
 
+runChecks :: CheckOptM () -> A.AST -> PassM A.AST
+runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing})
+  >>* ast
+
 --getParItems :: CheckOptM (ParItems ())
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))
 
