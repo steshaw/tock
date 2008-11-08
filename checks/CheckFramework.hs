@@ -26,10 +26,13 @@ import Data.Maybe
 import Control.Exception
 
 import qualified AST as A
-import UsageCheckUtils
+import Errors
+import FlowGraph
 import GenericUtils
+import Metadata
 import Pass
 import Traversal
+import UsageCheckUtils
 import Utils
 
 data CheckOptData = CheckOptData
@@ -41,14 +44,14 @@ data CheckOptData = CheckOptData
 invalidateAll :: CheckOptData -> A.AST -> CheckOptData
 invalidateAll d t = d { ast = t, parItems = Nothing}
 
-newtype CheckOptM a = CheckOptM (ErrorT String (StateT CheckOptData PassM) a)
-  deriving (Monad, MonadIO, MonadError String {-, MonadState CheckOptData-})
+newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
+  deriving (Monad, MonadIO)
 
-deCheckOptM :: CheckOptM a -> ErrorT String (StateT CheckOptData PassM) a
+deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
 
 newtype CheckOptM' t a = CheckOptM' (RestartT A.AST t CheckOptM a)
-  deriving (Monad, MonadIO {-, MonadState (Route t A.AST)-})
+  deriving (Monad, MonadIO)
 
 deCheckOptM' :: CheckOptM' t a -> RestartT A.AST t CheckOptM a
 deCheckOptM' (CheckOptM' x) = x
@@ -76,7 +79,8 @@ liftRestartT :: Monad m => m a -> RestartT outer t m a
 liftRestartT m = RestartT $ lift (m >>* Right)
 
 elseError :: Bool -> String -> CheckOptM ()
-elseError b err = CheckOptM $ if b then throwError err else return ()
+elseError b err = CheckOptM $ if b then lift $ dieP emptyMeta err else return ()
+--  TODO use the nearest available meta-tag in the current data
 
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
@@ -94,7 +98,7 @@ forAnyAST origF = CheckOptM $ do
     -- location to begin at and an AST, transforms the tree.  Handles any restarts
     -- that are requested.
     doTree :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
-      [Int] -> A.AST -> ErrorT String (StateT CheckOptData PassM) ()
+      [Int] -> A.AST -> StateT CheckOptData PassM ()
     doTree typeSet f route tr
       = do x <- traverse typeSet f (Just route) tr
            case x of
@@ -107,7 +111,7 @@ forAnyAST origF = CheckOptM $ do
     -- location to begin at and an AST, transforms the tree.  If any restarts are
     -- requested, that is indicated in the return value
     traverse :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
-      ErrorT String (StateT CheckOptData PassM)
+      StateT CheckOptData PassM
         (Either (Maybe (Route a A.AST), a -> RestartT A.AST a CheckOptM A.AST) A.AST)
     traverse typeSet f route tr
       = deCheckOptM $ flip runReaderT undefined
