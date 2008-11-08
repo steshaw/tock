@@ -33,6 +33,7 @@ import qualified Data.Set as Set
 
 import ArrayUsageCheck
 import qualified AST as A
+import CheckFramework
 import CompState
 import Errors
 import ExSet

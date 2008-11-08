@@ -28,7 +28,8 @@ module GenericUtils (
   , containsTypes
   , gmapMFor
   , gmapMForRoute
-  , routeModify, routeGet, routeSet, Route
+  , routeModify, routeGet, routeSet, Route, (@->), routeIdentity, routeId
+  , baseTransformRoute, extTransformRoute
   ) where
 
 import Control.Monad.Identity
@@ -40,6 +41,7 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Data.List
 import Data.Typeable
+import GHC.Base (unsafeCoerce#)
 import System.IO.Unsafe
 
 import qualified AST as A
@@ -168,6 +170,9 @@ instance Eq (Route inner outer) where
 instance Ord (Route inner outer) where
   compare (Route xns _) (Route yns _) = compare xns yns
 
+routeId :: Route inner outer -> [Int]
+routeId (Route ns _) = ns
+
 routeModify :: Monad m => Route inner outer -> (inner -> m inner) -> (outer -> m
   outer)
 routeModify (Route _ wrap) = wrap
@@ -181,6 +186,9 @@ routeSet route x = runIdentity . routeModify route (const $ return x)
 (@->) :: Route mid outer -> Route inner mid -> Route inner outer
 (@->) (Route outInds outF) (Route inInds inF) = Route (outInds ++ inInds) (outF
   . inF)
+
+routeIdentity :: Route a a
+routeIdentity = Route [] id
 
 gmapMForRoute :: forall m t. (Monad m, Data t) =>
   TypeSet ->
@@ -203,6 +211,17 @@ gmapMWithRoute f = gmapFuncs [GM {unGM = f' n} | n <- [0..]]
   where
     f' :: Int -> (forall b. Data b => b -> m b)
     f' n x = f (x, makeRoute n)
+
+baseTransformRoute :: forall m s t. (Data s, Monad m) => (s, Route s t) -> m s
+baseTransformRoute (x, _) = return x
+
+extTransformRoute :: forall s m t. (Data s, Monad m) => (forall a. Data a => (a, Route a t) -> m a) -> ((s, Route s t) -> m
+  s) -> (forall a. Data a => (a, Route a t) -> m a)
+extTransformRoute generalFunc specificFunc (x, route)
+  = case cast x of
+      Just x' -> do Just y <- specificFunc (x', unsafeCoerce# route) >>* cast
+                    return y
+      Nothing -> generalFunc (x, route)
 
 -- Given a number, makes a route function for that child:
 makeRoute :: (Data s, Data t) => Int -> Route s t
