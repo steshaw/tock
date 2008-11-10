@@ -1,5 +1,4 @@
 GHC_OPTS = \
-	-fglasgow-exts \
 	-fwarn-deprecations \
 	-fwarn-duplicate-exports \
 	-fwarn-incomplete-record-updates \
@@ -24,9 +23,28 @@ GHC_OPTS = \
 	-itransformations
 
 if GHC68
-GHC_OPTS += -XUndecidableInstances -fwarn-tabs -fwarn-monomorphism-restriction
+# I'd like to spell out all the flags for GHC 6.8 as follows.
+# But it seems that on GHC 6.8.2 (i386), this causes a GHC panic,
+# which I believe is related to the use of unsafeCoerce#.  So if anyone
+# else tries to do this in future, make sure to test on GHC 6.8.2 (which
+# is currently the latest version on Ubuntu and Gentoo)
+
+#GHC_OPTS += -XDeriveDataTypeable
+#GHC_OPTS += -XExistentialQuantification
+#GHC_OPTS += -XFlexibleContexts
+#GHC_OPTS += -XFlexibleInstances
+#GHC_OPTS += -XFunctionalDependencies
+#GHC_OPTS += -XMagicHash
+#GHC_OPTS += -XMultiParamTypeClasses
+#GHC_OPTS += -XRank2Types
+#GHC_OPTS += -XScopedTypeVariables
+#GHC_OPTS += -XTypeSynonymInstances
+
+GHC_OPTS += -XUndecidableInstances
+GHC_OPTS += -fglasgow-exts
+GHC_OPTS += -fwarn-tabs -fwarn-monomorphism-restriction
 else
-GHC_OPTS += -fallow-undecidable-instances
+GHC_OPTS +=	-fglasgow-exts -fallow-undecidable-instances
 endif
 
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) $(config_sources)
