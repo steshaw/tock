@@ -148,14 +148,10 @@ forAnyAST origF = CheckOptM $ do
     apply :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
              (a, Route a A.AST) -> RestartT A.AST a CheckOptM a
     apply typeSet f (x, route)
-      = (RestartT $ (local (const route) $ getRestartT (wrap f x)))
+      = (RestartT $ (local (const route) $ getRestartT (f x)))
         >> (liftRestartT (CheckOptM get) >>* ast >>* routeGet route)
         >>= gmapMForRoute typeSet (extTransformRoute baseTransformRoute $
               \(y, route') -> apply typeSet f (y, route @-> route'))
-
-    wrap :: (a -> RestartT A.AST a CheckOptM ()) -> (a -> RestartT A.AST a CheckOptM
-      ())
-    wrap f x = join (liftIO $ onlyIfPatternMatch (return ()) f x)
 
 -- | For both of these functions I'm going to need to mark all analyses as no longer
 -- valid, but more difficult will be to maintain the current position (if possible
@@ -174,16 +170,6 @@ substitute x = CheckOptM' $ RestartT $ ask >>= (\r -> return $ Left (Just r, ret
 -- made thus far.
 restartForAnyAST :: CheckOptM' a a
 restartForAnyAST = CheckOptM' $ RestartT $ return $ Left (Nothing, return)
-
--- | Given a default value, followed by a function application with a
--- partial pattern match, gives back the default if the second parameter experiences
--- a pattern-match failure.
-onlyIfPatternMatch :: a -> (b -> a) -> b -> IO a
-onlyIfPatternMatch def f x = evaluate x >>= (\x' -> catchJust onlyPatternFail (evaluate
-  $ f x') (const $ return def))
-  where
-    onlyPatternFail (PatternMatchFail {}) = Just ()
-    onlyPatternFail _ = Nothing
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing})
