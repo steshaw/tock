@@ -169,6 +169,7 @@ tocktest_SOURCES += backends/AnalyseAsmTest.hs
 tocktest_SOURCES += backends/BackendPassesTest.hs
 tocktest_SOURCES += backends/GenerateCTest.hs
 tocktest_SOURCES += checks/ArrayUsageCheckTest.hs
+tocktest_SOURCES += checks/CheckTest.hs
 tocktest_SOURCES += checks/UsageCheckTest.hs
 tocktest_SOURCES += common/CommonTest.hs
 tocktest_SOURCES += common/OccamEDSL.hs

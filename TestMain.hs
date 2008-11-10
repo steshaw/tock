@@ -24,6 +24,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- * "BackendPassesTest"
 --
+-- * "CheckTest"
+--
 -- * "CommonTest"
 --
 -- * "FlowGraphTest"
@@ -64,6 +66,7 @@ import Test.HUnit
 import qualified AnalyseAsmTest (tests)
 import qualified ArrayUsageCheckTest (ioqcTests)
 import qualified BackendPassesTest (qcTests)
+import qualified CheckTest (tests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
@@ -183,6 +186,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               noqc AnalyseAsmTest.tests
               ,ArrayUsageCheckTest.ioqcTests
               ,return BackendPassesTest.qcTests
+              ,noqc CheckTest.tests
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests

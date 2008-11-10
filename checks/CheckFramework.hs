@@ -189,6 +189,9 @@ runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing})
   >>* ast
 
+runChecksPass :: CheckOptM () -> Pass
+runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
+
 --getParItems :: CheckOptM (ParItems ())
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))
 
