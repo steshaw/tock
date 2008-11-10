@@ -32,6 +32,7 @@ import Errors
 import FlowAlgorithms
 import FlowGraph
 import FlowUtils
+import GenericUtils
 import Metadata
 import Pass
 import Types
@@ -40,7 +41,7 @@ import Utils
 
 effectDecision :: Var -> Decision -> AlterAST PassM () -> A.AST -> PassM A.AST
 effectDecision _ Move _ = return -- Move is the default
-effectDecision targetVar Copy (AlterProcess wrapper) = wrapper alterProc
+effectDecision targetVar Copy (AlterProcess wrapper) = routeModify wrapper alterProc
   where
     derefExp :: A.Expression -> PassM A.Expression
     derefExp e

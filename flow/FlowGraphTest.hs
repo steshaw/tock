@@ -35,6 +35,7 @@ import Test.QuickCheck
 
 import qualified AST as A
 import FlowGraph
+import GenericUtils
 import Metadata
 import PrettyShow
 import TestFramework
@@ -753,12 +754,12 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
   where
     getFunc (_,n) = getNodeFunc n
     
-    applyFunc (AlterAlternative f) = f return
-    applyFunc (AlterProcess f) = f return
-    applyFunc (AlterExpression f) = f return
-    applyFunc (AlterExpressionList f) = f return
-    applyFunc (AlterReplicator f) = f return
-    applyFunc (AlterSpec f) = f return
+    applyFunc (AlterAlternative f) = routeModify f return
+    applyFunc (AlterProcess f) = routeModify f return
+    applyFunc (AlterExpression f) = routeModify f return
+    applyFunc (AlterExpressionList f) = routeModify f return
+    applyFunc (AlterReplicator f) = routeModify f return
+    applyFunc (AlterSpec f) = routeModify f return
     applyFunc (AlterNothing) = return
 
 -- | Given a flow-graph, it returns a list of the meta-tag replacement alteration functions,
@@ -770,12 +771,12 @@ pickFuncRep gr = Map.fromList $ filter ((/= emptyMeta) . fst) $ map (helpApplyFu
     
     helpApplyFunc (m,f) = (m, applyFunc (m,f))
     
-    applyFunc (m,AlterAlternative f) = f (g m)
-    applyFunc (m,AlterProcess f) = f (g m)
-    applyFunc (m,AlterExpression f) = f (g m)
-    applyFunc (m,AlterExpressionList f) = f (g m)
-    applyFunc (m,AlterReplicator f) = f (g m)
-    applyFunc (m,AlterSpec f) = f (g m)
+    applyFunc (m,AlterAlternative f) = routeModify f (g m)
+    applyFunc (m,AlterProcess f) = routeModify f (g m)
+    applyFunc (m,AlterExpression f) = routeModify f (g m)
+    applyFunc (m,AlterExpressionList f) = routeModify f (g m)
+    applyFunc (m,AlterReplicator f) = routeModify f (g m)
+    applyFunc (m,AlterSpec f) = routeModify f (g m)
     applyFunc (m,AlterNothing) = return
     
     g m = gmapM (mkM $ replaceM m (replaceMeta m))

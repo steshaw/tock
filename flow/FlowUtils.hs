@@ -25,6 +25,7 @@ import Data.Generics
 import Data.Graph.Inductive hiding (run)
 
 import qualified AST as A
+import GenericUtils
 import Metadata
 import TreeUtils
 import Utils
@@ -42,13 +43,10 @@ data EdgeLabel = ESeq (Maybe Bool) | EStartPar Int | EEndPar Int deriving (Show,
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
--- provide flexibility; you can always use the Identity monad.
-type ASTModifier m inner structType = (inner -> m inner) -> (A.Structured structType -> m (A.Structured structType))
-
--- | An operator for combining ASTModifier functions as you walk the tree.
--- While its implementation is simple, it adds clarity to the code.
-(@->) :: ASTModifier m outer b -> ((inner -> m inner) -> (outer -> m outer)) -> ASTModifier m inner b
-(@->) = (.)
+-- provide flexibility; you can always use the Identity monad.  The type parameter
+-- m is left-over from when the monad used to be specific (now it can be any monad,
+-- using the mechanisms of Route) but it helps with code clarity
+type ASTModifier m inner structType = Route inner (A.Structured structType)
 
 -- | A choice of AST altering functions built on ASTModifier.
 data AlterAST m structType = 
@@ -217,18 +215,6 @@ addParEdges usePI (s,e) pairs
     parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
     parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
 
--- The build-up functions are all of type (innerType -> m innerType) -> outerType -> m outerType
--- which has the synonym Route m innerType outerType
-
-getN :: Int -> [a] -> ([a],a,[a])
-getN n xs = let (f,(m:e)) = splitAt n xs in (f,m,e)
-
-routeList :: Monad m => Int -> (a -> m a) -> ([a] -> m [a])
-routeList n f xs
-  = do let (pre,x,suf) = getN n xs
-       x' <- f x
-       return (pre ++ [x'] ++ suf)
-
 mapMR :: forall inner mAlter mLabel label retType structType. (Monad mLabel, Monad mAlter) =>
   ASTModifier mAlter [inner] structType ->
   (inner -> ASTModifier mAlter inner structType -> GraphMaker mLabel mAlter label structType retType) ->
@@ -262,52 +248,3 @@ joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq
                          Nothing) s e) nodes
                        return (fst (head nodes), snd (last nodes))
 
-decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
-decomp22 con f1 = decomp2 con return f1
-
-decomp23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a1 -> m a1) -> (a -> m a)
-decomp23 con f1 = decomp3 con return f1 return
-
-decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
-decomp33 con f2 = decomp3 con return return f2
-
-decomp34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
-  (a0 -> a1 -> a2 -> a3 -> a) -> (a2 -> m a2) -> (a -> m a)
-decomp34 con f2 = decomp4 con return return f2 return
-
-decomp44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
-  (a0 -> a1 -> a2 -> a3 -> a) -> (a3 -> m a3) -> (a -> m a)
-decomp44 con f3 = decomp4 con return return return f3
-
-decomp45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
-  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a3 -> m a3) -> (a -> m a)
-decomp45 con f3 = decomp5 con return return return f3 return
-
-decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
-  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
-decomp55 con f4 = decomp5 con return return return return f4
-
-route22 :: (Monad m, Data a, Typeable a0, Typeable a1) => ASTModifier m a b -> (a0 -> a1 -> a) -> ASTModifier m a1 b
-route22 route con = route @-> (decomp22 con)
-
-route23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a b -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a1 b
-route23 route con = route @-> (decomp23 con)
-
-route33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => ASTModifier m a b -> (a0 -> a1 -> a2 -> a) -> ASTModifier m a2 b
-route33 route con = route @-> (decomp33 con)
-
-route34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
-  ASTModifier m a b -> (a0 -> a1 -> a2 -> a3 -> a) -> ASTModifier m a2 b
-route34 route con = route @-> (decomp34 con)
-
-route44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
-  ASTModifier m a b -> (a0 -> a1 -> a2 -> a3 -> a) -> ASTModifier m a3 b
-route44 route con = route @-> (decomp44 con)
-
-route45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
-  ASTModifier m a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> ASTModifier m a3 b
-route45 route con = route @-> (decomp45 con)
-
-route55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
-  ASTModifier m a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> ASTModifier m a4 b
-route55 route con = route @-> (decomp55 con)

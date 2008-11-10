@@ -28,7 +28,8 @@ module GenericUtils (
   , containsTypes
   , gmapMFor
   , gmapMForRoute
-  , routeModify, routeGet, routeSet, Route, (@->), routeIdentity, routeId
+  , routeModify, routeGet, routeSet, Route(..), (@->), routeIdentity, routeId, routeList
+  , route22, route23, route33, route34, route44, route45, route55
   , baseTransformRoute, extTransformRoute
   ) where
 
@@ -173,6 +174,10 @@ instance Ord (Route inner outer) where
 routeId :: Route inner outer -> [Int]
 routeId (Route ns _) = ns
 
+routeList :: Int -> Route a [a]
+routeList 0 = Route [0] (\f (x:xs) -> f x >>* (: xs))
+routeList n = Route [1] (\f (x:xs) -> f xs >>* (x:)) @-> routeList (n-1)
+
 routeModify :: Monad m => Route inner outer -> (inner -> m inner) -> (outer -> m
   outer)
 routeModify (Route _ wrap) = wrap
@@ -226,3 +231,53 @@ extTransformRoute generalFunc specificFunc (x, route)
 -- Given a number, makes a route function for that child:
 makeRoute :: (Data s, Data t) => Int -> Route s t
 makeRoute target = Route [target] (\f -> gmapFuncs [mkM' (if n == target then f else return) | n <- [0..]])
+
+decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp22 con f1 = decomp2 con return f1
+
+decomp23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp23 con f1 = decomp3 con return f1 return
+
+decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp33 con f2 = decomp3 con return return f2
+
+decomp34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp34 con f2 = decomp4 con return return f2 return
+
+decomp44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp44 con f3 = decomp4 con return return return f3
+
+decomp45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp45 con f3 = decomp5 con return return return f3 return
+
+decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
+decomp55 con f4 = decomp5 con return return return return f4
+
+route22 :: (Data a, Typeable a0, Typeable a1) => Route a b -> (a0 -> a1 -> a) -> Route a1 b
+route22 route con = route @-> Route [1] (decomp22 con)
+
+route23 :: (Data a, Typeable a0, Typeable a1, Typeable a2) => Route a b -> (a0 -> a1 -> a2 -> a) -> Route a1 b
+route23 route con = route @-> Route [1] (decomp23 con)
+
+route33 :: (Data a, Typeable a0, Typeable a1, Typeable a2) => Route a b -> (a0 -> a1 -> a2 -> a) -> Route a2 b
+route33 route con = route @-> Route [2] (decomp33 con)
+
+route34 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a) -> Route a2 b
+route34 route con = route @-> Route [2] (decomp34 con)
+
+route44 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a) -> Route a3 b
+route44 route con = route @-> Route [3] (decomp44 con)
+
+route45 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Route a3 b
+route45 route con = route @-> Route [3] (decomp45 con)
+
+route55 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Route a4 b
+route55 route con = route @-> Route [4] (decomp55 con)

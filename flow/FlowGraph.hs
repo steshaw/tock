@@ -51,6 +51,7 @@ import Data.Graph.Inductive hiding (run)
 import Data.Maybe
 
 import qualified AST as A
+import GenericUtils
 import Metadata
 import FlowUtils
 import Utils
@@ -74,8 +75,10 @@ buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args p)) route
 buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args es)) route
   = let funcRoute = (route33 route A.Specification) in
     case es of
-      Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (\f (Left e) -> f e >>* Left))) (route45 funcRoute A.Function)
-      Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (\f (Right p) -> f p >>* Right))) (route45 funcRoute A.Function)
+      Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (Route
+        [0] $ \f (Left e) -> f e >>* Left))) (route45 funcRoute A.Function)
+      Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (Route
+        [0] $ \f (Right p) -> f p >>* Right))) (route45 funcRoute A.Function)
 buildProcessOrFunctionSpec _ _ = return ()
 
 -- All the various types of Structured (SEQ, PAR, ALT, IF, CASE, input-CASE, VALOF) deal with their nodes so differently
@@ -402,7 +405,7 @@ buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.AST  ->
   mLabel (Either String (FlowGraph' mAlter label (), [Node], [Node]))
 buildFlowGraph funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s id
+  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s routeIdentity
        return $ case res of
                   (Left err,_) -> Left err
                   (Right _,(_,_,(nodes, edges),roots,terminators))
@@ -413,7 +416,7 @@ buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.Structured A.Process ->
   mLabel (Either String (FlowGraph' mAlter label A.Process, [Node], [Node]))
 buildFlowGraphP funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s id
+  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s routeIdentity
        return $ case res of
                   (Left err,_) -> Left err
                   (Right (root,_),(_,_,(nodes, edges),roots, terminators))
