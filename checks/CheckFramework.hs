@@ -17,13 +17,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module CheckFramework (CheckOptM, CheckOptM', forAnyAST, substitute, restartForAnyAST,
-  runChecks, runChecksPass, getFlowGraphAndMap, withChild, getVarsTouchedAfter) where
+  runChecks, runChecksPass, getFlowGraphAndMap, withChild, varsTouchedAfter,
+  getCachedAnalysis, getCachedAnalysis') where
 
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
 import Data.Graph.Inductive
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -48,17 +50,16 @@ todo = error "TODO"
 data CheckOptData = CheckOptData
  { ast :: A.AST
  , parItems :: Maybe (ParItems ())
- -- TODO also keep track of our location in each data structure
- , nextVarsTouched :: Maybe (Map.Map [Int] (Set.Set Var))
- , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node)
+  -- TODO need to split this up per connected subgraphs
+ , nextVarsTouched :: Maybe (Map.Map Node (Set.Set Var))
+ , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel)
  }
 
 --TODO make this a data item that fiddles with CheckOptData
 data FlowGraphAnalysis res = FlowGraphAnalysis
-  { getFlowGraphAnalysis :: CheckOptData -> Maybe res
-  , setFlowGraphAnalysis :: res -> CheckOptData -> CheckOptData
-  , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node,
-    Node) -> CheckOptM res
+  { getFlowGraphAnalysis :: CheckOptData -> Maybe (Map.Map Node res)
+  , setFlowGraphAnalysis :: Map.Map Node res -> CheckOptData -> CheckOptData
+  , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Node) -> CheckOptM (Map.Map Node res)
   }
 
 invalidateAll :: (A.AST -> A.AST) -> CheckOptData -> CheckOptData
@@ -251,6 +252,7 @@ withChild ns (CheckOptM' (RestartT m)) = askRoute >>= \r -> CheckOptM' $ Restart
     munge (Right x) = Right x
     munge (Left _) = Left $ error "withChild wants to restart, help!"
 
+{-
 getVarsTouchedAfter :: CheckOptM' t (Set.Set Var)
 getVarsTouchedAfter = do
   r <- askRoute >>* routeId
@@ -258,14 +260,14 @@ getVarsTouchedAfter = do
   case Map.lookup r nu of
     Nothing -> dieP emptyMeta "Node not found in flow graph"
     Just vs -> return vs
+-}
 
-varsTouchedAfter :: FlowGraphAnalysis (Map.Map [Int] (Set.Set Var))
+varsTouchedAfter :: FlowGraphAnalysis (Set.Set Var)
 varsTouchedAfter = FlowGraphAnalysis
-  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $ \(g, lu, startNode) ->
+  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $ \(g, startNode) ->
     case flowAlgorithm (funcs g) (rdfs [startNode] g) (startNode, Set.empty) of
       Left err -> dieP emptyMeta err
-      Right nodesToVars -> (liftIO $ putStrLn $ show g) >> return (Map.fromList [(y, z) |
-        (Just y, z) <- map (\(k,v) -> (reverseLookup k lu, v)) $ Map.toList nodesToVars])
+      Right nodesToVars -> (liftIO $ putStrLn $ show g) >> return nodesToVars
   where
     funcs :: FlowGraph CheckOptM UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
     funcs g = GF     
@@ -292,8 +294,7 @@ varsTouchedAfter = FlowGraphAnalysis
 
 --getLastPlacesWritten :: CheckOptM' t [(Route, Maybe A.Expression)]
 
-getFlowGraphAndMap :: CheckOptM' t (FlowGraph CheckOptM UsageLabel, Map.Map [Int]
-  Node)
+getFlowGraphAndMap :: CheckOptM' t (FlowGraph CheckOptM UsageLabel)
 getFlowGraphAndMap = getCache flowGraph (\x d -> d {flowGraph = Just x}) generateFlowGraph
 -- TODO make this invalidate all the analyses
 
@@ -305,21 +306,30 @@ getCache getF setF genF = getCheckOptData >>= \x -> case getF x of
                 modifyCheckOptData (setF y)
                 return y
 
--- Analysis requires the latest flow graph, and uses this to produce a result
 getCachedAnalysis :: FlowGraphAnalysis res -> CheckOptM' t res
-getCachedAnalysis an = getCheckOptData >>= \x -> case getFlowGraphAnalysis an x of
-  Just y -> return y
-  Nothing -> do (g, nodes) <- getFlowGraphAndMap
-                r <- askRoute
-                case Map.lookup (routeId r) nodes of
-                  Just n -> liftCheckOptM $
-                            do z <- doFlowGraphAnalysis an (g, nodes, n)
-                               CheckOptM $ modify $ setFlowGraphAnalysis an z
-                               return z
-                  Nothing -> dieP emptyMeta "Node not found in flow graph"
+getCachedAnalysis = getCachedAnalysis' (const True)
 
-generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node)
+-- Analysis requires the latest flow graph, and uses this to produce a result
+getCachedAnalysis' :: (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptM' t res
+getCachedAnalysis' f an = do
+  d <- getCheckOptData
+  g <- getFlowGraphAndMap
+  r <- askRoute >>* routeId
+  -- Find the node that matches our location and the given function:
+  case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == r)) (labNodes g) of
+    Nothing -> dieP emptyMeta $ "Node not found in flow graph: " ++ show g
+    Just (n, _) -> do
+      m <- case getFlowGraphAnalysis an d of
+        Just y -> return y
+        Nothing -> liftCheckOptM $
+                    do z <- doFlowGraphAnalysis an (g, n)
+                       CheckOptM $ modify $ setFlowGraphAnalysis an z
+                       return z
+      case Map.lookup n m of
+        Nothing -> dieP emptyMeta "Node not found in analysis results"
+        Just r -> return r
+
+generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel)
 generateFlowGraph x = buildFlowGraph labelUsageFunctions x >>= \g -> case g of
   Left err -> dieP emptyMeta err
-  Right (y,_,_) -> return (y, Map.fromList $
-    [(getNodeRouteId l, n)| (n, l) <- labNodes y])
+  Right (y,_,_) -> return y
