@@ -39,9 +39,11 @@ testUnusedVar = TestList
  ,test' "Used var" $ wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
    "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta $ A.Assign emptyMeta
      [variable "x"] (A.ExpressionList emptyMeta [intLiteral 0])
- ,test "Unused var" (wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
-   "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta (A.Skip emptyMeta))
-     (wrapProcSeq $ A.Only emptyMeta (A.Skip emptyMeta))
+ ,test "Unused var"
+   (wrapProcSeq $ A.Only emptyMeta (A.Skip emptyMeta))
+   (wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
+     "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta (A.Skip emptyMeta))
+     
  ]
  where
    test' str src = test str src src
