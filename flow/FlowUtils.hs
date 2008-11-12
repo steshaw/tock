@@ -57,7 +57,7 @@ data AlterAST m structType =
  |AlterExpressionList (ASTModifier m A.ExpressionList structType)
  |AlterReplicator (ASTModifier m A.Replicator structType)
  |AlterSpec (ASTModifier m A.Specification structType)
- |AlterNothing
+ |AlterNothing [Int]
 
 data Monad mAlter => FNode' structType mAlter label
   = Node (Meta, label, AlterAST mAlter structType)
@@ -121,6 +121,18 @@ getNodeData (Node (_,d,_)) = d
 
 getNodeFunc :: Monad m => FNode' b m a -> AlterAST m b
 getNodeFunc (Node (_,_,f)) = f
+
+getNodeRouteId :: Monad m => FNode' b m a -> [Int]
+getNodeRouteId = get . getNodeFunc
+  where
+    get (AlterProcess f) = routeId f
+    get (AlterAlternative f) = routeId f
+    get (AlterArguments f) = routeId f
+    get (AlterExpression f) = routeId f
+    get (AlterExpressionList f) = routeId f
+    get (AlterReplicator f) = routeId f
+    get (AlterSpec f) = routeId f
+    get (AlterNothing r) = r
 
 makeTestNode :: Monad m => Meta -> a -> FNode m a
 makeTestNode m d = Node (m,d,undefined)
@@ -199,8 +211,9 @@ addNodeExpression m e r = addNode' m labelExpression e (AlterExpression r)
 addNodeExpressionList :: (Monad mLabel, Monad mAlter) => Meta -> A.ExpressionList -> (ASTModifier mAlter A.ExpressionList structType) -> GraphMaker mLabel mAlter label structType Node
 addNodeExpressionList m e r = addNode' m labelExpressionList e (AlterExpressionList r)
 
-addDummyNode :: (Monad mLabel, Monad mAlter) => Meta -> GraphMaker mLabel mAlter label structType Node
-addDummyNode m = addNode' m labelDummy m AlterNothing
+addDummyNode :: (Monad mLabel, Monad mAlter) => Meta -> ASTModifier mAlter a structType
+  -> GraphMaker mLabel mAlter label structType Node
+addDummyNode m mod = addNode' m labelDummy m (AlterNothing $ routeId mod)
 
 getNextParEdgeId :: (Monad mLabel, Monad mAlter) => GraphMaker mLabel mAlter label structType Int
 getNextParEdgeId = do (a, pi, b, c, d) <- get
@@ -242,9 +255,10 @@ nonEmpty :: Either Bool [(Node,Node)] -> Bool
 nonEmpty (Left hadNodes) = hadNodes
 nonEmpty (Right nodes) = not (null nodes)
     
-joinPairs :: (Monad mLabel, Monad mAlter) => Meta -> [(Node, Node)] -> GraphMaker mLabel mAlter label structType (Node, Node)
-joinPairs m [] = addDummyNode m >>* mkPair
-joinPairs m nodes = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq
-                         Nothing) s e) nodes
-                       return (fst (head nodes), snd (last nodes))
+joinPairs :: (Monad mLabel, Monad mAlter) => Meta -> ASTModifier mAlter a structType
+  -> [(Node, Node)] -> GraphMaker mLabel mAlter label structType (Node, Node)
+joinPairs m mod [] = addDummyNode m mod >>* mkPair
+joinPairs m mod nodes
+  = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq Nothing) s e) nodes
+       return (fst (head nodes), snd (last nodes))
 

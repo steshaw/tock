@@ -172,7 +172,7 @@ buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> 
   GraphMaker mLabel mAlter label structType (Node, Node)
 buildStructuredSeq (A.Several m ss) route
   = do nodes <- mapMR (route22 route A.Several) buildStructuredSeq ss
-       joinPairs m nodes
+       joinPairs m route nodes
 buildStructuredSeq (A.Spec m (A.Specification mspec nm (A.Rep mrep rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do n <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
@@ -204,7 +204,7 @@ buildStructuredPar pId (nStart, nEnd) (A.Several m ss) route
 buildStructuredPar pId (nStart, nEnd) (A.Spec mstr (A.Specification mspec nm (A.Rep m rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do s <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
-       e <- addDummyNode m
+       e <- addDummyNode m route
        pId' <- getNextParEdgeId
        nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Spec)
        case nodes of
@@ -227,7 +227,7 @@ buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
 buildStructuredPar _ _ (A.Only _ p) route = buildProcess p (route22 route A.Only) >>* Right
 buildStructuredPar pId (nStart, nEnd) (A.ProcThen m p str) route
   = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
-       n <- addDummyNode m
+       n <- addDummyNode m route
        pId' <- getNextParEdgeId
        nodes <- buildStructuredPar pId' (pe, n) str (route33 route A.ProcThen)
        case nodes of
@@ -294,7 +294,7 @@ buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier m
 buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
   = do nexp <- addNode' (findMeta exp) labelConditionalExpression exp
                  $ AlterExpression $ route23 route A.Choice
-       nexpf <- addDummyNode m
+       nexpf <- addDummyNode m route
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
        cPrev --> nexp
        addEdge (ESeq $ Just True) nexp nbodys
@@ -308,7 +308,7 @@ buildOnlyOption (cStart, cEnd) route opt
          case opt of
            (A.Option m es p) -> do
              nexpNodes <- mapMR (route23 route A.Option) (\e r -> addNodeExpression (findMeta e) e r >>* mkPair) es
-             (nexps, nexpe) <- joinPairs m nexpNodes
+             (nexps, nexpe) <- joinPairs m route nexpNodes
              (nbodys, nbodye) <- buildProcess p $ route33 route A.Option
              nexpe --> nbodys
              return (nexps,nbodye)
@@ -346,8 +346,8 @@ buildProcess :: (Monad mLabel, Monad mAlter) => A.Process -> ASTModifier mAlter 
 buildProcess (A.Seq m s) route
   = buildStructuredSeq s (route22 route A.Seq)
 buildProcess (A.Par m _ s) route
-  = do nStart <- addDummyNode m
-       nEnd <- addDummyNode m
+  = do nStart <- addDummyNode m route
+       nEnd <- addDummyNode m route
        pId <- getNextParEdgeId
        nodes <- buildStructuredPar pId (nStart, nEnd) s (route33 route A.Par)
        case nodes of
@@ -360,7 +360,7 @@ buildProcess (A.Par m _ s) route
 buildProcess (A.While m e p) route
   = do n <- addNode' (findMeta e) labelConditionalExpression e (AlterExpression
          $ route23 route A.While)
-       nAfter <- addDummyNode m
+       nAfter <- addDummyNode m route
        (start, end) <- buildProcess p (route33 route A.While)
        addEdge (ESeq $ Just True) n start
        addEdge (ESeq $ Just False) n nAfter
@@ -368,17 +368,17 @@ buildProcess (A.While m e p) route
        return (n, nAfter)
 buildProcess (A.Case m e s) route
   = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
-       nEnd <- addDummyNode m
+       nEnd <- addDummyNode m route
        buildStructuredCase (nStart,nEnd) s (route33 route A.Case)
        return (nStart, nEnd)
 buildProcess (A.If m s) route
-  = do nStart <- addDummyNode m
-       nEnd <- addDummyNode m
+  = do nStart <- addDummyNode m route
+       nEnd <- addDummyNode m route
        buildStructuredIf (nStart, nEnd) s (route22 route A.If)
        return (nStart, nEnd)
 buildProcess (A.Alt m _ s) route
-  = do nStart <- addDummyNode m
-       nEnd <- addDummyNode m
+  = do nStart <- addDummyNode m route
+       nEnd <- addDummyNode m route
        specNodes <- buildJustSpecs s (route33 route A.Alt)
        (nStart', nEnd') <- case specNodes of
          Just ((nInStart, nInEnd), (nOutStart, nOutEnd)) ->

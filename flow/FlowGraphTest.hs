@@ -760,7 +760,7 @@ pickFuncId g = map (applyFunc . getFunc) (labNodes g)
     applyFunc (AlterExpressionList f) = routeModify f return
     applyFunc (AlterReplicator f) = routeModify f return
     applyFunc (AlterSpec f) = routeModify f return
-    applyFunc (AlterNothing) = return
+    applyFunc (AlterNothing _) = return
 
 -- | Given a flow-graph, it returns a list of the meta-tag replacement alteration functions,
 -- for each meta-tag (i.e. each node).
@@ -777,7 +777,7 @@ pickFuncRep gr = Map.fromList $ filter ((/= emptyMeta) . fst) $ map (helpApplyFu
     applyFunc (m,AlterExpressionList f) = routeModify f (g m)
     applyFunc (m,AlterReplicator f) = routeModify f (g m)
     applyFunc (m,AlterSpec f) = routeModify f (g m)
-    applyFunc (m,AlterNothing) = return
+    applyFunc (m,AlterNothing _) = return
     
     g m = gmapM (mkM $ replaceM m (replaceMeta m))
 
