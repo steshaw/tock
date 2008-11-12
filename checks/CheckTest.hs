@@ -28,7 +28,7 @@ import TestUtils
 
 wrapProcSeq :: A.Structured A.Process -> A.AST
 wrapProcSeq x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo")
-  $ A.Proc emptyMeta A.PlainSpec [] $ A.Seq emptyMeta x) (A.Only emptyMeta ())
+  $ A.Proc emptyMeta A.PlainSpec [] $ A.Seq emptyMeta x) (A.Several emptyMeta [])
 
 testUnusedVar :: Test
 testUnusedVar = TestList
