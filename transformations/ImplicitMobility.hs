@@ -101,6 +101,7 @@ calculateUsedAgainAfter g startNode
         in (readFromVars `Set.union` addTo) `Set.difference` Map.keysSet writtenToVars
       Nothing -> error "Node label not found in calculateUsedAgainAfter"
 
+
 --TODO rememember to take note of declarations/scope, otherwise this:
 -- seqeach (..) {int:x; ... x = 3;}
 -- will look like x is used again on the next loop iteration

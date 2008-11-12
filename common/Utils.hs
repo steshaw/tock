@@ -349,3 +349,6 @@ eitherToMaybe = either (const Nothing) Just
 
 labelMapWithNodeId :: DynGraph gr => (Node -> a -> b) -> gr a c -> gr b c
 labelMapWithNodeId f = gmap (\(x,n,l,y) -> (x,n,f n l,y))
+
+reverseLookup :: (Ord k, Eq v) => v -> Map.Map k v -> Maybe k
+reverseLookup x m = lookup x $ map revPair $ Map.toList m

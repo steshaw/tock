@@ -23,15 +23,18 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
-import Data.Graph.Inductive (Node)
+import Data.Graph.Inductive
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Control.Exception
 
 import qualified AST as A
+import CompState
 import Errors
+import FlowAlgorithms
 import FlowGraph
+import FlowUtils
 import GenericUtils
 import Metadata
 import Pass
@@ -54,7 +57,8 @@ data CheckOptData = CheckOptData
 data FlowGraphAnalysis res = FlowGraphAnalysis
   { getFlowGraphAnalysis :: CheckOptData -> Maybe res
   , setFlowGraphAnalysis :: res -> CheckOptData -> CheckOptData
-  , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Node) -> CheckOptM res
+  , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node,
+    Node) -> CheckOptM res
   }
 
 invalidateAll :: (A.AST -> A.AST) -> CheckOptData -> CheckOptData
@@ -66,6 +70,9 @@ newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
 
 instance Die CheckOptM where
   dieReport = CheckOptM . lift . dieReport
+
+instance CSMR CheckOptM where
+  getCompState = CheckOptM . lift $ getCompState
 
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
@@ -254,8 +261,33 @@ getVarsTouchedAfter = do
 
 varsTouchedAfter :: FlowGraphAnalysis (Map.Map [Int] (Set.Set Var))
 varsTouchedAfter = FlowGraphAnalysis
-  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $
-    todo
+  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $ \(g, lu, startNode) ->
+    case flowAlgorithm (funcs g) (rdfs [startNode] g) (startNode, Set.empty) of
+      Left err -> dieP emptyMeta err
+      Right nodesToVars -> (liftIO $ putStrLn $ show g) >> return (Map.fromList [(y, z) |
+        (Just y, z) <- map (\(k,v) -> (reverseLookup k lu, v)) $ Map.toList nodesToVars])
+  where
+    funcs :: FlowGraph CheckOptM UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
+    funcs g = GF     
+      { nodeFunc = iterate g
+      -- Backwards data flow:
+      , nodesToProcess = lsuc g
+      , nodesToReAdd = lpre g
+      , defVal = Set.empty
+      , userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab g
+      }
+
+    iterate :: FlowGraph CheckOptM UsageLabel ->
+      (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set Var
+    iterate g node prevVars maybeVars = case lab g (fst node) of
+      Just ul ->
+        let vs = nodeVars $ getNodeData ul
+            readFromVars = readVars vs
+            writtenToVars = writtenVars vs
+            addTo = fromMaybe prevVars maybeVars
+        in (readFromVars `Set.union` addTo) `Set.union` Map.keysSet writtenToVars
+      Nothing -> error "Node label not found in calculateUsedAgainAfter"
+
   
 
 --getLastPlacesWritten :: CheckOptM' t [(Route, Maybe A.Expression)]
@@ -281,12 +313,13 @@ getCachedAnalysis an = getCheckOptData >>= \x -> case getFlowGraphAnalysis an x 
                 r <- askRoute
                 case Map.lookup (routeId r) nodes of
                   Just n -> liftCheckOptM $
-                            do z <- doFlowGraphAnalysis an (g, n)
+                            do z <- doFlowGraphAnalysis an (g, nodes, n)
                                CheckOptM $ modify $ setFlowGraphAnalysis an z
                                return z
                   Nothing -> dieP emptyMeta "Node not found in flow graph"
 
 generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node)
-generateFlowGraph x = buildFlowGraph todo x >>= \g -> case g of
+generateFlowGraph x = buildFlowGraph labelUsageFunctions x >>= \g -> case g of
   Left err -> dieP emptyMeta err
-  Right (y,_,_) -> return (y, todo)
+  Right (y,_,_) -> return (y, Map.fromList $
+    [(getNodeRouteId l, n)| (n, l) <- labNodes y])

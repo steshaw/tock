@@ -58,6 +58,7 @@ data AlterAST m structType =
  |AlterReplicator (ASTModifier m A.Replicator structType)
  |AlterSpec (ASTModifier m A.Specification structType)
  |AlterNothing [Int]
+ deriving (Show)
 
 data Monad mAlter => FNode' structType mAlter label
   = Node (Meta, label, AlterAST mAlter structType)
@@ -71,7 +72,7 @@ type FNode mAlter label = FNode' () mAlter label
 --type FEdge = (Node, EdgeLabel, Node)
 
 instance (Monad m, Show a) => Show (FNode' b m a) where
-  show (Node (m,x,_)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x
+  show (Node (m,x,r)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x ++ "<" ++ show r
 
 type FlowGraph' mAlter label structType = Gr (FNode' structType mAlter label) EdgeLabel
 

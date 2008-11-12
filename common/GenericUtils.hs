@@ -171,6 +171,9 @@ instance Eq (Route inner outer) where
 instance Ord (Route inner outer) where
   compare (Route xns _) (Route yns _) = compare xns yns
 
+instance Show (Route inner outer) where
+  show (Route ns _) = "Route " ++ show ns
+
 routeId :: Route inner outer -> [Int]
 routeId (Route ns _) = ns
 

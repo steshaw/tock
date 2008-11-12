@@ -279,6 +279,7 @@ checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyAST $ \(A.Spec _ (A.Specification _ name _) scope :: A.Structured
   A.Process) -> do
   vars <- withChild [1] $ getVarsTouchedAfter
+  liftIO $ putStrLn $ "Vars: " ++ show vars
   when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
     substitute scope
       
