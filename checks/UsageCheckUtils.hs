@@ -77,7 +77,7 @@ data UsageLabel = Usage
   }
 
 instance Show UsageLabel where
-  show x = "Vars{" ++ show (nodeVars x) ++ "}"
+  show x = "Usage (Decl{" ++ show (nodeDecl x) ++ "} Vars{" ++ show (nodeVars x) ++ "}"
 
 transformParItems :: (a -> b) -> ParItems a -> ParItems b
 transformParItems f (SeqItems xs) = SeqItems $ map f xs
