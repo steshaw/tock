@@ -16,13 +16,17 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module CheckFramework where
+module CheckFramework (CheckOptM, CheckOptM', forAnyAST, substitute, restartForAnyAST,
+  runChecks, runChecksPass, getFlowGraphAndMap, withChild, getVarsTouchedAfter) where
 
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
+import Data.Graph.Inductive (Node)
+import qualified Data.Map as Map
 import Data.Maybe
+import qualified Data.Set as Set
 import Control.Exception
 
 import qualified AST as A
@@ -35,17 +39,33 @@ import Traversal
 import UsageCheckUtils
 import Utils
 
+-- Temp:
+todo = error "TODO"
+
 data CheckOptData = CheckOptData
  { ast :: A.AST
  , parItems :: Maybe (ParItems ())
  -- TODO also keep track of our location in each data structure
+ , nextVarsTouched :: Maybe (Map.Map [Int] (Set.Set Var))
+ , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node)
  }
 
-invalidateAll :: CheckOptData -> A.AST -> CheckOptData
-invalidateAll d t = d { ast = t, parItems = Nothing}
+--TODO make this a data item that fiddles with CheckOptData
+data FlowGraphAnalysis res = FlowGraphAnalysis
+  { getFlowGraphAnalysis :: CheckOptData -> Maybe res
+  , setFlowGraphAnalysis :: res -> CheckOptData -> CheckOptData
+  , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Node) -> CheckOptM res
+  }
+
+invalidateAll :: (A.AST -> A.AST) -> CheckOptData -> CheckOptData
+invalidateAll f d = d { ast = f (ast d), parItems = Nothing, nextVarsTouched = Nothing,
+  flowGraph = Nothing}
 
 newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
   deriving (Monad, MonadIO)
+
+instance Die CheckOptM where
+  dieReport = CheckOptM . lift . dieReport
 
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
@@ -75,11 +95,32 @@ instance Monad m => Monad (RestartT outer t m) where
 instance MonadIO m => MonadIO (RestartT outer t m) where
   liftIO f = RestartT $ lift (liftIO f) >>= (return . Right)
 
+instance MonadTrans (RestartT outer t) where
+  lift = RestartT . liftM Right . lift
+
+instance Die m => Die (ReaderT (Route t outer) m) where
+  dieReport = lift . dieReport
+
+instance Die (CheckOptM' t) where
+  dieReport = liftCheckOptM . dieReport
+
+askRoute :: CheckOptM' t (Route t A.AST)
+askRoute = CheckOptM' . RestartT . liftM Right $ ask
+
+getCheckOptData :: CheckOptM' t CheckOptData
+getCheckOptData = CheckOptM' . RestartT . lift . CheckOptM $ get >>* Right
+
+modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptM' t ()
+modifyCheckOptData = CheckOptM' . RestartT . lift . CheckOptM . liftM Right . modify
+
+liftCheckOptM :: CheckOptM a -> CheckOptM' t a
+liftCheckOptM = CheckOptM' . RestartT . lift . liftM Right
+
 liftRestartT :: Monad m => m a -> RestartT outer t m a
 liftRestartT m = RestartT $ lift (m >>* Right)
 
-elseError :: Bool -> String -> CheckOptM ()
-elseError b err = CheckOptM $ if b then lift $ dieP emptyMeta err else return ()
+--elseError :: Bool -> String -> CheckOptM ()
+--elseError b err = CheckOptM $ if b then lift $ dieP emptyMeta err else return ()
 --  TODO use the nearest available meta-tag in the current data
 
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
@@ -160,10 +201,14 @@ forAnyAST origF = CheckOptM $ do
 -- | Substitutes the currently examined item for the given item, and continues
 -- the traversal from the current point.  That is, the new item is transformed
 -- again too.
-substitute :: a -> CheckOptM' a a
-substitute x = CheckOptM' $ RestartT $ ask >>= (\r -> return $ Left (Just r, return))
+substitute :: a -> CheckOptM' a ()
+substitute x = CheckOptM' . RestartT $ do
+  r <- ask
+  lift $ CheckOptM $ modify (invalidateAll $ routeSet r x)
+  return $ Left (Just r, const $ return ())
 
---replace :: t -> t -> CheckOptM' a ()
+--replaceBelow :: t -> t -> CheckOptM' a ()
+--replaceEverywhere :: t -> t -> CheckOptM' a ()
 -- TODO think about what this means (replace everywhere, or just children?)
 
 -- Restarts the current forAnyAST from the top of the tree, but keeps all changes
@@ -172,8 +217,8 @@ restartForAnyAST :: CheckOptM' a a
 restartForAnyAST = CheckOptM' $ RestartT $ return $ Left (Nothing, return)
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
-runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing})
-  >>* ast
+runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
+  nextVarsTouched = Nothing, flowGraph = Nothing}) >>* ast
 
 runChecksPass :: CheckOptM () -> Pass
 runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
@@ -182,7 +227,66 @@ runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))
 
 getParItems' :: CheckOptM' t (ParItems ())
-getParItems' = undefined
+getParItems' = todo
 
 generateParItems :: A.AST -> ParItems ()
-generateParItems = undefined
+generateParItems = todo
+
+withChild :: forall t a. [Int] -> CheckOptM' () a -> CheckOptM' t a
+withChild ns (CheckOptM' (RestartT m)) = askRoute >>= \r -> CheckOptM' $ RestartT $ inner r
+  where
+    inner :: Route t A.AST -> ReaderT (Route t A.AST) CheckOptM
+      (Either (Maybe (Route t A.AST), t -> RestartT A.AST t CheckOptM a) a)
+    inner r = liftM munge $ lift $ runReaderT m (Route (routeId r ++ ns) undefined)
+
+    munge :: Either (Maybe (Route () A.AST), () -> RestartT A.AST () CheckOptM a) a
+      -> Either (Maybe (Route t A.AST), t -> RestartT A.AST t CheckOptM a) a
+    munge (Right x) = Right x
+    munge (Left _) = Left $ error "withChild wants to restart, help!"
+
+getVarsTouchedAfter :: CheckOptM' t (Set.Set Var)
+getVarsTouchedAfter = do
+  r <- askRoute >>* routeId
+  nu <- getCachedAnalysis varsTouchedAfter
+  case Map.lookup r nu of
+    Nothing -> dieP emptyMeta "Node not found in flow graph"
+    Just vs -> return vs
+
+varsTouchedAfter :: FlowGraphAnalysis (Map.Map [Int] (Set.Set Var))
+varsTouchedAfter = FlowGraphAnalysis
+  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $
+    todo
+  
+
+--getLastPlacesWritten :: CheckOptM' t [(Route, Maybe A.Expression)]
+
+getFlowGraphAndMap :: CheckOptM' t (FlowGraph CheckOptM UsageLabel, Map.Map [Int]
+  Node)
+getFlowGraphAndMap = getCache flowGraph (\x d -> d {flowGraph = Just x}) generateFlowGraph
+-- TODO make this invalidate all the analyses
+
+getCache :: (CheckOptData -> Maybe a) -> (a -> CheckOptData -> CheckOptData) -> (A.AST
+  -> CheckOptM a) -> CheckOptM' t a
+getCache getF setF genF = getCheckOptData >>= \x -> case getF x of
+  Just y -> return y
+  Nothing -> do y <- liftCheckOptM $ genF (ast x)
+                modifyCheckOptData (setF y)
+                return y
+
+-- Analysis requires the latest flow graph, and uses this to produce a result
+getCachedAnalysis :: FlowGraphAnalysis res -> CheckOptM' t res
+getCachedAnalysis an = getCheckOptData >>= \x -> case getFlowGraphAnalysis an x of
+  Just y -> return y
+  Nothing -> do (g, nodes) <- getFlowGraphAndMap
+                r <- askRoute
+                case Map.lookup (routeId r) nodes of
+                  Just n -> liftCheckOptM $
+                            do z <- doFlowGraphAnalysis an (g, n)
+                               CheckOptM $ modify $ setFlowGraphAnalysis an z
+                               return z
+                  Nothing -> dieP emptyMeta "Node not found in flow graph"
+
+generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel, Map.Map [Int] Node)
+generateFlowGraph x = buildFlowGraph todo x >>= \g -> case g of
+  Left err -> dieP emptyMeta err
+  Right (y,_,_) -> return (y, todo)

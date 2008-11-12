@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module Check (checkInitVar, usageCheckPass) where
+module Check (checkInitVar, usageCheckPass, checkUnusedVar) where
 
 import Control.Monad.Identity
 import Control.Monad.Trans
@@ -273,3 +273,12 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
                                             | v <- vars]
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)
+
+-- TODO make this work on any structured type (provide forAnyASTStruct)
+checkUnusedVar :: CheckOptM ()
+checkUnusedVar = forAnyAST $ \(A.Spec _ (A.Specification _ name _) scope :: A.Structured
+  A.Process) -> do
+  vars <- withChild [1] $ getVarsTouchedAfter
+  when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
+    substitute scope
+      

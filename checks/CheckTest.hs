@@ -21,12 +21,10 @@ module CheckTest (tests) where
 import Test.HUnit
 
 import qualified AST as A
+import Check
 import CheckFramework
 import Metadata
 import TestUtils
-
--- TEMP:
-checkUnusedVar = return ()
 
 wrapProcSeq :: A.Structured A.Process -> A.AST
 wrapProcSeq x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo")

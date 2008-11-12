@@ -281,3 +281,6 @@ route45 route con = route @-> Route [3] (decomp45 con)
 route55 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   Route a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Route a4 b
 route55 route con = route @-> Route [4] (decomp55 con)
+
+-- TODO we should be able to provide versions of these that do not need to know
+-- the constructor or the arity
