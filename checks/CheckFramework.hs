@@ -134,14 +134,14 @@ deCheckOptM' (CheckOptM' x) = x
 -- have put in the CheckOptM state) and the continuation to apply.  If you wish
 -- to start again from the top, supply routeIdentity, and your original function.
 data Monad m => RestartT outer t m a = RestartT { getRestartT :: ReaderT (Route
-  t outer) m (Either (Maybe (Route t outer), t -> RestartT outer t m a) a) }
+  t outer) m (Either (Maybe (Route t outer)) a) }
 
 instance Monad m => Monad (RestartT outer t m) where
   return x = RestartT $ return $ Right x
   (>>=) m f = let m' = getRestartT m in RestartT $ do
     x <- m'
     case x of
-      Left (route, cont) -> return $ Left (route, f <.< cont)
+      Left route -> return $ Left route
       Right x' -> let m'' = getRestartT $ f x' in m''
 
 instance MonadIO m => MonadIO (RestartT outer t m) where
@@ -197,9 +197,9 @@ doTree :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
 doTree typeSet f route tr
       = do x <- traverse typeSet f (Just route) tr
            case x of
-             Left (route', cont) -> do -- Restart
+             Left route' -> do -- Restart
                tr' <- get >>* ast
-               doTree typeSet (\x -> cont x >> return ()) (maybe [] routeId route') tr'
+               doTree typeSet f (maybe [] routeId route') tr'
              Right _ -> return ()
 
     -- | Given a TypeSet, a function to apply to everything of type a, a route
@@ -208,7 +208,7 @@ doTree typeSet f route tr
     -- it is ignored (all changes are done in the state)
 traverse :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
       StateT CheckOptData PassM
-        (Either (Maybe (Route a A.AST), a -> RestartT A.AST a CheckOptM ()) ())
+        (Either (Maybe (Route a A.AST)) ())
 traverse typeSet f route tr
       = deCheckOptM $ flip runReaderT undefined
           -- We use undefined because we don't have a real default value, and the user-supplied
@@ -263,7 +263,7 @@ substitute :: a -> CheckOptM' a ()
 substitute x = CheckOptM' . RestartT $ do
   r <- ask
   lift $ CheckOptM $ modify (invalidateAll $ routeSet r x)
-  return $ Left (Just r, const $ return ())
+  return $ Left (Just r)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
@@ -272,7 +272,7 @@ substitute x = CheckOptM' . RestartT $ do
 -- Restarts the current forAnyAST from the top of the tree, but keeps all changes
 -- made thus far.
 restartForAnyAST :: CheckOptM' a a
-restartForAnyAST = CheckOptM' $ RestartT $ return $ Left (Nothing, return)
+restartForAnyAST = CheckOptM' $ RestartT $ return $ Left Nothing
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
@@ -294,11 +294,11 @@ withChild :: forall t a. [Int] -> CheckOptM' () a -> CheckOptM' t a
 withChild ns (CheckOptM' (RestartT m)) = askRoute >>= \r -> CheckOptM' $ RestartT $ inner r
   where
     inner :: Route t A.AST -> ReaderT (Route t A.AST) CheckOptM
-      (Either (Maybe (Route t A.AST), t -> RestartT A.AST t CheckOptM a) a)
+      (Either (Maybe (Route t A.AST)) a)
     inner r = liftM munge $ lift $ runReaderT m (Route (routeId r ++ ns) undefined)
 
-    munge :: Either (Maybe (Route () A.AST), () -> RestartT A.AST () CheckOptM a) a
-      -> Either (Maybe (Route t A.AST), t -> RestartT A.AST t CheckOptM a) a
+    munge :: Either (Maybe (Route () A.AST)) a
+      -> Either (Maybe (Route t A.AST)) a
     munge (Right x) = Right x
     munge (Left _) = Left $ error "withChild wants to restart, help!"
 
