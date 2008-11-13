@@ -262,12 +262,20 @@ getVarsTouchedAfter = do
     Just vs -> return vs
 -}
 
+-- | Searches forward in the graph from the given node to find all the reachable
+-- nodes that have no successors, i.e. the terminal nodes
+findTerminals :: Node -> Gr a b -> [Node]
+findTerminals n g = nub [x | x <- dfs [n] g, null (suc g x)]
+
 varsTouchedAfter :: FlowGraphAnalysis (Set.Set Var)
 varsTouchedAfter = FlowGraphAnalysis
   nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $ \(g, startNode) ->
-    case flowAlgorithm (funcs g) (rdfs [startNode] g) (startNode, Set.empty) of
+    let [termNode] = findTerminals startNode g
+        connNodes = rdfs [termNode] g in
+    case flowAlgorithm (funcs g) connNodes (termNode, Set.empty) of
       Left err -> dieP emptyMeta err
-      Right nodesToVars -> (liftIO $ putStrLn $ show g) >> return nodesToVars
+      Right nodesToVars -> (liftIO $ putStrLn $ "Graph:\n" ++ show g ++ "\n\nNodes:\n"
+        ++ show (termNode, connNodes)) >> return nodesToVars
   where
     funcs :: FlowGraph CheckOptM UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
     funcs g = GF     
@@ -319,6 +327,7 @@ getCachedAnalysis' f an = do
   case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == r)) (labNodes g) of
     Nothing -> dieP emptyMeta $ "Node not found in flow graph: " ++ show g
     Just (n, _) -> do
+      liftIO $ putStrLn $ "\nUsing node: " ++ show n ++ "\n"
       m <- case getFlowGraphAnalysis an d of
         Just y -> return y
         Nothing -> liftCheckOptM $
