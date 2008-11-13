@@ -117,6 +117,9 @@ instance Die CheckOptM where
 instance CSMR CheckOptM where
   getCompState = CheckOptM . lift $ getCompState
 
+instance Warn CheckOptM where
+  warnReport = CheckOptM . lift . warnReport
+
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
 
@@ -153,6 +156,12 @@ instance Die m => Die (ReaderT (Route t outer) m) where
 
 instance Die (CheckOptM' t) where
   dieReport = liftCheckOptM . dieReport
+
+instance Warn (CheckOptM' t) where
+  warnReport = liftCheckOptM . warnReport
+
+instance CSMR (CheckOptM' t) where
+  getCompState = liftCheckOptM getCompState
 
 askRoute :: CheckOptM' t (Route t A.AST)
 askRoute = CheckOptM' . RestartT . liftM Right $ ask

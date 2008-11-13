@@ -278,11 +278,12 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyAST doSpec
   where
-    doSpec (A.Spec _ (A.Specification _ name _) scope :: A.Structured A.Process)
+    doSpec (A.Spec _ (A.Specification mspec name _) scope :: A.Structured A.Process)
       = do vars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
            liftIO $ putStrLn $ "Vars: " ++ show vars
            when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
-             substitute scope
+             do warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
+                substitute scope
     doSpec _ = return ()
 
     isScopeIn :: UsageLabel -> Bool
