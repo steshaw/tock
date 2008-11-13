@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module CheckFramework (CheckOptM, CheckOptM', forAnyAST, substitute, restartForAnyAST,
-  runChecks, runChecksPass, getFlowGraphAndMap, withChild, varsTouchedAfter,
+  runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis') where
 
 import Control.Monad.Error
@@ -47,23 +47,65 @@ import Utils
 -- Temp:
 todo = error "TODO"
 
+-- Each data analysis only works on a connected sub-graph.  For forward data flow
+-- this begins at the root node (the one with no predecessors, and thus is the
+-- direct or indirect predecessor of all nodes it is connected to), for backwards
+-- data flow it begins at the terminal node (the one with no successors, and thus
+-- is the direct or indirect successor of all nodes it is connected to).
+--
+-- Each node has a unique corresponding root (the start of the PROC/FUNCTION) and
+-- similarly a unique corresponding terminal (the end of the PROC/FUNCTION).  This
+-- should be guaranteed by the building of the flow graph.
+--
+-- Each analysis gives back a map from nodes to some sort of label-value (dependent
+-- on the analysis).  This map is calculated for a given connected sub-graph.
+-- If the node you are looking for appears in the connected sub-graph (the keys
+-- of the map), you use that map.  Since the analyses are run before unnesting
+-- takes place, it is possible to descend down the AST into a inner PROC (a different
+-- sub-graph) and then back up into the outer PROC.
+--
+-- To prevent re-running the analysis several times where there is no need, we
+-- do the following:
+--
+-- * Modifying any node invalidates the flow-graph.  We currently calculate
+-- the flow-graph for the whole AST at once, but I can't see an easy way to avoid
+-- that (a more efficient way would be to just calculate the current connected
+-- sub-graph) -- perhaps we could start from the part of the AST corresponding
+-- to the root node?
+--
+-- * Modifying a node (e.g. with substitute or replaceBelow) invalidates all analyses.
+-- 
+-- I did have an idea that we could invalidate only analyses that contain
+-- nodes that have a route that is prefixed by that of the current node.  So
+-- for example, if you modify a node with route [1,3,1], we would find all
+-- nodes with routes that match (1:3:1:_) and invalidate all currently held
+-- analysis results containing any of those nodes.  This would help if for
+-- example you do a substitute in an inner PROC, we do not have to invalidate
+-- the analysis for the outer PROC.  But this idea DOES NOT WORK because the nodes
+-- will change when the flow-graph is rebuilt, so we can't let the results get
+-- out of sync with the flow-graph.  Unless in future we decouple the node identifiers
+-- from our use of them a bit more (but remember not to use routes, as they are
+-- not unique in the flow graph).
+
+
 data CheckOptData = CheckOptData
  { ast :: A.AST
  , parItems :: Maybe (ParItems ())
-  -- TODO need to split this up per connected subgraphs
- , nextVarsTouched :: Maybe (Map.Map Node (Set.Set Var))
+
+ , nextVarsTouched :: Map.Map Node (Set.Set Var)
+
  , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel)
  }
 
 --TODO make this a data item that fiddles with CheckOptData
 data FlowGraphAnalysis res = FlowGraphAnalysis
-  { getFlowGraphAnalysis :: CheckOptData -> Maybe (Map.Map Node res)
-  , setFlowGraphAnalysis :: Map.Map Node res -> CheckOptData -> CheckOptData
+  { getFlowGraphAnalysis :: CheckOptData -> Map.Map Node res
+  , addFlowGraphAnalysis :: Map.Map Node res -> CheckOptData -> CheckOptData
   , doFlowGraphAnalysis :: (FlowGraph CheckOptM UsageLabel, Node) -> CheckOptM (Map.Map Node res)
   }
 
 invalidateAll :: (A.AST -> A.AST) -> CheckOptData -> CheckOptData
-invalidateAll f d = d { ast = f (ast d), parItems = Nothing, nextVarsTouched = Nothing,
+invalidateAll f d = d { ast = f (ast d), parItems = Nothing, nextVarsTouched = Map.empty,
   flowGraph = Nothing}
 
 newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
@@ -226,7 +268,7 @@ restartForAnyAST = CheckOptM' $ RestartT $ return $ Left (Nothing, return)
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
-  nextVarsTouched = Nothing, flowGraph = Nothing}) >>* ast
+  nextVarsTouched = Map.empty, flowGraph = Nothing}) >>* ast
 
 runChecksPass :: CheckOptM () -> Pass
 runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
@@ -252,16 +294,6 @@ withChild ns (CheckOptM' (RestartT m)) = askRoute >>= \r -> CheckOptM' $ Restart
     munge (Right x) = Right x
     munge (Left _) = Left $ error "withChild wants to restart, help!"
 
-{-
-getVarsTouchedAfter :: CheckOptM' t (Set.Set Var)
-getVarsTouchedAfter = do
-  r <- askRoute >>* routeId
-  nu <- getCachedAnalysis varsTouchedAfter
-  case Map.lookup r nu of
-    Nothing -> dieP emptyMeta "Node not found in flow graph"
-    Just vs -> return vs
--}
-
 -- | Searches forward in the graph from the given node to find all the reachable
 -- nodes that have no successors, i.e. the terminal nodes
 findTerminals :: Node -> Gr a b -> [Node]
@@ -269,7 +301,7 @@ findTerminals n g = nub [x | x <- dfs [n] g, null (suc g x)]
 
 varsTouchedAfter :: FlowGraphAnalysis (Set.Set Var)
 varsTouchedAfter = FlowGraphAnalysis
-  nextVarsTouched (\x d -> d {nextVarsTouched = Just x}) $ \(g, startNode) ->
+  nextVarsTouched (\x d -> d {nextVarsTouched = x `Map.union` nextVarsTouched d}) $ \(g, startNode) ->
     let [termNode] = findTerminals startNode g
         connNodes = rdfs [termNode] g in
     case flowAlgorithm (funcs g) connNodes (termNode, Set.empty) of
@@ -300,11 +332,9 @@ varsTouchedAfter = FlowGraphAnalysis
 
   
 
---getLastPlacesWritten :: CheckOptM' t [(Route, Maybe A.Expression)]
-
-getFlowGraphAndMap :: CheckOptM' t (FlowGraph CheckOptM UsageLabel)
-getFlowGraphAndMap = getCache flowGraph (\x d -> d {flowGraph = Just x}) generateFlowGraph
--- TODO make this invalidate all the analyses
+getFlowGraph :: CheckOptM' t (FlowGraph CheckOptM UsageLabel)
+getFlowGraph = getCache flowGraph (\x d -> d {flowGraph = Just x, nextVarsTouched
+  = Map.empty}) generateFlowGraph
 
 getCache :: (CheckOptData -> Maybe a) -> (a -> CheckOptData -> CheckOptData) -> (A.AST
   -> CheckOptM a) -> CheckOptM' t a
@@ -321,22 +351,20 @@ getCachedAnalysis = getCachedAnalysis' (const True)
 getCachedAnalysis' :: (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptM' t res
 getCachedAnalysis' f an = do
   d <- getCheckOptData
-  g <- getFlowGraphAndMap
+  g <- getFlowGraph
   r <- askRoute >>* routeId
   -- Find the node that matches our location and the given function:
   case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == r)) (labNodes g) of
     Nothing -> dieP emptyMeta $ "Node not found in flow graph: " ++ show g
-    Just (n, _) -> do
-      liftIO $ putStrLn $ "\nUsing node: " ++ show n ++ "\n"
-      m <- case getFlowGraphAnalysis an d of
+    Just (n, _) ->
+      case Map.lookup n (getFlowGraphAnalysis an d) of
         Just y -> return y
         Nothing -> liftCheckOptM $
                     do z <- doFlowGraphAnalysis an (g, n)
-                       CheckOptM $ modify $ setFlowGraphAnalysis an z
-                       return z
-      case Map.lookup n m of
-        Nothing -> dieP emptyMeta "Node not found in analysis results"
-        Just r -> return r
+                       CheckOptM $ modify $ addFlowGraphAnalysis an z
+                       case Map.lookup n z of
+                         Nothing -> dieP emptyMeta "Node not found in analysis results"
+                         Just r -> return r
 
 generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel)
 generateFlowGraph x = buildFlowGraph labelUsageFunctions x >>= \g -> case g of
