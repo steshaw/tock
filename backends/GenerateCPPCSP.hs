@@ -305,17 +305,7 @@ cppgenInputItem c dest
       (A.InVariable m v) ->
         do ct <- astTypeOf c
            t <- astTypeOf v
-           case (byteArrayChan ct,t) of
-             (True,_)-> recvBytes v (call genBytesIn m t (Right v))
-             (False,A.Array {}) -> do tell ["tockRecvArray("]
-                                      chan'
-                                      tell [","]
-                                      call genVariable v
-                                      tell [");"]
-             (False,_) -> do chan'
-                             tell [">>"]
-                             genNonPoint v
-                             tell [";"]
+           recvBytes v (call genBytesIn m t (Right v))
   where
     chan' = genCPPCSPChannelInput c
     recvBytes :: A.Variable -> CGen () -> CGen ()
@@ -334,24 +324,15 @@ cppgenOutputItem chan item
       (A.OutExpression _ (A.ExprVariable _ sv)) ->
        do t <- astTypeOf chan
           tsv <- astTypeOf sv
-          case (byteArrayChan t,tsv) of
-            (True,_) -> sendBytes sv
-            (False,A.Array {}) -> do tell ["tockSendArray("]
-                                     chan'
-                                     tell [","]
-                                     call genVariable sv
-                                     tell [");"]
-            (False,_) -> do chan'
-                            tell ["<<"]
-                            genNonPoint sv
-                            tell [";"]
+          sendBytes sv
   where
     chan' = genCPPCSPChannelOutput chan
     
-    sendBytes v = do chan'
-                     tell ["<<tockSendableArrayOfBytes("]
+    sendBytes v = do tell ["tockSendArrayOfBytes("]
+                     chan'
+                     tell [",tockSendableArrayOfBytes("]
                      genPoint v
-                     tell [");"]
+                     tell ["));"]
 
 byteArrayChan :: A.Type -> Bool
 byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
