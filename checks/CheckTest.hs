@@ -41,7 +41,15 @@ testUnusedVar = TestList
    (wrapProcSeq $ A.Only emptyMeta (A.Skip emptyMeta))
    (wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
      "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta (A.Skip emptyMeta))
-     
+ ,test "Unused var in loop"
+   (wrapProcSeq $ A.Only emptyMeta $ A.While emptyMeta (A.True emptyMeta) $ A.Seq
+     emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta])
+   (wrapProcSeq $ A.Only emptyMeta $ A.While emptyMeta (A.True emptyMeta) $
+     A.Seq emptyMeta $
+       A.Spec emptyMeta 
+         (A.Specification emptyMeta (simpleName "x") $ A.Declaration emptyMeta
+           A.Int) $
+       A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta])
  ]
  where
    test' str src = test str src src
