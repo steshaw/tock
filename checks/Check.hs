@@ -236,7 +236,7 @@ checkInitVar m graph startNode
         -- The read-from set should be a subset of the written-to set:
         if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
           do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
-             addWarning (getMeta n) $ "Variable(s) read from are not written to before-hand: " ++ vars
+             warnP (getMeta n) WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
 checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign

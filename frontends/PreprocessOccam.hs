@@ -141,7 +141,7 @@ handleDirective m s x
     -- currently we support so few preprocessor directives that this is more
     -- useful.
     lookup s []
-        =  do addWarning m "Unknown preprocessor directive ignored"
+        =  do warnP m WarnUnknownPreprocessorDirective "Unknown preprocessor directive ignored"
               return return
     lookup s ((re, func):ds)
         = case matchRegex re s of

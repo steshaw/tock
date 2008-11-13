@@ -318,7 +318,7 @@ maybeIndentedList m msg inner
            vs <- many1 inner
            outdent
            return vs
-    <|> do addWarning m msg
+    <|> do warnP m WarnParserOddity msg
            return []
 
 handleSpecs :: OccParser [NameSpec] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a

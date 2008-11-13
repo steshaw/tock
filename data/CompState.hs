@@ -31,7 +31,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
-import Errors (Die, dieP, ErrorReport, Warn, warnP)
+import Errors (Die, dieP, ErrorReport, Warn, WarningType, warnP)
 import Metadata
 import OrdAST ()
 import UnifyType
@@ -376,8 +376,8 @@ makeNonceVariable s m t am
 diePC :: (CSMR m, Die m) => Meta -> m String -> m a
 diePC m str = str >>= (dieP m)
 
-warnPC :: (CSMR m, Warn m) => Meta -> m String -> m ()
-warnPC m str = str >>= (warnP m)
+warnPC :: (CSMR m, Warn m) => Meta -> WarningType -> m String -> m ()
+warnPC m t str = str >>= (warnP m t)
 
 --dieC :: (CSM m, Die m) => m String -> m a
 --dieC str = str >>= die

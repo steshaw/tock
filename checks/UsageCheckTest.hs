@@ -129,7 +129,7 @@ type TestM = ReaderT CompState (Either String)
 instance Die TestM where
   dieReport (_,s) = throwError s
 instance Warn TestM where
-  warnReport (_,s) = throwError s
+  warnReport (_,_,s) = throwError s
 
 buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph TestM UsageLabel
 buildTestFlowGraph ns es start end v

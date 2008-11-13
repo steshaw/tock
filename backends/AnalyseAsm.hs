@@ -179,7 +179,7 @@ addCalls
 
     systemFunc :: String -> AAM Int
     systemFunc func
-        =  do lift $ addPlainWarning $ "Unknown function " ++ func ++ "; allocating " ++ show unknownSize ++ " bytes stack"
+        =  do lift $ warnPlainP WarnInternal $ "Unknown function " ++ func ++ "; allocating " ++ show unknownSize ++ " bytes stack"
               return unknownSize
 
     userFunc :: FunctionInfo -> AAM Int

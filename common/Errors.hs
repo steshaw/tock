@@ -17,9 +17,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Error handling and reporting.
-module Errors (addPlainWarning, addWarning, checkJust, Die(..),
+module Errors (checkJust, Die(..),
   dieInternal, dieIO, dieP, ErrorReport,
-  showWarnings, Warn(..), WarningReport, warnP) where
+  showWarnings, Warn(..), WarningReport, warnP, warnPlainP, WarningType(..), describeWarning) where
 
 import Control.Monad.Error
 import Control.Monad.Trans
@@ -42,22 +42,40 @@ class Monad m => Die m where
 dieP :: Die m => Meta -> String -> m a
 dieP m s = dieReport (Just m,s)
 
-type WarningReport = (Maybe Meta, String)
+
+data WarningType
+  = WarnInternal
+  | WarnParserOddity
+  | WarnUnknownPreprocessorDirective
+  | WarnUninitialisedVariable
+  | WarnUnusedVariable
+  deriving (Eq, Show, Ord, Read, Enum, Bounded)
+-- I intend the above warnings to be part of a command-line mechanism to enable
+-- or suppress them according to various flags.  So that you might write:
+-- -WnoWarnParserOddity
+-- For which we can do a tiny bit of parsing, and use the Read instance to help,
+-- as well as using the Enum and Bounded instances to easily discover all warnings
+
+describeWarning :: WarningType -> String
+describeWarning WarnInternal = "Internal compiler problems"
+describeWarning WarnParserOddity = "Strange things in your code that indicate possible errors"
+describeWarning WarnUnknownPreprocessorDirective = "Unrecognised preprocessor directive"
+describeWarning WarnUninitialisedVariable = "A variable that is read from before being written to"
+describeWarning WarnUnusedVariable = "A variable that is declared but never used"
+
+type WarningReport = (Maybe Meta, WarningType, String)
 
 class Monad m => Warn m where
   warnReport :: WarningReport -> m ()
 
-warnP :: Warn m => Meta -> String -> m ()
-warnP m s = warnReport (Just m,s)
-
 --{{{  warnings
 -- | Add a warning with no source position.
-addPlainWarning :: Warn m => String -> m ()
-addPlainWarning msg = warnReport (Nothing, msg)
+warnPlainP :: Warn m => WarningType -> String -> m ()
+warnPlainP t msg = warnReport (Nothing, t, msg)
 
 -- | Add a warning.
-addWarning :: Warn m => Meta -> String -> m ()
-addWarning m s = warnReport (Just m, s)
+warnP :: Warn m => Meta -> WarningType -> String -> m ()
+warnP m t s = warnReport (Just m, t, s)
 --}}}
 
 -- | Wrapper around error that gives nicer formatting, and prints out context
@@ -112,8 +130,10 @@ printError s = error $ "Error: " ++ s ++ "\n"
 showWarnings ::  MonadIO m => [WarningReport] -> m ()
 showWarnings = mapM_ printWarning
   where
-    printWarning (Just m, s) = liftIO $ hPutStrLn stderr $ show m ++ " " ++ s
-    printWarning (Nothing, s) = liftIO $ hPutStrLn stderr s
+    printWarning (Just m, t, s)
+      = liftIO $ hPutStrLn stderr $ show m ++ " " ++ show t ++ " " ++ s
+    printWarning (Nothing, t, s)
+      = liftIO $ hPutStrLn stderr (show t ++ " " ++ s)
 
 
 -- | Fail after an internal error.
