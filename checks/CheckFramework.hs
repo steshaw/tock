@@ -24,7 +24,7 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
-import Data.Graph.Inductive
+import Data.Graph.Inductive hiding (apply)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -97,7 +97,6 @@ data CheckOptData = CheckOptData
  , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel)
  }
 
---TODO make this a data item that fiddles with CheckOptData
 data FlowGraphAnalysis res = FlowGraphAnalysis
   { getFlowGraphAnalysis :: CheckOptData -> Map.Map Node res
   , addFlowGraphAnalysis :: Map.Map Node res -> CheckOptData -> CheckOptData
@@ -178,10 +177,6 @@ liftCheckOptM = CheckOptM' . RestartT . lift . liftM Right
 liftRestartT :: Monad m => m a -> RestartT outer t m a
 liftRestartT m = RestartT $ lift (m >>* Right)
 
---elseError :: Bool -> String -> CheckOptM ()
---elseError b err = CheckOptM $ if b then lift $ dieP emptyMeta err else return ()
---  TODO use the nearest available meta-tag in the current data
-
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
 
@@ -197,9 +192,9 @@ forAnyAST origF = CheckOptM $ do
     -- | Given a TypeSet, a function to apply to everything of type a, a route
     -- location to begin at and an AST, transforms the tree.  Handles any restarts
     -- that are requested.
-    doTree :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
+doTree :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
       [Int] -> A.AST -> StateT CheckOptData PassM ()
-    doTree typeSet f route tr
+doTree typeSet f route tr
       = do x <- traverse typeSet f (Just route) tr
            case x of
              Left (route', cont) -> do -- Restart
@@ -209,11 +204,12 @@ forAnyAST origF = CheckOptM $ do
 
     -- | Given a TypeSet, a function to apply to everything of type a, a route
     -- location to begin at and an AST, transforms the tree.  If any restarts are
-    -- requested, that is indicated in the return value
-    traverse :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
+    -- requested, that is indicated in the return value.  If an AST is returned,
+    -- it is ignored (all changes are done in the state)
+traverse :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
       StateT CheckOptData PassM
-        (Either (Maybe (Route a A.AST), a -> RestartT A.AST a CheckOptM A.AST) A.AST)
-    traverse typeSet f route tr
+        (Either (Maybe (Route a A.AST), a -> RestartT A.AST a CheckOptM ()) ())
+traverse typeSet f route tr
       = deCheckOptM $ flip runReaderT undefined
           -- We use undefined because we don't have a real default value, and the user-supplied
           -- function will only be called from inside a "local".  Perhaps with
@@ -230,8 +226,11 @@ forAnyAST origF = CheckOptM $ do
         -- we tack on a state parameter with a (Maybe Route) and keep scanning
         -- until we find the place to resume from (or go one past it, which is
         -- nice in case the location is no longer valid)
-        
-        gen :: A.AST -> StateT (Maybe [Int]) (RestartT A.AST a CheckOptM) A.AST
+
+        -- Given a complete AST, either applies f (from parent) using apply (see
+        -- below) if we are past the point we are meant to start at, or otherwise
+        -- just skips this node
+        gen :: A.AST -> StateT (Maybe [Int]) (RestartT A.AST a CheckOptM) ()
         gen x = gmapMForRoute typeSet (baseTransformRoute `extTransformRoute` (\(y, route) ->
           do st <- get
              case st of
@@ -241,13 +240,13 @@ forAnyAST origF = CheckOptM $ do
                  then return y {- Not reached start point yet -} else do
                    put Nothing -- Blank the start point now we've found it
                    lift $ apply typeSet f (y, route)
-          )) x
+          )) x >> return ()
 
     -- The return of this function is ignored.  All changes should be done in the
     -- state.
-    apply :: TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
+apply :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) ->
              (a, Route a A.AST) -> RestartT A.AST a CheckOptM a
-    apply typeSet f (x, route)
+apply typeSet f (x, route)
       = (RestartT $ (local (const route) $ getRestartT (f x)))
         >> (liftRestartT (CheckOptM get) >>* ast >>* routeGet route)
         >>= gmapMForRoute typeSet (extTransformRoute baseTransformRoute $
