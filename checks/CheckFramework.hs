@@ -134,7 +134,7 @@ deCheckOptM' (CheckOptM' x) = x
 -- have put in the CheckOptM state) and the continuation to apply.  If you wish
 -- to start again from the top, supply routeIdentity, and your original function.
 data Monad m => RestartT outer t m a = RestartT { getRestartT :: ReaderT (Route
-  t outer) m (Either (Maybe (Route t outer)) a) }
+  t outer) m (Either (Maybe [Int]) a) }
 
 instance Monad m => Monad (RestartT outer t m) where
   return x = RestartT $ return $ Right x
@@ -199,7 +199,7 @@ doTree typeSet f route tr
            case x of
              Left route' -> do -- Restart
                tr' <- get >>* ast
-               doTree typeSet f (maybe [] routeId route') tr'
+               doTree typeSet f (fromMaybe [] route') tr'
              Right _ -> return ()
 
     -- | Given a TypeSet, a function to apply to everything of type a, a route
@@ -207,11 +207,10 @@ doTree typeSet f route tr
     -- requested, that is indicated in the return value.  If an AST is returned,
     -- it is ignored (all changes are done in the state)
 traverse :: forall a. Data a => TypeSet -> (a -> RestartT A.AST a CheckOptM ()) -> Maybe [Int] -> A.AST ->
-      StateT CheckOptData PassM
-        (Either (Maybe (Route a A.AST)) ())
+      StateT CheckOptData PassM (Either (Maybe [Int]) ())
 traverse typeSet f route tr
-      = deCheckOptM $ flip runReaderT undefined
-          -- We use undefined because we don't have a real default value, and the user-supplied
+      = deCheckOptM $ flip runReaderT (error "Internal error in traverse")
+          -- We use error because we don't have a real default value, and the user-supplied
           -- function will only be called from inside a "local".  Perhaps with
           -- some rearrangement we could remove this awkwardness (runReaderT instead
           -- of local).
@@ -263,7 +262,7 @@ substitute :: a -> CheckOptM' a ()
 substitute x = CheckOptM' . RestartT $ do
   r <- ask
   lift $ CheckOptM $ modify (invalidateAll $ routeSet r x)
-  return $ Left (Just r)
+  return $ Left (Just $ routeId r)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
@@ -290,17 +289,16 @@ getParItems' = todo
 generateParItems :: A.AST -> ParItems ()
 generateParItems = todo
 
+-- | Performs the given action for the given child.  [0] is the first argument
+-- of the current node's constructor, [2,1] is the second argument of the constructor
+-- of the third argument of this constructor.  Issuing substitute inside this function
+-- will yield an error.
 withChild :: forall t a. [Int] -> CheckOptM' () a -> CheckOptM' t a
 withChild ns (CheckOptM' (RestartT m)) = askRoute >>= \r -> CheckOptM' $ RestartT $ inner r
   where
     inner :: Route t A.AST -> ReaderT (Route t A.AST) CheckOptM
-      (Either (Maybe (Route t A.AST)) a)
-    inner r = liftM munge $ lift $ runReaderT m (Route (routeId r ++ ns) undefined)
-
-    munge :: Either (Maybe (Route () A.AST)) a
-      -> Either (Maybe (Route t A.AST)) a
-    munge (Right x) = Right x
-    munge (Left _) = Left $ error "withChild wants to restart, help!"
+      (Either (Maybe [Int]) a)
+    inner r = lift $ runReaderT m (Route (routeId r ++ ns) (error "withChild attempted a substitution"))
 
 -- | Searches forward in the graph from the given node to find all the reachable
 -- nodes that have no successors, i.e. the terminal nodes
