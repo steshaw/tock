@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module CheckFramework (CheckOptM, CheckOptM', forAnyAST, substitute, restartForAnyAST,
+module CheckFramework (CheckOptM, CheckOptM', forAnyAST, forAnyASTStruct, substitute, restartForAnyAST,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis') where
 
@@ -30,6 +30,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Control.Exception
+import GHC.Base (unsafeCoerce#)
 
 import qualified AST as A
 import CompState
@@ -131,7 +132,7 @@ deCheckOptM' (CheckOptM' x) = x
 -- | The idea is this: in normal operation you use the Right return value.  When
 -- you want to restart the forAnyAST operation from a given point, you use the
 -- Left constructor, supplying the route to use on the new tree (which you must
--- have put in the CheckOptM state) and the continuation to apply.  If you wish
+-- have put in the CheckOptM state).  If you wish
 -- to start again from the top, supply routeIdentity, and your original function.
 data Monad m => RestartT m a
   = RestartT { getRestartT :: m (Either (Maybe [Int]) a) }
@@ -177,19 +178,68 @@ liftCheckOptM = CheckOptM' . lift . lift
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
 
+
+-- Like mkM, but with no return value, and this funny monad with routes, but also
+-- we give an error if the plain function is ever triggered (given the typeset
+-- stuff, it shouldn't be)
+mkM_ :: forall a. Data a => (a -> CheckOptM' a ()) -> (forall b. Data b => b -> CheckOptM'
+  b ())
+mkM_ f = plain `extM_` f
+  where
+    plain :: (forall c. Data c => c -> CheckOptM' c ())
+    plain _ = dieP emptyMeta "Unexpected call of mkM_.plain"
+
+-- Like extM, but with no return value, and this funny monad with routes:
+extM_ :: forall b. Data b => (forall a. Data a => a -> CheckOptM' a ()) -> (b -> CheckOptM' b ())
+  -> (forall c. Data c => c -> CheckOptM' c ())
+extM_ generalF specificF x = case cast x of
+  Nothing -> generalF x
+  Just y -> let CheckOptM' z = specificF y in CheckOptM' $ ask >>= (lift . runReaderT z . unsafeCoerce#)
+
+
 -- | This function currently only supports one type
 forAnyAST :: forall a. Data a => (a -> CheckOptM' a ()) -> CheckOptM ()
 forAnyAST origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet origF [] tr
+   doTree typeSet (mkM_ origF) [] tr
   where
     typeSet :: TypeSet
     typeSet = makeTypeSet [typeKey (undefined :: a)]
 
+
+forAnyASTStruct :: (forall a. Data a => A.Structured a -> CheckOptM' (A.Structured
+  a) ()) -> CheckOptM ()
+forAnyASTStruct origF = CheckOptM $ do
+   tr <- get >>* ast
+   doTree typeSet allF [] tr
+  where
+    allF :: (forall c. Data c => c -> CheckOptM' c ())
+    allF
+      = mkM_    (origF :: A.Structured A.Variant -> CheckOptM' (A.Structured A.Variant) ())
+        `extM_` (origF :: A.Structured A.Process -> CheckOptM' (A.Structured A.Process) ())
+        `extM_` (origF :: A.Structured A.Option -> CheckOptM' (A.Structured A.Option) ())
+        `extM_` (origF :: A.Structured A.ExpressionList -> CheckOptM' (A.Structured A.ExpressionList) ())
+        `extM_` (origF :: A.Structured A.Choice -> CheckOptM' (A.Structured A.Choice) ())
+        `extM_` (origF :: A.Structured A.Alternative -> CheckOptM' (A.Structured A.Alternative) ())
+        `extM_` (origF :: A.Structured () -> CheckOptM' (A.Structured ()) ())
+    
+    typeSet :: TypeSet
+    typeSet = makeTypeSet
+      [typeKey (undefined :: A.Structured A.Variant)
+      ,typeKey (undefined :: A.Structured A.Process)
+      ,typeKey (undefined :: A.Structured A.Option)
+      ,typeKey (undefined :: A.Structured A.ExpressionList)
+      ,typeKey (undefined :: A.Structured A.Choice)
+      ,typeKey (undefined :: A.Structured A.Alternative)
+      ,typeKey (undefined :: A.Structured ())
+      ]
+
+
+
     -- | Given a TypeSet, a function to apply to everything of type a, a route
     -- location to begin at and an AST, transforms the tree.  Handles any restarts
     -- that are requested.
-doTree :: forall a. Data a => TypeSet -> (a -> CheckOptM' a ()) ->
+doTree :: TypeSet -> (forall a. Data a =>  a -> CheckOptM' a ()) ->
       [Int] -> A.AST -> StateT CheckOptData PassM ()
 doTree typeSet f route tr
       = do x <- traverse typeSet f (Just route) tr
@@ -203,14 +253,14 @@ doTree typeSet f route tr
     -- location to begin at and an AST, transforms the tree.  If any restarts are
     -- requested, that is indicated in the return value.  If an AST is returned,
     -- it is ignored (all changes are done in the state)
-traverse :: forall a. Data a => TypeSet -> (a -> CheckOptM' a ()) -> Maybe [Int] -> A.AST ->
+traverse :: TypeSet -> (forall a. Data a => a -> CheckOptM' a ()) -> Maybe [Int] -> A.AST ->
       StateT CheckOptData PassM (Either (Maybe [Int]) ())
 traverse typeSet f route tr
       = deCheckOptM . getRestartT $ 
           (flip evalStateT (case route of
              Just r -> Just r
              Nothing -> Just [] -- No route, means start from the beginning
-          ) $ gen tr)
+          ) (gen tr))
       where
         -- We can't use routeModify with the route to jump to the right place,
         -- because then applying gen gets much more difficult, and I can't find
@@ -223,9 +273,10 @@ traverse typeSet f route tr
         -- below) if we are past the point we are meant to start at, or otherwise
         -- just skips this node
         gen :: A.AST -> StateT (Maybe [Int]) (RestartT CheckOptM) ()
-        gen x = gmapMForRoute typeSet (baseTransformRoute `extTransformRoute` f') x >> return ()
+        gen x = gmapMForRoute typeSet f' x >> return ()
 
-        f' :: (a, Route a A.AST) -> StateT (Maybe [Int]) (RestartT CheckOptM) a
+        f' :: forall a. Data a => (a, Route a A.AST) -> StateT (Maybe [Int]) (RestartT
+          CheckOptM) a
         f' (y, route) =
           do st <- get
              case st of
