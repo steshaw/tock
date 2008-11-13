@@ -276,13 +276,15 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 
 -- TODO make this work on any structured type (provide forAnyASTStruct)
 checkUnusedVar :: CheckOptM ()
-checkUnusedVar = forAnyAST $ \(A.Spec _ (A.Specification _ name _) scope :: A.Structured
-  A.Process) -> do
-  vars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
-  liftIO $ putStrLn $ "Vars: " ++ show vars
-  when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
-    substitute scope
+checkUnusedVar = forAnyAST doSpec
   where
+    doSpec (A.Spec _ (A.Specification _ name _) scope :: A.Structured A.Process)
+      = do vars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
+           liftIO $ putStrLn $ "Vars: " ++ show vars
+           when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
+             substitute scope
+    doSpec _ = return ()
+
     isScopeIn :: UsageLabel -> Bool
     isScopeIn (Usage _ (Just (ScopeIn {})) _ _) = True
     isScopeIn _ = False
