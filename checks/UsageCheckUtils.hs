@@ -227,7 +227,7 @@ getVarSpec (A.Specification _ n st) = get st
       (Just $ A.ExprVariable (findMeta v) v)
 
 getDecl :: (String -> Decl) -> A.Specification -> Maybe Decl
-getDecl _ _ = Nothing -- TODO
+getDecl f (A.Specification _ name _) = Just $ f (A.nameName name)
 
 getVarFormals :: Meta -> [A.Formal] -> Vars
 getVarFormals m = mapUnionVars (getVarFormal m)
