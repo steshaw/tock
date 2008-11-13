@@ -274,11 +274,12 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)
 
--- TODO make this work on any structured type (provide forAnyASTStruct)
+
 checkUnusedVar :: CheckOptM ()
-checkUnusedVar = forAnyAST doSpec
+checkUnusedVar = forAnyASTStruct doSpec
   where
-    doSpec (A.Spec _ (A.Specification mspec name _) scope :: A.Structured A.Process)
+    doSpec :: Data a => A.Structured a -> CheckOptM' (A.Structured a) ()
+    doSpec (A.Spec _ (A.Specification mspec name _) scope)
       = do vars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
            liftIO $ putStrLn $ "Vars: " ++ show vars
            when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
