@@ -135,7 +135,7 @@ deCheckOptM' (CheckOptM' x) = x
 -- have put in the CheckOptM state).  If you wish
 -- to start again from the top, supply routeIdentity, and your original function.
 data Monad m => RestartT m a
-  = RestartT { getRestartT :: m (Either (Maybe [Int]) a) }
+  = RestartT { getRestartT :: m (Either [Int] a) }
 
 instance Monad m => Monad (RestartT m) where
   return x = RestartT $ return $ Right x
@@ -242,25 +242,22 @@ forAnyASTStruct origF = CheckOptM $ do
 doTree :: TypeSet -> (forall a. Data a =>  a -> CheckOptM' a ()) ->
       [Int] -> A.AST -> StateT CheckOptData PassM ()
 doTree typeSet f route tr
-      = do x <- traverse typeSet f (Just route) tr
+      = do x <- traverse typeSet f route tr
            case x of
              Left route' -> do -- Restart
                tr' <- get >>* ast
-               doTree typeSet f (fromMaybe [] route') tr'
+               doTree typeSet f route' tr'
              Right _ -> return ()
 
     -- | Given a TypeSet, a function to apply to everything of type a, a route
     -- location to begin at and an AST, transforms the tree.  If any restarts are
     -- requested, that is indicated in the return value.  If an AST is returned,
     -- it is ignored (all changes are done in the state)
-traverse :: TypeSet -> (forall a. Data a => a -> CheckOptM' a ()) -> Maybe [Int] -> A.AST ->
-      StateT CheckOptData PassM (Either (Maybe [Int]) ())
+traverse :: TypeSet -> (forall a. Data a => a -> CheckOptM' a ()) -> [Int] -> A.AST ->
+      StateT CheckOptData PassM (Either [Int] ())
 traverse typeSet f route tr
       = deCheckOptM . getRestartT $ 
-          (flip evalStateT (case route of
-             Just r -> Just r
-             Nothing -> Just [] -- No route, means start from the beginning
-          ) (gen tr))
+          evalStateT (gen tr) (Just route)
       where
         -- We can't use routeModify with the route to jump to the right place,
         -- because then applying gen gets much more difficult, and I can't find
@@ -307,7 +304,7 @@ substitute :: a -> CheckOptM' a ()
 substitute x = CheckOptM' $ do
   r <- ask
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
-  lift . RestartT $ return $ Left (Just $ routeId r)
+  lift . RestartT $ return $ Left (routeId r)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
@@ -316,7 +313,7 @@ substitute x = CheckOptM' $ do
 -- Restarts the current forAnyAST from the top of the tree, but keeps all changes
 -- made thus far.
 restartForAnyAST :: CheckOptM' a a
-restartForAnyAST = CheckOptM' . lift . RestartT $ return $ Left Nothing
+restartForAnyAST = CheckOptM' . lift . RestartT $ return $ Left []
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
@@ -341,8 +338,8 @@ generateParItems = todo
 withChild :: forall t a. [Int] -> CheckOptM' () a -> CheckOptM' t a
 withChild ns (CheckOptM' m) = askRoute >>= (CheckOptM' . lift . RestartT . inner)
   where
-    inner :: Route t A.AST -> CheckOptM (Either (Maybe [Int]) a)
-    inner r = getRestartT $ runReaderT m (Route (routeId r ++ ns) (error "withChild attempted a substitution"))
+    inner :: Route t A.AST -> CheckOptM (Either [Int] a)
+    inner (Route rId rFunc) = getRestartT $ runReaderT m (Route (rId ++ ns) (error "withChild attempted a substitution"))
 
 -- | Searches forward in the graph from the given node to find all the reachable
 -- nodes that have no successors, i.e. the terminal nodes
