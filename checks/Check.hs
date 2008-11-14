@@ -287,7 +287,9 @@ checkUnusedVar = forAnyASTStruct doSpec
            doMaybe $ flip fmap mvars $ \vars -> do
              liftIO $ putStrLn $ "Analysing: " ++ show mspec
              when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
-               do warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
+               do -- TODO have a more general way of not warning about compiler-generated names:
+                  when (not $ "_sizes" `isSuffixOf` A.nameName name) $
+                    warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
                   substitute scope
     doSpec _ = return ()
 
