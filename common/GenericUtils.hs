@@ -30,7 +30,6 @@ module GenericUtils (
   , gmapMForRoute
   , routeModify, routeGet, routeSet, Route(..), (@->), routeIdentity, routeId, routeList
   , route22, route23, route33, route34, route44, route45, route55
-  , baseTransformRoute, extTransformRoute
   ) where
 
 import Control.Monad.Identity
@@ -42,7 +41,6 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Data.List
 import Data.Typeable
-import GHC.Base (unsafeCoerce#)
 import System.IO.Unsafe
 
 import qualified AST as A
@@ -219,17 +217,6 @@ gmapMWithRoute f = gmapFuncs [GM {unGM = f' n} | n <- [0..]]
   where
     f' :: Int -> (forall b. Data b => b -> m b)
     f' n x = f (x, makeRoute n)
-
-baseTransformRoute :: forall m s t. (Data s, Monad m) => (s, Route s t) -> m s
-baseTransformRoute (x, _) = return x
-
-extTransformRoute :: forall s m t. (Data s, Monad m) => (forall a. Data a => (a, Route a t) -> m a) -> ((s, Route s t) -> m
-  s) -> (forall a. Data a => (a, Route a t) -> m a)
-extTransformRoute generalFunc specificFunc (x, route)
-  = case cast x of
-      Just x' -> do Just y <- specificFunc (x', unsafeCoerce# route) >>* cast
-                    return y
-      Nothing -> generalFunc (x, route)
 
 -- Given a number, makes a route function for that child:
 makeRoute :: (Data s, Data t) => Int -> Route s t

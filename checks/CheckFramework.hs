@@ -289,13 +289,12 @@ traverse typeSet f route tr
 
     -- The return of this function is ignored.  All changes should be done in the
     -- state.
-apply :: forall a. Data a => TypeSet -> (a -> CheckOptM' a ()) ->
-             (a, Route a A.AST) -> RestartT CheckOptM a
+apply :: TypeSet -> (forall a. Data a => a -> CheckOptM' a ()) ->
+             (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 apply typeSet f (x, route)
-      = (flip runReaderT route (deCheckOptM' (f x)))
-        >> (lift (CheckOptM get) >>* ast >>* routeGet route)
-        >>= gmapMForRoute typeSet (extTransformRoute baseTransformRoute $
-              \(y, route') -> apply typeSet f (y, route @-> route'))
+      = (lift . CheckOptM $ modify $ \d -> if findMeta x == emptyMeta then d else d {lastValidMeta = findMeta x})
+        >> (flip runReaderT route (deCheckOptM' (f x)))
+        >> gmapMForRoute typeSet (\(y, route') -> apply typeSet f (y, route @-> route')) x
 
 -- | For both of these functions I'm going to need to mark all analyses as no longer
 -- valid, but more difficult will be to maintain the current position (if possible
