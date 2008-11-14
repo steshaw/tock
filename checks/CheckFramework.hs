@@ -72,7 +72,8 @@ todo = error "TODO"
 -- the flow-graph for the whole AST at once, but I can't see an easy way to avoid
 -- that (a more efficient way would be to just calculate the current connected
 -- sub-graph) -- perhaps we could start from the part of the AST corresponding
--- to the root node?
+-- to the root node?  TODO should be possible by using the route to the root node
+-- of the current graph
 --
 -- * Modifying a node (e.g. with substitute or replaceBelow) invalidates all analyses.
 -- 
@@ -95,7 +96,9 @@ data CheckOptData = CheckOptData
 
  , nextVarsTouched :: Map.Map Node (Set.Set Var)
 
- , flowGraph :: Maybe (FlowGraph CheckOptM UsageLabel)
+ , flowGraphRootsTerms :: Maybe (FlowGraph CheckOptM UsageLabel, [Node], [Node])
+
+ , lastValidMeta :: Meta
  }
 
 data FlowGraphAnalysis res = FlowGraphAnalysis
@@ -106,7 +109,7 @@ data FlowGraphAnalysis res = FlowGraphAnalysis
 
 invalidateAll :: (A.AST -> A.AST) -> CheckOptData -> CheckOptData
 invalidateAll f d = d { ast = f (ast d), parItems = Nothing, nextVarsTouched = Map.empty,
-  flowGraph = Nothing}
+  flowGraphRootsTerms = Nothing}
 
 newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
   deriving (Monad, MonadIO)
@@ -265,6 +268,8 @@ traverse typeSet f route tr
         -- we tack on a state parameter with a (Maybe Route) and keep scanning
         -- until we find the place to resume from (or go one past it, which is
         -- nice in case the location is no longer valid)
+        --
+        -- TODO in future maybe I should try again to jump to the right spot
 
         -- Given a complete AST, either applies f (from parent) using apply (see
         -- below) if we are past the point we are meant to start at, or otherwise
@@ -279,7 +284,7 @@ traverse typeSet f route tr
              case st of
                -- We are past the target start point:
                Nothing -> lift $ apply typeSet f (y, route)
-               Just targetRoute -> if targetRoute > routeId route
+               Just targetRoute -> if routeId route < targetRoute
                  then return y {- Not reached start point yet -} else do
                    put Nothing -- Blank the start point now we've found it
                    lift $ apply typeSet f (y, route)
@@ -304,7 +309,7 @@ substitute :: a -> CheckOptM' a ()
 substitute x = CheckOptM' $ do
   r <- ask
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
-  lift . RestartT $ return $ Left (routeId r)
+  lift . RestartT $ return $ Left [] -- (routeId r)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
@@ -317,7 +322,7 @@ restartForAnyAST = CheckOptM' . lift . RestartT $ return $ Left []
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
-  nextVarsTouched = Map.empty, flowGraph = Nothing}) >>* ast
+  nextVarsTouched = Map.empty, flowGraphRootsTerms = Nothing, lastValidMeta = emptyMeta}) >>* ast
 
 runChecksPass :: CheckOptM () -> Pass
 runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
@@ -349,12 +354,15 @@ findTerminals n g = nub [x | x <- dfs [n] g, null (suc g x)]
 varsTouchedAfter :: FlowGraphAnalysis (Set.Set Var)
 varsTouchedAfter = FlowGraphAnalysis
   nextVarsTouched (\x d -> d {nextVarsTouched = x `Map.union` nextVarsTouched d}) $ \(g, startNode) ->
-    let [termNode] = findTerminals startNode g
-        connNodes = rdfs [termNode] g in
-    case flowAlgorithm (funcs g) connNodes (termNode, Set.empty) of
-      Left err -> dieP emptyMeta err
-      Right nodesToVars -> (liftIO $ putStrLn $ "Graph:\n" ++ show g ++ "\n\nNodes:\n"
-        ++ show (termNode, connNodes)) >> return nodesToVars
+    case findTerminals startNode g of
+      [] -> return Map.empty
+      [termNode] -> let connNodes = rdfs [termNode] g in
+        case flowAlgorithm (funcs g) connNodes (termNode, Set.empty) of
+          Left err -> dieP emptyMeta err
+          Right nodesToVars -> {-(liftIO $ putStrLn $ "Graph:\n" ++ show g ++ "\n\nNodes:\n"
+            ++ show (termNode, connNodes)) >> -}return nodesToVars
+      ts -> dieP (fromMaybe emptyMeta $ fmap getNodeMeta $ lab g startNode) $ "Multiple terminal nodes in flow graph"
+              ++ show [fmap getNodeMeta (lab g n) | n <- ts]
   where
     funcs :: FlowGraph CheckOptM UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
     funcs g = GF     
@@ -379,9 +387,25 @@ varsTouchedAfter = FlowGraphAnalysis
 
   
 
-getFlowGraph :: CheckOptM' t (FlowGraph CheckOptM UsageLabel)
-getFlowGraph = getCache flowGraph (\x d -> d {flowGraph = Just x, nextVarsTouched
+getFlowGraph :: CheckOptM' t (FlowGraph CheckOptM UsageLabel, [Node], [Node])
+getFlowGraph = getCache flowGraphRootsTerms (\x d -> d {flowGraphRootsTerms = Just x, nextVarsTouched
   = Map.empty}) generateFlowGraph
+
+-- Makes sure that only the real last node at the end of a PROC/FUNCTION is a terminator
+-- node, by joining any other nodes without successors to this node.  This is a
+-- bit hacky, but is needed for some of the backwards flow analysis
+correctFlowGraph :: Node -> (FlowGraph CheckOptM UsageLabel, [Node], [Node]) -> FlowGraph CheckOptM UsageLabel
+correctFlowGraph curNode (g, roots, terms)
+  = case findTerminals curNode g `intersect` terms of
+      [] -> empty -- Not a PROC/FUNCTION
+      [realTerm] -> foldl (addFakeEdge realTerm) g midTerms
+  where
+    -- The nodes that have no successors but are not the real terminator
+    -- For example, the node after the last condition in an IF, or a STOP node
+    midTerms = findTerminals curNode g \\ terms
+
+    addFakeEdge :: Node -> FlowGraph CheckOptM UsageLabel -> Node -> FlowGraph CheckOptM UsageLabel
+    addFakeEdge realTerm g n = insEdge (n, realTerm, ESeq Nothing) g
 
 getCache :: (CheckOptData -> Maybe a) -> (a -> CheckOptData -> CheckOptData) -> (A.AST
   -> CheckOptM a) -> CheckOptM' t a
@@ -391,29 +415,31 @@ getCache getF setF genF = getCheckOptData >>= \x -> case getF x of
                 modifyCheckOptData (setF y)
                 return y
 
-getCachedAnalysis :: FlowGraphAnalysis res -> CheckOptM' t res
+getCachedAnalysis :: Data t => FlowGraphAnalysis res -> CheckOptM' t (Maybe res)
 getCachedAnalysis = getCachedAnalysis' (const True)
 
 -- Analysis requires the latest flow graph, and uses this to produce a result
-getCachedAnalysis' :: (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptM' t res
+getCachedAnalysis' :: Data t => (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptM' t (Maybe
+  res)
 getCachedAnalysis' f an = do
   d <- getCheckOptData
-  g <- getFlowGraph
-  r <- askRoute >>* routeId
+  g'@(g,_,_) <- getFlowGraph
+  r <- askRoute
   -- Find the node that matches our location and the given function:
-  case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == r)) (labNodes g) of
-    Nothing -> dieP emptyMeta $ "Node not found in flow graph: " ++ show g
+  case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == routeId r)) (labNodes g) of
+    Nothing -> (liftIO $ putStrLn $ "Could not find node for: " ++ show (lastValidMeta
+      d)) >> return Nothing
     Just (n, _) ->
       case Map.lookup n (getFlowGraphAnalysis an d) of
-        Just y -> return y
+        Just y -> return (Just y)
         Nothing -> liftCheckOptM $
-                    do z <- doFlowGraphAnalysis an (g, n)
+                    do z <- doFlowGraphAnalysis an (correctFlowGraph n g', n)
                        CheckOptM $ modify $ addFlowGraphAnalysis an z
-                       case Map.lookup n z of
-                         Nothing -> dieP emptyMeta "Node not found in analysis results"
-                         Just r -> return r
+                       CheckOptM $ get >>* (Map.lookup n . getFlowGraphAnalysis an)
 
-generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel)
+generateFlowGraph :: A.AST -> CheckOptM (FlowGraph CheckOptM UsageLabel, [Node],
+  [Node])
 generateFlowGraph x = buildFlowGraph labelUsageFunctions x >>= \g -> case g of
   Left err -> dieP emptyMeta err
-  Right (y,_,_) -> return y
+  Right grt -> return grt
+
