@@ -27,12 +27,14 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import CompState
 import Metadata
+import OccamEDSL
 import Pattern
 import SimplifyComms
 import SimplifyExprs
 import TagAST
 import TestUtils
 import TreeUtils
+import Unnest
 import Utils
 
 m :: Meta
@@ -613,6 +615,19 @@ testPullRepCounts = TestList
           "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 5))) $ A.Several emptyMeta [])
 
 
+testRemoveNesting :: Test
+testRemoveNesting = TestList
+  [
+    test "Blank PROC" $
+      oPROC "foo" [] (
+        oSKIP
+      ) oempty
+  ]
+  where
+    test :: String -> OccamStructuredM () () -> Test
+    test name x = testOccamPass name x removeNesting
+
+
 --Returns the list of tests:
 tests :: Test
 tests = TestLabel "PassTest" $ TestList
@@ -625,6 +640,7 @@ tests = TestLabel "PassTest" $ TestList
    ,testInputCase
    ,testOutExprs
    ,testPullRepCounts
+   ,testRemoveNesting
    ,testTransformConstr0
    ,testTransformProtocolInput
  ]

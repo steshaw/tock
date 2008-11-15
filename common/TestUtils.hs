@@ -302,8 +302,7 @@ simpleDefPattern n am sp = tag6 A.NameDef DontCare n n sp am A.Unplaced
 --{{{  defining things
 
 -- | Define something in the initial state.
-defineThing :: String -> A.SpecType -> A.AbbrevMode
-               -> State CompState ()
+defineThing :: CSM m => String -> A.SpecType -> A.AbbrevMode -> m ()
 defineThing s st am = defineName (simpleName s) $
     A.NameDef {
       A.ndMeta = emptyMeta,
@@ -326,12 +325,12 @@ defineIs s t v
     = defineThing s (A.Is emptyMeta A.Abbrev t v) A.Abbrev
 
 -- | Define something original.
-defineOriginal :: String -> A.Type -> State CompState ()
+defineOriginal :: CSM m => String -> A.Type -> m ()
 defineOriginal s t
     = defineThing s (A.Declaration emptyMeta t) A.Original
 
 -- | Define a variable.
-defineVariable :: String -> A.Type -> State CompState ()
+defineVariable :: CSM m => String -> A.Type -> m ()
 defineVariable = defineOriginal
 
 -- | Define a channel.
@@ -365,7 +364,7 @@ defineFunction s rs as
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
 -- | Define a proc.
-defineProc :: String -> [(String, A.AbbrevMode, A.Type)] -> State CompState ()
+defineProc :: CSM m => String -> [(String, A.AbbrevMode, A.Type)] -> m ()
 defineProc s as
     = defineThing s st A.Original
   where

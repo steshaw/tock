@@ -169,6 +169,7 @@ tocktest_SOURCES += backends/GenerateCTest.hs
 tocktest_SOURCES += checks/ArrayUsageCheckTest.hs
 tocktest_SOURCES += checks/UsageCheckTest.hs
 tocktest_SOURCES += common/CommonTest.hs
+tocktest_SOURCES += common/OccamEDSL.hs
 tocktest_SOURCES += common/TestFramework.hs
 tocktest_SOURCES += common/TestHarness.hs
 tocktest_SOURCES += common/TestUtils.hs

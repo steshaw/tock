@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Flatten nested declarations.
-module Unnest (unnest) where
+module Unnest (unnest, removeNesting) where
 
 import Control.Monad.Identity
 import Control.Monad.State
