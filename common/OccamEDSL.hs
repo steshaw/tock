@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
-  Occ, a, b, c, x, y, z, (*?), (*!), (*:=), decl, oempty, testOccamPass, ExpInpC(..)) where
+  Occ, oA, oB, oC, oX, oY, oZ, (*?), (*!), (*:=), decl, oempty, testOccamPass, ExpInpC(..)) where
 
 import Control.Monad.State
 import Data.Generics
@@ -158,13 +158,13 @@ oSKIP = return $ fromProcess $ A.Skip emptyMeta
 oINT :: ExpInp A.Type
 oINT = return A.Int
 
-a,b,c,x,y,z :: ExpInp A.Variable
-a = return $ variable "a"
-b = return $ variable "b"
-c = return $ variable "c"
-x = return $ variable "x"
-y = return $ variable "y"
-z = return $ variable "z"
+oA,oB,oC,oX,oY,oZ :: ExpInp A.Variable
+oA = return $ variable "A"
+oB = return $ variable "B"
+oC = return $ variable "C"
+oX = return $ variable "X"
+oY = return $ variable "Y"
+oZ = return $ variable "Z"
 
 (*?) :: ExpInp A.Variable -> ExpInp A.Variable -> O (A.Structured A.Process)
 (*?) bch bdest = do
