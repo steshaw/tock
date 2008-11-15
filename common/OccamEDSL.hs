@@ -211,9 +211,9 @@ instance CanBeExpression Int where
 oempty :: Data a => O (A.Structured a)
 oempty = return $ A.Several emptyMeta []
 
-testOccamPass :: String -> O A.AST -> Pass -> Test
+testOccamPass :: Data a => String -> O a -> Pass -> Test
 testOccamPass str code pass
-  = let ExpInpT expm inpm = liftM singlify code
+  = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
         (inp, inpS) = runState inpm emptyState
     in TestCase $ testPassWithStateCheck str exp pass inp (put inpS) (assertEqual
