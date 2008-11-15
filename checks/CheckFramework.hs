@@ -141,12 +141,13 @@ instance Monad (CheckOptM' t) where
 instance MonadIO (CheckOptM' t) where
   liftIO = CheckOptM' . liftM Right . liftIO
 
-deCheckOptM' :: (t -> CheckOptM' t ()) -> (t, Route t A.AST) -> RestartT CheckOptM t
+deCheckOptM' :: (t -> CheckOptM' t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
+  t t)
 deCheckOptM' f (x, r) = do
   x' <- runReaderT (let CheckOptM' m = f x in m) r
   case x' of
-    Left replacement -> return replacement
-    Right _ -> return x
+    Left replacement -> return (Left replacement)
+    Right _ -> return (Right x)
 
 -- | The idea is this: in normal operation you use the Right return value.  When
 -- you want to restart the forAnyAST operation from a given point, you use the
@@ -202,18 +203,17 @@ forAnyParItems = undefined
 -- Like mkM, but with no return value, and this funny monad with routes, but also
 -- we give an error if the plain function is ever triggered (given the typeset
 -- stuff, it shouldn't be)
-mkMR :: forall a. Data a => ((a, Route a A.AST) -> RestartT CheckOptM a) -> (forall b. Data b => (b,
-  Route b A.AST) -> RestartT CheckOptM b)
+mkMR :: forall a. Data a => TransFunc a -> (forall b. Data b => TransFunc b)
 mkMR f = plain `extMR` f
   where
-    plain :: (forall c. Data c => (c, Route c A.AST) -> RestartT CheckOptM c)
+    plain :: (forall c. Data c => TransFunc c)
     plain _ = dieP emptyMeta "Unexpected call of mkM_.plain"
 
 -- Like extM, but with no return value, and this funny monad with routes:
 extMR :: forall b. Data b =>
-  (forall a. Data a => (a, Route a A.AST) -> RestartT CheckOptM a) ->
-  ((b, Route b A.AST) -> RestartT CheckOptM b) ->
-  (forall c. Data c => (c, Route c A.AST) -> RestartT CheckOptM c)
+  (forall a. Data a => TransFunc a) ->
+  (TransFunc b) ->
+  (forall c. Data c => TransFunc c)
 extMR generalF specificF (x, r) = case cast x of
   Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
@@ -255,7 +255,7 @@ forAnyASTStruct origF = CheckOptM $ do
       ,typeKey (undefined :: A.Structured ())
       ]
 
-type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM a
+type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 
     -- | Given a TypeSet, a function to apply to everything of type a, a route
     -- location to begin at and an AST, transforms the tree.  Handles any restarts
@@ -277,31 +277,24 @@ doTree typeSet f tr
 traverse :: TypeSet -> (forall a. Data a => TransFunc a) -> A.AST ->
       StateT CheckOptData PassM (Either () ())
 traverse typeSet f tr
-      = deCheckOptM (getRestartT (gen tr))
-      where
-        -- We can't use routeModify with the route to jump to the right place,
-        -- because then applying gen gets much more difficult, and I can't find
-        -- a way through the maze of compiler errors.  So with a glorious hack,
-        -- we tack on a state parameter with a (Maybe Route) and keep scanning
-        -- until we find the place to resume from (or go one past it, which is
-        -- nice in case the location is no longer valid)
-        --
-        -- TODO in future maybe I should try again to jump to the right spot
-
-        -- Given a complete AST, either applies f (from parent) using apply (see
-        -- below) if we are past the point we are meant to start at, or otherwise
-        -- just skips this node
-        gen :: A.AST -> RestartT CheckOptM ()
-        gen x = gmapMForRoute typeSet (apply typeSet f) x >> return ()
+      = deCheckOptM (getRestartT (gmapMForRoute typeSet (apply typeSet f) tr >> return ()))
 
     -- The return of this function is ignored.  All changes should be done in the
     -- state.
 apply :: TypeSet -> (forall a. Data a => TransFunc a) ->
-             (forall b. Data b => TransFunc b)
+             (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 apply typeSet f (x, route)
-      = (lift . CheckOptM $ modify $ \d -> if findMeta x == emptyMeta then d else d {lastValidMeta = findMeta x})
-        >> f (x, route)
-        >> gmapMForRoute typeSet (\(y, route') -> apply typeSet f (y, route @-> route')) x
+      = do lift . CheckOptM $ modify $ \d -> if findMeta x == emptyMeta then d else d {lastValidMeta = findMeta x}
+           z <- f' (x, route)
+           gmapMForRoute typeSet (\(y, route') -> apply typeSet f (y, route @-> route')) z
+  where
+    -- Keep applying the function while there is a Left return (which indicates
+    -- the value was replaced) until there is a Right return
+    f' (x, route) = do
+      x' <- f (x, route)
+      case x' of
+        Left y -> f' (y, route)
+        Right y -> return y        
 
 -- | For both of these functions I'm going to need to mark all analyses as no longer
 -- valid, but more difficult will be to maintain the current position (if possible
@@ -314,7 +307,7 @@ substitute :: a -> CheckOptM' a ()
 substitute x = CheckOptM' $ do
   r <- ask
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
-  lift . RestartT $ return $ Left () -- TODO just give back the value
+  lift . RestartT $ return $ Right (Left x)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
