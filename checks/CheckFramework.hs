@@ -20,7 +20,6 @@ module CheckFramework (CheckOptM, CheckOptM', forAnyAST, forAnyASTStruct, substi
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis') where
 
-import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
@@ -29,7 +28,6 @@ import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
-import Control.Exception
 import GHC.Base (unsafeCoerce#)
 
 import qualified AST as A
@@ -126,9 +124,7 @@ instance Warn CheckOptM where
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
 
-newtype CheckOptM' t a = CheckOptM' (ReaderT (Route t A.AST) (RestartT CheckOptM) (Either
-  t a))
---  deriving (Monad, MonadIO)
+newtype CheckOptM' t a = CheckOptM' (ReaderT (Route t A.AST) (RestartT CheckOptM) (Either t a))
 
 instance Monad (CheckOptM' t) where
   return x = CheckOptM' (return (Right x))
@@ -152,15 +148,14 @@ deCheckOptM' f (x, r) = do
 -- | The idea is this: in normal operation you use the Right return value.  When
 -- you want to restart the forAnyAST operation from a given point, you use the
 -- Left constructor.
-data Monad m => RestartT m a
-  = RestartT { getRestartT :: m (Either () a) }
+data Monad m => RestartT m a = RestartT { getRestartT :: m (Either () a) }
 
 instance Monad m => Monad (RestartT m) where
-  return x = RestartT $ return $ Right x
+  return x = RestartT $ return (Right x)
   (>>=) m f = let m' = getRestartT m in RestartT $ do
     x <- m'
     case x of
-      Left route -> return $ Left route
+      Left route -> return (Left route)
       Right x' -> let m'' = getRestartT $ f x' in m''
 
 instance MonadIO m => MonadIO (RestartT m) where
@@ -257,30 +252,20 @@ forAnyASTStruct origF = CheckOptM $ do
 
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 
-    -- | Given a TypeSet, a function to apply to everything of type a, a route
-    -- location to begin at and an AST, transforms the tree.  Handles any restarts
-    -- that are requested.
+-- | Given a TypeSet, a function to apply to everything of type a, a route
+-- location to begin at and an AST, transforms the tree.  Handles any restarts
+-- that are requested.
 doTree :: TypeSet -> (forall a. Data a => TransFunc a) ->
       A.AST -> StateT CheckOptData PassM ()
 doTree typeSet f tr
-      = do x <- traverse typeSet f tr
+      = do x <- deCheckOptM (getRestartT (gmapMForRoute typeSet (apply typeSet f) tr >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
                doTree typeSet f tr'
              Right _ -> return ()
 
-    -- | Given a TypeSet, a function to apply to everything of type a, a route
-    -- location to begin at and an AST, transforms the tree.  If any restarts are
-    -- requested, that is indicated in the return value.  If an AST is returned,
-    -- it is ignored (all changes are done in the state)
-traverse :: TypeSet -> (forall a. Data a => TransFunc a) -> A.AST ->
-      StateT CheckOptData PassM (Either () ())
-traverse typeSet f tr
-      = deCheckOptM (getRestartT (gmapMForRoute typeSet (apply typeSet f) tr >> return ()))
 
-    -- The return of this function is ignored.  All changes should be done in the
-    -- state.
 apply :: TypeSet -> (forall a. Data a => TransFunc a) ->
              (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 apply typeSet f (x, route)
@@ -303,11 +288,11 @@ apply typeSet f (x, route)
 -- | Substitutes the currently examined item for the given item, and continues
 -- the traversal from the current point.  That is, the new item is transformed
 -- again too.
-substitute :: a -> CheckOptM' a ()
+substitute :: forall a. Data a => a -> CheckOptM' a ()
 substitute x = CheckOptM' $ do
   r <- ask
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
-  lift . RestartT $ return $ Right (Left x)
+  return (Left x)
 
 --replaceBelow :: t -> t -> CheckOptM' a ()
 --replaceEverywhere :: t -> t -> CheckOptM' a ()
