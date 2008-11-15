@@ -622,9 +622,36 @@ testRemoveNesting = TestList
       oPROC "foo" [] (
         oSKIP
       ) oempty
+
+    , test "Nested PROC" $
+      (oPROC "bar" [] (
+        oSEQ 
+          [decl oINT x $
+            oempty]
+      ) $
+      oPROC "foo" [] (
+        oSEQ
+          [decl oINT x $
+            oSEQ
+              [x *:= return (0::Int)
+              ,x *:= return (1::Int)]]
+      ) oempty)
+      `shouldComeFrom`
+      oPROC "foo" [] (
+        oSEQ 
+          [oPROC "bar" [] (
+            oSEQ
+              [decl oINT x $
+                oempty]
+          ) $
+          decl oINT x $
+            oSEQ
+              [x *:= return (0::Int)
+              ,x *:= return (1::Int)]]
+      ) oempty
   ]
   where
-    test :: String -> OccamStructuredM () () -> Test
+    test :: String -> Occ A.AST -> Test
     test name x = testOccamPass name x removeNesting
 
 

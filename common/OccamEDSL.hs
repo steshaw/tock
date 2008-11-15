@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
-  a, b, c, x, y, z, (*?), (*!), (*:=), decl, oempty, OccamStructuredM, testOccamPass) where
+  Occ, a, b, c, x, y, z, (*?), (*!), (*:=), decl, oempty, testOccamPass, ExpInpC(..)) where
 
 import Control.Monad.State
 import Data.Generics
@@ -32,8 +32,9 @@ import Utils
 
 -- The rough rules for converting occam to pseudo-occam are to stick a lower-case
 -- o on the front of keywords, turn colons into dollars, put an asterisk before
--- every operator, empty items into oempty
--- and stick decl on the front of declarations (and indent the scope) and add a do after SEQ and PAR.
+-- every operator, empty items (e.g. following declarations) into oempty
+-- and stick decl on the front of declarations (and indent the scope) and make
+-- all the items in a SEQ or PAR into a list.
 --  Other things to remember:
 -- * The variables must each be used once, since their declaration is added to
 -- the state
@@ -45,15 +46,16 @@ import Utils
 -- :
 --
 -- PROC bar ()
---   INT y:
 --   SEQ
---     BYTE x:
---     x := 3
---     BYTE z:
---     PAR
---       y := 0
---       z := 2
---     y := 1
+--     INT y:
+--     SEQ
+--       BYTE x:
+--       x := 3
+--       BYTE z:
+--       PAR
+--         y := 0
+--         z := 2
+--       y := 1
 -- :
 --
 -- becomes:
@@ -62,15 +64,20 @@ import Utils
 --   oempty
 -- $
 -- sPROC "bar" [] (
---   decl oINT y $
---   oSEQ $ do
---     decl oBYTE x $
---       x *:= 3
---     decl oBYTE z $
---       sPAR $ do
---         y *:= 0
---         z *:= 2
---     y *:= 1
+--   oSEQ [
+--     decl oINT y $
+--     oSEQ
+--     [
+--       [decl oBYTE x $
+--         x *:= 3
+--       ,decl oBYTE z $
+--          sPAR
+--           [y *:= 0
+--           ,z *:= 2
+--           ]
+--     ,y *:= 1
+--     ]
+--   ]
 -- $
 -- oempty
 
@@ -90,12 +97,6 @@ instance Monad m => Monad (ExpInpT m) where
   (>>=) (ExpInpT x y) f
     = ExpInpT (x >>= (fstExpInpT . f)) (y >>= (sndExpInpT . f))
 
-runExpInpT :: Monad m => ExpInpT m a -> m (ExpInp a)
-runExpInpT (ExpInpT mx my) = do
-  x <- mx
-  y <- my
-  return $ ExpInp x y
-
 liftExpInp :: Monad m => ExpInp a -> ExpInpT m a
 liftExpInp (ExpInp x y) = ExpInpT (return x) (return y)
 
@@ -108,9 +109,6 @@ instance Monad ExpInp where
                                 (let ExpInp _ y' = f y in y')
 
 
-newtype OccamStructuredM a b = OccamStructuredM (State (ExpInp CompState, [ExpInp (A.Structured a)]) b)
-  deriving (Monad)
-
 instance MonadState s (ExpInpT (State s)) where
   get = ExpInpT get get
   put x = ExpInpT (put x) (put x)
@@ -119,42 +117,34 @@ instance CSMR (ExpInpT (State CompState)) where
   getCompState = get
 
 type O a = ExpInpT (State CompState) a
+type Occ a = O a
 
-termFunc :: Data a => Maybe (A.Structured a) -> A.Structured a
-termFunc (Just s) = s
-termFunc Nothing = A.Several emptyMeta []
+class ProcessC a where
+  structProcess :: a -> A.Structured A.Process
+  fromProcess :: A.Process -> a
 
-oSEQ, oPAR :: OccamStructuredM A.Process () -> O A.Process
-oSEQ = liftM (A.Seq emptyMeta . A.Several emptyMeta) . getStruct
-oPAR = liftM (A.Par emptyMeta A.PlainPar . A.Several emptyMeta) . getStruct
+instance ProcessC A.Process where
+  structProcess = A.Only emptyMeta
+  fromProcess = id
 
-getStruct :: OccamStructuredM a () -> O [A.Structured a]
-getStruct (OccamStructuredM m) = ExpInpT
-  (do s <- get
-      let (ExpInp s' _, es) = execState m (ExpInp s undefined, [])
-      put s'
-      return [x | ExpInp x _ <- es])
-  (do s <- get
-      let (ExpInp _ s', es) = execState m (ExpInp undefined s, [])
-      put s'
-      return [x | ExpInp x _ <- es])
+instance ProcessC (A.Structured A.Process) where
+  structProcess = id
+  fromProcess = A.Only emptyMeta
 
-recordLine :: O (A.Structured a) -> OccamStructuredM a ()
-recordLine (ExpInpT mx my) = OccamStructuredM $ modify $ \(ExpInp sx sy, ls) ->
-  let (lx, sx') = runState mx sx
-      (ly, sy') = runState my sy
-  in (ExpInp sx' sy', ls ++ [ExpInp lx ly])
+oSEQ, oPAR :: ProcessC c => [O (A.Structured A.Process)] -> O c
+oSEQ = liftM (fromProcess . A.Seq emptyMeta . A.Several emptyMeta) . sequence
+oPAR = liftM (fromProcess . A.Par emptyMeta A.PlainPar . A.Several emptyMeta) . sequence
 
-singlify :: Data a => [A.Structured a] -> A.Structured a
-singlify [s] = s
-singlify ss = A.Several emptyMeta ss
+singlify :: Data a => A.Structured a -> A.Structured a
+singlify (A.Several _ [s]) = s
+singlify ss = ss
 
 
-oPROC :: Data a => String -> [(A.Type, A.Variable)] -> O A.Process -> OccamStructuredM a ()
-  -> OccamStructuredM a ()
-oPROC str params body scope = recordLine $ do
+oPROC :: Data a => String -> [(A.Type, A.Variable)] -> O A.Process -> O (A.Structured
+  a) -> O (A.Structured a)
+oPROC str params body scope = do
   p <- body
-  s <- getStruct scope
+  s <- scope
   defineProc str [(A.nameName name, A.Original, t) | (t, A.Variable _ name) <- params]
   return $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName str) $
              A.Proc emptyMeta A.PlainSpec formals p
@@ -162,8 +152,8 @@ oPROC str params body scope = recordLine $ do
   where
     formals = [A.Formal A.Original t n | (t, A.Variable _ n) <- params]
 
-oSKIP :: O A.Process
-oSKIP = return $ A.Skip emptyMeta
+oSKIP :: ProcessC a => O a
+oSKIP = return $ fromProcess $ A.Skip emptyMeta
 
 oINT :: ExpInp A.Type
 oINT = return A.Int
@@ -176,32 +166,32 @@ x = return $ variable "x"
 y = return $ variable "y"
 z = return $ variable "z"
 
-(*?) :: ExpInp A.Variable -> ExpInp A.Variable -> OccamStructuredM A.Process ()
-(*?) bch bdest = recordLine $ do
+(*?) :: ExpInp A.Variable -> ExpInp A.Variable -> O (A.Structured A.Process)
+(*?) bch bdest = do
   ch <- liftExpInp bch
   dest <- liftExpInp bdest
   return $ A.Only emptyMeta $ A.Input emptyMeta ch (A.InputSimple emptyMeta [A.InVariable emptyMeta dest])
-(*!), (*:=) :: CanBeExpression e => ExpInp A.Variable -> ExpInp e -> OccamStructuredM
-  A.Process ()
-(*!) bch bsrc = recordLine $ do
+
+(*!), (*:=) :: CanBeExpression e => ExpInp A.Variable -> ExpInp e -> O (A.Structured A.Process)
+(*!) bch bsrc = do
   ch <- liftExpInp bch
   src <- liftExpInp bsrc >>* expr
   return $ A.Only emptyMeta $ A.Output emptyMeta ch [A.OutExpression emptyMeta
     src]
-(*:=) bdest bsrc = recordLine $ do
+(*:=) bdest bsrc = do
   dest <- liftExpInp bdest
   src <- liftExpInp bsrc >>* expr
   return $ A.Only emptyMeta $ A.Assign emptyMeta [dest] (A.ExpressionList emptyMeta
     [src])
 
 
-decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->  OccamStructuredM a () ->
-  OccamStructuredM a ()
-decl bty bvar scope = recordLine $ do
+decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->  O (A.Structured a) ->
+  O (A.Structured a)
+decl bty bvar scope = do
   ty <- liftExpInp bty
   (A.Variable _ name) <- liftExpInp bvar
   defineVariable (A.nameName name) ty
-  s <- getStruct scope
+  s <- scope
   return $ A.Spec emptyMeta (A.Specification emptyMeta name $ A.Declaration emptyMeta ty)
     (singlify s)
   
@@ -218,14 +208,22 @@ instance CanBeExpression A.Expression where
 instance CanBeExpression Int where
   expr = A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show
 
-oempty :: OccamStructuredM a ()
-oempty = return ()
+oempty :: Data a => O (A.Structured a)
+oempty = return $ A.Several emptyMeta []
 
-testOccamPass :: String -> OccamStructuredM () () -> Pass -> Test
+testOccamPass :: String -> O A.AST -> Pass -> Test
 testOccamPass str code pass
-  = let ExpInpT expm inpm = liftM singlify $ getStruct code
+  = let ExpInpT expm inpm = liftM singlify code
         (exp, expS) = runState expm emptyState
         (inp, inpS) = runState inpm emptyState
     in TestCase $ testPassWithStateCheck str exp pass inp (put inpS) (assertEqual
       str (csNames expS) . csNames)
---TODO could get fancy with the Metas, and near-predict them
+
+class ExpInpC a where
+  shouldComeFrom :: a -> a -> a
+
+instance ExpInpC (ExpInp a) where
+  shouldComeFrom (ExpInp exp _) (ExpInp _ inp) = ExpInp exp inp
+
+instance ExpInpC (ExpInpT (State CompState) a) where
+  shouldComeFrom (ExpInpT exp _) (ExpInpT _ inp) = ExpInpT exp inp
