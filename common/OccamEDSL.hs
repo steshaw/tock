@@ -19,7 +19,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | The necessary components for using an occam EDSL (for building test-cases).
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
   oCASE, oCASEinput, oALT, guard,
-  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), decl, decl', oempty, testOccamPass,
+  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), decl, decl', decl'',
+    oempty, testOccamPass,
+    oprocess,
     testOccamPassTransform, ExpInpC(shouldComeFrom),
     caseOption, inputCaseOption, 
     becomes) where
@@ -273,6 +275,14 @@ decl' n sp scope = do
   return $ A.Spec emptyMeta (A.Specification emptyMeta n sp)
     (singlify $ A.Several emptyMeta s)
 
+decl'' :: Data a => A.Name -> A.SpecType -> A.AbbrevMode ->
+  [O (A.Structured a)] -> O (A.Structured a)
+decl'' n sp am scope = do
+  defineThing (A.nameName n) sp am
+  s <- sequence scope
+  return $ A.Spec emptyMeta (A.Specification emptyMeta n sp)
+    (singlify $ A.Several emptyMeta s)
+
 
 -- | A type-class to finesse the difference between components of expressions (such
 -- as variables, literals) and actual expressions
@@ -308,6 +318,9 @@ instance CanBeInput A.InputMode where
 
 oempty :: Data a => O (A.Structured a)
 oempty = return $ A.Several emptyMeta []
+
+oprocess :: O (A.Structured A.Process) -> O (A.Structured A.Process)
+oprocess = id
 
 testOccamPass :: Data a => String -> O a -> Pass -> Test
 testOccamPass str code pass

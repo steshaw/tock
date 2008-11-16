@@ -174,9 +174,10 @@ pullRepCounts = pass "Pull up replicator counts for SEQs"
       = do t <- astTypeOf for
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
            scope' <- pullRepCountSeq scope
+           let newSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))
+           modifyName n $ \nd -> nd { A.ndSpecType = newSpec }
            return $ A.Spec mspec spec $
-             A.Spec m (A.Specification mspec n (A.Rep mrep
-               (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))) scope'
+             A.Spec m (A.Specification mspec n newSpec) scope'
     pullRepCountSeq (A.Spec m sp str)
       = do str' <- pullRepCountSeq str
            return $ A.Spec m sp str'

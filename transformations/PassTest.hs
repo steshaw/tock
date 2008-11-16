@@ -570,7 +570,24 @@ testPullRepCounts = TestList
    ,testUnchanged 2 $ A.Alt emptyMeta False
    ,testUnchanged 3 $ A.Alt emptyMeta True
    ,testUnchanged 4 $ A.If emptyMeta
-   
+
+   ,testOccamPassTransform "testPullRepCounts 5" (nameAndStopCaringPattern "nonce" "A")
+      (oprocess $ oSEQ
+        [decl' (simpleName "X")
+          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
+            []
+        ]
+      `becomes`
+       oSEQ
+        [decl'' (simpleName "A")
+          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev
+          [decl' (simpleName "X")
+            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
+              []
+          ]
+        ]
+      ) pullRepCounts 
+
    ,TestCase $ testPass "testPullRepCounts 5"
      (nameAndStopCaringPattern "nonce" "nonce" $ mkPattern $ A.Seq emptyMeta $
        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
