@@ -18,13 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | The necessary components for using an occam EDSL (for building test-cases).
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
-  oCASE, oCASEinput,
-  Occ, oA, oB, oC, oX, oY, oZ, (*?), (*!), (*:=), decl, decl', oempty, testOccamPass,
+  oCASE, oCASEinput, oALT, guard,
+  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), decl, decl', oempty, testOccamPass,
     testOccamPassTransform, ExpInpC(shouldComeFrom),
-    caseOption, inputCaseOption,
+    caseOption, inputCaseOption, 
     becomes) where
 
-import Control.Monad.State
+import Control.Monad.State hiding (guard)
 import Data.Generics
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
@@ -165,6 +165,12 @@ instance Castable (A.Structured A.Variant) A.Variant where
   makeStruct = id
   makePlain = A.Only emptyMeta
 
+p0, p1, p2 :: Castable c A.Process => O c
+p0 = return $ makePlain $ A.Skip emptyMeta
+p1 = return $ makePlain $ A.Seq emptyMeta (A.Several emptyMeta [])
+p2 = return $ makePlain $ A.Par emptyMeta A.PlainPar (A.Several emptyMeta [])
+
+
 oSEQ, oPAR :: Castable c A.Process => [O (A.Structured A.Process)] -> O c
 oSEQ = liftM (makePlain . A.Seq emptyMeta . singlify . A.Several emptyMeta) . sequence
 oPAR = liftM (makePlain . A.Par emptyMeta A.PlainPar . singlify . A.Several emptyMeta) . sequence
@@ -175,15 +181,30 @@ oCASE e os = do
   os' <- sequence os
   return $ makePlain $ A.Case emptyMeta e' $ singlify $ A.Several emptyMeta os'
 
-caseOption :: (CanBeExpression e, Castable c A.Option) => ([e], A.Process) -> O c
-caseOption (es, p) = mapM (liftExpInp . expr) es >>= \es' -> return $ makePlain $ A.Option emptyMeta es' p
+caseOption :: (CanBeExpression e, Castable c A.Option) => ([e], O A.Process) -> O c
+caseOption (es, p)
+  = do es' <- mapM (liftExpInp . expr) es
+       p' <- p
+       return $ makePlain $ A.Option emptyMeta es' p'
 
-inputCaseOption :: (Castable c A.Variant) => (A.Name, [A.InputItem], A.Process) -> O c
-inputCaseOption (n, is, p) = return $ makePlain $ A.Variant emptyMeta n is p
+inputCaseOption :: (Castable c A.Variant) => (A.Name, [ExpInp A.Variable], O A.Process) -> O c
+inputCaseOption (n, is, p)
+  = do is' <- sequence $ map liftExpInp is
+       p' <- p
+       return $ makePlain $ A.Variant emptyMeta n (map (A.InVariable emptyMeta) is') p'
 
 
 oCASEinput :: [O (A.Structured A.Variant)] -> O (A.Structured A.Variant)
 oCASEinput = liftM (singlify . A.Several emptyMeta) . sequence
+
+oALT :: Castable c A.Process => [O (A.Structured A.Alternative)] -> O c
+oALT = liftM (makePlain . A.Alt emptyMeta False . singlify . A.Several emptyMeta) . sequence
+
+guard :: (O A.Process, O A.Process) -> O (A.Structured A.Alternative)
+guard (inp, body)
+  = do (A.Input m v im) <- inp
+       body' <- body
+       return $ A.Only emptyMeta $ A.Alternative m (A.True emptyMeta) v im body'
 
 singlify :: Data a => A.Structured a -> A.Structured a
 singlify (A.Several _ [s]) = s
@@ -216,11 +237,11 @@ oX = return $ variable "X"
 oY = return $ variable "Y"
 oZ = return $ variable "Z"
 
-(*?) :: (ExpInpC c a, CanBeInput a) => ExpInp A.Variable -> c a -> O (A.Structured A.Process)
+(*?) :: (Castable r A.Process, ExpInpC c a, CanBeInput a) => ExpInp A.Variable -> c a -> O r
 (*?) bch bdest = do
   ch <- liftExpInp bch
   dest <- liftExpInp bdest >>* inputItem
-  return $ A.Only emptyMeta $ A.Input emptyMeta ch dest
+  return $ makePlain $ A.Input emptyMeta ch dest
 
 (*!), (*:=) :: CanBeExpression e => ExpInp A.Variable -> ExpInp e -> O (A.Structured A.Process)
 (*!) bch bsrc = do
@@ -276,8 +297,14 @@ class CanBeInput a where
 instance CanBeInput A.Variable where
   inputItem v = A.InputSimple emptyMeta [A.InVariable emptyMeta v]
 
+instance CanBeInput [A.Variable] where
+  inputItem = A.InputSimple emptyMeta . map (A.InVariable emptyMeta)
+
 instance CanBeInput (A.Structured A.Variant) where
   inputItem = A.InputCase emptyMeta
+
+instance CanBeInput A.InputMode where
+  inputItem = id
 
 oempty :: Data a => O (A.Structured a)
 oempty = return $ A.Several emptyMeta []

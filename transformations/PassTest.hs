@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Contains test for various shared passes.
 module PassTest (tests) where
 
-import Control.Monad.State
+import Control.Monad.State hiding (guard)
 import Data.Generics
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
@@ -350,7 +350,7 @@ testInputCase = TestList
    testOccamPassTransform "testInputCase 0" (nameAndStopCaringPattern "tag" "A") (
      defineProtocolAndC $
        (oC *? oCASEinput
-         [inputCaseOption (simpleName "a0", [], p0)]
+         [inputCaseOption (a0, [], p0)]
        )
        `becomes`
        oSEQ
@@ -389,30 +389,30 @@ testInputCase = TestList
                c ? x ; y
                --Process p2
    -}
-   ,TestCase $ testPass "testInputCase 1"
-       (tag2 A.Seq DontCare $ 
-          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ mDeclaration A.Int) $
-          mSeveralP
-         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ mSeveralO
-          [mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-          ,mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 2] $
-            tag2 A.Seq DontCare $ mSeveralP
-              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],mOnlyP p1]
-          ,mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 1] $
-            tag2 A.Seq DontCare $ mSeveralP
-              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],mOnlyP p2]
+   ,testOccamPassTransform "testInputCase 1" (nameAndStopCaringPattern "tag" "A") (
+     defineProtocolAndC $
+       (oC *? oCASEinput
+         [inputCaseOption (a0, [], p0)
+         ,inputCaseOption (c1, [oZ], p1)
+         ,inputCaseOption (b2, [oX, oY], p2)
+         ]
+       )
+       `becomes`
+       oSEQ
+          [decl (return A.Int) oA
+            [oC *? oA
+            ,oCASE oA
+              [caseOption ([0 :: Int], p0)
+              ,caseOption ([2 :: Int], oSEQ
+                [oC *? oZ
+                ,p1])
+              ,caseOption ([1 :: Int], oSEQ
+                [oC *? sequence [oX, oY]
+                ,p2])
+              ]
+            ]
           ]
-         ]
-     )
-     transformInputCase (
-       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
-         [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
-         ,A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
-         ,A.Only emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
-         ]
-     )
-     (defineMyProtocol >> defineC)
+   ) transformInputCase
 
    -- Input that involves multiple tags and multiple inputs and specs (sheesh!):
    {-
@@ -447,32 +447,34 @@ testInputCase = TestList
                c ? x ; y
                --Process p2
    -}
-   ,TestCase $ testPass "testInputCase 2"
-       (tag2 A.Seq DontCare $ 
-          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ mDeclaration A.Int) $
-          mSeveralP
-         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $ mSeveralO
-          [mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-          ,specIntPatt "z" $ mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 2] $
-            tag2 A.Seq DontCare $ mSeveralP
-              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta z],mOnlyP p1]
-          ,specIntPatt "x" $ specIntPatt "y" $ mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 1] $
-            tag2 A.Seq DontCare $ mSeveralP
-              [mOnlyP $ A.Input emptyMeta c $ A.InputSimple emptyMeta [A.InVariable emptyMeta x,A.InVariable emptyMeta y],mOnlyP p2]
+   ,testOccamPassTransform "testInputCase 2" (nameAndStopCaringPattern "tag" "A") (
+     defineProtocolAndC $
+       (oC *? oCASEinput
+         [inputCaseOption (a0, [], p0)
+         ,decl (return A.Int) oZ [inputCaseOption (c1, [oZ], p1)]
+         ,decl (return A.Int) oX
+           [decl (return A.Int) oY
+             [inputCaseOption (b2, [oX, oY], p2)]]
+         ]
+       )
+       `becomes`
+       oSEQ
+          [decl (return A.Int) oA
+            [oC *? oA
+            ,oCASE oA
+              [caseOption ([0 :: Int], p0)
+              ,decl (return A.Int) oZ [caseOption ([2 :: Int], oSEQ
+                [oC *? oZ
+                ,p1])]
+              ,decl (return A.Int) oX
+                [decl (return A.Int) oY
+                  [caseOption ([1 :: Int], oSEQ
+                    [oC *? sequence [oX, oY]
+                    ,p2])]]
+              ]
+            ]
           ]
-         ]
-     )
-     transformInputCase (
-       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Several emptyMeta 
-         [A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
-         ,specInt "z" $ A.Only emptyMeta $ A.Variant emptyMeta c1 [A.InVariable emptyMeta z] p1
-         ,specInt "x" $ specInt "y" $ A.Only emptyMeta $ A.Variant emptyMeta b2 [A.InVariable emptyMeta x,A.InVariable emptyMeta y] p2
-         ]
-     )
-     (defineMyProtocol >> defineC)
-     
-     --TODO test alt guards
+   ) transformInputCase
 
    -- Input that only involves tags:
    {-
@@ -489,50 +491,34 @@ testInputCase = TestList
            a0
              --Process p0
    -}
-   ,TestCase $ testPass "testInputCase 100"
-       (tag3 A.Alt DontCare False $ 
-          mSpecA (tag3 A.Specification DontCare (Named "tag" DontCare) $ mDeclaration A.Int) $
-          mOnlyA $ mAlternative (A.True emptyMeta) c
-            (tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]) $
-          tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
-           mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-     )
-     transformInputCase (
-       A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True emptyMeta) c 
-        (A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0)
-        (A.Skip emptyMeta)
-     )
-     (defineMyProtocol >> defineC)
-
+   ,testOccamPassTransform "testInputCase 100" (nameAndStopCaringPattern "tag" "A") (
+     defineProtocolAndC $
+       (oALT
+         [guard (oC *? oCASEinput
+           [inputCaseOption (a0, [], p0)], return $ A.Skip emptyMeta)
+         ]
+       )
+       `becomes`
+       oALT
+          [decl (return A.Int) oA
+            [guard (oC *? oA,
+              oCASE oA
+                [caseOption ([0 :: Int], p0)])
+            ]
+          ]
+   ) transformInputCase
   ]
   where
-    -- Various distinct simple processes:
-    p0 = A.Skip emptyMeta
-    p1 = A.Seq emptyMeta (A.Several emptyMeta [])
-    p2 = A.Stop emptyMeta
-    c = variable "c"
-    x = variable "x"
-    y = variable "y"
-    z = variable "z"
     a0 = simpleName "a0"
     b2 = simpleName "b2"
     c1 = simpleName "c1"
-    defineMyProtocol :: CSM m => m ()
-    defineMyProtocol = defineName (simpleName "prot") $ A.NameDef emptyMeta "prot" "prot"
-      (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
-      A.Original A.Unplaced
-    defineC :: CSM m => m ()
-    defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
 
-    defineProtocolAndC :: Data a => Occ (A.Structured a) -> Occ (A.Structured a)
+    defineProtocolAndC :: Occ (A.Structured A.Process) -> Occ (A.Structured A.Process)
     defineProtocolAndC =
       decl' (simpleName "prot") (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
       . (:[]) . decl (return $ A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
           oC . (:[])
     
-    specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
-    specIntPatt s = mSpecA' emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
-
 testTransformProtocolInput :: Test
 testTransformProtocolInput = TestList
   [
