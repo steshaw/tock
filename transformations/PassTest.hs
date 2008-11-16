@@ -584,20 +584,32 @@ testPullRepCounts = TestList
         ]
       ) pullRepCounts 
 
-   ,TestCase $ testPass "testPullRepCounts 6"
-     (nameAndStopCaringPattern "nonce" "nonce" $ nameAndStopCaringPattern "nonce2" "nonce2" $ mkPattern $ A.Seq emptyMeta $
-       A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
-         A.Spec emptyMeta (A.Specification emptyMeta (simpleName "i")
-             $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce"))) $
-           A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce2") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8)) $
-             A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j")
-             $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce2"))) $ A.Several emptyMeta [])
-       
-     pullRepCounts (A.Seq emptyMeta $ A.Spec emptyMeta (A.Specification emptyMeta
-       (simpleName "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6))) $
-        A.Spec emptyMeta (A.Specification emptyMeta (simpleName "j") $
-          A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 8))) $ A.Several emptyMeta [])
-     (return ())
+   ,forAllThree $ \blockType -> testOccamPassTransform "testPullRepCounts 6"
+     (nameAndStopCaringPattern "nonce1" "A" . nameAndStopCaringPattern "nonce2" "B")
+       (blockType
+         [decl' (simpleName "X")
+          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
+            [decl' (simpleName "Y")
+              (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (intLiteral 8)))
+                []
+            ]
+         ]
+       `becomes`
+       blockType
+         [decl'' (simpleName "A")
+          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev
+           [decl' (simpleName "X")
+            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
+              [decl'' (simpleName "B")
+                (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8) A.ValAbbrev
+                  [decl' (simpleName "Y")
+                    (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (exprVariable "B")))
+                      []
+                  ]
+              ]
+           ]
+         ]
+      ) pullRepCounts
   ]
   where
     forAllThree :: (forall a. Data a => ([Occ (A.Structured a)] -> Occ A.Process) -> Test) -> Test
