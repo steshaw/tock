@@ -347,20 +347,19 @@ testInputCase = TestList
            a0
              --Process p0
    -}
-   TestCase $ testPass "testInputCase 0"     
-       (tag2 A.Seq DontCare $ 
-          mSpecP (tag3 A.Specification DontCare (Named "tag" DontCare) $ mDeclaration A.Int) $
-          mSeveralP
-         [mOnlyP $ tag3 A.Input DontCare c $ tag2 A.InputSimple DontCare [tag2 A.InVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)]
-         ,mOnlyP $ tag3 A.Case DontCare (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare (Named "tag" DontCare)) $
-           mOnlyO $ tag3 A.Option DontCare [intLiteralPattern 0] p0
-         ]
-     )
-     transformInputCase (
-       A.Input emptyMeta c $ A.InputCase emptyMeta $ A.Only emptyMeta $ A.Variant emptyMeta a0 [] p0
-     )
-     (defineMyProtocol >> defineC)
-     
+   testOccamPassTransform "testInputCase 0" (nameAndStopCaringPattern "tag" "Z") (
+     defineProtocolAndC $ (oC *? oCASEinput
+       [inputCaseOption (simpleName "a0", [], p0)]
+     ) `becomes`
+       oSEQ
+          [decl (return A.Int) oZ
+            [oC *? oZ
+            ,oCASE oZ
+              [caseOption ([0 :: Int], p0)]
+            ]
+          ]
+   ) transformInputCase
+
    -- Input that involves multiple tags and multiple inputs:
    {-
    The idea is to transform:
@@ -522,6 +521,12 @@ testInputCase = TestList
       A.Original A.Unplaced
     defineC :: CSM m => m ()
     defineC = defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
+
+    defineProtocolAndC :: Data a => Occ (A.Structured a) -> Occ (A.Structured a)
+    defineProtocolAndC =
+      decl' (simpleName "prot") (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
+      . (:[]) . decl (return $ A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
+          oC . (:[])
     
     specInt s = A.Spec emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
     specIntPatt s = mSpecA' emptyMeta (A.Specification emptyMeta (simpleName s) $ A.Declaration emptyMeta A.Int)
