@@ -16,33 +16,52 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- | The necessary components for using an occam EDSL (for building test-cases).
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
-  Occ, oA, oB, oC, oX, oY, oZ, (*?), (*!), (*:=), decl, oempty, testOccamPass, ExpInpC(..)) where
+  oCASE, oCASEinput,
+  Occ, oA, oB, oC, oX, oY, oZ, (*?), (*!), (*:=), decl, decl', oempty, testOccamPass,
+    testOccamPassTransform, ExpInpC(shouldComeFrom),
+    caseOption, inputCaseOption,
+    becomes) where
 
 import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
 import qualified AST as A
 import CompState
 import Metadata
 import Pass
+import Pattern
 import TestUtils
+import TreeUtils
 import Utils
 
--- The rough rules for converting occam to pseudo-occam are to stick a lower-case
--- o on the front of keywords, turn colons into dollars, put an asterisk before
--- every operator, empty items (e.g. following declarations) into oempty
--- and stick decl on the front of declarations (and indent the scope) and make
--- all the items in a SEQ or PAR into a list.
---  Other things to remember:
+-- The rough rules for converting occam to pseudo-occam are:
+--
+-- * stick a lower-case o on the front of keywords
+--
+-- * For variables, use oA, oB, oC, oX, oY, oZ for A,B,C,X,Y,Z
+--
+-- * put an asterisk before every operator
+--
+-- * turn empty items (e.g. following declarations at the top-level) into oempty
+--
+-- * stick decl on the front of declarations, and treat the insides as a new block
+-- (see next point)
+--
+-- * make all the items in a block (such as SEQ or PAR) into a list.
+--
+-- * Omit any SEQs inside SEQs (or similar) after declarations
+-- 
 -- * The variables must each be used once, since their declaration is added to
--- the state
--- * Scope is more explicit in this, so you must indent for a variable's scope
+-- the state, hence their scope is effectively the whole fragment
 --
 -- The following:
 --
 -- PROC foo (INT a)
+--   SKIP
 -- :
 --
 -- PROC bar ()
@@ -60,25 +79,25 @@ import Utils
 --
 -- becomes:
 --
--- sPROC "foo" [(oINT, a)]
---   oempty
+-- oPROC "foo" [(oINT, a)]
+--   oSKIP
 -- $
--- sPROC "bar" [] (
+-- oPROC "bar" [] (
 --   oSEQ [
---     decl oINT y $
---     oSEQ
---     [
---       [decl oBYTE x $
---         x *:= 3
---       ,decl oBYTE z $
---          sPAR
+--     decl oINT y
+--       [
+--       decl oBYTE x
+--         [x *:= 3]
+--       ,decl oBYTE z
+--         [sPAR
 --           [y *:= 0
 --           ,z *:= 2
 --           ]
---     ,y *:= 1
+--         ]
+--       ,y *:= 1
+--       ]
 --     ]
---   ]
--- $
+-- )$
 -- oempty
 
 -- This is an item that allows the expected and input values to be manipulated
@@ -96,9 +115,6 @@ instance Monad m => Monad (ExpInpT m) where
   return x = ExpInpT (return x) (return x)
   (>>=) (ExpInpT x y) f
     = ExpInpT (x >>= (fstExpInpT . f)) (y >>= (sndExpInpT . f))
-
-liftExpInp :: Monad m => ExpInp a -> ExpInpT m a
-liftExpInp (ExpInp x y) = ExpInpT (return x) (return y)
 
 instance Functor ExpInp where
   fmap f (ExpInp x y) = ExpInp (f x) (f y)
@@ -119,21 +135,55 @@ instance CSMR (ExpInpT (State CompState)) where
 type O a = ExpInpT (State CompState) a
 type Occ a = O a
 
-class ProcessC a where
-  structProcess :: a -> A.Structured A.Process
-  fromProcess :: A.Process -> a
+-- | A type-class to finesse the difference between a raw thing and an A.Only
+-- item containing that thing.
+class Castable a structItem | a -> structItem where
+  makeStruct :: a -> A.Structured structItem
+  makePlain :: structItem -> a
 
-instance ProcessC A.Process where
-  structProcess = A.Only emptyMeta
-  fromProcess = id
+instance Castable A.Process A.Process where
+  makeStruct = A.Only emptyMeta
+  makePlain = id
 
-instance ProcessC (A.Structured A.Process) where
-  structProcess = id
-  fromProcess = A.Only emptyMeta
+instance Castable (A.Structured A.Process) A.Process where
+  makeStruct = id
+  makePlain = A.Only emptyMeta
 
-oSEQ, oPAR :: ProcessC c => [O (A.Structured A.Process)] -> O c
-oSEQ = liftM (fromProcess . A.Seq emptyMeta . A.Several emptyMeta) . sequence
-oPAR = liftM (fromProcess . A.Par emptyMeta A.PlainPar . A.Several emptyMeta) . sequence
+instance Castable A.Option A.Option where
+  makeStruct = A.Only emptyMeta
+  makePlain = id
+
+instance Castable (A.Structured A.Option) A.Option where
+  makeStruct = id
+  makePlain = A.Only emptyMeta
+
+instance Castable A.Variant A.Variant where
+  makeStruct = A.Only emptyMeta
+  makePlain = id
+
+instance Castable (A.Structured A.Variant) A.Variant where
+  makeStruct = id
+  makePlain = A.Only emptyMeta
+
+oSEQ, oPAR :: Castable c A.Process => [O (A.Structured A.Process)] -> O c
+oSEQ = liftM (makePlain . A.Seq emptyMeta . singlify . A.Several emptyMeta) . sequence
+oPAR = liftM (makePlain . A.Par emptyMeta A.PlainPar . singlify . A.Several emptyMeta) . sequence
+
+oCASE :: (CanBeExpression e, Castable c A.Process) => e -> [O (A.Structured A.Option)] -> O c
+oCASE e os = do
+  e' <- liftExpInp (expr e)
+  os' <- sequence os
+  return $ makePlain $ A.Case emptyMeta e' $ singlify $ A.Several emptyMeta os'
+
+caseOption :: (CanBeExpression e, Castable c A.Option) => ([e], A.Process) -> O c
+caseOption (es, p) = mapM (liftExpInp . expr) es >>= \es' -> return $ makePlain $ A.Option emptyMeta es' p
+
+inputCaseOption :: (Castable c A.Variant) => (A.Name, [A.InputItem], A.Process) -> O c
+inputCaseOption (n, is, p) = return $ makePlain $ A.Variant emptyMeta n is p
+
+
+oCASEinput :: [O (A.Structured A.Variant)] -> O (A.Structured A.Variant)
+oCASEinput = liftM (singlify . A.Several emptyMeta) . sequence
 
 singlify :: Data a => A.Structured a -> A.Structured a
 singlify (A.Several _ [s]) = s
@@ -152,8 +202,8 @@ oPROC str params body scope = do
   where
     formals = [A.Formal A.Original t n | (t, A.Variable _ n) <- params]
 
-oSKIP :: ProcessC a => O a
-oSKIP = return $ fromProcess $ A.Skip emptyMeta
+oSKIP :: Castable a A.Process => O a
+oSKIP = return $ makePlain $ A.Skip emptyMeta
 
 oINT :: ExpInp A.Type
 oINT = return A.Int
@@ -166,47 +216,68 @@ oX = return $ variable "X"
 oY = return $ variable "Y"
 oZ = return $ variable "Z"
 
-(*?) :: ExpInp A.Variable -> ExpInp A.Variable -> O (A.Structured A.Process)
+(*?) :: (ExpInpC c a, CanBeInput a) => ExpInp A.Variable -> c a -> O (A.Structured A.Process)
 (*?) bch bdest = do
   ch <- liftExpInp bch
-  dest <- liftExpInp bdest
-  return $ A.Only emptyMeta $ A.Input emptyMeta ch (A.InputSimple emptyMeta [A.InVariable emptyMeta dest])
+  dest <- liftExpInp bdest >>* inputItem
+  return $ A.Only emptyMeta $ A.Input emptyMeta ch dest
 
 (*!), (*:=) :: CanBeExpression e => ExpInp A.Variable -> ExpInp e -> O (A.Structured A.Process)
 (*!) bch bsrc = do
   ch <- liftExpInp bch
-  src <- liftExpInp bsrc >>* expr
+  src <- liftExpInp bsrc >>= (liftExpInp . expr)
   return $ A.Only emptyMeta $ A.Output emptyMeta ch [A.OutExpression emptyMeta
     src]
 (*:=) bdest bsrc = do
   dest <- liftExpInp bdest
-  src <- liftExpInp bsrc >>* expr
+  src <- liftExpInp bsrc >>= (liftExpInp . expr)
   return $ A.Only emptyMeta $ A.Assign emptyMeta [dest] (A.ExpressionList emptyMeta
     [src])
 
-
-decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->  O (A.Structured a) ->
-  O (A.Structured a)
+decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->
+  [O (A.Structured a)] -> O (A.Structured a)
 decl bty bvar scope = do
   ty <- liftExpInp bty
   (A.Variable _ name) <- liftExpInp bvar
   defineVariable (A.nameName name) ty
-  s <- scope
+  s <- sequence scope
   return $ A.Spec emptyMeta (A.Specification emptyMeta name $ A.Declaration emptyMeta ty)
-    (singlify s)
-  
+    (singlify $ A.Several emptyMeta s)
 
+decl' :: Data a => A.Name -> A.SpecType ->
+  [O (A.Structured a)] -> O (A.Structured a)
+decl' n sp scope = do
+  defineThing (A.nameName n) sp A.Original
+  s <- sequence scope
+  return $ A.Spec emptyMeta (A.Specification emptyMeta n sp)
+    (singlify $ A.Several emptyMeta s)
+
+
+-- | A type-class to finesse the difference between components of expressions (such
+-- as variables, literals) and actual expressions
 class CanBeExpression a where
-  expr :: a -> A.Expression
+  expr :: a -> ExpInp A.Expression
 
 instance CanBeExpression A.Variable where
-  expr = A.ExprVariable emptyMeta
+  expr = return . A.ExprVariable emptyMeta
 
 instance CanBeExpression A.Expression where
-  expr = id
+  expr = return
 
 instance CanBeExpression Int where
-  expr = A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show
+  expr = return . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show
+
+instance CanBeExpression e => CanBeExpression (ExpInp e) where
+  expr = join . liftM expr
+
+class CanBeInput a where
+  inputItem :: a -> A.InputMode
+
+instance CanBeInput A.Variable where
+  inputItem v = A.InputSimple emptyMeta [A.InVariable emptyMeta v]
+
+instance CanBeInput (A.Structured A.Variant) where
+  inputItem = A.InputCase emptyMeta
 
 oempty :: Data a => O (A.Structured a)
 oempty = return $ A.Several emptyMeta []
@@ -219,11 +290,31 @@ testOccamPass str code pass
     in TestCase $ testPassWithStateCheck str exp pass inp (put inpS) (assertEqual
       str (csNames expS) . csNames)
 
-class ExpInpC a where
-  shouldComeFrom :: a -> a -> a
+-- | Like testOccamPass, but applies a transformation to the patterns (such as
+-- using stopCaringPattern) before pattern-matching
+testOccamPassTransform :: Data a => String -> (Pattern -> Pattern) -> O a -> Pass -> Test
+testOccamPassTransform str trans code pass
+  = let ExpInpT expm inpm = code
+        (exp, expS) = runState expm emptyState
+        (inp, inpS) = runState inpm emptyState
+    in TestCase $ testPassWithStateCheck str (trans $ mkPattern exp) pass inp (put inpS) (assertPatternMatch
+      (str ++ " state check") (trans $ mkPattern $ Map.toList $ csNames expS) . Map.toList
+        . csNames)
+    -- It's important to convert the maps to lists first, as Map doesn't have a
+    -- Data instance.
 
-instance ExpInpC (ExpInp a) where
+
+class ExpInpC c a where
+  shouldComeFrom :: c a -> c a -> c a
+  liftExpInp :: c a -> ExpInpT (State CompState) a
+
+instance ExpInpC ExpInp a where
   shouldComeFrom (ExpInp exp _) (ExpInp _ inp) = ExpInp exp inp
+  liftExpInp (ExpInp x y) = ExpInpT (return x) (return y)
 
-instance ExpInpC (ExpInpT (State CompState) a) where
+instance ExpInpC (ExpInpT (State CompState)) a where
   shouldComeFrom (ExpInpT exp _) (ExpInpT _ inp) = ExpInpT exp inp
+  liftExpInp = id
+
+becomes :: ExpInpC c a => c a -> c a -> c a
+becomes = flip shouldComeFrom
