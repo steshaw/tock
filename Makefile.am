@@ -215,6 +215,6 @@ haddock:
 		cat docextra/tock-docs.m4 $$x | m4 -P >$${x}_ && mv $${x}_ $$x; \
 	done
 
-TAGS: $(tock_SOURCES_hs)
-	hasktags -e $(tock_SOURCES_hs)
+TAGS: $(tocktest_SOURCES)
+	hasktags -e $(tocktest_SOURCES)
 
