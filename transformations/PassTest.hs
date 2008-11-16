@@ -347,14 +347,16 @@ testInputCase = TestList
            a0
              --Process p0
    -}
-   testOccamPassTransform "testInputCase 0" (nameAndStopCaringPattern "tag" "Z") (
-     defineProtocolAndC $ (oC *? oCASEinput
-       [inputCaseOption (simpleName "a0", [], p0)]
-     ) `becomes`
+   testOccamPassTransform "testInputCase 0" (nameAndStopCaringPattern "tag" "A") (
+     defineProtocolAndC $
+       (oC *? oCASEinput
+         [inputCaseOption (simpleName "a0", [], p0)]
+       )
+       `becomes`
        oSEQ
-          [decl (return A.Int) oZ
-            [oC *? oZ
-            ,oCASE oZ
+          [decl (return A.Int) oA
+            [oC *? oA
+            ,oCASE oA
               [caseOption ([0 :: Int], p0)]
             ]
           ]
