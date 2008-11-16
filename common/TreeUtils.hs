@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TreeUtils (
   MatchErrors, 
   AnyDataItem(..), Items, castADI, 
-  assertPatternMatch, testPatternMatch, getMatchedItems, 
+  assertPatternMatch, testPatternMatch, testPatternMatchOneOf, getMatchedItems, 
   tag0, tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag1d, tag2d, tag3d, tag4d, tag5d, tag6d, tag7d, 
   (@@),
   mkPattern, stopCaringPattern, namePattern, nameAndStopCaringPattern, 
@@ -33,6 +33,7 @@ import Data.Generics
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Ord
 import Test.HUnit hiding (State)
 
 import Pattern
@@ -184,6 +185,21 @@ testPatternMatch msg exp act =
   where 
     errors = evalState (checkMatch (mkPattern exp) act) (Map.empty)
     append x y = y ++ x
+
+-- | A function for checking that an actual Data item matches one of a list of
+-- expected items, where each expected item (LHS) may contain special Pattern values (such as DontCare, Named, etc)
+testPatternMatchOneOf :: (Data y, Data z, TestMonad m r) => String -> [y] -> z -> m ()
+testPatternMatchOneOf msg exps act = 
+  --Sometimes it can be hard to understand the MatchErrors as they stand.  When you are told "1 expected, found 0" it's often hard
+  --to know exactly which part of your huge match that refers to, especially if you can't see a 1 in your match.  So to add a little
+  --bit of help, I append a pretty-printed version of the pattern and data to each error.
+  sequence_
+    [testFailure $ msg ++ " " ++ " while testing pattern:\n" ++ (PS.pshow exp)
+      ++ "\n*** against actual:\n" ++ (PS.pshow act)
+    | err <- errors]
+  where 
+    (exp, errors) = head $ sortBy (comparing (length . snd))
+      [(exp, evalState (checkMatch (mkPattern exp) act) (Map.empty)) | exp <- exps]
 
 assertPatternMatch :: (Data y, Data z) => String -> y -> z -> Assertion
 assertPatternMatch = testPatternMatch
