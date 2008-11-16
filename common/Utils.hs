@@ -237,6 +237,18 @@ productN (xs:xss) = [ y : ys | y <- xs, ys <- yss]
       [] -> [[]]
       z -> z
 
+-- | Given a list, gives back the list of all permutations of the given list
+--
+-- Code is taken from: http://www.haskell.org/pipermail/haskell/2006-July/018298.html
+-- and then fixed (missing base case, x should have been y)
+permutations :: [a] -> [[a]]
+permutations [] = [[]]
+permutations xs = [y : ps | (y,ys) <- selections xs, ps <- permutations ys]
+  where
+    selections []     = []
+    selections (x:xs) = (x,xs) : [(y,x:ys) | (y,ys) <- selections xs]
+
+
 -- | Given a list, produces all possible distinct pairings of the elements.
 -- That is, for each pair returned, (A,B), B will not be the same element as A, and the pair (B,A)
 -- will not be in the list.  Note that this is not the same as B /= A; if the source list contains
