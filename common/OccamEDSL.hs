@@ -297,11 +297,16 @@ testOccamPassTransform str trans code pass
   = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
         (inp, inpS) = runState inpm emptyState
-    in TestCase $ testPassWithStateCheck str (trans $ mkPattern exp) pass inp (put inpS) (assertPatternMatch
-      (str ++ " state check") (trans $ mkPattern $ Map.toList $ csNames expS) . Map.toList
+    in TestCase $ testPassWithStateCheck str (trans $ mkPattern exp) pass inp (put inpS) (testPatternMatchOneOf
+      (str ++ " state check") [trans $ mkPattern pr | pr <- permutations $ Map.toList $ csNames expS] . Map.toList
         . csNames)
     -- It's important to convert the maps to lists first, as Map doesn't have a
     -- Data instance.
+    --
+    -- But there is a problem.  We need to compare two maps (as lists of pairs),
+    -- but due to nonce names and such, the lists of pairs may be in different
+    -- order, and to make things worse we must to compare using structural equality.
+    --  Hence we must use a permutation comparison
 
 
 class ExpInpC c a where
