@@ -626,13 +626,11 @@ testRemoveNesting = TestList
     , test "Nested PROC" $
       (oPROC "bar" [] (
         oSEQ 
-          [decl oINT oX $
-            oempty]
+          [decl oINT oX []]
       ) $
       oPROC "foo" [] (
         oSEQ
           [decl oINT oX $
-            oSEQ
               [oX *:= return (0::Int)
               ,oX *:= return (1::Int)]]
       ) oempty)
@@ -641,11 +639,9 @@ testRemoveNesting = TestList
         oSEQ 
           [oPROC "bar" [] (
             oSEQ
-              [decl oINT oX $
-                oempty]
+              [decl oINT oX []]
           ) $
-          decl oINT oX $
-            oSEQ
+          decl oINT oX
               [oX *:= return (0::Int)
               ,oX *:= return (1::Int)]]
       ) oempty
