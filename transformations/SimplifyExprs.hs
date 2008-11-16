@@ -33,7 +33,6 @@ import qualified Properties as Prop
 import ShowCode
 import Traversal
 import Types
-import Utils
 
 simplifyExprs :: [Pass]
 simplifyExprs =
@@ -150,41 +149,34 @@ expandArrayLiterals = pass "Expand array literals"
 -- count could be modified within the loop.  Here are all things that can be replicated:
 -- SEQ -- can be altered during the loop, must pull up
 -- PAR -- count cannot be modified by code inside the loop (it is used before any PAR branches are run)
+--        BUT since we implement replicated pars using a loop that forks off those
+--        processes, it seems safest to pull up 
 -- IF  -- cannot be altered during loop; once body executes, loop is effectively broken
 -- ALT -- same as IF
--- Therefore, we only need to pull up the counts for sequential replicators
+--        BUT the programmer could offer to read into the replication count, which
+--        could cause all sorts of horrendous problems, so pull up
+-- Therefore, we only need to pull up the counts for SEQ, PAR and ALT
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
 pullRepCounts :: Pass
 pullRepCounts = pass "Pull up replicator counts for SEQs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
-  (applyDepthM doProcess)
+  (applyDepthM2
+    (pullRepCount :: A.Structured A.Process -> PassM (A.Structured A.Process))
+    (pullRepCount :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative))
+  )
   where
-    doProcess :: A.Process -> PassM A.Process
-    doProcess (A.Seq m s) = pullRepCountSeq s >>* A.Seq m
-    doProcess p = return p
-
-    -- Don't want to apply this using applyDepthM, because then nested PARs
-    -- inside the SEQ would also be processed, which is unnecessary
-    pullRepCountSeq :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    pullRepCountSeq s@(A.Only _ _) = return s
-    pullRepCountSeq (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
+    pullRepCount :: Data a => A.Structured a -> PassM (A.Structured a)
+    pullRepCount (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
       from for))) scope)
       = do t <- astTypeOf for
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
-           scope' <- pullRepCountSeq scope
            let newSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))
            modifyName n $ \nd -> nd { A.ndSpecType = newSpec }
            return $ A.Spec mspec spec $
-             A.Spec m (A.Specification mspec n newSpec) scope'
-    pullRepCountSeq (A.Spec m sp str)
-      = do str' <- pullRepCountSeq str
-           return $ A.Spec m sp str'
-    pullRepCountSeq (A.ProcThen m p s)
-      = do s' <- pullRepCountSeq s
-           return $ A.ProcThen m p s'
-    pullRepCountSeq (A.Several m ss) = mapM pullRepCountSeq ss >>* A.Several m
+             A.Spec m (A.Specification mspec n newSpec) scope
+    pullRepCount s = return s
 
 transformConstr :: Pass
 transformConstr = pass "Transform array constructors into initialisation code"

@@ -565,20 +565,16 @@ testTransformProtocolInput = TestList
 testPullRepCounts :: Test
 testPullRepCounts = TestList
   [
-    testUnchanged 0 $ A.Par emptyMeta A.PlainPar
-   ,testUnchanged 1 $ A.Par emptyMeta A.PriPar
-   ,testUnchanged 2 $ A.Alt emptyMeta False
-   ,testUnchanged 3 $ A.Alt emptyMeta True
-   ,testUnchanged 4 $ A.If emptyMeta
+   testUnchanged 4 $ A.If emptyMeta
 
-   ,testOccamPassTransform "testPullRepCounts 5" (nameAndStopCaringPattern "nonce" "A")
-      (oprocess $ oSEQ
+   ,forAllThree $ \blockType -> testOccamPassTransform "testPullRepCounts 5" (nameAndStopCaringPattern "nonce" "A")
+      (blockType
         [decl' (simpleName "X")
           (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
             []
         ]
       `becomes`
-       oSEQ
+       blockType
         [decl'' (simpleName "A")
           (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev
           [decl' (simpleName "X")
@@ -587,16 +583,6 @@ testPullRepCounts = TestList
           ]
         ]
       ) pullRepCounts 
-
-   ,TestCase $ testPass "testPullRepCounts 5"
-     (nameAndStopCaringPattern "nonce" "nonce" $ mkPattern $ A.Seq emptyMeta $
-       A.Spec emptyMeta (A.Specification emptyMeta (simpleName "nonce") (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6)) $
-         A.Spec emptyMeta (A.Specification emptyMeta (simpleName "i") $
-           A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "nonce"))) $ A.Several emptyMeta [])
-       
-     pullRepCounts (A.Seq emptyMeta $ A.Spec emptyMeta (A.Specification emptyMeta
-       (simpleName "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6))) $ A.Several emptyMeta [])
-     (return ())
 
    ,TestCase $ testPass "testPullRepCounts 6"
      (nameAndStopCaringPattern "nonce" "nonce" $ nameAndStopCaringPattern "nonce2" "nonce2" $ mkPattern $ A.Seq emptyMeta $
@@ -614,6 +600,9 @@ testPullRepCounts = TestList
      (return ())
   ]
   where
+    forAllThree :: (forall a. Data a => ([Occ (A.Structured a)] -> Occ A.Process) -> Test) -> Test
+    forAllThree f = TestList [f oSEQ, f oPAR, f oALT]
+    
     testUnchanged :: Data a => Int -> (A.Structured a -> A.Process) -> Test
     testUnchanged n f = TestCase $ testPass
       ("testPullRepCounts/testUnchanged " ++ show n)
