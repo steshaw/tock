@@ -108,6 +108,12 @@ testCheck config property =
 --}}}
 --{{{  building AST fragments and patterns
 
+-- | Wraps a structured process into a complete AST fragment.
+wrapProcSeq :: A.Structured A.Process -> A.AST
+wrapProcSeq x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo")
+  $ A.Proc emptyMeta A.PlainSpec [] $ A.Seq emptyMeta x) (A.Several emptyMeta [])
+
+
 -- | Helper function to generate an array dimension.
 dimension :: Int -> A.Dimension
 dimension n = makeDimension emptyMeta n
