@@ -17,13 +17,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The necessary components for using an occam EDSL (for building test-cases).
-module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
-  oCASE, oCASEinput, oALT, guard,
+module OccamEDSL (ExpInp, ExpInpT,
+  oSEQ, oPAR, oPROC, oSKIP, oINT,
+  oCASE, oCASEinput, caseOption, inputCaseOption, 
+  oALT, guard,
+  oIF, ifChoice,
   Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), (*+), decl, decl', decl'',
     oempty, testOccamPass,
     oprocess,
     testOccamPassWarn, testOccamPassTransform, ExpInpC(shouldComeFrom),
-    caseOption, inputCaseOption, 
     becomes) where
 
 import Control.Monad.State hiding (guard)
@@ -168,6 +170,15 @@ instance Castable (A.Structured A.Variant) A.Variant where
   makeStruct = id
   makePlain = A.Only emptyMeta
 
+instance Castable A.Choice A.Choice where
+  makeStruct = A.Only emptyMeta
+  makePlain = id
+
+instance Castable (A.Structured A.Choice) A.Choice where
+  makeStruct = id
+  makePlain = A.Only emptyMeta
+
+
 p0, p1, p2 :: Castable c A.Process => O c
 p0 = return $ makePlain $ A.Skip emptyMeta
 p1 = return $ makePlain $ A.Seq emptyMeta (A.Several emptyMeta [])
@@ -209,6 +220,15 @@ guard (inp, body)
        body' <- body
        return $ A.Only emptyMeta $ A.Alternative m (A.True emptyMeta) v im body'
 
+oIF :: Castable c A.Process => [O (A.Structured A.Choice)] -> O c
+oIF = liftM (makePlain . A.If emptyMeta . singlify . A.Several emptyMeta) . sequence
+
+ifChoice :: (CanBeExpression e, Castable c A.Choice) => (e, O A.Process) -> O c
+ifChoice (e, body)
+  = do e' <- liftExpInp $ expr e
+       body' <- body
+       return $ makePlain $ A.Choice emptyMeta e' body'
+
 singlify :: Data a => A.Structured a -> A.Structured a
 singlify (A.Several _ [s]) = s
 singlify ss = ss
@@ -246,17 +266,15 @@ oZ = return $ variable "Z"
   dest <- liftExpInp bdest >>* inputItem
   return $ makePlain $ A.Input emptyMeta ch dest
 
-(*!), (*:=) :: CanBeExpression e => ExpInp A.Variable -> ExpInp e -> O (A.Structured A.Process)
+(*!), (*:=) :: (Castable r A.Process, CanBeExpression e) => ExpInp A.Variable -> ExpInp e -> O r
 (*!) bch bsrc = do
   ch <- liftExpInp bch
   src <- liftExpInp bsrc >>= (liftExpInp . expr)
-  return $ A.Only emptyMeta $ A.Output emptyMeta ch [A.OutExpression emptyMeta
-    src]
+  return $ makePlain $ A.Output emptyMeta ch [A.OutExpression emptyMeta src]
 (*:=) bdest bsrc = do
   dest <- liftExpInp bdest
   src <- liftExpInp bsrc >>= (liftExpInp . expr)
-  return $ A.Only emptyMeta $ A.Assign emptyMeta [dest] (A.ExpressionList emptyMeta
-    [src])
+  return $ makePlain $ A.Assign emptyMeta [dest] (A.ExpressionList emptyMeta [src])
 
 infix 8 *:=
 
@@ -306,6 +324,10 @@ instance CanBeExpression A.Expression where
 
 instance CanBeExpression Int where
   expr = return . A.Literal emptyMeta A.Int . A.IntLiteral emptyMeta . show
+
+instance CanBeExpression Bool where
+  expr True = return $ A.True emptyMeta
+  expr False = return $ A.False emptyMeta
 
 instance CanBeExpression e => CanBeExpression (ExpInp e) where
   expr = join . liftM expr

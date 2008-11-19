@@ -184,69 +184,37 @@ testInitVar = TestList
             ,oX *:= oZ
           ]
       ]]]
- 
-   -- Single node, x not touched
-  ,testInitVarPass 0 [(0,[],[])] [] 0 0 "x"
-   -- Single node, x written to
-  ,testInitVarPass 1 [(0,[],[variable "x"])] [] 0 0 "x"
-   -- Single node, x read from (FAIL)
-  ,testInitVarFail 2 [(0,[variable "x"],[])] [] 0 0 "x"
-   -- Single node, x read from and written to (FAIL - x must be written to before the read.  
-   --   This line is akin to x = x + 1, so x must be written to beforehand)
-  ,testInitVarFail 3 [(0,[variable "x"],[variable "x"])] [] 0 0 "x"
 
-  -- Two nodes, x written to then read
-  ,testInitVarPass 10 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,ESeq Nothing)] 0 1 "x"
-  -- Two nodes, x read then written to (FAIL)
-  ,testInitVarFail 11 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(1,0,ESeq Nothing)] 1 0 "x"
-  -- As test 10 (x written to then read) but using the par edges.
-  ,testInitVarPass 13 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,EStartPar 0)] 0 1 "x"
-  ,testInitVarPass 14 [(0,[],[variable "x"]), (1,[variable "x"],[])] [(0,1,EEndPar 0)] 0 1 "x"
-
-  -- Diamond tests (0 branches to 1 and 2, which both merge to 3):
-  -- x written to in 0 and 1, then read in 3
-  ,testInitVarPass 20 [(0,[],[]),(1,[],[variable "x"]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- x written to only in 2 then read in 3 (FAIL)
-  ,testInitVarFail 21 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- x definitely written to in 2, but not 1 (FAIL)
-  ,testInitVarFail 22 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- like test 21, but the link missing from 1 to 3, so test will pass
-  ,testInitVarPass 23 [(0,[],[]),(1,[],[]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- variable written to in 0, read in 3
-  ,testInitVarPass 24 [(0,[],[variable "x"]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- variable never written to, but read in 3
-  ,testInitVarFail 25 [(0,[],[]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-  -- variable written to in 2 and 3, but read in 1 (FAIL):
-  ,testInitVarFail 26 [(0,[],[]),(1,[variable "x"],[]), (2,[],[variable "x"]), (3,[],[variable "x"])]
-    [(0,1,ESeq Nothing),(0,2,ESeq Nothing),(1,3,ESeq Nothing),(2,3,ESeq Nothing)] 0 3 "x"
-
-  -- Test parallel diamonds:
-  -- written to in 1 and 2, read in 3
-  -- This would fail CREW, but that's not what we're testing here:
-  ,testInitVarPass 30 [(0,[],[]),(1,[],[variable "x"]), (2,[],[variable "x"]), (3,[variable "x"],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-  -- written to in 1, read in 3
-  ,testInitVarPass 31 [(0,[],[]),(1,[],[variable "x"]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-  -- written to in 0, read in 3
-  ,testInitVarPass 32 [(0,[],[variable "x"]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-  -- never written to, but read in 3:
-  ,testInitVarFail 33 [(0,[],[]),(1,[],[]), (2,[],[]), (3,[variable "x"],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-  -- written to in 1, read in 2 (again, would fail CREW) (FAIL):
-  ,testInitVarFail 34 [(0,[],[]),(1,[],[variable "x"]), (2,[variable "x"],[]), (3,[],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-  -- written to in 1, read in 2 and 3 (again, would fail CREW) (FAIL):
-  ,testInitVarFail 35 [(0,[],[]),(1,[],[variable "x"]), (2,[variable "x"],[]), (3,[variable "x"],[])]
-    [(0,1,EStartPar 0),(0,2,EStartPar 0),(1,3,EEndPar 0),(2,3,EEndPar 0)] 0 3 "x"
-
+  ,test "Written to in all (two) IF guards, then self-assign" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oIF [
+          ifChoice (False, oX *:= return (3::Int))
+          ,ifChoice (False, oX *:= return (4::Int))
+        ]
+      ]
+      ,oX *:= oX
+    ]
+  ,testWarn "Written to in only one IF guards, then self-assign" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oIF [
+          ifChoice (False, oX *:= return (3::Int))
+          ,ifChoice (False, oSKIP)
+        ]
+      ]
+      ,oX *:= oX
+    ]
+  ,testWarn "Read from in last IF guards, then self-assign" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oIF [
+          ifChoice (False, oX *:= return (3::Int))
+          ,ifChoice (oX, oX *:= return (4::Int))
+        ]
+      ]
+      ,oX *:= oX
+    ]
 
   -- Test loops (0 -> 1, 1 -> 2 -> 3 -> 1, 1 -> 4)
   -- Loop, nothing happens:
