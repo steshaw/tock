@@ -410,8 +410,8 @@ getCachedAnalysis' f an = do
   r <- askRoute
   -- Find the node that matches our location and the given function:
   case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == routeId r)) (labNodes g) of
-    Nothing -> (liftIO $ putStrLn $ "Could not find node for: " ++ show (lastValidMeta
-      d)) >> return Nothing
+    Nothing -> {- (liftIO $ putStrLn $ "Could not find node for: " ++ show (lastValidMeta
+      d)) >> -} return Nothing
     Just (n, _) ->
       case Map.lookup n (getFlowGraphAnalysis an d) of
         Just y -> return (Just y)

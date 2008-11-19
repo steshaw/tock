@@ -280,12 +280,12 @@ checkUnusedVar = forAnyASTStruct doSpec
   where
     doSpec :: Data a => A.Structured a -> CheckOptM' (A.Structured a) ()
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
-      = do liftIO $ putStrLn $ "Found spec at: " ++ show mspec
+      = do -- liftIO $ putStrLn $ "Found spec at: " ++ show mspec
            mvars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
            -- liftIO $ putStrLn $ "Vars: " ++ show vars
-           when (isNothing mvars) $ liftIO $ putStrLn $ "No analysis for: " ++ show mspec
+           -- when (isNothing mvars) $ liftIO $ putStrLn $ "No analysis for: " ++ show mspec
            doMaybe $ flip fmap mvars $ \vars -> do
-             liftIO $ putStrLn $ "Analysing: " ++ show mspec
+             -- liftIO $ putStrLn $ "Analysing: " ++ show mspec
              when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
                do -- TODO have a more general way of not warning about compiler-generated names:
                   when (not $ "_sizes" `isSuffixOf` A.nameName name) $
