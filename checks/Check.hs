@@ -289,7 +289,7 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyASTStruct doSpec
   where
-    doSpec :: Data a => A.Structured a -> CheckOptM' (A.Structured a) ()
+    doSpec :: Data a => A.Structured a -> CheckOptASTM (A.Structured a) ()
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
       = do -- liftIO $ putStrLn $ "Found spec at: " ++ show mspec
            mvars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter

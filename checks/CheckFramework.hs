@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module CheckFramework (CheckOptM, CheckOptM', forAnyAST, forAnyASTStruct, substitute, restartForAnyAST,
+module CheckFramework (CheckOptM, CheckOptASTM, forAnyAST, forAnyASTStruct, substitute, restartForAnyAST,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis') where
 
@@ -124,23 +124,23 @@ instance Warn CheckOptM where
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
 
-newtype CheckOptM' t a = CheckOptM' (ReaderT (Route t A.AST) (RestartT CheckOptM) (Either t a))
+newtype CheckOptASTM t a = CheckOptASTM (ReaderT (Route t A.AST) (RestartT CheckOptM) (Either t a))
 
-instance Monad (CheckOptM' t) where
-  return x = CheckOptM' (return (Right x))
-  (>>=) m f = let (CheckOptM' m') = m in CheckOptM' $ do
+instance Monad (CheckOptASTM t) where
+  return x = CheckOptASTM (return (Right x))
+  (>>=) m f = let (CheckOptASTM m') = m in CheckOptASTM $ do
     x <- m'
     case x of
       Left x -> return (Left x)
-      Right x -> let CheckOptM' m'' = f x in m''
+      Right x -> let CheckOptASTM m'' = f x in m''
 
-instance MonadIO (CheckOptM' t) where
-  liftIO = CheckOptM' . liftM Right . liftIO
+instance MonadIO (CheckOptASTM t) where
+  liftIO = CheckOptASTM . liftM Right . liftIO
 
-deCheckOptM' :: (t -> CheckOptM' t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
+deCheckOptASTM :: (t -> CheckOptASTM t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
   t t)
-deCheckOptM' f (x, r) = do
-  x' <- runReaderT (let CheckOptM' m = f x in m) r
+deCheckOptASTM f (x, r) = do
+  x' <- runReaderT (let CheckOptASTM m = f x in m) r
   case x' of
     Left replacement -> return (Left replacement)
     Right _ -> return (Right x)
@@ -170,26 +170,26 @@ instance Die m => Die (RestartT m) where
 instance Die m => Die (ReaderT (Route t outer) m) where
   dieReport = lift . dieReport
 
-instance Die (CheckOptM' t) where
+instance Die (CheckOptASTM t) where
   dieReport = liftCheckOptM . dieReport
 
-instance Warn (CheckOptM' t) where
+instance Warn (CheckOptASTM t) where
   warnReport = liftCheckOptM . warnReport
 
-instance CSMR (CheckOptM' t) where
+instance CSMR (CheckOptASTM t) where
   getCompState = liftCheckOptM getCompState
 
-askRoute :: CheckOptM' t (Route t A.AST)
-askRoute = CheckOptM' $ ask >>* Right
+askRoute :: CheckOptASTM t (Route t A.AST)
+askRoute = CheckOptASTM $ ask >>* Right
 
-getCheckOptData :: CheckOptM' t CheckOptData
-getCheckOptData = CheckOptM' . lift . lift . CheckOptM $ get >>* Right
+getCheckOptData :: CheckOptASTM t CheckOptData
+getCheckOptData = CheckOptASTM . lift . lift . CheckOptM $ get >>* Right
 
-modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptM' t ()
+modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptASTM t ()
 modifyCheckOptData = liftCheckOptM . CheckOptM . modify
 
-liftCheckOptM :: CheckOptM a -> CheckOptM' t a
-liftCheckOptM = CheckOptM' . liftM Right . lift . lift
+liftCheckOptM :: CheckOptM a -> CheckOptASTM t a
+liftCheckOptM = CheckOptASTM . liftM Right . lift . lift
 
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
@@ -214,16 +214,16 @@ extMR generalF specificF (x, r) = case cast x of
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
 
 -- | This function currently only supports one type
-forAnyAST :: forall a. Data a => (a -> CheckOptM' a ()) -> CheckOptM ()
+forAnyAST :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
 forAnyAST origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet (mkMR (deCheckOptM' origF)) tr
+   doTree typeSet (mkMR (deCheckOptASTM origF)) tr
   where
     typeSet :: TypeSet
     typeSet = makeTypeSet [typeKey (undefined :: a)]
 
 
-forAnyASTStruct :: (forall a. Data a => (A.Structured a -> CheckOptM' (A.Structured
+forAnyASTStruct :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
   a) ())) -> CheckOptM ()
 forAnyASTStruct origF = CheckOptM $ do
    tr <- get >>* ast
@@ -231,13 +231,13 @@ forAnyASTStruct origF = CheckOptM $ do
   where
     allF :: (forall c. Data c => TransFunc c)
     allF
-      = mkMR    (deCheckOptM' (origF :: A.Structured A.Variant -> CheckOptM' (A.Structured A.Variant) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured A.Process -> CheckOptM' (A.Structured A.Process) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured A.Option -> CheckOptM' (A.Structured A.Option) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured A.ExpressionList -> CheckOptM' (A.Structured A.ExpressionList) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured A.Choice -> CheckOptM' (A.Structured A.Choice) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured A.Alternative -> CheckOptM' (A.Structured A.Alternative) ()))
-        `extMR` (deCheckOptM' (origF :: A.Structured () -> CheckOptM' (A.Structured ()) ()))
+      = mkMR    (deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured A.ExpressionList -> CheckOptASTM (A.Structured A.ExpressionList) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured A.Choice -> CheckOptASTM (A.Structured A.Choice) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
+        `extMR` (deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
     
     typeSet :: TypeSet
     typeSet = makeTypeSet
@@ -288,20 +288,20 @@ apply typeSet f (x, route)
 -- | Substitutes the currently examined item for the given item, and continues
 -- the traversal from the current point.  That is, the new item is transformed
 -- again too.
-substitute :: forall a. Data a => a -> CheckOptM' a ()
-substitute x = CheckOptM' $ do
+substitute :: forall a. Data a => a -> CheckOptASTM a ()
+substitute x = CheckOptASTM $ do
   r <- ask
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
   return (Left x)
 
---replaceBelow :: t -> t -> CheckOptM' a ()
---replaceEverywhere :: t -> t -> CheckOptM' a ()
+--replaceBelow :: t -> t -> CheckOptASTM a ()
+--replaceEverywhere :: t -> t -> CheckOptASTM a ()
 -- TODO think about what this means (replace everywhere, or just children?)
 
 -- Restarts the current forAnyAST from the top of the tree, but keeps all changes
 -- made thus far.
-restartForAnyAST :: CheckOptM' a a
-restartForAnyAST = CheckOptM' . lift . RestartT $ return $ Left ()
+restartForAnyAST :: CheckOptASTM a a
+restartForAnyAST = CheckOptASTM . lift . RestartT $ return $ Left ()
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
@@ -313,7 +313,7 @@ runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
 --getParItems :: CheckOptM (ParItems ())
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))
 
-getParItems' :: CheckOptM' t (ParItems ())
+getParItems' :: CheckOptASTM t (ParItems ())
 getParItems' = todo
 
 generateParItems :: A.AST -> ParItems ()
@@ -323,8 +323,8 @@ generateParItems = todo
 -- of the current node's constructor, [2,1] is the second argument of the constructor
 -- of the third argument of this constructor.  Issuing substitute inside this function
 -- will yield an error.
-withChild :: forall t a. [Int] -> CheckOptM' t a -> CheckOptM' t a
-withChild ns (CheckOptM' m) = askRoute >>= (CheckOptM' . lift . inner)
+withChild :: forall t a. [Int] -> CheckOptASTM t a -> CheckOptASTM t a
+withChild ns (CheckOptASTM m) = askRoute >>= (CheckOptASTM . lift . inner)
   where
     inner :: Route t A.AST -> RestartT CheckOptM (Either t a)
     inner (Route rId rFunc) = runReaderT m (Route (rId ++ ns) (error "withChild attempted a substitution"))
@@ -370,7 +370,7 @@ varsTouchedAfter = FlowGraphAnalysis
 
   
 
-getFlowGraph :: CheckOptM' t (FlowGraph CheckOptM UsageLabel, [Node], [Node])
+getFlowGraph :: CheckOptASTM t (FlowGraph CheckOptM UsageLabel, [Node], [Node])
 getFlowGraph = getCache flowGraphRootsTerms (\x d -> d {flowGraphRootsTerms = Just x, nextVarsTouched
   = Map.empty}) generateFlowGraph
 
@@ -391,18 +391,18 @@ correctFlowGraph curNode (g, roots, terms)
     addFakeEdge realTerm g n = insEdge (n, realTerm, ESeq Nothing) g
 
 getCache :: (CheckOptData -> Maybe a) -> (a -> CheckOptData -> CheckOptData) -> (A.AST
-  -> CheckOptM a) -> CheckOptM' t a
+  -> CheckOptM a) -> CheckOptASTM t a
 getCache getF setF genF = getCheckOptData >>= \x -> case getF x of
   Just y -> return y
   Nothing -> do y <- liftCheckOptM $ genF (ast x)
                 modifyCheckOptData (setF y)
                 return y
 
-getCachedAnalysis :: Data t => FlowGraphAnalysis res -> CheckOptM' t (Maybe res)
+getCachedAnalysis :: Data t => FlowGraphAnalysis res -> CheckOptASTM t (Maybe res)
 getCachedAnalysis = getCachedAnalysis' (const True)
 
 -- Analysis requires the latest flow graph, and uses this to produce a result
-getCachedAnalysis' :: Data t => (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptM' t (Maybe
+getCachedAnalysis' :: Data t => (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptASTM t (Maybe
   res)
 getCachedAnalysis' f an = do
   d <- getCheckOptData
