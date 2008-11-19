@@ -216,39 +216,35 @@ testInitVar = TestList
       ,oX *:= oX
     ]
 
-  -- Test loops (0 -> 1, 1 -> 2 -> 3 -> 1, 1 -> 4)
-  -- Loop, nothing happens:
-  ,testInitVarPass 100 [(0,[],[]),(1,[],[]),(2,[],[]),(3,[],[]),(4,[],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-  -- Loop, written to before the loop, read afterwards:
-  ,testInitVarPass 101 [(0,[],[variable "x"]),(1,[],[]),(2,[],[]),(3,[],[]),(4,[variable "x"],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-  -- Loop, written to before the loop, read during the loop
-  ,testInitVarPass 102 [(0,[],[variable "x"]),(1,[],[]),(2,[],[]),(3,[variable "x"],[]),(4,[],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-  -- Loop, written to during the loop, read afterwards (FAIL - loop might not be executed)
-  ,testInitVarFail 103 [(0,[],[]),(1,[],[]),(2,[],[variable "x"]),(3,[],[]),(4,[variable "x"],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-  -- Loop, written to and then read during the loop:
-  ,testInitVarPass 104 [(0,[],[]),(1,[],[]),(2,[],[variable "x"]),(3,[variable "x"],[]),(4,[],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-  -- Loop, read then written to during the loop (FAIL):    
-  ,testInitVarFail 105 [(0,[],[]),(1,[],[]),(2,[variable "x"],[]),(3,[],[variable "x"]),(4,[],[])]
-    [(0,1,ESeq Nothing), (1,2,ESeq Nothing), (2,3,ESeq Nothing), (3,1,ESeq Nothing), (1,4,ESeq Nothing)] 0 4 "x"
-    
-  -- TODO work out (and test) par loops
+  ,test "Sandwiched loop" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oX *:= (return (3::Int))
+        ,oWHILE False oSKIP
+        ,oX *:= oX
+    ]]
+  ,test "Read during loop, written before" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oX *:= (return (3::Int))
+        ,oWHILE False $ oX *:= oX
+    ]]
+  ,testWarn "Read during loop, not written before" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oWHILE False $ oX *:= oX
+    ]]
+  ,testWarn "Written during loop, read after, not written before" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oWHILE False $ oX *:= oX
+        ,oX *:= oX
+    ]]
+
   -- TODO test dereferenced variables
 
  ]
  where
-   testInitVarPass :: Int -> [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
-   testInitVarPass testNum ns es start end v = TestCase $ assertEither ("testInitVar " ++ show testNum) () $ flip runReaderT emptyState $ checkInitVar emptyMeta (buildTestFlowGraph ns es start end v) (-1)
-   
-   testInitVarFail :: Int -> [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> Test
-   testInitVarFail testNum ns es start end v = TestCase $ assertEitherFail ("testInitVar " ++ show testNum) $ flip runReaderT emptyState $ checkInitVar emptyMeta (buildTestFlowGraph ns es start end v) (-1)
-   
-   variable = Var . A.Variable emptyMeta . simpleName
-
    wrap x = oPROC "foo" [] x oempty
 
    test, testWarn :: String -> Occ A.AST -> Test

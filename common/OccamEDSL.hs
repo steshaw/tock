@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -- | The necessary components for using an occam EDSL (for building test-cases).
 module OccamEDSL (ExpInp, ExpInpT,
-  oSEQ, oPAR, oPROC, oSKIP, oINT,
+  oSEQ, oPAR, oPROC, oSKIP, oINT, oWHILE,
   oCASE, oCASEinput, caseOption, inputCaseOption, 
   oALT, guard,
   oIF, ifChoice,
@@ -228,6 +228,13 @@ ifChoice (e, body)
   = do e' <- liftExpInp $ expr e
        body' <- body
        return $ makePlain $ A.Choice emptyMeta e' body'
+
+oWHILE :: (CanBeExpression e, Castable r A.Process) => e -> O A.Process -> O r
+oWHILE e body
+  = do e' <- liftExpInp $ expr e
+       body' <- body
+       return $ makePlain $ A.While emptyMeta e' body'
+
 
 singlify :: Data a => A.Structured a -> A.Structured a
 singlify (A.Several _ [s]) = s
