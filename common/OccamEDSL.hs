@@ -19,10 +19,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | The necessary components for using an occam EDSL (for building test-cases).
 module OccamEDSL (ExpInp, ExpInpT, oSEQ, oPAR, oPROC, oSKIP, oINT,
   oCASE, oCASEinput, oALT, guard,
-  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), decl, decl', decl'',
+  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), (*+), decl, decl', decl'',
     oempty, testOccamPass,
     oprocess,
-    testOccamPassTransform, ExpInpC(shouldComeFrom),
+    testOccamPassWarn, testOccamPassTransform, ExpInpC(shouldComeFrom),
     caseOption, inputCaseOption, 
     becomes) where
 
@@ -33,6 +33,7 @@ import Test.HUnit hiding (State)
 
 import qualified AST as A
 import CompState
+import Errors
 import Metadata
 import Pass
 import Pattern
@@ -257,6 +258,14 @@ oZ = return $ variable "Z"
   return $ A.Only emptyMeta $ A.Assign emptyMeta [dest] (A.ExpressionList emptyMeta
     [src])
 
+infix 8 *:=
+
+(*+) :: (CanBeExpression e, CanBeExpression e') => e -> e' -> ExpInp (A.Expression)
+(*+) x y = do x' <- expr x
+              y' <- expr y
+              return (A.Dyadic emptyMeta A.Add x' y')
+
+
 decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->
   [O (A.Structured a)] -> O (A.Structured a)
 decl bty bvar scope = do
@@ -329,6 +338,21 @@ testOccamPass str code pass
         (inp, inpS) = runState inpm emptyState
     in TestCase $ testPassWithStateCheck str exp pass inp (put inpS) (assertEqual
       str (csNames expS) . csNames)
+
+-- | Give back True if the result is as expected for the warnings
+testOccamPassWarn :: Data a => String -> ([WarningReport] -> Bool) -> O a -> Pass -> Test
+testOccamPassWarn str check code pass
+  = let ExpInpT expm inpm = code
+        (exp, expS) = runState expm emptyState
+        (inp, inpS) = runState inpm emptyState
+        pass' = pass {passCode = \x -> do y <- passCode pass x
+                                          b <- lift (lift get) >>* check
+                                          when (not b) $
+                                            dieP emptyMeta $ str ++ " warnings not as expected"
+                                          return y}
+    in TestCase $ testPassWithStateCheck str exp pass' inp (put inpS) (assertEqual
+      str (csNames expS) . csNames)
+
 
 -- | Like testOccamPass, but applies a transformation to the patterns (such as
 -- using stopCaringPattern) before pattern-matching

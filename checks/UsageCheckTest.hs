@@ -32,6 +32,7 @@ import CompState
 import Errors
 import FlowGraph
 import Metadata
+import OccamEDSL
 import TestFramework
 import TestUtils hiding (Var)
 import UsageCheckAlgorithms
@@ -146,8 +147,46 @@ buildTestFlowGraph ns es start end v
 testInitVar :: Test
 testInitVar = TestList
  [
+   test "No variables" $ wrap $ oSEQ []
+  ,test "One unused variable" $ wrap $ oSEQ [decl (return A.Int) oX []]
+  ,test "One written-to variable" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oX *:= return (3::Int)
+      ]]
+  ,test "One written-to then self-assigned variable" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oX *:= return (3::Int)
+        ,oX *:= oX
+      ]]
+  ,testWarn "One uninit self-assign" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        oX *:= oX
+      ]]
+  ,testWarn "One written-to variable, one uninit variable" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        decl (return A.Int) oY [
+        oX *:= oY
+      ]]]    
+  ,test "Two parallel written-to variables, then another init" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [
+        decl (return A.Int) oY [
+          oPAR [
+            oX *:= return (3::Int)
+           ,oY *:= return (4::Int)
+          ]
+          ,decl (return A.Int) oZ [
+            oZ *:= oX *+ oY
+            ,oX *:= oZ
+          ]
+      ]]]
+ 
    -- Single node, x not touched
-   testInitVarPass 0 [(0,[],[])] [] 0 0 "x"
+  ,testInitVarPass 0 [(0,[],[])] [] 0 0 "x"
    -- Single node, x written to
   ,testInitVarPass 1 [(0,[],[variable "x"])] [] 0 0 "x"
    -- Single node, x read from (FAIL)
@@ -241,6 +280,13 @@ testInitVar = TestList
    testInitVarFail testNum ns es start end v = TestCase $ assertEitherFail ("testInitVar " ++ show testNum) $ flip runReaderT emptyState $ checkInitVar emptyMeta (buildTestFlowGraph ns es start end v) (-1)
    
    variable = Var . A.Variable emptyMeta . simpleName
+
+   wrap x = oPROC "foo" [] x oempty
+
+   test, testWarn :: String -> Occ A.AST -> Test
+   test name x = testOccamPassWarn ("checkInitVar " ++ name) null x checkInitVarPass
+   testWarn name x = testOccamPassWarn ("checkInitVar " ++ name) (not . null) x checkInitVarPass
+   
 
 {-
 testReachDef :: Test

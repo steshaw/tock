@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module Check (checkInitVar, usageCheckPass, checkUnusedVar) where
+module Check (checkInitVar, checkInitVarPass, usageCheckPass, checkUnusedVar) where
 
 import Control.Monad.Identity
 import Control.Monad.Trans
@@ -183,6 +183,16 @@ showCodeExSet (NormalSet s)
     = do ss <- mapM showCode (Set.toList s)
          return $ "{" ++ concat (intersperse ", " ss) ++ "}"
 
+checkInitVarPass :: Pass
+checkInitVarPass = pass "checkInitVar" [] []
+  (passOnlyOnAST "checkInitVar" $
+   \t ->           do g' <- buildFlowGraph labelUsageFunctions t
+                      (g, roots) <- case g' of
+                        Left err -> dieP (findMeta t) err
+                        Right (g,rs,_) -> return (g,rs)
+                      mapM_ (checkInitVar (findMeta t) g) roots
+                      return t)
+
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
 checkInitVar :: forall m. (Monad m, Die m, Warn m, CSMR m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
 checkInitVar m graph startNode
@@ -274,7 +284,8 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)
 
-
+-- TODO in future change this back to using listify.  It just so happened to make
+-- a good test for my new check stuff.
 checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyASTStruct doSpec
   where
