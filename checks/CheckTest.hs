@@ -24,43 +24,46 @@ import qualified AST as A
 import Check
 import CheckFramework
 import Metadata
+import OccamEDSL
 import TestUtils
 
 testUnusedVar :: Test
 testUnusedVar = TestList
  [
-  test' "No vars" (A.Several emptyMeta [] :: A.AST)
- ,test' "Used var" $ wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
-   "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta $ A.Assign emptyMeta
-     [variable "x"] (A.ExpressionList emptyMeta [intLiteral 0])
- ,test "Unused var"
-   (wrapProcSeq $ A.Only emptyMeta (A.Skip emptyMeta))
-   (wrapProcSeq $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
-     "x") $ A.Declaration emptyMeta A.Int) $ A.Only emptyMeta (A.Skip emptyMeta))
- ,test "Triple Unused var"
-   (wrapProcSeq $ A.Only emptyMeta (A.Skip emptyMeta))
-   (wrapProcSeq $
-     A.Spec emptyMeta
-       (A.Specification emptyMeta (simpleName "x") $ A.Declaration emptyMeta A.Int) $
-     A.Spec emptyMeta
-       (A.Specification emptyMeta (simpleName "y") $ A.Declaration emptyMeta A.Int) $
-     A.Spec emptyMeta
-       (A.Specification emptyMeta (simpleName "z") $ A.Declaration emptyMeta A.Int) $
-     A.Only emptyMeta (A.Skip emptyMeta))
- ,test "Unused var in loop"
-   (wrapProcSeq $ A.Only emptyMeta $ A.While emptyMeta (A.True emptyMeta) $ A.Seq
-     emptyMeta $ A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta])
-   (wrapProcSeq $ A.Only emptyMeta $ A.While emptyMeta (A.True emptyMeta) $
-     A.Seq emptyMeta $
-       A.Spec emptyMeta 
-         (A.Specification emptyMeta (simpleName "x") $ A.Declaration emptyMeta
-           A.Int) $
-       A.Several emptyMeta [A.Only emptyMeta $ A.Skip emptyMeta])
+   testSame "No variables" $ wrap $ oSEQ []
+  ,testSame "One used variable" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX
+        [oX *:= (return (0::Int))]
+    ]
+  ,testWarn 1 "One unused variable" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX []
+    ]
+    `becomes` oSEQ []
+
+  ,testWarn 3 "Three unused variables" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX [decl (return A.Int) oY [decl (return A.Int) oZ []]]
+    ]
+    `becomes` oSEQ []
+
+  ,testWarn 1 "Unused variable in loop" $ wrap $
+    oWHILE True $
+      oSEQ
+        [decl (return A.Int) oX []]
+      `becomes`
+      oSEQ []
  ]
  where
-   test' str src = test str src src
-   test str exp src = TestCase $ testPass str exp (runChecksPass checkUnusedVar) src (return
-     ())
+   wrap x = oPROC "foo" [] x oempty
+
+   testSame :: String -> Occ A.AST -> Test
+   testSame name x = testOccamPassWarn ("checkUnusedVar " ++ name) null x
+     (runChecksPass checkUnusedVar)
+   testWarn :: Int -> String -> Occ A.AST -> Test
+   testWarn n name x = testOccamPassWarn ("checkUnusedVar " ++ name) ((== n) . length) x
+     (runChecksPass checkUnusedVar)
 
 tests :: Test
 tests = TestLabel "CheckTest" $ TestList
