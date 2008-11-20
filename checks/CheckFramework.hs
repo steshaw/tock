@@ -116,6 +116,10 @@ newtype CheckOptM a = CheckOptM (StateT CheckOptData PassM a)
 instance Die CheckOptM where
   dieReport = CheckOptM . lift . dieReport
 
+instance MonadState CompState CheckOptM where
+  get = CheckOptM $ lift get
+  put = CheckOptM . lift . put
+
 instance CSMR CheckOptM where
   getCompState = CheckOptM . lift $ getCompState
 
@@ -137,6 +141,10 @@ instance Monad (CheckOptASTM t) where
 
 instance MonadIO (CheckOptASTM t) where
   liftIO = CheckOptASTM . liftM Right . liftIO
+
+instance MonadState CompState (CheckOptASTM t) where
+  get = CheckOptASTM . liftM Right . lift . lift $ get
+  put = CheckOptASTM . liftM Right . lift . lift . put
 
 deCheckOptASTM :: (t -> CheckOptASTM t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
   t t)
@@ -179,6 +187,10 @@ instance Warn (CheckOptASTM t) where
 
 instance CSMR (CheckOptASTM t) where
   getCompState = liftCheckOptM getCompState
+
+instance MonadState CompState (CheckOptFlowM t) where
+  get = CheckOptFlowM . lift $ get
+  put = CheckOptFlowM . lift . put
 
 askRoute :: CheckOptASTM t (Route t A.AST)
 askRoute = CheckOptASTM $ ask >>* Right
