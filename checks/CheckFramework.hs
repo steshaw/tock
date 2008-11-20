@@ -18,7 +18,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module CheckFramework (CheckOptM, CheckOptASTM, forAnyAST, forAnyASTStruct, substitute, restartForAnyAST,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
-  getCachedAnalysis, getCachedAnalysis') where
+  getCachedAnalysis, getCachedAnalysis',
+  forAnyFlowNode, getFlowLabel, getFlowMeta, CheckOptFlowM) where
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -182,14 +183,52 @@ instance CSMR (CheckOptASTM t) where
 askRoute :: CheckOptASTM t (Route t A.AST)
 askRoute = CheckOptASTM $ ask >>* Right
 
-getCheckOptData :: CheckOptASTM t CheckOptData
-getCheckOptData = CheckOptASTM . lift . lift . CheckOptM $ get >>* Right
+getCheckOptData :: CheckOptM CheckOptData
+getCheckOptData = CheckOptM get
 
-modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptASTM t ()
-modifyCheckOptData = liftCheckOptM . CheckOptM . modify
+modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptM ()
+modifyCheckOptData = CheckOptM . modify
 
 liftCheckOptM :: CheckOptM a -> CheckOptASTM t a
 liftCheckOptM = CheckOptASTM . liftM Right . lift . lift
+
+-- Could also include the list of connected nodes in the reader monad:
+newtype CheckOptFlowM t a = CheckOptFlowM (ReaderT (Node, Map.Map Node t) CheckOptM a)
+  deriving (Monad, MonadIO)
+
+instance Die m => Die (ReaderT (Node, Map.Map Node a) m) where
+  dieReport = lift . dieReport
+
+instance CSMR (CheckOptFlowM t) where
+  getCompState = CheckOptFlowM $ lift getCompState
+
+instance Warn (CheckOptFlowM t) where
+  warnReport = CheckOptFlowM . lift . warnReport
+
+
+forAnyFlowNode :: ((FlowGraph CheckOptM UsageLabel, [Node], [Node]) -> CheckOptM
+  (Map.Map Node t)) -> CheckOptFlowM t () -> CheckOptM ()
+forAnyFlowNode fgraph (CheckOptFlowM f) =
+  do grt@(g,_,_) <- getFlowGraph
+     m <- fgraph grt
+     sequence_ [runReaderT f (n, m)  | n <- nodes g]
+
+getFlowLabel :: CheckOptFlowM t (UsageLabel, Maybe t)
+getFlowLabel = CheckOptFlowM $
+  do (n, m) <- ask
+     (g,_,_) <- lift getFlowGraph
+     l <- checkJust (Nothing, "Label not in flow graph") $ lab g n
+     return (getNodeData l, Map.lookup n m)
+
+getFlowMeta :: CheckOptFlowM t Meta
+getFlowMeta = CheckOptFlowM $
+  do (n, _) <- ask
+     (g,_,_) <- lift getFlowGraph
+     case lab g n of
+       Nothing -> return emptyMeta
+       Just l -> return $ getNodeMeta l
+
+
 
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
@@ -370,7 +409,7 @@ varsTouchedAfter = FlowGraphAnalysis
 
   
 
-getFlowGraph :: CheckOptASTM t (FlowGraph CheckOptM UsageLabel, [Node], [Node])
+getFlowGraph :: CheckOptM (FlowGraph CheckOptM UsageLabel, [Node], [Node])
 getFlowGraph = getCache flowGraphRootsTerms (\x d -> d {flowGraphRootsTerms = Just x, nextVarsTouched
   = Map.empty}) generateFlowGraph
 
@@ -391,10 +430,10 @@ correctFlowGraph curNode (g, roots, terms)
     addFakeEdge realTerm g n = insEdge (n, realTerm, ESeq Nothing) g
 
 getCache :: (CheckOptData -> Maybe a) -> (a -> CheckOptData -> CheckOptData) -> (A.AST
-  -> CheckOptM a) -> CheckOptASTM t a
+  -> CheckOptM a) -> CheckOptM a
 getCache getF setF genF = getCheckOptData >>= \x -> case getF x of
   Just y -> return y
-  Nothing -> do y <- liftCheckOptM $ genF (ast x)
+  Nothing -> do y <- genF (ast x)
                 modifyCheckOptData (setF y)
                 return y
 
@@ -405,8 +444,8 @@ getCachedAnalysis = getCachedAnalysis' (const True)
 getCachedAnalysis' :: Data t => (UsageLabel -> Bool) -> FlowGraphAnalysis res -> CheckOptASTM t (Maybe
   res)
 getCachedAnalysis' f an = do
-  d <- getCheckOptData
-  g'@(g,_,_) <- getFlowGraph
+  d <- liftCheckOptM getCheckOptData
+  g'@(g,_,_) <- liftCheckOptM getFlowGraph
   r <- askRoute
   -- Find the node that matches our location and the given function:
   case find (\(_,l) -> f (getNodeData l) && (getNodeRouteId l == routeId r)) (labNodes g) of
