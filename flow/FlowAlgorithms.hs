@@ -26,7 +26,8 @@ import qualified Data.Set as Set
 import Utils
 
 data GraphFuncs n e result = GF {
-   -- (Node, Edge) -> previous assumed input -> current aggregate effect -> new aggregate effect
+   -- (Node, Edge) -> current value for said node -> current aggregate effect for
+   -- the current node -> new aggregate effect
    -- If it is the first node to be processed for this iteration, it will be
    -- given Nothing, otherwise the result is fed back when processing the next
    -- node.  The second parameter is from the last iteration.
@@ -63,8 +64,8 @@ data GraphFuncs n e result = GF {
 --
 -- The general idea of iterative data-flow is that all nodes start out with
 -- a default "guessed" value.  Then each node is processed in turn by using
--- the previous value (to start with, the default value), and the values of
--- all nodesToProcess in the graph.  This algorithm is performed repeatedly,
+-- an accumulating value (to start with Nothing), and the values associated with
+-- each of the nodesToProcess in the graph.  This algorithm is performed repeatedly,
 -- processing all nodes, and if a node changes its value, re-adding all its
 -- nodes in the other direction (nodesToReAdd) to the worklist to be processed again.
 --
