@@ -1,0 +1,93 @@
+\definecolor{KentBlue}{rgb}{0.0,0.2196,0.5098}    % 0, 56, 130
+\definecolor{KentRed}{rgb}{0.7058,0.0117,0.3607}  % 180, 3, 92
+\definecolor{KentGreen}{rgb}{0.0,0.4785,0.3686}   % 0, 122, 94
+
+\usepackage{pifont}
+\usepackage{xspace}
+
+\usepackage{listings}
+
+
+%Note: return isn't a Haskell keyword, but it's used enough and important
+% enough that I think it's worth highlighting as if it were one.
+
+%Note: the shorter keyword symbols (like =) must go before any longer
+% versions (like =>) in otherkeywords
+
+%Also, "otherkeywords" seem to be highlighted even in strings.  This
+% is partly why I haven't defined _ as a keyword.
+
+%String highlighting is difficult, especially since foo' is an identifier
+% in Haskell, not the start of a char literal!  Therefore I suggest
+% never applying any special formatting to strings.  I've also removed
+% the single quote as a string delimiter for this reason.
+\lstdefinelanguage[improved]{Haskell}
+   % To separate out word keywords from symbol keywords for different formatting,
+   % we define the word keywords as emph items (use emphstyle):
+  {classoffset=0,
+   %If we don't specify at least one "non-other" keyword, listings doesn't work, hence:
+   morekeywords={hduisahfiuabfyasbyoasvbfuyvosf},
+   otherkeywords={::,=,==,->,=>,>>,>>=,>>*,$,++,<-,<|>},
+   classoffset=1,
+   morekeywords={data,type,newtype,let,in,do,where,if,then,else,return},
+   % For some (unknown) reason, setting classoffset = 0 again after this line
+   % breaks the highlighting.
+   morecomment=[l]{--},
+%   morestring=[b]',
+   morestring=[b]",
+  }
+%TODO The -> operator looks particularly bad (the dash is very thin).
+% I have seen Haskell papers that use the maths -> symbol instead -- listings
+% package does allow us to escape to maths mode, so perhaps we should try that...
+
+\lstdefinelanguage[21]{occam}
+  {morekeywords={BYTE,CHAN,FOR,FROM,IF,INT,INT32,IS,PAR,PROC,RESHAPES,RETYPES,SEQ,SIZE,TRUE,VAL,WHILE},
+   otherkeywords={:,:=},
+   morecomment=[l]{--}
+  }
+
+\lstdefinelanguage{Rain}
+  {morekeywords={if,while,process,function},
+   otherkeywords={!,?,??,=,==,+,-,*,+=,-=,*=},
+   morecomment=[l]{//}
+  }
+
+\def\haskellsettings{
+\lstset{
+	language={[improved]Haskell},
+	columns=flexible,
+	basicstyle=\small,	
+	emphstyle=\color{KentRed}\bfseries,
+        keywordstyle=[1]{\color{KentBlue}\bfseries},
+        keywordstyle=[0]{\color{KentBlue}\bfseries\ttfamily},
+	identifierstyle=,
+	commentstyle=\color{KentGreen}\itshape,
+	stringstyle=,
+	showstringspaces=false}
+}
+
+\def\rainsettings{
+\lstset{
+	language={Rain},
+	columns=fixed,
+	basicstyle=\small\ttfamily,
+	emphstyle=\color{KentBlue}\bfseries,
+	keywordstyle=\color{KentBlue}\bfseries,
+	identifierstyle=,
+	commentstyle=\color{KentGreen}\itshape,
+	stringstyle=,
+	showstringspaces=false}
+}
+
+\def\occamsettings{
+\lstset{
+	language={[21]occam},
+	columns=fixed,
+	basicstyle=\small\ttfamily,
+	emphstyle=\color{KentBlue}\bfseries,
+	keywordstyle=\color{KentBlue}\bfseries,
+	identifierstyle=,
+	commentstyle=\color{KentGreen}\itshape,
+	stringstyle=,
+	showstringspaces=false}
+}

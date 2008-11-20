@@ -1,0 +1,47 @@
+\documentclass[a4wide]{article}
+
+\usepackage{color}
+\usepackage{crg-group}
+\usepackage{listings}
+\usepackage[a4paper=true,colorlinks=true,urlcolor=blue]{hyperref}
+
+\begin{document}
+
+\haskellsettings
+
+\begin{lstlisting}
+-- Lists
+
+foldl :: (accum -> item -> accum) -> accum -> [item] -> accum
+foldM :: Monad m => (accum -> item -> m accum) -> accum -> [item] -> m accum
+
+mapAccumL :: (accum -> a -> (accum, b)) -> accum -> [a] -> (acc, [b])
+
+zip :: [a] -> [b] -> [(a, b)]
+unzip :: [(a, b)] -> ([a], [b])
+
+-- Misc
+
+fromMaybe :: a -> Maybe a -> a
+maybe :: b -> (a -> b) -> Maybe a -> b
+
+transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
+
+-- Monads
+
+liftM :: Monad m => (a -> b) -> m a -> m b
+liftM2 :: Monad m => (a1 -> a2 -> b) -> m a1 -> m a2 -> m b
+
+lift :: Monad m => m a -> t m a -- lifts a value
+liftF :: (MonadTrans t, Monad m) => (a -> m b) -> (a -> t m b) -- lifts a function
+
+-- State monad
+
+runStateT :: Monad monad => StateT state monad value -> state -> monad (value,state)
+
+evalStateT :: Monad monad => StateT state monad value -> state -> monad value
+execStateT :: Monad monad => StateT state monad value -> state -> monad state
+\end{lstlisting}
+
+
+\end{document}
