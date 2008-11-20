@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph stuff, hence the use of functions that match the dictionary
 -- of functions in FlowGraph.  This is also why we don't drill down into processes;
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
-module Check (checkInitVar, checkInitVarPass, usageCheckPass, checkUnusedVar) where
+module Check (checkInitVarPass, usageCheckPass, checkUnusedVar) where
 
 import Control.Monad.Identity
 import Control.Monad.Trans
@@ -69,7 +69,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                           $ labelMapWithNodeId (addBK reach cons g) g
                       checkParAssignUsage t
                       checkProcCallArgsUsage t
-                      mapM_ (checkInitVar (findMeta t) g) roots
+--                      mapM_ (checkInitVar (findMeta t) g) roots
                       return t
 
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
@@ -185,68 +185,51 @@ showCodeExSet (NormalSet s)
 
 checkInitVarPass :: Pass
 checkInitVarPass = pass "checkInitVar" [] []
-  (passOnlyOnAST "checkInitVar" $
-   \t ->           do g' <- buildFlowGraph labelUsageFunctions t
-                      (g, roots) <- case g' of
-                        Left err -> dieP (findMeta t) err
-                        Right (g,rs,_) -> return (g,rs)
-                      mapM_ (checkInitVar (findMeta t) g) roots
-                      return t)
+  (passOnlyOnAST "checkInitVar" $ runChecks checkInitVar)
 
 -- | Checks that no variable is used uninitialised.  That is, it checks that every variable is written to before it is read.
-checkInitVar :: forall m. (Monad m, Die m, Warn m, CSMR m) => Meta -> FlowGraph m UsageLabel -> Node -> m ()
-checkInitVar m graph startNode
-  = do startLabel <- checkJust (Just m, "Could not find starting node in the control-flow graph")
-         (lab graph startNode) >>* writeNode
-       vwb <- case flowAlgorithm graphFuncs connectedNodes (startNode, startLabel) of
-         Left err -> dieP m $ "Error building control-flow graph: " ++ err
-         Right x -> return x
-       -- Label the connected nodes:
-       -- We should always be able to find the labels for the graphs, but we still use checkJust rather than fromJust
-       labelledConnectedNodes <- flip mapM connectedNodes (\n -> seqPair (return n,
-         checkJust (Just m, "Could not find label for node in checkInitVar") (lab graph n)))
-       -- vwb is a map from Node to a set of Vars that have been written by that point
-       -- Now we check that for every variable read in each node, it has already been written to by then
-       mapM_ (checkInitVar' vwb) (map readNode labelledConnectedNodes)
+checkInitVar :: CheckOptM ()
+checkInitVar = forAnyFlowNode
+  (\(g, roots, _) -> sequence
+     [case flowAlgorithm (graphFuncs g) (dfs [r] g) (r, writeNode (fromJust $ lab g r)) of
+       Left err -> dieP emptyMeta err
+       Right x -> return x
+     | r <- roots] >>* foldl Map.union Map.empty)
+  checkInitVar'
+       -- We check that for every variable read in each node, it has already been written to by then
   where
-    connectedNodes = dfs [startNode] graph
-
     -- Gets all variables read-from in a particular node, and the node identifier
-    readNode :: (Node, FNode m UsageLabel) -> (Node, ExSet Var)
-    readNode (n, nd) = (n,NormalSet $ readVars $ nodeVars $ getNodeData nd)
+    readNode :: UsageLabel -> ExSet Var
+    readNode u = NormalSet $ readVars $ nodeVars u
   
     -- Gets all variables written-to in a particular node
-    writeNode :: FNode m UsageLabel -> ExSet Var
+    writeNode :: Monad m => FNode m UsageLabel -> ExSet Var
     writeNode nd = NormalSet $ Map.keysSet $ writtenVars $ nodeVars $ getNodeData nd
     
     -- Nothing is treated as if were the set of all possible variables:
-    nodeFunction :: (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
-    nodeFunction (n,_) inputVal Nothing = union inputVal (maybe emptySet writeNode (lab graph n))    
-    nodeFunction (n, EEndPar _) inputVal (Just prevAgg) = unions [inputVal,prevAgg,maybe emptySet writeNode (lab graph n)]
-    nodeFunction (n, _) inputVal (Just prevAgg) = intersection prevAgg $ union inputVal (maybe emptySet writeNode (lab graph n))
+    nodeFunction :: Monad m => FlowGraph m UsageLabel -> (Node, EdgeLabel) -> ExSet Var -> Maybe (ExSet Var) -> ExSet Var
+    nodeFunction graph (n,_) inputVal Nothing = union inputVal (maybe emptySet writeNode (lab graph n))    
+    nodeFunction graph (n, EEndPar _) inputVal (Just prevAgg) = unions [inputVal,prevAgg,maybe emptySet writeNode (lab graph n)]
+    nodeFunction graph (n, _) inputVal (Just prevAgg) = intersection prevAgg $ union inputVal (maybe emptySet writeNode (lab graph n))
   
-    graphFuncs :: GraphFuncs Node EdgeLabel (ExSet Var)
-    graphFuncs = GF
+    graphFuncs :: Monad m => FlowGraph m UsageLabel -> GraphFuncs Node EdgeLabel (ExSet Var)
+    graphFuncs graph = GF
       {
-       nodeFunc = nodeFunction
+       nodeFunc = nodeFunction graph
        ,nodesToProcess = lpre graph
        ,nodesToReAdd = lsuc graph
        ,defVal = Everything
        ,userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
       
-    getMeta :: Node -> Meta
-    getMeta n = case lab graph n of
-      Just nd -> getNodeMeta nd
-      _ -> emptyMeta
-        
-    checkInitVar' :: Map.Map Node (ExSet Var) -> (Node, ExSet Var) -> m ()
-    checkInitVar' writtenMap (n,v)
-      = let vs = fromMaybe emptySet (Map.lookup n writtenMap) in
+    checkInitVar' :: CheckOptFlowM (ExSet Var) ()
+    checkInitVar'
+      = do (v, vs) <- getFlowLabel >>* transformPair readNode (fromMaybe emptySet)
         -- The read-from set should be a subset of the written-to set:
-        if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
-          do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
-             warnP (getMeta n) WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
+           if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
+             do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
+                m <- getFlowMeta
+                warnP m WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
 checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
 checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
