@@ -23,6 +23,7 @@ module OccamEDSL (ExpInp, ExpInpT,
   oALT, guard,
   oIF, ifChoice,
   Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), (*+), decl, decl', decl'',
+    sub,
     oempty, testOccamPass,
     oprocess,
     testOccamPassWarn, testOccamPassTransform, ExpInpC(shouldComeFrom),
@@ -291,6 +292,10 @@ infix 8 *:=
               y' <- expr y
               return (A.Dyadic emptyMeta A.Add x' y')
 
+
+sub :: ExpInp A.Variable -> Int -> ExpInp A.Variable
+sub v n = liftM (A.SubscriptedVariable emptyMeta (A.Subscript emptyMeta A.CheckBoth
+  $ intLiteral $ toInteger n)) v
 
 decl :: Data a => ExpInp A.Type -> ExpInp A.Variable ->
   [O (A.Structured a)] -> O (A.Structured a)

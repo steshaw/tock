@@ -54,6 +54,39 @@ testUnusedVar = TestList
         [decl (return A.Int) oX []]
       `becomes`
       oSEQ []
+
+  ,testSame "Used array variable" $ wrap $
+    oSEQ [
+      decl (return $ A.Array [A.Dimension $ intLiteral 2] A.Int) oX
+        [oX `sub` 0 *:= (return (0::Int))]
+    ]
+
+  ,testSame "One variable, used in one IF branch" $ wrap $
+    oSEQ [
+      decl (return A.Int) oX
+        [oIF
+          [ifChoice (True, oX *:= (return (0::Int)))
+          ,ifChoice (True, oSKIP)
+          ]
+        ]
+    ]
+  ,testSame "One variable, declared in an IF and used in one IF branch" $ wrap $
+       oIF
+       [
+         decl (return A.Int) oX       
+          [ifChoice (True, oX *:= (return (0::Int)))
+          ,ifChoice (True, oSKIP)
+          ]
+       ]
+  ,testSame "One variable, declared in an IF and used in second IF branch" $ wrap $
+       oIF
+       [
+         decl (return A.Int) oX       
+          [ifChoice (True, oSKIP)
+          ,ifChoice (True, oX *:= (return (0::Int)))
+          ]
+       ]
+
  ]
  where
    wrap x = oPROC "foo" [] x oempty
