@@ -23,6 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Check (checkInitVarPass, usageCheckPass, checkUnusedVar) where
 
 import Control.Monad.Identity
+import Control.Monad.State
 import Control.Monad.Trans
 import Data.Generics
 import Data.Graph.Inductive
@@ -284,6 +285,7 @@ checkUnusedVar = forAnyASTStruct doSpec
                do -- TODO have a more general way of not warning about compiler-generated names:
                   when (not $ "_sizes" `isSuffixOf` A.nameName name) $
                     warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
+                  modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
                   substitute scope
     doSpec _ = return ()
 
