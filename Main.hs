@@ -26,6 +26,7 @@ import Control.Monad.Writer
 import Data.Either
 import Data.Generics
 import Data.Maybe
+import qualified Data.Set as Set
 import List
 import System
 import System.Console.GetOpt
@@ -54,10 +55,13 @@ import Utils
 
 type OptFunc = CompState -> IO CompState
 
-options :: [OptDescr OptFunc]
-options =
-  [ Option [] ["backend"] (ReqArg optBackend "BACKEND") "code-generating backend (options: c, cppcsp, dumpast,src)"
+optionsNoWarnings :: [OptDescr OptFunc]
+optionsNoWarnings =
+  [ Option [] ["backend"] (ReqArg optBackend "BACKEND")
+      "code-generating backend (options: c, cppcsp, dumpast, src)"
   , Option ['h'] ["help"] (NoArg optPrintHelp) "print this help"
+  , Option [] ["help-warnings"] (NoArg optPrintWarningHelp)
+      "print help about warning options"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
@@ -66,6 +70,14 @@ options =
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   ]
+
+optionsWarnings :: [OptDescr OptFunc]
+optionsWarnings = concat
+  [[Option [] ["w" ++ show w] (NoArg $ optEnableWarning w)
+      ("Enable warning " ++ show w ++ " (" ++ describeWarning w ++ ")")]
+   ++ [Option [] ["wno" ++ show w] (NoArg $ optDisableWarning w)
+      ("Disable warning " ++ show w ++ " (" ++ describeWarning w ++ ")")]
+  | w <- [minBound .. maxBound]]
 
 optMode :: String -> OptFunc
 optMode s ps
@@ -106,7 +118,11 @@ optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
 
 optPrintHelp :: OptFunc
-optPrintHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" options)
+optPrintHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsNoWarnings)
+
+optPrintWarningHelp :: OptFunc
+optPrintWarningHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsWarnings)
+
 
 optUsageChecking :: String -> OptFunc
 optUsageChecking s ps
@@ -124,11 +140,18 @@ optSanityCheck s ps
             _ -> dieIO (Nothing, "Unknown sanity checking mode: " ++ s)
           return $ ps { csSanityCheck = sanityCheck }
 
+optEnableWarning :: WarningType -> OptFunc
+optEnableWarning w ps = return $ ps { csEnabledWarnings = Set.insert w (csEnabledWarnings ps) }
+
+optDisableWarning :: WarningType -> OptFunc
+optDisableWarning w ps = return $ ps { csEnabledWarnings = Set.delete w (csEnabledWarnings ps) }
+
+
 getOpts :: [String] -> IO ([OptFunc], [String])
 getOpts argv =
-  case getOpt RequireOrder options argv of
+  case getOpt RequireOrder (optionsNoWarnings ++ optionsWarnings) argv of
     (o,n,[]  ) -> return (o,n)
-    (_,_,errs) -> error (concat errs ++ usageInfo header options)
+    (_,_,errs) -> error (concat errs ++ usageInfo header optionsNoWarnings)
   where header = "Usage: tock [OPTION...] SOURCEFILE"
 
 main :: IO ()
@@ -138,7 +161,7 @@ main = do
 
   let fn = case args of
               [fn] -> fn
-              _ -> error "Must specify a single input file"
+              _ -> error "Must specify a single input file (use \"tock --help\" to see options)"
 
   -- Try to guess the filename from the extension.  Since this function is
   -- applied before the options are applied, it will be overriden by the
