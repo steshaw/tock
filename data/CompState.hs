@@ -31,7 +31,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
-import Errors (Die, dieP, ErrorReport, Warn, WarningType, warnP)
+import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP)
 import Metadata
 import OrdAST ()
 import UnifyType
@@ -101,6 +101,7 @@ data CompState = CompState {
     csVerboseLevel :: Int,
     csOutputFile :: String,
     csKeepTemporaries :: Bool,
+    csEnabledWarnings :: Set WarningType,
 
     -- Set by preprocessor
     csCurrentFile :: String,
@@ -138,6 +139,12 @@ emptyState = CompState {
     csVerboseLevel = 0,
     csOutputFile = "-",
     csKeepTemporaries = False,
+    csEnabledWarnings = Set.fromList
+      [ WarnInternal
+      , WarnParserOddity
+      , WarnUnknownPreprocessorDirective
+      , WarnUnusedVariable],
+-- TODO enable WarnUninitialisedVariable by default
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,

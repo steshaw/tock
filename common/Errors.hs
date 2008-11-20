@@ -23,6 +23,7 @@ module Errors (checkJust, Die(..),
 
 import Control.Monad.Error
 import Control.Monad.Trans
+import Data.Generics
 import Data.List
 import System.IO
 import System.IO.Error
@@ -49,7 +50,7 @@ data WarningType
   | WarnUnknownPreprocessorDirective
   | WarnUninitialisedVariable
   | WarnUnusedVariable
-  deriving (Eq, Show, Ord, Read, Enum, Bounded)
+  deriving (Eq, Show, Ord, Read, Enum, Bounded, Typeable, Data)
 -- I intend the above warnings to be part of a command-line mechanism to enable
 -- or suppress them according to various flags.  So that you might write:
 -- -WnoWarnParserOddity
