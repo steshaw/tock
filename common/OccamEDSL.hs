@@ -31,6 +31,7 @@ module OccamEDSL (ExpInp, ExpInpT,
 import Control.Monad.State hiding (guard)
 import Data.Generics
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Test.HUnit hiding (State)
 
 import qualified AST as A
@@ -373,15 +374,18 @@ testOccamPassWarn :: Data a => String -> ([WarningReport] -> Bool) -> O a -> Pas
 testOccamPassWarn str check code pass
   = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
-        (inp, inpS) = runState inpm emptyState
+        (inp, inpS) = runState inpm emptyStateWithWarnings
         pass' = pass {passCode = \x -> do y <- passCode pass x
-                                          b <- lift get >>* (check . csWarnings)
-                                          when (not b) $
-                                            dieP emptyMeta $ str ++ " warnings not as expected"
+                                          ws <- getCompState >>* csWarnings
+                                          when (not $ check ws) $
+                                            dieP emptyMeta $ str ++ " warnings not as expected: "
+                                              ++ (show ws)
                                           return y}
-    in TestCase $ testPassWithStateCheck str exp pass' inp (put inpS) (assertEqual
-      str (csNames expS) . csNames)
-
+    in TestCase $ testPassWithStateCheck str exp pass' inp
+      (put $ inpS {csWarnings = []}) -- Blank the warnings for the new pass
+      (assertEqual str (csNames expS) . csNames)
+  where
+    emptyStateWithWarnings = emptyState { csEnabledWarnings = Set.fromList [minBound..maxBound] }
 
 -- | Like testOccamPass, but applies a transformation to the patterns (such as
 -- using stopCaringPattern) before pattern-matching
