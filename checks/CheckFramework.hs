@@ -410,13 +410,13 @@ varsTouchedAfter = FlowGraphAnalysis
 
     iterate :: FlowGraph CheckOptM UsageLabel ->
       (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set Var
-    iterate g node prevVars maybeVars = case lab g (fst node) of
+    iterate g node varsForPrevNode maybeVars = case lab g (fst node) of
       Just ul ->
         let vs = nodeVars $ getNodeData ul
             readFromVars = readVars vs
             writtenToVars = writtenVars vs
-            addTo = fromMaybe prevVars maybeVars
-        in (readFromVars `Set.union` addTo) `Set.union` Map.keysSet writtenToVars
+            addTo =  fromMaybe Set.empty maybeVars
+        in foldl Set.union addTo [varsForPrevNode, readFromVars, Map.keysSet writtenToVars]
       Nothing -> error "Node label not found in calculateUsedAgainAfter"
 
   
