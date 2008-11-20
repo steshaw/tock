@@ -43,8 +43,11 @@ instance Die PassM where
   dieReport = throwError
 
 instance Warn PassM where
-  warnReport w = lift $ modify $
-    \cs -> cs { csWarnings = csWarnings cs ++ [w] }
+  warnReport w@(_,t,_) = lift $ modify $
+    \cs -> cs { csWarnings =
+      if t `Set.member` csEnabledWarnings cs
+        then csWarnings cs ++ [w]
+        else csWarnings cs }
 
 -- | The type of a pass function.
 -- This is as generic as possible. Passes are used on 'A.AST' in normal use,
