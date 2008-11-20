@@ -31,7 +31,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 import qualified AST as A
-import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP)
+import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP, WarningReport)
 import Metadata
 import OrdAST ()
 import UnifyType
@@ -125,7 +125,8 @@ data CompState = CompState {
     csParProcs :: Set A.Name,
     csUnifyLookup :: Map UnifyIndex UnifyValue,
     csUnifyPairs :: [(UnifyValue, UnifyValue)],
-    csUnifyId :: Int
+    csUnifyId :: Int,
+    csWarnings :: [WarningReport]
   }
   deriving (Data, Typeable)
 
@@ -165,7 +166,8 @@ emptyState = CompState {
     csParProcs = Set.empty,
     csUnifyLookup = Map.empty,
     csUnifyPairs = [],
-    csUnifyId = 0
+    csUnifyId = 0,
+    csWarnings = []
   }
 
 -- | Class of monads which keep a CompState.

@@ -375,7 +375,7 @@ testOccamPassWarn str check code pass
         (exp, expS) = runState expm emptyState
         (inp, inpS) = runState inpm emptyState
         pass' = pass {passCode = \x -> do y <- passCode pass x
-                                          b <- lift (lift get) >>* check
+                                          b <- lift get >>* (check . csWarnings)
                                           when (not b) $
                                             dieP emptyMeta $ str ++ " warnings not as expected"
                                           return y}

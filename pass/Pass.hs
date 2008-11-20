@@ -37,13 +37,14 @@ import TreeUtils
 import Utils
 
 -- | The monad in which AST-mangling passes operate.
-type PassM = ErrorT ErrorReport (StateT CompState (StateT [WarningReport]  IO))
+type PassM = ErrorT ErrorReport (StateT CompState IO)
 
 instance Die PassM where
   dieReport = throwError
 
 instance Warn PassM where
-  warnReport w = lift $ lift $ modify (++ [w])
+  warnReport w = lift $ modify $
+    \cs -> cs { csWarnings = csWarnings cs ++ [w] }
 
 -- | The type of a pass function.
 -- This is as generic as possible. Passes are used on 'A.AST' in normal use,
@@ -81,12 +82,9 @@ instance Ord Property where
 instance Show Property where
   show = propName
 
-runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState, [WarningReport])
+runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState)
 runPassM cs pass
-    = liftM flatten $ flip runStateT [] $ flip runStateT cs $ runErrorT pass
-  where
-    flatten :: ((a, b), c) -> (a, b, c)
-    flatten ((x, y), z) = (x, y, z)
+    =  flip runStateT cs $ runErrorT pass
 
 enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
 enablePassesWhen f

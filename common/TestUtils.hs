@@ -497,13 +497,13 @@ runPass :: (Data b, TestMonad m r) =>
   Pass -> b                            -- ^ The actual pass.
   -> CompState                       -- ^ The state to use to run the pass.
   -> m (CompState, Either ErrorReport b) -- ^ The resultant state, and either an error or the successful outcome of the pass.
-runPass actualPass src startState = liftM (\(x,y,_) -> (y,x)) $
+runPass actualPass src startState = liftM revPair $
   runIO (runPassM startState $ passCode actualPass src)
 
 runPass' :: TestMonad m r =>
   PassM b -> CompState -> m (CompState, Either ErrorReport b)
 runPass' actualPass startState
-  = runIO (runPassM startState actualPass) >>* \(x,y,_) -> (y,x)
+  = runIO (runPassM startState actualPass) >>* revPair
 
 -- | A test that runs a given AST pass and checks that it succeeds.
 testPass ::

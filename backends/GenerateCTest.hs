@@ -110,7 +110,7 @@ evalCGen :: CGen () -> GenOps -> CompState -> IO (Either Errors.ErrorReport [Str
 evalCGen act ops state = evalCGen' (runReaderT act ops) state
 
 evalCGen' :: CGen' () -> CompState -> IO (Either Errors.ErrorReport [String])
-evalCGen' act state = runPassM state pass >>* (\(x,_,_) -> x)
+evalCGen' act state = runPassM state pass >>* fst
   where
     pass = execStateT act (Left []) >>* (\(Left x) -> x)
 

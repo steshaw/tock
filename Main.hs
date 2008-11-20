@@ -188,8 +188,8 @@ main = do
   -- Run the compiler.
   v <- runPassM initState operation
   case v of
-    (Left e, _, ws) -> showWarnings ws >> dieIO e
-    (Right r, _, ws) -> showWarnings ws
+    (Left e, cs) -> showWarnings (csWarnings cs) >> dieIO e
+    (Right r, cs) -> showWarnings (csWarnings cs)
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)

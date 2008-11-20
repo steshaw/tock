@@ -60,7 +60,7 @@ defaultState fr = emptyState {csUsageChecking = True, csFrontend = fr}
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
 testOccam :: String -> IO (Maybe String)
-testOccam source = do (result,_,_) <- runPassM (defaultState FrontendOccam) compilation
+testOccam source = do (result,_) <- runPassM (defaultState FrontendOccam) compilation
                       return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
@@ -70,7 +70,7 @@ testOccam source = do (result,_,_) <- runPassM (defaultState FrontendOccam) comp
                   >>= runPasses (getPassList $ defaultState FrontendOccam)
 
 testRain :: String -> IO (Maybe String)
-testRain  source = do (result,_,_) <- runPassM (defaultState FrontendRain) compilation
+testRain  source = do (result,_) <- runPassM (defaultState FrontendRain) compilation
                       return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
