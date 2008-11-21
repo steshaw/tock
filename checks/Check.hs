@@ -274,7 +274,7 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 
 -- This isn't actually just unused variables, it's all unused names
 checkUnusedVar :: CheckOptM ()
-checkUnusedVar = forAnyASTStruct doSpec
+checkUnusedVar = forAnyASTStructTopDown doSpec
   where
     doSpec :: Data a => A.Structured a -> CheckOptASTM (A.Structured a) ()
      -- Don't touch PROCs, for now:

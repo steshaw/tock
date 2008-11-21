@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module CheckFramework (CheckOptM, CheckOptASTM, forAnyAST, forAnyASTStruct, substitute, restartForAnyAST,
+module CheckFramework (CheckOptM, CheckOptASTM, forAnyASTTopDown, forAnyASTStructTopDown, substitute, restartForAnyAST,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis',
   forAnyFlowNode, getFlowLabel, getFlowMeta, CheckOptFlowM) where
@@ -265,20 +265,20 @@ extMR generalF specificF (x, r) = case cast x of
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
 
 -- | This function currently only supports one type
-forAnyAST :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
-forAnyAST origF = CheckOptM $ do
+forAnyASTTopDown :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
+forAnyASTTopDown origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet (mkMR (deCheckOptASTM origF)) tr
+   doTree typeSet (applyTopDown typeSet (mkMR (deCheckOptASTM origF))) tr
   where
     typeSet :: TypeSet
     typeSet = makeTypeSet [typeKey (undefined :: a)]
 
 
-forAnyASTStruct :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
+forAnyASTStructTopDown :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
   a) ())) -> CheckOptM ()
-forAnyASTStruct origF = CheckOptM $ do
+forAnyASTStructTopDown origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet allF tr
+   doTree typeSet (applyTopDown typeSet allF) tr
   where
     allF :: (forall c. Data c => TransFunc c)
     allF
@@ -306,23 +306,23 @@ type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 -- | Given a TypeSet, a function to apply to everything of type a, a route
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
 -- that are requested.
-doTree :: TypeSet -> (forall a. Data a => TransFunc a) ->
+doTree :: TypeSet -> (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b) ->
       A.AST -> StateT CheckOptData PassM ()
-doTree typeSet f tr
-      = do x <- deCheckOptM (getRestartT (gmapMForRoute typeSet (apply typeSet f) tr >> return ()))
+doTree typeSet apply tr
+      = do x <- deCheckOptM (getRestartT (gmapMForRoute typeSet apply tr >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
-               doTree typeSet f tr'
+               doTree typeSet apply tr'
              Right _ -> return ()
 
 
-apply :: TypeSet -> (forall a. Data a => TransFunc a) ->
+applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
              (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
-apply typeSet f (x, route)
+applyTopDown typeSet f (x, route)
       = do lift . CheckOptM $ modify $ \d -> if findMeta x == emptyMeta then d else d {lastValidMeta = findMeta x}
            z <- f' (x, route)
-           gmapMForRoute typeSet (\(y, route') -> apply typeSet f (y, route @-> route')) z
+           gmapMForRoute typeSet (\(y, route') -> applyTopDown typeSet f (y, route @-> route')) z
   where
     -- Keep applying the function while there is a Left return (which indicates
     -- the value was replaced) until there is a Right return
