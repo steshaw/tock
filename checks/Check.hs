@@ -43,6 +43,7 @@ import FlowGraph
 import Metadata
 import Pass
 import ShowCode
+import Traversal
 import Types
 import UsageCheckAlgorithms
 import UsageCheckUtils
@@ -268,27 +269,25 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)
 
--- TODO in future change this back to using listify.  It just so happened to make
--- a good test for my new check stuff.
+-- TODO we could do this much faster if we processed the AST bottom-up, and also
+-- accumulated the output of the listify on the variables as we went.
+
+-- This isn't actually just unused variables, it's all unused names
 checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyASTStruct doSpec
   where
     doSpec :: Data a => A.Structured a -> CheckOptASTM (A.Structured a) ()
+     -- Don't touch PROCs, for now:
+    doSpec (A.Spec _ (A.Specification mspec name (A.Proc {})) scope) = return ()      
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
-      = do -- liftIO $ putStrLn $ "Found spec at: " ++ show mspec
-           mvars <- withChild [1] $ getCachedAnalysis' isScopeIn varsTouchedAfter
-           -- liftIO $ putStrLn $ "Vars: " ++ show vars
-           -- when (isNothing mvars) $ liftIO $ putStrLn $ "No analysis for: " ++ show mspec
-           doMaybe $ flip fmap mvars $ \vars -> do
-             -- liftIO $ putStrLn $ "Analysing: " ++ show mspec
-             when (not $ (Var $ A.Variable emptyMeta name) `Set.member` vars) $
-               do -- TODO have a more general way of not warning about compiler-generated names:
-                  when (not $ "_sizes" `isSuffixOf` A.nameName name) $
-                    warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
+      = do -- We can't remove _sizes arrays because the backend uses them for bounds
+           -- checks that are not explicit in the AST.  We'll have to move the
+           -- bounds checking forward into the AST before we can remove them:
+           when (not $ "_sizes" `isSuffixOf` A.nameName name) $
+             let usedNames :: [A.Name] = fastListify (const True) scope in
+               when (not $ A.nameName name `elem` map A.nameName usedNames) $
+               do -- TODO have a way of not warning about compiler-generated names:
+                  warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
                   modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
                   substitute scope
     doSpec _ = return ()
-
-    isScopeIn :: UsageLabel -> Bool
-    isScopeIn (Usage _ (Just (ScopeIn {})) _ _) = True
-    isScopeIn _ = False
