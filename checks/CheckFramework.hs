@@ -28,6 +28,7 @@ import Data.Graph.Inductive hiding (apply)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Set as Set
 import GHC.Base (unsafeCoerce#)
 
@@ -129,30 +130,37 @@ instance Warn CheckOptM where
 deCheckOptM :: CheckOptM a -> StateT CheckOptData PassM a
 deCheckOptM (CheckOptM x) = x
 
-newtype CheckOptASTM t a = CheckOptASTM (ReaderT (Route t A.AST) (RestartT CheckOptM) (Either t a))
+newtype CheckOptASTM' acc t a = CheckOptASTM' (ReaderT (acc, Route t A.AST) (RestartT CheckOptM) (Either t a))
 
-instance Monad (CheckOptASTM t) where
-  return x = CheckOptASTM (return (Right x))
-  (>>=) m f = let (CheckOptASTM m') = m in CheckOptASTM $ do
+type CheckOptASTM = CheckOptASTM' ()
+
+instance Monad (CheckOptASTM' acc t) where
+  return x = CheckOptASTM' (return (Right x))
+  (>>=) m f = let (CheckOptASTM' m') = m in CheckOptASTM' $ do
     x <- m'
     case x of
       Left x -> return (Left x)
-      Right x -> let CheckOptASTM m'' = f x in m''
+      Right x -> let CheckOptASTM' m'' = f x in m''
 
-instance MonadIO (CheckOptASTM t) where
-  liftIO = CheckOptASTM . liftM Right . liftIO
+instance MonadIO (CheckOptASTM' acc t) where
+  liftIO = CheckOptASTM' . liftM Right . liftIO
 
-instance MonadState CompState (CheckOptASTM t) where
-  get = CheckOptASTM . liftM Right . lift . lift $ get
-  put = CheckOptASTM . liftM Right . lift . lift . put
+instance MonadState CompState (CheckOptASTM' acc t) where
+  get = CheckOptASTM' . liftM Right . lift . lift $ get
+  put = CheckOptASTM' . liftM Right . lift . lift . put
 
-deCheckOptASTM :: (t -> CheckOptASTM t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
+deCheckOptASTM' :: (t -> CheckOptASTM' acc t ()) -> (t, Route t A.AST, acc) -> RestartT CheckOptM (Either
   t t)
-deCheckOptASTM f (x, r) = do
-  x' <- runReaderT (let CheckOptASTM m = f x in m) r
+deCheckOptASTM' f (x, r, acc) = do
+  x' <- runReaderT (let CheckOptASTM' m = f x in m) (acc, r)
   case x' of
     Left replacement -> return (Left replacement)
     Right _ -> return (Right x)
+
+deCheckOptASTM :: (t -> CheckOptASTM t ()) -> (t, Route t A.AST) -> RestartT CheckOptM (Either
+  t t)
+deCheckOptASTM f (x, r) = deCheckOptASTM' f (x,r,())
+
 
 -- | The idea is this: in normal operation you use the Right return value.  When
 -- you want to restart the forAnyAST operation from a given point, you use the
@@ -192,8 +200,8 @@ instance MonadState CompState (CheckOptFlowM t) where
   get = CheckOptFlowM . lift $ get
   put = CheckOptFlowM . lift . put
 
-askRoute :: CheckOptASTM t (Route t A.AST)
-askRoute = CheckOptASTM $ ask >>* Right
+askRoute :: CheckOptASTM' acc t (Route t A.AST)
+askRoute = CheckOptASTM' $ ask >>* snd >>* Right
 
 getCheckOptData :: CheckOptM CheckOptData
 getCheckOptData = CheckOptM get
@@ -201,8 +209,8 @@ getCheckOptData = CheckOptM get
 modifyCheckOptData :: (CheckOptData -> CheckOptData) -> CheckOptM ()
 modifyCheckOptData = CheckOptM . modify
 
-liftCheckOptM :: CheckOptM a -> CheckOptASTM t a
-liftCheckOptM = CheckOptASTM . liftM Right . lift . lift
+liftCheckOptM :: CheckOptM a -> CheckOptASTM' acc t a
+liftCheckOptM = CheckOptASTM' . liftM Right . lift . lift
 
 -- Could also include the list of connected nodes in the reader monad:
 newtype CheckOptFlowM t a = CheckOptFlowM (ReaderT (Node, Map.Map Node t) CheckOptM a)
@@ -253,7 +261,7 @@ mkMR :: forall a. Data a => TransFunc a -> (forall b. Data b => TransFunc b)
 mkMR f = plain `extMR` f
   where
     plain :: (forall c. Data c => TransFunc c)
-    plain _ = dieP emptyMeta "Unexpected call of mkM_.plain"
+    plain _ = dieP emptyMeta "Unexpected call of mkMR.plain"
 
 -- Like extM, but with no return value, and this funny monad with routes:
 extMR :: forall b. Data b =>
@@ -263,6 +271,24 @@ extMR :: forall b. Data b =>
 extMR generalF specificF (x, r) = case cast x of
   Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
+
+-- Like mkM, but with no return value, and this funny monad with routes, but also
+-- we give an error if the plain function is ever triggered (given the typeset
+-- stuff, it shouldn't be)
+mkMRAcc :: forall a acc. Data a => TransFuncAcc acc a -> (forall b. Data b => TransFuncAcc acc b)
+mkMRAcc f = plain `extMRAcc` f
+  where
+    plain :: (forall c. Data c => TransFuncAcc acc c)
+    plain _ = dieP emptyMeta "Unexpected call of mkMR.plain"
+
+-- Like extM, but with no return value, and this funny monad with routes:
+extMRAcc :: forall b acc. Data b =>
+  (forall a. Data a => TransFuncAcc acc a) ->
+  (TransFuncAcc acc b) ->
+  (forall c. Data c => TransFuncAcc acc c)
+extMRAcc generalF specificF (x, r, acc) = case cast x of
+  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r, acc))
+  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r, acc))
 
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
@@ -302,12 +328,15 @@ forAnyASTStructTopDown origF = CheckOptM $ do
       ]
 
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
+type TransFuncAcc acc a = (a, Route a A.AST, acc) -> RestartT CheckOptM (Either a a)
 
 -- | Given a TypeSet, a function to apply to everything of type a, a route
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
 -- that are requested.
 doTree :: TypeSet -> (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b) ->
       A.AST -> StateT CheckOptData PassM ()
+           -- This line applies "apply" to the first thing of the right type in
+           -- the given AST; from there, apply recurses for itself
 doTree typeSet apply tr
       = do x <- deCheckOptM (getRestartT (gmapMForRoute typeSet apply tr >> return ()))
            case x of
@@ -339,9 +368,9 @@ applyTopDown typeSet f (x, route)
 -- | Substitutes the currently examined item for the given item, and continues
 -- the traversal from the current point.  That is, the new item is transformed
 -- again too.
-substitute :: forall a. Data a => a -> CheckOptASTM a ()
-substitute x = CheckOptASTM $ do
-  r <- ask
+substitute :: forall a acc. Data a => a -> CheckOptASTM' acc a ()
+substitute x = CheckOptASTM' $ do
+  r <- ask >>* snd
   lift . lift . CheckOptM $ modify (invalidateAll $ routeSet r x)
   return (Left x)
 
@@ -351,8 +380,8 @@ substitute x = CheckOptASTM $ do
 
 -- Restarts the current forAnyAST from the top of the tree, but keeps all changes
 -- made thus far.
-restartForAnyAST :: CheckOptASTM a a
-restartForAnyAST = CheckOptASTM . lift . RestartT $ return $ Left ()
+restartForAnyAST :: CheckOptASTM' acc a a
+restartForAnyAST = CheckOptASTM' . lift . RestartT $ return $ Left ()
 
 runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
@@ -374,11 +403,12 @@ generateParItems = todo
 -- of the current node's constructor, [2,1] is the second argument of the constructor
 -- of the third argument of this constructor.  Issuing substitute inside this function
 -- will yield an error.
-withChild :: forall t a. [Int] -> CheckOptASTM t a -> CheckOptASTM t a
-withChild ns (CheckOptASTM m) = askRoute >>= (CheckOptASTM . lift . inner)
+withChild :: forall acc t a. [Int] -> CheckOptASTM' acc t a -> CheckOptASTM' acc t a
+withChild ns (CheckOptASTM' m) = askRoute >>= (CheckOptASTM' . lift . inner)
   where
     inner :: Route t A.AST -> RestartT CheckOptM (Either t a)
-    inner (Route rId rFunc) = runReaderT m (Route (rId ++ ns) (error "withChild attempted a substitution"))
+    inner (Route rId rFunc) = runReaderT m (error "withChild asked for accum",
+      Route (rId ++ ns) (error "withChild attempted a substitution"))
 
 -- | Searches forward in the graph from the given node to find all the reachable
 -- nodes that have no successors, i.e. the terminal nodes
