@@ -28,8 +28,10 @@ module Traversal (
   , DescendM, Descend, makeDescend
   , applyDepthM, applyDepthSM, applyDepthM2
   , checkDepthM, checkDepthM2
+  , fastListify
   ) where
 
+import Control.Monad.State
 import Data.Generics
 
 import qualified AST as A
@@ -203,3 +205,10 @@ checkDepthM2 f1 f2 = makeRecurse ops
     ops = baseOp `extOp` makeCheck ops f1
                  `extOp` makeCheck ops f2
 
+-- | Lists all the items (in arbitrary order) that meet the given criteria.  Just
+-- like the Data.Generics listify function, only faster
+fastListify :: forall s t. (Data s, Data t) => (t -> Bool) -> s -> [t]
+fastListify f x = execState (applyDepthM f' x) []
+  where
+    f' :: t -> State [t] t
+    f' y = when (f y) (modify (y:)) >> return y
