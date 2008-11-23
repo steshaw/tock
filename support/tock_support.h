@@ -29,6 +29,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 
 //{{{ mostneg/mostpos
