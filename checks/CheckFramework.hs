@@ -275,20 +275,20 @@ extMR generalF specificF (x, r) = case cast x of
 -- Like mkM, but with no return value, and this funny monad with routes, but also
 -- we give an error if the plain function is ever triggered (given the typeset
 -- stuff, it shouldn't be)
-mkMRAcc :: forall a acc. Data a => TransFuncAcc acc a -> (forall b. Data b => TransFuncAcc acc b)
+mkMRAcc :: forall a acc z. Data a => TransFuncS acc z a -> (forall b. Data b => TransFuncS acc z b)
 mkMRAcc f = plain `extMRAcc` f
   where
-    plain :: (forall c. Data c => TransFuncAcc acc c)
-    plain _ = dieP emptyMeta "Unexpected call of mkMR.plain"
+    plain :: (forall c. Data c => TransFuncS acc z c)
+    plain _ = lift $ dieP emptyMeta "Unexpected call of mkMR.plain"
 
 -- Like extM, but with no return value, and this funny monad with routes:
-extMRAcc :: forall b acc. Data b =>
-  (forall a. Data a => TransFuncAcc acc a) ->
-  (TransFuncAcc acc b) ->
-  (forall c. Data c => TransFuncAcc acc c)
-extMRAcc generalF specificF (x, r, acc) = case cast x of
-  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r, acc))
-  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r, acc))
+extMRAcc :: forall b acc z. Data b =>
+  (forall a. Data a => TransFuncS acc z a) ->
+  (TransFuncS acc z b) ->
+  (forall c. Data c => TransFuncS acc z c)
+extMRAcc generalF specificF (x, r) = case cast x of
+  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
+  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
 
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
@@ -328,7 +328,8 @@ forAnyASTStructTopDown origF = CheckOptM $ do
       ]
 
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
-type TransFuncAcc acc a = (a, Route a A.AST, acc) -> RestartT CheckOptM (Either a a)
+type TransFuncAcc acc a = (a, Route a A.AST, acc) -> StateT acc (RestartT CheckOptM) (Either a a)
+type TransFuncS acc b a = (a, Route a b) -> StateT acc (RestartT CheckOptM) a
 
 -- | Given a TypeSet, a function to apply to everything of type a, a route
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
@@ -345,11 +346,38 @@ doTree typeSet apply tr
                doTree typeSet apply tr'
              Right _ -> return ()
 
+applyAccum :: forall acc t. (Monoid acc, Data t) => (t -> acc) -> [TypeKey] -> (forall a. Data a => TransFuncAcc acc a) ->
+             (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
+applyAccum accF typeKeysGiven = applyAccum' 
+  where
+    typeSet = makeTypeSet $ typeKey (undefined :: t) : typeKeysGiven
+
+    extF ::
+       (forall a. Data a => TransFuncS acc z a) ->
+       (forall c. Data c => TransFuncS acc z c)
+    extF = (`extMRAcc` (\(x,_) -> modify (`mappend` accF x) >> return x))
+    
+    applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
+           (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
+    applyAccum' f (x, route)
+      = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
+           (x', acc) <- lift $ flip runStateT mempty (gmapMForRoute typeSet (extF wrap) x)
+           f' (x', route, acc)
+      where
+        wrap (y, route') = applyAccum' f (y, route @-> route')
+        
+        -- Keep applying the function while there is a Left return (which indicates
+        -- the value was replaced) until there is a Right return
+        f' (x, route, acc) = do
+          x' <- f (x, route, acc)
+          case x' of
+            Left y -> f' (y, route, acc {- TODO recalculate from scratch -})
+            Right y -> return y
 
 applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
              (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 applyTopDown typeSet f (x, route)
-      = do lift . CheckOptM $ modify $ \d -> if findMeta x == emptyMeta then d else d {lastValidMeta = findMeta x}
+      = do when (findMeta x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
            z <- f' (x, route)
            gmapMForRoute typeSet (\(y, route') -> applyTopDown typeSet f (y, route @-> route')) z
   where
