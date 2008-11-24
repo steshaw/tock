@@ -274,9 +274,9 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 
 -- This isn't actually just unused variables, it's all unused names
 checkUnusedVar :: CheckOptM ()
-checkUnusedVar = forAnyASTStructTopDown doSpec
+checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
   where
-    doSpec :: Data a => A.Structured a -> CheckOptASTM (A.Structured a) ()
+    doSpec :: Data a => A.Structured a -> CheckOptASTM' [A.Name] (A.Structured a) ()
      -- Don't touch PROCs, for now:
     doSpec (A.Spec _ (A.Specification mspec name (A.Proc {})) scope) = return ()      
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
@@ -284,9 +284,10 @@ checkUnusedVar = forAnyASTStructTopDown doSpec
            -- checks that are not explicit in the AST.  We'll have to move the
            -- bounds checking forward into the AST before we can remove them:
            when (not $ "_sizes" `isSuffixOf` A.nameName name) $
-             let usedNames :: [A.Name] = fastListify (const True) scope in
+            do usedNames <- askAccum >>* delete name
+               -- ^ strip off one use of each name, since it's used in the spec
                when (not $ A.nameName name `elem` map A.nameName usedNames) $
-               do -- TODO have a way of not warning about compiler-generated names:
+                do -- TODO have a way of not warning about compiler-generated names:
                   warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
                   modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
                   substitute scope
