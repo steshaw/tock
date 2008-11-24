@@ -342,7 +342,7 @@ forAnyASTStructBottomUpAccum :: forall b. Data b =>
 forAnyASTStructBottomUpAccum origF = CheckOptM $ do
    tr <- get >>* ast
    doTree (makeTypeSet $ typeKey (undefined::b) : typeKeys)
-          (flip evalStateT [] . applyAccum singleton typeKeys allF)
+          (flip evalStateT [] . applyAccum ([],(:),(++)) typeKeys allF)
           tr
   where
     allF :: (forall c. Data c => TransFuncAcc [b] c)
@@ -393,24 +393,25 @@ doTree typeSet apply tr
                doTree typeSet apply tr'
              Right _ -> return ()
 
-applyAccum :: forall acc t. (Monoid acc, Data t) => (t -> acc) -> [TypeKey] -> (forall a. Data a => TransFuncAcc acc a) ->
+applyAccum :: forall acc t. (Data t) => (acc, t -> acc -> acc, acc -> acc -> acc) ->
+  [TypeKey] -> (forall a. Data a => TransFuncAcc acc a) ->
              (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
-applyAccum accF typeKeysGiven = applyAccum' 
+applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum' 
   where
     typeSet = makeTypeSet $ typeKey (undefined :: t) : typeKeysGiven
 
     extF ::
        (forall a. Data a => TransFuncS acc z a) ->
        (forall c. Data c => TransFuncS acc z c)
-    extF = (`extMRAccS` (\(x,_) -> modify (`mappend` accF x) >> return x))
+    extF = (`extMRAccS` (\(x,_) -> modify (accOneF x) >> return x))
     
     applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
            (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
     applyAccum' f (x, route)
       = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
-           (x', acc) <- lift $ flip runStateT mempty (gmapMForRoute typeSet (extF wrap) x)
+           (x', acc) <- lift $ flip runStateT accEmpty (gmapMForRoute typeSet (extF wrap) x)
            r <- f' (x', route, acc)
-           modify (`mappend` acc)
+           modify (`accJoinF` acc)
            return r
       where
         wrap (y, route') = applyAccum' f (y, route @-> route')
