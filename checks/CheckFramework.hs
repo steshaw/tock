@@ -17,6 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module CheckFramework (CheckOptM, CheckOptASTM, forAnyASTTopDown, forAnyASTStructTopDown, substitute, restartForAnyAST,
+  CheckOptASTM', forAnyASTStructBottomUpAccum, askAccum,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis',
   forAnyFlowNode, getFlowLabel, getFlowMeta, CheckOptFlowM) where
@@ -203,6 +204,9 @@ instance MonadState CompState (CheckOptFlowM t) where
 askRoute :: CheckOptASTM' acc t (Route t A.AST)
 askRoute = CheckOptASTM' $ ask >>* snd >>* Right
 
+askAccum :: CheckOptASTM' acc t acc
+askAccum = CheckOptASTM' $ ask >>* fst >>* Right
+
 getCheckOptData :: CheckOptM CheckOptData
 getCheckOptData = CheckOptM get
 
@@ -272,23 +276,29 @@ extMR generalF specificF (x, r) = case cast x of
   Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
 
--- Like mkM, but with no return value, and this funny monad with routes, but also
--- we give an error if the plain function is ever triggered (given the typeset
--- stuff, it shouldn't be)
-mkMRAcc :: forall a acc z. Data a => TransFuncS acc z a -> (forall b. Data b => TransFuncS acc z b)
-mkMRAcc f = plain `extMRAcc` f
-  where
-    plain :: (forall c. Data c => TransFuncS acc z c)
-    plain _ = lift $ dieP emptyMeta "Unexpected call of mkMR.plain"
-
 -- Like extM, but with no return value, and this funny monad with routes:
-extMRAcc :: forall b acc z. Data b =>
+extMRAccS :: forall b acc z. Data b =>
   (forall a. Data a => TransFuncS acc z a) ->
   (TransFuncS acc z b) ->
   (forall c. Data c => TransFuncS acc z c)
-extMRAcc generalF specificF (x, r) = case cast x of
+extMRAccS generalF specificF (x, r) = case cast x of
   Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
   Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
+
+mkMRAcc :: forall a acc. Data a => TransFuncAcc acc a -> (forall b. Data b => TransFuncAcc acc b)
+mkMRAcc f = plain `extMRAcc` f
+  where
+    plain :: (forall c. Data c => TransFuncAcc acc c)
+    plain (x,_,_) = return $ Right x -- lift $ dieP emptyMeta "Unexpected call of mkMRAcc.plain"
+
+extMRAcc :: forall b acc. Data b =>
+  (forall a. Data a => TransFuncAcc acc a) ->
+  (TransFuncAcc acc b) ->
+  (forall c. Data c => TransFuncAcc acc c)
+extMRAcc generalF specificF (x, r, acc) = case cast x of
+  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r,acc))
+  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r,acc))
+
 
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
@@ -327,6 +337,43 @@ forAnyASTStructTopDown origF = CheckOptM $ do
       ,typeKey (undefined :: A.Structured ())
       ]
 
+forAnyASTStructBottomUpAccum :: forall b. Data b =>
+  (forall a. Data a => (A.Structured a) -> CheckOptASTM' [b] (A.Structured a) ()) -> CheckOptM ()
+forAnyASTStructBottomUpAccum origF = CheckOptM $ do
+   tr <- get >>* ast
+   doTree (makeTypeSet $ typeKey (undefined::b) : typeKeys)
+          (flip evalStateT [] . applyAccum singleton typeKeys allF)
+          tr
+  where
+    allF :: (forall c. Data c => TransFuncAcc [b] c)
+    allF
+      = mkMRAcc    (lift . deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
+                      CheckOptASTM' [b] (A.Structured A.Variant) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Process) ->
+                      CheckOptASTM' [b] (A.Structured A.Process) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Option) ->
+                      CheckOptASTM' [b] (A.Structured A.Option) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.ExpressionList) ->
+                      CheckOptASTM' [b] (A.Structured A.ExpressionList) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Choice) ->
+                      CheckOptASTM' [b] (A.Structured A.Choice) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Alternative) ->
+                      CheckOptASTM' [b] (A.Structured A.Alternative) ()))
+        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured ()) ->
+                      CheckOptASTM' [b] (A.Structured ()) ()))
+    
+    typeKeys :: [TypeKey]
+    typeKeys =
+      [typeKey (undefined :: A.Structured A.Variant)
+      ,typeKey (undefined :: A.Structured A.Process)
+      ,typeKey (undefined :: A.Structured A.Option)
+      ,typeKey (undefined :: A.Structured A.ExpressionList)
+      ,typeKey (undefined :: A.Structured A.Choice)
+      ,typeKey (undefined :: A.Structured A.Alternative)
+      ,typeKey (undefined :: A.Structured ())
+      ]
+
+
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 type TransFuncAcc acc a = (a, Route a A.AST, acc) -> StateT acc (RestartT CheckOptM) (Either a a)
 type TransFuncS acc b a = (a, Route a b) -> StateT acc (RestartT CheckOptM) a
@@ -355,14 +402,16 @@ applyAccum accF typeKeysGiven = applyAccum'
     extF ::
        (forall a. Data a => TransFuncS acc z a) ->
        (forall c. Data c => TransFuncS acc z c)
-    extF = (`extMRAcc` (\(x,_) -> modify (`mappend` accF x) >> return x))
+    extF = (`extMRAccS` (\(x,_) -> modify (`mappend` accF x) >> return x))
     
     applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
            (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
     applyAccum' f (x, route)
       = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
            (x', acc) <- lift $ flip runStateT mempty (gmapMForRoute typeSet (extF wrap) x)
-           f' (x', route, acc)
+           r <- f' (x', route, acc)
+           modify (`mappend` acc)
+           return r
       where
         wrap (y, route') = applyAccum' f (y, route @-> route')
         
