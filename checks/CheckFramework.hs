@@ -187,13 +187,13 @@ instance Die m => Die (RestartT m) where
 instance Die m => Die (ReaderT (Route t outer) m) where
   dieReport = lift . dieReport
 
-instance Die (CheckOptASTM t) where
+instance Die (CheckOptASTM' acc t) where
   dieReport = liftCheckOptM . dieReport
 
-instance Warn (CheckOptASTM t) where
+instance Warn (CheckOptASTM' acc t) where
   warnReport = liftCheckOptM . warnReport
 
-instance CSMR (CheckOptASTM t) where
+instance CSMR (CheckOptASTM' acc t) where
   getCompState = liftCheckOptM getCompState
 
 instance MonadState CompState (CheckOptFlowM t) where
