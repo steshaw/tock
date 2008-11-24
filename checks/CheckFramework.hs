@@ -421,7 +421,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
         f' (x, route, acc) = do
           x' <- f (x, route, acc)
           case x' of
-            Left y -> f' (y, route, acc {- TODO recalculate from scratch -})
+            Left y -> f' (y, route, foldl (flip accOneF) accEmpty (fastListify (const True) y))
             Right y -> return y
 
 applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
