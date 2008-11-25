@@ -110,6 +110,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                                  , A.ndOrigName = A.nameName n
                                  , A.ndSpecType = spec
                                  , A.ndAbbrevMode = A.ValAbbrev
+                                 , A.ndNameSource = A.NameNonce
                                  , A.ndPlacement = A.Unplaced
                                  }
 
@@ -279,6 +280,7 @@ addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
                         ,A.ndOrigName = A.nameName n
                         ,A.ndSpecType = A.Declaration m t
                         ,A.ndAbbrevMode = A.ValAbbrev
+                        ,A.ndNameSource = A.NameNonce
                         ,A.ndPlacement = A.Unplaced}
     
     transformFormals :: Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])

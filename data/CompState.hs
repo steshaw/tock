@@ -113,7 +113,6 @@ data CompState = CompState {
     csMainLocals :: [(String, (A.Name, NameType))],
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
-    csGhostNames :: Set A.Name,
     csNameCounter :: Int,
 
     -- Set by passes
@@ -155,7 +154,6 @@ emptyState = CompState {
     csMainLocals = [],
     csNames = Map.empty,
     csUnscopedNames = Map.empty,
-    csGhostNames = Set.empty,
     csNameCounter = 0,
 
     csTypeContext = [],
@@ -214,12 +212,6 @@ defineName :: CSM m => A.Name -> A.NameDef -> m ()
 defineName n nd
     = modify $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
 
--- | Add the definition of a ghost name.
-defineGhostName :: CSM m => A.Name -> A.NameDef -> m ()
-defineGhostName n nd
-    =  do defineName n nd
-          modify (\cs -> cs { csGhostNames = Set.insert n (csGhostNames cs) })
-
 -- | Modify the definition of a name.
 modifyName :: CSM m => A.Name -> (A.NameDef -> A.NameDef) -> m ()
 modifyName n f
@@ -237,6 +229,9 @@ lookupNameOrError n err
           case Map.lookup (A.nameName n) (csNames ps) of
             Just nd -> return nd
             Nothing -> err
+
+nameSource :: (CSMR m, Die m) => A.Name -> m A.NameSource
+nameSource n = lookupName n >>* A.ndNameSource
 
 -- | Make a name unique by appending a suffix to it.
 makeUniqueName :: CSM m => String -> m String
@@ -260,16 +255,11 @@ findUnscopedName n@(A.Name m s)
                                     , A.ndOrigName = s
                                     , A.ndSpecType = A.Unscoped m
                                     , A.ndAbbrevMode = A.Original
+                                    , A.ndNameSource = A.NameUser
                                     , A.ndPlacement = A.Unplaced
                                     }
                  defineName n nd
                  return n
-
--- | Determine whether a name is a ghost name.
-isGhostName :: CSMR m => A.Name -> m Bool
-isGhostName n
-    =  do ghostNames <- getCompState >>* csGhostNames
-          return $ n `Set.member` ghostNames
 
 --}}}
 
@@ -350,6 +340,7 @@ defineNonce m s st am
                      A.ndOrigName = ns,
                      A.ndSpecType = st,
                      A.ndAbbrevMode = am,
+                     A.ndNameSource = A.NameNonce,
                      A.ndPlacement = A.Unplaced
                    }
           defineName n nd

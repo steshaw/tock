@@ -756,7 +756,10 @@ testRetypeSizes = TestList
    over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
-defRecord rec mem t = defineName (simpleName rec) $ A.NameDef emptyMeta rec rec (A.RecordType emptyMeta False [(simpleName mem,t)]) A.Original A.Unplaced
+defRecord rec mem t = defineName (simpleName rec) $
+  A.NameDef emptyMeta rec rec
+    (A.RecordType emptyMeta False [(simpleName mem,t)])
+    A.Original A.NameUser A.Unplaced
 
 testGenVariable :: Test
 testGenVariable = TestList
@@ -827,7 +830,9 @@ testGenVariable = TestList
      ,testBothS ("testGenVariable/unchecked" ++ show n) eUC eUCPP (over (tcall genVariableUnchecked $ sub $ A.Variable emptyMeta foo)) state
     ]
      where
-       state = do defineName (simpleName "foo") $ A.NameDef emptyMeta "foo" "foo" (A.Declaration emptyMeta t) am A.Unplaced
+       state = do defineName (simpleName "foo") $
+                    A.NameDef emptyMeta "foo" "foo"
+                      (A.Declaration emptyMeta t) am A.NameUser A.Unplaced
                   defRecord "bar" "x" $ A.Array [dimension 7] A.Int
                   defRecord "barbar" "y" $ A.Record bar
        over :: Override

@@ -70,6 +70,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
                         A.ndOrigName = A.nameName n,
                         A.ndSpecType = st,
                         A.ndAbbrevMode = A.Original,
+                        A.ndNameSource = A.NameUser,
                         A.ndPlacement = A.Unplaced
                       }
              defineName n nd

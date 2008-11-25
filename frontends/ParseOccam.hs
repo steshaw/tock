@@ -368,6 +368,7 @@ scopeIn n@(A.Name m s) nt specType am
             A.ndOrigName = s,
             A.ndSpecType = specType,
             A.ndAbbrevMode = am,
+            A.ndNameSource = A.NameUser,
             A.ndPlacement = A.Unplaced
           }
           defineName n' nd

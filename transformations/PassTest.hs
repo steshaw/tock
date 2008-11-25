@@ -84,10 +84,12 @@ testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                              --check return parameters were defined:
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)                        
                              assertVarDef "testFunctionsToProcs0" state (A.nameName ret0) $
-                               tag6 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs0" state "foo" $
-                               tag6 A.NameDef DontCare ("foo") ("foo") procSpec A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("foo") ("foo")
+                                 procSpec A.Original A.NameUser A.Unplaced
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs0" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
 
@@ -110,12 +112,15 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
                              ret1 <- ((assertGetItemCast "ret1" items) :: IO A.Name)
                              assertVarDef "testFunctionsToProcs1 B" state (A.nameName ret0) $
-                               tag6 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              assertVarDef "testFunctionsToProcs1 C" state (A.nameName ret1) $
-                               tag6 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1) (A.Declaration m A.Real32) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1)
+                                 (A.Declaration m A.Real32) A.Abbrev A.NameNonce A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs1 D" state "foo" $
-                               tag6 A.NameDef DontCare ("foo") ("foo") procBody A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("foo") ("foo")
+                                 procBody A.Original A.NameUser A.Unplaced
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs1 E" (Just [A.Int,A.Real32]) (Map.lookup "foo" (csFunctionReturns state)) 
 
@@ -140,14 +145,18 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     check (items,state) = do retOuter0 <- ((assertGetItemCast "retOuter0" items) :: IO A.Name)
                              ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
                              assertVarDef "testFunctionsToProcs2 B" state (A.nameName ret0) $
-                               tag6 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              assertVarDef "testFunctionsToProcs2 C" state (A.nameName retOuter0) $
-                               tag6 A.NameDef DontCare (A.nameName retOuter0) (A.nameName retOuter0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName retOuter0) (A.nameName retOuter0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs2 D" state "foo" $
-                               tag6 A.NameDef DontCare ("foo") ("foo") (singleParamSpecExp DontCare) A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("foo") ("foo") (singleParamSpecExp DontCare)
+                                 A.Original A.NameUser A.Unplaced
                              assertVarDef "testFunctionsToProcs2 E" state "fooOuter" $
-                               tag6 A.NameDef DontCare ("fooOuter") ("fooOuter") (procHeader DontCare) A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("fooOuter") ("fooOuter") (procHeader DontCare)
+                                 A.Original A.NameUser A.Unplaced
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs2 F" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
                              assertEqual "testFunctionsToProcs2 G" (Just [A.Int]) (Map.lookup "fooOuter" (csFunctionReturns state)) 
@@ -162,10 +171,12 @@ testFunctionsToProcs3 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                              --check return parameters were defined:
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)                        
                              assertVarDef "testFunctionsToProcs3" state (A.nameName ret0) $
-                               tag6 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs3" state "foo" $
-                               tag6 A.NameDef DontCare ("foo") ("foo") procSpec A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("foo") ("foo")
+                                 procSpec A.Original A.NameUser A.Unplaced
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs3" (Just [A.Int]) (Map.lookup "foo" (csFunctionReturns state)) 
 
@@ -189,12 +200,15 @@ testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
     check (items,state) = do ret0 <- ((assertGetItemCast "ret0" items) :: IO A.Name)
                              ret1 <- ((assertGetItemCast "ret1" items) :: IO A.Name)
                              assertVarDef "testFunctionsToProcs4 B" state (A.nameName ret0) $
-                               tag6 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0) (A.Declaration m A.Int) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret0) (A.nameName ret0)
+                                 (A.Declaration m A.Int) A.Abbrev A.NameNonce A.Unplaced
                              assertVarDef "testFunctionsToProcs4 C" state (A.nameName ret1) $
-                               tag6 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1) (A.Declaration m A.Real32) A.Abbrev A.Unplaced
+                               tag7 A.NameDef DontCare (A.nameName ret1) (A.nameName ret1)
+                                 (A.Declaration m A.Real32) A.Abbrev A.NameNonce A.Unplaced
                              --check proc was defined:
                              assertVarDef "testFunctionsToProcs4 D" state "foo" $
-                               tag6 A.NameDef DontCare ("foo") ("foo") procBody A.Original A.Unplaced
+                               tag7 A.NameDef DontCare ("foo") ("foo")
+                                 procBody A.Original A.NameUser A.Unplaced
                              --check csFunctionReturns was changed:
                              assertEqual "testFunctionsToProcs4 E" (Just [A.Int,A.Real32]) (Map.lookup "foo" (csFunctionReturns state)) 
 
@@ -354,7 +368,7 @@ testInputCase = TestList
        )
        `becomes`
        oSEQ
-          [decl (return A.Int) oA
+          [declNonce (return A.Int) oA
             [oC *? oA
             ,oCASE oA
               [caseOption ([0 :: Int], p0)]
@@ -399,7 +413,7 @@ testInputCase = TestList
        )
        `becomes`
        oSEQ
-          [decl (return A.Int) oA
+          [declNonce (return A.Int) oA
             [oC *? oA
             ,oCASE oA
               [caseOption ([0 :: Int], p0)
@@ -459,7 +473,7 @@ testInputCase = TestList
        )
        `becomes`
        oSEQ
-          [decl (return A.Int) oA
+          [declNonce (return A.Int) oA
             [oC *? oA
             ,oCASE oA
               [caseOption ([0 :: Int], p0)
@@ -500,7 +514,7 @@ testInputCase = TestList
        )
        `becomes`
        oALT
-          [decl (return A.Int) oA
+          [declNonce (return A.Int) oA
             [guard (oC *? oA,
               oCASE oA
                 [caseOption ([0 :: Int], p0)])
@@ -515,9 +529,11 @@ testInputCase = TestList
 
     defineProtocolAndC :: Occ (A.Structured A.Process) -> Occ (A.Structured A.Process)
     defineProtocolAndC =
-      decl' (simpleName "prot") (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
-      . (:[]) . decl (return $ A.Chan A.DirUnknown (A.ChanAttributes False False) (A.UserProtocol $ simpleName "prot"))
-          oC . (:[])
+      decl' (simpleName "prot")
+        (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
+          A.Original A.NameUser
+          . singleton . decl (return $ A.Chan A.DirUnknown (A.ChanAttributes False False)
+                               (A.UserProtocol $ simpleName "prot")) oC . singleton
     
 testTransformProtocolInput :: Test
 testTransformProtocolInput = TestList
@@ -571,15 +587,15 @@ testPullRepCounts = TestList
       (blockType
         [decl' (simpleName "X")
           (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
-            []
+            A.Original A.NameUser []
         ]
       `becomes`
        blockType
-        [decl'' (simpleName "A")
-          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev
+        [decl' (simpleName "A")
+          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
           [decl' (simpleName "X")
             (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
-              []
+              A.Original A.NameUser []
           ]
         ]
       ) pullRepCounts 
@@ -589,21 +605,24 @@ testPullRepCounts = TestList
        (blockType
          [decl' (simpleName "X")
           (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
+          A.Original A.NameUser
             [decl' (simpleName "Y")
               (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (intLiteral 8)))
-                []
+                A.Original A.NameUser []
             ]
          ]
        `becomes`
        blockType
-         [decl'' (simpleName "A")
-          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev
+         [decl' (simpleName "A")
+          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
            [decl' (simpleName "X")
             (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
-              [decl'' (simpleName "B")
-                (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8) A.ValAbbrev
+              A.Original A.NameUser
+              [decl' (simpleName "B")
+                (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8) A.ValAbbrev A.NameNonce
                   [decl' (simpleName "Y")
                     (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (exprVariable "B")))
+                      A.Original A.NameUser
                       []
                   ]
               ]

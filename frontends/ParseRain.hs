@@ -526,6 +526,7 @@ rainTimerNameDef
                 , A.ndOrigName = A.nameName rainTimerName
                 , A.ndSpecType = A.Declaration emptyMeta (A.Timer A.RainTimer)
                 , A.ndAbbrevMode = A.Original
+                , A.ndNameSource = A.NamePredefined
                 , A.ndPlacement = A.Unplaced
                 }
 
@@ -536,7 +537,7 @@ parseRainProgram filename source
           case lexOut of
             Left merr -> dieP merr $ "Parse (lexing) error"
             Right toks ->
-              do defineGhostName rainTimerName rainTimerNameDef
+              do defineName rainTimerName rainTimerNameDef
                  cs <- get
                  case runParser rainSourceFile cs filename toks of
                    Left err -> dieP (sourcePosToMeta $ errorPos err) $ "Parse error: " ++ show err

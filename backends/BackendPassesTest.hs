@@ -326,6 +326,7 @@ defineTestName n sp am
          ,A.ndOrigName = n
          ,A.ndSpecType = sp
          ,A.ndAbbrevMode = am
+         ,A.ndNameSource = A.NameUser
          ,A.ndPlacement = A.Unplaced
          }
 

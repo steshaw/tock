@@ -22,7 +22,7 @@ module OccamEDSL (ExpInp, ExpInpT,
   oCASE, oCASEinput, caseOption, inputCaseOption, 
   oALT, guard,
   oIF, ifChoice,
-  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), (*+), decl, decl', decl'',
+  Occ, oA, oB, oC, oX, oY, oZ, p0, p1, p2, (*?), (*!), (*:=), (*+), decl, declNonce, decl',
     sub,
     oempty, testOccamPass,
     oprocess,
@@ -307,18 +307,20 @@ decl bty bvar scope = do
   return $ A.Spec emptyMeta (A.Specification emptyMeta name $ A.Declaration emptyMeta ty)
     (singlify $ A.Several emptyMeta s)
 
-decl' :: Data a => A.Name -> A.SpecType ->
+declNonce :: Data a => ExpInp A.Type -> ExpInp A.Variable ->
   [O (A.Structured a)] -> O (A.Structured a)
-decl' n sp scope = do
-  defineThing (A.nameName n) sp A.Original
+declNonce bty bvar scope = do
+  ty <- liftExpInp bty
+  (A.Variable _ name) <- liftExpInp bvar
+  defineThing (A.nameName name) (A.Declaration emptyMeta ty) A.Original A.NameNonce
   s <- sequence scope
-  return $ A.Spec emptyMeta (A.Specification emptyMeta n sp)
+  return $ A.Spec emptyMeta (A.Specification emptyMeta name $ A.Declaration emptyMeta ty)
     (singlify $ A.Several emptyMeta s)
 
-decl'' :: Data a => A.Name -> A.SpecType -> A.AbbrevMode ->
+decl' :: Data a => A.Name -> A.SpecType -> A.AbbrevMode -> A.NameSource ->
   [O (A.Structured a)] -> O (A.Structured a)
-decl'' n sp am scope = do
-  defineThing (A.nameName n) sp am
+decl' n sp am ns scope = do
+  defineThing (A.nameName n) sp am ns
   s <- sequence scope
   return $ A.Spec emptyMeta (A.Specification emptyMeta n sp)
     (singlify $ A.Several emptyMeta s)

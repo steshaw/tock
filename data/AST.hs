@@ -61,9 +61,17 @@ data NameDef = NameDef {
     ndSpecType :: SpecType,
     -- | The abbreviation mode of the name's definition (see 'AbbrevMode').
     ndAbbrevMode :: AbbrevMode,
+    -- | The source of the name (see 'NameSource').
+    ndNameSource :: NameSource,
     -- | The placement mode of the name's definition (see 'Placement').
     ndPlacement :: Placement
   }
+  deriving (Show, Eq, Typeable, Data)
+
+data NameSource
+  = NameUser       -- ^ A name from the source program
+  | NameNonce      -- ^ A name the compiler generated
+  | NamePredefined -- ^ A magic name without definition (e.g. the Rain timer)
   deriving (Show, Eq, Typeable, Data)
 
 -- | The direction of a channel.

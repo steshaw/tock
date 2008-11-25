@@ -91,7 +91,7 @@ uniquifyAndResolveVars = rainOnlyPass
       = do (params',procBody') <- doFormals params procBody
            let newProc = (A.Proc m'' procMode params' procBody')
            defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
-                                   A.ndSpecType = newProc, 
+                                   A.ndSpecType = newProc, A.ndNameSource = A.NameUser,
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newProc) scope
     -- Functions:
@@ -100,7 +100,7 @@ uniquifyAndResolveVars = rainOnlyPass
       = do (params', funcBody') <- doFormals params funcBody
            let newFunc = (A.Function m'' funcMode retTypes params' funcBody')
            defineName n A.NameDef {A.ndMeta = m', A.ndName = A.nameName n, A.ndOrigName = A.nameName n,
-                                   A.ndSpecType = newFunc,
+                                   A.ndSpecType = newFunc, A.ndNameSource = A.NameUser,
                                    A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            return $ A.Spec m (A.Specification m' n newFunc) scope
 
@@ -108,7 +108,7 @@ uniquifyAndResolveVars = rainOnlyPass
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl) scope) 
       = do n' <- makeNonce $ A.nameName n
            defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
-                                                       A.ndSpecType = decl, 
+                                                       A.ndSpecType = decl, A.ndNameSource = A.NameUser,
                                                        A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return $ A.Spec m (A.Specification m' n {A.nameName = n'} decl) scope'
@@ -131,6 +131,7 @@ uniquifyAndResolveVars = rainOnlyPass
            let m = A.nameMeta n
            defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
                                          A.ndSpecType = (A.Declaration m t),
+                                         A.ndNameSource = A.NameUser,
                                          A.ndAbbrevMode = am, A.ndPlacement = A.Unplaced}
            let scope' = everywhere (mkT $ replaceNameName (A.nameName n) n') scope
            return (A.Formal am t newName, scope')

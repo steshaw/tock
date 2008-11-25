@@ -294,6 +294,7 @@ buildExpr (Func f es) = A.FunctionCall emptyMeta (simpleName f) (map buildExpr e
 -- | A simple definition of a variable
 simpleDef :: String -> A.SpecType -> A.NameDef
 simpleDef n sp = A.NameDef {A.ndMeta = emptyMeta, A.ndName = n, A.ndOrigName = n,
+                            A.ndNameSource = A.NameUser,
                             A.ndSpecType = sp, A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
 
 -- | A simple definition of a declared variable
@@ -308,14 +309,15 @@ simpleDefPattern n am sp = tag6 A.NameDef DontCare n n sp am A.Unplaced
 --{{{  defining things
 
 -- | Define something in the initial state.
-defineThing :: CSM m => String -> A.SpecType -> A.AbbrevMode -> m ()
-defineThing s st am = defineName (simpleName s) $
+defineThing :: CSM m => String -> A.SpecType -> A.AbbrevMode -> A.NameSource -> m ()
+defineThing s st am ns = defineName (simpleName s) $
     A.NameDef {
       A.ndMeta = emptyMeta,
       A.ndName = s,
       A.ndOrigName = s,
       A.ndSpecType = st,
       A.ndAbbrevMode = am,
+      A.ndNameSource = ns,
       A.ndPlacement = A.Unplaced
     }
 
@@ -323,17 +325,17 @@ defineThing s st am = defineName (simpleName s) $
 defineConst :: String -> A.Type -> A.Expression -> State CompState ()
 defineConst s t e
     = defineThing s (A.IsExpr emptyMeta A.ValAbbrev t e)
-                  A.ValAbbrev
+                  A.ValAbbrev A.NameUser
 
 -- | Define an @IS@ abbreviation.
 defineIs :: String -> A.Type -> A.Variable -> State CompState ()
 defineIs s t v
-    = defineThing s (A.Is emptyMeta A.Abbrev t v) A.Abbrev
+    = defineThing s (A.Is emptyMeta A.Abbrev t v) A.Abbrev A.NameUser
 
 -- | Define something original.
 defineOriginal :: CSM m => String -> A.Type -> m ()
 defineOriginal s t
-    = defineThing s (A.Declaration emptyMeta t) A.Original
+    = defineThing s (A.Declaration emptyMeta t) A.Original A.NameUser
 
 -- | Define a variable.
 defineVariable :: CSM m => String -> A.Type -> m ()
@@ -350,13 +352,13 @@ defineTimer = defineOriginal
 -- | Define a user data type.
 defineUserDataType :: String -> A.Type -> State CompState ()
 defineUserDataType s t
-    = defineThing s (A.DataType emptyMeta t) A.Original
+    = defineThing s (A.DataType emptyMeta t) A.Original A.NameUser
 
 -- | Define a record type.
 -- (The fields are unscoped names, and thus don't need defining.)
 defineRecordType :: String -> [(String, A.Type)] -> State CompState ()
 defineRecordType s fs
-    = defineThing s st A.Original
+    = defineThing s st A.Original A.NameUser
   where
     st = A.RecordType emptyMeta False [(simpleName s, t) | (s, t) <- fs]
 
@@ -364,7 +366,7 @@ defineRecordType s fs
 defineFunction :: String -> [A.Type] -> [(String, A.Type)]
                   -> State CompState ()
 defineFunction s rs as
-    = defineThing s st A.Original
+    = defineThing s st A.Original A.NameUser
   where
     st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
@@ -372,7 +374,7 @@ defineFunction s rs as
 -- | Define a proc.
 defineProc :: CSM m => String -> [(String, A.AbbrevMode, A.Type)] -> m ()
 defineProc s as
-    = defineThing s st A.Original
+    = defineThing s st A.Original A.NameUser
   where
     st = A.Proc emptyMeta A.PlainSpec fs $ A.Skip emptyMeta
     fs = [A.Formal am t (simpleName s) | (s, am, t) <- as]
@@ -380,12 +382,12 @@ defineProc s as
 -- | Define a protocol.
 defineProtocol :: String -> [A.Type] -> State CompState ()
 defineProtocol s ts
-    = defineThing s (A.Protocol emptyMeta ts) A.Original
+    = defineThing s (A.Protocol emptyMeta ts) A.Original A.NameUser
 
 -- | Define a variant protocol.
 defineProtocolCase :: String -> [(A.Name, [A.Type])] -> State CompState ()
 defineProtocolCase s ntss
-    = defineThing s (A.ProtocolCase emptyMeta ntss) A.Original
+    = defineThing s (A.ProtocolCase emptyMeta ntss) A.Original A.NameUser
 
 --}}}
 --{{{  custom assertions
