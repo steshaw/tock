@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import qualified AST as A
 import BackendPasses
 import Check
+import CheckFramework
 import CompState
 import Errors
 import GenerateC
@@ -62,6 +63,8 @@ commonPasses opts = concat $
   , simplifyProcs
   , unnest
   , squashArrays
+  , [pass "Removing unused variables" [] []
+      (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
   ]
 
 filterPasses :: CompState -> [Pass] -> [Pass]
