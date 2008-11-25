@@ -282,13 +282,14 @@ checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
       = do -- We can't remove _sizes arrays because the backend uses them for bounds
            -- checks that are not explicit in the AST.  We'll have to move the
-           -- bounds checking forward into the AST before we can remove them:
-           when (not $ "_sizes" `isSuffixOf` A.nameName name) $
+           -- bounds checking forward into the AST before we can remove them.
+           -- Making this more general, we don't actually remove any unused nonces.
+           nd <- lookupName name
+           when (A.ndNameSource nd == A.NameUser) $
             do usedNames <- askAccum >>* delete name
                -- ^ strip off one use of each name, since it's used in the spec
                when (not $ A.nameName name `elem` map A.nameName usedNames) $
-                do -- TODO have a way of not warning about compiler-generated names:
-                  warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
-                  modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
-                  substitute scope
+                do warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
+                   modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
+                   substitute scope
     doSpec _ = return ()
