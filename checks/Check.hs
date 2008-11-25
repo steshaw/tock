@@ -269,10 +269,7 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
            checkPlainVarUsage (m, mockedupParItems)
            checkArrayUsage (m, fmap ((,) []) mockedupParItems)
 
--- TODO we could do this much faster if we processed the AST bottom-up, and also
--- accumulated the output of the listify on the variables as we went.
-
--- This isn't actually just unused variables, it's all unused names
+-- This isn't actually just unused variables, it's all unused names (except PROCs)
 checkUnusedVar :: CheckOptM ()
 checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
   where
