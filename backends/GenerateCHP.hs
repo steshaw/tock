@@ -17,6 +17,26 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Generate CHP code from the AST
+--
+-- These are the things that need to be done before the AST reaches this backend:
+--
+-- Need to convert anything that isn't a communication/PAR/ALT into a Continuation
+-- Passing Style (CPS).  WHILEs become IFs in recursive PROCs.  SEQ replicators become
+-- recursive PROCs.
+--
+-- Eventually, the code passed here should have only the following in SEQ blocks:
+-- 
+-- * Communications
+--
+-- * ALTs
+--
+-- * PARs
+--
+-- * assignments (from variables or function calls)
+--
+-- * process calls
+--
+-- It should never have SEQs nested in SEQs
 module GenerateCHP where
 
 import Control.Monad.State
@@ -70,8 +90,10 @@ withIndent f = pushIndent >> f >> popIndent
 genName :: A.Name -> CGen ()
 genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 
-genMissing :: String -> CGen()
-genMissing s = tell ["{-",s,"-}"] -- for now, everthing is missing!
+genMissing = flip genMissing' ()
+
+genMissing' :: Data a => String -> a -> CGen()
+genMissing' s x = tell ["{-",s,": ", showConstr $ toConstr x,"-}"] -- for now, everthing is missing!
   -- TODO in future generate a Die error
 
 genHeader :: CGen ()
@@ -86,28 +108,28 @@ generateCHP h tr
   = flip evalStateT (Right h, "", [0]) $ genHeader >> genAST tr
 
 genAST :: A.AST -> CGen ()
-genAST = genStructured False
+genAST = genStructured False return
 
-genStructured :: Data a => Bool -> A.Structured a -> CGen ()
-genStructured False (A.Spec m spec scope)
+genStructured :: Data a => Bool -> (a -> CGen()) -> A.Structured a -> CGen ()
+genStructured False genOnly (A.Spec m spec scope)
   = do genSpec spec
-       genStructured False scope
-genStructured True (A.Spec m spec scope)
+       genStructured False genOnly scope
+genStructured True genOnly (A.Spec m spec scope)
   = do tell ["let "]
        withIndent $ genSpec spec
        tell ["in "]
-       withIndent $ genStructured True scope
-genStructured addLet (A.ProcThen m proc scope) = genMissing "genStructured ProcThen"
-  >> tell ["λn"] >> genStructured addLet scope
-genStructured _ (A.Only m item) = genMissing "genStructured Only" >> tell ["\n"]
-genStructured addLet (A.Several m strs) = mapM_ (genStructured addLet) strs
+       withIndent $ genStructured True genOnly scope
+genStructured addLet genOnly (A.ProcThen m proc scope) = genMissing "genStructured ProcThen"
+  >> tell ["λn"] >> genStructured addLet genOnly scope
+genStructured _ genOnly (A.Only m item) = genOnly item
+genStructured addLet genOnly (A.Several m strs) = mapM_ (genStructured addLet genOnly) strs
 
 -- | Should output a spec, or nothing
 genSpec :: A.Specification -> CGen ()
 genSpec (A.Specification _ n (A.Proc _ _ params body))
   = do genName n
        tell [" :: "]
-       mapM doFormalAndArrow params
+       mapM doFormalAndArrow params -- TODO handle return vals
        tell [" CHP ()\n"]
        genName n
        sequence [genName pn >> tell [" "] | A.Formal _ _ pn <- params]
@@ -136,8 +158,20 @@ genSpec (A.Specification _ n (A.IsExpr _ _ t e))
 genSpec _ = genMissing "genSpec" >> tell ["\n"]
 
 genProcess :: A.Process -> CGen ()
-genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True str)
-genProcess _ = genMissing "genProcess" >> tell ["\n"]
+genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True genProcess str)
+genProcess (A.ProcCall _ n params)
+  = do genName n
+       sequence [tell [" "] >> genActual p | p <- params]
+       tell ["\n"]
+genProcess p = genMissing' "genProcess" p >> tell ["\n"]
+
+genActual :: A.Actual -> CGen ()
+genActual (A.ActualVariable v) = genVariable v
+genActual (A.ActualExpression e) = genExpression e
+
+genVariable :: A.Variable -> CGen ()
+genVariable (A.Variable _ n) = genName n
+genVariable v = genMissing' "genVariable" v
 
 genExpression :: A.Expression -> CGen ()
 genExpression (A.Literal _ t repr)
@@ -146,7 +180,8 @@ genExpression (A.Literal _ t repr)
        tell [")::"]
        genType t
        tell [")"]
-genExpression _ = genMissing "genExpression"
+genExpression (A.ExprVariable _ v) = genVariable v
+genExpression e = genMissing' "genExpression" e
 
 seqComma :: [CGen ()] -> CGen ()
 seqComma ps = sequence_ $ intersperse (tell [","]) ps
@@ -189,3 +224,5 @@ genType (A.Chan dir attr inner)
        -- genType inner
        tell [")"]
 genType _ = genMissing "genType"
+
+--TODO compile IFs into case.  And case into case.
