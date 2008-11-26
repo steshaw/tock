@@ -57,10 +57,11 @@ pushIndent :: CGen ()
 pushIndent = modify $ \(hb, cur, indents) -> (hb, cur, length cur : indents)
 
 popIndent :: CGen ()
-popIndent = modify $ \(hb, cur, _:indents) ->
+popIndent = do
+  (hb, cur, _:indents) <- get
   if all (== ' ') cur
-    then (hb, replicate (head indents) ' ', indents)
-    else (hb, cur, indents)                
+    then put (hb, replicate (head indents) ' ', indents)
+    else tell ["\n"] >> popIndent
 
 withIndent :: CGen () -> CGen ()
 withIndent f = pushIndent >> f >> popIndent
@@ -91,8 +92,8 @@ genStructured True (A.Spec m spec scope)
        genSpec spec
        tell ["in "]
        withIndent $ genStructured True scope
-genStructured addLet (A.ProcThen m proc scope) = genStructured addLet scope
-genStructured _ (A.Only m item) = tell ["{-ONLY-}"]
+genStructured addLet (A.ProcThen m proc scope) = tell ["{-genStructured-}\n"] >> genStructured addLet scope
+genStructured _ (A.Only m item) = tell ["{-genStructured-}\n"]
 genStructured addLet (A.Several m strs) = mapM_ (genStructured addLet) strs
 
 -- | Should output a spec, or nothing
@@ -105,15 +106,17 @@ genSpec (A.Specification _ n (A.Proc _ _ params body))
        tell [" CHP ()\n"]
        genName n
        sequence [genName pn >> tell [" "] | A.Formal _ _ pn <- params]
-       tell ["= do\n  "]
-       pushIndent
-       tell ["return ()\n"] -- TODO
-       popIndent
+       tell ["= "]
+       withIndent $ genProcess body
   where
     doFormalAndArrow :: A.Formal -> CGen ()
     doFormalAndArrow (A.Formal _ t _)
       = genType t >> tell [" -> "]     
-genSpec _ = return ()
+genSpec _ = tell ["{-genSpec-}\n"]
+
+genProcess :: A.Process -> CGen ()
+genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True str)
+genProcess _ = tell ["{-genProcess-}\n"]
 
 genType :: A.Type -> CGen ()
 genType A.Int = tell ["Int#"]
@@ -124,4 +127,4 @@ genType (A.Chan dir attr inner)
          A.DirUnknown -> "One2OneChannel"]
        genType inner
        tell [")"]
-genType _ = tell ["({-TYPE-})"]
+genType _ = tell ["({-genType-})"]
