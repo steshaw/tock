@@ -23,3 +23,6 @@ cLinkCommand files out extra = "@CC@ @TOCK_CFLAGS@ -o " ++ out ++ " " ++ (concat
 cxxCommand :: String -> String -> String -> String
 cxxCommand inp out extra = "@CXX@ @TOCK_CXXFLAGS@ " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++ " @TOCK_CXXLDFLAGS@"
   ++ " " ++ extra
+
+hCommand :: String -> String -> String
+hCommand inp out = "@GHC@ --make " ++ inp ++ " -o " ++ out

@@ -276,11 +276,10 @@ compileFull inputFile moutputFile
                           ("-", Nothing) -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
                           (file, _) -> return file
 
-          let (cExtension, hExtension)
-                        = case csBackend optsPS of
-                            BackendC -> (".tock.c", ".tock.h")
-                            BackendCPPCSP -> (".tock.cpp", ".tock.hpp")
-                            _ -> ("", "")
+          let extension = case csBackend optsPS of
+                            BackendC -> ".c"
+                            BackendCPPCSP -> ".cpp"
+                            _ -> ""
 
           -- Translate input file to C/C++
           let cFile = outputFile ++ cExtension
@@ -331,14 +330,9 @@ compileFull inputFile moutputFile
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
-              do cs <- lift getCompState
-                 if csHasMain optsPS
-                   then let otherOFiles = [usedFile ++ ".tock.o"
-                                          | usedFile <- Set.toList $ csUsedFiles cs]
-                     in exec $ cxxCommand cFile outputFile
-                          (concat (intersperse " " otherOFiles) ++ " " ++ csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
-                   else exec $ cxxCommand cFile (outputFile ++ ".tock.o")
-                          ("-c " ++ csCompilerFlags optsPS)
+              exec $ cxxCommand cFile outputFile
+                (csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
+
             _ -> dieReport (Nothing, "Cannot use specified backend: "
                                      ++ show (csBackend optsPS)
                                      ++ " with full-compile mode")

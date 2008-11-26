@@ -19,12 +19,16 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Generate CHP code from the AST
 module GenerateCHP where
 
+import Control.Monad.Trans
 import System.IO
 
 import qualified AST as A
 import Pass
 
 generateCHP :: Handle -> A.AST -> PassM ()
-generateCHP h tr = genAST tr
+generateCHP h tr = do
+  liftIO $ hPutStrLn h "main :: IO ()"
+  liftIO $ hPutStrLn h "main = return ()"
+  genAST tr
 
 genAST _ = return ()

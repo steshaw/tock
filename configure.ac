@@ -36,6 +36,7 @@ AC_DEFUN([AC_NEED_PROG],
 #Check that they have alex, GHC, svn and the CCSP headers:
 
 AC_NEED_PROG(ghc,HAVE_ghc)
+AC_PATH_PROG(GHC,ghc)
 AC_NEED_PROG(ghc-pkg,HAVE_ghcpkg)
 AC_NEED_PROG(alex,HAVE_alex)
 
