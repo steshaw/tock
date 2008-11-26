@@ -372,35 +372,9 @@ filterMapByKey f = Map.filterWithKey (\k _ -> f k)
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe = either (const Nothing) Just
 
+-- | Transforms a graph with a transformation function that uses the Node number.
 labelMapWithNodeId :: DynGraph gr => (Node -> a -> b) -> gr a c -> gr b c
 labelMapWithNodeId f = gmap (\(x,n,l,y) -> (x,n,f n l,y))
 
--- This is quite inefficient, but I can't see an easier way:
-labelMapWithNodeIdM :: (DynGraph gr, Monad m) => (Node -> a -> m b) -> gr a c -> m (gr b c)
-labelMapWithNodeIdM f gr
-  = let unsequencedMap = ufold (\(x, n, l, y) -> Map.insert n (f n l)) Map.empty gr
-    in do mp <- T.sequence unsequencedMap
-          return $ gmap (\(x,n,l,y) -> (x,n,fromJust $ Map.lookup n mp,y)) gr
-
 reverseLookup :: (Ord k, Eq v) => v -> Map.Map k v -> Maybe k
 reverseLookup x m = lookup x $ map revPair $ Map.toList m
-
--- Where you have a wrapper for an inner monadic action, but you want to apply
--- this to an action that has state wrapped around it:
-liftWrapStateT :: Monad m => (forall b. m b -> m b) -> StateT s m a -> StateT s m a
-liftWrapStateT wrap m
-  = do st <- get
-       (x, st') <- lift $ wrap (runStateT m st)
-       put st'
-       return x
-
--- The foldM equivalent of foldl1:
-foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
-foldM1 f (x:xs) = foldM f x xs
-foldM1 _ [] = fail "Empty list in foldM1"
-
--- | A shortcut for concat and intersperse.
--- For example, @joinWith " " names@ is the same as @concat (intersperse " "
--- names)@
-joinWith :: [a] -> [[a]] -> [a]
-joinWith x = concat . intersperse x
