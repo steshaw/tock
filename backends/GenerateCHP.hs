@@ -69,6 +69,10 @@ withIndent f = pushIndent >> f >> popIndent
 genName :: A.Name -> CGen ()
 genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 
+genMissing :: String -> CGen()
+genMissing s = tell ["{-",s,"-}"] -- for now, everthing is missing!
+  -- TODO in future generate a Die error
+
 genHeader :: CGen ()
 genHeader
   = tell ["import GHC.Prim\n"
@@ -92,8 +96,9 @@ genStructured True (A.Spec m spec scope)
        withIndent $ genSpec spec
        tell ["in "]
        withIndent $ genStructured True scope
-genStructured addLet (A.ProcThen m proc scope) = tell ["{-genStructured-}\n"] >> genStructured addLet scope
-genStructured _ (A.Only m item) = tell ["{-genStructured-}\n"]
+genStructured addLet (A.ProcThen m proc scope) = genMissing "genStructured ProcThen"
+  >> tell ["λn"] >> genStructured addLet scope
+genStructured _ (A.Only m item) = genMissing "genStructured Only" >> tell ["\n"]
 genStructured addLet (A.Several m strs) = mapM_ (genStructured addLet) strs
 
 -- | Should output a spec, or nothing
@@ -127,14 +132,14 @@ genSpec (A.Specification _ n (A.IsExpr _ _ t e))
        tell [" = "]
        genExpression e
        tell ["\n"]
-genSpec _ = tell ["{-genSpec-}\n"]
+genSpec _ = genMissing "genSpec" >> tell ["\n"]
 
 genProcess :: A.Process -> CGen ()
 genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True str)
-genProcess _ = tell ["{-genProcess-}\n"]
+genProcess _ = genMissing "genProcess" >> tell ["\n"]
 
 genExpression :: A.Expression -> CGen ()
-genExpression _ = tell ["{-genExpression-}\n"]
+genExpression _ = genMissing "genExpression"
 
 genType :: A.Type -> CGen ()
 genType A.Int = tell ["Int#"]
@@ -145,4 +150,4 @@ genType (A.Chan dir attr inner)
          A.DirUnknown -> "One2OneChannel"]
        genType inner
        tell [")"]
-genType _ = tell ["({-genType-})"]
+genType _ = genMissing "genType"
