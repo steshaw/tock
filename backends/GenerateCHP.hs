@@ -22,6 +22,7 @@ module GenerateCHP where
 import Control.Monad.State
 import Control.Monad.Trans
 import Data.Generics
+import Data.List
 import System.IO
 
 import qualified AST as A
@@ -139,15 +140,52 @@ genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True str)
 genProcess _ = genMissing "genProcess" >> tell ["\n"]
 
 genExpression :: A.Expression -> CGen ()
+genExpression (A.Literal _ t repr)
+  = do tell ["(("]
+       genLiteralRepr repr
+       tell [")::"]
+       genType t
+       tell [")"]
 genExpression _ = genMissing "genExpression"
 
+seqComma :: [CGen ()] -> CGen ()
+seqComma ps = sequence_ $ intersperse (tell [","]) ps
+
+genLiteralRepr :: A.LiteralRepr -> CGen ()
+genLiteralRepr (A.ArrayLiteral _ elems)
+  = do tell ["newListArray (0," ++ show (length elems - 1) ++ ") ["]
+       seqComma $ map genArrayElem elems
+       tell ["]"]
+genLiteralRepr (A.IntLiteral _ str) = tell [str]
+genLiteralRepr (A.RealLiteral _ str) = tell [str]
+genLiteralRepr (A.ByteLiteral _ str) = tell ["\'",str,"\'"]
+genLiteralRepr _ = genMissing "genLiteralRepr"
+
+genArrayElem :: A.ArrayElem -> CGen ()
+genArrayElem (A.ArrayElemExpr e) = genExpression e
+genArrayElem _ = genMissing "genArrayElem"
+
 genType :: A.Type -> CGen ()
-genType A.Int = tell ["Int#"]
+genType A.Bool = tell ["Bool"]
+genType A.Byte = tell ["Word8"]
+genType A.UInt16 = tell ["Word16"]
+genType A.UInt32 = tell ["Word32"]
+genType A.UInt64 = tell ["Word64"]
+genType A.Int8 = tell ["Int8"]
+genType A.Int16 = tell ["Int16"]
+genType A.Int = tell ["Int32"]
+genType A.Int32 = tell ["Int32"]
+genType A.Int64 = tell ["Int64"]
+genType A.Real32 = tell ["Float"]
+genType A.Real64 = tell ["Double"]
+genType (A.Array _ t) = tell ["(IOUArray Int32 "] >> genType t >> tell [")"]
+genType (A.List t) = tell["(Seq "] >> genType t >> tell [")"]
 genType (A.Chan dir attr inner)
   = do tell ["(", case dir of
          A.DirInput -> "Chanin"
          A.DirOutput -> "Chanout"
          A.DirUnknown -> "One2OneChannel"]
-       genType inner
+       tell ["(IOUArray Word8)"]
+       -- genType inner
        tell [")"]
 genType _ = genMissing "genType"
