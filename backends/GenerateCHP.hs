@@ -57,7 +57,10 @@ pushIndent :: CGen ()
 pushIndent = modify $ \(hb, cur, indents) -> (hb, cur, length cur : indents)
 
 popIndent :: CGen ()
-popIndent = modify $ \(hb, cur, _:indents) -> (hb, cur, indents)                
+popIndent = modify $ \(hb, cur, _:indents) ->
+  if all (== ' ') cur
+    then (hb, replicate (head indents) ' ', indents)
+    else (hb, cur, indents)                
 
 withIndent :: CGen () -> CGen ()
 withIndent f = pushIndent >> f >> popIndent
@@ -77,21 +80,25 @@ generateCHP h tr
   = flip evalStateT (Right h, "", [0]) $ genHeader >> genAST tr
 
 genAST :: A.AST -> CGen ()
-genAST = genStructured
+genAST = genStructured False
 
--- TODO do the top-level without the let..in wrappers, to easily support Rain (and
--- it makes more sense)
-genStructured :: Data a => A.Structured a -> CGen ()
-genStructured (A.Spec m spec scope) = genSpec spec (genStructured scope)
-genStructured (A.ProcThen m proc scope) = genStructured scope
-genStructured (A.Only m item) = tell ["{-ONLY-}"]
-genStructured (A.Several m strs) = mapM_ genStructured strs
-
--- | Should output a spec of the form "let..in" or nothing
-genSpec :: A.Specification -> CGen () -> CGen ()
-genSpec (A.Specification _ n (A.Proc _ _ params body)) scope
+genStructured :: Data a => Bool -> A.Structured a -> CGen ()
+genStructured False (A.Spec m spec scope)
+  = do genSpec spec
+       genStructured False scope
+genStructured True (A.Spec m spec scope)
   = do tell ["let "]
-       pushIndent
+       genSpec spec
+       tell ["in "]
+       withIndent $ genStructured True scope
+genStructured addLet (A.ProcThen m proc scope) = genStructured addLet scope
+genStructured _ (A.Only m item) = tell ["{-ONLY-}"]
+genStructured addLet (A.Several m strs) = mapM_ (genStructured addLet) strs
+
+-- | Should output a spec, or nothing
+genSpec :: A.Specification -> CGen ()
+genSpec (A.Specification _ n (A.Proc _ _ params body))
+  = withIndent $ do
        genName n
        tell [" :: "]
        mapM doFormalAndArrow params
@@ -102,14 +109,11 @@ genSpec (A.Specification _ n (A.Proc _ _ params body)) scope
        pushIndent
        tell ["return ()\n"] -- TODO
        popIndent
-       popIndent -- TODO use withIndent
-       tell ["in "]
-       withIndent scope
   where
     doFormalAndArrow :: A.Formal -> CGen ()
     doFormalAndArrow (A.Formal _ t _)
       = genType t >> tell [" -> "]     
-genSpec _ scope = scope
+genSpec _ = return ()
 
 genType :: A.Type -> CGen ()
 genType A.Int = tell ["Int#"]
