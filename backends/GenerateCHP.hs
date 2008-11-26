@@ -65,11 +65,16 @@ withIndent f = pushIndent >> f >> popIndent
 genName :: A.Name -> CGen ()
 genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
 
+genHeader :: CGen ()
+genHeader
+  = tell ["import GHC.Prim\n"
+         ,"import Control.Concurrent.CHP\n"
+         ,"\n"
+         ]
+
 generateCHP :: Handle -> A.AST -> PassM ()
-generateCHP h tr = do
-  liftIO $ hPutStrLn h "main :: IO ()"
-  liftIO $ hPutStrLn h "main = return ()"
-  flip evalStateT (Right h, "", [0]) $ genAST tr
+generateCHP h tr
+  = flip evalStateT (Right h, "", [0]) $ genHeader >> genAST tr
 
 genAST :: A.AST -> CGen ()
 genAST = genStructured
@@ -107,4 +112,12 @@ genSpec (A.Specification _ n (A.Proc _ _ params body)) scope
 genSpec _ scope = scope
 
 genType :: A.Type -> CGen ()
+genType A.Int = tell ["Int#"]
+genType (A.Chan dir attr inner)
+  = do tell ["(", case dir of
+         A.DirInput -> "Chanin"
+         A.DirOutput -> "Chanout"
+         A.DirUnknown -> "One2OneChannel"]
+       genType inner
+       tell [")"]
 genType _ = tell ["({-TYPE-})"]
