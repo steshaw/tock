@@ -143,6 +143,7 @@ tock_SOURCES_hs += backends/AnalyseAsm.hs
 tock_SOURCES_hs += backends/BackendPasses.hs
 tock_SOURCES_hs += backends/GenerateC.hs
 tock_SOURCES_hs += backends/GenerateCBased.hs
+tock_SOURCES_hs += backends/GenerateCHP.hs
 tock_SOURCES_hs += backends/GenerateCPPCSP.hs
 tock_SOURCES_hs += backends/TLP.hs
 tock_SOURCES_hs += checks/ArrayUsageCheck.hs

@@ -42,6 +42,7 @@ import CompState
 import Errors
 import FlowGraph
 import GenerateC
+import GenerateCHP
 import GenerateCPPCSP
 import LexOccam
 import Metadata
@@ -114,6 +115,7 @@ optBackend :: String -> OptFunc
 optBackend s ps
     =  do backend <- case s of
             "c" -> return BackendC
+            "chp" -> return BackendCHP
             "cppcsp" -> return BackendCPPCSP
             "dumpast" -> return BackendDumpAST
             "src" -> return BackendSource
@@ -481,8 +483,8 @@ compile mode fn (outHandles@(outHandle, _), headerName)
                  let generator :: A.AST -> PassM ()
                      generator
                        = case csBackend optsPS of
-                           BackendC -> generateC outHandles headerName
-                           BackendCPPCSP -> generateCPPCSP outHandles headerName
+                           BackendC -> generateC outHandle
+                           BackendCPPCSP -> generateCPPCSP outHandle
                            BackendDumpAST -> liftIO . hPutStr outHandle . pshow
                            BackendSource -> (liftIO . hPutStr outHandle) <.< showCode
                  generator ast2

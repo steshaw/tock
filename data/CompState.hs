@@ -45,7 +45,7 @@ data CompMode = ModeFlowGraph | ModeLex | ModeHTML | ModeParse | ModeCompile | M
   deriving (Show, Data, Typeable, Eq)
 
 -- | Backends that Tock can use.
-data CompBackend = BackendC | BackendCPPCSP | BackendDumpAST | BackendSource
+data CompBackend = BackendC | BackendCPPCSP | BackendCHP | BackendDumpAST | BackendSource
   deriving (Show, Data, Typeable, Eq)
 
 -- | Frontends that Tock can use.
