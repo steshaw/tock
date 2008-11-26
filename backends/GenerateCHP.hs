@@ -89,7 +89,7 @@ genStructured False (A.Spec m spec scope)
        genStructured False scope
 genStructured True (A.Spec m spec scope)
   = do tell ["let "]
-       genSpec spec
+       withIndent $ genSpec spec
        tell ["in "]
        withIndent $ genStructured True scope
 genStructured addLet (A.ProcThen m proc scope) = tell ["{-genStructured-}\n"] >> genStructured addLet scope
@@ -99,8 +99,7 @@ genStructured addLet (A.Several m strs) = mapM_ (genStructured addLet) strs
 -- | Should output a spec, or nothing
 genSpec :: A.Specification -> CGen ()
 genSpec (A.Specification _ n (A.Proc _ _ params body))
-  = withIndent $ do
-       genName n
+  = do genName n
        tell [" :: "]
        mapM doFormalAndArrow params
        tell [" CHP ()\n"]
@@ -112,11 +111,30 @@ genSpec (A.Specification _ n (A.Proc _ _ params body))
     doFormalAndArrow :: A.Formal -> CGen ()
     doFormalAndArrow (A.Formal _ t _)
       = genType t >> tell [" -> "]     
+genSpec (A.Specification _ n (A.Declaration _ t))
+  = do genName n
+       tell [" :: "]
+       genType t
+       tell ["\n"]
+       genName n
+       tell [" = error \"Variable ", A.nameName n, " used uninitialised\"\n"]
+genSpec (A.Specification _ n (A.IsExpr _ _ t e))
+  = do genName n
+       tell [" :: "]
+       genType t
+       tell ["\n"]
+       genName n
+       tell [" = "]
+       genExpression e
+       tell ["\n"]
 genSpec _ = tell ["{-genSpec-}\n"]
 
 genProcess :: A.Process -> CGen ()
 genProcess (A.Seq _ str) = tell ["do "] >> withIndent (genStructured True str)
 genProcess _ = tell ["{-genProcess-}\n"]
+
+genExpression :: A.Expression -> CGen ()
+genExpression _ = tell ["{-genExpression-}\n"]
 
 genType :: A.Type -> CGen ()
 genType A.Int = tell ["Int#"]
