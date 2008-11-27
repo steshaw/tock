@@ -88,7 +88,12 @@ withIndent :: CGen () -> CGen ()
 withIndent f = pushIndent >> f >> popIndent
 
 genName :: A.Name -> CGen ()
-genName n = tell [[if c == '.' then '_' else c | c <- A.nameName n]]
+genName n = let unders = [if c == '.' then '_' else c | c <- A.nameName n] in
+  -- Prefix underscore to anything beginning with upper-case:
+  if isUpper (head unders)
+    then tell ["_",unders]
+    else tell [unders]
+
 
 genMissing = flip genMissing' ()
 
