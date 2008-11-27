@@ -98,7 +98,7 @@ genName n = let unders = [if c == '.' then '_' else c | c <- A.nameName n] in
 genMissing = flip genMissing' ()
 
 genMissing' :: Data a => String -> a -> CGen()
-genMissing' s x = tell ["{-",s,": ", showConstr $ toConstr x,"-}"] -- for now, everthing is missing!
+genMissing' s x = tell ["(error \"",s,": ", showConstr $ toConstr x,"\")"] -- for now, everthing is missing!
   -- TODO in future generate a Die error
 
 genHeader :: CGen ()
