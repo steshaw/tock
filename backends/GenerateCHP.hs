@@ -41,13 +41,17 @@ module GenerateCHP where
 
 import Control.Monad.State
 import Control.Monad.Trans
+import Data.Char
 import Data.Generics
 import Data.List
 import System.IO
+import Text.Printf
 
 import qualified AST as A
 import CompState
 import Errors
+import EvalLiterals
+import Metadata
 import Pass
 import Utils
 
@@ -186,6 +190,8 @@ genExpression (A.Literal _ t repr)
        genType t
        tell [")"]
 genExpression (A.ExprVariable _ v) = genVariable v
+genExpression (A.True _) = tell ["True"]
+genExpression (A.False _) = tell ["False"]
 genExpression e = genMissing' "genExpression" e
 
 seqComma :: [CGen ()] -> CGen ()
@@ -198,8 +204,27 @@ genLiteralRepr (A.ArrayLiteral _ elems)
        tell ["]"]
 genLiteralRepr (A.IntLiteral _ str) = tell [str]
 genLiteralRepr (A.RealLiteral _ str) = tell [str]
-genLiteralRepr (A.ByteLiteral _ str) = tell ["\'",str,"\'"]
+genLiteralRepr (A.ByteLiteral m str)
+  = tell ["\'"] >> genByteLiteral m str >> tell ["\'"]
 genLiteralRepr _ = genMissing "genLiteralRepr"
+
+genByteLiteral :: Meta -> String -> CGen ()
+genByteLiteral m s
+    =  do c <- evalByte m s
+          tell [convByte c]
+
+convByte :: Char -> String
+convByte '\'' = "\\'"
+convByte '"' = "\\\""
+convByte '\\' = "\\\\"
+convByte '\r' = "\\r"
+convByte '\n' = "\\n"
+convByte '\t' = "\\t"
+convByte c
+  | o == 0              = "\\0"
+  | (o < 32 || o > 127) = printf "\\%03o" o
+  | otherwise           = [c]
+  where o = ord c
 
 genArrayElem :: A.ArrayElem -> CGen ()
 genArrayElem (A.ArrayElemExpr e) = genExpression e
