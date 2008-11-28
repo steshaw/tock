@@ -832,7 +832,7 @@ testModify =
 
     -- | Applies the functions associated with the given meta tags
     applyMetas :: Monad m => [Meta] -> Map.Map Meta (A.Structured a -> m (A.Structured a)) -> (A.Structured a -> m (A.Structured a))
-    applyMetas ms funcs = foldFuncsM $ concatMap (\m -> Map.lookup m funcs) ms
+    applyMetas ms funcs = foldFuncsM $ mapMaybe (\m -> Map.lookup m funcs) ms
 
 -- | Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])
