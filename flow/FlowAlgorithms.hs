@@ -151,7 +151,9 @@ flowAlgorithm funcs nodes (startNode, startVal)
                  "Nodes still to process: " ++ show workList
                  ++ " " ++ userErrLabel funcs node)
                  (filtNodes $ nodesToProcess funcs node)
-               nodeVal <- Map.lookup node vals
+               nodeVal <- case Map.lookup node vals of
+                 Nothing -> throwError "Could not find node during flowAlgorithm"
+                 Just x -> return x
                if total /= nodeVal
                  -- If the value has changed, that will cascade to affect all
                  -- its dependents, so add all

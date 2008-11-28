@@ -380,7 +380,9 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
              ets <- sequence [astTypeOf e | e <- es']
 
              ps <- get
-             rts <- Map.lookup (A.nameName n) (csFunctionReturns ps)
+             rts <- case Map.lookup (A.nameName n) (csFunctionReturns ps) of
+               Nothing -> dieP m "Could not find function returns"
+               Just x -> return x
              specs <- sequence [makeNonceVariable "return_actual" m t A.Original | t <- rts]
              sequence_ [addPulled $ (m, Left spec) | spec <- specs]
 
