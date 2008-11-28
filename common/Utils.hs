@@ -241,9 +241,13 @@ productN (xs:xss) = [ y : ys | y <- xs, ys <- yss]
 --
 -- Code is taken from: http://www.haskell.org/pipermail/haskell/2006-July/018298.html
 -- and then fixed (missing base case, x should have been y)
-permutations :: [a] -> [[a]]
-permutations [] = [[]]
-permutations xs = [y : ps | (y,ys) <- selections xs, ps <- permutations ys]
+--
+-- Since GHC 6.10 onwards includes a permutations function, but we don't want to
+-- have to mess with the GHC preprocessor just to exclude this one function, I've
+-- renamed ours to permutation.
+permutation :: [a] -> [[a]]
+permutation [] = [[]]
+permutation xs = [y : ps | (y,ys) <- selections xs, ps <- permutation ys]
   where
     selections []     = []
     selections (x:xs) = (x,xs) : [(y,x:ys) | (y,ys) <- selections xs]

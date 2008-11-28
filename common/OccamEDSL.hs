@@ -402,7 +402,7 @@ testOccamPassTransform str trans code pass
         (exp, expS) = runState expm emptyState
         (inp, inpS) = runState inpm emptyState
     in TestCase $ testPassWithStateCheck str (trans $ mkPattern exp) pass inp (put inpS) (testPatternMatchOneOf
-      (str ++ " state check") [trans $ mkPattern pr | pr <- permutations $ Map.toList $ csNames expS] . Map.toList
+      (str ++ " state check") [trans $ mkPattern pr | pr <- permutation $ Map.toList $ csNames expS] . Map.toList
         . csNames)
     -- It's important to convert the maps to lists first, as Map doesn't have a
     -- Data instance.
