@@ -26,36 +26,28 @@ import Data.Generics.Polyplate
 --  This can be used to perform a bottom-up depth-first traversal of a structure
 -- (see 'applyBottomUpM').
 makeBottomUpM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
-makeBottomUpM ops f v = descend v >>= f
-  where
-    descend = makeDescendM ops
+makeBottomUpM ops f v = makeDescendM ops v >>= f
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first apply the modifier function before then descending into the value.
 --  This can be used to perform a top-down depth-first traversal of a structure
 -- (see 'applyTopDownM').
 makeTopDownM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
-makeTopDownM ops f v = f v >>= descend
-  where
-    descend = makeDescendM ops
+makeTopDownM ops f v = f v >>= makeDescendM ops
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.
 --  This can be used to perform a bottom-up depth-first traversal of a structure
 -- (see 'applyBottomUp').
 makeBottomUp :: Polyplate t () opT => opT -> (t -> t) -> t -> t
-makeBottomUp ops f v = f (descend v)
-  where
-    descend = makeDescend ops
+makeBottomUp ops f v = f (makeDescend ops v)
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first apply the modifier function before then descending into the value.
 --  This can be used to perform a top-down depth-first traversal of a structure
 -- (see 'applyTopDown').
 makeTopDown :: Polyplate t () opT => opT -> (t -> t) -> t -> t
-makeTopDown ops f v = descend (f v)
-  where
-    descend = makeDescend ops
+makeTopDown ops f v = makeDescend ops (f v)
 
 
 {- TODO

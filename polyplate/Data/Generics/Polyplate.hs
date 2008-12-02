@@ -28,8 +28,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
 module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
-  makeRecurseM, RecurseM,
-  makeDescendM, DescendM,
+  makeRecurseM, RecurseM, makeRecurse, Recurse,
+  makeDescendM, DescendM, makeDescend, Descend,
   BaseOp, baseOp,
   ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp) where
 
@@ -94,8 +94,8 @@ class Polyplate t o o' where
 instance (PolyplateM t mo mo' Identity, ConvertOpsToIdentity o mo, ConvertOpsToIdentity o' mo') => Polyplate t o o' where
   transform o o' t = runIdentity (transformM (convertOpsToIdentity o) (convertOpsToIdentity o') t)
 
--- | A type representing a recursive monadic modifier function that applies the given ops
--- (in the given monad) directly to the given type.
+-- | A type representing a monadic modifier function that applies the given ops
+-- (opT) in the given monad (m) directly to the given type (t).
 type RecurseM m opT = forall t. PolyplateM t opT () m => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
@@ -103,10 +103,33 @@ type RecurseM m opT = forall t. PolyplateM t opT () m => t -> m t
 makeRecurseM :: Monad m => opT -> RecurseM m opT
 makeRecurseM ops = transformM ops ()
 
+-- | A type representing a monadic modifier function that applies the given ops
+-- (opT) in the given monad (m) to the children of the given type (t).
 type DescendM m opT = forall t. PolyplateM t () opT m => t -> m t
 
+-- | Given a set of operations (as described in the 'PolyplateM' type-class),
+-- makes a descent modifier function that applies the operation to the type's children.
 makeDescendM :: Monad m => opT -> DescendM m opT
 makeDescendM ops = transformM () ops
+
+-- | A type representing a modifier function that applies the given ops
+-- (opT) directly to the given type (t).
+type Recurse opT = forall t. Polyplate t opT () => t -> t
+
+-- | Given a set of operations (as described in the 'Polyplate' type-class),
+-- makes a modifier function that applies the operations directly.
+makeRecurse :: opT -> Recurse opT
+makeRecurse ops = transform ops ()
+
+-- | A type representing a modifier function that applies the given ops
+-- (opT) to the children of the given type (t).
+type Descend opT = forall t. Polyplate t () opT => t -> t
+
+-- | Given a set of operations (as described in the 'PolyplateM' type-class),
+-- makes a descent modifier function that applies the operation to the type's children.
+makeDescend :: opT -> Descend opT
+makeDescend ops = transform () ops
+
 
 -- | The type of the empty set of operations
 type BaseOp = ()
