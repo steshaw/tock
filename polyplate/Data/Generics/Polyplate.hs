@@ -30,8 +30,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..), PolyplateSpine(..),
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
+  makeRecurseQ, RecurseQ,
+  makeDescendQ, DescendQ,
   BaseOp, baseOp,
-  ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp) where
+  ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp,
+  ExtOpQ, extOpQ, OneOpQ, TwoOpQ) where
 
 import Control.Monad.Identity
 
@@ -155,6 +158,14 @@ type Descend opT = forall t. Polyplate t () opT => t -> t
 makeDescend :: opT -> Descend opT
 makeDescend ops = transform () ops
 
+type RecurseQ a opQ = forall t. PolyplateSpine t opQ () a => t -> Tree (Maybe a)
+type DescendQ a opQ = forall t. PolyplateSpine t () opQ a => t -> Tree (Maybe a)
+
+makeRecurseQ :: opQ -> RecurseQ a opQ
+makeRecurseQ ops = transformSpine ops ()
+
+makeDescendQ :: opQ -> DescendQ a opQ
+makeDescendQ ops = transformSpine () ops
 
 -- | The type of the empty set of operations
 type BaseOp = ()
@@ -173,6 +184,10 @@ type ExtOpM m opT t = (t -> m t, opT)
 --  You cannot mix monadic and non-monadic operations in the same list.
 type ExtOp opT t = (t -> t, opT)
 
+-- | The type that extends a query-ops set to be applied to the given type (t).
+-- Not to be mixed with modification operations.
+type ExtOpQ a opQ t = (t -> a, opQ)
+
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
 -- same list.
@@ -185,13 +200,24 @@ extOpM ops f = (f, ops)
 extOp :: opT -> (t -> t) -> ExtOp opT t
 extOp ops f = (f, ops)
 
--- | A handy synonym for an ops set with only one item.
+-- | The function that extends a query-ops set to be applied to the given type (t).
+-- Not to be mixed with modification operations.
+extOpQ :: opQ -> (t -> a) -> ExtOpQ a opQ t
+extOpQ ops f = (f, ops)
+
+
+-- | A handy synonym for a monadic ops set with only one item.
 type OneOpM m t = ExtOpM m BaseOp t
 -- | A handy synonym for an ops set with only one item.
 type OneOp t = ExtOp BaseOp t
+-- | A handy synonym for a query ops set with only one item.
+type OneOpQ a t = ExtOpQ a BaseOp t
 
--- | A handy synonym for an ops set with only two items.
+-- | A handy synonym for a monadic ops set with only two items.
 type TwoOpM m s t = ExtOpM m (ExtOpM m BaseOp s) t
 -- | A handy synonym for an ops set with only two items.
 type TwoOp s t = ExtOp (ExtOp BaseOp s) t
+-- | A handy synonym for a monadic ops set with only two items.
+type TwoOpQ a s t = ExtOpQ a (ExtOpQ a BaseOp s) t
+
 

@@ -19,6 +19,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.Schemes where
 
+import Data.Tree
+
 import Data.Generics.Polyplate
 
 -- | Given a list of operations and a modifier function, augments that modifier
@@ -60,8 +62,28 @@ makeCheckM ops f v
     descend = makeDescend ops
 -}
 
--- TODO also add a listify-like thing (maybe return a rose tree):
--- applyQuery :: (s -> a) -> t -> Tree a
+
+applyQuery :: PolyplateSpine t (OneOpQ a s) () a => (s -> a) -> t -> Tree (Maybe a)
+applyQuery qf = makeRecurseQ ops
+  where
+    ops = baseOp `extOpQ` qf
+
+applyQuery2 :: PolyplateSpine t (TwoOpQ a sA sB) () a => (sA -> a) -> (sB -> a) -> t -> Tree (Maybe a)
+applyQuery2 qfA qfB = makeRecurseQ ops
+  where
+    ops = baseOp `extOpQ` qfA `extOpQ` qfB 
+
+applyListify :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> Tree (Maybe s)
+applyListify qf = fmap joinMaybe . makeRecurseQ ops
+  where
+    qf' x = if qf x then Just x else Nothing
+
+    joinMaybe :: Maybe (Maybe a) -> Maybe a
+    joinMaybe Nothing = Nothing
+    joinMaybe (Just mx) = mx
+    
+    ops = baseOp `extOpQ` qf'
+
 
 -- | Given a monadic function that applies to a particular type (s), automatically
 -- applies that function to every instance of s in a larger structure of type t,
