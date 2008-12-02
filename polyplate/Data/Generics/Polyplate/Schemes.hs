@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.Schemes where
 
+import Data.Generics.Polyplate
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.
@@ -27,7 +28,7 @@ module Data.Generics.Polyplate.Schemes where
 makeBottomUpM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
 makeBottomUpM ops f v = descend v >>= f
   where
-    descend = makeDescend ops
+    descend = makeDescendM ops
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first apply the modifier function before then descending into the value.
@@ -36,7 +37,7 @@ makeBottomUpM ops f v = descend v >>= f
 makeTopDownM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
 makeTopDownM ops f v = f v >>= descend
   where
-    descend = makeDescend ops
+    descend = makeDescendM ops
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.

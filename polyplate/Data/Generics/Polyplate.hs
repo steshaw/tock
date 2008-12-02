@@ -31,7 +31,9 @@ module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
   makeRecurseM, RecurseM,
   makeDescendM, DescendM,
   BaseOp, baseOp,
-  ExtOpM, extOp, OneOpM) where
+  ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp) where
+
+import Control.Monad.Identity
 
 -- | The main Polyplate type-class.
 --
@@ -90,20 +92,20 @@ class Polyplate t o o' where
   transform :: o -> o' -> t -> t
 
 instance (PolyplateM t mo mo' Identity, ConvertOpsToIdentity o mo, ConvertOpsToIdentity o' mo') => Polyplate t o o' where
-  transform o o' t = runIdentity (transformM o o' t)
+  transform o o' t = runIdentity (transformM (convertOpsToIdentity o) (convertOpsToIdentity o') t)
 
 -- | A type representing a recursive monadic modifier function that applies the given ops
 -- (in the given monad) directly to the given type.
-type RecurseM m opT = forall t. Polyplate t opT () m => t -> m t
+type RecurseM m opT = forall t. PolyplateM t opT () m => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a recursive modifier function.
-makeRecurseM :: Monad m => opT -> Recurse m opT
+makeRecurseM :: Monad m => opT -> RecurseM m opT
 makeRecurseM ops = transformM ops ()
 
-type DescendM m opT = forall t. Polyplate t () opT m => t -> m t
+type DescendM m opT = forall t. PolyplateM t () opT m => t -> m t
 
-makeDescendM :: Monad m => opT -> Descend m opT
+makeDescendM :: Monad m => opT -> DescendM m opT
 makeDescendM ops = transformM () ops
 
 -- | The type of the empty set of operations
@@ -138,10 +140,10 @@ extOp ops f = (f, ops)
 -- | A handy synonym for an ops set with only one item.
 type OneOpM m t = ExtOpM m BaseOp t
 -- | A handy synonym for an ops set with only one item.
-type OneOp t = ExtOpM m BaseOp t
+type OneOp t = ExtOp BaseOp t
 
 -- | A handy synonym for an ops set with only two items.
 type TwoOpM m s t = ExtOpM m (ExtOpM m BaseOp s) t
 -- | A handy synonym for an ops set with only two items.
-type TwoOp s t = ExtOpM (ExtOp BaseOp s) t
+type TwoOp s t = ExtOp (ExtOp BaseOp s) t
 
