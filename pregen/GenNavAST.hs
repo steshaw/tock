@@ -24,6 +24,9 @@ import Data.Generics
 import Data.List
 import qualified Data.Set as Set
 
+import Data.Generics.Polyplate.GenInstances
+
+import qualified AST
 import PregenUtils
 import Utils
 
@@ -74,7 +77,7 @@ instancesFrom w
     -- left to apply.
     baseInst :: [String]
     baseInst
-        = [ "instance (" ++ joinWith ", " context ++ ") =>"
+        = [ "instance (" ++ concat (intersperse ", " context) ++ ") =>"
           , "         Polyplate m () o0 (" ++ wName ++ ") where"
           ] ++
           (if isAlgType wDType
@@ -116,7 +119,7 @@ instancesFrom w
         ctrName = modPrefix ++ ctrS
         makeCtr vs
             = if isTuple
-                then "(" ++ joinWith ", " vs ++ ")"
+                then "(" ++ (concat $ intersperse ", " vs) ++ ")"
                 else ctrName ++ concatMap (" " ++) vs
         ctrInput = makeCtr ["a" ++ show i | i <- argNums]
         ctrResult = makeCtr ["r" ++ show i | i <- argNums]
@@ -150,6 +153,9 @@ instancesFrom w
             = "  transformM (_, rest) ops b v = transformM rest ops b v"
 
 main :: IO ()
-main = putStr $ unlines $ header ++
-                          concat [instancesFrom w
-                                  | DataBox w <- justBoxes $ astTypeMap]
+main
+  = writeInstances GenWithoutOverlapped GenOneClass
+      [genInstance (undefined :: AST.AST)]
+      "{-# OPTIONS_GHC -Werror -fwarn-overlapping-patterns -fwarn-unused-matches -fwarn-unused-binds -fwarn-incomplete-patterns #-}"
+      "NavAST"
+      

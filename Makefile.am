@@ -228,6 +228,7 @@ tocktest_SOURCES += transformations/SimplifyTypesTest.hs
 
 pregen_sources = data/AST.hs
 pregen_sources += pregen/PregenUtils.hs
+pregen_sources += polyplate/Data/Generics/Polyplate/GenInstances.hs
 
 GenNavAST_SOURCES = pregen/GenNavAST.hs $(pregen_sources)
 GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
