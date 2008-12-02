@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.Schemes where
 
+import Data.Maybe
 import Data.Tree
 
 import Data.Generics.Polyplate
@@ -73,15 +74,16 @@ applyQuery2 qfA qfB = makeRecurseQ ops
   where
     ops = baseOp `extOpQ` qfA `extOpQ` qfB 
 
-applyListify :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> Tree (Maybe s)
-applyListify qf = fmap joinMaybe . makeRecurseQ ops
+applyListifyDepth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
+applyListifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . makeRecurseQ ops
   where
     qf' x = if qf x then Just x else Nothing
+    ops = baseOp `extOpQ` qf'
 
-    joinMaybe :: Maybe (Maybe a) -> Maybe a
-    joinMaybe Nothing = Nothing
-    joinMaybe (Just mx) = mx
-    
+applyListifyBreadth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
+applyListifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . makeRecurseQ ops
+  where
+    qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
 
 
