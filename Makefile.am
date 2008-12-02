@@ -251,7 +251,7 @@ pkginclude_HEADERS += support/tock_intrinsics_float.h
 
 clean-local:
 	rm -f obj/*.o obj/*.hi
-	[ ! -d obj ] || rmdir obj
+	rmdir obj
 
 # We post-process the Haddock output with M4 so that we can include SVG images.
 haddock:
