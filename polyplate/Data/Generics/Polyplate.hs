@@ -27,13 +27,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- Instances of the PolyplateM type-class /can/ be written manually but it's not
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
-module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
+module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..), PolyplateSpine(..),
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
   BaseOp, baseOp,
   ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp) where
 
 import Control.Monad.Identity
+
+import Data.Tree
 
 -- | The main Polyplate type-class.
 --
@@ -71,7 +73,30 @@ import Control.Monad.Identity
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
 class Monad m => PolyplateM t o o' m where
-  transformM :: o -> o' -> t -> m t
+  transformM :: o -> o' -> t -> m t -- TODO add routes
+
+  -- List of use cases for the Polyplate type-class, to try to decide best on its
+  -- necessary functions:
+  --
+  -- 1. To perform a monadic modification on specific types in the ops across a
+  -- whole structure.
+  -- 2. As #1, but non-monadic (use Identity monad to adapt the above)
+  -- 3. To perform a query across the whole tree that returns a rose-tree that reflects
+  -- the (spine-view) structure of the data.
+  -- 4. As #3, but to return a flattened list (use flatten to adapt the above)
+  -- 5. To perform a monadic modification that also uses modification wrappers,
+  -- (a more general case of #1)
+  --
+  -- So I think there are two classes needed:
+  --
+  -- * One to apply monadic transformations that takes routes (covers #5, #2, #1)
+  -- 
+  -- * One to apply tree-based queries that transform a whole data structure into
+  -- its tree spine-view, with optional methods for flattening into a depth-first
+  -- or breadth-first order.
+
+class PolyplateSpine t o o' a where
+  transformSpine :: o -> o' -> t -> Tree (Maybe a)
 
 
 -- | A helper class to convert non-monadic transformations into monadic ones in
