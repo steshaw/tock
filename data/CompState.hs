@@ -122,8 +122,6 @@ data CompState = CompState {
     csPulledItems :: [[PulledItem]],
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Set A.Name,
-    csUnifyLookup :: Map UnifyIndex UnifyValue,
-    csUnifyPairs :: [(UnifyValue, UnifyValue)],
     csUnifyId :: Int,
     csWarnings :: [WarningReport]
   }
@@ -162,8 +160,6 @@ emptyState = CompState {
     csPulledItems = [],
     csAdditionalArgs = Map.empty,
     csParProcs = Set.empty,
-    csUnifyLookup = Map.empty,
-    csUnifyPairs = [],
     csUnifyId = 0,
     csWarnings = []
   }

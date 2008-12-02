@@ -39,7 +39,30 @@ import TypeUnification
 import UnifyType
 import Utils
 
-lookupMapElseMutVar :: A.TypeRequirements -> UnifyIndex -> PassM (TypeExp A.Type)
+data RainTypeState = RainTypeState {
+    csUnifyLookup :: Map.Map UnifyIndex UnifyValue,
+    csUnifyPairs :: [(UnifyValue, UnifyValue)]
+    }
+
+startState :: RainTypeState
+startState = RainTypeState {
+    csUnifyLookup = Map.empty,
+    csUnifyPairs = []
+    }
+
+type RainTypeM = StateT RainTypeState PassM
+
+type RainTypePassType = Data t => t -> StateT RainTypeState PassM t
+
+type RainTypeCheck a = a -> RainTypeM ()
+
+instance Die RainTypeM where
+  dieReport = lift . dieReport
+
+instance CSMR RainTypeM where
+  getCompState = lift getCompState
+
+lookupMapElseMutVar :: A.TypeRequirements -> UnifyIndex -> RainTypeM (TypeExp A.Type)
 lookupMapElseMutVar reqs k
   = do st <- get
        let m = csUnifyLookup st
@@ -52,7 +75,7 @@ lookupMapElseMutVar reqs k
                        put st {csUnifyLookup = m'}
                        return v
 
-ttte :: Meta -> String -> (A.Type -> A.Type) -> A.Type -> PassM (TypeExp A.Type)
+ttte :: Meta -> String -> (A.Type -> A.Type) -> A.Type -> RainTypeM (TypeExp A.Type)
 ttte m c f t = typeToTypeExp m t >>= \t' -> return $ OperType m c (\[x] -> f x) [t']
 
 -- Transforms the given type into a typeexp, such that the only inner types
@@ -60,7 +83,7 @@ ttte m c f t = typeToTypeExp m t >>= \t' -> return $ OperType m c (\[x] -> f x) 
 -- (which would require unification of dimensions and such) are not supported,
 -- neither are records.
 --  User data types should not be present in the input.
-typeToTypeExp :: Meta -> A.Type -> PassM (TypeExp A.Type)
+typeToTypeExp :: Meta -> A.Type -> RainTypeM (TypeExp A.Type)
 typeToTypeExp m (A.List t) = ttte m "[]" A.List t
 typeToTypeExp m (A.Chan A.DirInput at t) = ttte m "?" (A.Chan A.DirInput at) t
 typeToTypeExp m (A.Chan A.DirOutput at t) = ttte m "!" (A.Chan A.DirOutput at) t
@@ -79,7 +102,7 @@ typeToTypeExp _ (A.UnknownNumLitType m id n)
        return v
 typeToTypeExp m t = return $ OperType m (show t) (const t) []
 
-markUnify :: (ASTTypeable a, ASTTypeable b, Data a, Data b) => a -> b -> PassM ()
+markUnify :: (ASTTypeable a, ASTTypeable b, Data a, Data b) => a -> b -> RainTypeM ()
 markUnify x y
   = do tx <- astTypeOf x
        ty <- astTypeOf y
@@ -92,32 +115,32 @@ performTypeUnification :: Pass
 performTypeUnification = rainOnlyPass "Rain Type Checking"
   ([Prop.noInt] ++ Prop.agg_namesDone)
   [Prop.expressionTypesChecked, Prop.functionTypesChecked, Prop.processTypesChecked, Prop.retypesChecked]
-  (\x -> do -- First, we copy the known types into the unify map:
+  (\x -> flip evalStateT startState $ do -- First, we copy the known types into the unify map:
        st <- get
-       ul <- shift $ csNames st
+       ul <- getCompState >>= (shift . csNames)
        put st {csUnifyPairs = [], csUnifyLookup = ul}
        -- Then we markup all the types in the tree:
-       x' <- markConditionalTypes
+       x' <- (markConditionalTypes
              <.< markParamPass
              <.< markAssignmentTypes
              <.< markCommTypes
              <.< markPoisonTypes
              <.< markReplicators
              <.< markExpressionTypes
-             $ x
+             ) x
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
-       mapM_ (uncurry unifyType) prs
+       mapM_ (lift . uncurry unifyType) prs
        -- Now put the types back in a map, and replace them through the tree:
        l <- get >>* csUnifyLookup
-       ts <- mapMapM (\v -> fromTypeExp v) l
-       get >>= substituteUnknownTypes ts >>= put
-       substituteUnknownTypes ts x')
+       ts <- lift $ mapMapM (\v -> fromTypeExp v) l
+       lift $ get >>= substituteUnknownTypes ts >>= put
+       lift $ substituteUnknownTypes ts x')
   where
-    shift :: Map.Map String A.NameDef -> PassM (Map.Map UnifyIndex UnifyValue)
+    shift :: Map.Map String A.NameDef -> RainTypeM (Map.Map UnifyIndex UnifyValue)
     shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
       where
-        shift' :: (String, A.NameDef) -> PassM (Maybe (UnifyIndex, UnifyValue))
+        shift' :: (String, A.NameDef) -> RainTypeM (Maybe (UnifyIndex, UnifyValue))
         shift' (rawName, d) = do mt <- typeOfSpec (A.ndSpecType d)
                                  case mt of
                                    Nothing -> return Nothing
@@ -140,10 +163,10 @@ substituteUnknownTypes mt = applyDepthM sub
       Just t -> return t
       Nothing -> dieP m "Could not deduce type"
 
-markReplicators :: PassType
+markReplicators :: RainTypePassType
 markReplicators = checkDepthM mark
   where
-    mark :: Check A.Specification
+    mark :: RainTypeCheck A.Specification
     mark (A.Specification _ n (A.Rep _ (A.ForEach _m e)))
       = astTypeOf n >>= \t -> markUnify (A.List t) e
     mark _ = return ()
@@ -161,11 +184,11 @@ constantFoldPass = rainOnlyPass "Fold all constant expressions"
 -- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the
 -- AST, and checks that the actual parameters are valid inputs, given
 -- the 'A.Formal' parameters in the process's type
-markParamPass :: PassType
+markParamPass :: RainTypePassType
 markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
   where
     --Picks out the parameters of a process call, checks the number is correct, and maps doParam over them
-    matchParamPassProc :: Check A.Process
+    matchParamPassProc :: RainTypeCheck A.Process
     matchParamPassProc (A.ProcCall m n actualParams)
       = do def <- lookupNameOrError n $ dieP m ("Process name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
            case A.ndSpecType def of
@@ -177,7 +200,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassProc _ = return ()
     
     --Picks out the parameters of a function call, checks the number is correct, and maps doExpParam over them
-    matchParamPassFunc :: Check A.Expression
+    matchParamPassFunc :: RainTypeCheck A.Expression
     matchParamPassFunc (A.FunctionCall m n actualParams)
       = do def <- lookupNameOrError n $ dieP m ("Function name is unknown: \"" ++ (show $ A.nameName n) ++ "\"")
            case A.ndSpecType def of
@@ -192,11 +215,11 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassFunc _ = return ()
 
 -- | Checks the types in expressions
-markExpressionTypes :: PassType
+markExpressionTypes :: RainTypePassType
 markExpressionTypes = checkDepthM checkExpression
   where
     -- TODO also check in a later pass that the op is valid
-    checkExpression :: Check A.Expression
+    checkExpression :: RainTypeCheck A.Expression
     checkExpression (A.Dyadic _ _ lhs rhs)
       = markUnify lhs rhs
     checkExpression (A.Literal _ t (A.ListLiteral _ es))
@@ -212,10 +235,10 @@ markExpressionTypes = checkDepthM checkExpression
     checkExpression _ = return ()
 
 -- | Checks the types in assignments
-markAssignmentTypes :: PassType
+markAssignmentTypes :: RainTypePassType
 markAssignmentTypes = checkDepthM checkAssignment
   where
-    checkAssignment :: Check A.Process
+    checkAssignment :: RainTypeCheck A.Process
     checkAssignment (A.Assign m [v] (A.ExpressionList _ [e]))
       = do am <- abbrevModeOfVariable v
            when (am == A.ValAbbrev) $
@@ -233,44 +256,44 @@ markAssignmentTypes = checkDepthM checkAssignment
     checkAssignment st = return ()
 
 -- | Checks the types in if and while conditionals
-markConditionalTypes :: PassType
+markConditionalTypes :: RainTypePassType
 markConditionalTypes = checkDepthM2 checkWhile checkIf
   where
-    checkWhile :: Check A.Process
+    checkWhile :: RainTypeCheck A.Process
     checkWhile w@(A.While m exp _)
       = markUnify exp A.Bool
     checkWhile _ = return ()
     
-    checkIf :: Check A.Choice
+    checkIf :: RainTypeCheck A.Choice
     checkIf c@(A.Choice m exp _)
       = markUnify exp A.Bool
 
 -- | Marks types in poison statements
-markPoisonTypes :: PassType
+markPoisonTypes :: RainTypePassType
 markPoisonTypes = checkDepthM checkPoison
   where
-    checkPoison :: Check A.Process
+    checkPoison :: RainTypeCheck A.Process
     checkPoison (A.InjectPoison m ch)
-      = do u <- getUniqueIdentifer
+      = do u <- lift getUniqueIdentifer
            markUnify ch $ A.UnknownVarType (A.TypeRequirements True) $ Right (m, u)
     checkPoison _ = return ()
 
 -- | Checks the types in inputs and outputs, including inputs in alts
-markCommTypes :: PassType
+markCommTypes :: RainTypePassType
 markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
-    checkInput :: A.Variable -> A.Variable -> Meta -> a -> PassM ()
+    checkInput :: A.Variable -> A.Variable -> Meta -> a -> RainTypeM ()
     checkInput chanVar destVar m p
       = astTypeOf destVar >>= markUnify chanVar . A.Chan A.DirInput (A.ChanAttributes
         False False)
 
-    checkWait :: Check A.InputMode
+    checkWait :: RainTypeCheck A.InputMode
     checkWait (A.InputTimerFor m exp) = markUnify A.Time exp
     checkWait (A.InputTimerAfter m exp) = markUnify A.Time exp
     checkWait (A.InputTimerRead m (A.InVariable _ v)) = markUnify A.Time v
     checkWait _ = return ()
 
-    checkInputOutput :: Check A.Process
+    checkInputOutput :: RainTypeCheck A.Process
     checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
       = checkInput chanVar destVar m p
     checkInputOutput (A.Input _ _ im@(A.InputTimerFor {})) = checkWait im
@@ -281,7 +304,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
         False False)
     checkInputOutput _ = return ()
 
-    checkAltInput :: Check A.Alternative
+    checkAltInput :: RainTypeCheck A.Alternative
     checkAltInput a@(A.Alternative m _ chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
       = checkInput chanVar destVar m a
     checkAltInput (A.Alternative m _ _ im@(A.InputTimerFor {}) _) = checkWait im
