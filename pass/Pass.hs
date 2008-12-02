@@ -23,6 +23,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics
+import Data.Generics.Polyplate
 import Data.List
 import Data.Ord
 import qualified Data.Set as Set
@@ -53,21 +54,35 @@ instance Warn PassM where
 -- This is as generic as possible. Passes are used on 'A.AST' in normal use,
 -- but for explicit descent and testing it's useful to be able to run them
 -- against AST fragments of other types as well.
-type PassType = (forall s. Data s => s -> PassM s)
+type PassType t = t -> PassM t
+
+type PassOnOps ops
+  = (PolyplateM t ops () PassM, PolyplateM t () ops PassM) => Pass t
+
+type PassASTOnOps ops
+  = (PolyplateM A.AST ops () PassM, PolyplateM A.AST () ops PassM) => Pass A.AST
+
+type PassTypeOnOps ops
+  = (PolyplateM t ops () PassM, PolyplateM t () ops PassM) => PassType t
+
+type PassOn t = PassOnOps (OneOpM PassM t)
+type PassOn2 s t = PassOnOps (TwoOpM PassM s t)
+type PassTypeOn t = PassTypeOnOps (OneOpM PassM t)
+      
 
 -- | A description of an AST-mangling pass.
-data Pass = Pass {
-    passCode :: PassType
+data Pass t = Pass {
+    passCode :: PassType t
   , passName :: String
   , passPre :: Set.Set Property
   , passPost :: Set.Set Property
   , passEnabled :: CompState -> Bool
 }
 
-instance Eq Pass where
+instance Eq (Pass t) where
   x == y = passName x == passName y
 
-instance Ord Pass where
+instance Ord (Pass t) where
   compare = comparing passName
 
 -- | A property that can be asserted and tested against the AST.
@@ -89,30 +104,17 @@ runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState)
 runPassM cs pass
     =  flip runStateT cs $ runErrorT pass
 
-enablePassesWhen :: (CompState -> Bool) -> [Pass] -> [Pass]
+enablePassesWhen :: (CompState -> Bool) -> [Pass A.AST] -> [Pass A.AST]
 enablePassesWhen f
     = map (\p -> p { passEnabled = \c -> f c && (passEnabled p c) })
 
 -- | A helper to run a pass at the top-level, or deliver an error otherwise
-passOnlyOnAST :: forall t. Data t => String -> (A.AST -> PassM A.AST) -> t -> PassM t
-passOnlyOnAST name func x
-    = case cast x :: Maybe A.AST of
-        Nothing -> dieP emptyMeta $ name ++ " only operates at top-level"
-        Just x' ->
-           do y <- func x'
-              case cast y :: Maybe t of
-                Nothing -> dieP emptyMeta $ name ++ " crazy cast error at top-level"
-                Just y' -> return y'
+passOnlyOnAST :: String -> (A.AST -> PassM A.AST) -> (A.AST -> PassM A.AST)
+passOnlyOnAST name = id
 
--- For all functions of this type, do NOT use dollar before the pass.
--- That is, do not write: pass "" [] [] $ some code
--- On GHC 6.6 (without impredicative polymorphism from 6.8.1) this
--- will force the RHS (some code) to become monomorphic, where in fact
--- it needs to remain polymorphic.  So just bracket the code for the
--- pass instead, and everything will be fine
-type PassMaker = String -> [Property] -> [Property] -> PassType -> Pass
+type PassMaker t = String -> [Property] -> [Property] -> PassType t -> Pass t
 
-passMakerHelper :: (CompState -> Bool) -> PassMaker
+passMakerHelper :: (CompState -> Bool) -> PassMaker t
 passMakerHelper f name pre post code
   = Pass { passCode = code
          , passName = name
@@ -121,30 +123,27 @@ passMakerHelper f name pre post code
          , passEnabled = f
          }
 
-rainOnlyPass :: PassMaker
+rainOnlyPass :: PassMaker t
 rainOnlyPass = passMakerHelper $ (== FrontendRain) . csFrontend
 
-occamOnlyPass :: PassMaker
+occamOnlyPass :: PassMaker t
 occamOnlyPass = passMakerHelper $ (== FrontendOccam) . csFrontend
 
 occamAndCOnlyPass :: PassMaker
 occamAndCOnlyPass = passMakerHelper $
   \st -> (csFrontend st == FrontendOccam) && (csBackend st == BackendC)
 
-cOnlyPass :: PassMaker
+cOnlyPass :: PassMaker t
 cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 
-cppOnlyPass :: PassMaker
+cppOnlyPass :: PassMaker t
 cppOnlyPass = passMakerHelper $ (== BackendCPPCSP) . csBackend
-
-cOrCppOnlyPass :: PassMaker
-cOrCppOnlyPass = passMakerHelper $ (`elem` [BackendC, BackendCPPCSP]) . csBackend
 
 pass :: PassMaker
 pass = passMakerHelper (const True)
 
 -- | Compose a list of passes into a single pass by running them in the order given.
-runPasses :: [Pass] -> (A.AST -> PassM A.AST)
+runPasses :: [Pass A.AST] -> (A.AST -> PassM A.AST)
 runPasses [] ast = return ast
 runPasses (p:ps) ast
     =  do debug $ "{{{ " ++ passName p
