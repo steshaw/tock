@@ -27,7 +27,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- Instances of the PolyplateM type-class /can/ be written manually but it's not
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
-module Polyplate (PolyplateM(..), Polyplate(..),
+module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
   makeRecurseM, RecurseM,
   makeDescendM, DescendM,
   BaseOp, baseOp,
