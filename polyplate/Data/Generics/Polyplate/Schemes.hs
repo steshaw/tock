@@ -100,6 +100,13 @@ applyBottomUpM f = makeRecurseM ops
   where
     ops = baseOp `extOpM` makeBottomUpM ops f
 
+applyBottomUp :: (Polyplate t (OneOp s) (),
+                  Polyplate s () (OneOp s)) =>
+                 (s -> s) -> t -> t
+applyBottomUp f = makeRecurse ops
+  where
+    ops = baseOp `extOp` makeBottomUp ops f
+
 -- | Given a monadic function that applies to a particular type (s), automatically
 -- applies that function to every instance of s in a larger structure of type t,
 -- performing the transformations in a top-down fashion.  It does a depth first
