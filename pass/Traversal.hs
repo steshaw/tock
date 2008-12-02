@@ -16,11 +16,13 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
--- | Traversal strategies over the AST and other data types.
+-- | Traversal strategies over the AST and other data types.  This is now mainly
+-- a collection of extra Tock-specific utilities that go on top of Polyplate
 module Traversal (
-    TransformM, Transform
+    TransformM, Transform, TransformStructured
   , CheckM, Check
   , ExtOpMP, ExtOpMS, ExtOpMSP, extOpMS
+  , applyBottomUpMS
   , module Data.Generics.Polyplate
   , module Data.Generics.Polyplate.Schemes
   ) where
@@ -95,3 +97,13 @@ extOpMS ops (_, f)
       `extOpM` (f :: A.Structured A.Alternative -> m (A.Structured A.Alternative))
       `extOpM` (f :: A.Structured () -> m (A.Structured ()))
 
+applyBottomUpMS :: (PolyplateM t (ExtOpMSP BaseOp) () PassM) =>
+  (forall a. (Data a, PolyplateM (A.Structured a) () (ExtOpMSP BaseOp) PassM) =>
+     (A.Structured a -> PassM (A.Structured a)))
+  -> t -> PassM t
+applyBottomUpMS f = makeRecurseM ops
+  where
+    ops = baseOp `extOpMS` (ops, makeBottomUpM ops f)
+
+type TransformStructured ops
+  = (PolyplateM (A.Structured t) () ops PassM, Data t) => Transform (A.Structured t)

@@ -31,18 +31,18 @@ import Traversal
 import Types
 import Utils
 
-simplifyComms :: [Pass]
+simplifyComms :: [Pass A.AST]
 simplifyComms =
     [ outExprs
     , transformInputCase
     , transformProtocolInput
     ]
 
-outExprs :: Pass
+outExprs :: PassOn A.Process
 outExprs = pass "Define temporary variables for outputting expressions"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   [Prop.outExpressionRemoved]
-  (applyDepthM doProcess)
+  (applyBottomUpM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Output m c ois)
@@ -135,11 +135,11 @@ ALT
          -- process D
 -}
 
-transformInputCase :: Pass
+transformInputCase :: PassOn A.Process
 transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   [Prop.inputCaseRemoved]
-  (applyDepthM doProcess)
+  (applyBottomUpM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputCase m' s))
@@ -182,11 +182,11 @@ transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
         -- Leave other guards untouched.
         doAlternative m a = return $ A.Only m a
 
-transformProtocolInput :: Pass
+transformProtocolInput :: PassOn2 A.Process A.Alternative
 transformProtocolInput = pass "Flatten sequential protocol inputs into multiple inputs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.inputCaseRemoved])
   [Prop.seqInputsFlattened]
-  (applyDepthM2 doProcess doAlternative)
+  (applyBottomUpM2 doProcess doAlternative)
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))

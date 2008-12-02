@@ -37,7 +37,7 @@ import Traversal
 import Types
 import Utils
 
-unnest :: [Pass]
+unnest :: [Pass A.AST]
 unnest =
       [ removeFreeNames
       , removeNesting
@@ -77,22 +77,12 @@ freeNamesIn = doGeneric
     doSpecType st = doGeneric st
 
 -- | Replace names.
---
--- This has to have extra cleverness due to a really nasty bug.  Array types can
--- have expressions as dimensions, and those expressions can contain free names
--- which are being replaced.  This is fine, but when that happens we need to update
--- CompState so that the type has the replaced name, not the old name.
-replaceNames :: Data t => [(A.Name, A.Name)] -> t -> PassM t
-replaceNames map v = recurse v
+replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
+replaceNames map v = runIdentity $ applyDepthM doName v
   where
     smap = Map.fromList [(A.nameName f, t) | (f, t) <- map]
 
-    ops :: Ops
-    ops = baseOp `extOp` doName `extOp` doSpecification
-    recurse :: Data a => Transform a
-    recurse = makeRecurse ops
-
-    doName :: Transform A.Name
+    doName :: A.Name -> Identity A.Name
     doName n = return $ Map.findWithDefault n (A.nameName n) smap
 
     doSpecification :: Transform A.Specification
@@ -107,11 +97,11 @@ replaceNames map v = recurse v
            return $ A.Specification m n' sp'
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: Pass
+removeFreeNames :: PassOn2 A.Specification A.Process
 removeFreeNames = pass "Convert free names to arguments"
   [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved]
   [Prop.freeNamesToArgs]
-  (applyDepthM2 doSpecification doProcess)
+  (applyBottomUpM2 doSpecification doProcess)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification spec = case spec of
@@ -196,25 +186,26 @@ removeFreeNames = pass "Convert free names to arguments"
     doProcess p = return p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: Pass
+removeNesting :: PassASTOnOps (ExtOpMSP BaseOp)
 removeNesting = pass "Pull nested definitions to top level"
   [Prop.freeNamesToArgs]
   [Prop.nestedPulled]
   (passOnlyOnAST "removeNesting" $ \s ->
        do pushPullContext
-          s' <- recurse s >>= applyPulled
+          s' <- (makeRecurse ops) s >>= applyPulled
           popPullContext
           return s')
   where
-    ops :: Ops
-    ops = baseOp `extOpS` doStructured
+    ops :: ExtOpMSP BaseOp
+    ops = baseOp `extOpMS` (ops, doStructured)
 
-    recurse :: Recurse
-    recurse = makeRecurse ops
-    descend :: Descend
-    descend = makeDescend ops
 
-    doStructured :: Data t => Transform (A.Structured t)
+    recurse :: RecurseM PassM (ExtOpMSP BaseOp)
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM (ExtOpMSP BaseOp)
+    descend = makeDescendM ops
+
+    doStructured :: TransformStructured (ExtOpMSP BaseOp)
     doStructured s@(A.Spec m spec subS)
         = do spec'@(A.Specification _ n st) <- recurse spec
              isConst <- isConstantName n

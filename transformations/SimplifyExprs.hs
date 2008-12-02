@@ -35,7 +35,7 @@ import Traversal
 import Types
 import Utils
 
-simplifyExprs :: [Pass]
+simplifyExprs :: [Pass A.AST]
 simplifyExprs =
       [ functionsToProcs
       , removeAfter
@@ -51,7 +51,7 @@ builtInOperatorFunction = (`elem` occamBuiltInOperatorFunctions) . A.nameName
 
 
 -- | Convert FUNCTION declarations to PROCs.
-functionsToProcs :: Pass
+functionsToProcs :: PassOn A.Specification
 functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
         Prop.functionTypesChecked])
@@ -106,11 +106,11 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
-removeAfter :: Pass
+removeAfter :: PassOn A.Expression
 removeAfter = pass "Convert AFTER to MINUS"
   [Prop.expressionTypesChecked]
   [Prop.afterRemoved]
-  (applyDepthM2 doExpression doExpressionList)
+  (applyDepthM doExpression)
   where
     doFunctionCall :: (Meta -> A.Name -> [A.Expression] -> a)
       -> Meta -> A.Name -> [A.Expression] -> PassM a
@@ -145,11 +145,11 @@ removeAfter = pass "Convert AFTER to MINUS"
 
 -- | For array literals that include other arrays, burst them into their
 -- elements.
-expandArrayLiterals :: Pass
+expandArrayLiterals :: PassOn A.ArrayElem
 expandArrayLiterals = pass "Expand array literals"
   [Prop.expressionTypesChecked, Prop.processTypesChecked]
   [Prop.arrayLiteralsExpanded]
-  (applyDepthM doArrayElem)
+  (applyBottomUpM doArrayElem)
   where
     doArrayElem :: A.Structured A.Expression -> PassM (A.Structured A.Expression)
     doArrayElem ae@(A.Only _ e)
@@ -189,13 +189,14 @@ expandArrayLiterals = pass "Expand array literals"
 -- Therefore, we only need to pull up the counts for SEQ, PAR and ALT
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
---
--- TODO we should also pull up the step counts
 pullRepCounts :: Pass
 pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
-  (applyDepthM pullRepCountProc)
+  (applyDepthM2
+    (pullRepCount :: A.Structured A.Process -> PassM (A.Structured A.Process))
+    (pullRepCount :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative))
+  )
   where
     pullRepCountStr :: Data a => Bool -> A.Structured a
       -> StateT (A.Structured A.Process -> A.Structured A.Process)
@@ -221,11 +222,11 @@ pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
            return $ A.Seq m $ spec $ A.Only m $ A.Par m p body'
     pullRepCountProc p = return p
 
-transformConstr :: Pass
+transformConstr :: PassOnOps (ExtOpMSP BaseOp)
 transformConstr = pass "Transform array constructors into initialisation code"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.subscriptsPulledUp])
   [Prop.arrayConstructorsRemoved]
-  (applyDepthSM doStructured)
+  (applyBottomUpMS doStructured)
   where
     -- For arrays, this takes a constructor expression:
     --   VAL type name IS [i = rep | expr]:
@@ -329,19 +330,26 @@ transformConstr = pass "Transform array constructors into initialisation code"
 
     doStructured s = return s
 
+type PullUpOps = ExtOpMSP BaseOp
+  `ExtOpMP` A.Process
+  `ExtOpMP` A.Specification
+  `ExtOpMP` A.LiteralRepr
+  `ExtOpMP` A.Expression
+  `ExtOpMP` A.Variable
+  `ExtOpMP` A.ExpressionList
+
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
-pullUp :: Bool -> Pass
+pullUp :: Bool -> PassOnOps PullUpOps
 pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.functionsRemoved, Prop.seqInputsFlattened])
   [Prop.functionCallsRemoved, Prop.subscriptsPulledUp]
   recurse
   where
-    ops :: Ops
+    ops :: PullUpOps
     ops = baseOp
           `extOpS` doStructured
           `extOp` doProcess
-          `extOp` doRepArray
           `extOp` doSpecification
           `extOp` doLiteralRepr
           `extOp` doExpression
@@ -354,7 +362,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.
-    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured :: TransformStructured PullUpOps
     doStructured s
         =  do pushPullContext
               -- Recurse over the body, then apply the pulled items to it
