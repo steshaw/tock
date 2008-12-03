@@ -58,7 +58,7 @@ tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
 
-GenNavAST$(EXEEXT): $(GenNavAST_SOURCES)
+GenNavAST$(EXEEXT): $(GenNavAST_SOURCES) data/OrdAST.hs
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenNavAST$(EXEEXT) -main-is GenNavAST --make GenNavAST -odir obj -hidir obj
 
