@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
-   GenInstance, genInstance, genMapInstance, genInstances,
+   GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
    writeInstances, writeInstancesTo) where
 
 import Control.Monad.State
@@ -28,6 +28,7 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Ord
+import Data.Set (Set)
 import qualified Data.Set as Set
 
 data GenOverlappedOption = GenWithOverlapped | GenWithoutOverlapped
@@ -57,6 +58,13 @@ instance Eq Witness where
   (==) wx wy = case (witness wx, witness wy) of
     (DataBox x, DataBox y) -> typeOf x == typeOf y
 
+-- | Generates an instance for the 'Data.Map.Map' type.  Map is a difficult type
+-- because its instance of Data hides its implementation, so we can't actually
+-- use the Data instance to work out what the children are (as we can do for other
+-- algebraic data types).  So for every different Map that you want to process
+-- (or that you have inside other types you want to process), you must also call
+-- this function to effectively notify the generation-functions of the existence
+-- of your map.  We wish there was an easier, non-hacky way but we can't see one.
 genMapInstance :: forall k v. (Ord k, Data k, Data v) => k -> v -> GenInstance
 genMapInstance k v
   = GenInstance $ do
@@ -70,6 +78,22 @@ genMapInstance k v
   where
     m :: Map k v
     m = undefined
+
+-- | Generates an instance for the 'Data.Set.Set' type.  See 'genMapInstance' for
+-- an explanation.
+genSetInstance :: forall a. (Ord a, Data a) => a -> GenInstance
+genSetInstance x
+  = GenInstance $ do
+       tk <- liftIO $ typeKey s
+       modify (Map.insert tk (show $ typeOf s,
+         Detailed (DataBox s) [DataBox x]
+         ["transformM () ops v = do vals <- mapM (transformM ops ()) (Set.toList v)"
+         ,"                         return (Set.fromList vals)"
+         ]))
+  where
+    s :: Set a
+    s = undefined
+
     
 -- Explanation of Polyplate's instances:
 --
