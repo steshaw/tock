@@ -51,7 +51,10 @@ genInstance = GenInstance . findTypesIn
 
 data Witness
   = Plain { witness :: DataBox }
-    | Detailed { witness :: DataBox, directlyContains :: [DataBox], processChildren :: [String] }
+    | Detailed { witness :: DataBox
+               , directlyContains :: [DataBox]
+               -- First is funcSameType, second is funcNewType:
+               , processChildren :: (String, String) -> [String] }
 
 -- The Eq instance is based on the inner type.
 instance Eq Witness where
@@ -70,10 +73,11 @@ genMapInstance k v
   = GenInstance $ do
        tk <- liftIO $ typeKey m
        modify (Map.insert tk (show $ typeOf m,
-         Detailed (DataBox m) [DataBox k, DataBox v]
-         ["transformM () ops v = do keys <- mapM (transformM ops () . fst) (Map.toList v)"
-         ,"                         vals <- mapM (transformM ops () . snd) (Map.toList v)"
-         ,"                         return (Map.fromList (zip keys vals))"
+         Detailed (DataBox m) [DataBox k, DataBox v] $ \(funcSameType, funcNewType) ->
+         [funcSameType ++ " () ops v = do"
+         ,"  keys <- mapM (" ++ funcNewType ++ " ops () . fst) (Map.toList v)"
+         ,"  vals <- mapM (" ++ funcNewType ++ " ops () . snd) (Map.toList v)"
+         ,"  return (Map.fromList (zip keys vals))"
          ]))
   where
     m :: Map k v
@@ -86,9 +90,10 @@ genSetInstance x
   = GenInstance $ do
        tk <- liftIO $ typeKey s
        modify (Map.insert tk (show $ typeOf s,
-         Detailed (DataBox s) [DataBox x]
-         ["transformM () ops v = do vals <- mapM (transformM ops ()) (Set.toList v)"
-         ,"                         return (Set.fromList vals)"
+         Detailed (DataBox s) [DataBox x] $ \(funcSameType, funcNewType) ->
+         [funcSameType ++ " () ops v = do"
+         ,"  vals <- mapM (" ++ funcNewType ++ " ops ()) (Set.toList v)"
+         ,"  return (Set.fromList vals)"
          ]))
   where
     s :: Set a
@@ -248,10 +253,18 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     contextNewType cName ops0 ops1
       = "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
 
+    -- The function to define in the body, and also to use for processing the same
+    -- type.
+    funcSameType :: String
+    funcSameType = "transformM"
+
+    funcNewType :: String
+    funcNewType = "transformM"
+
     -- | An instance that describes what to do when we have no transformations
     -- left to apply.  You can pass it an override for the case of processing children
     -- (and the types that make up the children).
-    baseInst :: Maybe ([DataBox], [String]) -> [String]
+    baseInst :: Maybe ([DataBox], (String, String) -> [String]) -> [String]
     baseInst mdoChildren
         = concat
           [genInst context "()" "(f, ops)" $
@@ -260,14 +273,14 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
                     -- An algebraic type: apply to each child if we're following.
                     then (concatMap constrCase wCtrs)
                     -- A primitive (or non-represented) type: just return it.
-                    else ["transformM () _ v = return v"])
-                snd mdoChildren
-          ,genInst [] "()" "()" ["transformM () () v = return v"]
+                    else [funcSameType ++ " () _ v = return v"])
+                (\(_,f) -> f (funcSameType, funcNewType)) mdoChildren
+          ,genInst [] "()" "()" [funcSameType ++ " () () v = return v"]
           ,if genOverlapped == GenWithoutOverlapped then [] else
             genInst
               [ contextSameType "r" "ops" ]
               "(a -> m a, r)" "ops" 
-                ["transformM (_, rest) ops v = transformM rest ops v"]
+                [funcSameType ++ " (_, rest) ops v = " ++ funcSameType ++ " rest ops v"]
             ]
       where
         -- | Class context for 'baseInst'.
@@ -284,11 +297,11 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     -- then stick it back together.
     constrCase :: Constr -> [String]
     constrCase ctr
-        = [ "  transformM () " ++ (if argNums == [] then "_" else "ops") ++
+        = [ funcSameType ++ " () " ++ (if argNums == [] then "_" else "ops") ++
             " (" ++ ctrInput ++ ")"
           , "    = do"
           ] ++
-          [ "         r" ++ show i ++ " <- transformM ops () a" ++ show i
+          [ "         r" ++ show i ++ " <- " ++ funcNewType ++ " ops () a" ++ show i
            | i <- argNums] ++
           [ "         return (" ++ ctrResult ++ ")"
           ]
@@ -317,19 +330,19 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
           | wKey == cKey
             = (True
               ,[]
-              ,["transformM (f, _) _ v = f v"])
+              ,[funcSameType ++ " (f, _) _ v = f v"])
           -- This type might contain the type that the transformation acts
           -- upon
           | cKey `Set.member` containedKeys
             = (True
               ,[contextSameType "r" ("((" ++ cName ++ ") -> m (" ++ cName ++ "), ops)")]
-              ,["transformM (f, rest) ops v = transformM rest (f, ops) v"])
+              ,[funcSameType ++ " (f, rest) ops v = " ++ funcSameType ++ " rest (f, ops) v"])
           -- This type can't contain the transformed type; just move on to the
           -- next transformation.
           | genOverlapped == GenWithoutOverlapped
             = (True
               ,[contextSameType "r" "ops"]
-              ,["transformM (_, rest) ops v = transformM rest ops v"])
+              ,[funcSameType ++ " (_, rest) ops v = " ++ funcSameType ++ " rest ops v"])
           -- This is covered by one big overlapping instance:
           | otherwise = (False,[],[])
 
