@@ -92,6 +92,11 @@ instance Eq Witness where
 genMapInstance :: forall k v. (Ord k, Data k, Data v) => k -> v -> GenInstance
 genMapInstance k v
   = GenInstance $ do
+       -- Must find types for contained types, in case they are not generated elsewhere.
+       --  This is true for Tock, where NameDefs only exist in AST or CompState
+       -- in a Map.
+       findTypesIn k
+       findTypesIn v
        tk <- liftIO $ typeKey m
        modify (Map.insert tk (show $ typeOf m,
          Detailed (DataBox m) [DataBox k, DataBox v] $ \(funcSameType, funcNewType) ->
@@ -109,6 +114,8 @@ genMapInstance k v
 genSetInstance :: forall a. (Ord a, Data a) => a -> GenInstance
 genSetInstance x
   = GenInstance $ do
+       -- Must find types for contained types, in case they are not generated elsewhere.
+       findTypesIn x
        tk <- liftIO $ typeKey s
        modify (Map.insert tk (show $ typeOf s,
          Detailed (DataBox s) [DataBox x] $ \(funcSameType, funcNewType) ->
