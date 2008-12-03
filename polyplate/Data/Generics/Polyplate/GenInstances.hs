@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
-   GenInstance, genInstance, genInstances,
+   GenInstance, genInstance, genMapInstance, genInstances,
    writeInstances, writeInstancesTo) where
 
 import Control.Monad.State
@@ -27,6 +27,7 @@ import Data.Generics
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Ord
 import qualified Data.Set as Set
 
 data GenOverlappedOption = GenWithOverlapped | GenWithoutOverlapped
@@ -47,6 +48,29 @@ newtype GenInstance = GenInstance (TypeMapM ())
 genInstance :: Data t => t -> GenInstance
 genInstance = GenInstance . findTypesIn
 
+data Witness
+  = Plain { witness :: DataBox }
+    | Detailed { witness :: DataBox, directlyContains :: [DataBox], processChildren :: [String] }
+
+-- The Eq instance is based on the inner type.
+instance Eq Witness where
+  (==) wx wy = case (witness wx, witness wy) of
+    (DataBox x, DataBox y) -> typeOf x == typeOf y
+
+genMapInstance :: forall k v. (Ord k, Data k, Data v) => k -> v -> GenInstance
+genMapInstance k v
+  = GenInstance $ do
+       tk <- liftIO $ typeKey m
+       modify (Map.insert tk (show $ typeOf m,
+         Detailed (DataBox m) [DataBox k, DataBox v]
+         ["transformM () ops v = do keys <- mapM (transformM ops () . fst) (Map.toList v)"
+         ,"                         vals <- mapM (transformM ops () . snd) (Map.toList v)"
+         ,"                         return (Map.fromList (zip keys vals))"
+         ]))
+  where
+    m :: Map k v
+    m = undefined
+    
 -- Explanation of Polyplate's instances:
 --
 -- Polyplate is a type-class system for automatically applying generic transformations
@@ -138,16 +162,24 @@ genInstance = GenInstance . findTypesIn
 
 -- | Instances for a particular data type (i.e. where that data type is the
 -- first argument to 'Polyplate').
-instancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [DataBox] -> t -> IO [String]
+instancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [Witness] -> t -> IO [String]
 instancesFrom genOverlapped genClass@GenOneClass boxes w
-    = do containedTypes <- findTypesIn' w
+    = do (specialProcessChildren, containedTypes) <-
+           case find (== Plain (DataBox w)) boxes of
+             Just (Detailed _ containedTypes doChildren) ->
+               -- It's a special case, use the detailed info:
+               do eachContained <- sequence [findTypesIn' c | DataBox c <- containedTypes]
+                  return (Just (containedTypes, doChildren), foldl Map.union Map.empty eachContained)
+             -- It's a normal case, use findTypesIn' directly:
+             _ -> do ts <- findTypesIn' w
+                     return (Nothing, ts)
          containedKeys <- liftM Set.fromList
-           (sequence [typeKey c | DataBox c <- justBoxes containedTypes])
+           (sequence [typeKey c | DataBox c <- map witness $ justBoxes containedTypes])
          wKey <- typeKey w
          otherInsts <- sequence [do ck <- typeKey c
                                     return (otherInst wKey containedKeys c ck)
-                                | DataBox c <- boxes]
-         return $ baseInst ++ concat otherInsts
+                                | DataBox c <- map witness boxes]
+         return $ baseInst specialProcessChildren ++ concat otherInsts
   where
     wName = show $ typeOf w
     wDType = dataTypeOf w
@@ -161,21 +193,24 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
 
     ctrArgs ctr
         = gmapQ DataBox (fromConstr ctr :: t)
-    ctrArgTypes ctr
-        = [show $ typeOf w | DataBox w <- ctrArgs ctr]
+    ctrArgTypes types
+        = [show $ typeOf w | DataBox w <- types]
 
     -- | An instance that describes what to do when we have no transformations
-    -- left to apply.
-    baseInst :: [String]
-    baseInst
+    -- left to apply.  You can pass it an override for the case of processing children
+    -- (and the types that make up the children).
+    baseInst :: Maybe ([DataBox], [String]) -> [String]
+    baseInst mdoChildren
         = [ "instance (" ++ concat (intersperse ", " context) ++ ") =>"
           , "         PolyplateM (" ++ wName ++ ") () (f, ops) m where"
           ] ++
+          maybe
           (if isAlgType wDType
             -- An algebraic type: apply to each child if we're following.
             then (concatMap constrCase wCtrs)
-            -- A primitive type: just return it.
-            else ["  transformM () _ v = return v"]) ++
+            -- A primitive (or non-represented) type: just return it.
+            else ["  transformM () _ v = return v"])
+          (map ("  " ++) . snd) mdoChildren ++
           [""
           , "instance Monad m => PolyplateM (" ++ wName ++ ") () () m where"
           , "  transformM () () v = return v"
@@ -186,15 +221,16 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
             , "    PolyplateM (" ++ wName ++ ") (a -> m a, r) ops m where"
             , "  transformM (_, rest) ops v = transformM rest ops v"
             ]
-
-    -- | Class context for 'baseInst'.
-    -- We need an instance of Polyplate for each of the types directly contained within
-    -- this type, so we can recurse into them.
-    context :: [String]
-    context
-        = ["Monad m"] ++
-          ["PolyplateM (" ++ argType ++ ") (f,ops) () m"
-           | argType <- nub $ sort $ concatMap ctrArgTypes wCtrs]
+      where
+        -- | Class context for 'baseInst'.
+        -- We need an instance of Polyplate for each of the types directly contained within
+        -- this type, so we can recurse into them.
+        context :: [String]
+        context
+          = ["Monad m"] ++
+            ["PolyplateM (" ++ argType ++ ") (f,ops) () m"
+            | argType <- nub $ sort $ concatMap ctrArgTypes $
+                maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
 
     -- | A 'transformM' case for a particular constructor of this (algebraic)
     -- data type: pull the value apart, apply 'transformM' to each part of it,
@@ -257,7 +293,8 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
 genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> IO [String]
 genInstances op1 op2 insts
   =  do typeMap <- flip execStateT Map.empty (sequence [g | GenInstance g <- insts])
-        liftM concat $ sequence [instancesFrom op1 op2 (justBoxes typeMap) w | DataBox w <- justBoxes typeMap]
+        liftM concat $ sequence [instancesFrom op1 op2 (justBoxes typeMap) w
+                                | DataBox w <- map witness $ justBoxes typeMap]
 
 -- | Generates the instances according to the options and writes it to stdout with
 -- the given header.
@@ -280,7 +317,7 @@ writeInstancesTo op1 op2 inst header fileName
 -- | A type that can contain any 'Data' item.
 data DataBox = forall t. Data t => DataBox t
 
-type TypeMap = Map Int (String, DataBox)
+type TypeMap = Map Int (String, Witness)
 type TypeMapM = StateT TypeMap IO
 
 typeKey :: Typeable t => t -> IO Int
@@ -299,7 +336,7 @@ findTypesIn start = doType start
         =  do map <- get
               key <- liftIO $ typeRepKey rep
               when (not $ key `Map.member` map) $
-                 do modify $ Map.insert key (reps, DataBox x)
+                 do modify $ Map.insert key (reps, Plain (DataBox x))
                     when (isAlgType dtype) $
                       mapM_ doConstr $ dataTypeConstrs dtype
       where
@@ -317,10 +354,8 @@ findTypesIn start = doType start
 filterModule :: String -> TypeMap -> TypeMap
 filterModule prefix = Map.filter (((prefix ++ ".") `isPrefixOf`) . fst)
 
--- | Reduce a 'TypeMap' to a list of 'DataBox'es, sorted by name.
-justBoxes :: TypeMap -> [DataBox]
-justBoxes = map snd . sortBy cmp . Map.elems
-  where
-    cmp (l, _) (r, _) = compare l r
+-- | Reduce a 'TypeMap' to a list of 'Witness'es, sorted by name.
+justBoxes :: TypeMap -> [Witness]
+justBoxes = map snd . sortBy (comparing fst) . Map.elems
 
 --}}}
