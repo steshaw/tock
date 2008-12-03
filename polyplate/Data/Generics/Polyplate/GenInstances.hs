@@ -220,30 +220,32 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     ctrArgTypes types
         = [show $ typeOf w | DataBox w <- types]
 
+    genInst :: [String] -> String -> String -> [String] -> [String]
+    genInst context ops0 ops1 body
+      = ["instance (Monad m" ++ concatMap (", " ++) context ++ ") =>"
+        ,"         PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m where"
+        ] ++ map ("  " ++) body
+
     -- | An instance that describes what to do when we have no transformations
     -- left to apply.  You can pass it an override for the case of processing children
     -- (and the types that make up the children).
     baseInst :: Maybe ([DataBox], [String]) -> [String]
     baseInst mdoChildren
-        = [ "instance (" ++ concat (intersperse ", " context) ++ ") =>"
-          , "         PolyplateM (" ++ wName ++ ") () (f, ops) m where"
-          ] ++
-          maybe
-          (if isAlgType wDType
-            -- An algebraic type: apply to each child if we're following.
-            then (concatMap constrCase wCtrs)
-            -- A primitive (or non-represented) type: just return it.
-            else ["  transformM () _ v = return v"])
-          (map ("  " ++) . snd) mdoChildren ++
-          [""
-          , "instance Monad m => PolyplateM (" ++ wName ++ ") () () m where"
-          , "  transformM () () v = return v"
-          ] ++
-          if genOverlapped == GenWithoutOverlapped then [] else
-            [ "instance (Monad m"
-            , "         ,PolyplateM (" ++ wName ++ ") r ops m) =>"
-            , "    PolyplateM (" ++ wName ++ ") (a -> m a, r) ops m where"
-            , "  transformM (_, rest) ops v = transformM rest ops v"
+        = concat
+          [genInst context "()" "(f, ops)" $
+              maybe
+                (if isAlgType wDType
+                    -- An algebraic type: apply to each child if we're following.
+                    then (concatMap constrCase wCtrs)
+                    -- A primitive (or non-represented) type: just return it.
+                    else ["transformM () _ v = return v"])
+                snd mdoChildren
+          ,genInst [] "()" "()" ["transformM () () v = return v"]
+          ,if genOverlapped == GenWithoutOverlapped then [] else
+            genInst
+              [ "PolyplateM (" ++ wName ++ ") r ops m" ]
+              "(a -> m a, r)" "ops" 
+                ["transformM (_, rest) ops v = transformM rest ops v"]
             ]
       where
         -- | Class context for 'baseInst'.
@@ -251,8 +253,7 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
         -- this type, so we can recurse into them.
         context :: [String]
         context
-          = ["Monad m"] ++
-            ["PolyplateM (" ++ argType ++ ") (f,ops) () m"
+          = ["PolyplateM (" ++ argType ++ ") (f,ops) () m"
             | argType <- nub $ sort $ concatMap ctrArgTypes $
                 maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
 
@@ -283,34 +284,32 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     otherInst :: Data s => Int -> Set.Set Int -> s -> Int -> [String]
     otherInst wKey containedKeys c cKey
         = if not shouldGen then [] else
-          [ "instance (Monad m" ++ other ++ ") =>"
-          , "         PolyplateM (" ++ wName ++ ") ((" ++ cName ++ ") -> m (" ++ cName ++ "), r)"
-          , "                   ops m where"
-          , impl
-          , ""
-          ]
+            genInst context
+                    ("((" ++ cName ++ ") -> m (" ++ cName ++ "), r)")
+                    "ops"
+                    impl
       where
         cName = show $ typeOf c
-        (shouldGen, other, impl)
+        (shouldGen, context, impl)
           -- This type matches the transformation: apply it.
           | wKey == cKey
             = (True
-              ,""
-              ,"  transformM (f, _) _ v = f v")
+              ,[]
+              ,["transformM (f, _) _ v = f v"])
           -- This type might contain the type that the transformation acts
           -- upon
           | cKey `Set.member` containedKeys
             = (True
-              ,", PolyplateM (" ++ wName ++ ") r ((" ++ cName ++ ") -> m (" ++ cName ++ "), ops) m"
-              ,"  transformM (f, rest) ops v = transformM rest (f, ops) v")
+              ,["PolyplateM (" ++ wName ++ ") r ((" ++ cName ++ ") -> m (" ++ cName ++ "), ops) m"]
+              ,["transformM (f, rest) ops v = transformM rest (f, ops) v"])
           -- This type can't contain the transformed type; just move on to the
           -- next transformation.
           | genOverlapped == GenWithoutOverlapped
             = (True
-              ,", PolyplateM (" ++ wName ++ ") r ops m"
-              ,"  transformM (_, rest) ops v = transformM rest ops v")
+              ,["PolyplateM (" ++ wName ++ ") r ops m"]
+              ,["transformM (_, rest) ops v = transformM rest ops v"])
           -- This is covered by one big overlapping instance:
-          | otherwise = (False,"","")
+          | otherwise = (False,[],[])
 
 -- | Generates all the given instances (eliminating any duplicates)
 -- with the given options.
