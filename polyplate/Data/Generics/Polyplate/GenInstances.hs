@@ -283,9 +283,7 @@ instancesFrom genOverlapped genClass boxes w
     contextNewType :: String -> String -> String -> String
     contextNewType cName ops0 ops1 = case genClass of
       GenOneClass -> "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
-      GenClassPerType -> "PolyplateM" ++ cMunged ++ " " ++ ops0 ++ " " ++ ops1 ++ " m"
-        where
-          cMunged = mungeName cName
+      GenClassPerType -> "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
       GenSlowDelegate -> "PolyplateM' m " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
       
 
@@ -327,6 +325,10 @@ instancesFrom genOverlapped genClass boxes w
           ,if genClass == GenClassPerType
              then ["class Monad m => PolyplateM" ++ wMunged ++ " o o' m where"
                   ,"  " ++ funcSameType ++ " :: o -> o' -> (" ++ wName ++ ") -> m (" ++ wName ++ ")"
+                  ,""
+                  ,"instance (Monad m, " ++ contextSameType "o0" "o1" ++ ") =>"
+                  ,"         PolyplateM (" ++ wName ++ ") o0 o1 m where"
+                  ,"  transformM = " ++ funcSameType
                   ]
              else []
           ]
