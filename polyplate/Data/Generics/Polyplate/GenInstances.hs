@@ -34,8 +34,29 @@ import qualified Data.Set as Set
 data GenOverlappedOption = GenWithOverlapped | GenWithoutOverlapped
   deriving (Eq)
 
-data GenClassOption = GenClassPerType | GenOneClass | GenSlowDelegate
+data GenClassOption
+  = GenClassPerType
+  | GenOneClass
+  | GenSlowDelegate -- ^ This is only for benchmarking purposes.  Do not use.
   deriving (Eq)
+
+-- | A default name munging scheme for use with GenClassPerType.  Munges special
+-- characters into their ASCII (or is it UTF?) code determined by ord,
+-- prefixed by two underscores.
+--
+-- Given a string with a type name, such as "Map Int (Maybe ([String],Bool))"
+-- this function must munge it into a valid suffix for a Haskell identifier,
+-- i.e. using only alphanumeric characters, apostrophe and underscore.
+-- Also, there may be type-level operators such as "->".  I was going to let users
+-- override this, but any user that creates type like Foo__32Bar gets what they
+-- deserve.
+mungeName :: String -> String
+mungeName = concatMap munge
+  where
+    munge :: Char -> String
+    munge x
+      | isAlphaNum x = [x]
+      | otherwise = "__" ++ show (ord x)
 
 -- | A type that represents a generator for instances of a set of types.
 newtype GenInstance = GenInstance (TypeMapM ())
@@ -192,7 +213,7 @@ genSetInstance x
 -- | Instances for a particular data type (i.e. where that data type is the
 -- first argument to 'Polyplate').
 instancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [Witness] -> t -> IO [String]
-instancesFrom genOverlapped genClass@GenOneClass boxes w
+instancesFrom genOverlapped genClass boxes w
     = do (specialProcessChildren, containedTypes) <-
            case find (== Plain (DataBox w)) boxes of
              Just (Detailed _ containedTypes doChildren) ->
@@ -211,6 +232,7 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
          return $ baseInst specialProcessChildren ++ concat otherInsts
   where
     wName = show $ typeOf w
+    wMunged = mungeName wName
     wDType = dataTypeOf w
     wCtrs = if isAlgType wDType then dataTypeConstrs wDType else []
 
@@ -238,28 +260,42 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     genInst :: [String] -> String -> String -> [String] -> [String]
     genInst context ops0 ops1 body
       = ["instance (Monad m" ++ concatMap (", " ++) context ++ ") =>"
-        ,"         PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m where"
+        ,"         " ++ contextSameType ops0 ops1 ++ " where"
         ] ++ map ("  " ++) body
 
     -- Generates the name of an instance for the same type with the given two ops
     -- sets.  The class name will be the same as genInst.
     contextSameType :: String -> String -> String
-    contextSameType ops0 ops1
-      = "PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
+    contextSameType ops0 ops1 = case genClass of
+      GenOneClass -> "PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
+      GenClassPerType -> "PolyplateM" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1 ++ " m"
+      GenSlowDelegate -> "PolyplateM' m " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ")"
 
     -- Generates the name of an instance for a different type (for processing children).
     --  This will be PolyplateM or PolyplateM'.
     contextNewType :: String -> String -> String -> String
-    contextNewType cName ops0 ops1
-      = "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
+    contextNewType cName ops0 ops1 = case genClass of
+      GenOneClass -> "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
+      GenClassPerType -> "PolyplateM" ++ cMunged ++ " " ++ ops0 ++ " " ++ ops1 ++ " m"
+        where
+          cMunged = mungeName cName
+      GenSlowDelegate -> "PolyplateM' m " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
+      
 
     -- The function to define in the body, and also to use for processing the same
     -- type.
     funcSameType :: String
-    funcSameType = "transformM"
+    funcSameType = case genClass of
+      GenClassPerType -> "transformM" ++ wMunged
+      GenOneClass -> "transformM"
+      GenSlowDelegate -> "transformM'"
 
+    -- The function to use for processing other types
     funcNewType :: String
-    funcNewType = "transformM"
+    funcNewType = case genClass of
+      GenClassPerType -> "transformM"
+      GenOneClass -> "transformM"
+      GenSlowDelegate -> "transformM'"
 
     -- | An instance that describes what to do when we have no transformations
     -- left to apply.  You can pass it an override for the case of processing children
@@ -281,7 +317,12 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
               [ contextSameType "r" "ops" ]
               "(a -> m a, r)" "ops" 
                 [funcSameType ++ " (_, rest) ops v = " ++ funcSameType ++ " rest ops v"]
-            ]
+          ,if genClass == GenClassPerType
+             then ["class Monad m => PolyplateM" ++ wMunged ++ " o o' m where"
+                  ,"  " ++ funcSameType ++ " :: o -> o' -> (" ++ wName ++ ") -> m (" ++ wName ++ ")"
+                  ]
+             else []
+          ]
       where
         -- | Class context for 'baseInst'.
         -- We need an instance of Polyplate for each of the types directly contained within
