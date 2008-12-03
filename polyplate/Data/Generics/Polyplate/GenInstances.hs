@@ -220,11 +220,33 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
     ctrArgTypes types
         = [show $ typeOf w | DataBox w <- types]
 
+    -- Given the context (a list of instance requirements), the left-hand ops,
+    -- the right-hand ops, and a list of lines for the body of the class, generates
+    -- an instance.
+    --
+    -- For GenOneClass this will be an instance of PolyplateM.
+    --
+    -- For GenClassPerType this will be an instance of PolyplateMFoo (or whatever)
+    --
+    -- For GenSlowDelegate this will be an instance of PolyplateM', with the first
+    -- and last arguments swapped.
     genInst :: [String] -> String -> String -> [String] -> [String]
     genInst context ops0 ops1 body
       = ["instance (Monad m" ++ concatMap (", " ++) context ++ ") =>"
         ,"         PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m where"
         ] ++ map ("  " ++) body
+
+    -- Generates the name of an instance for the same type with the given two ops
+    -- sets.  The class name will be the same as genInst.
+    contextSameType :: String -> String -> String
+    contextSameType ops0 ops1
+      = "PolyplateM (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
+
+    -- Generates the name of an instance for a different type (for processing children).
+    --  This will be PolyplateM or PolyplateM'.
+    contextNewType :: String -> String -> String -> String
+    contextNewType cName ops0 ops1
+      = "PolyplateM (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m"
 
     -- | An instance that describes what to do when we have no transformations
     -- left to apply.  You can pass it an override for the case of processing children
@@ -243,7 +265,7 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
           ,genInst [] "()" "()" ["transformM () () v = return v"]
           ,if genOverlapped == GenWithoutOverlapped then [] else
             genInst
-              [ "PolyplateM (" ++ wName ++ ") r ops m" ]
+              [ contextSameType "r" "ops" ]
               "(a -> m a, r)" "ops" 
                 ["transformM (_, rest) ops v = transformM rest ops v"]
             ]
@@ -253,7 +275,7 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
         -- this type, so we can recurse into them.
         context :: [String]
         context
-          = ["PolyplateM (" ++ argType ++ ") (f,ops) () m"
+          = [ contextNewType argType "(f,ops)" "()"
             | argType <- nub $ sort $ concatMap ctrArgTypes $
                 maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
 
@@ -300,13 +322,13 @@ instancesFrom genOverlapped genClass@GenOneClass boxes w
           -- upon
           | cKey `Set.member` containedKeys
             = (True
-              ,["PolyplateM (" ++ wName ++ ") r ((" ++ cName ++ ") -> m (" ++ cName ++ "), ops) m"]
+              ,[contextSameType "r" ("((" ++ cName ++ ") -> m (" ++ cName ++ "), ops)")]
               ,["transformM (f, rest) ops v = transformM rest (f, ops) v"])
           -- This type can't contain the transformed type; just move on to the
           -- next transformation.
           | genOverlapped == GenWithoutOverlapped
             = (True
-              ,["PolyplateM (" ++ wName ++ ") r ops m"]
+              ,[contextSameType "r" "ops"]
               ,["transformM (_, rest) ops v = transformM rest ops v"])
           -- This is covered by one big overlapping instance:
           | otherwise = (False,[],[])
