@@ -27,17 +27,19 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- Instances of the PolyplateM type-class /can/ be written manually but it's not
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
-module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..), PolyplateSpine(..),
+module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
+  PolyplateSpine(..), FullSpine, transformSpineFull, trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
-  makeRecurseQ, RecurseQ,
-  makeDescendQ, DescendQ,
+--  makeRecurseQ, RecurseQ,
+--  makeDescendQ, DescendQ,
   BaseOp, baseOp,
   ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp,
   ExtOpQ, extOpQ, OneOpQ, TwoOpQ) where
 
 import Control.Monad.Identity
 
+import Data.Maybe
 import Data.Tree
 
 -- | The main Polyplate type-class.
@@ -99,8 +101,35 @@ class Monad m => PolyplateM t o o' m where
   -- or breadth-first order.
 
 class PolyplateSpine t o o' a where
-  transformSpine :: o -> o' -> t -> Tree (Maybe a)
+  transformSpineSparse :: o -> o' -> t -> Tree (Maybe a)
 
+-- | Used at the type-level by this library to force a full traversal of a data
+-- structure.  You are unlikely to need to use this directly.
+data FullSpine = FullSpine
+
+transformSpineFull :: (ConvertSpineOpsToFull o co, ConvertSpineOpsToFull o' co',
+  PolyplateSpine t co co' a) =>
+  o -> o' -> t -> Tree (Maybe a)
+transformSpineFull o o' x
+  = transformSpineSparse
+      (convertSpineOpsToFull o)
+      (convertSpineOpsToFull o')
+      x
+
+class ConvertSpineOpsToFull o o' | o -> o' where
+  convertSpineOpsToFull :: o -> o'
+
+instance ConvertSpineOpsToFull () FullSpine where
+  convertSpineOpsToFull _ = FullSpine
+
+instance ConvertSpineOpsToFull r r' => ConvertSpineOpsToFull (a, r) (a, r') where
+  convertSpineOpsToFull (f, r) = (f, convertSpineOpsToFull r)
+
+trimTree :: Tree (Maybe a) -> Maybe (Tree (Maybe a))
+trimTree tr | isNothing (rootLabel tr) && null trimmedChildren = Nothing
+            | otherwise = Just (Node (rootLabel tr) trimmedChildren)
+    where
+      trimmedChildren = mapMaybe trimTree (subForest tr)
 
 -- | A helper class to convert non-monadic transformations into monadic ones in
 -- the Identity monad.
@@ -158,14 +187,17 @@ type Descend opT = forall t. Polyplate t () opT => t -> t
 makeDescend :: opT -> Descend opT
 makeDescend ops = transform () ops
 
+{-
 type RecurseQ a opQ = forall t. PolyplateSpine t opQ () a => t -> Tree (Maybe a)
 type DescendQ a opQ = forall t. PolyplateSpine t () opQ a => t -> Tree (Maybe a)
+
 
 makeRecurseQ :: opQ -> RecurseQ a opQ
 makeRecurseQ ops = transformSpine ops ()
 
 makeDescendQ :: opQ -> DescendQ a opQ
 makeDescendQ ops = transformSpine () ops
+-}
 
 -- | The type of the empty set of operations
 type BaseOp = ()
