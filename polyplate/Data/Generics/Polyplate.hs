@@ -28,7 +28,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
 module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
-  PolyplateSpine(..), FullSpine, transformSpineFull, trimTree,
+  PolyplateSpine(..), FullSpine(..), transformSpineFull, trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
 --  makeRecurseQ, RecurseQ,
@@ -105,25 +105,29 @@ class PolyplateSpine t o o' a where
 
 -- | Used at the type-level by this library to force a full traversal of a data
 -- structure.  You are unlikely to need to use this directly.
-data FullSpine = FullSpine
+data FullSpine a = FullSpine a
 
-transformSpineFull :: (ConvertSpineOpsToFull o co, ConvertSpineOpsToFull o' co',
+transformSpineFull :: (ConvertSpineOpsToFull a o co, ConvertSpineOpsToFull a o' co',
   PolyplateSpine t co co' a) =>
-  o -> o' -> t -> Tree (Maybe a)
-transformSpineFull o o' x
-  = transformSpineSparse
-      (convertSpineOpsToFull o)
-      (convertSpineOpsToFull o')
+  a -> o -> o' -> t -> Tree a
+transformSpineFull def o o' x
+  = fmap fromJust' $
+      transformSpineSparse
+      (convertSpineOpsToFull def o)
+      (convertSpineOpsToFull def o')
       x
+  where
+    fromJust' (Just x) = x
+    fromJust' _ = error "transformSpineFull: internal error"
 
-class ConvertSpineOpsToFull o o' | o -> o' where
-  convertSpineOpsToFull :: o -> o'
+class ConvertSpineOpsToFull a o o' | a o -> o' where
+  convertSpineOpsToFull :: a -> o -> o'
 
-instance ConvertSpineOpsToFull () FullSpine where
-  convertSpineOpsToFull _ = FullSpine
+instance ConvertSpineOpsToFull a () (FullSpine a) where
+  convertSpineOpsToFull def _ = FullSpine def
 
-instance ConvertSpineOpsToFull r r' => ConvertSpineOpsToFull (a, r) (a, r') where
-  convertSpineOpsToFull (f, r) = (f, convertSpineOpsToFull r)
+instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') where
+  convertSpineOpsToFull def (f, r) = (f, convertSpineOpsToFull def r)
 
 trimTree :: Tree (Maybe a) -> Maybe (Tree (Maybe a))
 trimTree tr | isNothing (rootLabel tr) && null trimmedChildren = Nothing
