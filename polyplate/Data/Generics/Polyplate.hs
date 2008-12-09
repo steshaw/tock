@@ -28,7 +28,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
 module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
-  PolyplateSpine(..), FullSpine(..), transformSpineFull, trimTree,
+  PolyplateSpine(..), FullSpine(..), transformSpine, transformSpineFull, trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
 --  makeRecurseQ, RecurseQ,
@@ -101,7 +101,10 @@ class Monad m => PolyplateM t o o' m where
   -- or breadth-first order.
 
 class PolyplateSpine t o o' a where
-  transformSpineSparse :: o -> o' -> t -> Tree (Maybe a)
+  transformSpineSparse :: o -> o' -> Maybe a -> t -> Tree (Maybe a)
+
+transformSpine :: PolyplateSpine t o o' a => o -> o' -> t -> Tree (Maybe a)
+transformSpine o o' = transformSpineSparse o o' Nothing
 
 -- | Used at the type-level by this library to force a full traversal of a data
 -- structure.  You are unlikely to need to use this directly.
@@ -115,7 +118,7 @@ transformSpineFull def o o' x
       transformSpineSparse
       (convertSpineOpsToFull def o)
       (convertSpineOpsToFull def o')
-      x
+      Nothing x
   where
     fromJust' (Just x) = x
     fromJust' _ = error "transformSpineFull: internal error"

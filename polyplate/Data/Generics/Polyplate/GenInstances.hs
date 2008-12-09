@@ -75,7 +75,9 @@ data Witness
     | Detailed { witness :: DataBox
                , directlyContains :: [DataBox]
                -- First is funcSameType, second is funcNewType:
-               , processChildren :: (String, String) -> [String] }
+               , processChildrenMod :: (String, String) -> [String]
+               , processChildrenSpine :: (String, String) -> [String]
+               }
 
 -- The Eq instance is based on the inner type.
 instance Eq Witness where
@@ -95,16 +97,21 @@ genMapInstance k v
        -- Must find types for contained types, in case they are not generated elsewhere.
        --  This is true for Tock, where NameDefs only exist in AST or CompState
        -- in a Map.
-       findTypesIn k
-       findTypesIn v
+       findTypesIn (k, v) -- This does types in k and v, and their pairing
        tk <- liftIO $ typeKey m
        modify (Map.insert tk (show $ typeOf m,
-         Detailed (DataBox m) [DataBox k, DataBox v] $ \(funcSameType, funcNewType) ->
-         [funcSameType ++ " () ops v = do"
-         ,"  keys <- mapM (" ++ funcNewType ++ " ops () . fst) (Map.toList v)"
-         ,"  vals <- mapM (" ++ funcNewType ++ " ops () . snd) (Map.toList v)"
-         ,"  return (Map.fromList (zip keys vals))"
-         ]))
+         Detailed (DataBox m) [DataBox k, DataBox v]
+         (\(funcSameType, funcNewType) ->
+           [funcSameType ++ " () ops v = do"
+           ,"  keys <- mapM (" ++ funcNewType ++ " ops () . fst) (Map.toList v)"
+           ,"  vals <- mapM (" ++ funcNewType ++ " ops () . snd) (Map.toList v)"
+           ,"  return (Map.fromList (zip keys vals))"
+           ])
+         (\(funcSameType, funcNewType) ->
+           [funcSameType ++ " () ops q v = Node q (map ("
+              ++ funcNewType ++ " ops () Nothing) (Map.toList v))"
+           ])
+         ))
   where
     m :: Map k v
     m = undefined
@@ -118,11 +125,17 @@ genSetInstance x
        findTypesIn x
        tk <- liftIO $ typeKey s
        modify (Map.insert tk (show $ typeOf s,
-         Detailed (DataBox s) [DataBox x] $ \(funcSameType, funcNewType) ->
-         [funcSameType ++ " () ops v = do"
-         ,"  vals <- mapM (" ++ funcNewType ++ " ops ()) (Set.toList v)"
-         ,"  return (Set.fromList vals)"
-         ]))
+         Detailed (DataBox s) [DataBox x]
+         (\(funcSameType, funcNewType) ->
+           [funcSameType ++ " () ops v = do"
+           ,"  vals <- mapM (" ++ funcNewType ++ " ops ()) (Set.toList v)"
+           ,"  return (Set.fromList vals)"
+           ])
+         (\(funcSameType, funcNewType) ->
+           [funcSameType ++ " () ops q v = Node q (map ("
+              ++ funcNewType ++ " ops () Nothing) (Set.toList v))"
+           ])
+        ))
   where
     s :: Set a
     s = undefined
@@ -223,7 +236,7 @@ instancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [W
 instancesFrom genOverlapped genClass boxes w
     = do (specialProcessChildren, containedTypes) <-
            case find (== Plain (DataBox w)) boxes of
-             Just (Detailed _ containedTypes doChildren) ->
+             Just (Detailed _ containedTypes doChildren _) ->
                -- It's a special case, use the detailed info:
                do eachContained <- sequence [findTypesIn' c | DataBox c <- containedTypes]
                   return (Just (containedTypes, doChildren), foldl Map.union Map.empty eachContained)
@@ -396,12 +409,200 @@ instancesFrom genOverlapped genClass boxes w
           -- This is covered by one big overlapping instance:
           | otherwise = (False,[],[])
 
+-- | Instances for a particular data type (i.e. where that data type is the
+-- first argument to 'Polyplate').
+spineInstancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [Witness] -> t -> IO [String]
+-- This method is similar to instancesFrom in terms of general behaviour, but still
+-- different enough that very little code could be shared, so it's clearer to pull
+-- it out to its own method:
+spineInstancesFrom genOverlapped genClass boxes w
+    = do (specialProcessChildren, containedTypes) <-
+           case find (== Plain (DataBox w)) boxes of
+             Just (Detailed _ containedTypes _ doChildrenSpine) ->
+               -- It's a special case, use the detailed info:
+               do eachContained <- sequence [findTypesIn' c | DataBox c <- containedTypes]
+                  return (Just (containedTypes, doChildrenSpine), foldl Map.union Map.empty eachContained)
+             -- It's a normal case, use findTypesIn' directly:
+             _ -> do ts <- findTypesIn' w
+                     return (Nothing, ts)
+         containedKeys <- liftM Set.fromList
+           (sequence [typeKey c | DataBox c <- map witness $ justBoxes containedTypes])
+         wKey <- typeKey w
+         otherInsts <- sequence [do ck <- typeKey c
+                                    return (otherInst wKey containedKeys c ck)
+                                | DataBox c <- map witness boxes]
+         return $ baseInst specialProcessChildren ++ concat otherInsts
+  where
+    wName = show $ typeOf w
+    wMunged = mungeName wName
+    wDType = dataTypeOf w
+    wCtrs = if isAlgType wDType then dataTypeConstrs wDType else []
+
+    -- The module prefix of this type, so we can use it in constructor names.
+    modPrefix
+        = if '.' `elem` (takeWhile (\c -> isAlphaNum c || c == '.') wName)
+            then takeWhile (/= '.') wName ++ "."
+            else ""
+
+    ctrArgs ctr
+        = gmapQ DataBox (fromConstr ctr :: t)
+    ctrArgTypes types
+        = [show $ typeOf w | DataBox w <- types]
+
+    -- Given the context (a list of instance requirements), the left-hand ops,
+    -- the right-hand ops, and a list of lines for the body of the class, generates
+    -- an instance.
+    --
+    -- For GenOneClass this will be an instance of PolyplateM.
+    --
+    -- For GenClassPerType this will be an instance of PolyplateMFoo (or whatever)
+    --
+    -- For GenSlowDelegate this will be an instance of PolyplateM', with the first
+    -- and last arguments swapped.
+    genInst :: [String] -> String -> String -> [String] -> [String]
+    genInst context ops0 ops1 body
+      = ["instance (" ++ concat (intersperse ", " context) ++ ") =>"
+        ,"         " ++ contextSameType ops0 ops1 ++ " where"
+        ] ++ map ("  " ++) body
+
+    -- Generates the name of an instance for the same type with the given two ops
+    -- sets.  The class name will be the same as genInst.
+    contextSameType :: String -> String -> String
+    contextSameType ops0 ops1 = case genClass of
+      GenOneClass -> "PolyplateSpine (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " a"
+      GenClassPerType -> "PolyplateSpine" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1 ++ " a"
+      GenSlowDelegate -> "PolyplateSpine' a " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ")"
+
+    -- Generates the name of an instance for a different type (for processing children).
+    --  This will be PolyplateM or PolyplateM'.
+    contextNewType :: String -> String -> String -> String
+    contextNewType cName ops0 ops1 = case genClass of
+      GenOneClass -> "PolyplateSpine (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " a"
+      GenClassPerType -> "PolyplateSpine (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " a"
+      GenSlowDelegate -> "PolyplateSpine' a " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
+      
+
+    -- The function to define in the body, and also to use for processing the same
+    -- type.
+    funcSameType :: String
+    funcSameType = case genClass of
+      GenClassPerType -> "transformSpineSparse" ++ wMunged
+      GenOneClass -> "transformSpineSparse"
+      GenSlowDelegate -> "transformSpineSparse'"
+
+    -- The function to use for processing other types
+    funcNewType :: String
+    funcNewType = case genClass of
+      GenClassPerType -> "transformSpineSparse"
+      GenOneClass -> "transformSpineSparse"
+      GenSlowDelegate -> "transformSpineSparse'"
+
+    -- | An instance that describes what to do when we have no transformations
+    -- left to apply.  You can pass it an override for the case of processing children
+    -- (and the types that make up the children).
+    baseInst :: Maybe ([DataBox], (String, String) -> [String]) -> [String]
+    baseInst mdoChildren
+        = concat
+          [genInst context "()" "(f, ops)" $
+              maybe
+                (if isAlgType wDType
+                    -- An algebraic type: apply to each child if we're following.
+                    then (concatMap constrCase wCtrs)
+                    -- A primitive (or non-represented) type: just return it.
+                    else [funcSameType ++ " () _ _ _ = Node Nothing []"])
+                (\(_,f) -> f (funcSameType, funcNewType)) mdoChildren
+          ,genInst [] "()" "()" [funcSameType ++ " () () q _ = Node q []"]
+          --,genInst (contextNewType "(FullSpine a)" "()") "(FullSpine a)" "()" [funcSameType ++ " () () v = return v"]
+          ,if genOverlapped == GenWithoutOverlapped then [] else
+            genInst
+              [ contextSameType "r" "ops" ]
+              "(b -> a, r)" "ops" 
+                [funcSameType ++ " (_, rest) ops = " ++ funcSameType ++ " rest ops"]
+          ,if genClass == GenClassPerType
+             then ["class PolyplateSpine" ++ wMunged ++ " o o' a where"
+                  ,"  " ++ funcSameType ++ " :: o -> o' -> Maybe a -> (" ++ wName ++
+                         ") -> Tree (Maybe a)"
+                  ,""
+                  ,"instance (" ++ contextSameType "o0" "o1" ++ ") =>"
+                  ,"         PolyplateSpine (" ++ wName ++ ") o0 o1 a where"
+                  ,"   transformSpineSparse = " ++ funcSameType
+                  ]
+             else []
+          ]
+      where
+        -- | Class context for 'baseInst'.
+        -- We need an instance of Polyplate for each of the types directly contained within
+        -- this type, so we can recurse into them.
+        context :: [String]
+        context
+          = [ contextNewType argType "(f,ops)" "()"
+            | argType <- nub $ sort $ concatMap ctrArgTypes $
+                maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
+
+    -- | A 'transformM' case for a particular constructor of this (algebraic)
+    -- data type: pull the value apart, apply 'transformM' to each part of it,
+    -- then stick it back together.
+    constrCase :: Constr -> [String]
+    constrCase ctr
+        = [ funcSameType ++ " () " ++ (if argNums == [] then "_" else "ops") ++
+            " q (" ++ ctrInput ++ ")"
+          , "    = Node q ["
+          ] ++
+          intersperse
+             "     ,"
+           [ "     " ++ funcNewType ++ " ops () Nothing a" ++ show i
+           | i <- argNums] ++
+          [ "      ]"
+          ]
+      where
+        argNums = [0 .. ((length $ ctrArgs ctr) - 1)]
+        ctrS = show ctr
+        ctrName = modPrefix ++ ctrS
+        makeCtr vs = ctrName ++ concatMap (" " ++) vs
+        ctrInput = makeCtr ["a" ++ show i | i <- argNums]
+        ctrResult = makeCtr ["r" ++ show i | i <- argNums]
+
+
+    -- | An instance that describes how to apply -- or not apply -- a
+    -- transformation.
+    otherInst :: Data s => Int -> Set.Set Int -> s -> Int -> [String]
+    otherInst wKey containedKeys c cKey
+        = if not shouldGen then [] else
+            genInst context
+                    ("((" ++ cName ++ ") -> a, r)")
+                    "ops"
+                    impl
+      where
+        cName = show $ typeOf c
+        (shouldGen, context, impl)
+          -- This type might contain the type that the transformation acts
+          -- upon
+          | cKey `Set.member` containedKeys
+            = (True
+              ,[contextSameType "r" ("((" ++ cName ++ ") -> a, ops)")]
+              ,[if wKey == cKey
+                  then funcSameType ++ " (f, rest) ops _ v = "
+                         ++ funcSameType ++ " rest (f, ops) (Just (f v)) v"
+                  else funcSameType ++ " (f, rest) ops = " ++ funcSameType ++ " rest (f, ops)"])
+          -- This type can't contain the transformed type; just move on to the
+          -- next transformation.
+          | genOverlapped == GenWithoutOverlapped
+            = (True
+              ,[contextSameType "r" "ops"]
+              ,[funcSameType ++ " (_, rest) ops = " ++ funcSameType ++ " rest ops"])
+          -- This is covered by one big overlapping instance:
+          | otherwise = (False,[],[])
+
+
+
 -- | Generates all the given instances (eliminating any duplicates)
 -- with the given options.
 genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> IO [String]
 genInstances op1 op2 insts
   =  do typeMap <- flip execStateT Map.empty (sequence [g | GenInstance g <- insts])
-        liftM concat $ sequence [instancesFrom op1 op2 (justBoxes typeMap) w
+        liftM concat $ sequence [liftM2 (++)
+                                   (instancesFrom op1 op2 (justBoxes typeMap) w)
+                                   (spineInstancesFrom op1 op2 (justBoxes typeMap) w)
                                 | DataBox w <- map witness $ justBoxes typeMap]
 
 -- | Generates the instances according to the options and writes it to stdout with

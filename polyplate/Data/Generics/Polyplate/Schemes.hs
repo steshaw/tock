@@ -74,23 +74,23 @@ checkBreadthM :: (Monad m, PolyplateSpine t (OneOpQ (m ()) s) () (m ())) => (s -
 checkBreadthM f = sequence_ . catMaybes . concat . levels . applyQuery f
 
 applyQuery :: PolyplateSpine t (OneOpQ a s) () a => (s -> a) -> t -> Tree (Maybe a)
-applyQuery qf = transformSpineSparse ops ()
+applyQuery qf = transformSpine ops ()
   where
     ops = baseOp `extOpQ` qf
 
 applyQuery2 :: PolyplateSpine t (TwoOpQ a sA sB) () a => (sA -> a) -> (sB -> a) -> t -> Tree (Maybe a)
-applyQuery2 qfA qfB = transformSpineSparse ops ()
+applyQuery2 qfA qfB = transformSpine ops ()
   where
     ops = baseOp `extOpQ` qfA `extOpQ` qfB 
 
 applyListifyDepth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-applyListifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . transformSpineSparse ops ()
+applyListifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . transformSpine ops ()
   where
     qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
 
 applyListifyBreadth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-applyListifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . transformSpineSparse ops ()
+applyListifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . transformSpine ops ()
   where
     qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
