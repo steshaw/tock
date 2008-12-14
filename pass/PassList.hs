@@ -47,7 +47,7 @@ import SimplifyTypes
 import Unnest
 import Utils
 
-commonPasses :: CompState -> [Pass]
+commonPasses :: CompState -> [Pass A.AST]
 commonPasses opts = concat $
   -- Rain does simplifyTypes separately:
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
@@ -72,11 +72,11 @@ commonPasses opts = concat $
 --      (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
   ]
 
-filterPasses :: CompState -> [Pass] -> [Pass]
+filterPasses :: CompState -> [Pass t] -> [Pass t]
 filterPasses opts = filter (\p -> passEnabled p opts)
 
 -- This pass is so small that we may as well just give it here:
-nullStateBodies :: Pass
+nullStateBodies :: Pass A.AST
 nullStateBodies = Pass
   {passCode = \t ->
     ((get >>* \st -> st {csNames = Map.map nullProcFuncDefs (csNames st)}) >>= put)
@@ -94,7 +94,7 @@ nullStateBodies = Pass
     nullProcFuncDefs x = x
     
 
-getPassList :: CompState -> [Pass]
+getPassList :: CompState -> [Pass A.AST]
 getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 [ [nullStateBodies]
                                 , enablePassesWhen ((== FrontendOccam) . csFrontend)
@@ -106,7 +106,7 @@ getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 , genCPPCSPPasses
                                 ]
 
-calculatePassList :: CSMR m => m [Pass]
+calculatePassList :: CSMR m => m [Pass A.AST]
 calculatePassList
     =  do optsPS <- getCompState
           let passes = getPassList optsPS
@@ -117,10 +117,10 @@ calculatePassList
     -- | Add extra passes to check that properties hold.
     -- Each property will be checked after the last pass that provides it has
     -- run.
-    addChecks :: [Pass] -> [Pass]
+    addChecks :: [Pass A.AST] -> [Pass A.AST]
     addChecks = reverse . (addChecks' Set.empty) . reverse
 
-    addChecks' :: Set Property -> [Pass] -> [Pass]
+    addChecks' :: Set Property -> [Pass A.AST] -> [Pass A.AST]
     addChecks' _ [] = []
     addChecks' checked (p:ps) = checks ++ [p] ++ addChecks' checked' ps
       where
@@ -138,7 +138,7 @@ calculatePassList
 
 -- | If something isn't right, it gives back a list containing a single pass
 -- that will give an error.
-checkList :: [Pass] -> [Pass]
+checkList :: [Pass t] -> [Pass t]
 checkList passes
     = case check [] passes of
         Left err -> [pass "Pass list internal error"
@@ -148,7 +148,7 @@ checkList passes
                     ]
         Right ps -> ps
   where
-    check :: [Pass] -> [Pass] -> Either String [Pass]
+    check :: [Pass t] -> [Pass t] -> Either String [Pass t]
     check prev [] = Right prev
     check prev (p:ps)
       = case filter givesPrereq (p:ps) of
@@ -167,6 +167,6 @@ checkList passes
                    ++ " by a prior pass, pre-requisites are: "
                    ++ show (passPre p)
       where
-        givesPrereq :: Pass -> Bool
+        givesPrereq :: Pass t -> Bool
         givesPrereq p' = not $ Set.null $
           Set.intersection (passPost p') (passPre p)
