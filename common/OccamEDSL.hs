@@ -369,7 +369,7 @@ oempty = return $ A.Several emptyMeta []
 oprocess :: O (A.Structured A.Process) -> O (A.Structured A.Process)
 oprocess = id
 
-testOccamPass :: Data a => String -> O a -> Pass -> Test
+testOccamPass :: Data a => String -> O a -> Pass a -> Test
 testOccamPass str code pass
   = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
@@ -378,7 +378,7 @@ testOccamPass str code pass
       str (csNames expS) . csNames)
 
 -- | Give back True if the result is as expected for the warnings
-testOccamPassWarn :: Data a => String -> ([WarningReport] -> Bool) -> O a -> Pass -> Test
+testOccamPassWarn :: Data a => String -> ([WarningReport] -> Bool) -> O a -> Pass a -> Test
 testOccamPassWarn str check code pass
   = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
@@ -397,7 +397,7 @@ testOccamPassWarn str check code pass
 
 -- | Like testOccamPass, but applies a transformation to the patterns (such as
 -- using stopCaringPattern) before pattern-matching
-testOccamPassTransform :: Data a => String -> (Pattern -> Pattern) -> O a -> Pass -> Test
+testOccamPassTransform :: Data a => String -> (Pattern -> Pattern) -> O a -> Pass a -> Test
 testOccamPassTransform str trans code pass
   = let ExpInpT expm inpm = code
         (exp, expS) = runState expm emptyState
