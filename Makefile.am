@@ -138,6 +138,8 @@ CLEANFILES = $(BUILT_SOURCES) $(config_sources)
 
 EXTRA_DIST = docextra testcases/automatic
 
+tock_DEPENDENCIES = $(BUILT_SOURCES) $(config_sources)
+
 #One entry per line makes it easier to read and easier to modify, even if it is longer
 
 tock_SOURCES_hs = Main.hs
