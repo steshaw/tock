@@ -111,7 +111,10 @@ config/Paths.hs: config/Paths.hs.in
 	  | sed -e 's,@@tocklibdir@@,$(TOCKLIBDIR),g' >config/Paths.hs
 
 data/NavAST.hs: GenNavAST$(EXEEXT)
-	./GenNavAST$(EXEEXT) > data/NavAST.hs
+	./GenNavAST$(EXEEXT) data/NavAST.hs data/NavASTSpine.hs
+
+data/NavASTSpine.hs: GenNavAST$(EXEEXT)
+	./GenNavAST$(EXEEXT) data/NavAST.hs data/NavASTSpine.hs
 
 data/OrdAST.hs: GenOrdAST$(EXEEXT)
 	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
@@ -124,6 +127,7 @@ config_sources += config/Paths.hs
 config_sources += config/TypeSizes.hs
 
 BUILT_SOURCES = data/NavAST.hs
+BUILT_SOURCES += data/NavASTSpine.hs
 BUILT_SOURCES += data/OrdAST.hs
 BUILT_SOURCES += data/TagAST.hs
 BUILT_SOURCES += frontends/LexOccam.hs

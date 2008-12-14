@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
    GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
-   writeInstances, writeInstancesTo) where
+   writeInstances, writeInstancesTo, writeInstancesToSep) where
 
 import Control.Monad.State
 import Data.Char
@@ -597,28 +597,40 @@ spineInstancesFrom genOverlapped genClass boxes w
 
 -- | Generates all the given instances (eliminating any duplicates)
 -- with the given options.
-genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> IO [String]
+genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] ->
+  IO ([String], [String])
 genInstances op1 op2 insts
   =  do typeMap <- flip execStateT Map.empty (sequence [g | GenInstance g <- insts])
-        liftM concat $ sequence [liftM2 (++)
-                                   (instancesFrom op1 op2 (justBoxes typeMap) w)
-                                   (spineInstancesFrom op1 op2 (justBoxes typeMap) w)
+        let (inst, spineInst) = unzip [
+                                   (instancesFrom op1 op2 (justBoxes typeMap) w
+                                   ,spineInstancesFrom op1 op2 (justBoxes typeMap) w)
                                 | DataBox w <- map witness $ justBoxes typeMap]
-
+        inst' <- sequence inst
+        spineInst' <- sequence spineInst
+        return (concat inst', concat spineInst')
 -- | Generates the instances according to the options and writes it to stdout with
 -- the given header.
 writeInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> [String] -> IO ()
 writeInstances op1 op2 inst header
-  = do instLines <- genInstances op1 op2 inst
-       putStr (unlines (header ++ instLines))
+  = do (instLines, spineInstLines) <- genInstances op1 op2 inst
+       putStr (unlines (header ++ instLines ++ spineInstLines))
+
+-- | Generates the instances according to the options and writes it to stdout with
+-- the given header.
+writeInstancesToSep :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> ([String],
+  [String]) -> (FilePath, FilePath) -> IO ()
+writeInstancesToSep op1 op2 inst (header1, header2) (fileName1, fileName2)
+  = do (instLines, spineInstLines) <- genInstances op1 op2 inst
+       writeFile fileName1 (unlines (header1 ++ instLines))
+       writeFile fileName2 (unlines (header2 ++ spineInstLines))
 
 -- | Generates the instances according to the options and writes it to a file with
 -- the given header.
 writeInstancesTo :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> [String]
   -> FilePath -> IO ()
 writeInstancesTo op1 op2 inst header fileName
-  = do instLines <- genInstances op1 op2 inst
-       writeFile fileName (unlines (header ++ instLines))
+  = do (instLines, spineInstLines) <- genInstances op1 op2 inst
+       writeFile fileName (unlines (header ++ instLines ++ spineInstLines))
 
 
 --{{{ Various SYB-based functions that we don't export, for discovering contained types:
