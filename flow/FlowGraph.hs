@@ -51,7 +51,6 @@ import Data.Graph.Inductive hiding (run)
 import Data.Maybe
 
 import qualified AST as A
-import CompState
 import GenericUtils
 import Metadata
 import FlowUtils
@@ -76,9 +75,9 @@ buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args (Just p))) rout
 buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args (Just es))) route
   = let funcRoute = (route33 route A.Specification) in
     case es of
-      Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (Route
+      Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (makeRoute
         [0,0] $ \f (Just (Left e)) -> f e >>* (Just . Left)))) (route45 funcRoute A.Function)
-      Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (Route
+      Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (makeRoute
         [0,0] $ \f (Just (Right p)) -> f p >>* (Just . Right)))) (route45 funcRoute A.Function)
 buildProcessOrFunctionSpec _ _ = return ()
 

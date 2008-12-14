@@ -35,6 +35,7 @@ import GHC.Base (unsafeCoerce#)
 
 import qualified AST as A
 import CompState
+import Data.Generics.Polyplate.Route
 import Errors
 import FlowAlgorithms
 import FlowGraph
@@ -485,8 +486,8 @@ withChild :: forall acc t a. [Int] -> CheckOptASTM' acc t a -> CheckOptASTM' acc
 withChild ns (CheckOptASTM' m) = askRoute >>= (CheckOptASTM' . lift . inner)
   where
     inner :: Route t A.AST -> RestartT CheckOptM (Either t a)
-    inner (Route rId rFunc) = runReaderT m (error "withChild asked for accum",
-      Route (rId ++ ns) (error "withChild attempted a substitution"))
+    inner r = runReaderT m (error "withChild asked for accum",
+      makeRoute (routeId r) (error "withChild attempted a substitution"))
 
 -- | Searches forward in the graph from the given node to find all the reachable
 -- nodes that have no successors, i.e. the terminal nodes

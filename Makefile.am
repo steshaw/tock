@@ -194,6 +194,7 @@ tock_SOURCES_hs += pass/PassList.hs
 tock_SOURCES_hs += pass/Properties.hs
 tock_SOURCES_hs += pass/Traversal.hs
 tock_SOURCES_hs += polyplate/Data/Generics/Polyplate.hs
+tock_SOURCES_hs += polyplate/Data/Generics/Polyplate/Route.hs
 tock_SOURCES_hs += polyplate/Data/Generics/Polyplate/Schemes.hs
 tock_SOURCES_hs += transformations/ImplicitMobility.hs
 tock_SOURCES_hs += transformations/SimplifyAbbrevs.hs
