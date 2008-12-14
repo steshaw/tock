@@ -421,7 +421,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
         f' (x, route, acc) = do
           x' <- f (x, route, acc)
           case x' of
-            Left y -> f' (y, route, foldl (flip accOneF) accEmpty (fastListify (const True) y))
+            Left y -> f' (y, route, foldl (flip accOneF) accEmpty (listify {-TODO-} (const True) y))
             Right y -> return y
 
 applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
@@ -465,7 +465,7 @@ runChecks :: CheckOptM () -> A.AST -> PassM A.AST
 runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Nothing,
   nextVarsTouched = Map.empty, flowGraphRootsTerms = Nothing, lastValidMeta = emptyMeta}) >>* ast
 
-runChecksPass :: CheckOptM () -> Pass
+runChecksPass :: CheckOptM () -> Pass A.AST
 runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
 
 --getParItems :: CheckOptM (ParItems ())

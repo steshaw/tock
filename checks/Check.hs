@@ -448,7 +448,7 @@ showCodeExSet (NormalSet s)
     = do ss <- mapM showCode (Set.toList s)
          return $ "{" ++ joinWith ", " ss ++ "}"
 
-checkInitVarPass :: Pass
+checkInitVarPass :: Pass A.AST
 checkInitVarPass = pass "checkInitVar" [] []
   (passOnlyOnAST "checkInitVar" $ runChecks checkInitVar)
 
