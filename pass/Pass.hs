@@ -59,6 +59,12 @@ type PassType t = t -> PassM t
 type PassOnOps ops
   = (PolyplateM t ops () PassM, PolyplateM t () ops PassM) => Pass t
 
+type CheckOnOps ops
+  = (PolyplateSpine t ops () (PassM ())) => Pass t
+
+type PlainCheckOnOps ops
+  = (PolyplateSpine t ops () (PassM ())) => t -> PassM ()
+
 type PassASTOnOps ops
   = (PolyplateM A.AST ops () PassM, PolyplateM A.AST () ops PassM) => Pass A.AST
 
@@ -68,7 +74,8 @@ type PassTypeOnOps ops
 type PassOn t = PassOnOps (OneOpM PassM t)
 type PassOn2 s t = PassOnOps (TwoOpM PassM s t)
 type PassTypeOn t = PassTypeOnOps (OneOpM PassM t)
-      
+type CheckOn t = CheckOnOps (OneOpQ (PassM ()) t)
+type PlainCheckOn t = PlainCheckOnOps (OneOpQ (PassM ()) t)
 
 -- | A description of an AST-mangling pass.
 data Pass t = Pass {

@@ -21,7 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Traversal (
     TransformM, Transform, TransformStructured
   , CheckM, Check
-  , ExtOpMP, ExtOpMS, ExtOpMSP, extOpMS
+  , ExtOpMP, ExtOpMS, ExtOpMSP, extOpMS, PassOnStruct
   , applyBottomUpMS
   , module Data.Generics.Polyplate
   , module Data.Generics.Polyplate.Schemes
@@ -35,7 +35,8 @@ import Data.Generics.Polyplate.Schemes
 
 import qualified AST as A
 import GenericUtils
-import NavAST
+import NavAST()
+import NavASTSpine()
 import Pass
 
 -- | A transformation for a single 'Data' type.
@@ -64,6 +65,8 @@ type ExtOpMS m opT =
           (A.Structured A.Variant -> m (A.Structured A.Variant),
           opT)))))))
 type ExtOpMSP opT = ExtOpMS PassM opT
+
+type PassOnStruct = PassOnOps (ExtOpMSP BaseOp)
 
 extOpMS :: forall m opT op0T.
           (PolyplateM (A.Structured ()) () op0T m,
