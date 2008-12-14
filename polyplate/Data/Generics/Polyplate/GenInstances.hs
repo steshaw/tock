@@ -100,7 +100,7 @@ genMapInstance k v
        findTypesIn (k, v) -- This does types in k and v, and their pairing
        tk <- liftIO $ typeKey m
        modify (Map.insert tk (show $ typeOf m,
-         Detailed (DataBox m) [DataBox k, DataBox v]
+         Detailed (DataBox m) [DataBox (k, v), DataBox k, DataBox v]
          (\(funcSameType, funcNewType) ->
            [funcSameType ++ " () ops v = do"
            ,"  keys <- mapM (" ++ funcNewType ++ " ops () . fst) (Map.toList v)"
