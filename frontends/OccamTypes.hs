@@ -636,29 +636,42 @@ inferAllocMobile _ _ e = return e
 
 --{{{  inferTypes
 
+-- I can't put this in the where clause of inferTypes, so it has to be out
+-- here.  It should be the type of ops inside the inferTypes function below.
+type InferTypeOps
+  = BaseOp
+    `ExtOpMP` A.Expression
+    `ExtOpMP` A.Dimension
+    `ExtOpMP` A.Subscript
+    `ExtOpMP` A.ArrayConstr
+    `ExtOpMP` A.Replicator
+    `ExtOpMP` A.Alternative
+    `ExtOpMP` A.InputMode
+    `ExtOpMP` A.Specification
+    `ExtOpMP` A.Process
+    `ExtOpMP` A.Variable
+
 -- | Infer types.
-inferTypes :: Pass
+inferTypes :: Pass A.AST
 inferTypes = occamOnlyPass "Infer types"
   []
   [Prop.inferredTypesRecorded]
   recurse
   where
-    ops :: Ops
     ops = baseOp
           `extOp` doExpression
           `extOp` doDimension
           `extOp` doSubscript
+          `extOp` doArrayConstr
           `extOp` doReplicator
           `extOp` doAlternative
-          `extOpS` doStructured
+          `extOp` doInputMode
+          `extOp` doSpecification
           `extOp` doProcess
           `extOp` doVariable
-          `extOp` doVariant
 
-    recurse :: Recurse
-    recurse = makeRecurse ops
-    descend :: Descend
-    descend = makeDescend ops
+    descend :: DescendM PassM InferTypeOps
+    descend = makeDescendM ops
 
     doExpression :: Transform A.Expression
     doExpression outer
@@ -753,19 +766,8 @@ inferTypes = occamOnlyPass "Infer types"
       where
         direct = error "Cannot direct channels passed to FUNCTIONs"
 
-        opsMatch (opA, _, tsA) (opB, _, tsB) = (opA == opB) && (tsA `typesEqForOp` tsB)
-
-        typesEqForOp :: [A.Type] -> [A.Type] -> Bool
-        typesEqForOp tsA tsB = (length tsA == length tsB) && (and $ zipWith typeEqForOp tsA tsB)
-
-        typeEqForOp :: A.Type -> A.Type -> Bool
-        typeEqForOp (A.Array ds t) (A.Array ds' t')
-          = (length ds == length ds') && typeEqForOp t t'
-        typeEqForOp t t' = t == t'
-
-    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> (Meta -> A.Direction -> Transform a)
-      -> Transform [a]
-    doActuals m n fs applyDir as
+    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> Transform [a]
+    doActuals m n fs as
         =  do checkActualCount m n fs as
               sequence [doActual m applyDir t a | (A.Formal _ t _, a) <- zip fs as]
 
@@ -1254,20 +1256,27 @@ inferTypes = occamOnlyPass "Infer types"
 -- | Check the AST for type consistency.
 -- This is actually a series of smaller passes that check particular types
 -- inside the AST, but it doesn't really make sense to split it up.
-checkTypes :: Pass
+checkTypes ::
+ (PolyplateSpine t (OneOpQ (PassM ()) A.Variable) () (PassM ())
+ ,PolyplateSpine t (OneOpQ (PassM ()) A.Expression) () (PassM ())
+ ,PolyplateSpine t (OneOpQ (PassM ()) A.SpecType) () (PassM ())
+ ,PolyplateSpine t (OneOpQ (PassM ()) A.Process) () (PassM ())
+ ) => Pass t
 checkTypes = occamOnlyPass "Check types"
   [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved]
   [Prop.expressionTypesChecked, Prop.processTypesChecked,
     Prop.functionTypesChecked, Prop.retypesChecked]
-  ( checkVariables >.>
-    checkExpressions >.>
-    checkSpecTypes >.>
-    checkProcesses
+  (\x -> do
+    checkVariables x
+    checkExpressions x
+    checkSpecTypes x
+    checkProcesses x
+    return x
   )
 
 --{{{  checkVariables
 
-checkVariables :: PassType
+checkVariables :: PlainCheckOn A.Variable
 checkVariables = checkDepthM doVariable
   where
     doVariable :: Check A.Variable
@@ -1297,7 +1306,7 @@ checkVariables = checkDepthM doVariable
 --}}}
 --{{{  checkExpressions
 
-checkExpressions :: PassType
+checkExpressions :: PlainCheckOn A.Expression
 checkExpressions = checkDepthM doExpression
   where
     doExpression :: Check A.Expression
@@ -1349,7 +1358,7 @@ checkExpressions = checkDepthM doExpression
 --}}}
 --{{{  checkSpecTypes
 
-checkSpecTypes :: PassType
+checkSpecTypes :: PlainCheckOn A.SpecType
 checkSpecTypes = checkDepthM doSpecType
   where
     doSpecType :: Check A.SpecType
@@ -1470,7 +1479,7 @@ checkSpecTypes = checkDepthM doSpecType
 --}}}
 --{{{  checkProcesses
 
-checkProcesses :: PassType
+checkProcesses :: PlainCheckOn A.Process
 checkProcesses = checkDepthM doProcess
   where
     doProcess :: Check A.Process

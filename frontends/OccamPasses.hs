@@ -41,7 +41,7 @@ import Types
 import Utils
 
 -- | Occam-specific frontend passes.
-occamPasses :: [Pass]
+occamPasses :: [Pass A.AST]
 occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
     , addDirections
@@ -105,11 +105,11 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
         doubleStars cs = concat [if c == '*' then "**" else [c] | c <- cs]
 
 -- | Fixed the types of array constructors according to the replicator count
-fixConstructorTypes :: Pass
+fixConstructorTypes :: PassOn A.Expression
 fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   [Prop.constantsFolded]
   [Prop.arrayConstructorTypesDone]
-  (applyDepthM doExpression)
+  (applyBottomUpM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m prevT lit@(A.ArrayListLiteral _ expr))
@@ -144,11 +144,11 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
     doExpression e = return e
 
 -- | Handle ambiguities in the occam syntax that the parser can't resolve.
-resolveAmbiguities :: Pass
+resolveAmbiguities :: PassOn A.ExpressionList
 resolveAmbiguities = occamOnlyPass "Resolve ambiguities"
   [Prop.inferredTypesRecorded]
   [Prop.ambiguitiesResolved]
-  (applyDepthM doExpressionList)
+  (applyBottomUpM doExpressionList)
   where
     doExpressionList :: Transform A.ExpressionList
     -- A single function call inside an ExpressionList is actually a
@@ -160,11 +160,11 @@ resolveAmbiguities = occamOnlyPass "Resolve ambiguities"
     doExpressionList e = return e
 
 -- | Fold constant expressions.
-foldConstants :: Pass
+foldConstants :: PassOn2 A.Expression A.Specification
 foldConstants = occamOnlyPass "Fold constants"
   [Prop.inferredTypesRecorded]
   [Prop.constantsFolded]
-  (applyDepthM2 doExpression doSpecification)
+  (applyBottomUpM2 doExpression doSpecification)
   where
     -- Try to fold all expressions we encounter. Since we've recursed into the
     -- expression first, this'll also fold subexpressions of non-constant
@@ -191,11 +191,11 @@ foldConstants = occamOnlyPass "Fold constants"
               return s
 
 -- | Check that things that must be constant are.
-checkConstants :: Pass
+checkConstants :: PassOn2 A.Dimension A.Option
 checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
   [Prop.constantsChecked]
-  recurse
+  (applyDepthM2 doDimension doOption)
   where
     ops = baseOp `extOp` doType `extOp` doOption
 
