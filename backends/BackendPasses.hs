@@ -39,8 +39,8 @@ import Traversal
 import Types
 import Utils
 
-backendPasses :: [Pass]
-backendPasses =
+squashArrays :: [Pass]
+squashArrays =
     -- Note that removeDirections is only for C, whereas removeUnneededDirections
     -- is for all backends
   [ removeDirectionsForC
@@ -59,107 +59,22 @@ prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [
 -- | Remove all variable directions for the C backend.
 -- They're unimportant in occam code once the directions have been checked,
 -- and this somewhat simplifies the work of the later passes.
-removeDirectionsForC :: Pass
-removeDirectionsForC
+removeDirections :: Pass
+removeDirections
     = occamAndCOnlyPass "Remove variable directions"
                     prereq
                     [Prop.directionsRemoved]
-                    (applyDepthM (return . doVariable))
+                    (applyBottomUpM (return . doVariable))
   where
     doVariable :: A.Variable -> A.Variable
     doVariable (A.DirectedVariable _ _ v) = v
     doVariable v = v
 
--- | Remove variable directions that are superfluous.  This prevents confusing
--- later passes, where the user has written something like:
--- []CHAN INT da! IS ...:
--- foo(da!)
---
--- The second direction specifier is unneeded, and will confuse passes such as
--- those adding sizes parameters (which looks for plain variables, since directed
--- arrays should already have been pulled up).
-removeUnneededDirections :: Pass
-removeUnneededDirections
-  = occamOnlyPass "Remove unneeded variable directions"
-                  prereq
-                  []
-                  (applyDepthM doVariable)
-  where
-    doVariable :: Transform (A.Variable)
-    doVariable whole@(A.DirectedVariable m dir v)
-       = do t <- astTypeOf v
-            case t of
-              A.Chan {} -> return whole
-              A.Array _ (A.Chan {}) -> return whole
-              A.ChanEnd chanDir _ _ | dir == chanDir -> return v
-              A.Array _ (A.ChanEnd chanDir _ _) | dir == chanDir -> return v
-              _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
-    doVariable v = return v
-
--- | Pulls up any initialisers for mobile allocations.  I think, after all the
--- other passes have run, the only place these initialisers should be left is in
--- assignments (and maybe not even those?) and A.Is items.
-pullAllocMobile :: Pass
-pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] []
-  recurse
-  where
-    ops = baseOp `extOpS` doStructured `extOp` doProcess
-
-    recurse, descend :: Data a => Transform a
-    recurse = makeRecurse ops
-    descend = makeDescend ops
-    
-    doProcess :: Transform A.Process
-    doProcess (A.Assign m [v] (A.ExpressionList me [A.AllocMobile ma t (Just e)]))
-      = return $ A.Seq m $ A.Several m $ map (A.Only m) $
-          [A.Assign m [v] $ A.ExpressionList me [A.AllocMobile ma t Nothing]
-          ,A.Assign m [A.DerefVariable m v] $ A.ExpressionList me [e]
-          ]
-    doProcess p = descend p
-
-    doStructured :: Data a => Transform (A.Structured a)
-    doStructured (A.Spec mspec (A.Specification mif n
-      (A.Is mis am t (A.ActualExpression (A.AllocMobile ma tm (Just e)))))
-        body)
-      = do body' <- recurse body
-           return $ A.Spec mspec (A.Specification mif n $
-             A.Is mis am t $ A.ActualExpression $ A.AllocMobile ma tm Nothing)
-             $ A.ProcThen ma
-                 (A.Assign ma [A.DerefVariable mif $ A.Variable mif n] $ A.ExpressionList ma [e])
-                 body'
-    doStructured s = descend s
-
--- | Turns any literals equivalent to a MOSTNEG back into a MOSTNEG
--- The reason for doing this is that C (and presumably C++) don't technically (according
--- to the standard) allow you to write INT_MIN directly as a constant.  GCC certainly
--- warns about it.  So this pass takes any MOSTNEG-equivalent values (that will have been
--- converted to constants in the constant folding earlier) and turns them back
--- into MOSTNEG, for which the C backend uses INT_MIN and similar, which avoid
--- this problem.
-fixMinInt :: Pass
-fixMinInt
-  = cOrCppOnlyPass "Turn any literals that are equal to MOSTNEG INT back into MOSTNEG INT"
-                   prereq
-                   []
-                   (applyDepthM doExpression)
-  where
-    doExpression :: Transform (A.Expression)
-    doExpression l@(A.Literal m t (A.IntLiteral m' s))
-      = do folded <- constantFold (A.MostNeg m t)
-           case folded of
-             (A.Literal _ _ (A.IntLiteral _ s'), _, _)
-               -> if (s == s')
-                    then return $ A.MostNeg m t
-                    else return l
-             _ -> return l -- This can happen as some literals retain the Infer
-                           -- type which fails the constant folding
-    doExpression e = return e
-
 transformWaitFor :: Pass
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
   []
   [Prop.waitForRemoved]
-  (applyDepthM doAlt)
+  (applyBottomUpM doAlt)
   where
     doAlt :: A.Process -> PassM A.Process
     doAlt a@(A.Alt m pri s)
@@ -281,16 +196,11 @@ findVarSizes skip (A.VariableSizes m v)
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-declareSizesArray :: Pass
+declareSizesArray :: PassOnStruct
 declareSizesArray = occamOnlyPass "Declare array-size arrays"
   (prereq ++ [Prop.slicesSimplified, Prop.arrayConstructorsRemoved])
   [Prop.arraySizesDeclared]
-  (passOnlyOnAST "declareSizesArray" $
-   \t -> do pushPullContext
-            t' <- recurse t >>= applyPulled
-            popPullContext
-            return t'
-            )
+  (applyDepthSM doStructured)
   where
     ops :: OpsM PassM
     ops = baseOp `extOpS` doStructured `extOp` doProcess
@@ -420,7 +330,42 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
              _ -> descend str
     doStructured s = descend s
 
-    transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformExternal :: Meta -> ExternalType -> [A.Formal] -> PassM [A.Formal]
+    transformExternal m extType args
+      = do (args', newargs) <- transformFormals (Just extType) m args
+           sequence_ [defineSizesName m n (A.Declaration m t)
+                     | A.Formal _ t n <-  newargs]
+           return args'
+
+-- | A pass for adding _sizes parameters to PROC arguments
+-- TODO in future, only add _sizes for variable-sized parameters
+addSizesFormalParameters :: Pass
+addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
+  (prereq ++ [Prop.arraySizesDeclared])
+  []
+  (applyDepthM doSpecification)
+  where
+    doSpecification :: Bool -> A.Specification -> PassM A.Specification
+    doSpecification ext (A.Specification m n (A.Proc m' sm args body))
+      = do (args', newargs) <- transformFormals ext m args
+           let newspec = A.Proc m' sm args' body
+           modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec }) (A.nameName n) (csNames cs)})
+           mapM_ (recordArg m') newargs
+           return $ A.Specification m n newspec
+    doSpecification _ st = return st
+    
+    recordArg :: Meta -> A.Formal -> PassM ()
+    recordArg m (A.Formal am t n)
+      =  defineName n $ A.NameDef {
+                         A.ndMeta = m
+                        ,A.ndName = A.nameName n
+                        ,A.ndOrigName = A.nameName n
+                        ,A.ndSpecType = A.Declaration m t
+                        ,A.ndAbbrevMode = A.ValAbbrev
+                        ,A.ndNameSource = A.NameNonce
+                        ,A.ndPlacement = A.Unplaced}
+    
+    transformFormals :: Bool -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
     transformFormals _ _ [] = return ([],[])
     transformFormals ext m ((f@(A.Formal am t n)):fs)
       = case (t, ext) of
@@ -451,7 +396,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
           _ -> do (rest, new) <- transformFormals ext m fs
                   return (f : rest, new)
 
-
+-- | A pass for adding _sizes parameters to actuals in PROC calls
+addSizesActualParameters :: Pass
+addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
+  (prereq ++ [Prop.arraySizesDeclared])
+  []
+  (applyDepthM doProcess)
+  where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params)
       = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n)
@@ -492,11 +443,11 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
           v
 
 -- | Transforms all slices into the FromFor form.
-simplifySlices :: Pass
+simplifySlices :: PassOn A.Variable
 simplifySlices = occamOnlyPass "Simplify array slices"
   prereq
   [Prop.slicesSimplified]
-  (applyDepthM doVariable)
+  (applyBottomUpM doVariable)
   where
     doVariable :: A.Variable -> PassM A.Variable
     doVariable (A.SubscriptedVariable m (A.SubscriptFor m' check for) v)

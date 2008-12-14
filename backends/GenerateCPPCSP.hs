@@ -92,10 +92,10 @@ cppgenOps = cgenOps {
   }
 --}}}
 
-genCPPCSPPasses :: [Pass]
+genCPPCSPPasses :: [Pass A.AST]
 genCPPCSPPasses = [chansToAny]
 
-chansToAny :: Pass
+chansToAny :: PassOn A.Type
 chansToAny = cppOnlyPass "Transform channels to ANY"
   [Prop.processTypesChecked]
   [Prop.allChansToAnyOrProtocol]
@@ -113,8 +113,8 @@ chansToAny = cppOnlyPass "Transform channels to ANY"
     chansToAny' (A.ChanEnd a b _) = return $ A.ChanEnd a b A.Any
     chansToAny' t = return t
     
-    chansToAnyM :: Data t => t -> PassM t
-    chansToAnyM = applyDepthM chansToAny'
+    chansToAnyM :: PassTypeOn A.Type
+    chansToAnyM = applyBottomUpM chansToAny'
     
     chansToAnyInCompState :: PassM ()
     chansToAnyInCompState = do st <- get

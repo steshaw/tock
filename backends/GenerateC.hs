@@ -68,7 +68,7 @@ import TypeSizes
 import Utils
 
 --{{{  passes related to C generation
-genCPasses :: [Pass]
+genCPasses :: [Pass A.AST]
 genCPasses = [transformWaitFor]
 --}}}
 
