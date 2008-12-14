@@ -83,14 +83,14 @@ applyQuery2 qfA qfB = transformSpine ops ()
   where
     ops = baseOp `extOpQ` qfA `extOpQ` qfB 
 
-applyListifyDepth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-applyListifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . transformSpine ops ()
+listifyDepth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
+listifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . transformSpine ops ()
   where
     qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
 
-applyListifyBreadth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-applyListifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . transformSpine ops ()
+listifyBreadth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
+listifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . transformSpine ops ()
   where
     qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
