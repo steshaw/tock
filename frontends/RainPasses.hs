@@ -39,7 +39,7 @@ import TreeUtils
 import Types
 
 -- | An ordered list of the Rain-specific passes to be run.
-rainPasses :: [Pass]
+rainPasses :: [Pass A.AST]
 rainPasses =
      [ excludeNonRainFeatures
      , rainOnlyPass "Dummy Rain pass" [] [Prop.retypesChecked] return
@@ -58,8 +58,8 @@ rainPasses =
      ]
 
 -- | A pass that transforms all instances of 'A.Int' into 'A.Int64'
-transformInt :: Pass
-transformInt = rainOnlyPass "Resolve Int -> Int64" [] [Prop.noInt] (applyDepthM transformInt')
+transformInt :: PassOn A.Type
+transformInt = rainOnlyPass "Resolve Int -> Int64" [] [Prop.noInt] (applyBottomUpM transformInt')
   where
     transformInt' :: A.Type -> PassM A.Type
     transformInt' A.Int = return A.Int64
@@ -78,11 +78,11 @@ transformInt = rainOnlyPass "Resolve Int -> Int64" [] [Prop.noInt] (applyDepthM 
 --
 -- This pass works because everywhereM goes bottom-up, so declarations are
 --resolved from the bottom upwards.
-uniquifyAndResolveVars :: Pass
+uniquifyAndResolveVars :: PassOnStruct
 uniquifyAndResolveVars = rainOnlyPass
   "Uniquify variable declarations, record declared types and resolve variable names"
   [Prop.noInt] (Prop.agg_namesDone \\ [Prop.inferredTypesRecorded])
-  (applyDepthSM uniquifyAndResolveVars')
+  (applyBottomUpMS uniquifyAndResolveVars')
   where
     uniquifyAndResolveVars' :: Data a => A.Structured a -> PassM (A.Structured a)
              
@@ -145,14 +145,14 @@ replaceNameName ::
 replaceNameName find replace n = if (A.nameName n) == find then n {A.nameName = replace} else n
 
 -- | A pass that finds and tags the main process, and also mangles its name (to avoid problems in the C\/C++ backends with having a function called main).
-findMain :: Pass
+findMain :: PassOn A.Name
 --Because findMain runs after uniquifyAndResolveVars, the types of all the process will have been recorded
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
 --in the CompState, and pull it out into csMainLocals
 findMain = rainOnlyPass "Find and tag the main function" Prop.agg_namesDone [Prop.mainTagged]
   (    \x -> do newMainName <- makeNonce emptyMeta "main_"
                 modify (findMain' newMainName)
-                applyDepthM (return . (replaceNameName "main" newMainName)) x)
+                applyBottomUpM (return . (replaceNameName "main" newMainName)) x)
   where
     --We have to mangle the main name because otherwise it will cause problems on some backends (including C and C++)
     findMain' :: String -> CompState -> CompState
@@ -180,10 +180,10 @@ checkIntegral (A.ByteLiteral _ s) = Nothing -- TODO support char literals
 checkIntegral _ = Nothing
 
 -- | Transforms seqeach\/pareach loops over things like [0..99] into SEQ i = 0 FOR 100 loops
-transformEachRange :: Pass
+transformEachRange :: PassOn A.Specification
 transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges into simple replicated SEQ/PAR"
   (Prop.agg_typesDone ++ [Prop.constantsFolded]) [Prop.eachRangeTransformed]
-  (applyDepthM doSpec)
+  (applyBottomUpM doSpec)
   where
     doSpec :: A.Specification -> PassM A.Specification
     doSpec
@@ -202,6 +202,10 @@ transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges int
                  A.For eachMeta begin newCount (makeConstant eachMeta 1)
     doSpec s = return s
 
+-- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
+--
+-- TODO make sure when the range has a bad order that an empty list is
+-- returned
 transformRangeRep :: Pass
 transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into more general array constructors"
   (Prop.agg_typesDone ++ [Prop.eachRangeTransformed])
@@ -209,18 +213,17 @@ transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into mo
   (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.Literal m t (A.RangeLiteral m' begin end))
-          = do count <- subExprs end begin >>= addOne
-               let rep = A.Rep m' $ A.For m' begin count $ makeConstant m 1
-               spec@(A.Specification _ repN _) <- defineNonce m' "rep_constr"
-                 rep A.ValAbbrev
-               return $ A.Literal m t $ A.ArrayListLiteral m' $
-                 A.Spec m' spec $ A.Only m' $
-                   (A.ExprVariable m' $ A.Variable m' repN)
+    doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
+          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.ValAbbrev
+                      let count = addOne $ subExprs end begin
+                      return $ A.ExprConstr m $ A.RepConstr m t rep
+                        (A.For m begin count $ makeConstant m 1)
+                          (A.ExprVariable m $ A.Variable m rep)
     doExpression e = return e
 
 -- TODO this is almost certainly better figured out from the CFG
-checkFunction :: PassType
+{-
+checkFunction :: Pass t
 checkFunction = return -- applyDepthM checkFunction'
   where
     checkFunction' :: A.Specification -> PassM A.Specification
@@ -241,16 +244,17 @@ checkFunction = return -- applyDepthM checkFunction'
     skipSpecs :: A.Structured A.Process -> A.Structured A.Process
     skipSpecs (A.Spec _ _ inner) = skipSpecs inner
     skipSpecs s = s
+-}
 
 -- | Pulls up the list expression into a variable.
 -- This is done no matter how simple the expression is; when we reach the
 -- backend we need it to be a variable so we can use begin() and end() (in
 -- C++); these will only be valid if exactly the same list is used
 -- throughout the loop.
-pullUpForEach :: Pass
+pullUpForEach :: PassOnStruct
 pullUpForEach = rainOnlyPass "Pull up foreach-expressions"
   (Prop.agg_typesDone ++ [Prop.constantsFolded]) [Prop.eachTransformed]
-  (applyDepthSM doStructured)
+  (applyBottomUpMS doStructured)
   where
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec mstr (A.Specification mspec loopVar (A.Rep m (A.ForEach m' loopExp))) s)
@@ -265,10 +269,10 @@ pullUpForEach = rainOnlyPass "Pull up foreach-expressions"
     doStructured s = return s
       
     
-pullUpParDeclarations :: Pass
+pullUpParDeclarations :: PassOn A.Process
 pullUpParDeclarations = rainOnlyPass "Pull up par declarations"
   [] [Prop.rainParDeclarationsPulledUp]
-  (applyDepthM pullUpParDeclarations')
+  (applyBottomUpM pullUpParDeclarations')
   where
     pullUpParDeclarations' :: A.Process -> PassM A.Process
     pullUpParDeclarations' p@(A.Par m mode inside) 
@@ -284,16 +288,16 @@ pullUpParDeclarations = rainOnlyPass "Pull up par declarations"
           Just (trans,inner') -> Just ( (A.Spec m spec) . trans,inner')
     chaseSpecs _ = Nothing
 
-mobiliseLists :: Pass
+mobiliseLists :: PassOn A.Type
 mobiliseLists = rainOnlyPass "Mobilise lists" [] [] --TODO properties
-  (\x -> (get >>= applyDepthM mobilise >>= put) >> applyDepthM mobilise x)
+  (\x -> (get >>= applyBottomUpM mobilise >>= put) >> applyBottomUpM mobilise x)
   where
     mobilise :: A.Type -> PassM A.Type
     mobilise t@(A.List _) = return $ A.Mobile t
     mobilise t = return t
 
 -- | All the items that should not occur in an AST that comes from Rain (up until it goes into the shared passes).
-excludeNonRainFeatures :: Pass
+excludeNonRainFeatures :: Pass A.AST
 excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] []
   (excludeConstr
   [ con0 A.Real32

@@ -59,7 +59,15 @@ startState = RainTypeState {
 
 type RainTypeM = StateT RainTypeState PassM
 
-type RainTypePassType = Data t => t -> StateT RainTypeState PassM t
+type RainTypePassType = forall t. t -> StateT RainTypeState PassM t
+
+type RainTypeCheckOn a = forall t. PolyplateSpine t (OneOpQ (RainTypeM ()) a) ()
+  (RainTypeM ()) => t -> RainTypeM ()
+
+type RainTypeCheckOn2 a b = forall t.
+  (PolyplateSpine t (TwoOpQ (RainTypeM ()) a b) () (RainTypeM ())
+  ) => t -> RainTypeM ()
+
 
 type RainTypeCheck a = a -> RainTypeM ()
 
@@ -118,7 +126,17 @@ markUnify x y
        modify $ \st -> st {csUnifyPairs = (tex,tey) : csUnifyPairs st}
 
 
-performTypeUnification :: Pass
+performTypeUnification ::
+  -- | A shorthand for prerequisites when you need to spell them out:
+  (PolyplateSpine t (OneOpQ (RainTypeM ()) A.Specification) () (RainTypeM ())
+  ,PolyplateSpine t (OneOpQ (RainTypeM ()) A.Process) () (RainTypeM ())
+  ,PolyplateSpine t (OneOpQ (RainTypeM ()) A.Expression) () (RainTypeM ())
+  ,PolyplateSpine t (TwoOpQ (RainTypeM ()) A.Process A.Expression) () (RainTypeM ())
+  ,PolyplateSpine t (TwoOpQ (RainTypeM ()) A.Process A.Choice) () (RainTypeM ())
+  ,PolyplateSpine t (TwoOpQ (RainTypeM ()) A.Process A.Alternative) () (RainTypeM ())
+  ,PolyplateM t () (OneOpM PassM A.Type) PassM
+  ,PolyplateM t (OneOpM PassM A.Type) () PassM
+  ) => Pass t
 performTypeUnification = rainOnlyPass "Rain Type Checking"
   ([Prop.noInt] ++ Prop.agg_namesDone)
   [Prop.expressionTypesChecked, Prop.functionTypesChecked, Prop.processTypesChecked, Prop.retypesChecked]
@@ -127,14 +145,13 @@ performTypeUnification = rainOnlyPass "Rain Type Checking"
        ul <- getCompState >>= (shift . csNames)
        put st {csUnifyPairs = [], csUnifyLookup = ul}
        -- Then we markup all the types in the tree:
-       x' <- (markConditionalTypes
-             <.< markParamPass
-             <.< markAssignmentTypes
-             <.< markCommTypes
-             <.< markPoisonTypes
-             <.< markReplicators
-             <.< markExpressionTypes
-             ) x
+       markConditionalTypes x
+       markParamPass x
+       markAssignmentTypes x
+       markCommTypes x
+       markPoisonTypes x
+       markReplicators x
+       markExpressionTypes x
        -- Then, we do the unification:
        prs <- get >>* csUnifyPairs
        mapM_ (lift . uncurry unifyType) prs
@@ -142,7 +159,7 @@ performTypeUnification = rainOnlyPass "Rain Type Checking"
        l <- get >>* csUnifyLookup
        ts <- lift $ mapMapM (\v -> fromTypeExp v) l
        lift $ get >>= substituteUnknownTypes ts >>= put
-       lift $ substituteUnknownTypes ts x')
+       lift $ substituteUnknownTypes ts x)
   where
     shift :: Map.Map String A.NameDef -> RainTypeM (Map.Map UnifyIndex UnifyValue)
     shift = liftM (Map.fromList . catMaybes) . mapM shift' . Map.toList
@@ -156,8 +173,8 @@ performTypeUnification = rainOnlyPass "Rain Type Checking"
           where
             name = A.Name {A.nameName = rawName, A.nameMeta = A.ndMeta d}
 
-substituteUnknownTypes :: Map.Map UnifyIndex A.Type -> PassType
-substituteUnknownTypes mt = applyDepthM sub
+substituteUnknownTypes :: Map.Map UnifyIndex A.Type -> PassTypeOn A.Type
+substituteUnknownTypes mt = applyBottomUpM sub
   where
     sub :: A.Type -> PassM A.Type
     sub (A.UnknownVarType _ (Left n)) = lookup $ UnifyIndex (A.nameMeta n, Right n)
@@ -170,7 +187,7 @@ substituteUnknownTypes mt = applyDepthM sub
       Just t -> return t
       Nothing -> dieP m "Could not deduce type"
 
-markReplicators :: RainTypePassType
+markReplicators :: RainTypeCheckOn A.Specification
 markReplicators = checkDepthM mark
   where
     mark :: RainTypeCheck A.Specification
@@ -179,11 +196,11 @@ markReplicators = checkDepthM mark
     mark _ = return ()
 
 -- | Folds all constants.
-constantFoldPass :: Pass
+constantFoldPass :: PassOn A.Expression
 constantFoldPass = rainOnlyPass "Fold all constant expressions"
   ([Prop.noInt] ++ Prop.agg_namesDone ++ [Prop.inferredTypesRecorded])
   [Prop.constantsFolded, Prop.constantsChecked]
-  (applyDepthM doExpression)
+  (applyBottomUpM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression = (liftM (\(x,_,_) -> x)) . constantFold
@@ -191,7 +208,7 @@ constantFoldPass = rainOnlyPass "Fold all constant expressions"
 -- | A pass that finds all the 'A.ProcCall' and 'A.FunctionCall' in the
 -- AST, and checks that the actual parameters are valid inputs, given
 -- the 'A.Formal' parameters in the process's type
-markParamPass :: RainTypePassType
+markParamPass :: RainTypeCheckOn2 A.Process A.Expression
 markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
   where
     --Picks out the parameters of a process call, checks the number is correct, and maps doParam over them
@@ -222,7 +239,7 @@ markParamPass = checkDepthM2 matchParamPassProc matchParamPassFunc
     matchParamPassFunc _ = return ()
 
 -- | Checks the types in expressions
-markExpressionTypes :: RainTypePassType
+markExpressionTypes :: RainTypeCheckOn A.Expression
 markExpressionTypes = checkDepthM checkExpression
   where
     -- TODO also check in a later pass that the op is valid
@@ -240,7 +257,7 @@ markExpressionTypes = checkDepthM checkExpression
     checkListElems ch (A.ProcThen _ _ s) = checkListElems ch s
 
 -- | Checks the types in assignments
-markAssignmentTypes :: RainTypePassType
+markAssignmentTypes :: RainTypeCheckOn A.Process
 markAssignmentTypes = checkDepthM checkAssignment
   where
     checkAssignment :: RainTypeCheck A.Process
@@ -261,7 +278,7 @@ markAssignmentTypes = checkDepthM checkAssignment
     checkAssignment st = return ()
 
 -- | Checks the types in if and while conditionals
-markConditionalTypes :: RainTypePassType
+markConditionalTypes :: RainTypeCheckOn2 A.Process A.Choice
 markConditionalTypes = checkDepthM2 checkWhile checkIf
   where
     checkWhile :: RainTypeCheck A.Process
@@ -274,7 +291,7 @@ markConditionalTypes = checkDepthM2 checkWhile checkIf
       = markUnify exp (M m A.Bool)
 
 -- | Marks types in poison statements
-markPoisonTypes :: RainTypePassType
+markPoisonTypes :: RainTypeCheckOn A.Process
 markPoisonTypes = checkDepthM checkPoison
   where
     checkPoison :: RainTypeCheck A.Process
@@ -284,7 +301,7 @@ markPoisonTypes = checkDepthM checkPoison
     checkPoison _ = return ()
 
 -- | Checks the types in inputs and outputs, including inputs in alts
-markCommTypes :: RainTypePassType
+markCommTypes :: RainTypeCheckOn2 A.Process A.Alternative
 markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> RainTypeM ()
