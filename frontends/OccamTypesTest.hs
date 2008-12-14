@@ -29,8 +29,10 @@ import qualified AST as A
 import CompState
 import Metadata
 import qualified OccamTypes
+import Pass
 import TestHarness
 import TestUtils
+import Traversal
 
 m :: Meta
 m = emptyMeta
@@ -500,13 +502,21 @@ testOccamTypes = TestList
     --}}}
     ]
   where
-    testOK :: (Show a, Data a) => Int -> a -> Test
+    testOK :: (PolyplateSpine a (OneOpQ (PassM ()) A.Variable) () (PassM ())
+              ,PolyplateSpine a (OneOpQ (PassM ()) A.Expression) () (PassM ())
+              ,PolyplateSpine a (OneOpQ (PassM ()) A.SpecType) () (PassM ())
+              ,PolyplateSpine a (OneOpQ (PassM ()) A.Process) () (PassM ())
+              ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testOccamTypes " ++ show n)
                               orig OccamTypes.checkTypes orig
                               startState
 
-    testFail :: (Show a, Data a) => Int -> a -> Test
+    testFail :: (PolyplateSpine a (OneOpQ (PassM ()) A.Variable) () (PassM ())
+                ,PolyplateSpine a (OneOpQ (PassM ()) A.Expression) () (PassM ())
+                ,PolyplateSpine a (OneOpQ (PassM ()) A.SpecType) () (PassM ())
+                ,PolyplateSpine a (OneOpQ (PassM ()) A.Process) () (PassM ())
+                ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testOccamTypes " ++ show n)
                                         OccamTypes.checkTypes orig

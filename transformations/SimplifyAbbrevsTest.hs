@@ -26,10 +26,12 @@ import Test.HUnit hiding (State)
 import CompState
 import qualified AST as A
 import Metadata
+import Pass
 import Pattern
 import SimplifyAbbrevs
 import TagAST
 import TestUtils
+import Traversal
 import TreeUtils
 
 m :: Meta
@@ -92,7 +94,9 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
               inner)
   ]
   where
-    ok :: (Data a, Data b) => Int -> a -> b -> Test
+    ok :: (PolyplateM a (ExtOpMSP BaseOp) () PassM
+          ,PolyplateM a () (ExtOpMSP BaseOp) PassM
+          ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testRemoveInitial" ++ show n)
                                        exp removeInitial inp setupState
 
@@ -148,7 +152,8 @@ testRemoveResult = TestLabel "testRemoveResult" $ TestList
             (A.Formal A.Abbrev       A.Int foo)
   ]
   where
-    ok :: (Data a, Data b) => Int -> a -> b -> Test
+    ok :: (Polyplate a (OneOp A.AbbrevMode) ()
+          ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testRemoveResult" ++ show n)
                                        exp removeResult inp setupState
 

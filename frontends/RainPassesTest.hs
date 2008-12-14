@@ -218,7 +218,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyA
 
 
 --Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
-(>>>) :: Pass -> Pass -> Pass
+(>>>) :: Pass t -> Pass t -> Pass t
 (>>>) f0 f1 = Pass {passCode = passCode f1 <.< passCode f0}
 
 --Normally, process names in Rain are not mangled.  And this should be fine in all cases - but not for the main process (which would

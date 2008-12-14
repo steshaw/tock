@@ -30,8 +30,8 @@ import qualified AST as A
 import CompState
 import Metadata
 import qualified OccamPasses
+import Pass
 import TestUtils
-import Types
 
 m :: Meta
 m = emptyMeta
@@ -89,7 +89,9 @@ testFoldConstants = TestList
     , test 48 (add var (add const one)) (add var three)
     ]
   where
-    test :: Data a => Int -> a -> a -> Test
+    test :: (PolyplateM a (TwoOpM PassM A.Expression A.Specification) () PassM
+            ,PolyplateM a () (TwoOpM PassM A.Expression A.Specification) PassM
+            ,Data a) => Int -> a -> a -> Test
     test n orig exp = TestCase $ testPass ("testFoldConstants" ++ show n)
                                           exp OccamPasses.foldConstants orig
                                           startState
@@ -136,13 +138,16 @@ testCheckConstants = TestList
     , testFail 33 (A.Option m [lit10, lit10, lit10, var] skip)
     ]
   where
-    testOK :: (Show a, Data a) => Int -> a -> Test
+    testOK :: (PolyplateM a (TwoOpM PassM A.Dimension A.Option) () PassM
+              ,PolyplateM a () (TwoOpM PassM A.Dimension A.Option) PassM
+              ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testCheckConstants" ++ show n)
                               orig OccamPasses.checkConstants orig
                               (return ())
-
-    testFail :: (Show a, Data a) => Int -> a -> Test
+    testFail :: (PolyplateM a (TwoOpM PassM A.Dimension A.Option) () PassM
+                ,PolyplateM a () (TwoOpM PassM A.Dimension A.Option) PassM
+                ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)
                                         OccamPasses.checkConstants orig

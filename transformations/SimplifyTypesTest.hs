@@ -26,10 +26,12 @@ import Test.HUnit hiding (State)
 import CompState
 import qualified AST as A
 import Metadata
+import Pass
 import Pattern
 import SimplifyTypes
 import TagAST
 import TestUtils
+import Traversal
 import TreeUtils
 
 m :: Meta
@@ -49,7 +51,9 @@ testResolveNamedTypes = TestLabel "testResolveNamedTypes" $ TestList
             (array10 A.Int)
   ]
   where
-    ok :: (Data a, Data b) => Int -> a -> b -> Test
+    ok :: (PolyplateM a (OneOpM PassM A.Type) () PassM
+          ,PolyplateM a () (OneOpM PassM A.Type) PassM
+          ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testResolveNamedTypes" ++ show n)
                                        exp resolveNamedTypes inp setupState
 
