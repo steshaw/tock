@@ -27,7 +27,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- Instances of the PolyplateM type-class /can/ be written manually but it's not
 -- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
 -- generate source files with the appropriate instances.
-module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
+module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(..),
   PolyplateSpine(..), FullSpine(..), transformSpine, transformSpineFull, trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
@@ -38,9 +38,10 @@ module Data.Generics.Polyplate (PolyplateM(..), Polyplate(..),
   ExtOpQ, extOpQ, OneOpQ, TwoOpQ) where
 
 import Control.Monad.Identity
-
 import Data.Maybe
 import Data.Tree
+
+import Data.Generics.Polyplate.Route
 
 -- | The main Polyplate type-class.
 --
@@ -77,8 +78,20 @@ import Data.Tree
 --
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
-class Monad m => PolyplateM t o o' m where
-  transformM :: o -> o' -> t -> m t -- TODO add routes
+class Monad m => PolyplateMRoute t o o' m outer where
+  transformMRoute :: o -> o' -> (t, Route t outer) -> m t
+
+class (Monad m) => PolyplateM t o o' m where
+  transformM :: o -> o' -> t -> m t
+
+instance forall t ro o ro' o' m. (Monad m
+  , PolyplateMRoute t o o' m ()
+  , ConvertOpsToIgnoreRoute ro o
+  , ConvertOpsToIgnoreRoute ro' o') => PolyplateM t ro ro' m where
+  transformM o o' t = transformMRoute (convertOpsToIgnoreRoute o)
+                                      (convertOpsToIgnoreRoute o')
+                                      (t, error "transformM" :: Route t ()) 
+
 
   -- List of use cases for the Polyplate type-class, to try to decide best on its
   -- necessary functions:
@@ -123,31 +136,11 @@ transformSpineFull def o o' x
     fromJust' (Just x) = x
     fromJust' _ = error "transformSpineFull: internal error"
 
-class ConvertSpineOpsToFull a o o' | a o -> o' where
-  convertSpineOpsToFull :: a -> o -> o'
-
-instance ConvertSpineOpsToFull a () (FullSpine a) where
-  convertSpineOpsToFull def _ = FullSpine def
-
-instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') where
-  convertSpineOpsToFull def (f, r) = (f, convertSpineOpsToFull def r)
-
 trimTree :: Tree (Maybe a) -> Maybe (Tree (Maybe a))
 trimTree tr | isNothing (rootLabel tr) && null trimmedChildren = Nothing
             | otherwise = Just (Node (rootLabel tr) trimmedChildren)
     where
       trimmedChildren = mapMaybe trimTree (subForest tr)
-
--- | A helper class to convert non-monadic transformations into monadic ones in
--- the Identity monad.
-class ConvertOpsToIdentity o o' | o -> o' where
-  convertOpsToIdentity :: o -> o'
-
-instance ConvertOpsToIdentity () () where
-  convertOpsToIdentity = id
-
-instance ConvertOpsToIdentity r r' => ConvertOpsToIdentity (a -> a, r) (a -> Identity a, r') where
-  convertOpsToIdentity (f, r) = (return . f, convertOpsToIdentity r)
 
 -- | A non-monadic equivalent of PolyplateM.  All ops sets are of the form:
 --
@@ -260,3 +253,41 @@ type TwoOp s t = ExtOp (ExtOp BaseOp s) t
 type TwoOpQ a s t = ExtOpQ a (ExtOpQ a BaseOp s) t
 
 
+-- {{{ Various type-level programming ops conversions:
+
+-- | A helper class to convert non-monadic transformations into monadic ones in
+-- the Identity monad.
+class ConvertOpsToIdentity o o' | o -> o' where
+  convertOpsToIdentity :: o -> o'
+
+instance ConvertOpsToIdentity () () where
+  convertOpsToIdentity = id
+
+instance ConvertOpsToIdentity r r' => ConvertOpsToIdentity (a -> a, r) (a -> Identity a, r') where
+  convertOpsToIdentity (f, r) = (return . f, convertOpsToIdentity r)
+
+-- | A helper class to convert operation lists to have FullSpine at their base
+-- rather than BaseOp
+class ConvertSpineOpsToFull a o o' | a o -> o' where
+  convertSpineOpsToFull :: a -> o -> o'
+
+instance ConvertSpineOpsToFull a () (FullSpine a) where
+  convertSpineOpsToFull def _ = FullSpine def
+
+instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') where
+  convertSpineOpsToFull def (f, r) = (f, convertSpineOpsToFull def r)
+
+-- | A helper class to convert operations not expecting a route to those that ignore
+-- the route (which will have the unit type as its outer type).
+class ConvertOpsToIgnoreRoute o o' | o -> o' where
+  convertOpsToIgnoreRoute :: o -> o'
+
+instance ConvertOpsToIgnoreRoute () () where
+  convertOpsToIgnoreRoute = id
+
+instance ConvertOpsToIgnoreRoute r r' =>
+  ConvertOpsToIgnoreRoute (t -> m t, r) ((t, Route t ()) -> m t, r') where
+  convertOpsToIgnoreRoute (f, r) = (f . fst, convertOpsToIgnoreRoute r)
+
+
+-- }}}
