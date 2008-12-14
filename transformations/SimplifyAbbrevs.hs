@@ -41,7 +41,7 @@ import Traversal
 import UsageCheckUtils
 import Utils
 
-simplifyAbbrevs :: [Pass]
+simplifyAbbrevs :: [Pass A.AST]
 simplifyAbbrevs =
     [ removeInitial
     , removeResult
@@ -49,14 +49,14 @@ simplifyAbbrevs =
     ]
 
 -- | Rewrite 'InitialAbbrev' into a variable and an assignment.
-removeInitial :: Pass
+removeInitial :: PassOnOps (ExtOpMSP BaseOp)
 removeInitial
     = pass "Remove INITIAL abbreviations"
            []
            [Prop.initialRemoved]
-           (applyDepthSM doStructured)
+           (applyBottomUpMS doStructured)
   where
-    doStructured :: Data t => A.Structured t -> PassM (A.Structured t)
+    doStructured :: TransformStructured (ExtOpMSP BaseOp)
     doStructured (A.Spec m spec s) = doSpec m spec s
     doStructured s = return s
 
@@ -166,25 +166,24 @@ removeInitial
         specVar (A.Specification m n _) = A.Variable m n
 
 -- | Rewrite 'ResultAbbrev' into just 'Abbrev'.
-removeResult :: Pass
+removeResult :: Polyplate t (OneOp A.AbbrevMode) () => Pass t
 removeResult
     = pass "Remove RESULT abbreviations"
            []
            [Prop.resultRemoved]
-           (applyDepthM (return . doAbbrevMode))
+           (return . applyBottomUp doAbbrevMode)
   where
     doAbbrevMode :: A.AbbrevMode -> A.AbbrevMode
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
 
 -- | Rewrite abbreviation modes in the state.
-updateAbbrevsInState :: Pass
+updateAbbrevsInState :: Pass t
 updateAbbrevsInState
     = pass "Update INITIAL and RESULT abbreviations in state"
            [Prop.initialRemoved, Prop.resultRemoved]
            []
-           (\v -> get >>* doNameAbbrevs >>= applyDepthM (return . doAbbrevMode)
-                    >>= put >> return v)
+           (\v -> get >>= applyDepthM (return . doAbbrevMode) >>= put >> return v)
   where
     doAbbrevMode :: A.AbbrevMode -> A.AbbrevMode
     doAbbrevMode A.InitialAbbrev = A.Original

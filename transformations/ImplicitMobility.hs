@@ -183,7 +183,7 @@ effectMoveCopyDecisions g decs = foldFuncsM $ map effect $ Map.toList decs
           Nothing -> const $ dieP (findMeta v) "Could not find label for node"
           Just mod -> effectDecision v dec mod
 
-implicitMobility :: Pass
+implicitMobility :: Pass A.AST
 implicitMobility 
   = pass "Implicit mobility optimisation"
     [] [] --TODO properties
