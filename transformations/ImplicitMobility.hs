@@ -29,7 +29,6 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import qualified AST as A
-import CompState
 import Errors
 import FlowAlgorithms
 import FlowGraph

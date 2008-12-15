@@ -34,7 +34,6 @@ import Test.HUnit hiding (Node, State, Testable)
 import Test.QuickCheck
 
 import qualified AST as A
-import CompState
 import FlowGraph
 import GenericUtils
 import Metadata

@@ -25,6 +25,7 @@ import Data.Generics
 import Data.Graph.Inductive hiding (run)
 
 import qualified AST as A
+import Data.Generics.Polyplate.Route
 import GenericUtils
 import Metadata
 import TreeUtils
@@ -303,3 +304,56 @@ joinPairs m mod nodes
   = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq Nothing) s e) nodes
        return (fst (head nodes), snd (last nodes))
 
+
+decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp22 con f1 = decomp2 con return f1
+
+decomp23 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a1 -> m a1) -> (a -> m a)
+decomp23 con f1 = decomp3 con return f1 return
+
+decomp33 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2) => (a0 -> a1 -> a2 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp33 con f2 = decomp3 con return return f2
+
+decomp34 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a2 -> m a2) -> (a -> m a)
+decomp34 con f2 = decomp4 con return return f2 return
+
+decomp44 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  (a0 -> a1 -> a2 -> a3 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp44 con f3 = decomp4 con return return return f3
+
+decomp45 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a3 -> m a3) -> (a -> m a)
+decomp45 con f3 = decomp5 con return return return f3 return
+
+decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
+decomp55 con f4 = decomp5 con return return return return f4
+
+route22 :: (Data a, Typeable a0, Typeable a1) => Route a b -> (a0 -> a1 -> a) -> Route a1 b
+route22 route con = route @-> makeRoute [1] (decomp22 con)
+
+route23 :: (Data a, Typeable a0, Typeable a1, Typeable a2) => Route a b -> (a0 -> a1 -> a2 -> a) -> Route a1 b
+route23 route con = route @-> makeRoute [1] (decomp23 con)
+
+route33 :: (Data a, Typeable a0, Typeable a1, Typeable a2) => Route a b -> (a0 -> a1 -> a2 -> a) -> Route a2 b
+route33 route con = route @-> makeRoute [2] (decomp33 con)
+
+route34 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a) -> Route a2 b
+route34 route con = route @-> makeRoute [2] (decomp34 con)
+
+route44 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a) -> Route a3 b
+route44 route con = route @-> makeRoute [3] (decomp44 con)
+
+route45 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Route a3 b
+route45 route con = route @-> makeRoute [3] (decomp45 con)
+
+route55 :: (Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
+  Route a b -> (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> Route a4 b
+route55 route con = route @-> makeRoute [4] (decomp55 con)
+
+-- TODO we should be able to provide versions of these that do not need to know
+-- the constructor or the arity
