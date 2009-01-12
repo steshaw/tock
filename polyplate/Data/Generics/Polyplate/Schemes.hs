@@ -25,6 +25,8 @@ import Data.Tree
 import Data.Generics.Polyplate
 import Data.Generics.Polyplate.Route
 
+-- * Adding traversal to modifiers
+
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.
 --  This can be used to perform a bottom-up depth-first traversal of a structure
@@ -79,6 +81,7 @@ makeCheckM ops f v
     descend = makeDescend ops
 -}
 
+-- * Query functions that return rose-trees of results
 
 -- | Given a query function that turns all items of type \"s\" into results of
 -- type \"a\", applies the function to every instance of \"s\" inside a larger
@@ -100,6 +103,8 @@ applyQuery2 qfA qfB = transformSpine ops ()
   where
     ops = baseOp `extOpQ` qfA `extOpQ` qfB 
 
+-- * Listify functions that return lists of items that satisfy given criteria
+
 -- | Given a function that examines a type \"s\" and gives an answer (True to include
 -- the item in the list, False to drop it), finds all items of type \"s\" in some
 -- larger item (of type \"t\") that satisfy this function, listed in depth-first
@@ -117,6 +122,8 @@ listifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . t
     qf' x = if qf x then Just x else Nothing
     ops = baseOp `extOpQ` qf'
 
+
+-- * Check functions to apply monadic checks throughout a data structure
 
 -- | Given a monadic function that operates on items of type \"s\" (without modifying
 -- them), applies the function to all items of types \"s\" within an item of type
@@ -142,6 +149,7 @@ checkBreadthM2 :: (Monad m, PolyplateSpine t (TwoOpQ (m ()) r s) () (m ())) =>
   (r -> m ()) -> (s -> m ()) -> t -> m ()
 checkBreadthM2 f g = sequence_ . catMaybes . concat . levels . applyQuery2 f g
 
+-- * Functions to easily apply transformations throughout a data structure
 
 -- | Given a monadic function that applies to a particular type (\"s\"), automatically
 -- applies that function to every instance of \"s\" in a larger structure of type \"t\",
