@@ -35,7 +35,6 @@ import Test.QuickCheck
 
 import qualified AST as A
 import FlowGraph
-import GenericUtils
 import Metadata
 import PrettyShow
 import TestFramework

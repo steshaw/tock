@@ -34,7 +34,6 @@ import FlowAlgorithms
 import FlowGraph
 import FlowUtils
 import GenericUtils
-import Intrinsics
 import Metadata
 import Pass
 import ShowCode

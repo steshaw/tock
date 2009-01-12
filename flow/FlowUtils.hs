@@ -26,7 +26,6 @@ import Data.Graph.Inductive hiding (run)
 
 import qualified AST as A
 import Data.Generics.Polyplate.Route
-import GenericUtils
 import Metadata
 import TreeUtils
 import Utils

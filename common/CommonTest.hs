@@ -25,7 +25,6 @@ import Data.Generics
 import Test.HUnit hiding (State)
 
 import qualified AST as A
-import GenericUtils
 import Metadata
 import TreeUtils
 import Types
@@ -125,34 +124,10 @@ testDecomp = TestList
 data NotPartOfAST = NotPartOfAST Int
   deriving (Show, Typeable, Data)
 
--- | Test 'typeContains'.
-testTypeContains :: Test
-testTypeContains = TestList
-    [
-    -- AST elements that it should know about
-      test   0 True  (undefined :: A.AST) (undefined :: Meta)
-    , test   1 False (undefined :: Meta) (undefined :: A.AST)
-    , test   2 True  (undefined :: A.Process) (undefined :: A.Name)
-    , test   3 False (undefined :: A.AbbrevMode) (undefined :: A.Formal)
-    , test   4 False (undefined :: String) (undefined :: Meta)
-    , test   5 True  (undefined :: String) (undefined :: Char)
-
-    -- Things outside the AST
-    , test 100 True  (NotPartOfAST 42) (undefined :: String)
-    , test 101 False (undefined :: String) (NotPartOfAST 42)
-    ]
-  where
-    test :: (Show a, Data a, Typeable a, Show b, Data b, Typeable b) =>
-            Int -> Bool -> a -> b -> Test
-    test n exp start find
-        = TestCase $ assertEqual ("testTypeContains " ++ show n)
-                                 exp (containsTypes start [typeKey find])
-
 --Returns the list of tests:
 tests :: Test
 tests = TestLabel "CommonTest" $ TestList
     [ testIsSafeConversion
     , testCheckTreeForConstr
     , testDecomp
-    , testTypeContains
     ]

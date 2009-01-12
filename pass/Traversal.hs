@@ -34,7 +34,6 @@ import Data.Generics.Polyplate.Schemes
 
 
 import qualified AST as A
-import GenericUtils
 import NavAST()
 import NavASTSpine()
 import Pass
