@@ -110,9 +110,9 @@ instance (Monad m
   --
   -- So I think there are two classes needed:
   --
-  -- * One to apply monadic transformations that takes routes (covers #5, #2, #1)
+  -- 1. One to apply monadic transformations that takes routes (covers #5, #2, #1)
   -- 
-  -- * One to apply tree-based queries that transform a whole data structure into
+  -- 2. One to apply tree-based queries that transform a whole data structure into
   -- its tree spine-view, with optional methods for flattening into a depth-first
   -- or breadth-first order.
 

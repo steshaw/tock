@@ -16,6 +16,18 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
+-- | A module containing code to generate instances of the Polyplate classes for
+-- you.
+--
+-- Generating Polyplate instances by hand would be laborious, complex and error-prone.
+--  This module provides a way, based on the Scrap Your Boilerplate ("Data.Generics")
+-- generics that have built-in support in GHC.  So you should just need to add
+--
+-- > deriving (Data, Typeable)
+--
+-- after all your data-types, then use the functions in this module to generate
+-- some Haskell code with instances of the Polyplate classes.  The simplest functions
+-- for doing this are 'writeInstances' and 'writeInstancesTo'.
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
    GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
@@ -31,9 +43,17 @@ import Data.Ord
 import Data.Set (Set)
 import qualified Data.Set as Set
 
+-- | The option controlling whether the generated instances can be overlapped.
+--  If you choose 'GenWithOverlapped' many less instances (around half, in Tock)
+-- will be generated, but you must enable the overlapping-instances flag in GHC
+-- (-XOverlappingInstances in GHC 6.8 and 6.10) when compiling the instances.
 data GenOverlappedOption = GenWithOverlapped | GenWithoutOverlapped
   deriving (Eq)
 
+-- | The option controlling whether the generated instances have one class per
+-- type, or just generate instances of the primary Polyplate class.  Having one
+-- class per type compiles faster on GHC, but can give less clear error messages
+-- due to the name munging that goes on.
 data GenClassOption
   = GenClassPerType
   | GenOneClass
@@ -600,7 +620,8 @@ spineInstancesFrom genOverlapped genClass boxes w
 
 
 -- | Generates all the given instances (eliminating any duplicates)
--- with the given options.
+-- with the given options.  The return is a pair of a list of instances of PolyplateMRoute,
+-- and a list of instances of PolyplateSpine
 genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] ->
   IO ([String], [String])
 genInstances op1 op2 insts
@@ -613,14 +634,16 @@ genInstances op1 op2 insts
         spineInst' <- sequence spineInst
         return (concat inst', concat spineInst')
 -- | Generates the instances according to the options and writes it to stdout with
--- the given header.
+-- the given header (the header is a list of lines without newline characters).
 writeInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> [String] -> IO ()
 writeInstances op1 op2 inst header
   = do (instLines, spineInstLines) <- genInstances op1 op2 inst
        putStr (unlines (header ++ instLines ++ spineInstLines))
 
--- | Generates the instances according to the options and writes it to stdout with
--- the given header.
+-- | Generates the instances according to the options and writes the PolyplateMRoute
+-- instances with the first header (the header is a list of lines without newline characters)
+-- to the first filename, and the PolyplateSpine instances with the second header
+-- to the second filename.
 writeInstancesToSep :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> ([String],
   [String]) -> (FilePath, FilePath) -> IO ()
 writeInstancesToSep op1 op2 inst (header1, header2) (fileName1, fileName2)
@@ -629,7 +652,7 @@ writeInstancesToSep op1 op2 inst (header1, header2) (fileName1, fileName2)
        writeFile fileName2 (unlines (header2 ++ spineInstLines))
 
 -- | Generates the instances according to the options and writes it to a file with
--- the given header.
+-- the given header (the header is a list of lines without newline characters).
 writeInstancesTo :: GenOverlappedOption -> GenClassOption -> [GenInstance] -> [String]
   -> FilePath -> IO ()
 writeInstancesTo op1 op2 inst header fileName
