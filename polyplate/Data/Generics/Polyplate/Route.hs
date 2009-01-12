@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 module Data.Generics.Polyplate.Route
-  (routeModify, routeGet, routeSet, Route, (@->), identityRoute, routeId, routeList,
+  (Route, routeModify, routeGet, routeSet, (@->), identityRoute, routeId, routeList,
     makeRoute, routeDataMap, routeDataSet)
   where
 
@@ -36,9 +36,9 @@ import qualified Data.Set as Set
 -- and you want to be able to modify a particular integer.  You can't modify in-place,
 -- because this is a functional language.  So you instead want to be able to apply
 -- a modify function to the whole tree that really just modifies the particular
--- integer.
+-- integer, deep within the tree.
 --
--- To do this you can use:
+-- To do this you can use a route:
 -- 
 -- > myRoute :: Route Int (BinTree Int)
 --
@@ -49,6 +49,9 @@ import qualified Data.Set as Set
 -- The modifier is monadic because that's usually how we want to use it, but we
 -- can use the identity monad as above for pure functions.  This will only work
 -- if the route is valid on the given tree.
+--
+-- The usual way that you get routes is via the traversal functions in the "Data.Generics.Polyplate"
+-- module.
 --
 -- Another useful aspect is composition.  If your tree was in a tree of trees:
 --
@@ -61,7 +64,7 @@ import qualified Data.Set as Set
 -- These routes are a little like zippers, but (in my opinion) easier to use, and
 -- tack on to existing code with complex data structures (without needing any code
 -- generation).  You can either compose routes yourself (as the flow-graph building
--- does) or by using 'gmapMForRoute'.
+-- in Tock does) or by using the Polyplate traversals.
 --
 -- Routes support Eq, Show and Ord.  All these instances represent a route as a
 -- list of integers: a route-map.  [0,2,1] means first child (zero-based), then
