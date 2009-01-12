@@ -84,14 +84,17 @@ class Monad m => PolyplateMRoute t o o' m outer where
 class (Monad m) => PolyplateM t o o' m where
   transformM :: o -> o' -> t -> m t
 
-instance forall t ro o ro' o' m. (Monad m
+
+instance (Monad m
   , PolyplateMRoute t o o' m ()
   , ConvertOpsToIgnoreRoute ro o
   , ConvertOpsToIgnoreRoute ro' o') => PolyplateM t ro ro' m where
   transformM o o' t = transformMRoute (convertOpsToIgnoreRoute o)
                                       (convertOpsToIgnoreRoute o')
-                                      (t, error "transformM" :: Route t ()) 
-
+                                      (t, fakeRoute t) 
+    where
+      fakeRoute :: t -> Route t ()
+      fakeRoute = const $ error "transformM"
 
   -- List of use cases for the Polyplate type-class, to try to decide best on its
   -- necessary functions:

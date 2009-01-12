@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 module Data.Generics.Polyplate.Route
-  (routeModify, routeGet, routeSet, Route, (@->), routeIdentity, routeId, routeList,
+  (routeModify, routeGet, routeSet, Route, (@->), identityRoute, routeId, routeList,
     makeRoute, routeDataMap, routeDataSet)
   where
 
@@ -55,9 +55,9 @@ import qualified Data.Set as Set
 -- > routeToInnerTree :: Route (BinTree Int) (BinTree (BinTree Int))
 --
 -- You could compose this with the earlier route:
---
+-- 
 -- > routeToInnerTree @-> myRoute :: Route Int (BinTree (BinTree Int))
---
+-- 
 -- These routes are a little like zippers, but (in my opinion) easier to use, and
 -- tack on to existing code with complex data structures (without needing any code
 -- generation).  You can either compose routes yourself (as the flow-graph building
@@ -65,7 +65,7 @@ import qualified Data.Set as Set
 --
 -- Routes support Eq, Show and Ord.  All these instances represent a route as a
 -- list of integers: a route-map.  [0,2,1] means first child (zero-based), then
--- third child, then first child of the given data-type.  Routes are ordered using
+-- third child, then second child of the given data-type.  Routes are ordered using
 -- the standard list ordering (lexicographic) over this representation.
 data Route inner outer = Route [Int] (forall m. Monad m => (inner -> m inner) -> (outer -> m outer))
 
@@ -91,11 +91,19 @@ routeList :: Int -> Route a [a]
 routeList 0 = Route [0] (\f (x:xs) -> f x >>= (\x' -> return (x': xs)))
 routeList n = Route [1] (\f (x:xs) -> f xs >>= (\xs' -> return (x:xs'))) @-> routeList (n-1)
 
+-- | Constructs a Route to the key-value pair at the given index (zero-based) in
+-- the ordered map.  Routes involving maps are difficult because Map hides its
+-- internal representation.  This route secretly boxes the Map into a list of pairs
+-- and back again when used.  The identifiers for map entries (as used in the integer
+-- list) are simply the index into the map as passed to this function.
 routeDataMap :: Ord k => Int -> Route (k, v) (Map.Map k v)
 routeDataMap n = Route [n] (\f m -> let (pre, x:post) = splitAt n (Map.toList m)
   in do x' <- f x
         return $ Map.fromList $ pre ++ (x':post))
 
+-- | Constructs a Route to the value at the given index (zero-based) in the ordered
+-- set.  See the documentation for 'routeDataMap', which is nearly identical to
+-- this function.
 routeDataSet :: Ord k => Int -> Route k (Set.Set k)
 routeDataSet n = Route [n] (\f m -> let (pre, x:post) = splitAt n (Set.toList m)
   in do x' <- f x
@@ -126,14 +134,18 @@ routeSet route x = runIdentity . routeModify route (const $ return x)
 
 -- | The identity route.  This has various obvious properties:
 --
--- > routeGet routeIdentity == id
--- > routeSet routeIdentity == const
--- > routeModify routeIdentity == id
--- > routeIdentity @-> route == route
--- > route @-> routeIdentity == route
-routeIdentity :: Route a a
-routeIdentity = Route [] id
+-- > routeGet identityRoute == id
+-- > routeSet identityRoute == const
+-- > routeModify identityRoute == id
+-- > identityRoute @-> route == route
+-- > route @-> identityRoute == route
+identityRoute :: Route a a
+identityRoute = Route [] id
 
+-- | Given the integer list of identifiers and the modification function, forms
+-- a Route.  It is up to you to make sure that the integer list is valid as described
+-- in the documentation of 'Route', otherwise routes constructed this way and via
+-- Polyplate may exhibit strange behaviours when compared.
 makeRoute :: [Int] -> (forall m. Monad m => (inner -> m inner) -> (outer -> m outer))
   -> Route inner outer
 makeRoute = Route

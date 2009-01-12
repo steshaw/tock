@@ -406,7 +406,7 @@ doTree :: ops ->
            -- This line applies "apply" to the first thing of the right type in
            -- the given AST; from there, ops recurses for itself
 doTree ops trans tr
-      = do x <- deCheckOptM (getRestartT (trans ops () (tr, routeIdentity) >> return ()))
+      = do x <- deCheckOptM (getRestartT (trans ops () (tr, identityRoute) >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
