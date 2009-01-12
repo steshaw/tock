@@ -34,7 +34,7 @@ module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(.
 --  makeRecurseQ, RecurseQ,
 --  makeDescendQ, DescendQ,
   BaseOp, baseOp,
-  ExtOpM, extOpM, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp,
+  ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp,
   ExtOpQ, extOpQ, OneOpQ, TwoOpQ) where
 
 import Control.Monad.Identity
@@ -212,6 +212,8 @@ baseOp = ()
 -- same list.
 type ExtOpM m opT t = (t -> m t, opT)
 
+type ExtOpMRoute m opT t outer = ((t, Route t outer) -> m t, opT)
+
 -- | The type that extends an ops set (opT) to be applied to the given type (t).
 --  You cannot mix monadic and non-monadic operations in the same list.
 type ExtOp opT t = (t -> t, opT)
@@ -225,6 +227,10 @@ type ExtOpQ a opQ t = (t -> a, opQ)
 -- same list.
 extOpM :: opT -> (t -> m t) -> ExtOpM m opT t
 extOpM ops f = (f, ops)
+
+extOpMRoute :: opT -> ((t, Route t outer) -> m t) -> ExtOpMRoute m opT t outer
+extOpMRoute ops f = (f, ops)
+
 
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the

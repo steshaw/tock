@@ -17,7 +17,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 module CheckFramework (CheckOptM, CheckOptASTM, forAnyASTTopDown, forAnyASTStructTopDown, substitute, restartForAnyAST,
-  CheckOptASTM', forAnyASTStructBottomUpAccum, askAccum,
+  CheckOptASTM',
+  forAnyASTStructBottomUpAccum,
+  askAccum,
   runChecks, runChecksPass, getFlowGraph, withChild, varsTouchedAfter,
   getCachedAnalysis, getCachedAnalysis',
   forAnyFlowNode, getFlowLabel, getFlowMeta, CheckOptFlowM) where
@@ -258,122 +260,139 @@ getFlowMeta = CheckOptFlowM $
 forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
 forAnyParItems = undefined
 
-
--- Like mkM, but with no return value, and this funny monad with routes, but also
--- we give an error if the plain function is ever triggered (given the typeset
--- stuff, it shouldn't be)
-mkMR :: forall a. Data a => TransFunc a -> (forall b. Data b => TransFunc b)
-mkMR f = plain `extMR` f
-  where
-    plain :: (forall c. Data c => TransFunc c)
-    plain _ = dieP emptyMeta "Unexpected call of mkMR.plain"
-
--- Like extM, but with no return value, and this funny monad with routes:
-extMR :: forall b. Data b =>
-  (forall a. Data a => TransFunc a) ->
-  (TransFunc b) ->
-  (forall c. Data c => TransFunc c)
-extMR generalF specificF (x, r) = case cast x of
-  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
-  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
-
--- Like extM, but with no return value, and this funny monad with routes:
-extMRAccS :: forall b acc z. Data b =>
-  (forall a. Data a => TransFuncS acc z a) ->
-  (TransFuncS acc z b) ->
-  (forall c. Data c => TransFuncS acc z c)
-extMRAccS generalF specificF (x, r) = case cast x of
-  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r))
-  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r))
-
-mkMRAcc :: forall a acc. Data a => TransFuncAcc acc a -> (forall b. Data b => TransFuncAcc acc b)
-mkMRAcc f = plain `extMRAcc` f
-  where
-    plain :: (forall c. Data c => TransFuncAcc acc c)
-    plain (x,_,_) = return $ Right x -- lift $ dieP emptyMeta "Unexpected call of mkMRAcc.plain"
-
-extMRAcc :: forall b acc. Data b =>
-  (forall a. Data a => TransFuncAcc acc a) ->
-  (TransFuncAcc acc b) ->
-  (forall c. Data c => TransFuncAcc acc c)
-extMRAcc generalF specificF (x, r, acc) = case cast x of
-  Nothing -> liftM (fromJust . cast) (generalF (x, unsafeCoerce# r,acc))
-  Just y -> liftM (fromJust . cast) (specificF (y, unsafeCoerce# r,acc))
-
-
 -- | This function currently only supports one type
-forAnyASTTopDown :: forall a. Data a => (a -> CheckOptASTM a ()) -> CheckOptM ()
+forAnyASTTopDown :: forall a.
+  (PolyplateMRoute A.AST ((a, Route a A.AST) -> RestartT CheckOptM a, ()) () (RestartT CheckOptM) A.AST
+  ,PolyplateMRoute a () ((a, Route a A.AST) -> RestartT CheckOptM a, ()) (RestartT CheckOptM) A.AST
+  ) =>
+    (a -> CheckOptASTM a ()) -> CheckOptM ()
 forAnyASTTopDown origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet (applyTopDown typeSet (mkMR (deCheckOptASTM origF))) tr
-  where
-    typeSet :: TypeSet
-    typeSet = makeTypeSet [typeKey (undefined :: a)]
-
+   doTree ops transformMRoute tr
+     where
+       ops = baseOp `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM origF)
 
 forAnyASTStructTopDown :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
   a) ())) -> CheckOptM ()
 forAnyASTStructTopDown origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree typeSet (applyTopDown typeSet allF) tr
+   doTree ops transformMRoute tr
   where
-    allF :: (forall c. Data c => TransFunc c)
-    allF
-      = mkMR    (deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured A.ExpressionList -> CheckOptASTM (A.Structured A.ExpressionList) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured A.Choice -> CheckOptASTM (A.Structured A.Choice) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
-        `extMR` (deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
-    
-    typeSet :: TypeSet
-    typeSet = makeTypeSet
-      [typeKey (undefined :: A.Structured A.Variant)
-      ,typeKey (undefined :: A.Structured A.Process)
-      ,typeKey (undefined :: A.Structured A.Option)
-      ,typeKey (undefined :: A.Structured A.ExpressionList)
-      ,typeKey (undefined :: A.Structured A.Choice)
-      ,typeKey (undefined :: A.Structured A.Alternative)
-      ,typeKey (undefined :: A.Structured ())
-      ]
+    ops
+      = baseOp
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.ExpressionList -> CheckOptASTM (A.Structured A.ExpressionList) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Choice -> CheckOptASTM (A.Structured A.Choice) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
+        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
 
-forAnyASTStructBottomUpAccum :: forall b. Data b =>
+type AccumOp b a = (A.Structured a, Route (A.Structured a) A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) (A.Structured a)
+
+type ExtAcc a b = (b, a)
+
+type AccumOps b =
+  BaseOp
+  `ExtAcc` AccumOp b A.Variant
+  `ExtAcc` AccumOp b A.Process
+  `ExtAcc` AccumOp b A.Option
+  `ExtAcc` AccumOp b A.ExpressionList
+  `ExtAcc` AccumOp b A.Choice
+  `ExtAcc` AccumOp b A.Alternative
+  `ExtAcc` AccumOp b ()
+  `ExtAcc` ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b)
+
+type SingleOps b
+  = ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
+
+type AccumMap b = Map.Map [Int] b
+
+findSub :: [Int] -> AccumMap b -> [b]
+findSub r m = [v | (k, v) <- Map.toList m, r `isPrefixOf` k]
+  -- TODO this could be made more efficient by picking out a range in the map
+
+filterSub :: [Int] -> AccumMap b -> AccumMap b
+filterSub r = Map.filterWithKey (\k _ -> not $ r `isPrefixOf` k)
+
+-- I know the constraints here look horrendous, but it's really just three groups.
+forAnyASTStructBottomUpAccum :: forall b. (Data b,
+  -- Allow us to descend into the AST with our full set of ops:
+  PolyplateMRoute A.AST (AccumOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+
+  -- Allow us to recurse into each Structured item (and b) with our full set of
+  -- ops:
+  PolyplateMRoute (A.Structured A.Variant) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Process) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Option) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.ExpressionList) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Choice) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Alternative) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured ()) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute b () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+
+  -- Allow us to descend into each Structured item with just our ops for
+  -- b, when our accumulated stuff becomes invalidated
+  PolyplateMRoute (A.Structured A.Variant) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Process) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Option) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.ExpressionList) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Choice) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Alternative) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured ()) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  -- For b, we will recurse, not descend:
+  PolyplateMRoute b () (SingleOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+
+  ) =>
   (forall a. Data a => (A.Structured a) -> CheckOptASTM' [b] (A.Structured a) ()) -> CheckOptM ()
 forAnyASTStructBottomUpAccum origF = CheckOptM $ do
    tr <- get >>* ast
-   doTree (makeTypeSet $ typeKey (undefined::b) : typeKeys)
-          (flip evalStateT [] . applyAccum ([],(:),(++)) typeKeys allF)
-          tr
+   doTree ops (\x y z -> flip evalStateT (Map.empty :: AccumMap b) $ transformMRoute x y z) tr
   where
-    allF :: (forall c. Data c => TransFuncAcc [b] c)
-    allF
-      = mkMRAcc    (lift . deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
-                      CheckOptASTM' [b] (A.Structured A.Variant) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Process) ->
-                      CheckOptASTM' [b] (A.Structured A.Process) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Option) ->
-                      CheckOptASTM' [b] (A.Structured A.Option) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.ExpressionList) ->
-                      CheckOptASTM' [b] (A.Structured A.ExpressionList) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Choice) ->
-                      CheckOptASTM' [b] (A.Structured A.Choice) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured A.Alternative) ->
-                      CheckOptASTM' [b] (A.Structured A.Alternative) ()))
-        `extMRAcc` (lift . deCheckOptASTM' (origF :: (A.Structured ()) ->
-                      CheckOptASTM' [b] (A.Structured ()) ()))
-    
-    typeKeys :: [TypeKey]
-    typeKeys =
-      [typeKey (undefined :: A.Structured A.Variant)
-      ,typeKey (undefined :: A.Structured A.Process)
-      ,typeKey (undefined :: A.Structured A.Option)
-      ,typeKey (undefined :: A.Structured A.ExpressionList)
-      ,typeKey (undefined :: A.Structured A.Choice)
-      ,typeKey (undefined :: A.Structured A.Alternative)
-      ,typeKey (undefined :: A.Structured ())
-      ]
+    ops :: AccumOps b
+    ops = applyAccum (undefined::b) allF
 
+    keepApplying' ::
+      PolyplateMRoute t ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
+         () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+      => ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) (Either t t)) ->
+         ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) t)
+    keepApplying' f xr = do x' <- f xr
+                            case x' of
+                              Right y -> return y
+                              Left y -> do -- remove all sub-items from state,
+                                           -- and then scan the item anew:
+                                           modify $ filterSub (routeId $ snd xr)
+                                           transformMRoute (applyAccum (undefined::b) ()) () (y, snd xr)
+                                           keepApplying' f (y, snd xr)
+
+    wrap :: forall a. (Data a,
+        PolyplateMRoute (A.Structured a) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+        , PolyplateMRoute (A.Structured a) ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
+         () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+      ) => ((A.Structured a, Route (A.Structured a) A.AST, [b]) -> RestartT
+      CheckOptM (Either (A.Structured a) (A.Structured a))) -> (A.Structured a, Route (A.Structured
+        a) A.AST) -> StateT (AccumMap b) (RestartT
+        CheckOptM) (A.Structured a)
+    wrap f = makeBottomUpMRoute ops $ keepApplying' $ \(x, y) -> get >>= \z -> lift (f (x, y, findSub
+      (routeId y) z))
+
+    allF
+      = baseOp
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
+                      CheckOptASTM' [b] (A.Structured A.Variant) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Process) ->
+                      CheckOptASTM' [b] (A.Structured A.Process) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Option) ->
+                      CheckOptASTM' [b] (A.Structured A.Option) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.ExpressionList) ->
+                      CheckOptASTM' [b] (A.Structured A.ExpressionList) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Choice) ->
+                      CheckOptASTM' [b] (A.Structured A.Choice) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Alternative) ->
+                      CheckOptASTM' [b] (A.Structured A.Alternative) ()))
+        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured ()) ->
+                      CheckOptASTM' [b] (A.Structured ()) ()))
 
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 type TransFuncAcc acc a = (a, Route a A.AST, acc) -> StateT acc (RestartT CheckOptM) (Either a a)
@@ -382,24 +401,26 @@ type TransFuncS acc b a = (a, Route a b) -> StateT acc (RestartT CheckOptM) a
 -- | Given a TypeSet, a function to apply to everything of type a, a route
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
 -- that are requested.
-doTree :: TypeSet -> (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b) ->
-      A.AST -> StateT CheckOptData PassM ()
+doTree :: ops ->
+  (ops -> () -> (A.AST, Route A.AST A.AST) -> RestartT CheckOptM A.AST) -> A.AST -> StateT CheckOptData PassM ()
            -- This line applies "apply" to the first thing of the right type in
-           -- the given AST; from there, apply recurses for itself
-doTree typeSet apply tr
-      = do x <- deCheckOptM (getRestartT (gmapMForRoute typeSet apply tr >> return ()))
+           -- the given AST; from there, ops recurses for itself
+doTree ops trans tr
+      = do x <- deCheckOptM (getRestartT (trans ops () (tr, routeIdentity) >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
-               doTree typeSet apply tr'
+               doTree ops trans tr'
              Right _ -> return ()
 
-applyAccum :: forall acc t. (Data t) => (acc, t -> acc -> acc, acc -> acc -> acc) ->
-  [TypeKey] -> (forall a. Data a => TransFuncAcc acc a) ->
-             (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
-applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum' 
+applyAccum :: forall t ops.
+  PolyplateMRoute t () ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
+      (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
+  => t -> ops -> ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
+applyAccum _ ops = ops'
   where
-    typeSet = makeTypeSet $ typeKey (undefined :: t) : typeKeysGiven
+    ops' :: ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
+    ops' = (accum, ops)
 
     extF ::
        (forall a. Data a => TransFuncS acc z a) ->
@@ -409,7 +430,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
     applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
            (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
     applyAccum' f (x, route)
-      = do when (findMeta_Data x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta_Data x}
+      = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
            (x', acc) <- lift $ flip runStateT accEmpty (gmapMForRoute typeSet (extF wrap) x)
            r <- f' (x', route, acc)
            modify (`accJoinF` acc)
@@ -428,7 +449,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
 applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
              (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 applyTopDown typeSet f (x, route)
-      = do when (findMeta_Data x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta_Data x}
+      = do when (findMeta x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
            z <- f' (x, route)
            gmapMForRoute typeSet (\(y, route') -> applyTopDown typeSet f (y, route @-> route')) z
   where
@@ -437,8 +458,8 @@ applyTopDown typeSet f (x, route)
     f' (x, route) = do
       x' <- f (x, route)
       case x' of
-        Left y -> f' (y, route)
-        Right y -> return y        
+        Left y -> keepApplying f (y, route)
+        Right y -> return y
 
 -- | For both of these functions I'm going to need to mark all analyses as no longer
 -- valid, but more difficult will be to maintain the current position (if possible

@@ -23,6 +23,7 @@ import Data.Maybe
 import Data.Tree
 
 import Data.Generics.Polyplate
+import Data.Generics.Polyplate.Route
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.
@@ -31,12 +32,26 @@ import Data.Generics.Polyplate
 makeBottomUpM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
 makeBottomUpM ops f v = makeDescendM ops v >>= f
 
+makeBottomUpMRoute :: PolyplateMRoute t () opT m outer =>
+  opT -> ((t, Route t outer) -> m t) -> (t, Route t outer) -> m t
+makeBottomUpMRoute ops f (v, r)
+  = do v' <- transformMRoute () ops (v, r)
+       f (v', r)
+
+
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first apply the modifier function before then descending into the value.
 --  This can be used to perform a top-down depth-first traversal of a structure
 -- (see 'applyTopDownM').
 makeTopDownM :: PolyplateM t () opT m => opT -> (t -> m t) -> t -> m t
 makeTopDownM ops f v = f v >>= makeDescendM ops
+
+makeTopDownMRoute :: PolyplateMRoute t () opT m outer =>
+  opT -> ((t, Route t outer) -> m t) -> (t, Route t outer) -> m t
+makeTopDownMRoute ops f (v, r)
+  = do v' <- f (v, r)
+       transformMRoute () ops (v', r)
+
 
 -- | Given a list of operations and a modifier function, augments that modifier
 -- function to first descend into the value before then applying the modifier function.
