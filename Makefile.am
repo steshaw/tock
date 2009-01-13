@@ -30,13 +30,16 @@ if GHC68
 # which I believe is related to the use of unsafeCoerce#.  So if anyone
 # else tries to do this in future, make sure to test on GHC 6.8.2 (which
 # is currently the latest version on Ubuntu and Gentoo)
+#
+# Addendum: I tried again once unsafeCoerce# was removed, but now it seems
+# that -Werror is being secretly activated, which is possibly due to
+# the GHC bug we had trouble with before (only fixed in 6.10 I think).
 
 #GHC_OPTS += -XDeriveDataTypeable
 #GHC_OPTS += -XExistentialQuantification
 #GHC_OPTS += -XFlexibleContexts
 #GHC_OPTS += -XFlexibleInstances
 #GHC_OPTS += -XFunctionalDependencies
-#GHC_OPTS += -XMagicHash
 #GHC_OPTS += -XMultiParamTypeClasses
 #GHC_OPTS += -XRank2Types
 #GHC_OPTS += -XScopedTypeVariables

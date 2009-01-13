@@ -33,7 +33,6 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Set as Set
-import GHC.Base (unsafeCoerce#)
 
 import qualified AST as A
 import CompState
