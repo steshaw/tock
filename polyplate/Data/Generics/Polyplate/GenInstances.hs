@@ -570,7 +570,7 @@ spineInstancesFrom genOverlapped genClass boxes w
     constrCase ctr
         = [ funcSameType ++ " () " ++ (if argNums == [] then "_" else "ops") ++
             " q (" ++ ctrInput ++ ")"
-          , "    = Node q ["
+          , "    = Node q $ mapMaybe trimTree ["
           ] ++
           intersperse
              "     ,"

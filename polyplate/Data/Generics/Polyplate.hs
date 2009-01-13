@@ -25,10 +25,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- TODO examples
 --
 -- Instances of the PolyplateM type-class /can/ be written manually but it's not
--- advised.  Instead, you should use functions in the "GenPolyplate" module to automatically
--- generate source files with the appropriate instances.
+-- advised.  Instead, you should use functions in the "GenInstances" module to automatically
+-- generate source files with the appropriate instances.  Instances are generated
+-- for PolyplateMRoute and PolyplateSpine.  There is a single instance for each
+-- of PolyplateM and Polyplate that automatically use PolyplateMRoute.
 module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(..),
-  PolyplateSpine(..), FullSpine(..), transformSpine, transformSpineFull, trimTree,
+  PolyplateSpine(..), {-FullSpine(..),-} transformSpine, {-transformSpineFull,-} trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
 --  makeRecurseQ, RecurseQ,
@@ -44,6 +46,48 @@ import Data.Tree
 import Data.Generics.Polyplate.Route
 
 -- | The main Polyplate type-class.
+--
+-- The first parameter is the larger\/outer type on which you want to operate.
+--  If you want to operate on all Strings in a Foo, then the first parameter will
+-- be Foo for the instance you want.  The fourth parameter is the monad in which
+-- you wish to perform the transformation.  If you do not need a monadic transformation,
+-- see 'transform' and 'Polyplate' below.  The fifth parameter is the outermost
+-- type that you began modifying.
+--
+-- The second and third parameters are ops sets.  The empty ops list is (), the
+-- unit type.  Any other ops set is written as ((a, Route a outer) -> m a, r) where a is the specific
+-- type you are looking to modify, m is the monad (must be the same as the fourth
+-- parameter of the type-class), outer is the same as the fifth parameter of the
+-- type-class, and r is the rest of the ops set (either same
+-- format, or the empty list).  Ops sets must never feature functions over a particular
+-- type twice (e.g. ((String, Route String outer) -> m String, ((String, Router
+-- String outer) -> m String, ()))) is not a valid
+-- ops set.
+--
+-- The second parameter is the /recurse/ ops set to apply directly to the
+-- type, whereas the third parameter is the /descent/ ops set to apply to its
+-- children.  So for example, if you have a type:
+--
+-- > data Foo = Foo { bar :: Bar, baz :: Baz}
+--
+-- and:
+--
+-- > PolyplateMRoute Foo recurse descent m outer
+--
+-- Then the recurse ops set is the set to apply to Foo, whereas the descent ops
+-- set is the set to apply to Bar and Baz.  In particular, if your recurse ops
+-- set is empty and the descent ops set is:
+--
+-- > ((Foo, Route Foo outer) -> m Foo, ())
+--
+-- Then this function will not be applied unless Foo is inside Bar or Baz.
+--
+-- Generally you will not use this function or type-class directly, but will instead
+-- use the helper functions lower down in this module.
+class Monad m => PolyplateMRoute t o o' m outer where
+  transformMRoute :: o -> o' -> (t, Route t outer) -> m t
+
+-- | A derivative of PolyplateMRoute without all the route stuff.
 --
 -- The first parameter is the larger\/outer type on which you want to operate.
 --  If you want to operate on all Strings in a Foo, then the first parameter will
@@ -67,10 +111,11 @@ import Data.Generics.Polyplate.Route
 --
 -- and:
 --
--- > Polyplate Foo recurse descent m
+-- > PolyplateM Foo recurse descent m
 --
 -- Then the recurse ops set is the set to apply to Foo, whereas the descent ops
--- set is the set to apply to Bar.  In particular, if your descent ops set is:
+-- set is the set to apply to Bar and Baz.  In particular, if your recurse ops
+-- set is empty and the descent ops set is:
 --
 -- > (Foo -> m Foo, ())
 --
@@ -78,9 +123,6 @@ import Data.Generics.Polyplate.Route
 --
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
-class Monad m => PolyplateMRoute t o o' m outer where
-  transformMRoute :: o -> o' -> (t, Route t outer) -> m t
-
 class (Monad m) => PolyplateM t o o' m where
   transformM :: o -> o' -> t -> m t
 
@@ -116,15 +158,33 @@ instance (Monad m
   -- its tree spine-view, with optional methods for flattening into a depth-first
   -- or breadth-first order.
 
+-- | A class for transforming a data structure into its spine-view rose tree based
+-- on query functions.
+-- 
+-- The first parameter is the item being processed.  The fourth parameter is the
+-- return type of the query functions, which is used in the returned tree.
+--
+-- The second and third parameters are the usual ops sets, but of the form:
+--
+-- > (s -> a, (t -> a, ()))
 class PolyplateSpine t o o' a where
+  -- | You are unlikely to need to use this function directly at all.  See 'transformSpine'
+  -- or 'applyQuery' and 'listifyDepth' (and friends).
+  --
+  -- The third parameter, which transformSpine passes as Nothing, is the value
+  -- to be used for the current node.  Because this value is set somewhere in the
+  -- middle of the ops set, not necessarily at the end, this must be passed along
+  -- the sideways calls (while processing the first ops set).
   transformSpineSparse :: o -> o' -> Maybe a -> t -> Tree (Maybe a)
 
 transformSpine :: PolyplateSpine t o o' a => o -> o' -> t -> Tree (Maybe a)
 transformSpine o o' = transformSpineSparse o o' Nothing
 
+{-
 -- | Used at the type-level by this library to force a full traversal of a data
 -- structure.  You are unlikely to need to use this directly.
 data FullSpine a = FullSpine a
+-- TODO make this work
 
 transformSpineFull :: (ConvertSpineOpsToFull a o co, ConvertSpineOpsToFull a o' co',
   PolyplateSpine t co co' a) =>
@@ -138,7 +198,11 @@ transformSpineFull def o o' x
   where
     fromJust' (Just x) = x
     fromJust' _ = error "transformSpineFull: internal error"
+-}
 
+-- | A function for pruning rose trees of maybe values.  All trees where the node
+-- value (and the node value of all its children) is Nothing are discarded (Nothing
+-- is returned).
 trimTree :: Tree (Maybe a) -> Maybe (Tree (Maybe a))
 trimTree tr | isNothing (rootLabel tr) && null trimmedChildren = Nothing
             | otherwise = Just (Node (rootLabel tr) trimmedChildren)
@@ -212,53 +276,61 @@ baseOp = ()
 
 -- | The type that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
--- same list.
+-- same list.  This is for use with the 'PolyplateM' class.
 type ExtOpM m opT t = (t -> m t, opT)
 
+-- | The type that extends an ops set (opT) in the given monad (m) to be applied
+-- to the given type (t) with routes to the outer type (outer).  This is for use
+-- with the 'PolyplateMRoute' class.
 type ExtOpMRoute m opT t outer = ((t, Route t outer) -> m t, opT)
 
 -- | The type that extends an ops set (opT) to be applied to the given type (t).
---  You cannot mix monadic and non-monadic operations in the same list.
+--  You cannot mix monadic and non-monadic operations in the same list.  This is
+-- for use with the 'Polyplate' class.
 type ExtOp opT t = (t -> t, opT)
 
 -- | The type that extends a query-ops set to be applied to the given type (t).
--- Not to be mixed with modification operations.
+-- Not to be mixed with modification operations.  This is for use with the 'PolyplateSpine'
+-- class.
 type ExtOpQ a opQ t = (t -> a, opQ)
 
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
--- same list.
+-- same list.  This is for use with the 'PolyplateM' class.
 extOpM :: opT -> (t -> m t) -> ExtOpM m opT t
 extOpM ops f = (f, ops)
 
+-- | The function that extends an ops set (opT) in the given monad (m) to be applied
+-- to the given type (t) with routes to the outer type (outer).  This is for use
+-- with the 'PolyplateMRoute' class.
 extOpMRoute :: opT -> ((t, Route t outer) -> m t) -> ExtOpMRoute m opT t outer
 extOpMRoute ops f = (f, ops)
 
-
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
--- same list.
+-- same list.  This is for use with the 'Polyplate' class.
 extOp :: opT -> (t -> t) -> ExtOp opT t
 extOp ops f = (f, ops)
 
 -- | The function that extends a query-ops set to be applied to the given type (t).
--- Not to be mixed with modification operations.
+-- Not to be mixed with modification operations.  This is for use with the 'PolyplateSpine'
+-- class.
 extOpQ :: opQ -> (t -> a) -> ExtOpQ a opQ t
 extOpQ ops f = (f, ops)
 
 
--- | A handy synonym for a monadic ops set with only one item.
+-- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateM'.
 type OneOpM m t = ExtOpM m BaseOp t
--- | A handy synonym for an ops set with only one item.
+-- | A handy synonym for an ops set with only one item, to use with 'Polyplate'.
 type OneOp t = ExtOp BaseOp t
--- | A handy synonym for a query ops set with only one item.
+-- | A handy synonym for a query ops set with only one item, to use with 'PolyplateSpine'.
 type OneOpQ a t = ExtOpQ a BaseOp t
 
--- | A handy synonym for a monadic ops set with only two items.
+-- | A handy synonym for a monadic ops set with only two items, to use with 'PolyplateM'.
 type TwoOpM m s t = ExtOpM m (ExtOpM m BaseOp s) t
--- | A handy synonym for an ops set with only two items.
+-- | A handy synonym for an ops set with only two items, to use with 'Polyplate'.
 type TwoOp s t = ExtOp (ExtOp BaseOp s) t
--- | A handy synonym for a monadic ops set with only two items.
+-- | A handy synonym for a monadic ops set with only two items, to use with 'PolyplateSpine'.
 type TwoOpQ a s t = ExtOpQ a (ExtOpQ a BaseOp s) t
 
 
@@ -275,6 +347,7 @@ instance ConvertOpsToIdentity () () where
 instance ConvertOpsToIdentity r r' => ConvertOpsToIdentity (a -> a, r) (a -> Identity a, r') where
   convertOpsToIdentity (f, r) = (return . f, convertOpsToIdentity r)
 
+{-
 -- | A helper class to convert operation lists to have FullSpine at their base
 -- rather than BaseOp
 class ConvertSpineOpsToFull a o o' | a o -> o' where
@@ -285,6 +358,7 @@ instance ConvertSpineOpsToFull a () (FullSpine a) where
 
 instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') where
   convertSpineOpsToFull def (f, r) = (f, convertSpineOpsToFull def r)
+-}
 
 -- | A helper class to convert operations not expecting a route to those that ignore
 -- the route (which will have the unit type as its outer type).

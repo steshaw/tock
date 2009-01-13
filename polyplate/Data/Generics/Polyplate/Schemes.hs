@@ -91,6 +91,11 @@ makeCheckM ops f v
 -- corresponding tree node will contain Just (the result of the query function).
 --  If the constructor was any other type, the corresponding tree node will contain
 -- Nothing.
+--
+-- Also note that the result is trimmed.  If a particular sub-tree has no items
+-- of the target type, instead of getting a whole sub-tree with Nothing values,
+-- you will get one node (at the top of the sub-tree) with a Nothing value.  This
+-- is to make the traversal more efficient, in terms of time and space.
 applyQuery :: PolyplateSpine t (OneOpQ a s) () a => (s -> a) -> t -> Tree (Maybe a)
 applyQuery qf = transformSpine ops ()
   where
