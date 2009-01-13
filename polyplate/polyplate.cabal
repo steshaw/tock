@@ -2,8 +2,14 @@ Name:  Polyplate
 Version: 0.9
 License: BSD3
 Author: Adam Sampson and Neil Brown
-Build-Depends: base, containers, mtl
+Cabal-Version: >= 1.2
+Build-type: Simple
 Synopsis: Generic programming library
-Exposed-modules: Data.Generics.Polyplate Data.Generics.Polyplate.GenInstances
-  Data.Generics.Polyplate.Schemes Data.Generics.Polyplate.Route
-Extensions: Rank2Types ExistentialQuantification ScopedTypeVariables MultiParamTypeClasses FunctionalDependencies FlexibleContexts FlexibleInstances UndecidableInstances
+Library
+  if (impl(ghc < 6.10))
+    Build-Depends: base, containers, mtl
+  else
+    Build-Depends: base, containers, mtl, syb
+  Exposed-modules: Data.Generics.Polyplate Data.Generics.Polyplate.GenInstances
+    Data.Generics.Polyplate.Schemes Data.Generics.Polyplate.Route
+  Extensions: Rank2Types ExistentialQuantification ScopedTypeVariables MultiParamTypeClasses FunctionalDependencies FlexibleContexts FlexibleInstances UndecidableInstances
