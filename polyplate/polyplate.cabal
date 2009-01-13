@@ -2,7 +2,8 @@ Name:  Polyplate
 Version: 0.9
 License: BSD3
 Author: Adam Sampson and Neil Brown
-Build-Depends: base
+Build-Depends: base, containers, mtl
 Synopsis: Generic programming library
 Exposed-modules: Data.Generics.Polyplate Data.Generics.Polyplate.GenInstances
   Data.Generics.Polyplate.Schemes Data.Generics.Polyplate.Route
+Extensions: Rank2Types ExistentialQuantification ScopedTypeVariables MultiParamTypeClasses FunctionalDependencies FlexibleContexts FlexibleInstances UndecidableInstances
