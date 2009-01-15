@@ -361,7 +361,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
     -- | Pull any variable subscript that results in an array.
     doVariable :: A.Variable -> PassM A.Variable
     doVariable v@(A.SubscriptedVariable m _ _)
-        =  do v' <- descend v
+        =  do v' <- descendAfterSubscripts v
               t <- astTypeOf v'
               case t of
                 A.Array _ _ ->
@@ -371,6 +371,12 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                      addPulled $ (m, Left spec)
                      return $ A.Variable m n
                 _ -> return v'
+      where
+        descendAfterSubscripts (A.SubscriptedVariable m sub v)
+          = do sub' <- recurse sub
+               v' <- descendAfterSubscripts v
+               return $ A.SubscriptedVariable m sub' v'
+        descendAfterSubscripts v = doVariable v
     doVariable v = descend v
 
     -- | Convert a FUNCTION call into some variables and a PROC call.
