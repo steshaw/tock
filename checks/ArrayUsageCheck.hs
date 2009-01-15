@@ -580,8 +580,8 @@ squareAndPair ::
   (EqualityConstraintEquation, EqualityConstraintEquation) ->
   [((labelStripped, labelStripped), VarMap, (EqualityProblem, InequalityProblem))] 
 squareAndPair lookupBK strip repVars s v lh
-  = [(transformPair strip strip labels, s,squareEquations (bkEqA ++ bkEqB ++
-    eq, bkIneqA ++ bkIneqB ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
+  = [(transformPair strip strip labels, s,squareEquations (nub (bkEqA ++ bkEqB) ++
+    eq, nub (bkIneqA ++ bkIneqB) ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
     | (labels, eq,ineq) <- pairEqsAndBounds v lh
       ,and (map (primeImpliesPlain (eq,ineq)) repVars)
       ,((bkEqA, bkIneqA), (bkEqB, bkIneqB)) <-
