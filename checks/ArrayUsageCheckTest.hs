@@ -379,7 +379,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
      [(((0,[]),(0,[])),rep_i_mapping, [i === j],
        ij_16 &&& [i <== j ++ con (-1)]
        &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
-     ++ replicate 2 (((0,[]),(1,[])),rep_i_mapping,[i === con 3], leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     ++ replicate 2 (((0,[]),(1,[])),rep_i_mapping,[i === con 3], leq [con 1,j, con 6] &&&
+          leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
      ++ [(((1,[]),(1,[])),rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
      ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", intLiteral 3],intLiteral 8)
 
@@ -389,7 +390,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
        ,(((0,[]),(1,[])),rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
        ,(((0,[]),(0,[])),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
        ,(((1,[]),(1,[])),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
-       ++ [(((0,[]),(1,[])),rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, i, con 6] &&& -- deliberate repeat
+       ++ [(((0,[]),(1,[])),rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&&
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
      ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
