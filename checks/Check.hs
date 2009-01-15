@@ -130,16 +130,21 @@ addBK mp mp2 g nid n = fmap ((,) $ (map Map.fromList $ productN $ conBK ++
             v = A.Variable m n
             bk = [ RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)]
     
-
-filterPlain :: Set.Set Var -> Set.Set Var
-filterPlain = Set.filter plain
+-- filter out replicators, leave everything else in:
+filterPlain :: CSMR m => Set.Set Var -> m (Set.Set Var)
+filterPlain vs = do defs <- getCompState >>* (Map.map A.ndSpecType . csNames)
+                    return $ Set.filter (plain defs) vs
   where
-    plain (Var (A.Variable {})) = True
-    plain _ = False
+    plain defs (Var v) = all nonRep (listify (const True :: A.Variable -> Bool) v)
+      where
+        nonRep (A.Variable _ n) = case Map.lookup (A.nameName n) defs of
+          Just (A.Rep {}) -> False
+          _ -> True
+        nonRep _ = True
 
-filterPlain' :: ExSet Var -> ExSet Var
-filterPlain' Everything = Everything
-filterPlain' (NormalSet s) = NormalSet $ filterPlain s
+filterPlain' :: CSMR m => ExSet Var -> m (ExSet Var)
+filterPlain' Everything = return Everything
+filterPlain' (NormalSet s) = filterPlain s >>* NormalSet
 
 -- | I am not sure how you could build this out of the standard functions, so I built it myself
 --Takes a list (let's say Y), a function that applies to a single item and a list, and then goes through applying the function
@@ -152,8 +157,9 @@ permuteHelper func (x:xs) = permuteHelper' func [] x xs
     permuteHelper' func prev cur [] = [func cur prev]
     permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
 
-checkPlainVarUsage :: forall m. (Die m, CSMR m) => (Meta, ParItems UsageLabel) -> m ()
-checkPlainVarUsage (m, p) = check p
+checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems UsageLabel) -> m ()
+checkPlainVarUsage (m, p) = {- liftIO (putStrLn ("Checking: " ++ show (m,p))) >> -}
+  check p
   where
     getVars :: ParItems UsageLabel -> Vars
     getVars (SeqItems ss) = foldUnionVars $ map nodeVars ss
@@ -167,16 +173,16 @@ checkPlainVarUsage (m, p) = check p
     
     checkCREW :: Vars -> [Vars] -> m ()
     checkCREW item rest
-      = do when (not $ Set.null writtenTwice) $
+      = do writtenTwice <- filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
+             (writtenVars otherVars)
+           writtenAndRead <- filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars
+           when (not $ Set.null writtenTwice) $
              diePC m $ formatCode
                "The following variables are written-to in at least two places inside a PAR: %" writtenTwice
            when (not $ Set.null writtenAndRead) $
              diePC m $ formatCode
                "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
       where
-        writtenTwice = filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
-          (writtenVars otherVars)
-        writtenAndRead = filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars
         otherVars = foldUnionVars rest
 
 showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
@@ -227,9 +233,11 @@ checkInitVar = forAnyFlowNode
     checkInitVar' :: CheckOptFlowM (ExSet Var) ()
     checkInitVar'
       = do (v, vs) <- getFlowLabel >>* transformPair readNode (fromMaybe emptySet)
+           filtv <- filterPlain' v
+           filtvs <- filterPlain' vs
         -- The read-from set should be a subset of the written-to set:
-           if filterPlain' v `isSubsetOf` filterPlain' vs then return () else 
-             do vars <- showCodeExSet $ filterPlain' v `difference` filterPlain' vs
+           if filtv `isSubsetOf` filtvs then return () else 
+             do vars <- showCodeExSet $ filtv `difference` filtvs
                 m <- getFlowMeta
                 warnP m WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
