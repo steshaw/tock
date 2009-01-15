@@ -148,26 +148,26 @@ runPasses (p:ps) ast
           runPasses ps ast'
 
 -- | Print a message if above the given verbosity level.
-verboseMessage :: (CSM m, MonadIO m) => Int -> String -> m ()
+verboseMessage :: (CSMR m, MonadIO m) => Int -> String -> m ()
 verboseMessage n s
-    =  do ps <- get
+    =  do ps <- getCompState
           when (csVerboseLevel ps >= n) $
             liftIO $ hPutStrLn stderr s
 
 -- | Print a progress message.
-progress :: (CSM m, MonadIO m) => String -> m ()
+progress :: (CSMR m, MonadIO m) => String -> m ()
 progress = verboseMessage 1
 
 -- | Print a debugging message.
-debug :: (CSM m, MonadIO m) => String -> m ()
+debug :: (CSMR m, MonadIO m) => String -> m ()
 debug = verboseMessage 2
 
 -- | Print a really verbose debugging message.
-veryDebug :: (CSM m, MonadIO m) => String -> m ()
+veryDebug :: (CSMR m, MonadIO m) => String -> m ()
 veryDebug = verboseMessage 3
 
 -- | Dump the AST and parse state.
-debugAST :: (CSM m, MonadIO m, Data t) => t -> m ()
+debugAST :: (CSMR m, MonadIO m, Data t) => t -> m ()
 debugAST p
     =  do veryDebug $ "{{{ AST"
           veryDebug $ pshow p
