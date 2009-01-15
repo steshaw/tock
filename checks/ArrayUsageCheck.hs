@@ -34,6 +34,7 @@ import Errors
 import Metadata
 import Omega
 import OrdAST()
+import Pass
 import ShowCode
 import Types
 import UsageCheckUtils
@@ -96,7 +97,9 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
            case makeEquations indexes arrLength of
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
-               Right problems ->
+               Right problems -> do
+                 probs <- concatMapM id [formatProblem vm prob | (_,vm,prob) <- problems]
+                 debug probs
                  case mapMaybe solve problems of
                    -- No solutions; no worries!
                    [] -> return ()
@@ -104,7 +107,6 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                      do sol <- formatSolution varMapping (getCounterEqs vm)
                         cx <- showCode (fst lx)
                         cy <- showCode (fst ly)
-                        prob <- formatProblem varMapping problem
 --                        liftIO $ putStrLn $ "Found solution for problem: " ++ prob
 --                         ++ show p
 --                        liftIO $ putStrLn $ "Succeeded on problem: " ++ prob
