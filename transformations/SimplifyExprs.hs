@@ -358,10 +358,10 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                  addPulled $ (m, Left spec)
                  return $ A.ExprVariable m (A.Variable m n)
 
-    -- | Pull any variable subscript that results in an array.
+    -- | Pull any variable subscript that results in an array, or contains a slice.
     doVariable :: A.Variable -> PassM A.Variable
-    doVariable v@(A.SubscriptedVariable m _ _)
-        =  do v' <- descendAfterSubscripts v
+    doVariable v@(A.SubscriptedVariable m sub _)
+        =  do v' <- if isSlice sub then descend v else descendAfterSubscripts v
               t <- astTypeOf v'
               case t of
                 A.Array _ _ ->
@@ -372,11 +372,17 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                      return $ A.Variable m n
                 _ -> return v'
       where
-        descendAfterSubscripts (A.SubscriptedVariable m sub v)
+        descendAfterSubscripts (A.SubscriptedVariable m sub v) | not (isSlice sub)
           = do sub' <- recurse sub
                v' <- descendAfterSubscripts v
                return $ A.SubscriptedVariable m sub' v'
         descendAfterSubscripts v = doVariable v
+
+        isSlice (A.SubscriptFromFor {}) = True
+        isSlice (A.SubscriptFrom {}) = True
+        isSlice (A.SubscriptFor {}) = True
+        isSlice _ = False
+
     doVariable v = descend v
 
     -- | Convert a FUNCTION call into some variables and a PROC call.
