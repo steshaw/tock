@@ -41,7 +41,9 @@ import ShowCode
 import TestFramework
 import TestHarness
 import TestUtils
+import Types
 import UsageCheckUtils hiding (Var)
+import qualified UsageCheckUtils
 import Utils
 
 instance Show FlattenedExp where
@@ -452,8 +454,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
                   | otherwise = [((m,[]),(n',[])) | n' <- [(m + 1) .. n]] ++ labelNums (m + 1) n 
     
 
-    makeParItems :: [A.Expression] -> ParItems (BK, [A.Expression],[A.Expression])
-    makeParItems es = ParItems $ map (\e -> SeqItems [([],[e],[])]) es
+    makeParItems :: BK -> [A.Expression] -> ParItems (BK, [A.Expression],[A.Expression])
+    makeParItems bk es = ParItems $ map (\e -> SeqItems [(bk,[e],[])]) es
   
     lookup :: [A.Expression] -> (Int, a) -> (A.Expression, a)
     lookup es (n,b) = (es !! n, b)
@@ -462,13 +464,15 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     test' (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations (makeParItems exprs) upperBound)
+          =<< (checkRight $ makeEquations (makeParItems [] exprs) upperBound)
   
     testRep' :: (Integer,[(((Int,[ModuloCase]), (Int,[ModuloCase])), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor) $ makeParItems exprs) upperBound)
+          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor) $
+            makeParItems [Map.fromList [(UsageCheckUtils.Var $ variable "i",
+              [RepBoundsIncl (variable "i") repFrom (subOne $ addExprs repFrom repFor)])]] exprs) upperBound)
   
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
