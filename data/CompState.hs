@@ -125,7 +125,7 @@ data CompState = CompState {
     csUnifyId :: Int,
     csWarnings :: [WarningReport]
   }
-  deriving (Data, Typeable)
+  deriving (Data, Typeable, Show)
 
 emptyState :: CompState
 emptyState = CompState {

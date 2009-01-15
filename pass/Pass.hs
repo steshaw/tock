@@ -173,8 +173,8 @@ debugAST p
           veryDebug $ pshow p
           veryDebug $ "}}}"
           veryDebug $ "{{{ State"
-          ps <- get
-          veryDebug $ pshow ps
+          ps <- getCompState
+          veryDebug $ show ps
           veryDebug $ "}}}"
 
 -- | Transform the 'A.Only' items in a 'A.Structured'.
