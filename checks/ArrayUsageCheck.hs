@@ -496,9 +496,11 @@ flatten e@(A.Dyadic m op lhs rhs)
         mult :: FlattenedExp -> FlattenedExp -> Either String FlattenedExp
         mult (Const x) e = scale x e
         mult e (Const x) = scale x e
-        mult lhs rhs = do lhs' <- backToEq lhs
-                          rhs' <- backToEq rhs
-                          return $ (Scale 1 (A.Dyadic emptyMeta A.Mul lhs' rhs', 0))
+        mult lhs rhs
+          = do lhs' <- backToEq lhs
+               rhs' <- backToEq rhs
+               let (onLeft, onRight) = if lhs' <= rhs' then (lhs', rhs') else (rhs', lhs')
+               return $ (Scale 1 (A.Dyadic emptyMeta A.Mul onLeft onRight, 0))
     
         backScale :: Integer -> A.Expression -> A.Expression
         backScale 1 = id
