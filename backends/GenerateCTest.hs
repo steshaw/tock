@@ -941,18 +941,28 @@ testInput = TestList
   ,testBothSame "testInput 2" "^^^" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [undefined, undefined, undefined]))
   
   -- Reading an integer (special case in the C backend):
-  ,testInputItem 100 "ChanInInt(wptr,#,&x);" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int
+  ,testInputItem 100 "ChanInInt(wptr,#,&x);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&x));"
+     (A.InVariable emptyMeta $ variable "x") A.Int
   -- Reading a other plain types:
-  ,testInputItem 101 "ChanIn(wptr,#,&x,^(Int8));" "#>>x;" (A.InVariable emptyMeta $ variable "x") A.Int8
-  ,testInputItem 102 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));") "#>>*(&x);" (A.InVariable emptyMeta $ variable "x") (A.Record foo)
+  ,testInputItem 101 "ChanIn(wptr,#,&x,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&x));"
+     (A.InVariable emptyMeta $ variable "x") A.Int8
+  ,testInputItem 102 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));")
+     ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&x)));")
+     (A.InVariable emptyMeta $ variable "x") (A.Record foo)
   -- Reading into a fixed size array:
-  ,testInputItem 103 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));" "tockRecvArray(#,x);" (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
+  ,testInputItem 103 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));"
+      "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Array [Dimension 8] Int),x));"
+       (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
     
   -- Reading into subscripted variables:
-  ,testInputItem 110 "ChanInInt(wptr,#,&xs$);" "#>>xs$;" (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int
+  ,testInputItem 110 "ChanInInt(wptr,#,&xs$);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&xs$));"
+     (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int
   -- Reading a other plain types:
-  ,testInputItem 111 "ChanIn(wptr,#,&xs$,^(Int8));" "#>>xs$;" (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int8  
-  ,testInputItem 112 ("ChanIn(wptr,#,(&xs$),^(" ++ show (A.Record foo) ++ "));") "#>>*(&xs$);" (A.InVariable emptyMeta $ sub0 $ variable "xs") (A.Record foo)
+  ,testInputItem 111 "ChanIn(wptr,#,&xs$,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&xs$));"
+     (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int8  
+  ,testInputItem 112 ("ChanIn(wptr,#,(&xs$),^(" ++ show (A.Record foo) ++ "));")
+    ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&xs$)));")
+    (A.InVariable emptyMeta $ sub0 $ variable "xs") (A.Record foo)
   
   -- A counted array of Int:
   ,testInputItem 200 "ChanInInt(wptr,#,&x);ChanIn(wptr,#,xs,x*^(Int));"
@@ -1034,42 +1044,69 @@ testOutput = TestList
   ,testBothS "testOutput 101" "ChanOutInt(wptr,cOut,bar_foo);^" "tockSendInt(cOut,bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar [])) state
   
   --Integers are a special case in the C backend:
-  ,testOutputItem 201 "ChanOutInt(wptr,#,x);" "#<<x;" (A.OutExpression emptyMeta $ exprVariable "x") A.Int
+  ,testOutputItem 201 "ChanOutInt(wptr,#,x);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") A.Int
   --A plain type on the channel of the right type:
-  ,testOutputItem 202 "ChanOut(wptr,#,&x,^);" "#<<x;" (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
+  ,testOutputItem 202 "ChanOut(wptr,#,&x,^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
   --A record type on the channel of the right type (because records are always referenced by pointer):
-  ,testOutputItem 203 "ChanOut(wptr,#,(&x),^);" "#<<*(&x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
+  ,testOutputItem 203 "ChanOut(wptr,#,(&x),^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes((&x)));"
+    (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
   --A fixed size array on the channel of the right type:
-  ,testOutputItem 204 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
-  ,testOutputItem 205 "ChanOut(wptr,#,x,^);" "tockSendArray(#,x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
+  ,testOutputItem 204 "ChanOut(wptr,#,x,^);"
+     "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(x));"
+     (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
+  ,testOutputItem 205 "ChanOut(wptr,#,x,^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
 
   --A counted array:
-  ,testOutputItem 206 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItem 206 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
   --A counted array of arrays:
-  ,testOutputItem 207 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItem 207 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 5] A.Int))
-  ,testOutputItem 208 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItem 208 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 4,dimension 5] A.Int))
 
   -- Test counted arrays that do not have Int as the count type:
-  ,testOutputItem 209 "ChanOut(wptr,#,&x,^);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItem 209 "ChanOut(wptr,#,&x,^);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int8 A.Int8)
   
   
   --TODO add a pass that makes sure all outputs are variables.  Including count for counted items
   
   --Test sending things that are part of protocols (this will require different code in the C++ backend)
-  ,testOutputItemProt 301 "ChanOutInt(wptr,#,x);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int
-  ,testOutputItemProt 302 "ChanOut(wptr,#,&x,^);" "#<<tockSendableArrayOfBytes(&x);" (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
-  ,testOutputItemProt 303 "ChanOut(wptr,#,(&x),^);" "#<<tockSendableArrayOfBytes((&x));" (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
-  ,testOutputItemProt 304 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
-  ,testOutputItemProt 305 "ChanOut(wptr,#,x,^);" "#<<tockSendableArrayOfBytes(x);" (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
-  ,testOutputItemProt 306 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItemProt 301 "ChanOutInt(wptr,#,x);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") A.Int
+  ,testOutputItemProt 302 "ChanOut(wptr,#,&x,^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
+  ,testOutputItemProt 303 "ChanOut(wptr,#,(&x),^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes((&x)));"
+    (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
+  ,testOutputItemProt 304 "ChanOut(wptr,#,x,^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6] A.Int)
+  ,testOutputItemProt 305 "ChanOut(wptr,#,x,^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(x));"
+    (A.OutExpression emptyMeta $ exprVariable "x") (A.Array [dimension 6, dimension 7, dimension 8] A.Int)
+  ,testOutputItemProt 306 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int A.Int)
-  ,testOutputItemProt 307 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItemProt 307 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 5] A.Int))
-  ,testOutputItemProt 308 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);" "#<<tockSendableArrayOfBytes(&x);#<<tockSendableArrayOfBytes(xs);"
+  ,testOutputItemProt 308 "ChanOutInt(wptr,#,x);ChanOut(wptr,#,xs,x*^);"
+    "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));tockSendArrayOfBytes(#,tockSendableArrayOfBytes(xs));"
     (A.OutCounted emptyMeta (exprVariable "x") (exprVariable "xs")) (A.Counted A.Int (A.Array [dimension 4,dimension 5] A.Int))
     
     
