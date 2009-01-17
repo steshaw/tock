@@ -165,17 +165,27 @@ checkPlainVarUsage (m, p) = {- liftIO (putStrLn ("Checking: " ++ show (m,p))) >>
     getVars (SeqItems ss) = foldUnionVars $ map nodeVars ss
     getVars (ParItems ps) = foldUnionVars $ map getVars ps
     getVars (RepParItem _ p) = getVars p
-      
+
+    getDecl :: ParItems UsageLabel -> [Var]
+    getDecl (ParItems ps) = concatMap getDecl ps
+    getDecl (RepParItem _ p) = getDecl p
+    getDecl (SeqItems ss) = mapMaybe
+      (fmap (Var . A.Variable emptyMeta . A.Name emptyMeta) . join . fmap getScopeIn . nodeDecl) ss
+      where
+        getScopeIn (ScopeIn _ n) = Just n
+        getScopeIn _ = Nothing
+
     check :: ParItems UsageLabel -> m ()
     check (SeqItems {}) = return ()
-    check (ParItems ps) = sequence_ $ permuteHelper checkCREW (map getVars ps)
+    check (ParItems ps) = sequence_ $ permuteHelper (checkCREW $ concatMap getDecl ps) (map getVars ps)
     check (RepParItem _ p) = check (ParItems [p,p]) -- Easy way to check two replicated branches
     
-    checkCREW :: Vars -> [Vars] -> m ()
-    checkCREW item rest
-      = do writtenTwice <- filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
-             (writtenVars otherVars)
-           writtenAndRead <- filterPlain $ Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars
+    checkCREW :: [Var] -> Vars -> [Vars] -> m ()
+    checkCREW decl item rest
+      = do writtenTwice <- filterPlain $ (Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
+             (writtenVars otherVars)) `Set.difference` Set.fromList decl
+           writtenAndRead <- filterPlain $ (Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars)
+                                  `Set.difference` Set.fromList decl
            when (not $ Set.null writtenTwice) $
              diePC m $ formatCode
                "The following variables are written-to in at least two places inside a PAR: %" writtenTwice
