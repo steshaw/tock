@@ -161,9 +161,10 @@ getVarProcCall (A.ProcCall _ proc as)
 
 getVarActual :: (Die m, CSMR m) => A.Formal -> A.Actual -> m Vars
 getVarActual _ (A.ActualExpression e) = return $ getVarExp e
-getVarActual (A.Formal am _ _) (A.ActualVariable v)
-    = case am of
-        A.ValAbbrev -> return $ processVarR v
+getVarActual (A.Formal am t _) (A.ActualVariable v)
+    = case (am, t) of
+        (A.ValAbbrev,_) -> return $ processVarR v
+        (_,A.Timer {}) -> return $ processVarR v
         _ -> return $ processVarW v Nothing
 
     {-
