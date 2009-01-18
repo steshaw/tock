@@ -869,8 +869,11 @@ testIndexes = TestList
 
 generateMapping :: TestMonad m r => String -> VarMap -> VarMap -> m [(CoeffIndex,CoeffIndex)]
 generateMapping msg m0 m1
-  = do testEqual ("Keys in variable mapping " ++ msg) (Map.keys m0) (Map.keys m1)
-       return $ Map.elems $ zipMap mergeMaybe m0 m1
+  = do testEqual ("Keys in variable mapping " ++ msg) (Map.keys m0') (Map.keys m1')
+       return $ Map.elems $ zipMap mergeMaybe m0' m1'
+  where
+    m0' = Map.mapKeys (fmapFlattenedExp canonicalise) m0
+    m1' = Map.mapKeys (fmapFlattenedExp canonicalise) m1
 
 -- | Given a forward mapping list, translates equations across
 translateEquations :: forall m r. TestMonad m r =>
