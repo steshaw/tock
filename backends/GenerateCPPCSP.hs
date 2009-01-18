@@ -49,6 +49,7 @@ import ShowCode
 import TLP
 import Traversal
 import Types
+import TypeSizes
 import Utils
 
 --{{{  generator ops
@@ -626,7 +627,9 @@ cppgetScalarType A.UInt16 = Just "uint16_t"
 cppgetScalarType A.UInt32 = Just "uint32_t"
 cppgetScalarType A.UInt64 = Just "uint64_t"
 cppgetScalarType A.Int8 = Just "int8_t"
-cppgetScalarType A.Int = Just "int"
+cppgetScalarType A.Int | cxxIntSize == 2 = cppgetScalarType A.Int16
+                       | cxxIntSize == 4 = cppgetScalarType A.Int32
+                       | cxxIntSize == 8 = cppgetScalarType A.Int64
 cppgetScalarType A.Int16 = Just "int16_t"
 cppgetScalarType A.Int32 = Just "int32_t"
 cppgetScalarType A.Int64 = Just "int64_t"
