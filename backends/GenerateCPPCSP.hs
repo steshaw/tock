@@ -40,7 +40,7 @@ import System.IO
 import qualified AST as A
 import CompState
 import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cremoveSpec,
-  generate, genComma, genLeftB, genMeta, genName, genRightB, seqComma, withIf)
+  generate, genComma, genLeftB, genMeta, genName, genRightB, justOnly, seqComma, withIf)
 import GenerateCBased
 import Metadata
 import Pass
@@ -756,7 +756,11 @@ cppgenUnfoldedVariable m var
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
 
 cppgenIf :: Meta -> A.Structured A.Choice -> CGen ()
-cppgenIf m s
+cppgenIf m s | justOnly s = do call genStructured s doCplain
+                               tell ["{"]
+                               call genStop m "no choice matched in IF process"
+                               tell ["}"]
+             | otherwise
     =  do ifExc <- csmLift $ makeNonce "if_exc"
           tell ["class ",ifExc, "{};try{"]
           genIfBody ifExc s
@@ -772,6 +776,13 @@ cppgenIf m s
                  tell ["){"]
                  call genProcess p
                  tell ["throw ",ifExc, "();}"]
+    doCplain _ (A.Choice _ e p)
+      = do tell ["if("]
+           call genExpression e
+           tell ["){"]
+           call genProcess p
+           tell ["}else "]
+
 --}}}
 
 -- | Changed because C++CSP has channel-ends as concepts (whereas CCSP does not)

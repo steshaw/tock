@@ -66,6 +66,9 @@ caret = tell ["^"]
 hash :: CGen ()
 hash = tell ["#"]
 
+backq :: CGen ()
+backq = tell ["`"]
+
 -- | A few easy helpers for name variables for testing.
 foo :: A.Name
 foo = simpleName "foo"
@@ -912,11 +915,13 @@ testCase = TestList
 testIf :: Test
 testIf = TestList
  [
-  testBothR "testIf 0" "/\\*([[:alnum:]_]+)\\*/\\^\\1:;" "class ([[:alnum:]_]+)\\{\\};try\\{\\^\\}catch\\(\\1\\)\\{\\}"
+  testBothR "testIf 0" "\\{\\^\\}" "\\{\\^\\}"
     (over (tcall2 genIf emptyMeta (A.Several emptyMeta [])))
-  ,testBothR "testIf 1" "/\\*([[:alnum:]_]+)\\*/if\\(\\$\\)\\{@goto \\1;\\}\\^\\1:;" 
-    "class ([[:alnum:]_]+)\\{\\};try\\{if\\(\\$\\)\\{@throw \\1\\(\\);\\}\\^\\}catch\\(\\1\\)\\{\\}"
+  ,testBothR "testIf 1" "if\\(\\$\\)\\{@\\}else \\{\\^\\}" "if\\(\\$\\)\\{@\\}else \\{\\^\\}"
     (over (tcall2 genIf emptyMeta (A.Only emptyMeta $ A.Choice emptyMeta e p)))
+  ,testBothR "testIf 2" "/\\*([[:alnum:]_]+)\\*/`if\\(\\$\\)\\{@goto \\1;\\}#\\^\\1:;" 
+    "class ([[:alnum:]_]+)\\{\\};try\\{`if\\(\\$\\)\\{@throw \\1\\(\\);\\}#\\^\\}catch\\(\\1\\)\\{\\}"
+    (over (tcall2 genIf emptyMeta (A.Spec emptyMeta undefined $ A.Only emptyMeta $ A.Choice emptyMeta e p)))
  ]
  where
    e :: A.Expression
@@ -924,7 +929,11 @@ testIf = TestList
    p :: A.Process
    p = undefined
    over :: Override
-   over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at, genStop = override2 caret, genSpec = override2 hash}
+   over = local $ \ops -> ops { genExpression = override1 dollar
+                              , genProcess = override1 at
+                              , genStop = override2 caret
+                              , introduceSpec = override1 backq
+                              , removeSpec = override1 hash}
 
 testWhile :: Test
 testWhile = testBothSame "testWhile 0" "while($){@}" (over (tcall2 genWhile undefined undefined))

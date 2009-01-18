@@ -33,6 +33,7 @@ module GenerateC
   , genMeta
   , genName
   , genRightB
+  , justOnly
   , seqComma
   , withIf
   ) where
@@ -1584,7 +1585,11 @@ cgenSeq s = call genStructured s doP
 --}}}
 --{{{  if
 cgenIf :: Meta -> A.Structured A.Choice -> CGen ()
-cgenIf m s
+cgenIf m s | justOnly s = do call genStructured s doCplain
+                             tell ["{"]
+                             call genStop m "no choice matched in IF process"
+                             tell ["}"]
+           | otherwise
     =  do label <- csmLift $ makeNonce "if_end"
           tell ["/*",label,"*/"]
           genIfBody label s
@@ -1601,6 +1606,17 @@ cgenIf m s
                  call genProcess p
                  tell ["goto ", label, ";"]
                  tell ["}"]
+    doCplain _ (A.Choice _ e p)
+      = do tell ["if("]
+           call genExpression e
+           tell ["){"]
+           call genProcess p
+           tell ["}else "]
+
+justOnly :: Data a => A.Structured a -> Bool
+justOnly (A.Only {}) = True
+justOnly (A.Several _ ss) = all justOnly ss
+justOnly _ = False
 --}}}
 --{{{  case
 cgenCase :: Meta -> A.Expression -> A.Structured A.Option -> CGen ()
