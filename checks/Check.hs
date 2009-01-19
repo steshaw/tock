@@ -182,10 +182,20 @@ checkPlainVarUsage (m, p) = {- liftIO (putStrLn ("Checking: " ++ show (m,p))) >>
     
     checkCREW :: [Var] -> Vars -> [Vars] -> m ()
     checkCREW decl item rest
-      = do writtenTwice <- filterPlain $ (Map.keysSet (writtenVars item) `Set.intersection` Map.keysSet
-             (writtenVars otherVars)) `Set.difference` Set.fromList decl
-           writtenAndRead <- filterPlain $ (Map.keysSet (writtenVars item) `Set.intersection` readVars otherVars)
-                                  `Set.difference` Set.fromList decl
+      = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (== NameShared)
+             >>* Map.keysSet >>* (Set.map $ UsageCheckUtils.Var . A.Variable emptyMeta . A.Name emptyMeta)
+           writtenTwice <- filterPlain $
+                             ((Map.keysSet (writtenVars item)
+                                `Set.intersection`
+                              Map.keysSet (writtenVars otherVars)
+                             ) `Set.difference` Set.fromList decl
+                             ) `Set.difference` sharedNames
+           writtenAndRead <- filterPlain $
+                               ((Map.keysSet (writtenVars item)
+                                   `Set.intersection`
+                                  readVars otherVars
+                                ) `Set.difference` Set.fromList decl
+                               ) `Set.difference` sharedNames
            when (not $ Set.null writtenTwice) $
              diePC m $ formatCode
                "The following variables are written-to in at least two places inside a PAR: %" writtenTwice

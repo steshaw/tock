@@ -85,8 +85,10 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     -- Checks the given ParItems of writes and reads against each other.  The
     -- String (array-name) and Meta are only used for printing out error messages
     checkIndexes :: Meta -> (String, ParItems (BK, [A.Expression], [A.Expression])) -> m ()
-    checkIndexes m (arrName, indexes)
-      = do userArrName <- getRealName (A.Name undefined arrName)
+    checkIndexes m (arrName, indexes) = do
+      sharedNames <- getCompState >>* csNameAttr
+      when (Map.lookup arrName sharedNames /= Just NameShared) $
+        do userArrName <- getRealName (A.Name undefined arrName)
            arrType <- astTypeOf (A.Name undefined arrName)
            arrLength <- case arrType of
              A.Array (A.Dimension d:_) _ -> return d
