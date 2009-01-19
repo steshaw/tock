@@ -161,6 +161,7 @@ directives =
   , (mkRegex "^IF +(.*)$", handleIf)
   , (mkRegex "^ELSE", handleUnmatched)
   , (mkRegex "^ENDIF", handleUnmatched)
+  , (mkRegex "^PRAGMA +(.*)$", handlePragma)
   ]
 
 -- | Handle a directive that can be ignored.
@@ -176,6 +177,9 @@ handleUnmatched m _ = dieP m "Unmatched #ELSE/#ENDIF"
 handleInclude :: DirectiveFunc
 handleInclude m [incName]
     = return (\ts -> return $ Token m (IncludeFile incName) : ts)
+
+handlePragma :: DirectiveFunc
+handlePragma m [pragma] = return (\ts -> return $ Token m (Pragma pragma) : ts)
 
 -- | Handle the @#USE@ directive.
 -- This is a bit of a hack at the moment, since it just includes the file

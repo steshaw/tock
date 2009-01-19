@@ -145,6 +145,7 @@ data TokenType =
   | TokRealLiteral String
   | TokPreprocessor String
   | IncludeFile String                 -- ^ Include a file
+  | Pragma String                      -- ^ A pragma
   | Indent                             -- ^ Indentation increase
   | Outdent                            -- ^ Indentation decrease
   | EndOfLine                          -- ^ End of line

@@ -22,8 +22,10 @@ module ParseOccam (parseOccamProgram) where
 import Control.Monad (liftM)
 import Control.Monad.State (MonadState, modify, get, put)
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import Text.ParserCombinators.Parsec
+import Text.Regex
 
 import qualified AST as A
 import CompState
@@ -1246,6 +1248,26 @@ structuredTypeField
     <?> "structured type field"
 --}}}
 --}}}
+--{{{ pragmas
+pragma :: OccParser ()
+pragma = do Pragma p <- genToken isPragma
+            m <- getPosition >>* sourcePosToMeta
+            case matchRegex (mkRegex "^SHARED +(.*)") p of
+              Just [varsRaw] ->
+                mapM_ (\var ->
+                  do st <- get
+                     A.Name _ n <- case lookup var (csLocalNames st) of
+                       Nothing -> dieP m $ "name " ++ var ++ " not defined"
+                       Just def -> return $ fst def
+                     modify $ \st -> st {csNameAttr = Map.insert n NameShared (csNameAttr st)})
+                  (splitRegex (mkRegex ",") varsRaw)
+              Nothing -> warnP m WarnUnknownPreprocessorDirective $
+                "Unknown PRAGMA: " ++ p
+            eol
+  where
+    isPragma (Token _ p@(Pragma {})) = Just p
+    isPragma _ = Nothing
+--}}}
 --{{{ processes
 process :: OccParser A.Process
 process
@@ -1265,6 +1287,7 @@ process
     <|> intrinsicProc
     <|> handleSpecs (allocation <|> specification) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
+    <|> (pragma >> process)
     <?> "process"
 
 --{{{ assignment (:=)
