@@ -78,8 +78,6 @@ data NameSource
 data Direction =
   DirInput         -- ^ The input end.
   | DirOutput      -- ^ The output end.
-  | DirUnknown     -- ^ Either direction; either this is a whole channel,
-                   -- or its direction is to be figured out later.
   deriving (Show, Eq, Typeable, Data)
 
 -- | Attributes of the type of a channel.
@@ -126,7 +124,9 @@ data Type =
   -- | A user-defined protocol.
   | UserProtocol Name
   -- | A channel of the specified type.
-  | Chan Direction ChanAttributes Type
+  | Chan ChanAttributes Type
+  -- | A channel end of the specified type.
+  | ChanEnd Direction ChanAttributes Type
   -- | A counted input or output.
   -- The first type is that of the count; the second is that of the array.
   -- (For example, @INT::[]BYTE@ would be @A.Counted A.Int (A.Array ...)@).
