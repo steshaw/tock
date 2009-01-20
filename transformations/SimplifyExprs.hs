@@ -382,6 +382,15 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
         isSlice (A.SubscriptFrom {}) = True
         isSlice (A.SubscriptFor {}) = True
         isSlice _ = False
+    doVariable v@(A.DirectedVariable m dir innerV)
+      = do t <- astTypeOf innerV
+           case t of
+             A.Array ds (A.Chan attr innerT) ->
+               do spec@(A.Specification _ n _) <- makeNonceIs "dir_array" m
+                    (A.Array ds $ A.ChanEnd dir attr innerT) A.Abbrev v
+                  addPulled $ (m, Left spec)
+                  return $ A.Variable m n
+             _ -> descend v
 
     doVariable v = descend v
 
