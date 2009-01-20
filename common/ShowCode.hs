@@ -249,7 +249,7 @@ instance ShowOccam A.Type where
                 A.Dimension n -> tell ["["] >> showOccamM n >> tell ["]"]
                 A.UnknownDimension -> tell ["[]"]
               | d <- ds]
-  showOccamM (A.Chan dir ca t)
+  showOccamM (A.ChanEnd dir ca t)
       = tell [shared, "CHAN", direction, " "] >> showOccamM t
     where
       shared
@@ -262,7 +262,15 @@ instance ShowOccam A.Type where
           = case dir of
               A.DirInput -> "?"
               A.DirOutput -> "!"
-              A.DirUnknown -> ""
+  showOccamM (A.Chan ca t)
+      = tell [shared, "CHAN "] >> showOccamM t
+    where
+      shared
+          = case (A.caWritingShared ca, A.caReadingShared ca) of
+              (False, False) -> ""
+              (True, False) -> "SHARED! "
+              (False, True) -> "SHARED? "
+              (True, True) -> "SHARED "
   showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
   showOccamM (A.Port t) = tell ["PORT "] >> showOccamM t
   showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
@@ -281,10 +289,14 @@ instance ShowRain A.Type where
   showRainM A.Int32 = tell ["sint32"]
   showRainM A.Int64 = tell ["int"]
   showRainM A.Int = tell ["int"]
-  showRainM (A.Chan dir attr t) 
-    = case dir of
-        A.DirUnknown -> tell ["channel ", ao (A.caWritingShared attr),
+  showRainM (A.Chan attr t) 
+    = tell ["channel ", ao (A.caWritingShared attr),
           "2", ao (A.caReadingShared attr)," "] >> showRainM t
+    where
+      ao :: Bool -> String
+      ao b = if b then "any" else "one"  
+  showRainM (A.ChanEnd dir attr t) 
+    = case dir of
         A.DirInput -> tell [if A.caReadingShared attr then "shared" else "", " ?"] >> showRainM t
         A.DirOutput -> tell [if A.caWritingShared attr then "shared" else "", " !"] >> showRainM t
     where
@@ -354,7 +366,6 @@ instance ShowOccam A.MonadicOp where
 instance ShowOccam A.Variable where
   showOccamM (A.Variable _ n) = showName n
   showOccamM (A.SubscriptedVariable _ s v) = showSubscriptOccamM v s
-  showOccamM (A.DirectedVariable _ A.DirUnknown v) = showOccamM v
   showOccamM (A.DirectedVariable _ A.DirInput v) = showOccamM v >> tell ["?"]
   showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v >> tell ["!"]
   showOccamM (A.DerefVariable _ v) = tell ["DEREF "] >> showOccamM v
