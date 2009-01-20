@@ -167,9 +167,9 @@ dataType
     <|> do {reserved "sint32" ; return A.Int32}
     <|> do {reserved "sint64" ; return A.Int64}    
     <|> do {reserved "time" ; return A.Time}
-    <|> do {sChannel ; inner <- dataType ; return $ A.Chan A.DirUnknown (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
-    <|> do {sIn ; inner <- dataType ; return $ A.Chan A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
-    <|> do {sOut ; inner <- dataType ; return $ A.Chan A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {sChannel ; inner <- dataType ; return $ A.Chan (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {sIn ; inner <- dataType ; return $ A.ChanEnd A.DirInput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
+    <|> do {sOut ; inner <- dataType ; return $ A.ChanEnd A.DirOutput (A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False}) inner}
     <|> do {sLeftQ ; inner <- dataType ; sRightQ ; return $ A.List inner}
     <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n}}
     <?> "data type"

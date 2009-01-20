@@ -85,9 +85,9 @@ ttte m c f t = typeToTypeExp m t >>= \t' -> return $ OperType m c (\[x] -> f x) 
 --  User data types should not be present in the input.
 typeToTypeExp :: Meta -> A.Type -> RainTypeM (TypeExp A.Type)
 typeToTypeExp m (A.List t) = ttte m "[]" A.List t
-typeToTypeExp m (A.Chan A.DirInput at t) = ttte m "?" (A.Chan A.DirInput at) t
-typeToTypeExp m (A.Chan A.DirOutput at t) = ttte m "!" (A.Chan A.DirOutput at) t
-typeToTypeExp m (A.Chan A.DirUnknown at t) = ttte m "channel" (A.Chan A.DirUnknown at) t
+typeToTypeExp m (A.ChanEnd A.DirInput at t) = ttte m "?" (A.ChanEnd A.DirInput at) t
+typeToTypeExp m (A.ChanEnd A.DirOutput at t) = ttte m "!" (A.ChanEnd A.DirOutput at) t
+typeToTypeExp m (A.Chan at t) = ttte m "channel" (A.Chan at) t
 typeToTypeExp m (A.Mobile t) = ttte m "MOBILE" A.Mobile t
 typeToTypeExp _ (A.UnknownVarType reqs en)
   = case en of
@@ -284,7 +284,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> RainTypeM ()
     checkInput chanVar destVar m p
-      = astTypeOf destVar >>= markUnify chanVar . A.Chan A.DirInput (A.ChanAttributes
+      = astTypeOf destVar >>= markUnify chanVar . A.ChanEnd A.DirInput (A.ChanAttributes
         False False)
 
     checkWait :: RainTypeCheck A.InputMode
@@ -300,7 +300,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
     checkInputOutput (A.Input _ _ im@(A.InputTimerAfter {})) = checkWait im
     checkInputOutput (A.Input _ _ im@(A.InputTimerRead {})) = checkWait im
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
-      = astTypeOf srcExp >>= markUnify chanVar . A.Chan A.DirOutput (A.ChanAttributes
+      = astTypeOf srcExp >>= markUnify chanVar . A.ChanEnd A.DirOutput (A.ChanAttributes
         False False)
     checkInputOutput _ = return ()
 

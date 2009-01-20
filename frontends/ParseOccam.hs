@@ -523,7 +523,7 @@ dataType
 
 channelType :: OccParser A.Type
 channelType
-    =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.DirUnknown A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
+    =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
     <|> arrayType channelType
     <?> "channel type"
 
@@ -853,7 +853,6 @@ direction :: OccParser A.Direction
 direction
     =   (sQuest >> return A.DirInput)
     <|> (sBang  >> return A.DirOutput)
-    <|> return A.DirUnknown
     <?> "direction decorator"
 
 -- | Parse a production with an optional direction specifier,
@@ -863,21 +862,16 @@ maybeDirected :: OccParser t -> OccParser (A.Type -> OccParser A.Type, t)
 maybeDirected inner
     =  do v <- inner
           m <- md
-          dir <- direction
-          return (case dir of
-                    A.DirUnknown -> return
-                    _ -> applyDirection m dir,
-                  v)
+          dirs <- many direction
+          return (foldFuncsM $ map (applyDirection m) (reverse dirs), v)
 
 -- | Parse a channel followed by an optional direction specifier.
 directedChannel :: OccParser A.Variable
 directedChannel
     =  do c <- channel
           m <- md
-          dir <- direction
-          case dir of
-            A.DirUnknown -> return c
-            _ -> return $ A.DirectedVariable m dir c
+          dirs <- many direction
+          return $ foldFuncs (map (A.DirectedVariable m) (reverse dirs)) c
 
 timer :: OccParser A.Variable
 timer
@@ -1636,6 +1630,7 @@ actual (A.Formal am t n)
             _ ->
               case stripArrayType t of
                 A.Chan {} -> var directedChannel
+                A.ChanEnd {} -> var directedChannel
                 A.Timer {} -> var timer
                 A.Port _ -> var port
                 _ -> var variable
