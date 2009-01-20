@@ -223,7 +223,7 @@ cgenTopLevel s
   where
     -- | Allocate a TLP channel handler process, and return the function that
     -- implements it.
-    genTLPHandler :: (A.Direction, TLPChannel) -> String -> String -> String -> CGen String
+    genTLPHandler :: (Maybe A.Direction, TLPChannel) -> String -> String -> String -> CGen String
     genTLPHandler (_, tc) c kc ws
         =  do tell ["    Workspace ", ws, " = ProcAlloc (wptr, 3, 1024);\n\
                     \    ProcParam (wptr, ", ws, ", 0, &", c, ");\n\
@@ -335,7 +335,9 @@ cgenType :: A.Type -> CGen ()
 cgenType (A.Array _ t)
     =  do call genType t
           case t of
-            A.Chan A.DirUnknown _ _ -> tell ["*"]
+            A.Chan _ _ -> tell ["*"]
+            -- Channel ends don't need an extra indirection; in C++ they are not
+            -- pointers, and in C they are already pointers
             _ -> return ()
           tell ["*"]
 cgenType (A.Record n) = genName n
@@ -344,8 +346,8 @@ cgenType (A.Mobile t) = call genType t >> tell ["*"]
 
 -- UserProtocol -- not used
 -- Channels are of type "Channel", but channel-ends are of type "Channel*"
-cgenType (A.Chan A.DirUnknown _ t) = tell ["Channel"]
-cgenType (A.Chan _ _ t) = tell ["Channel*"]
+cgenType (A.Chan _ t) = tell ["Channel"]
+cgenType (A.ChanEnd _ _ t) = tell ["Channel*"]
 -- Counted -- not used
 -- Any -- not used
 --cgenType (A.Port t) =
@@ -394,6 +396,10 @@ cgenBytesIn m t v
       = do tell ["sizeof("]
            call genType t
            tell [")"]
+    genBytesIn' t@(A.ChanEnd {})
+      = do tell ["sizeof("]
+           call genType t
+           tell [")"]
     genBytesIn' (A.Mobile _)
       = tell ["sizeof(void*)"]
     genBytesIn' (A.List _)
@@ -428,8 +434,8 @@ cgenDeclType am t
           call genType t
           case t of
             A.Array _ _ -> return ()
-            A.Chan A.DirInput _ _ -> return ()
-            A.Chan A.DirOutput _ _ -> return ()
+            A.ChanEnd A.DirInput _ _ -> return ()
+            A.ChanEnd A.DirOutput _ _ -> return ()
             A.Record _ -> tell ["*const"]
             _ -> when (am == A.Abbrev) $ tell ["*const"]
 
@@ -741,6 +747,7 @@ cgenVariable' checkValid v
            (am,t) <- case (amN,mt) of 
                        -- Channel arrays are special, because they are arrays of abbreviations:
                        (_, Just t'@(A.Chan {})) -> return (A.Abbrev, t')
+                       (_, Just t'@(A.ChanEnd {})) -> return (A.Abbrev, t')
                        -- If we are dealing with an array element, treat it as if it had the original abbreviation mode,
                        -- regardless of the abbreviation mode of the array:
                        (_, Just t') -> return (A.Original, t')
@@ -754,7 +761,7 @@ cgenVariable' checkValid v
                         -- no need to change the indirection:
                         (_, _, True) -> ind                        
                         -- Undirected channels will already have been handled, so this is for directed:
-                        (A.Abbrev, A.Chan {}, _) -> ind
+                        (A.Abbrev, A.ChanEnd {}, _) -> ind
                         -- Abbreviations of arrays are pointers, just like arrays, so no
                         -- need for a * operator:
                         (A.Abbrev, A.Array {}, _) -> ind
@@ -767,9 +774,10 @@ cgenVariable' checkValid v
              A.Array {} -> inner ind v mt
              A.Record {} -> inner ind v mt
              _ -> inner (ind+1) v mt
-    inner ind (A.DirectedVariable _ dir v) mt
-      = do (cg,n) <- (inner ind v mt)           
-           return (call genDirectedVariable (addPrefix cg n) dir, 0)
+    inner ind (A.DirectedVariable m dir v) mt
+      = do (cg,n) <- (inner ind v mt)
+           t <- astTypeOf v
+           return (call genDirectedVariable m t (addPrefix cg n) dir, 0)
     inner ind sv@(A.SubscriptedVariable m (A.Subscript _ subCheck _) v) mt
       = do (es, v, t') <- collectSubs sv
            t <- if checkValid
@@ -829,11 +837,11 @@ cgenVariable' checkValid v
 -- abbreviated as a pointer.
 indirectedType :: A.Type -> Bool
 indirectedType (A.Record {}) = True
-indirectedType (A.Chan A.DirUnknown _ _) = True
+indirectedType (A.Chan _ _) = True
 indirectedType _ = False
 
-cgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
-cgenDirectedVariable var _ = var
+cgenDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen ()
+cgenDirectedVariable _ _ var _ = var
 
 cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen ()
 cgenArraySubscript check v es
@@ -1139,12 +1147,14 @@ cgenVariableAM v am
                  (True, _) -> return ()
                  (False, A.Array {}) -> return ()
                  (False, A.Chan {}) -> return ()
+                 (False, A.ChanEnd {}) -> return ()
                  _ -> tell ["&"]
           call genVariable v
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 cgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
 cgenRetypeSizes _ (A.Chan {}) _ (A.Chan {}) _ = return ()
+cgenRetypeSizes _ (A.ChanEnd {}) _ (A.ChanEnd {}) _ = return ()
 cgenRetypeSizes m destT destN srcT srcV
     =     let size = do tell ["occam_check_retype("]
                         call genBytesIn m srcT (Right srcV)
@@ -1188,7 +1198,7 @@ cgenDeclaration at@(A.Array ds t) n False
     =  do call genType t
           tell [" "]
           case t of
-            A.Chan A.DirUnknown _ _ ->
+            A.Chan _ _ ->
               do genName n
                  tell ["_storage"]
                  call genFlatArraySize ds
@@ -1223,13 +1233,13 @@ cgenFlatArraySize ds
 
 -- | Initialise an item being declared.
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareInit _ (A.Chan A.DirUnknown _ _) var
+cdeclareInit _ (A.Chan _ _) var
     = Just $ do tell ["ChanInit(wptr,"]
                 call genVariableUnchecked var
                 tell [");"]
 cdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
-                  A.Chan A.DirUnknown _ _ ->
+                  A.Chan _ _ ->
                     do tell ["tock_init_chan_array("]
                        call genVariableUnchecked var
                        tell ["_storage,"]
@@ -1345,6 +1355,7 @@ cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
           let deref = case (am, t) of
                         (_, A.Array _ _) -> False
                         (_, A.Chan {}) -> False
+                        (_, A.ChanEnd {}) -> False
                         (_, A.Record {}) -> False
                         (A.ValAbbrev, _) -> True
                         _ -> False
@@ -1517,8 +1528,8 @@ cgenAssign m [v] (A.ExpressionList _ [e])
            Just _ -> doAssign v e
            Nothing -> case t of
              -- Assignment of channel-ends, but not channels, is possible (at least in Rain):
-             A.Chan A.DirInput _ _ -> doAssign v e
-             A.Chan A.DirOutput _ _ -> doAssign v e
+             A.ChanEnd A.DirInput _ _ -> doAssign v e
+             A.ChanEnd A.DirOutput _ _ -> doAssign v e
              A.List _ -> call genListAssign v e
              A.Mobile (A.List _) -> call genListAssign v e
              _ -> call genMissingC $ formatCode "assignment of type %" t
@@ -1563,7 +1574,9 @@ cgenOutput c ois = sequence_ $ map (call genOutputItem c) ois
 cgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase c tag ois
     =  do t <- astTypeOf c
-          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
+          let proto = case t of
+                        A.Chan _ (A.UserProtocol n) -> n
+                        A.ChanEnd _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt(wptr,"]
           call genVariable c
           tell [","]

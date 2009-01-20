@@ -119,7 +119,7 @@ data GenOps = GenOps {
     -- | Generates a declaration of a variable of the specified type and name.  
     -- The Bool indicates whether the declaration is inside a record (True) or not (False).
     genDeclaration :: A.Type -> A.Name -> Bool -> CGen (),
-    genDirectedVariable :: CGen () -> A.Direction -> CGen (),
+    genDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen (),
     genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: A.Expression -> CGen (),
     genFlatArraySize :: [A.Dimension] -> CGen (),

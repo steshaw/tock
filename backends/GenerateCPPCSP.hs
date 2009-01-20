@@ -42,6 +42,7 @@ import CompState
 import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cremoveSpec,
   generate, genComma, genLeftB, genMeta, genName, genRightB, justOnly, seqComma, withIf)
 import GenerateCBased
+import Errors
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -106,8 +107,10 @@ chansToAny = cppOnlyPass "Transform channels to ANY"
                     _ -> return x
   where
     chansToAny' :: A.Type -> PassM A.Type
-    chansToAny' c@(A.Chan _ _ (A.UserProtocol {})) = return c
-    chansToAny' (A.Chan a b _) = return $ A.Chan a b A.Any
+    chansToAny' c@(A.Chan _ (A.UserProtocol {})) = return c
+    chansToAny' (A.Chan b _) = return $ A.Chan b A.Any
+    chansToAny' c@(A.ChanEnd _ _ (A.UserProtocol {})) = return c
+    chansToAny' (A.ChanEnd a b _) = return $ A.ChanEnd a b A.Any
     chansToAny' t = return t
     
     chansToAnyM :: Data t => t -> PassM t
@@ -159,11 +162,11 @@ cppgenTopLevel s
           tell [")) (new LethalProcess()) ) );",
                 "csp::End_CPPCSP(); return 0;}\n"]
   where
-    tlpChannel :: (A.Direction,TLPChannel) -> CGen()
+    tlpChannel :: (Maybe A.Direction,TLPChannel) -> CGen()
     tlpChannel (dir,c) = case dir of
-                               A.DirUnknown -> tell ["&", chanName]
-                               A.DirInput -> tell [chanName, ".reader() "]
-                               A.DirOutput -> tell [chanName, ".writer() "]
+                               Nothing -> tell ["&", chanName]
+                               Just A.DirInput -> tell [chanName, ".reader() "]
+                               Just A.DirOutput -> tell [chanName, ".writer() "]
                              where
                                chanName = case c of
                                             TLPIn -> "in"
@@ -189,9 +192,10 @@ genCPPCSPChannelInput :: A.Variable -> CGen()
 genCPPCSPChannelInput var
   = do t <- astTypeOf var
        case t of
-         (A.Chan A.DirInput _ _) -> call genVariable var
-         (A.Chan A.DirUnknown _ _) -> do call genVariable var
-                                         tell ["->reader()"]
+         (A.ChanEnd A.DirInput _ _) -> call genVariable var
+         -- TODO remove the following line, eventually
+         (A.Chan _ _) -> do call genVariable var
+                            tell ["->reader()"]
          _ -> call genMissing $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
@@ -199,9 +203,10 @@ genCPPCSPChannelOutput :: A.Variable -> CGen()
 genCPPCSPChannelOutput var
   = do t <- astTypeOf var
        case t of
-         (A.Chan A.DirOutput _ _) -> call genVariable var
-         (A.Chan A.DirUnknown _ _) -> do call genVariable var
-                                         tell ["->writer()"]
+         (A.ChanEnd A.DirOutput _ _) -> call genVariable var
+         -- TODO remove the following line, eventually
+         (A.Chan _ _) -> do call genVariable var
+                            tell ["->writer()"]
          _ -> call genMissing $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
 
 cppgenPoison :: Meta -> A.Variable -> CGen ()
@@ -336,9 +341,12 @@ cppgenOutputItem chan item
                      tell ["));"]
 
 byteArrayChan :: A.Type -> Bool
-byteArrayChan (A.Chan _ _ (A.UserProtocol _)) = True
-byteArrayChan (A.Chan _ _ A.Any) = True
-byteArrayChan (A.Chan _ _ (A.Counted _ _)) = True
+byteArrayChan (A.Chan _ (A.UserProtocol _)) = True
+byteArrayChan (A.Chan _ A.Any) = True
+byteArrayChan (A.Chan _ (A.Counted _ _)) = True
+byteArrayChan (A.ChanEnd _ _ (A.UserProtocol _)) = True
+byteArrayChan (A.ChanEnd _ _ A.Any) = True
+byteArrayChan (A.ChanEnd _ _ (A.Counted _ _)) = True
 byteArrayChan _ = False
 
 genPoint :: A.Variable -> CGen()
@@ -363,7 +371,9 @@ infixComma [] = return ()
 cppgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase c tag ois 
     =  do t <- astTypeOf c
-          let proto = case t of A.Chan _ _ (A.UserProtocol n) -> n
+          let proto = case t of
+                        A.Chan _ (A.UserProtocol n) -> n
+                        A.ChanEnd _ _ (A.UserProtocol n) -> n
           tell ["tockSendInt("]
           genCPPCSPChannelOutput c
           tell [","]
@@ -476,7 +486,7 @@ cppgenProcCall n as
 cppdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
-                  A.Chan A.DirUnknown _ _ ->
+                  A.Chan _ _ ->
                     do tell ["tockInitChanArray("]
                        call genVariableUnchecked var
                        tell ["_storage,"]
@@ -609,7 +619,18 @@ cppintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
     --A helper function for calling the wrapped functions:
     genParamList :: [A.Formal] -> CGen()
     genParamList fs = infixComma $ map genParam fs
-
+cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array _ (A.ChanEnd {})) (A.DirectedVariable
+  m dir v)))
+  = do call genDecl am t n
+       tell [";"]
+       tell ["tockInitChan",if dir == A.DirInput then "in" else "out","Array("]
+       call genVariableAM v am
+       tell [","]
+       genName n
+       tell [","]
+       call genVariableAM v am
+       call genSizeSuffix "0"
+       tell [");"]
 --For all other cases, use the C implementation:
 cppintroduceSpec n = cintroduceSpec n
 
@@ -645,20 +666,26 @@ cppgenType :: A.Type -> CGen ()
 cppgenType arr@(A.Array _ _)
     =  cgenType arr
 cppgenType (A.Record n) = genName n
-cppgenType (A.Chan dir attr t)
-    = do let chanType = case dir of
-                          A.DirInput -> "csp::Chanin"
-                          A.DirOutput -> "csp::Chanout"
-                          A.DirUnknown ->
+cppgenType t | isChan t
+    = do let (chanType, innerT) = case t of
+                          A.ChanEnd A.DirInput _ innerT -> ("csp::Chanin", innerT)
+                          A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT)
+                          A.Chan attr innerT -> (
                             case (A.caWritingShared attr,A.caReadingShared attr) of
                               (False,False) -> "csp::One2OneChannel"
                               (False,True)  -> "csp::One2AnyChannel"
                               (True,False)  -> "csp::Any2OneChannel"
                               (True,True)   -> "csp::Any2AnyChannel"
+                            , innerT)
          tell [chanType,"<"]
-         cppTypeInsideChannel t
+         cppTypeInsideChannel innerT
          tell [">/**/"]
   where
+    isChan :: A.Type -> Bool
+    isChan (A.Chan _ _) = True
+    isChan (A.ChanEnd _ _ _) = True
+    isChan _ = False
+    
     cppTypeInsideChannel :: A.Type -> CGen ()
     cppTypeInsideChannel A.Any = tell ["tockSendableArrayOfBytes"]
     cppTypeInsideChannel (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
@@ -789,11 +816,16 @@ cppgenIf m s | justOnly s = do call genStructured s doCplain
 --}}}
 
 -- | Changed because C++CSP has channel-ends as concepts (whereas CCSP does not)
-cppgenDirectedVariable :: CGen () -> A.Direction -> CGen ()
-cppgenDirectedVariable v A.DirInput = tell ["(("] >> v >> tell [")->reader())"]
-cppgenDirectedVariable v A.DirOutput = tell ["(("] >> v >> tell [")->writer())"]
-cppgenDirectedVariable v dir = call genMissing $ "Cannot direct variable to direction: " ++ show dir
-
+cppgenDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen ()
+cppgenDirectedVariable m t v dir
+  = case t of
+         A.ChanEnd {} -> v
+         A.Chan {} -> tell ["(("] >> v >> tell [")->",if dir == A.DirInput
+           then "reader" else "writer","())"]
+         A.Array _ (A.ChanEnd {}) -> v
+         A.Array _ (A.Chan {}) -> dieP m "Should have pulled up directed arrays"
+         _ -> dieP m "Attempted to direct unknown type"
+         
 cppgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen ()
 cppgenAllocMobile m (A.Mobile t) me
   = do tell ["new "]
