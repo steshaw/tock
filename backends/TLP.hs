@@ -36,7 +36,7 @@ data TLPChannel = TLPIn | TLPOut | TLPError
 
 -- | Get the name of the TLP and the channels it uses.
 -- Fail if the process isn't using a valid interface.
-tlpInterface :: (CSMR m, Die m) => m (A.Name, [(A.Direction, TLPChannel)])
+tlpInterface :: (CSMR m, Die m) => m (A.Name, [(Maybe A.Direction, TLPChannel)])
 tlpInterface
     =  do mainLocals <- getCompState >>* csMainLocals
           when (null mainLocals) $
@@ -53,15 +53,22 @@ tlpInterface
             dieP (findMeta mainName) "Channels used more than once in TLP"
           return (mainName, chans)
   where
-    tlpChannel :: (CSMR m, Die m) => Meta -> A.Formal -> m (A.Direction, TLPChannel)
-    tlpChannel m (A.Formal _ (A.Chan dir _ _) n)
+    tlpChannel :: (CSMR m, Die m) => Meta -> A.Formal -> m (Maybe A.Direction, TLPChannel)
+    tlpChannel m (A.Formal _ (A.ChanEnd dir _ _) n)
         =  do def <- lookupName n
               let origN = A.ndOrigName def
               case lookup origN tlpChanNames of
                 Just c ->
-                  if (dir == A.DirUnknown || dir == (tlpDir c))
-                    then return (dir, c)
+                  if dir == (tlpDir c)
+                    then return (Just dir, c)
                     else dieP m $ "TLP formal " ++ show n ++ " has wrong direction for its name"
+                _ -> dieP m $ "TLP formal " ++ show n ++ " has unrecognised name"
+    tlpChannel m (A.Formal _ (A.Chan _ _) n)
+        =  do def <- lookupName n
+              let origN = A.ndOrigName def
+              case lookup origN tlpChanNames of
+                Just c ->
+                  return (Nothing, c)
                 _ -> dieP m $ "TLP formal " ++ show n ++ " has unrecognised name"
     tlpChannel m (A.Formal _ _ n)
         = dieP m $ "TLP formal " ++ show n ++ " has unrecognised type"
