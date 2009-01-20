@@ -30,6 +30,7 @@ import Metadata
 import Pass
 import PrettyShow
 import qualified Properties as Prop
+import ShowCode
 import Traversal
 import Types
 import Utils
@@ -37,6 +38,7 @@ import Utils
 squashArrays :: [Pass]
 squashArrays =
   [ removeDirections
+  , removeUnneededDirections
   , simplifySlices
   , declareSizesArray
   , addSizesFormalParameters
@@ -59,6 +61,32 @@ removeDirections
     doVariable :: A.Variable -> A.Variable
     doVariable (A.DirectedVariable _ _ v) = v
     doVariable v = v
+
+-- | Remove variable directions that are superfluous.  This prevents confusing
+-- later passes, where the user has written something like:
+-- []CHAN INT da! IS ...:
+-- foo(da!)
+--
+-- The second direction specifier is unneeded, and will confuse passes such as
+-- those adding sizes parameters (which looks for plain variables, since directed
+-- arrays should already have been pulled up).
+removeUnneededDirections :: Pass
+removeUnneededDirections
+  = occamOnlyPass "Remove unneeded variable directions"
+                  prereq
+                  []
+                  (applyDepthM doVariable)
+  where
+    doVariable :: Transform (A.Variable)
+    doVariable whole@(A.DirectedVariable m dir v)
+       = do t <- astTypeOf v
+            case t of
+              A.Chan {} -> return whole
+              A.Array _ (A.Chan {}) -> return whole
+              A.ChanEnd chanDir _ _ | dir == chanDir -> return v
+              A.Array _ (A.ChanEnd chanDir _ _) | dir == chanDir -> return v
+              _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
+    doVariable v = return v
 
 transformWaitFor :: Pass
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
