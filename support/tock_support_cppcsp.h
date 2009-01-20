@@ -210,6 +210,20 @@ inline void tockInitChanArray(T* pointTo,T** pointFrom,int count)
 		pointFrom[i] = &(pointTo[i]);
 }
 
+template <typename T, typename U>
+inline void tockInitChaninArray(T* pointTo,U* pointFrom,int count)
+{
+	for (int i = 0;i < count;i++)
+	  pointFrom[i] = pointTo[i]->reader();
+}
+
+template <typename T, typename U>
+inline void tockInitChanoutArray(T* pointTo,U* pointFrom,int count)
+{
+	for (int i = 0;i < count;i++)
+	  pointFrom[i] = pointTo[i]->writer();
+}
+
 class StreamWriterByteArray : public csp::CSProcess
 {
 private:
