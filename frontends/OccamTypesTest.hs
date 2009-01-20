@@ -646,4 +646,5 @@ ioTests = liftM (TestLabel "OccamTypesTest" . TestList) $ sequence $
         , "testcases/automatic/direction-decorators-3.occ.test"
         , "testcases/automatic/initial-result-1.occ.test"
         , "testcases/automatic/initial-result-2.occ.test"
+        , "testcases/automatic/chan-ends.occ.test"
         ]

@@ -1,0 +1,85 @@
+-- This file tests the inferring of output direction specifiers for PROCs
+
+PROC foo(CHAN INT c)
+%%
+:
+
+PROC main()
+  CHAN INT c:
+%%M
+:
+
+%PASS Skip body
+  SKIP
+%M
+  foo(c)
+
+%FAIL Skip body, with input direction
+  SKIP
+%M
+  foo(c?)
+
+%FAIL Skip body, with output direction
+  SKIP
+%M
+  foo(c!)
+
+%PASS Output body, with no direction
+  c ! 3
+%M
+  foo(c)
+
+%FAIL Output body, with input direction
+  c ! 3
+%M
+  foo(c?)
+
+%PASS Output body, with output direction
+  c ! 3
+%M
+  foo(c!)
+
+%PASS Input body, with no direction
+  INT x:
+  c ? x
+%M
+  foo(c)
+
+%PASS Input body, with input direction
+  INT x:
+  c ? x
+%M
+  foo(c?)
+
+%FAIL Input body, with output direction
+  INT x:
+  c ? x
+%M
+  foo(c!)
+
+%PASS Input and output body, with no direction
+  SEQ
+    c ! 3
+    INT x:
+    c ? x
+%M
+  foo(c)
+
+%FAIL Input and output body, with input direction
+  SEQ
+    c ! 3
+    INT x:
+    c ? x
+%M
+  foo(c?)
+
+%FAIL Input and output body, with output direction
+  SEQ
+    c ! 3
+    INT x:
+    c ? x
+%M
+  foo(c!)
+
+
+%
