@@ -21,11 +21,21 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 This TestHarness module contains helper functions that deal with a file of the following format.
 
 There is an initial prologue, assumed to be source code.  Any lines beginning with "%%" are deemed
-to be destinations for substitution.  The prologue is terminated by the first test.
+to be destinations for substitution.  You can label different substitutions by
+following the double-percent with other characters (but not PASS or FAIL), e.g. %%2.
+The prologue is terminated by the first test.
 
 Each test has a starting line that begins with a single % followed by either PASS or FAIL,
-optionally followed by an * (indicating this test is a good benchmark for timing)
-followed by a test name.  The lines that run to the start of the next test are the source substitution.
+followed by a test name.  The lines that run to the start of the next test, or
+to the next line beginning with a percent are the source substitution.  If you have
+two or more substitution destinations (e.g. %% and %%2), you substitute them with
+
+%PASS
+First substitution
+%2
+Second substitution
+
+i.e. using the label after your percent.
 
 The file is terminated by a single percent on its own line.
 
@@ -34,13 +44,11 @@ The file is terminated by a single percent on its own line.
 module TestHarness (automaticTest) where
 
 import Control.Monad.Error
-import Control.Monad.State
 import Control.Monad.Writer
 import Data.List
 import Data.Maybe
 import System.IO
 import Test.HUnit hiding (performTest)
-import Text.Regex
 
 import CompState
 import ParseOccam
@@ -49,6 +57,14 @@ import Pass
 import PassList
 import PreprocessOccam
 import Utils
+
+data TestLine = Line String | Sub String {- without percents -}
+data TestBody = TestBody Bool String [(String {- substName -}, [String] {- content -})]
+
+data AutoTest = AutoTest
+  { prologueLines :: [TestLine]
+  , bodies :: [TestBody]
+  }
 
 automaticTest :: CompFrontend -> FilePath -> IO Test
 automaticTest fr fileName = readFile fileName >>* performTest fr fileName
@@ -79,8 +95,19 @@ testRain  source = do (result,_) <- runPassM (defaultState FrontendRain) compila
                   >>= runPasses (getPassList $ defaultState FrontendRain)
 
 -- | Substitutes each substitution into the prologue
-substitute :: String -> [(Bool, Bool, String, String)] -> [(Bool, Bool, String, String)]
-substitute prologue = map (\(a,b,c,subst) -> (a,b,c,subRegex (mkRegex "%%") prologue subst))
+substitute :: AutoTest -> Either String [(Bool, String, String)]
+substitute t = sequence [ do ls <- execWriterT $ subst (prologueLines t, ss)
+                             return (p, n, unlines ls)
+                        | TestBody p n ss <- bodies t]
+  where
+    subst :: ([TestLine], [(String, [String])]) -> WriterT [String] (Either String) ()
+    subst ([], []) = return ()
+    subst ([], subs) = throwError $ "Left over substitutions: " ++ show subs
+    subst (Line l : ls, subs) = tell [l] >> subst (ls, subs)
+    subst (Sub s : ls, subs)
+      = case lookup s subs of
+          Just subLines -> tell subLines >> subst (ls, filter ((/= s) . fst) subs)
+          Nothing -> throwError $ "Could not find substitution \"" ++ s ++ "\""
 
 
 -- | Given a file's contents, tests it
@@ -88,11 +115,14 @@ performTest :: CompFrontend -> String -> String -> Test
 performTest fr fileName fileContents
   = case parseTestFile fileContents of
       Left err -> TestCase $ assertFailure $ "Error processing file \"" ++ fileName ++ "\": " ++ err
-      Right (prologue,tests) -> TestLabel fileName $ TestList $ map performTest' (substitute prologue tests)
-      
+      Right test -> TestLabel fileName $ TestList $
+        either
+          (singleton . TestCase . assertFailure . (fileName ++))
+          (map performTest')
+       (substitute test)
   where
-    performTest' :: (Bool, Bool, String, String) -> Test
-    performTest' (expPass, _, testName, testText)
+    performTest' :: (Bool, String, String) -> Test
+    performTest' (expPass, testName, testText)
       = TestCase $ 
         do result <- (if fr == FrontendOccam then testOccam else testRain) testText
            case result of
@@ -100,23 +130,44 @@ performTest fr fileName fileContents
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")
 
 -- | Splits a file's contents into the prologue, and subsequent testcases
-parseTestFile :: String -> Either String (String, [(Bool, Bool, String, String)])
-parseTestFile wholeText = seqPair (return $ unlines prologue, splitCases testcases)
+parseTestFile :: String -> Either String AutoTest
+parseTestFile wholeText = liftM2 AutoTest parsePrologue (splitCases testcases)
   where
     allLines = lines wholeText
     (prologue, testcases) = span (\l -> ("%%" `isPrefixOf` l) || (not $ "%" `isPrefixOf` l)) allLines
+
+    parsePrologue :: Either String [TestLine]
+    parsePrologue = if nub subs == subs then return parsed else
+      throwError "Multiple substitutions with the same name"
+      where
+        subs = [s | Sub s <- parsed]
+        
+        parsed = [ if "%%" `isPrefixOf` l
+                     then Sub $ drop 2 l
+                     else Line l
+                 | l <- prologue ]
     
-    splitCases :: [String] -> Either String [(Bool, Bool, String, String)]
+    splitCases :: [String] -> Either String [TestBody]
     splitCases [] = throwError "Unexpected EOF"
     splitCases (headLine:otherLines)
-      | "%PASS" `isPrefixOf` headLine = joinM (True, hasStar, testTitle, unlines testCaseLines) (splitCases furtherLines) 
-      | "%FAIL" `isPrefixOf` headLine = joinM (False, hasStar, testTitle, unlines testCaseLines) (splitCases furtherLines)
-      | "%" == headLine               = return []
+      | "%PASS" `isPrefixOf` headLine
+        = (TestBody True testTitle $ foldl testCaseSubs [("",[])] testCaseLines)
+            `joinM` (splitCases furtherLines) 
+      | "%FAIL" `isPrefixOf` headLine
+        = (TestBody False testTitle $ foldl testCaseSubs [("",[])] testCaseLines)
+            `joinM` (splitCases furtherLines)
+      | "%" == headLine = return []
       | otherwise = throwError $ "Unexpected format in testcase-header line: \"" ++ headLine ++ "\""
         where
-          (hasStar, testTitle) = if headLine !! 5 == '*' then (True, drop 6 headLine) else (False, drop 5 headLine)
+          testTitle = drop 5 headLine
         
-          (testCaseLines, furtherLines) = span (not . isPrefixOf "%") otherLines
+          (testCaseLines, furtherLines) = span (\x -> not $ "%PASS" `isPrefixOf`
+            x || "%FAIL" `isPrefixOf` x || "%" == x) otherLines
+
+          testCaseSubs :: [(String, [String])] -> String -> [(String, [String])]
+          testCaseSubs acc ('%':id) = (id, []) : acc -- start new subst
+          testCaseSubs ((aName, aSubst):as) l = (aName,aSubst++[l]) : as -- join to current
+          
     
     joinM :: Monad m => a -> m [a] -> m [a]
     joinM x mxs = mxs >>* (x :)
