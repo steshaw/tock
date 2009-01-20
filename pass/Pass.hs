@@ -127,6 +127,10 @@ rainOnlyPass = passMakerHelper $ (== FrontendRain) . csFrontend
 occamOnlyPass :: PassMaker
 occamOnlyPass = passMakerHelper $ (== FrontendOccam) . csFrontend
 
+occamAndCOnlyPass :: PassMaker
+occamAndCOnlyPass = passMakerHelper $
+  \st -> (csFrontend st == FrontendOccam) && (csBackend st == BackendC)
+
 cOnlyPass :: PassMaker
 cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 
