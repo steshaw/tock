@@ -51,7 +51,7 @@ prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [
 -- and this somewhat simplifies the work of the later passes.
 removeDirections :: Pass
 removeDirections
-    = occamOnlyPass "Remove variable directions"
+    = occamAndCOnlyPass "Remove variable directions"
                     prereq
                     [Prop.directionsRemoved]
                     (applyDepthM (return . doVariable))
