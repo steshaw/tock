@@ -77,12 +77,6 @@ areValidDimensions (d1:ds1) (d2:ds2)
            else return False
 areValidDimensions _ _ = return False
 
--- | Check that the second direction can be used in a context where the first
--- is expected.
-isValidDirection :: A.Direction -> A.Direction -> Bool
-isValidDirection _ A.DirUnknown = True
-isValidDirection ed rd = ed == rd
-
 -- | Check that a type we've inferred matches the type we expected.
 checkType :: Meta -> A.Type -> A.Type -> PassM ()
 checkType m et rt
@@ -93,10 +87,6 @@ checkType m et rt
              if valid
                then checkType m t t'
                else bad
-        (A.Chan dir ca t, A.Chan dir' ca' t') ->
-          if isValidDirection dir dir' && (ca == ca')
-            then checkType m t t'
-            else bad
         _ ->
           do same <- sameType rt et
              when (not same) $ bad
@@ -430,24 +420,21 @@ checkChannel wantDir c
     =  do -- Check it's a channel.
           t <- astTypeOf c >>= resolveUserType m
           case t of
-            A.Chan dir (A.ChanAttributes ws rs) innerT ->
+            A.ChanEnd dir (A.ChanAttributes ws rs) innerT ->
                do -- Check the direction is appropriate 
-                  case (wantDir, dir) of
-                    (A.DirUnknown, _) -> ok
-                    (_, A.DirUnknown) -> ok
-                    (a, b) -> when (a /= b) $
-                                dieP m $ "Channel directions do not match"
-
+                  when (wantDir /= dir) $ dieP m $ "Channel directions do not match"
                   -- Check it's not shared in the direction we're using.
                   case (ws, rs, wantDir) of
                     (False, _, A.DirOutput) -> ok
                     (_, False, A.DirInput) -> ok
-                    (_, _, A.DirUnknown) -> ok
                     _ -> dieP m $ "Shared channel must be claimed before use"
 
                   return innerT
-            _ -> diePC m $ formatCode "Expected channel; found %" t
+            _ -> diePC m $ formatCode ("Expected channel " ++ exp ++ "; found %") t
   where
+    exp = case wantDir of
+            A.DirInput -> "input-end"
+            A.DirOutput -> "output-end"
     m = findMeta c
 
 -- | Check that a variable is a timer.
@@ -700,12 +687,15 @@ inferTypes = occamOnlyPass "Infer types"
     doFunctionCall :: Meta -> A.Name -> Transform [A.Expression]
     doFunctionCall m n es
         =  do (_, fs) <- checkFunction m n
-              doActuals m n fs es
+              doActuals m n fs (error "Cannot direct channels passed to FUNCTIONs") es
 
-    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> Transform [a]
-    doActuals m n fs as
+    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> (Meta -> A.Direction -> Transform a)
+      -> Transform [a]
+    doActuals m n fs applyDir as
         =  do checkActualCount m n fs as
-              sequence [inTypeContext (Just t) $ recurse a
+              sequence [case t of
+                A.ChanEnd dir _ _ -> recurse a >>= applyDir m dir
+                _ -> inTypeContext (Just t) $ recurse a
                         | (A.Formal _ t _, a) <- zip fs as]
 
     doDimension :: Transform A.Dimension
@@ -740,7 +730,19 @@ inferTypes = occamOnlyPass "Infer types"
             A.ForEach _ _ -> noTypeContext $ descend rep
 
     doAlternative :: Transform A.Alternative
-    doAlternative a = inTypeContext (Just A.Bool) $ descend a
+    doAlternative (A.Alternative m pre v im p)
+      = do pre' <- inTypeContext (Just A.Bool) $ recurse pre
+           v' <- recurse v >>= case im of
+                   A.InputSimple {} -> makeEnd m A.DirInput
+                   A.InputCase {} -> makeEnd m A.DirInput
+                   _ -> return
+           im' <- recurse im
+           p' <- recurse p
+           return $ A.Alternative m pre' v' im' p'
+    doAlternative (A.AlternativeSkip m pre p)
+      = do pre'  <- inTypeContext (Just A.Bool) $ recurse pre
+           p' <- recurse p
+           return $ A.AlternativeSkip m pre' p'
 
     doInputMode :: Transform A.InputMode
     doInputMode im = inTypeContext (Just A.Int) $ descend im
@@ -761,10 +763,16 @@ inferTypes = occamOnlyPass "Infer types"
                do am' <- recurse am
                   t' <- recurse t
                   v' <- inTypeContext (Just t') $ recurse v
-                  t'' <- case t' of
-                           A.Infer -> astTypeOf v'
-                           _ -> return t'
-                  return $ A.Is m am' t'' v'
+                  (t'', v'') <- case t' of
+                    A.Infer -> do r <- astTypeOf v'
+                                  return (r, v')
+                    A.ChanEnd dir _ _ -> do v'' <- makeEnd m dir v'
+                                            return (t', v'')
+                    A.Array _ (A.ChanEnd dir _ _) ->
+                                         do v'' <- makeEnd m dir v'
+                                            return (t', v'')
+                    _ -> return (t', v')
+                  return $ A.Is m am' t'' v''
             A.IsExpr m am t e ->
                do am' <- recurse am
                   t' <- recurse t
@@ -777,7 +785,11 @@ inferTypes = occamOnlyPass "Infer types"
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".
                do t' <- recurse t
-                  vs' <- mapM recurse vs
+                  vs' <- mapM recurse vs >>= case t' of
+                    A.Infer -> return
+                    A.Array _ (A.Chan {}) -> return
+                    A.Array _ (A.ChanEnd dir _ _) -> mapM (makeEnd m dir)
+                    _ -> const $ dieP m "Cannot coerce non-channels into channels"
                   let dim = makeDimension m $ length vs'
                   t'' <- case (t', vs') of
                            (A.Infer, (v:_)) ->
@@ -813,6 +825,17 @@ inferTypes = occamOnlyPass "Infer types"
             =  do el' <- doExpressionList ts el
                   return $ A.Only m el'
 
+    makeEnd :: Meta -> A.Direction -> Transform A.Variable
+    makeEnd m dir v
+      = do t <- astTypeOf v
+           case t of
+             A.ChanEnd {} -> return v
+             A.Chan {} -> return $ A.DirectedVariable m dir v
+             A.Array _ (A.ChanEnd {}) -> return v
+             A.Array _ (A.Chan {}) -> return $ A.DirectedVariable m dir v
+             _ -> dieP m "Cannot infer direction for things that are not a channel or channel-end"
+
+
     doProcess :: Transform A.Process
     doProcess p
         = case p of
@@ -822,7 +845,7 @@ inferTypes = occamOnlyPass "Infer types"
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
             A.Output m v ois ->
-               do v' <- recurse v
+               do v' <- recurse v >>= makeEnd m A.DirOutput
                   -- At this point we must resolve the "c ! x" ambiguity:
                   -- we definitely know what c is, and we must know what x is
                   -- before trying to infer its type.
@@ -839,7 +862,7 @@ inferTypes = occamOnlyPass "Infer types"
                     else do ois' <- doOutputItems m v' Nothing ois
                             return $ A.Output m v' ois'
             A.OutputCase m v tag ois ->
-               do v' <- recurse v
+               do v' <- recurse v >>= makeEnd m A.DirOutput
                   ois' <- doOutputItems m v' (Just tag) ois
                   return $ A.OutputCase m v' tag ois'
             A.If _ _ -> inTypeContext (Just A.Bool) $ descend p
@@ -852,9 +875,18 @@ inferTypes = occamOnlyPass "Infer types"
             A.Processor _ _ _ -> inTypeContext (Just A.Int) $ descend p
             A.ProcCall m n as ->
                do fs <- checkProc m n
-                  as' <- doActuals m n fs as
+                  as' <- doActuals m n fs (\m dir (A.ActualVariable v) -> liftM
+                    A.ActualVariable $ makeEnd m dir v) as
                   return $ A.ProcCall m n as'
             A.IntrinsicProcCall _ _ _ -> noTypeContext $ descend p
+            A.Input m v im@(A.InputSimple {})
+              -> do im' <- recurse im
+                    v' <- recurse v >>= makeEnd m A.DirInput
+                    return $ A.Input m v' im'
+            A.Input m v im@(A.InputCase {})
+              -> do im' <- recurse im
+                    v' <- recurse v >>= makeEnd m A.DirInput
+                    return $ A.Input m v' im'
             _ -> descend p
       where
         -- | Does a channel carry a tagged protocol?
@@ -1039,12 +1071,14 @@ checkVariables = checkDepthM doVariable
     doVariable (A.DirectedVariable m dir v)
         =  do t <- astTypeOf v >>= resolveUserType m
               case t of
-                A.Chan oldDir _ _ -> checkDir oldDir
-                A.Array _ (A.Chan oldDir _ _) -> checkDir oldDir
-                _ -> dieP m $ "Direction specified on non-channel variable"
+                A.ChanEnd oldDir _ _ -> checkDir oldDir
+                A.Chan _ _ -> ok
+                A.Array _ (A.ChanEnd oldDir _ _) -> checkDir oldDir
+                A.Array _ (A.Chan _ _) -> ok
+                _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
       where
         checkDir oldDir
-            = if isValidDirection dir oldDir
+            = if dir == oldDir
                 then ok
                 else dieP m "Direction specified does not match existing direction"
     doVariable (A.DerefVariable m v)
@@ -1131,8 +1165,11 @@ checkSpecTypes = checkDepthM doSpecType
               checkAbbrev m A.ValAbbrev am
     doSpecType (A.IsChannelArray m rawT cs)
         =  do t <- resolveUserType m rawT
+              let isChan (A.Chan {}) = True
+                  isChan (A.ChanEnd {}) = True
+                  isChan _ = False
               case t of
-                A.Array [d] et@(A.Chan _ _ _) ->
+                A.Array [d] et | isChan et ->
                    do sequence_ [do rt <- astTypeOf c
                                     checkType (findMeta c) et rt
                                     am <- abbrevModeOfVariable c
