@@ -81,5 +81,96 @@ PROC main()
 %M
   foo(c!)
 
+%PASS Output body abbrev, with no direction
+  CHAN INT d IS c:
+  d ! 3
+%M
+  foo(c)
+
+%FAIL Output body abbrev, with input direction
+  CHAN INT d IS c:
+  d ! 3
+%M
+  foo(c?)
+
+%PASS Output body abbrev, with output direction
+  CHAN INT d IS c:
+  d ! 3
+%M
+  foo(c!)
+
+%PASS Output body abbrev dir, with no direction
+  CHAN INT d! IS c:
+  d ! 3
+%M
+  foo(c)
+
+%FAIL Output body abbrev dir, with input direction
+  CHAN INT d! IS c:
+  d ! 3
+%M
+  foo(c?)
+
+%PASS Output body abbrev dir, with output direction
+  CHAN INT d! IS c:
+  d ! 3
+%M
+  foo(c!)
+
+
+%PASS Output body abbrev array, with no direction
+  []CHAN INT d IS [c]:
+  d[0] ! 3
+%M
+  foo(c)
+
+%FAIL Output body abbrev array, with input direction
+  []CHAN INT d IS [c]:
+  d[0] ! 3
+%M
+  foo(c?)
+
+%PASS Output body abbrev array, with output direction
+  []CHAN INT d IS [c]:
+  d[0] ! 3
+%M
+  foo(c!)
+
+%PASS Output body abbrev array B, with no direction
+  []CHAN INT d! IS [c]:
+  d[0] ! 3
+%M
+  foo(c)
+
+%FAIL Output body abbrev array B, with input direction
+  []CHAN INT d! IS [c]:
+  d[0] ! 3
+%M
+  foo(c?)
+
+%PASS Output body abbrev array B, with output direction
+  []CHAN INT d! IS [c]:
+  d[0] ! 3
+%M
+  foo(c!)
+
+%PASS Output body abbrev array C, with no direction
+  []CHAN INT d! IS [c!]:
+  d[0] ! 3
+%M
+  foo(c)
+
+%FAIL Output body abbrev array C, with input direction
+  []CHAN INT d! IS [c!]:
+  d[0] ! 3
+%M
+  foo(c?)
+
+%PASS Output body abbrev array C, with output direction
+  []CHAN INT d! IS [c!]:
+  d[0] ! 3
+%M
+  foo(c!)
+
 
 %
