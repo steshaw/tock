@@ -532,7 +532,7 @@ testInputCase = TestList
       decl' (simpleName "prot")
         (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
           A.Original A.NameUser
-          . singleton . decl (return $ A.Chan A.DirUnknown (A.ChanAttributes False False)
+          . singleton . decl (return $ A.Chan (A.ChanAttributes False False)
                                (A.UserProtocol $ simpleName "prot")) oC . singleton
     
 testTransformProtocolInput :: Test

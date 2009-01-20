@@ -74,7 +74,7 @@ startState
   where
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayLiteral m []
-    chanT t = A.Chan A.DirUnknown (A.ChanAttributes False False) t
+    chanT t = A.Chan (A.ChanAttributes False False) t
     chanIntT = chanT A.Int
     countedIntsT = chanT $ A.UserProtocol (simpleName "countedInts")
     iirT = chanT $ A.UserProtocol (simpleName "iir")
@@ -212,71 +212,81 @@ testOccamTypes = TestList
     --{{{  processes
 
     -- Inputs
-    , testOK   1000 $ inputSimple countedIntsC [A.InCounted m intV intsV]
-    , testFail 1001 $ inputSimple countedIntsC [A.InCounted m realV intsV]
-    , testFail 1002 $ inputSimple countedIntsC [A.InCounted m intV intV]
-    , testFail 1003 $ inputSimple countedIntsC [A.InCounted m constIntV intsV]
-    , testFail 1004 $ inputSimple countedIntsC [A.InCounted m intV constIntsV]
-    , testFail 1005 $ inputSimple countedIntsC [A.InCounted m intV intsC]
-    , testOK   1010 $ inputSimple intC [inv intV]
-    , testFail 1011 $ inputSimple intC [inv constIntV]
-    , testFail 1012 $ inputSimple intC [inv intC]
+    , testOK   1000 $ inputSimple countedIntsCin [A.InCounted m intV intsV]
+    , testFail 1001 $ inputSimple countedIntsCin [A.InCounted m realV intsV]
+    , testFail 1002 $ inputSimple countedIntsCin [A.InCounted m intV intV]
+    , testFail 1003 $ inputSimple countedIntsCin [A.InCounted m constIntV intsV]
+    , testFail 1004 $ inputSimple countedIntsCin [A.InCounted m intV constIntsV]
+    , testFail 1005 $ inputSimple countedIntsCin [A.InCounted m intV intsC]
+    , testOK   1010 $ inputSimple intCin [inv intV]
+    , testFail 1011 $ inputSimple intCin [inv constIntV]
+    , testFail 1012 $ inputSimple intCin [inv intC]
     , testFail 1013 $ inputSimple intV [inv intV]
     , testFail 1014 $ inputSimple intV []
     , testFail 1015 $ inputSimple intV [inv intV, inv intV]
     , testFail 1016 $ inputSimple tim [inv intV]
-    , testOK   1020 $ inputSimple iirC [inv intV, inv intV, inv realV]
-    , testFail 1021 $ inputSimple iirC [inv intV, inv realV, inv intV]
-    , testFail 1022 $ inputSimple iirC [inv realV, inv intV, inv intV]
-    , testFail 1023 $ inputSimple iirC [inv intV, inv intV]
-    , testFail 1024 $ inputSimple iirC [inv intV, inv intV, inv realV, inv intV]
-    , testOK   1030 $ inputCase caseC [ vari "one" [inv intV]
+    , testFail 1017 $ inputSimple intC [inv intV]    
+    , testOK   1020 $ inputSimple iirCin [inv intV, inv intV, inv realV]
+    , testFail 1021 $ inputSimple iirCin [inv intV, inv realV, inv intV]
+    , testFail 1022 $ inputSimple iirCin [inv realV, inv intV, inv intV]
+    , testFail 1023 $ inputSimple iirCin [inv intV, inv intV]
+    , testFail 1024 $ inputSimple iirCin [inv intV, inv intV, inv realV, inv intV]
+    , testOK   1030 $ inputCase caseCin [ vari "one" [inv intV]
                                       , vari "two" [inv realV]
                                       , vari "three" []
                                       ]
-    , testFail 1031 $ inputCase caseC [ vari "one" [inv realV]
+    , testFail 1031 $ inputCase caseCin [ vari "one" [inv realV]
                                       , vari "two" [inv realV]
                                       , vari "three" []
                                       ]
-    , testFail 1032 $ inputCase caseC [ vari "one" [inv intV]
+    , testFail 1032 $ inputCase caseCin [ vari "one" [inv intV]
                                       , vari "two" [inv intV]
                                       , vari "three" []
                                       ]
-    , testFail 1033 $ inputCase caseC [ vari "one" [inv intV]
+    , testFail 1033 $ inputCase caseCin [ vari "one" [inv intV]
                                       , vari "herring" [inv realV]
                                       , vari "three" []
                                       ]
-    , testFail 1034 $ inputCase caseC [ vari "one" [inv intV, inv realV]
+    , testFail 1034 $ inputCase caseCin [ vari "one" [inv intV, inv realV]
                                       , vari "two" [inv realV]
                                       , vari "three" []
                                       ]
-    , testFail 1035 $ inputCase caseC [ vari "one" []
+    , testFail 1035 $ inputCase caseCin [ vari "one" []
                                       , vari "two" []
                                       , vari "three" []
                                       ]
+    , testFail 1036 $ inputCase caseC [ vari "one" [inv intV]
+                                      , vari "two" [inv realV]
+                                      , vari "three" []
+                                      ]
+
 
     -- Outputs
-    , testOK   1100 $ outputSimple countedIntsC [A.OutCounted m intE twoIntsE]
-    , testFail 1101 $ outputSimple countedIntsC [A.OutCounted m realE twoIntsE]
-    , testFail 1102 $ outputSimple countedIntsC [A.OutCounted m intE intE]
-    , testOK   1110 $ outputSimple intC [oute intE]
-    , testFail 1111 $ outputSimple intC [oute intCE]
+    , testOK   1100 $ outputSimple countedIntsCout [A.OutCounted m intE twoIntsE]
+    , testFail 1101 $ outputSimple countedIntsCout [A.OutCounted m realE twoIntsE]
+    , testFail 1102 $ outputSimple countedIntsCout [A.OutCounted m intE intE]
+    , testFail 1103 $ outputSimple countedIntsC [A.OutCounted m intE twoIntsE]
+    , testOK   1110 $ outputSimple intCout [oute intE]
+    , testFail 1111 $ outputSimple intCout [oute intCE]
     , testFail 1112 $ outputSimple intV [oute intE]
     , testFail 1113 $ outputSimple tim [oute intE]
-    , testOK   1120 $ outputSimple iirC [oute intE, oute intE, oute realE]
-    , testFail 1121 $ outputSimple iirC [oute intE, oute realE, oute intE]
-    , testFail 1122 $ outputSimple iirC [oute realE, oute intE, oute intE]
-    , testFail 1123 $ outputSimple iirC [oute intE, oute intE]
-    , testFail 1124 $ outputSimple iirC [oute intE, oute intE, oute realE,
+    , testFail 1114 $ outputSimple intC [oute intE]
+    , testOK   1120 $ outputSimple iirCout [oute intE, oute intE, oute realE]
+    , testFail 1121 $ outputSimple iirCout [oute intE, oute realE, oute intE]
+    , testFail 1122 $ outputSimple iirCout [oute realE, oute intE, oute intE]
+    , testFail 1123 $ outputSimple iirCout [oute intE, oute intE]
+    , testFail 1124 $ outputSimple iirCout [oute intE, oute intE, oute realE,
                                          oute intE]
-    , testOK   1130 $ outputCase caseC "one" [oute intE]
-    , testOK   1131 $ outputCase caseC "two" [oute realE]
-    , testOK   1132 $ outputCase caseC "three" []
-    , testFail 1133 $ outputCase caseC "three" [oute intE]
-    , testFail 1134 $ outputCase caseC "two" [oute realE, oute intE]
-    , testFail 1135 $ outputCase caseC "two" []
-    , testFail 1136 $ outputCase caseC "two" [oute intE]
-    , testFail 1137 $ outputCase caseC "herring" [oute intE]
+    , testFail 1125 $ outputSimple iirC [oute intE, oute intE, oute realE]
+    , testOK   1130 $ outputCase caseCout "one" [oute intE]
+    , testOK   1131 $ outputCase caseCout "two" [oute realE]
+    , testOK   1132 $ outputCase caseCout "three" []
+    , testFail 1133 $ outputCase caseCout "three" [oute intE]
+    , testFail 1134 $ outputCase caseCout "two" [oute realE, oute intE]
+    , testFail 1135 $ outputCase caseCout "two" []
+    , testFail 1136 $ outputCase caseCout "two" [oute intE]
+    , testFail 1137 $ outputCase caseCout "herring" [oute intE]
+    , testFail 1138 $ outputCase caseC "one" [oute intE]
 
     -- Timer operations
     , testOK   1180 $ A.Input m tim $ A.InputTimerRead m $ inv intV
@@ -329,17 +339,17 @@ testOccamTypes = TestList
                                $ A.FunctionCallList m function22 [realE]
 
     -- Alt
-    , testOK   1500 $ testAlt $ A.Alternative m true intC (insim [inv intV]) skip
+    , testOK   1500 $ testAlt $ A.Alternative m true intCin (insim [inv intV]) skip
     , testOK   1501 $ testAlt $ A.Alternative m true tim
                                               (A.InputTimerAfter m intE) skip
-    , testOK   1502 $ testAlt $ A.Alternative m boolE intC
+    , testOK   1502 $ testAlt $ A.Alternative m boolE intCin
                                                   (insim [inv intV]) skip
     , testOK   1503 $ testAlt $ A.AlternativeSkip m boolE skip
-    , testFail 1504 $ testAlt $ A.Alternative m true intC (insim [inv realV]) skip
+    , testFail 1504 $ testAlt $ A.Alternative m true intCin (insim [inv realV]) skip
     , testFail 1505 $ testAlt $ A.Alternative m true tim
                                               (A.InputTimerRead m $ inv intV)
                                               skip
-    , testFail 1506 $ testAlt $ A.Alternative m intE intC
+    , testFail 1506 $ testAlt $ A.Alternative m intE intCin
                                                   (insim [inv intV]) skip
     , testFail 1507 $ testAlt $ A.AlternativeSkip m intE skip
 
@@ -556,11 +566,13 @@ testOccamTypes = TestList
     coord2E = A.Literal m coord2T coord2
     coord3T = A.Record (simpleName "COORD3")
     coord3 = A.RecordLiteral m [realE, realE, realE]
-    chanT t = A.Chan A.DirUnknown (A.ChanAttributes False False) t
+    chanT t = A.Chan (A.ChanAttributes False False) t
     chanIntT = chanT A.Int
     chansIntT = A.Array [dimension 2] $ chanT A.Int
     uchansIntT = A.Array [A.UnknownDimension] $ chanT A.Int
     intC = variable "chanInt"
+    intCin = A.DirectedVariable emptyMeta A.DirInput intC
+    intCout = A.DirectedVariable emptyMeta A.DirOutput intC
     intCE = A.ExprVariable m intC
     intsC = variable "chansInt"
     mobileIntV = variable "mobileInt"
@@ -576,8 +588,14 @@ testOccamTypes = TestList
     listE = A.Literal m listT (A.ListLiteral m [intE, intE, intE])
     i = simpleName "i"
     countedIntsC = variable "chanCountedInts"
+    countedIntsCin = A.DirectedVariable emptyMeta A.DirInput countedIntsC
+    countedIntsCout = A.DirectedVariable emptyMeta A.DirOutput countedIntsC
     iirC = variable "chanIIR"
+    iirCin = A.DirectedVariable emptyMeta A.DirInput iirC
+    iirCout = A.DirectedVariable emptyMeta A.DirOutput iirC
     caseC = variable "chanCaseProto"
+    caseCin = A.DirectedVariable emptyMeta A.DirInput caseC
+    caseCout  = A.DirectedVariable emptyMeta A.DirOutput caseC
 
     --}}}
     --{{{  process fragments

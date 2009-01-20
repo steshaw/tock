@@ -200,11 +200,11 @@ testExprs =
   ,failE ("(uint8 : b) + uint8 : c")
   ,failE ("(uint8 : b) == uint8 : c")
   
-  ,passE ("?uint8: ?c", 240, Cast (A.Chan A.DirInput nonShared A.Byte) $ DirVar A.DirInput "c")
+  ,passE ("?uint8: ?c", 240, Cast (A.ChanEnd A.DirInput nonShared A.Byte) $ DirVar A.DirInput "c")
   --Should parse:
-  ,passE ("?c: ?c", 241, Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ DirVar A.DirInput "c")
-  ,passE ("?c: ?c : b", 242, Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ 
-                               Cast (A.Chan A.DirInput nonShared $ A.UserDataType $ typeName "c") $ Var "b")
+  ,passE ("?c: ?c", 241, Cast (A.ChanEnd A.DirInput nonShared $ A.UserDataType $ typeName "c") $ DirVar A.DirInput "c")
+  ,passE ("?c: ?c : b", 242, Cast (A.ChanEnd A.DirInput nonShared $ A.UserDataType $ typeName "c") $ 
+                               Cast (A.ChanEnd A.DirInput nonShared $ A.UserDataType $ typeName "c") $ Var "b")
   ,failE ("?c:")
   ,failE (":?c")
   
@@ -549,13 +549,13 @@ testDataType =
   ,pass ("int0",RP.dataType,assertEqual "testDataType 12" $ A.UserDataType $ typeName "int0")
   ,fail ("bool bool",RP.dataType)
   
-  ,pass ("?int",RP.dataType,assertEqual "testDataType 102" $ A.Chan A.DirInput nonShared A.Int)
-  ,pass ("! bool",RP.dataType,assertEqual "testDataType 103" $ A.Chan A.DirOutput nonShared A.Bool)
+  ,pass ("?int",RP.dataType,assertEqual "testDataType 102" $ A.ChanEnd A.DirInput nonShared A.Int)
+  ,pass ("! bool",RP.dataType,assertEqual "testDataType 103" $ A.ChanEnd A.DirOutput nonShared A.Bool)
   --These types should succeed in the *parser* -- they would be thrown out further down the line:
-  ,pass ("??int",RP.dataType,assertEqual "testDataType 104" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int)
-  ,pass ("? ? int",RP.dataType,assertEqual "testDataType 105" $ A.Chan A.DirInput nonShared $ A.Chan A.DirInput nonShared A.Int)
-  ,pass ("!!bool",RP.dataType,assertEqual "testDataType 106" $ A.Chan A.DirOutput nonShared $ A.Chan A.DirOutput nonShared A.Bool)
-  ,pass ("?!bool",RP.dataType,assertEqual "testDataType 107" $ A.Chan A.DirInput nonShared $ A.Chan A.DirOutput nonShared A.Bool)
+  ,pass ("??int",RP.dataType,assertEqual "testDataType 104" $ A.ChanEnd A.DirInput nonShared $ A.ChanEnd A.DirInput nonShared A.Int)
+  ,pass ("? ? int",RP.dataType,assertEqual "testDataType 105" $ A.ChanEnd A.DirInput nonShared $ A.ChanEnd A.DirInput nonShared A.Int)
+  ,pass ("!!bool",RP.dataType,assertEqual "testDataType 106" $ A.ChanEnd A.DirOutput nonShared $ A.ChanEnd A.DirOutput nonShared A.Bool)
+  ,pass ("?!bool",RP.dataType,assertEqual "testDataType 107" $ A.ChanEnd A.DirInput nonShared $ A.ChanEnd A.DirOutput nonShared A.Bool)
   
   ,fail ("?",RP.dataType)
   ,fail ("!",RP.dataType)
@@ -564,7 +564,7 @@ testDataType =
   ,fail ("bool!",RP.dataType)
   ,fail ("int?int",RP.dataType)  
   
-  ,pass ("channel bool",RP.dataType,assertEqual "testDataType 200" $ A.Chan A.DirUnknown nonShared A.Bool)
+  ,pass ("channel bool",RP.dataType,assertEqual "testDataType 200" $ A.Chan nonShared A.Bool)
   
   ,pass ("time",RP.dataType,assertEqual "testDataType 300" A.Time)
   ,pass ("timer",RP.dataType,assertEqual "testDataType 301" $ A.UserDataType $ typeName "timer")
@@ -583,7 +583,7 @@ testDecl =
  [
   passd ("bool: b;",0,pat $ A.Specification m (simpleName "b") $ A.Declaration m A.Bool)
   ,passd ("uint8: x;",1,pat $ A.Specification m (simpleName "x") $ A.Declaration m A.Byte)
-  ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.Chan A.DirInput nonShared A.Bool))
+  ,passd ("?bool: bc;",2,pat $ A.Specification m (simpleName "bc") $ A.Declaration m (A.ChanEnd A.DirInput nonShared A.Bool))
   ,passd ("a: b;",3,pat $ A.Specification m (simpleName "b") $ A.Declaration m (A.UserDataType $ A.Name m "a"))
 
   ,passd2 ("bool: b0,b1;",100,pat $ A.Specification m (simpleName "b0") $ A.Declaration m A.Bool,

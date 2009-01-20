@@ -255,40 +255,40 @@ testGenType = TestList
   ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
 
-  ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int32_t>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int32_t>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int32) 
-  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int32_t>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int32) 
-  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int32_t>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int32) 
+  ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes False True) A.Int32) 
+  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes True False) A.Int32) 
+  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes True True) A.Int32) 
 
-  ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) (A.Mobile A.Int32))
+  ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (tcall genType $ A.Chan (A.ChanAttributes False False) (A.Mobile A.Int32))
   
-  ,testBoth "GenType 400" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 401" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.Chan A.DirInput (A.ChanAttributes False True) A.Int32) 
+  ,testBoth "GenType 400" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 401" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) 
 
-  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.Chan A.DirOutput (A.ChanAttributes True False) A.Int32) 
+  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) 
   
   --ANY and protocols cannot occur outside channels in C++ or C, they are tested here:
   ,testBothFail "GenType 500" (tcall genType $ A.Any) 
   ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
   ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int32 A.Int32) 
    
-  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int32_t>**" (tcall genType $ A.Array [dimension 5] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32)
-  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int32_t>*" (tcall genType $ A.Array [dimension 5] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int32)
+  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int32_t>**" (tcall genType $ A.Array [dimension 5] $ A.Chan (A.ChanAttributes False False) A.Int32)
+  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int32_t>*" (tcall genType $ A.Array [dimension 5] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32)
   
   --Test types that can only occur inside channels:
   --ANY:
-  ,testBoth "GenType 800" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any)
+  ,testBoth "GenType 800" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) A.Any)
   --Protocol:
-  ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
+  ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
   --Counted:
-  ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Counted A.Int32 A.Int32)
+  ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Counted A.Int32 A.Int32)
   
   --Channels of arrays are special in C++:
   ,testBoth "GenType 1100" "Channel" "csp::One2OneChannel<tockSendableArray<int32_t,6>>" 
-    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [dimension 6] A.Int32)
+    (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6] A.Int32)
   ,testBoth "GenType 1101" "Channel" "csp::One2OneChannel<tockSendableArray<int32_t,6*7*8>>" 
-    (tcall genType $ A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.Array [dimension 6,dimension 7,dimension 8] A.Int32)
+    (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6,dimension 7,dimension 8] A.Int32)
 
 
   -- List types:
@@ -463,14 +463,14 @@ testDeclaration = TestList
   testBothSame "genDeclaration 0" "int32_t foo;" (tcall3 genDeclaration A.Int32 foo False)
   
   --Channels and channel-ends:
-  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32) foo False)
-  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True False) A.Int32) foo False)
-  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes False True) A.Int32) foo False)
-  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirUnknown (A.ChanAttributes True True) A.Int32) foo False)
-  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
-  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirInput (A.ChanAttributes False True) A.Int32) foo False)
-  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes False False) A.Int32) foo False)
-  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.Chan A.DirOutput (A.ChanAttributes True False) A.Int32) foo False)  
+  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes False False) A.Int32) foo False)
+  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes True False) A.Int32) foo False)
+  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes False True) A.Int32) foo False)
+  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes True True) A.Int32) foo False)
+  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
+  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) foo False)
+  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) foo False)
+  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) foo False)  
   
   --Arrays (of simple):
   ,testBothSame "genDeclaration 100" "int32_t foo[8];"
@@ -491,19 +491,19 @@ testDeclaration = TestList
   --Arrays of channels and channel-ends:
   ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];"
     "csp::One2OneChannel<int32_t> foo_storage[8];csp::One2OneChannel<int32_t>* foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan (A.ChanAttributes False False) A.Int32) foo False)
 
   ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];"
     "csp::One2OneChannel<int32_t> foo_storage[8*9];csp::One2OneChannel<int32_t>* foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan (A.ChanAttributes False False) A.Int32) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];"
     "csp::Chanin<int32_t> foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];"
     "csp::Chanout<int32_t> foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan A.DirOutput (A.ChanAttributes False False) A.Int32) foo False)
+    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) foo False)
     
     
   --Records of simple:
@@ -528,15 +528,15 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   testAllSame 0 ("","") A.Int
   
   -- Channel types:
-  ,testAll 1 ("ChanInit(wptr,(&foo));","") ("","") $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 2 ("","") $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  ,testAll 1 ("ChanInit(wptr,(&foo));","") ("","") $ A.Chan (A.ChanAttributes False False) A.Int
+  ,testAllSame 2 ("","") $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain arrays:
   ,testAllSame 3 ("","") $ A.Array [dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-  ,testAllSame 6 ("","") $ A.Array [dimension 4] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes False False) A.Int
+  ,testAllSame 6 ("","") $ A.Array [dimension 4] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int
   
   -- Plain records:
   ,testAllR 100 ("","") ("","") A.Int id
@@ -547,7 +547,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
 
   -- Mobile versions
   ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [dimension 4] A.Int
-  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [dimension 4] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
+  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes False False) A.Int
   ,testAllR 1100 ("","") ("","") A.Int A.Mobile
   -- Records containing an array:
   ,testAllR 1101 ("","") ("","") (A.Array [dimension 4,dimension 5] A.Int) A.Mobile
@@ -611,9 +611,9 @@ testSpec = TestList
  [
   --Declaration:
   testAllSame 0 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta A.Int
-  ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAllSame 1 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Chan (A.ChanAttributes False False) A.Int)
   ,testAllSame 2 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [dimension 3] A.Int)
-  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [dimension 3] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAllSame 3 ("#ATION_False#INIT","#FREE") $ A.Declaration emptyMeta (A.Array [dimension 3] $ A.Chan (A.ChanAttributes False False) A.Int)
 
   -- TODO test declarations with initialisers
 
@@ -666,8 +666,8 @@ testSpec = TestList
      
   -- Channel retyping doesn't require size checking:
   ,testAllS 1000 ("Channel*const foo=(Channel*const)(&y);","") ("csp::One2OneChannel<tockSendableArrayOfBytes>*const foo=(csp::One2OneChannel<tockSendableArrayOfBytes>*const)(&y);","")
-    (A.Retypes emptyMeta A.Abbrev (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any) (variable "y"))
-    (defineName (simpleName "y") (simpleDefDecl "y" (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Any))) id
+    (A.Retypes emptyMeta A.Abbrev (A.Chan (A.ChanAttributes False False) A.Any) (variable "y"))
+    (defineName (simpleName "y") (simpleDefDecl "y" (A.Chan (A.ChanAttributes False False) A.Any))) id
       
   -- Plain-to-array retyping:
   -- single (unknown) dimension:
@@ -708,9 +708,9 @@ testSpec = TestList
     testAllForTypes :: Int -> (A.Type -> (String, String)) -> (A.Type -> (String, String)) -> (A.Type -> A.SpecType) -> [A.Type] -> Test
     testAllForTypes n teC teCPP spec ts = TestList [testAllS (n+i) (teC t) (teCPP t) (spec t) (defineName (simpleName "bar") $ simpleDefDecl "bar" t) over' | (i,t) <- zip [0..] ts]
   
-    chanInt = A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int
-    chanIntIn = A.Chan A.DirInput (A.ChanAttributes False False) A.Int
-    chanIntOut = A.Chan A.DirOutput (A.ChanAttributes False False) A.Int
+    chanInt = A.Chan (A.ChanAttributes False False) A.Int
+    chanIntIn = A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int
+    chanIntOut = A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int
   
     testAll :: Int -> (String,String) -> (String,String) -> A.SpecType -> Test
     testAll a b c d = testAllS a b c d (return ()) over
@@ -732,7 +732,7 @@ testRetypeSizes :: Test
 testRetypeSizes = TestList
  [
   -- Channel retyping doesn't need size check:
-  test 0 "" (A.Chan undefined undefined undefined) (A.Chan undefined undefined undefined)
+  test 0 "" (A.Chan undefined undefined) (A.Chan undefined undefined)
   
   -- Plain types just need to check the return of occam_check_retype:
   ,test 1 "if(occam_check_retype(#S,#D,#M)!=1){@}"
@@ -780,8 +780,8 @@ testGenVariable = TestList
   -- Various types, unsubscripted:
   testSameA 0 ("foo","(*foo)","foo") id A.Int
   ,testSameA 10 ("(&foo)","foo","foo") id (A.Record bar)
-  ,testSameA2 20 ("(&foo)","foo") id (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testSameA2 30 ("foo","foo") id (A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testSameA2 20 ("(&foo)","foo") id (A.Chan (A.ChanAttributes False False) A.Int)
+  ,testSameA2 30 ("foo","foo") id (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Mobile versions of the above:
   ,testSameA2 40 ("foo","(*foo)") id (A.Mobile A.Int)
@@ -792,8 +792,8 @@ testGenVariable = TestList
   -- Arrays of the previous types, unsubscripted:
   ,testSameA 100 ("foo","foo","foo") id (A.Array [dimension 8] A.Int)
   ,testSameA 110 ("foo","foo","foo") id (A.Array [dimension 8] $ A.Record bar)
-  ,testSameA2 120 ("foo","foo") id (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testSameA2 130 ("foo","foo") id (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testSameA2 120 ("foo","foo") id (A.Array [dimension 8] $ A.Chan (A.ChanAttributes False False) A.Int)
+  ,testSameA2 130 ("foo","foo") id (A.Array [dimension 8] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Mobile arrays of the previous types:
   ,testSameA2 140 ("foo","(*foo)") id (A.Mobile $ A.Array [dimension 8] A.Int)
@@ -813,8 +813,8 @@ testGenVariable = TestList
   ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [dimension 8,dimension 9,dimension 10] A.Int)
   ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [dimension 8] $ A.Record bar)
   -- Original channel arrays are Channel*[], abbreviated channel arrays are Channel*[]:
-  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan (A.ChanAttributes False False) A.Int)
+  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int)
   
   -- Fully subscripted array, and record field reference:
   ,testAC 400 ("(&foo@C4)->x","(&foo@U4)->x") (fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
@@ -824,10 +824,10 @@ testGenVariable = TestList
   --TODO come back to slices later
   
   -- Directed variables (incl. members of arrays, deref mobiles):
-  ,testSameA2 500 ("$(&foo)$","$foo$") dir (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testSameA2 500 ("$(&foo)$","$foo$") dir (A.Chan (A.ChanAttributes False False) A.Int)
   -- Test for mobile channels (in future)
   --,testSameA2 510 ("$foo$","$(*foo)$") (dir . deref) (A.Mobile $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
-  ,testAC2 520 ("$foo@C4$","$foo@U4$") ("$foo@C4$","$foo@U4$") (dir . (sub 4)) (A.Array [dimension 8] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+  ,testAC2 520 ("$foo@C4$","$foo@U4$") ("$foo@C4$","$foo@U4$") (dir . (sub 4)) (A.Array [dimension 8] $ A.Chan (A.ChanAttributes False False) A.Int)
  ]
  where
    deref = A.DerefVariable emptyMeta
@@ -850,7 +850,7 @@ testGenVariable = TestList
                   defRecord "barbar" "y" $ A.Record bar
        over :: Override
        over = local $ \ops -> ops {genArraySubscript = (\c _ subs -> at >> (tell [if c /= A.NoCheck then "C" else "U"]) >> (seqComma $ map snd subs))
-                      ,genDirectedVariable = (\cg _ -> dollar >> cg >> dollar)}
+                      ,genDirectedVariable = (\_ _ cg _ -> dollar >> cg >> dollar)}
    
    testA :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.Type -> Test
    testA n eC eCPP sub t = TestList [test n eC eCPP sub A.Original t, test (n+1) eC eCPP sub A.Abbrev t, test (n+2) eC eCPP sub A.ValAbbrev t]
@@ -878,7 +878,7 @@ testAssign = TestList
   testBothSameS "testAssign 0" "@=$;" (over (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e]))) (state A.Int)
   ,testBothSameS "testAssign 1" "@=$;" (over (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e]))) (state A.Time)
   ,testBothSameS "testAssign 2" "@=$;" (over (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])))
-    (state $ A.Chan A.DirInput (A.ChanAttributes False False) A.Int)
+    (state $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int)
 
   -- Fail because genAssign only handles one destination and one source:
   ,testBothFail "testAssign 100" (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo,A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e]))
@@ -887,7 +887,7 @@ testAssign = TestList
   
   -- Fail because assignment can't be done with these types (should have already been transformed away):
   ,testBothFailS "testAssign 200" (over (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])))
-    (state $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int)
+    (state $ A.Chan (A.ChanAttributes False False) A.Int)
   ,testBothFailS "testAssign 201" (over (tcall3 genAssign emptyMeta [A.Variable emptyMeta foo] (A.ExpressionList emptyMeta [e])))
     (state $ A.Record bar)
  ]
@@ -1023,13 +1023,15 @@ testInput = TestList
    testInputItem' :: Int -> String -> String -> A.InputItem -> A.Type -> A.Type -> Test
    testInputItem' n eC eCPP ii t ct = TestList
      [
-       testBothS ("testInput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii)) (state A.DirUnknown)
-       ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii)) (state A.DirInput)
+       testBothS ("testInput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
+         (state $ A.Chan)
+       ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
+         (state $ A.ChanEnd A.DirInput)
      ]
      where
        hashIs x y = subRegex (mkRegex "#") y x
      
-       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) ct)
+       state ch  = do defineName (simpleName "c") $ simpleDefDecl "c" (ch (A.ChanAttributes False False) ct)
                       case t of
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
@@ -1141,13 +1143,15 @@ testOutput = TestList
    testOutputItem' :: Int -> String -> String -> A.OutputItem -> A.Type -> A.Type -> Test
    testOutputItem' n eC eCPP oi t ct = TestList
      [
-       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi)) (state A.DirUnknown)
-       ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi)) (state A.DirOutput)
+       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi))
+         (state $ A.Chan)
+       ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi))
+         (state $ A.ChanEnd A.DirOutput)
      ]
      where
        hashIs x y = subRegex (mkRegex "#") y x
      
-       state dir = do defineName (simpleName "c") $ simpleDefDecl "c" (A.Chan dir (A.ChanAttributes False False) ct)
+       state ch  = do defineName (simpleName "c") $ simpleDefDecl "c" (ch (A.ChanAttributes False False) ct)
                       case t of
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
@@ -1158,8 +1162,8 @@ testOutput = TestList
    chan = simpleName "c"
    chanOut = simpleName "cOut"
    state :: CSM m => m ()
-   state = do defineName chan $ simpleDefDecl "c" (A.Chan A.DirUnknown (A.ChanAttributes False False) $ A.UserProtocol foo)
-              defineName chanOut $ simpleDefDecl "cOut" (A.Chan A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
+   state = do defineName chan $ simpleDefDecl "c" (A.Chan (A.ChanAttributes False False) $ A.UserProtocol foo)
+              defineName chanOut $ simpleDefDecl "cOut" (A.ChanEnd A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
    overOutput, overOutputItem, over :: Override
    overOutput = local $ \ops -> ops {genOutput = override2 caret}
    overOutputItem = local $ \ops -> ops {genOutputItem = override2 caret}
@@ -1170,8 +1174,8 @@ testBytesIn = TestList
  [
   testBothSame "testBytesIn 0" "sizeof(int8_t)" (tcall3 genBytesIn undefined A.Int8 undefined)
   ,testBothSame "testBytesIn 1" "sizeof(foo)" (tcall3 genBytesIn undefined (A.Record foo) undefined)
-  ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int32_t>)" (tcall3 genBytesIn undefined (A.Chan A.DirUnknown (A.ChanAttributes False False) A.Int32) undefined)
-  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int64_t>)" (tcall3 genBytesIn undefined (A.Chan A.DirInput (A.ChanAttributes False False) A.Int64) undefined)
+  ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int32_t>)" (tcall3 genBytesIn undefined (A.Chan (A.ChanAttributes False False) A.Int32) undefined)
+  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int64_t>)" (tcall3 genBytesIn undefined (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int64) undefined)
   
   --Array with a single known dimension:
   ,testBothSame "testBytesIn 100" "5*sizeof(int16_t)" (tcall3 genBytesIn undefined (A.Array [dimension 5] A.Int16) (Left False))

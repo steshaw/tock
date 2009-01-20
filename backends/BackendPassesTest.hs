@@ -247,7 +247,7 @@ qcTestDeclareSizes =
         strFooSizes = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") fooSizesSpec)
 
     isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
-    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [dimension n] $ A.Chan A.DirUnknown (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
+    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [dimension n] $ A.Chan (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
                      ,valSize [makeConstant emptyMeta n], return ())
 
     isIsFoo :: ([A.Dimension], [A.Dimension], [A.Subscript]) -> (A.SpecType, A.SpecType, State CompState ())
