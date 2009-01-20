@@ -207,8 +207,14 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
              A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
                do A.Record recordName <- astTypeOf recordV
                   return (A.Variable m $ A.Name m $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+             A.DirectedVariable _ _ (A.Variable _ srcN) -> return (A.Variable m
+               $ append_sizes srcN)
            -- Get the dimensions of the source variable:
-           (A.Array srcDs _) <- astTypeOf innerV
+           innerVT <- astTypeOf innerV
+           srcDs <- case innerVT of
+                      (A.Array srcDs _) -> return srcDs
+                      _ -> diePC m $ formatCode ("Unexpected type in abbrev var"
+                               ++ " (%) in declareSizesArray: %") innerV innerVT
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
                subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m A.NoCheck (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
