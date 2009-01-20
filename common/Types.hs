@@ -206,9 +206,17 @@ typeOfVariable (A.DerefVariable m v)
 typeOfVariable (A.DirectedVariable m dir v)
     = do t <- typeOfVariable v
          case t of
-           A.Chan _ attr innerT -> return $ A.Chan dir attr innerT
-           A.Array ds (A.Chan _ attr innerT)
-             -> return $ A.Array ds (A.Chan dir attr innerT)
+           A.ChanEnd dir' _ _ ->
+             if dir == dir'
+               then return t
+               else dieP m $ "Attempted to reverse direction of a channel-end"
+           A.Chan attr innerT -> return $ A.ChanEnd dir attr innerT
+           A.Array ds (A.Chan attr innerT)
+             -> return $ A.Array ds (A.ChanEnd dir attr innerT)
+           A.Array _ (A.ChanEnd dir' _ _) ->
+             if dir == dir'
+               then return t
+               else dieP m $ "Attempted to reverse direction of a channel-end"
            _ -> dieP m $ "Direction specified on non-channel variable"
 
 -- | Get the abbreviation mode of a variable.
@@ -297,7 +305,8 @@ protocolItems :: (CSMR m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [
 protocolItems v
     =  do chanT <- typeOfVariable v
           t <- case chanT of
-                 A.Chan _ _ t -> return t
+                 A.Chan _ t -> return t
+                 A.ChanEnd _ _ t -> return t
                  _ -> dieP (findMeta v) $ "Expected a channel variable, but this is of type: " ++ show chanT
           case t of
             A.UserProtocol proto ->
@@ -386,9 +395,8 @@ makeDimension m n = A.Dimension $ makeConstant m n
 applyDirection :: Die m => Meta -> A.Direction -> A.Type -> m A.Type
 applyDirection m dir (A.Array ds t)
     = applyDirection m dir t >>* A.Array ds
-applyDirection m dir (A.Chan idir ca t)
-  | (idir == A.DirUnknown || idir == dir) = return $ A.Chan dir ca t
-  | otherwise = dieP m "Direction specified does not match existing direction"
+applyDirection m dir (A.Chan ca t)
+    = return $ A.ChanEnd dir ca t
 applyDirection m _ t
     = dieP m "Direction specified on non-channel type"
 
