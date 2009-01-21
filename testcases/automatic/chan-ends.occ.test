@@ -172,5 +172,63 @@ PROC main()
 %M
   foo(c!)
 
+%PASS Both body abbrev, with no direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    INT x:
+    d ? x
+%M
+  foo(c)
+
+%FAIL Both body abbrev, with input direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    INT x:
+    d ? x
+%M
+  foo(c?)
+
+%FAIL Both body abbrev, with output direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    INT x:
+    d ? x
+%M
+  foo(c!)
+
+%PASS Both body sep abbrev, with no direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    CHAN INT e IS c:
+    INT x:
+    e ? x
+%M
+  foo(c)
+
+%FAIL Both body sep abbrev, with input direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    CHAN INT e IS c:
+    INT x:
+    e ? x
+%M
+  foo(c?)
+
+%FAIL Both body sep abbrev, with output direction
+  CHAN INT d IS c:
+  SEQ
+    d ! 3
+    CHAN INT e IS c:
+    INT x:
+    e ? x
+%M
+  foo(c!)
+
+
 
 %
