@@ -224,7 +224,7 @@ pkginclude_HEADERS += support/tock_support_cppcsp.h
 
 clean-local:
 	rm -f obj/*.o obj/*.hi
-	rmdir obj
+	[ ! -d obj ] || rmdir obj
 
 # We post-process the Haddock output with M4 so that we can include SVG images.
 haddock:
