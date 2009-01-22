@@ -90,6 +90,10 @@ int g_stopped;
 		testf(f(1,-max,"")); \
 	} while (0)
 
+#define check_all(max,type) \
+	check_addition(max,occam_add_##type); \
+	check_subtraction(max,occam_subtr_##type);
+
 int main(int argc, char** argv)
 {
 	int passes = 0;
@@ -99,15 +103,10 @@ int main(int argc, char** argv)
 	//we only need to test one arrangement of each addition
 	//and multiplication test
 	
-	check_addition(127,occam_add_int8_t);
-	check_addition(32767,occam_add_int16_t);
-	check_addition(2147483647,occam_add_int32_t);
-	check_addition(9223372036854775807,occam_add_int64_t);
-	
-	check_subtraction(127,occam_subtr_int8_t);
-	check_subtraction(32767,occam_subtr_int16_t);
-	check_subtraction(2147483647,occam_subtr_int32_t);
-	check_subtraction(9223372036854775807,occam_subtr_int64_t);
+	check_all(127,int8_t);
+	check_all(32767,int16_t);
+	check_all(2147483647,int32_t);
+	check_all(9223372036854775807,int64_t);
 	
 	testf(occam_mul_int8_t(127,127,""));
 	testf(occam_mul_int8_t(2,127,""));
