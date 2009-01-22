@@ -125,6 +125,10 @@ int g_stopped;
 		testf(f(-max-1,0,"")); \
 		testp(0,f(max,max,"")); \
 		testp(0,f(-max-1,-max-1,"")); \
+		testp(-2,f(-max-1,max>>1,"")); \
+		testp(-2,f(-max-1,-(max>>1),"")); \
+		testp(-1,f(-max,max>>1,"")); \
+		testp(-1,f(-max,-(max>>1),"")); \
 		testp(-1,f(-max-1,-max,"")); \
 		testp(-1,f(-max-1,max,"")); \
 		testp(3,f(3,-max-1,"")); \

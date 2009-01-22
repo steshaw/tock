@@ -177,8 +177,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_rem_##type (type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, 1, "modulo by zero"); \
-		} \
-		if (a < 0) { \
+		} else if (a == __MIN(type)) { \
+			return a % (b < 0 ? -b : b); \
+		} else if (a < 0) { \
 			return -((-a) % (b < 0 ? -b : b)); \
 		} else { \
 			return a % (b < 0 ? -b : b); \
