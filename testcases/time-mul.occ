@@ -1,0 +1,38 @@
+#INCLUDE "course.occ"
+
+PROC main(CHAN OF BYTE out)
+  TIMER t:
+  INT t0, t1, x:
+  SEQ
+    t ? t0
+    SEQ i = 0 FOR 100000
+      x := i * 5
+    t ? t1
+    t1 := t1 - t0
+    out.string("Time for low numbers MUL: ", 0, out)
+    out.int(t1, 0, out)
+
+    t ? t0
+    SEQ i = 0 FOR 100000
+      x := i TIMES 5
+    t ? t1
+    t1 := t1 - t0
+    out.string("Time for low numbers TIMES: ", 0, out)
+    out.int(t1, 0, out)
+
+    t ? t0
+    SEQ i = 100000000 FOR 100000
+      x := i * 5
+    t ? t1
+    t1 := t1 - t0
+    out.string("Time for high numbers MUL: ", 0, out)
+    out.int(t1, 0, out)
+    
+    t ? t0
+    SEQ i = 100000000 FOR 100000
+      x := i TIMES 5
+    t ? t1
+    t1 := t1 - t0
+    out.string("Time for high numbers TIMES: ", 0, out)
+    out.int(t1, 0, out)
+:

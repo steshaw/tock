@@ -143,8 +143,25 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_MUL(type) \
 	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
 	static inline type occam_mul_##type (type a, type b, const char *pos) { \
-		return a * b; /*TODO*/ \
+		if (( (a < 0 ? -a : a) >> ((sizeof(type)*CHAR_BIT/2)-1) \
+		   | (b < 0 ? -b : b) >> ((sizeof(type)*CHAR_BIT/2)-1)) == 0) { \
+            /*overflow not possible on such small numbers*/ \
+            return a * b; \
+        } else if (b == 0) { \
+        	return 0; \
+        } else { \
+        	const type r = a * b; \
+        	/* Taken from: http://www.mail-archive.com/debian-bugs-dist@lists.debian.org/msg326431.html */ \
+        	if (r / b != a) { \
+        		occam_stop(pos, 3, "integer overflow when doing %d * %d", a, b); \
+        	} else { \
+        		return r; \
+        	} \
+        } \
 	}
+#define MAKE_MULF(type) \
+	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
+	static inline type occam_mul_##type (type a, type b, const char *pos) { return a * b;}
 #define MAKE_DIV(type) \
 	static inline type occam_div_##type (type, type, const char *) occam_unused; \
 	static inline type occam_div_##type (type a, type b, const char *pos) { \
@@ -295,7 +312,7 @@ MAKE_ALL_SIGNED(int64_t, "%lld", uint64_t)
 MAKE_RANGE_CHECK(float, "%f")
 MAKE_ADDF(float)
 MAKE_SUBTRF(float)
-MAKE_MUL(float)
+MAKE_MULF(float)
 MAKE_DIVF(float)
 MAKE_NEGATEF(float)
 MAKE_DUMB_REM(float)
@@ -304,7 +321,7 @@ MAKE_DUMB_REM(float)
 MAKE_RANGE_CHECK(double, "%f")
 MAKE_ADDF(double)
 MAKE_SUBTRF(double)
-MAKE_MUL(double)
+MAKE_MULF(double)
 MAKE_DIVF(double)
 MAKE_NEGATEF(double)
 MAKE_DUMB_REM(double)

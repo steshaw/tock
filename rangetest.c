@@ -13,7 +13,7 @@ int g_stopped;
 		passes++; \
 	} else { \
 		failures++; \
-		report_failure(#call " failed, expected to stop\n"); \
+		report_failure(#call " failed, expected to stop, got: %lld\n", (int64_t)call); \
 	} \
   } while(0)
 
