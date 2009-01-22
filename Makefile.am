@@ -213,9 +213,12 @@ GenNavAST_SOURCES = pregen/GenNavAST.hs $(pregen_sources)
 GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
 GenTagAST_SOURCES = pregen/GenTagAST.hs $(pregen_sources)
 
+rangetest_SOURCES = rangetest.c
+rangetest_LDFLAGS = -lm
+
 #The programs to actually build:	
 bin_PROGRAMS = tock
-noinst_PROGRAMS = tocktest GenNavAST GenOrdAST GenTagAST
+noinst_PROGRAMS = tocktest GenNavAST GenOrdAST GenTagAST rangetest
 TESTS = tocktest
 
 pkginclude_HEADERS = support/tock_support.h

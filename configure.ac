@@ -157,6 +157,14 @@ AC_CHECK_SIZEOF(int)
 AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
 AC_SUBST(C_INT_SIZE)
 
+CFLAGS="$CFLAGS -fno-strict-overflow -fno-tree-vrp"
+# The reason for -fno-strict-overflow and -fno-tree-vrp above is that with the way I have implemented
+# range checking, on GCC 4.3.2 (and probably other versions), GCC has
+# a bug triggered that causes invalid behaviour (spurious overflows can happen)
+# when compiled with -O2.  One mitigation I have found is to turn off these
+# particular optimisations.  Since GCC 4.3.2 will be around for a long time,
+# we have to leave in -fno-tree-vrp and -fno-strict-overflow for a long time too.
+
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
