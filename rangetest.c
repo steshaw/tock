@@ -90,9 +90,26 @@ int g_stopped;
 		testf(f(1,-max,"")); \
 	} while (0)
 
+#define check_negation(max, f) \
+	do { testp(0,f(0,"")); \
+		testp(1,f(-1,"")); \
+		testp(-1,f(1,"")); \
+		testp(max,f(-max,"")); \
+		testp(-max,f(max,"")); \
+		testf(f(-max-1,"")); \
+	} while (0)
+
 #define check_all(max,type) \
 	check_addition(max,occam_add_##type); \
-	check_subtraction(max,occam_subtr_##type);
+	check_subtraction(max,occam_subtr_##type); \
+	check_negation(max,occam_negate_##type);
+
+// The values of various operations (REM, shifts and so on)
+// are checked by the cgtest.  All we are concerned with
+// testing here is that the various occam support functions
+// STOP when they are supposed to, which is something that
+// the cgtests do not check.  But it can't hurt that we check
+// the various corner cases at the same time.
 
 int main(int argc, char** argv)
 {
@@ -124,6 +141,8 @@ int main(int argc, char** argv)
 	test_commutative(int16_t,occam_mul_int16_t);
 
 	//TODO test uint8_t as well
+	
+	//TODO add tests for the index-checking functions too
 
 	printf("Tests complete, passed: %d, failed: %d\n", passes, failures);
 	
