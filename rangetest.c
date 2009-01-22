@@ -99,10 +99,47 @@ int g_stopped;
 		testf(f(-max-1,"")); \
 	} while (0)
 
+#define check_division(max, f) \
+	do { testp(0,f(0,1,"")); \
+		testp(0,f(0,-1,"")); \
+		testf(f(0,0,"")); \
+		testf(f(1,0,"")); \
+		testf(f(-1,0,"")); \
+		testf(f(max,0,"")); \
+		testf(f(-max-1,0,"")); \
+		testf(f(-max-1,-1,"")); \
+		testp(-max-1,f(-max-1,1,"")); \
+		testp(max,f(-max,-1,"")); \
+		testp(-max,f(max,-1,"")); \
+		testp(max,f(max,1,"")); \
+	} while (0)
+
+#define check_rem(max, f) \
+	do { testp(0, f(1,1,"")); \
+		testp(0, f(0,1,"")); \
+		testp(0, f(0,-1,"")); \
+		testf(f(0,0,"")); \
+		testf(f(1,0,"")); \
+		testf(f(-1,0,"")); \
+		testf(f(max,0,"")); \
+		testf(f(-max-1,0,"")); \
+		testp(0,f(max,max,"")); \
+		testp(0,f(-max-1,-max-1,"")); \
+		testp(-1,f(-max-1,-max,"")); \
+		testp(-1,f(-max-1,max,"")); \
+		testp(3,f(3,-max-1,"")); \
+		testp(-3,f(-3,-max-1,"")); \
+		testp(max,f(max,-max-1,"")); \
+		testp(-max,f(-max,-max-1,"")); \
+	} while (0)
+
 #define check_all(max,type) \
 	check_addition(max,occam_add_##type); \
 	check_subtraction(max,occam_subtr_##type); \
-	check_negation(max,occam_negate_##type);
+	check_negation(max,occam_negate_##type); \
+	check_division(max,occam_div_##type); \
+	check_rem(max,occam_rem_##type);
+
 
 // The values of various operations (REM, shifts and so on)
 // are checked by the cgtest.  All we are concerned with
