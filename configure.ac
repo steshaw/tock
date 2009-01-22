@@ -164,6 +164,10 @@ CFLAGS="$CFLAGS -fno-strict-overflow -fno-tree-vrp"
 # when compiled with -O2.  One mitigation I have found is to turn off these
 # particular optimisations.  Since GCC 4.3.2 will be around for a long time,
 # we have to leave in -fno-tree-vrp and -fno-strict-overflow for a long time too.
+# UPDATE: According to my GCC bug, http://gcc.gnu.org/bugzilla/show_bug.cgi?id=38929
+# this problem can be fixed instead by changing my x++ into x+=1 in my code.  I've done
+# that, but I'm also leaving these flags in so that any other code (for example,
+# that Tock might spit out) that uses increments doesn't have the same issue.
 
 common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
 

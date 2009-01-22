@@ -37,8 +37,8 @@ int g_stopped;
   } while (0)
 
 #define test_commutative(t,f) \
-	do {int done_x = 0; for (t x = 0; !(x == 0 && done_x == 1);x++) { done_x = 1;\
-		int done_y = 0; for (t y = 0; !(y == x && done_y == 1);y++) { done_y = 1;\
+	do {int done_x = 0; for (t x = 0; !(x == 0 && done_x == 1);x+=1) { done_x = 1;\
+		int done_y = 0; for (t y = 0; !(y == x && done_y == 1);y+=1) { done_y = 1;\
 			g_stopped = 0; \
 			const t r0 = f(x,y,""); \
 			const int stopped_earlier = g_stopped; \
