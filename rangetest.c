@@ -61,6 +61,10 @@ int g_stopped;
 // so I just made it a macro.  We define min to be -max-1, which gets around
 // the fact that the C standard apparently says that the largest
 // constant for a value is -max (not -max-1).
+
+//Since we test commutativity (at least for 8- and 16-bits),
+//we only need to test one arrangement of each addition
+//and multiplication test
 #define check_addition(max, f) \
 	do { testp(2,f(1,1,"")); \
 		testp(0,f(0,0,"")); \
@@ -72,6 +76,23 @@ int g_stopped;
 		testp(-1,f(-max-1,max,"")); \
 		testp(-max-1,f(-max-1,0,"")); \
 		testp(max,f(max,0,"")); \
+	} while (0)
+
+#define check_multiplication(max, f) \
+	do { testp(0, f(0,0,"")); \
+		testp(max, f(1,max,"")); \
+		testp(-max-1, f(1,-max-1,"")); \
+		testp(-max, f(-1,max,"")); \
+		testf(f(-1,-max-1,"")); \
+		testp(-max-1,f(-2,(max>>1)+1,"")); \
+		testp(-max-1,f(2,-((max>>1)+1),"")); \
+		testf(f(-2,(max>>1)+2,"")); \
+        testf(f(-max-1,-max-1,"")); \
+        testf(f(max,max,"")); \
+        testf(f(max,-max-1,"")); \
+        testf(f(max-(max>>1),max-(max>>1),"")); \
+        testf(f(5,(-max-1)/4,"")); \
+        testf(f(5,(max>>2)+1,"")); \
 	} while (0)
 
 #define check_subtraction(max, f) \
@@ -165,6 +186,7 @@ int g_stopped;
 #define check_all_b(max,bits,type) \
 	check_addition(max,occam_add_##type); \
 	check_subtraction(max,occam_subtr_##type); \
+	check_multiplication(max,occam_mul_##type); \
 	check_negation(max,occam_negate_##type); \
 	check_division(max,occam_div_##type); \
 	check_rem(max,occam_rem_##type); \
@@ -186,10 +208,7 @@ int main(int argc, char** argv)
 	int passes = 0;
 	int failures = 0;
 	
-	//Since we test commutativity (at least for 8- and 16-bits),
-	//we only need to test one arrangement of each addition
-	//and multiplication test
-	
+
 	check_all(127,8);
 	check_all(32767,16);
 	check_all(2147483647,32);
@@ -202,7 +221,7 @@ int main(int argc, char** argv)
 	testf(occam_mul_int8_t(-128,-128,""));
 	testf(occam_mul_int8_t(-1,-128,""));
 	testp(-128,occam_mul_int8_t(1,-128,""));
-
+	//TODO test multiply like the others
 	
 	test_commutative(int8_t,occam_add_int8_t);
 	test_commutative(int8_t,occam_mul_int8_t);
