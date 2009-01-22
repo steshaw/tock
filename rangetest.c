@@ -31,7 +31,7 @@ int g_stopped;
   		if (g_stopped == 1) { \
   			report_failure(#call "failed, unexpectedly stopped\n"); \
 		} else { \
-  			report_failure(#call " failed, expected %d, got %d\n", exp, call); \
+  			report_failure(#call " failed, expected %lld, got %lld\n", (int64_t)exp, (int64_t)call); \
   		} \
   	} \
   } while (0)
@@ -57,7 +57,22 @@ int g_stopped;
 		} \
 	}passes++; comm_label_##f:;} while (0)
 
-
+// All the addition cases I wrote were effectively the same,
+// so I just made it a macro.  We define min to be -max-1, which gets around
+// the fact that the C standard apparently says that the largest
+// constant for a value is -max (not -max-1).
+#define check_addition(max, f) \
+	do { testp(2,f(1,1,"")); \
+		testp(0,f(0,0,"")); \
+		testp(-1,f(0,-1,"")); \
+		testp(max,f((max>>1)+1,max>>1,"")); \
+		testf(f((max>>1)+1,(max>>1)+1,"")); \
+		testf(f(max,max,"")); \
+		testf(f(-max-1,-max-1,"")); \
+		testp(-1,f(-max-1,max,"")); \
+		testp(-max-1,f(-max-1,0,"")); \
+		testp(max,f(max,0,"")); \
+	} while (0)
 
 int main(int argc, char** argv)
 {
@@ -68,13 +83,11 @@ int main(int argc, char** argv)
 	//we only need to test one arrangement of each addition
 	//and multiplication test
 	
-	testp(2,occam_add_int8_t(1,1,""));
-	testp(127,occam_add_int8_t(64,63,""));
-	testf(occam_add_int8_t(64,64,""));
-	testp(-1,occam_add_int8_t(127,-128,""));
-	testp(-1,occam_add_int8_t(-1,0,""));
-	testp(-128,occam_add_int8_t(-128,0,""));
-
+	check_addition(127,occam_add_int8_t);
+	check_addition(32767,occam_add_int16_t);
+	check_addition(2147483647,occam_add_int32_t);
+	check_addition(9223372036854775807,occam_add_int64_t);
+	
 	testf(occam_mul_int8_t(127,127,""));
 	testf(occam_mul_int8_t(2,127,""));
 	testf(occam_mul_int8_t(127,127,""));
@@ -87,10 +100,6 @@ int main(int argc, char** argv)
 	test_commutative(int8_t,occam_add_int8_t);
 	test_commutative(int8_t,occam_mul_int8_t);
 
-	testp(-32768,occam_add_int16_t(-32768,0,""));
-	testf(occam_add_int16_t(-1,-32768,""));
-	testp(32767,occam_add_int16_t(0,32767,""));
-	
 	test_commutative(int16_t,occam_add_int16_t);
 	test_commutative(int16_t,occam_mul_int16_t);
 
