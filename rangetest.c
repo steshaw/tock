@@ -137,12 +137,41 @@ int g_stopped;
 		testp(-max,f(-max,-max-1,"")); \
 	} while (0)
 
-#define check_all(max,type) \
+#define check_shift(max,bits,f) \
+	do { testp(0, f(0,0,"")); \
+		testp(max, f(max,0,"")); \
+		testp(-max, f(-max,0,"")); \
+		testp(-max-1, f(-max-1,0,"")); \
+		testp(1,f(1,0,"")); \
+		testp(-1,f(-1,0,"")); \
+		testp(0, f(0,bits,"")); \
+		testp(0, f(max,bits,"")); \
+		testp(0, f(-max,bits,"")); \
+		testp(0, f(-max-1,bits,"")); \
+		testp(0, f(1,bits,"")); \
+		testp(0, f(-1,bits,"")); \
+		testf(f(0,-1,"")); \
+		testf(f(1,-1,"")); \
+		testf(f(-1,-1,"")); \
+		testf(f(max,-1,"")); \
+		testf(f(-max-1,-1,"")); \
+		testf(f(0,bits+1,"")); \
+		testf(f(1,bits+1,"")); \
+		testf(f(-1,bits+1,"")); \
+		testf(f(max,bits+1,"")); \
+		testf(f(-max-1,bits+1,"")); \
+	} while (0)
+
+#define check_all_b(max,bits,type) \
 	check_addition(max,occam_add_##type); \
 	check_subtraction(max,occam_subtr_##type); \
 	check_negation(max,occam_negate_##type); \
 	check_division(max,occam_div_##type); \
-	check_rem(max,occam_rem_##type);
+	check_rem(max,occam_rem_##type); \
+	check_shift(max,bits,occam_lshift_##type); \
+	check_shift(max,bits,occam_rshift_##type);
+
+#define check_all(max,bits) check_all_b(max,bits,int##bits##_t)
 
 
 // The values of various operations (REM, shifts and so on)
@@ -161,10 +190,10 @@ int main(int argc, char** argv)
 	//we only need to test one arrangement of each addition
 	//and multiplication test
 	
-	check_all(127,int8_t);
-	check_all(32767,int16_t);
-	check_all(2147483647,int32_t);
-	check_all(9223372036854775807,int64_t);
+	check_all(127,8);
+	check_all(32767,16);
+	check_all(2147483647,32);
+	check_all(9223372036854775807,64);
 	
 	testf(occam_mul_int8_t(127,127,""));
 	testf(occam_mul_int8_t(2,127,""));
