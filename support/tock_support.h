@@ -83,7 +83,7 @@ static inline int occam_check_index (int i, int limit, const char *pos) {
 static inline int occam_check_index_lower (int, const char *) occam_unused;
 static inline int occam_check_index_lower (int i, const char *pos) {
 	if (i < 0) {
-		occam_stop (pos, 3, "invalid array index %d (should be 0 <= i)", i);
+		occam_stop (pos, 2, "invalid array index %d (should be 0 <= i)", i);
 	}
 	return i;
 }
@@ -112,21 +112,38 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} \
 		return n; \
 	}
+// Some things taken from http://www.fefe.de/intof.html
+
+#define __HALF_MAX_SIGNED(type) ((type)1 << (sizeof(type)*8-2))
+#define __MAX_SIGNED(type) (__HALF_MAX_SIGNED(type) - 1 + __HALF_MAX_SIGNED(type))
+#define __MIN_SIGNED(type) (-1 - __MAX_SIGNED(type))
+
+#define __MIN(type) ((type)-1 < 1?__MIN_SIGNED(type):(type)0)
+#define __MAX(type) ((type)~__MIN(type))
+
 // FIXME All of these need to check for overflow and report errors appropriately.
 #define MAKE_ADD(type) \
 	static inline type occam_add_##type (type, type, const char *) occam_unused; \
 	static inline type occam_add_##type (type a, type b, const char *pos) { \
-		return a + b; \
+		if (((b<1)&&(__MIN(type)-b<=a)) || ((b>=1)&&(__MAX(type)-b>=a))) {return a + b;} \
+		else { occam_stop(pos, 3, "integer overflow when doing %d + %d", a, b); return 0; } \
 	}
+#define MAKE_ADDF(type) \
+	static inline type occam_add_##type (type, type, const char *) occam_unused; \
+	static inline type occam_add_##type (type a, type b, const char *pos) { return a + b;}
 #define MAKE_SUBTR(type) \
 	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
 	static inline type occam_subtr_##type (type a, type b, const char *pos) { \
-		return a - b; \
+		if (((b<1)&&(__MAX(type)+b>=a)) || ((b>=1)&&(__MIN(type)+b<=a))) {return a - b;} \
+		else { occam_stop(pos, 3, "integer overflow when doing %d - %d", a, b); } \
 	}
+#define MAKE_SUBTRF(type) \
+	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
+	static inline type occam_subtr_##type (type a, type b, const char *pos) { return a - b;}
 #define MAKE_MUL(type) \
 	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
 	static inline type occam_mul_##type (type a, type b, const char *pos) { \
-		return a * b; \
+		return a * b; /*TODO*/ \
 	}
 #define MAKE_DIV(type) \
 	static inline type occam_div_##type (type, type, const char *) occam_unused; \
@@ -134,13 +151,24 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		if (b == 0) { \
 			occam_stop (pos, 1, "divide by zero"); \
 		} \
-		return a / b; \
+		else if (b == -1 && a == __MIN(type)) /* only overflow I can think of */ { \
+			occam_stop (pos, 1, "overflow in division"); \
+		} else { return a / b; } \
 	}
+#define MAKE_DIVF(type) \
+	static inline type occam_div_##type (type, type, const char *) occam_unused; \
+	static inline type occam_div_##type (type a, type b, const char *pos) { return a / b;}
 #define MAKE_NEGATE(type) \
 	static inline type occam_negate_##type (type, const char *) occam_unused; \
 	static inline type occam_negate_##type (type a, const char *pos) { \
-		return - a; \
+		if (a == __MIN(type)) { \
+			occam_stop (pos, 1, "overflow in negation"); \
+		} else {return - a;} \
 	}
+#define MAKE_NEGATEF(type) \
+	static inline type occam_negate_##type (type, const char *) occam_unused; \
+	static inline type occam_negate_##type (type a, const char *pos) { return - a; }
+
 // occam's \ doesn't behave like C's %; it handles negative arguments.
 // (Effectively it ignores signs coming in, and the output sign is the sign of
 // the first argument.)
@@ -264,20 +292,20 @@ MAKE_ALL_SIGNED(int64_t, "%lld", uint64_t)
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
 MAKE_RANGE_CHECK(float, "%f")
-MAKE_ADD(float)
-MAKE_SUBTR(float)
+MAKE_ADDF(float)
+MAKE_SUBTRF(float)
 MAKE_MUL(float)
-MAKE_DIV(float)
-MAKE_NEGATE(float)
+MAKE_DIVF(float)
+MAKE_NEGATEF(float)
 MAKE_DUMB_REM(float)
 //}}}
 //{{{ double
 MAKE_RANGE_CHECK(double, "%f")
-MAKE_ADD(double)
-MAKE_SUBTR(double)
+MAKE_ADDF(double)
+MAKE_SUBTRF(double)
 MAKE_MUL(double)
-MAKE_DIV(double)
-MAKE_NEGATE(double)
+MAKE_DIVF(double)
+MAKE_NEGATEF(double)
 MAKE_DUMB_REM(double)
 //}}}
 
