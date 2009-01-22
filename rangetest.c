@@ -74,6 +74,22 @@ int g_stopped;
 		testp(max,f(max,0,"")); \
 	} while (0)
 
+#define check_subtraction(max, f) \
+	do { testp(0,f(1,1,"")); \
+		testp(0,f(0,0,"")); \
+		testp(0,f(max,max,"")); \
+		testp(0,f(-max-1,-max-1,"")); \
+		testp(1,f(0,-1,"")); \
+		testp(-1,f(0,1,"")); \
+		testp(-max,f(0,max,"")); \
+		testp(-max-1,f(-1,max,"")); \
+		testf(f(-2,max,"")); \
+		testp(max,f(0,-max,"")); \
+		testp(max,f(1,1-max,"")); \
+		testf(f(0,-max-1,"")); \
+		testf(f(1,-max,"")); \
+	} while (0)
+
 int main(int argc, char** argv)
 {
 	int passes = 0;
@@ -87,6 +103,11 @@ int main(int argc, char** argv)
 	check_addition(32767,occam_add_int16_t);
 	check_addition(2147483647,occam_add_int32_t);
 	check_addition(9223372036854775807,occam_add_int64_t);
+	
+	check_subtraction(127,occam_subtr_int8_t);
+	check_subtraction(32767,occam_subtr_int16_t);
+	check_subtraction(2147483647,occam_subtr_int32_t);
+	check_subtraction(9223372036854775807,occam_subtr_int64_t);
 	
 	testf(occam_mul_int8_t(127,127,""));
 	testf(occam_mul_int8_t(2,127,""));
