@@ -262,8 +262,8 @@ testGenType = TestList
 
   ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (tcall genType $ A.Chan (A.ChanAttributes False False) (A.Mobile A.Int32))
   
-  ,testBoth "GenType 400" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 401" "Channel*" "csp::Chanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) 
+  ,testBoth "GenType 400" "Channel*" "csp::AltChanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 401" "Channel*" "csp::AltChanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) 
 
   ,testBoth "GenType 402" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) 
   ,testBoth "GenType 403" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) 
@@ -274,7 +274,7 @@ testGenType = TestList
   ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int32 A.Int32) 
    
   ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int32_t>**" (tcall genType $ A.Array [dimension 5] $ A.Chan (A.ChanAttributes False False) A.Int32)
-  ,testBoth "GenType 701" "Channel**" "csp::Chanin<int32_t>*" (tcall genType $ A.Array [dimension 5] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32)
+  ,testBoth "GenType 701" "Channel**" "csp::AltChanin<int32_t>*" (tcall genType $ A.Array [dimension 5] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32)
   
   --Test types that can only occur inside channels:
   --ANY:
@@ -467,8 +467,8 @@ testDeclaration = TestList
   ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes True False) A.Int32) foo False)
   ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes False True) A.Int32) foo False)
   ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes True True) A.Int32) foo False)
-  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
-  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::Chanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) foo False)
+  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
+  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) foo False)
   ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) foo False)
   ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) foo False)  
   
@@ -498,7 +498,7 @@ testDeclaration = TestList
     (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan (A.ChanAttributes False False) A.Int32) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];"
-    "csp::Chanin<int32_t> foo[8];"
+    "csp::AltChanin<int32_t> foo[8];"
     (tcall3 genDeclaration (A.Array [dimension 8] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];"
@@ -1175,7 +1175,7 @@ testBytesIn = TestList
   testBothSame "testBytesIn 0" "sizeof(int8_t)" (tcall3 genBytesIn undefined A.Int8 undefined)
   ,testBothSame "testBytesIn 1" "sizeof(foo)" (tcall3 genBytesIn undefined (A.Record foo) undefined)
   ,testBoth "testBytesIn 2" "sizeof(Channel)" "sizeof(csp::One2OneChannel<int32_t>)" (tcall3 genBytesIn undefined (A.Chan (A.ChanAttributes False False) A.Int32) undefined)
-  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::Chanin<int64_t>)" (tcall3 genBytesIn undefined (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int64) undefined)
+  ,testBoth "testBytesIn 3" "sizeof(Channel*)" "sizeof(csp::AltChanin<int64_t>)" (tcall3 genBytesIn undefined (A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int64) undefined)
   
   --Array with a single known dimension:
   ,testBothSame "testBytesIn 100" "5*sizeof(int16_t)" (tcall3 genBytesIn undefined (A.Array [dimension 5] A.Int16) (Left False))

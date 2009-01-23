@@ -666,7 +666,7 @@ cppgenType arr@(A.Array _ _)
 cppgenType (A.Record n) = genName n
 cppgenType t | isChan t
     = do let (chanType, innerT) = case t of
-                          A.ChanEnd A.DirInput _ innerT -> ("csp::Chanin", innerT)
+                          A.ChanEnd A.DirInput _ innerT -> ("csp::AltChanin", innerT)
                           A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT)
                           A.Chan attr innerT -> (
                             case (A.caWritingShared attr,A.caReadingShared attr) of
