@@ -806,6 +806,27 @@ inferTypes = occamOnlyPass "Infer types"
                   sel' <- doFuncDef ts sel
                   return $ A.Function m sm' ts' fs' (Left sel')
             A.RetypesExpr _ _ _ _ -> noTypeContext $ descend st
+            -- For PROCs that take any channels without direction,
+            -- we must determine if we can infer a specific direction
+            -- for that channel
+            A.Proc m sm fs body ->
+               do body' <- recurse body
+                  fs' <- mapM (processFormal body') fs
+                  return $ A.Proc m sm fs' body'
+               where
+                 processFormal body f@(A.Formal am t n)
+                   = case t of
+                       A.Chan attr t ->
+                         do dirs <- findDir n body
+                            case nub dirs of
+                              [dir] ->
+                                do let t' = A.ChanEnd dir attr t
+                                       f' = A.Formal am t' n
+                                   modifyName n (\nd -> nd {A.ndSpecType =
+                                     A.Declaration m t'})
+                                   return f'
+                              _ -> return f -- no direction, or two
+                       _ -> return f
             _ -> descend st
       where
         -- | This is a bit ugly: walk down a Structured to find the single
@@ -824,6 +845,19 @@ inferTypes = occamOnlyPass "Infer types"
         doFuncDef ts (A.Only m el)
             =  do el' <- doExpressionList ts el
                   return $ A.Only m el'
+
+        findDir :: A.Name -> A.Process -> PassM [A.Direction]
+        findDir n = flip execStateT [] . makeRecurse ops
+          where
+            ops = baseOp `extOp` doVariable
+
+            -- This will cover everything, since we will have inferred the direction
+            -- specifiers before applying this function.
+            doVariable :: A.Variable -> StateT [A.Direction] PassM A.Variable
+            doVariable v@(A.DirectedVariable _ dir (A.Variable _ n')) | n == n'
+              = modify (dir:) >> return v
+            doVariable v = makeDescend ops v
+
 
     makeEnd :: Meta -> A.Direction -> Transform A.Variable
     makeEnd m dir v
