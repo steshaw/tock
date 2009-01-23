@@ -73,6 +73,8 @@ resolveAmbiguities = occamOnlyPass "Resolve ambiguities"
     -- FunctionCallList, since it can have multiple results.
     doExpressionList (A.ExpressionList _ [A.FunctionCall m n es])
         = return $ A.FunctionCallList m n es
+    doExpressionList (A.ExpressionList _ [A.IntrinsicFunctionCall m n es])
+        = return $ A.IntrinsicFunctionCallList m n es
     doExpressionList e = return e
 
 -- | Fold constant expressions.

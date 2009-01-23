@@ -374,16 +374,17 @@ checkFunctionCall m n es
           return rs
 
 -- | Check an intrinsic function call.
-checkIntrinsicFunctionCall :: Meta -> String -> [A.Expression] -> PassM ()
-checkIntrinsicFunctionCall m n es
+checkIntrinsicFunctionCall :: Bool -> Meta -> String -> [A.Expression] -> PassM [A.Type]
+checkIntrinsicFunctionCall usedInList m n es
     = case lookup n intrinsicFunctions of
         Just (rs, args) ->
-           do when (length rs /= 1) $
+           do when (not usedInList && length rs /= 1) $
                 dieP m $ "Function " ++ n ++ " used in an expression returns more than one value"
               let fs = [A.Formal A.ValAbbrev t (A.Name m s)
                         | (t, s) <- args]
               checkActuals m (A.Name m n)
                            fs (map A.ActualExpression es)
+              return rs
         Nothing -> dieP m $ n ++ " is not an intrinsic function"
 
 -- | Check a mobile allocation.
@@ -497,6 +498,12 @@ checkExpressionList ets el
            do rs <- checkFunctionCall m n es
               when (length ets /= length rs) $
                 diePC m $ formatCode ("Function % has wrong number of return values; found " ++ (show $ length rs) ++ ", expected " ++ (show $ length ets)) n
+              sequence_ [checkType m et rt
+                         | (et, rt) <- zip ets rs]
+        A.IntrinsicFunctionCallList m n es ->
+           do rs <- checkIntrinsicFunctionCall True m n es
+              when (length ets /= length rs) $
+                dieP m $ "Intrinsic function " ++ n ++ " has wrong number of return values; found " ++ (show $ length rs) ++ ", expected " ++ (show $ length ets)
               sequence_ [checkType m et rt
                          | (et, rt) <- zip ets rs]
         A.ExpressionList m es ->
@@ -1149,7 +1156,7 @@ checkExpressions = checkDepthM doExpression
               when (length rs /= 1) $
                 diePC m $ formatCode "Function % used in an expression returns more than one value" n
     doExpression (A.IntrinsicFunctionCall m s es)
-        = checkIntrinsicFunctionCall m s es
+        = checkIntrinsicFunctionCall False m s es >> return ()
     doExpression (A.SubscriptedExpr m s e)
         =  do t <- astTypeOf e
               checkSubscript m s t

@@ -1538,6 +1538,16 @@ cgenAssign m [v] (A.ExpressionList _ [e])
              tell ["="]
              call genExpression e
              tell [";"]
+cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
+    = do call genVariable v
+         tell ["=occam_",n,"("]
+         seqComma $ map (call genExpression) es
+         mapM (\v -> tell [","] >> call genActual (A.Formal A.Abbrev A.Int (A.Name
+           emptyMeta "dummy_intrinsic_param")) (A.ActualVariable v)) vs
+         tell [","]
+         genMeta m
+         tell [");"]
+         
 cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
 
 --}}}

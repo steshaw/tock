@@ -302,6 +302,8 @@ data Expression =
 data ExpressionList =
   -- | A list of expressions resulting from a function call.
   FunctionCallList Meta Name [Expression]
+  -- | A list of expressions resulting from an intrinsic function call.
+  | IntrinsicFunctionCallList Meta String [Expression]
   -- | A list of expressions resulting from, well, a list of expressions.
   | ExpressionList Meta [Expression]
   deriving (Show, Eq, Typeable, Data)
