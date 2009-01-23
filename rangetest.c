@@ -117,6 +117,15 @@ int g_stopped;
 		testf(f(1,-max,"")); \
 	} while (0)
 
+#define check_subtraction_u(max, f) \
+	do { testp(0,f(1,1,"")); \
+		testp(0,f(0,0,"")); \
+		testp(0,f(max,max,"")); \
+		testf(f(0,1,"")); \
+		testf(f(max-1,max,"")); \
+		testf(f(0,max,"")); \
+	} while (0)
+
 #define check_negation(max, f) \
 	do { testp(0,f(0,"")); \
 		testp(1,f(-1,"")); \
@@ -141,6 +150,14 @@ int g_stopped;
 		testp(max,f(max,1,"")); \
 	} while (0)
 
+#define check_division_u(max, f) \
+	do { testp(0,f(0,1,"")); \
+		testf(f(0,0,"")); \
+		testf(f(1,0,"")); \
+		testf(f(max,0,"")); \
+		testp(max,f(max,1,"")); \
+	} while (0)
+
 #define check_rem(max, f) \
 	do { testp(0, f(1,1,"")); \
 		testp(0, f(0,1,"")); \
@@ -162,6 +179,16 @@ int g_stopped;
 		testp(-3,f(-3,-max-1,"")); \
 		testp(max,f(max,-max-1,"")); \
 		testp(-max,f(-max,-max-1,"")); \
+	} while (0)
+
+#define check_rem_u(max, f) \
+	do { testp(0, f(1,1,"")); \
+		testp(0, f(0,1,"")); \
+		testf(f(0,0,"")); \
+		testf(f(1,0,"")); \
+		testf(f(max,0,"")); \
+		testp(0,f(max,max,"")); \
+		testp(1,f(max,max-1,"")); \
 	} while (0)
 
 #define check_shift(max,bits,f) \
@@ -189,6 +216,21 @@ int g_stopped;
 		testf(f(-max-1,bits+1,"")); \
 	} while (0)
 
+#define check_shift_u(max,bits,f) \
+	do { testp(0, f(0,0,"")); \
+		testp(max, f(max,0,"")); \
+		testp(1,f(1,0,"")); \
+		testp(0, f(0,bits,"")); \
+		testp(0, f(max,bits,"")); \
+		testp(0, f(1,bits,"")); \
+		testf(f(0,-1,"")); \
+		testf(f(1,-1,"")); \
+		testf(f(max,-1,"")); \
+		testf(f(0,bits+1,"")); \
+		testf(f(1,bits+1,"")); \
+		testf(f(max,bits+1,"")); \
+	} while (0)
+
 #define check_all_b(max,bits,type) \
 	check_addition(max,occam_add_##type); \
 	check_subtraction(max,occam_subtr_##type); \
@@ -200,6 +242,16 @@ int g_stopped;
 	check_shift(max,bits,occam_rshift_##type);
 
 #define check_all(max,bits) check_all_b(max,bits,int##bits##_t)
+
+#define check_all_b_u(max,bits,type) \
+	check_subtraction_u(max,occam_subtr_##type); \
+	check_division_u(max,occam_div_##type); \
+	check_rem_u(max,occam_rem_##type); \
+	check_shift_u(max,bits,occam_lshift_##type); \
+	check_shift_u(max,bits,occam_rshift_##type);
+
+#define check_all_u(max,bits) check_all_b_u(max,bits,uint##bits##_t)
+
 
 
 // The values of various operations (REM, shifts and so on)
@@ -219,15 +271,16 @@ int main(int argc, char** argv)
 	check_all(32767,16);
 	check_all(2147483647,32);
 	check_all(9223372036854775807,64);
+	check_all_u(255,8);
 	
 	test_commutative(int8_t,occam_add_int8_t,add);
 	test_commutative(int8_t,occam_mul_int8_t,mult);
+	test_commutative(uint8_t,occam_add_uint8_t,add);
+	test_commutative(uint8_t,occam_mul_uint8_t,mult);
 
 	test_commutative(int16_t,occam_add_int16_t,add);
 	test_commutative(int16_t,occam_mul_int16_t,mult);
 
-	//TODO test uint8_t as well
-	
 	//TODO add tests for the index-checking functions too
 
 	printf("Tests complete, passed: %d, failed: %d\n", passes, failures);
