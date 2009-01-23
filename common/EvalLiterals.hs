@@ -33,6 +33,7 @@ import qualified AST as A
 import CompState hiding (CSM) -- everything here is read-only
 import Errors
 import Metadata
+import TypeSizes
 
 type EvalM = ErrorT ErrorReport (StateT CompState Identity)
 
@@ -48,7 +49,7 @@ data OccValue =
   | OccUInt64 Word64
   | OccInt8 Int8
   | OccInt16 Int16
-  | OccInt Int32
+  | OccInt CIntReplacement
   | OccInt32 Int32
   | OccInt64 Int64
   | OccArray [OccValue]

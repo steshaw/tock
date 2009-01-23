@@ -193,6 +193,27 @@ AC_CHECK_SIZEOF(int)
 AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
 AC_SUBST(C_INT_SIZE)
 
+if test "x$C_INT_SIZE" = "x2"; then
+C_INT_EQUIV=Int16
+fi
+if test "x$C_INT_SIZE" = "x4"; then
+C_INT_EQUIV=Int32
+fi
+if test "x$C_INT_SIZE" = "x8"; then
+C_INT_EQUIV=Int64
+fi
+if test "x$CXX_INT_SIZE" = "x2"; then
+CXX_INT_EQUIV=Int16
+fi
+if test "x$CXX_INT_SIZE" = "x4"; then
+CXX_INT_EQUIV=Int32
+fi
+if test "x$CXX_INT_SIZE" = "x8"; then
+CXX_INT_EQUIV=Int64
+fi
+AC_SUBST(C_INT_EQUIV)
+AC_SUBST(CXX_INT_EQUIV)
+
 CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # The reason for -fno-strict-overflow and -fno-tree-vrp above is that with the way I have implemented
 # range checking, on GCC 4.3.2 (and probably other versions), GCC has
