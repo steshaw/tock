@@ -114,7 +114,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 // Some things taken from http://www.fefe.de/intof.html
 
-#define __HALF_MAX_SIGNED(type) ((type)1 << (sizeof(type)*8-2))
+#define __HALF_MAX_SIGNED(type) ((type)1 << (sizeof(type)*CHAR_BIT-2))
 #define __MAX_SIGNED(type) (__HALF_MAX_SIGNED(type) - 1 + __HALF_MAX_SIGNED(type))
 #define __MIN_SIGNED(type) (-1 - __MAX_SIGNED(type))
 
@@ -140,9 +140,51 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_SUBTRF(type) \
 	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
 	static inline type occam_subtr_##type (type a, type b, const char *pos) { return a - b;}
-#define MAKE_MUL(type) \
+
+//Here is the plan:
+// - For any values that are smaller than sizeof(long), cast them to long and check that way (TODO).
+// - For all other values, split the number.  Take N to be the length of the word 
+//   and n to be N/2.  Split the bits into top(A|B) and bottom(A|B) So we have:
+//A = topA*2^n + bottomA
+//B = topB*2^n + bottomB
+//A*B = (topA*2^n + bottomA) * (topB*2^n + bottomB)
+//    = topA*topB*2^N + 2^n*(topA*bottomB + topB*bottomA) + (bottomA*bottomB)
+//
+//If topA*topB is non-zero, the multiplication will definitely overflow.  So
+//the multiplication can only be valid if either topA or topB is zero.
+//Then we can see if the middle bracketed multiplication is >= 2^n, in which case 
+//the calculation would also overflow.  Also, given that either topA or topB is zero,
+//only one of the components of the bracketed sum is non-zero.  Finally we do an occam add-style addition
+//of the middle and end, again checking for overflow.
+
+#define abs(x) ((x) < 0 ? -x : x)
+
+/* This is my other attempt at the function, but it turned out slower:
+
+		const utype topA = (utype)abs(a) >> (sizeof(type)*CHAR_BIT/2); \
+		const utype topB = (utype)abs(b) >> (sizeof(type)*CHAR_BIT/2); \
+		const utype bottomA = (utype)abs(a) & (((utype)1<<(sizeof(type)*CHAR_BIT/2))-1); \
+		const utype bottomB = (utype)abs(b) & (((utype)1<<(sizeof(type)*CHAR_BIT/2))-1); \
+		const utype pos_res = ((a > 0 && b > 0) || (a < 0 && b < 0)) ? 1 : 0; \
+		if (topA != 0 && topB != 0) { \
+			occam_stop(pos,3,"integer overflow when doing %d * %d", a, b); \
+		} else { \
+			const utype mid = topA != 0 ? topA*bottomB : topB*bottomA; \
+			const utype mid_shift = mid << (sizeof(type)*CHAR_BIT/2); \
+			const utype low = bottomA*bottomB; \
+			if ((mid>>((utype)1<<(sizeof(type)*CHAR_BIT/2))==0)&&(((utype)__MAX(type))+1-pos_res-mid_shift>=low)) {\
+				return (pos_res == 1 ? (type)(mid_shift+low) : -(type)mid_shift-(type)low); \
+			} else { \
+				occam_stop(pos,3,"integer overflow when doing %d * %d", a, b); \
+			} \
+		} \
+	}
+*/
+
+
+#define MAKE_MUL(type,utype) \
 	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
-	static inline type occam_mul_##type (type a, type b, const char *pos) { \
+	static inline type occam_mul_##type (const type a, const type b, const char *pos) { \
 		if (( (a < 0 ? -a : a) >> ((sizeof(type)*CHAR_BIT/2)-1) \
 		   | (b < 0 ? -b : b) >> ((sizeof(type)*CHAR_BIT/2)-1)) == 0) { \
             /*overflow not possible on such small numbers*/ \
@@ -260,7 +302,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_RANGE_CHECK(type,flag) \
 	MAKE_ADD(type) \
 	MAKE_SUBTR(type) \
-	MAKE_MUL(type) \
+	MAKE_MUL(type,utype) \
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
 	MAKE_NEGATE(type) \
@@ -273,7 +315,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 MAKE_RANGE_CHECK(uint8_t, "%d")
 MAKE_ADD(uint8_t)
 MAKE_SUBTR(uint8_t)
-MAKE_MUL(uint8_t)
+MAKE_MUL(uint8_t,uint8_t)
 MAKE_DIV(uint8_t)
 MAKE_SHIFT(uint8_t,uint8_t)
 MAKE_PLUS(uint8_t)
