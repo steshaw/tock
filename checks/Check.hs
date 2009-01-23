@@ -303,7 +303,9 @@ checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
   where
     doSpec :: Data a => A.Structured a -> CheckOptASTM' [A.Name] (A.Structured a) ()
      -- Don't touch PROCs, for now:
-    doSpec (A.Spec _ (A.Specification mspec name (A.Proc {})) scope) = return ()      
+    doSpec (A.Spec _ (A.Specification mspec name (A.Proc {})) scope) = return ()
+     -- DO NOT remove unused replicators!
+    doSpec (A.Spec _ (A.Specification mspec name (A.Rep {})) scope) = return ()      
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
       = do -- We can't remove _sizes arrays because the backend uses them for bounds
            -- checks that are not explicit in the AST.  We'll have to move the

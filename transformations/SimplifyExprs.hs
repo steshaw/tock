@@ -160,7 +160,7 @@ expandArrayLiterals = pass "Expand array literals"
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
 pullRepCounts :: Pass
-pullRepCounts = pass "Pull up replicator counts for SEQs"
+pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
   (applyDepthM2
