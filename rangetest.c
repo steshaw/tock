@@ -36,7 +36,10 @@ int g_stopped;
   	} \
   } while (0)
 
-#define test_commutative(t,f) \
+#define mult(x,y) (x*y)
+#define add(x,y) (x+y)
+
+#define test_commutative(t,f,fe) \
 	do {int done_x = 0; for (t x = 0; !(x == 0 && done_x == 1);x+=1) { done_x = 1;\
 		int done_y = 0; for (t y = 0; !(y == x && done_y == 1);y+=1) { done_y = 1;\
 			g_stopped = 0; \
@@ -45,9 +48,12 @@ int g_stopped;
 			g_stopped = 0; \
 			const t r1 = f(y,x,""); \
 			const int stopped_later = g_stopped; \
-			if ((stopped_later == 1 && stopped_earlier == 1) || \
-			  (stopped_earlier == 0 && stopped_later == 0 && r0 == r1)) { \
-				\
+			if (stopped_later == 1 && stopped_earlier == 1) {} else if \
+			  (stopped_earlier == 0 && stopped_later == 0 && r0 == r1) { \
+				if ((int)(t)(fe((int)x,(int)y)) != (int)(fe((int)x,(int)y))) { \
+				  failures++; report_failure(#f " failed, overflowed but did not stop: %d %d",x,y);goto comm_label_##f; \
+				} else if (r0 != (t)(fe((int)x,(int)y))) { failures++; \
+				  report_failure(#f " failed, result (%d) not as expected (%d)", r0, (t)fe((int)x,(int)y));goto comm_label_##f;} \
 			} else { \
 				failures++; \
 				report_failure(#f " failed, non-commutative with %d, %d (stop: %d, %d) (res: %d, %d)\n", \
@@ -223,11 +229,11 @@ int main(int argc, char** argv)
 	testp(-128,occam_mul_int8_t(1,-128,""));
 	//TODO test multiply like the others
 	
-	test_commutative(int8_t,occam_add_int8_t);
-	test_commutative(int8_t,occam_mul_int8_t);
+	test_commutative(int8_t,occam_add_int8_t,add);
+	test_commutative(int8_t,occam_mul_int8_t,mult);
 
-	test_commutative(int16_t,occam_add_int16_t);
-	test_commutative(int16_t,occam_mul_int16_t);
+	test_commutative(int16_t,occam_add_int16_t,add);
+	test_commutative(int16_t,occam_mul_int16_t,mult);
 
 	//TODO test uint8_t as well
 	
