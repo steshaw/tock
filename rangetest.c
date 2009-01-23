@@ -220,15 +220,6 @@ int main(int argc, char** argv)
 	check_all(2147483647,32);
 	check_all(9223372036854775807,64);
 	
-	testf(occam_mul_int8_t(127,127,""));
-	testf(occam_mul_int8_t(2,127,""));
-	testf(occam_mul_int8_t(127,127,""));
-	testf(occam_mul_int8_t(127,-128,""));
-	testf(occam_mul_int8_t(-128,-128,""));
-	testf(occam_mul_int8_t(-1,-128,""));
-	testp(-128,occam_mul_int8_t(1,-128,""));
-	//TODO test multiply like the others
-	
 	test_commutative(int8_t,occam_add_int8_t,add);
 	test_commutative(int8_t,occam_mul_int8_t,mult);
 

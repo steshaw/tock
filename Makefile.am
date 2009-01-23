@@ -214,6 +214,7 @@ GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
 GenTagAST_SOURCES = pregen/GenTagAST.hs $(pregen_sources)
 
 rangetest_SOURCES = rangetest.c
+rangetest_CFLAGS = -Wall
 rangetest_LDFLAGS = -lm
 
 #The programs to actually build:	
