@@ -23,7 +23,27 @@ import qualified AST as A
 
 intrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
 intrinsicFunctions =
-    [ ("SQRT", ([A.Real32], [(A.Real32, "value")]))
+    [ -- Multiple length arithmetic functions
+      -- Appendix L of the occam 2 manual
+      ("ASHIFTLEFT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
+    , ("ASHIFTRIGHT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
+    , ("LONGADD", ([A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "carry.in")]))
+    , ("LONGDIFF", ([A.Int,A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "borrow.in")]))
+    , ("LONGDIV", ([A.Int,A.Int], [(A.Int, "dividend.hi"), (A.Int, "dividend.lo"), (A.Int, "divisor")]))
+    , ("LONGPROD", ([A.Int,A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "carry.in")]))
+    , ("LONGSUB", ([A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "borrow.in")]))
+    , ("LONGSUM", ([A.Int,A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "carry.in")]))
+    , ("NORMALISE", ([A.Int, A.Int, A.Int], [(A.Int, "hi.in"), (A.Int, "lo.in")]))
+    , ("ROTATELEFT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
+    , ("ROTATERIGHT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
+    , ("SHIFTLEFT", ([A.Int, A.Int], [(A.Int, "hi.in"), (A.Int, "lo.in"), (A.Int, "places")]))
+    , ("SHIFTRIGHT", ([A.Int, A.Int], [(A.Int, "hi.in"), (A.Int, "lo.in"), (A.Int, "places")]))
+
+      -- IEEE floating point arithmetic
+      -- Appendix M of the occam 2 manual
+    , ("REAL32OP", ([A.Real32], [(A.Real32, "X"), (A.Int, "Op"), (A.Real32, "Y")]))
+
+    , ("SQRT", ([A.Real32], [(A.Real32, "value")]))
     , ("DSQRT", ([A.Real64], [(A.Real64, "value")]))
     ]
 
