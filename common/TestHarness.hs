@@ -96,18 +96,20 @@ testRain  source = do (result,_) <- runPassM (defaultState FrontendRain) compila
 
 -- | Substitutes each substitution into the prologue
 substitute :: AutoTest -> Either String [(Bool, String, String)]
-substitute t = sequence [ do ls <- execWriterT $ subst (prologueLines t, ss)
+substitute t = sequence [ do ls <- execWriterT $ subst n (prologueLines t, ss)
                              return (p, n, unlines ls)
                         | TestBody p n ss <- bodies t]
   where
-    subst :: ([TestLine], [(String, [String])]) -> WriterT [String] (Either String) ()
-    subst ([], []) = return ()
-    subst ([], subs) = throwError $ "Left over substitutions: " ++ show subs
-    subst (Line l : ls, subs) = tell [l] >> subst (ls, subs)
-    subst (Sub s : ls, subs)
+    subst :: String -> ([TestLine], [(String, [String])]) -> WriterT [String] (Either String) ()
+    subst _ ([], []) = return ()
+    subst n ([], subs) = throwError $ "Left over substitutions: " ++ show subs
+      ++ " in " ++ n
+    subst n (Line l : ls, subs) = tell [l] >> subst n (ls, subs)
+    subst n (Sub s : ls, subs)
       = case lookup s subs of
-          Just subLines -> tell subLines >> subst (ls, filter ((/= s) . fst) subs)
-          Nothing -> throwError $ "Could not find substitution \"" ++ s ++ "\""
+          Just subLines -> tell subLines >> subst n (ls, filter ((/= s) . fst) subs)
+          Nothing -> throwError $ "Could not find substitution \"" ++ s
+            ++ "\" in test: " ++ n
 
 
 -- | Given a file's contents, tests it
