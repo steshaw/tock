@@ -121,7 +121,6 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define __MIN(type) ((type)-1 < 1?__MIN_SIGNED(type):(type)0)
 #define __MAX(type) ((type)~__MIN(type))
 
-// FIXME All of these need to check for overflow and report errors appropriately.
 #define MAKE_ADD(type) \
 	static inline type occam_add_##type (type, type, const char *) occam_unused; \
 	static inline type occam_add_##type (type a, type b, const char *pos) { \
