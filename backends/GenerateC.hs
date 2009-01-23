@@ -160,7 +160,8 @@ generateC = generate cgenOps
 
 cgenTopLevel :: A.AST -> CGen ()
 cgenTopLevel s
-    =  do tell ["#include <tock_support_cif.h>\n"]
+    =  do tell ["#define occam_INT_size ", show cIntSize,"\n"]
+          tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
           (tlpName, tlpChans) <- tlpInterface
           chans <- sequence [csmLift $ makeNonce "tlp_channel" | _ <- tlpChans]
