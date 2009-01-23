@@ -317,9 +317,7 @@ cgetScalarType A.UInt16 = Just "uint16_t"
 cgetScalarType A.UInt32 = Just "uint32_t"
 cgetScalarType A.UInt64 = Just "uint64_t"
 cgetScalarType A.Int8 = Just "int8_t"
-cgetScalarType A.Int | cIntSize == 2 = cgetScalarType A.Int16
-                     | cIntSize == 4 = cgetScalarType A.Int32
-                     | cIntSize == 8 = cgetScalarType A.Int64
+cgetScalarType A.Int = cgetScalarType cIntReplacement
 cgetScalarType A.Int16 = Just "int16_t"
 cgetScalarType A.Int32 = Just "int32_t"
 cgetScalarType A.Int64 = Just "int64_t"
