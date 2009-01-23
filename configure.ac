@@ -113,7 +113,43 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   AC_MSG_RESULT([no])
   gnu89_inline=
 )
+
+#Check whether GCC accepts the -fno-strict-overflow setting:
+AC_MSG_CHECKING([whether -fno-strict-overflow flag is accepted])
+CFLAGS="-fno-strict-overflow"
+AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
+  AC_MSG_RESULT([yes])
+  no_strict_overflow=-fno-strict-overflow
+  ,
+  AC_MSG_RESULT([no])
+  no_strict_overflow=
+)
+
+#Check whether GCC accepts the -fno-strict-aliasing setting:
+AC_MSG_CHECKING([whether -fno-strict-aliasing flag is accepted])
+CFLAGS="-fno-strict-aliasing"
+AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
+  AC_MSG_RESULT([yes])
+  no_strict_aliasing=-fno-strict-aliasing
+  ,
+  AC_MSG_RESULT([no])
+  no_strict_aliasing=
+)
+
+#Check whether GCC accepts the -fno-tree-vrp setting:
+AC_MSG_CHECKING([whether -fno-tree-vrp flag is accepted])
+CFLAGS="-fno-tree-vrp"
+AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
+  AC_MSG_RESULT([yes])
+  no_tree_vrp=-fno-tree-vrp
+  ,
+  AC_MSG_RESULT([no])
+  no_tree_vrp=
+)
+
+
 CFLAGS="$old_CFLAGS"
+
 
 AC_MSG_CHECKING([Checking GHC version])
 
@@ -157,7 +193,7 @@ AC_CHECK_SIZEOF(int)
 AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
 AC_SUBST(C_INT_SIZE)
 
-CFLAGS="$CFLAGS -fno-strict-overflow -fno-tree-vrp"
+CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # The reason for -fno-strict-overflow and -fno-tree-vrp above is that with the way I have implemented
 # range checking, on GCC 4.3.2 (and probably other versions), GCC has
 # a bug triggered that causes invalid behaviour (spurious overflows can happen)
@@ -169,7 +205,7 @@ CFLAGS="$CFLAGS -fno-strict-overflow -fno-tree-vrp"
 # that, but I'm also leaving these flags in so that any other code (for example,
 # that Tock might spit out) that uses increments doesn't have the same issue.
 
-common_cflags="-Wall -ggdb3 -Isupport -fno-strict-aliasing"
+common_cflags="-Wall -ggdb3 -Isupport $no_strict_aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS"
