@@ -229,6 +229,52 @@ PROC main()
 %M
   foo(c!)
 
+%PASS Inner PROC that writes, no name capture, no original direction
+  PROC inner(CHAN INT d)
+    d ! 3
+  :
+  inner(c)
+%M
+  foo(c)
 
+%PASS Inner PROC that writes, no name capture, original output direction
+  PROC inner(CHAN INT d)
+    d ! 3
+  :
+  inner(c)
+%M
+  foo(c!)
+
+%FAIL Inner PROC that writes, no name capture, original input direction
+  PROC inner(CHAN INT d)
+    d ! 3
+  :
+  inner(c)
+%M
+  foo(c?)
+
+%PASS Inner PROC that writes using name capture, no original direction
+  PROC inner()
+    c ! 3
+  :
+  inner()
+%M
+  foo(c)
+
+%PASS Inner PROC that writes using name capture, original output direction
+  PROC inner()
+    c ! 3
+  :
+  inner()
+%M
+  foo(c!)
+
+%FAIL Inner PROC that writes using name capture, original input direction
+  PROC inner()
+    c ! 3
+  :
+  inner()
+%M
+  foo(c?)
 
 %
