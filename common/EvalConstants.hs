@@ -203,7 +203,7 @@ evalMonadic A.MonadicBitNot a = evalMonadicOp complement a
 evalMonadic A.MonadicNot (OccBool b) = return $ OccBool (not b)
 evalMonadic op _ = throwError (Nothing, "bad monadic op: " ++ show op)
 
-evalDyadicOp :: (forall t. (Num t, Integral t, Bits t) => t -> t -> t) -> OccValue -> OccValue -> EvalM OccValue
+evalDyadicOp :: (forall t. (Num t, Integral t, Bounded t, Bits t) => t -> t -> t) -> OccValue -> OccValue -> EvalM OccValue
 evalDyadicOp f (OccByte a) (OccByte b) = return $ OccByte (f a b)
 evalDyadicOp f (OccUInt16 a) (OccUInt16 b) = return $ OccUInt16 (f a b)
 evalDyadicOp f (OccUInt32 a) (OccUInt32 b) = return $ OccUInt32 (f a b)
@@ -235,14 +235,14 @@ logicalShiftR val n = rotateR (foldl clearBit val [0 .. (n - 1)]) n
 
 -- | Equivalent to 'div', but handles @minBound `div` (-1)@ correctly.
 -- (GHC's doesn't, at least as of 6.8.1.)
-safeDiv :: Integral a => a -> a -> a
-safeDiv a (-1) = 0
+safeDiv :: (Integral a, Bounded a) => a -> a -> a
+safeDiv a (-1) | a == minBound = 0 -- Should be an overflow
 safeDiv a b = div a b
 
 -- | Equivalent to 'rem', but handles @minBound `rem` (-1)@ correctly.
 -- (GHC's doesn't, at least as of 6.8.1.)
-safeRem :: Integral a => a -> a -> a
-safeRem a (-1) = 0
+safeRem :: (Integral a, Bounded a) => a -> a -> a
+safeRem a (-1) | a == minBound = 0 -- The correct answer
 safeRem a b = rem a b
 
 evalDyadic :: A.DyadicOp -> OccValue -> OccValue -> EvalM OccValue
