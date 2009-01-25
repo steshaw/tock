@@ -284,6 +284,28 @@ int main(int argc, char** argv)
 
 	//TODO add tests for the index-checking functions too
 
+	//Floating point:
+	testf(occam_ABS(NAN,""));
+	testf(occam_DABS(NAN,""));
+	testf(occam_ABS(INFINITY,""));
+	testf(occam_DABS(INFINITY,""));
+	
+	testf(occam_SCALEB(NAN,1,""));
+	testf(occam_DSCALEB(NAN,1,""));
+	testf(occam_SCALEB(INFINITY,1,""));
+	testf(occam_DSCALEB(INFINITY,1,""));
+
+	testf(occam_MULBY2(NAN,""));
+	testf(occam_DMULBY2(NAN,""));
+	testf(occam_MULBY2(INFINITY,""));
+	testf(occam_DMULBY2(INFINITY,""));
+
+	testf(occam_DIVBY2(NAN,""));
+	testf(occam_DDIVBY2(NAN,""));
+	testf(occam_DIVBY2(INFINITY,""));
+	testf(occam_DDIVBY2(INFINITY,""));
+
+
 	printf("Tests complete, passed: %d, failed: %d\n", passes, failures);
 	
 	return -failures;
