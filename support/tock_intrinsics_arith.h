@@ -68,7 +68,7 @@ static inline INT occam_NORMALISE (INT hi_in, INT lo_in, INT* result1, INT* resu
 //TODO implement, and move into the correct order above:
 ///////////////////
 
-static inline INT occam_LONGSUB (INT, INT, const char *) occam_unused;
+static inline INT occam_LONGSUB (INT, INT, INT, const char *) occam_unused;
 static inline INT occam_LONGSUB (INT left, INT right, INT borrow_in, const char *pos) {
 	return 0;
 }
