@@ -50,7 +50,7 @@ static inline REAL ADD_PREFIX(ABS) (REAL X, const char* pos) {
 	if (isfinite(X)) {
 		return F(fabs)(X);
 	} else {
-		occam_stop(pos,2,"Called ABS on non-finite value: %f",X);
+		occam_stop(pos,2,"Called (D)ABS on non-finite value: %f",X);
 	}
 }
 static inline REAL ADD_PREFIX(COPYSIGN) (REAL, REAL, const char*) occam_unused;
@@ -62,7 +62,7 @@ static inline REAL ADD_PREFIX(DIVBY2) (REAL X, const char* pos) {
 	if (isfinite(X)) {
 		return F(scalbln)(X,-1);
 	} else {
-		occam_stop(pos,2,"Called DIVBY2 on non-finite value: %f", X);
+		occam_stop(pos,2,"Called (D)DIVBY2 on non-finite value: %f", X);
 	}
 }
 static inline INT ADD_PREFIX(FLOATING_UNPACK) (REAL, REAL*, const char*) occam_unused;
@@ -90,7 +90,7 @@ static inline REAL ADD_PREFIX(MULBY2) (REAL X, const char* pos) {
 	if (isfinite(X)) {
 		return F(scalbln)(X,1);
 	} else {
-		occam_stop(pos,2,"Called MULBY2 on non-finite value: %f", X);
+		occam_stop(pos,2,"Called (D)MULBY2 on non-finite value: %f", X);
 	}
 }
 static inline REAL ADD_PREFIX(NEXTAFTER) (REAL, REAL, const char*) occam_unused;
@@ -110,11 +110,15 @@ static inline REAL ADD_PREFIX(SCALEB) (REAL X, INT n, const char* pos) {
 	if (isfinite(X)) {
 		return F(scalbln)(X,n);
 	} else {
-		occam_stop(pos,2,"Called SCALEB on non-finite value: %f", X);
+		occam_stop(pos,2,"Called (D)SCALEB on non-finite value: %f", X);
 	}
 }
 static inline REAL ADD_PREFIX(SQRT) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(SQRT) (REAL X, const char* pos) {
-	return F(sqrt)(X);
+	if (isfinite(X) && X >= 0) {
+		return F(sqrt)(X);
+	} else {
+		occam_stop(pos,2,"Called (D)SQRT on invalid input: %f", X);
+	}
 }
 

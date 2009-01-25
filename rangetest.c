@@ -290,6 +290,13 @@ int main(int argc, char** argv)
 	testf(occam_ABS(INFINITY,""));
 	testf(occam_DABS(INFINITY,""));
 	
+	testf(occam_SQRT(NAN,""));
+	testf(occam_DSQRT(NAN,""));
+	testf(occam_SQRT(INFINITY,""));
+	testf(occam_DSQRT(INFINITY,""));
+	testf(occam_SQRT(-1,""));
+	testf(occam_DSQRT(-1,""));
+
 	testf(occam_SCALEB(NAN,1,""));
 	testf(occam_DSCALEB(NAN,1,""));
 	testf(occam_SCALEB(INFINITY,1,""));
