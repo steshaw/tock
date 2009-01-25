@@ -79,6 +79,7 @@ cppgenOps = cgenOps {
     genPoison = cppgenPoison,
     genProcCall = cppgenProcCall,
     genReplicatorLoop = cppgenReplicatorLoop,
+    genReschedule = cppgenReschedule,
     genStop = cppgenStop,
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
@@ -844,3 +845,6 @@ cppgenClearMobile _ v
        tell ["=NULL;}"]
   where
     genVar = call genVariable v
+
+cppgenReschedule :: CGen ()
+cppgenReschedule = tell ["csp::CPPCSP_Yield();"]

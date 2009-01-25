@@ -128,6 +128,7 @@ cgenOps = GenOps {
     genReplicatorStart = cgenReplicatorStart,
     genReplicatorEnd = cgenReplicatorEnd,
     genReplicatorLoop = cgenReplicatorLoop,
+    genReschedule = cgenReschedule,
     genRetypeSizes = cgenRetypeSizes,
     genSeq = cgenSeq,
     genSimpleDyadic = cgenSimpleDyadic,
@@ -939,7 +940,7 @@ cgenTypeSymbol s t
 
 cgenIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen ()
 cgenIntrinsicFunction m s es
-    =  do tell ["occam_", s, " ("]
+    =  do tell ["occam_", [if c == '.' then '_' else c | c <- s], "("]
           sequence [call genExpression e >> genComma | e <- es]
           genMeta m
           tell [")"]
@@ -1541,7 +1542,7 @@ cgenAssign m [v] (A.ExpressionList _ [e])
              tell [";"]
 cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
     = do call genVariable v
-         tell ["=occam_",n,"("]
+         tell ["=occam_",[if c == '.' then '_' else c | c <- n],"("]
          seqComma $ map (call genExpression) es
          mapM (\v -> tell [","] >> call genActual (A.Formal A.Abbrev A.Int (A.Name
            emptyMeta "dummy_intrinsic_param")) (A.ActualVariable v)) vs
@@ -1829,8 +1830,11 @@ cgenProcCall n as
 --{{{  intrinsic procs
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
-cgenIntrinsicProc _ "RESCHEDULE" [] = tell ["Reschedule (wptr);\n"]
+cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
 cgenIntrinsicProc _ s _ = call genMissing $ "intrinsic PROC " ++ s
+
+cgenReschedule :: CGen ()
+cgenReschedule = tell ["Reschedule (wptr);"]
 
 cgenAssert :: Meta -> A.Expression -> CGen ()
 cgenAssert m e

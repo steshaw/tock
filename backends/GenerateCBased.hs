@@ -160,6 +160,7 @@ data GenOps = GenOps {
     genReplicatorEnd :: A.Replicator -> CGen (),
     -- | Generates the three bits of a for loop (e.g. @int i = 0; i < 10; i++@ for the given replicator)
     genReplicatorLoop :: A.Name -> A.Replicator -> CGen (),
+    genReschedule :: CGen(),
     genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: A.Structured A.Process -> CGen (),
     genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
@@ -193,6 +194,10 @@ data GenOps = GenOps {
 -- | Call an operation in GenOps.
 class CGenCall a where
   call :: (GenOps -> a) -> a
+
+instance CGenCall (CGen z) where
+  call f = do ops <- ask
+              f ops
 
 instance CGenCall (a -> CGen z) where
 --  call :: (a -> CGen b) -> a -> CGen b
