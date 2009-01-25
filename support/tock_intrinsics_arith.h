@@ -110,12 +110,12 @@ static inline INT occam_ASHIFTLEFT (INT x, INT places, const char *pos) {
 
 static inline INT occam_ROTATERIGHT (INT, INT, const char *) occam_unused;
 static inline INT occam_ROTATERIGHT (INT x, INT places, const char *pos) {
-	return 0;
+	return (INT)((UINT)x >> places) | (x << (CHAR_BIT*sizeof(INT) - places));
 }
 
 static inline INT occam_ROTATELEFT (INT, INT, const char *) occam_unused;
 static inline INT occam_ROTATELEFT (INT x, INT places, const char *pos) {
-	return 0;
+	return (x << places) | (INT)((UINT)x >> (CHAR_BIT*sizeof(INT) - places));
 }
 
 
