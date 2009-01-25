@@ -24,7 +24,7 @@ import qualified AST as A
 intrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
 intrinsicFunctions =
     [ -- Multiple length arithmetic functions
-      -- Appendix L of the occam 2 manual
+      -- Appendix L of the occam 2 manual (and section J.1)
       ("ASHIFTLEFT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
     , ("ASHIFTRIGHT", ([A.Int], [(A.Int, "argument"), (A.Int, "places")]))
     , ("LONGADD", ([A.Int], [(A.Int, "left"), (A.Int, "right"), (A.Int, "carry.in")]))
@@ -40,12 +40,55 @@ intrinsicFunctions =
     , ("SHIFTRIGHT", ([A.Int, A.Int], [(A.Int, "hi.in"), (A.Int, "lo.in"), (A.Int, "places")]))
 
       -- IEEE floating point arithmetic
-      -- Appendix M of the occam 2 manual
-    , ("REAL32OP", ([A.Real32], [(A.Real32, "X"), (A.Int, "Op"), (A.Real32, "Y")]))
+      -- Appendix M of the occam 2 manual (and section J.3)
+    ] ++ concatMap doubleD [
+      ("IEEECOMPARE", ([A.Int], [(A.Real32, "X"), (A.Real32, "Y")]))
+    ] ++ concatMap doubleNum [
+        ("IEEE32OP", ([A.Bool, A.Real32], [(A.Real32, "X"), (A.Int, "Rm"), (A.Int, "Op"), (A.Real32, "Y")]))
+      , ("IEEE32REM", ([A.Bool, A.Real32], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , ("REAL32EQ", ([A.Bool], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , ("REAL32GT", ([A.Bool], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , ("REAL32OP", ([A.Real32], [(A.Real32, "X"), (A.Int, "Op"), (A.Real32, "Y")]))
+      , ("REAL32REM", ([A.Real32], [(A.Real32, "X"), (A.Real32, "Y")]))
 
-    , ("SQRT", ([A.Real32], [(A.Real32, "value")]))
-    , ("DSQRT", ([A.Real64], [(A.Real64, "value")]))
-    ]
+
+      -- Floating point functions
+      -- Appendix K of the occam 2 manual (and section J.2)
+    ] ++ [
+        ("ARGUMENT.REDUCE", ([A.Bool, A.Int32, A.Real32], [(A.Real32, "X"), (A.Real32, "Y"), (A.Real32, "Y.err")]))    
+      , ("DARGUMENT.REDUCE", ([A.Bool, A.Int32, A.Real64], [(A.Real64, "X"), (A.Real64, "Y"), (A.Real64, "Y.err")]))
+    ] ++ concatMap doubleD [
+        simple "ABS"
+      , ("COPYSIGN", ([A.Real32], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , simple "DIVBY2"
+      , ("FLOATING.UNPACK", ([A.Int, A.Real32], [(A.Real32, "X")]))
+      , simple "FPINT"
+      , query "ISNAN"
+      , simple "LOGB"
+      , simple "MINUSX"
+      , simple "MULBY2"
+      , ("NEXTAFTER", ([A.Real32], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , query "NOTFINITE"
+      , ("ORDERED", ([A.Bool], [(A.Real32, "X"), (A.Real32, "Y")]))
+      , ("SCALEB", ([A.Real32], [(A.Real32, "X"), (A.Int, "n")]))
+      , simple "SQRT"
+      ]
+    where
+      query n = (n, ([A.Bool], [(A.Real32, "X")]))
+      simple n = (n, ([A.Real32], [(A.Real32, "X")]))
+      
+      doubleNum orig@(n, (rs, ps)) = [orig, (map rep n, (map dt rs, zip (map (dt . fst) ps) (map snd ps)))]
+        where
+          rep '3' = '6'
+          rep '2' = '4'
+          rep c = c
+
+      doubleD orig@(n, (rs, ps)) = [orig, ("D"++n, (map dt rs, zip (map (dt . fst) ps) (map snd ps)))]
+
+      dt :: A.Type -> A.Type
+      dt A.Real32 = A.Real64
+      dt A.Int32 = A.Int64
+      dt t = t
 
 intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =
