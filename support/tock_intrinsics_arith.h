@@ -142,14 +142,68 @@ static inline INT occam_NORMALISE (INT hi_in, INT lo_in, INT* result1, INT* resu
 	}
 }
 
-////////////////////
-//TODO implement, and move into the correct order above:
-///////////////////
+//Has to go late on due to its function re-use:
 
 static inline INT occam_LONGDIV (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_LONGDIV (INT dividend_hi, INT dividend_lo, INT divisor, INT* result1, const char *pos) {
-	return 0;
+	UINT top_hi = occam_unsign(dividend_hi);
+	UINT top_lo = occam_unsign(dividend_lo);
+	const UINT bottom = occam_unsign(divisor);
+	
+	//Intuititively, the algorithm works as follows:
+	//We work out how many Hi there are remaining in the
+	//Hi part after the Hi/Bot division.  We then have
+	//Hi%Bot loads of R left.  We can immediately
+	//add Hi%Bot * R/bot to the result, leaving
+	// Hi%Bot * R%Bot left.  We must (long-)add this
+	//quantity to Lo, and repeat the procedure, until
+	// Hi is zero.
+	
+	if (bottom == 0) {
+		occam_stop(pos, 1, "Division by zero in LONGDIV");
+	} else {
+		UINT r_hi = 0;
+		UINT r_lo = 0;
+
+		UINT amount_extra_R_over_bot = 0;
+		
+		//We can work R/bot out by doing:
+		// (R/2)/bot + ((R/2)%bot + (R/2)/bot
+		const UINT halfR = occam_unsign(__MIN(INT));
+		UINT R_over_bot = bottom >= halfR ? 1 : (halfR/bottom + ((halfR % bottom) + halfR) / bottom);
+		UINT R_mod_bot = (__MAX(UINT)%bottom) == bottom - 1 ? 0 : 1+(__MAX(UINT)%bottom);
+
+		while (top_hi != 0) {
+			r_hi += top_hi / bottom;
+			r_lo += top_lo / bottom;
+			top_lo %= bottom;
+			top_hi %= bottom;
+			amount_extra_R_over_bot += top_hi;
+			top_hi = occam_unsign(occam_LONGPROD(occam_sign(top_hi),occam_sign(R_mod_bot),occam_sign(top_lo),(INT*)&top_lo,pos));
+		}
+
+		//long-add the results from top_lo/bottom to r_hi,r_lo:
+		r_hi += occam_unsign(occam_LONGSUM(occam_sign(r_lo),occam_sign(top_lo/bottom),0,(INT*)&r_lo,pos));
+		//Save the remainder for later:
+		const UINT rem = top_lo%bottom;
+		
+		//Finally, add on R_over_bot * amount_extra_R_over_bot
+		top_hi = occam_unsign(occam_LONGPROD(occam_sign(R_over_bot), occam_sign(amount_extra_R_over_bot), 0, (INT*)&top_lo,pos));
+		r_hi += top_hi + occam_unsign(occam_LONGSUM(occam_sign(r_lo), occam_sign(top_lo), 0, (INT*)&r_lo, pos));
+		
+		if (r_hi == 0) {
+			*result1 = occam_sign(rem);
+			return occam_sign(r_lo);
+		} else {
+			occam_stop(pos,4,"Overflow in LONGDIV(%d,%d,%d)", dividend_hi, dividend_lo, divisor);
+		}	
+	}
 }
+
+
+////////////////////
+//TODO implement, and move into the correct order above:
+///////////////////
 
 static inline INT occam_SHIFTRIGHT (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_SHIFTRIGHT (INT hi_in, INT lo_in, INT places, INT* result1, const char *pos) {
