@@ -51,10 +51,10 @@ public:
 inline unsigned TimeDiffHelper(unsigned now,unsigned waitFor)
 {
 	//If waitFor is in the 2^31 before now, it is in the past:
-	if (now - waitFor < 2147483648)
+	if (now - waitFor < 2147483648u)
 	{
 		//if we have wrapped round between waitFor and now, we actually want to return a minus-one:
-		if ((waitFor >= 2147483648) && (now < 2147483648))
+		if ((waitFor >= 2147483648u) && (now < 2147483648u))
 		{
 			return (unsigned)(int)(-1);
 		}
@@ -66,7 +66,7 @@ inline unsigned TimeDiffHelper(unsigned now,unsigned waitFor)
 	else
 	{
 		//It is in the future.  If we will wrap round before getting there, return one:
-		if ((now >= 2147483648) && (waitFor < 2147483648))
+		if ((now >= 2147483648u) && (waitFor < 2147483648u))
 		{
 			return 1;
 		}
