@@ -293,6 +293,15 @@ int main(int argc, char** argv)
 	testf(occam_LONGADD(2147483647,2147483647,0,""));
 	testf(occam_LONGADD(2147483647,2147483647,1,""));
 	//TODO LONGSUB	
+	
+	testf(occam_ASHIFTLEFT(1,33,""));
+	testf(occam_ASHIFTLEFT(1,32,""));
+	testf(occam_ASHIFTLEFT(1,31,""));
+	testp(0,occam_ASHIFTLEFT(0,32,""));
+	testf(occam_ASHIFTLEFT(2,31,""));
+	testf(occam_ASHIFTLEFT(INT_MIN,1,""));
+	testp(INT_MIN,occam_ASHIFTLEFT(INT_MIN,0,""));
+	testp(-4,occam_ASHIFTLEFT(-1,2,""));
 
 	//Floating point:
 	testf(occam_ABS(NAN,""));

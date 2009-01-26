@@ -200,11 +200,6 @@ static inline INT occam_LONGDIV (INT dividend_hi, INT dividend_lo, INT divisor, 
 	}
 }
 
-
-////////////////////
-//TODO implement, and move into the correct order above:
-///////////////////
-
 static inline INT occam_SHIFTLEFT (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_SHIFTLEFT (INT hi_in, INT lo_in, INT places, INT* result1, const char *pos) {
 	if (places >= CHAR_BIT*sizeof(INT)) {
@@ -233,12 +228,25 @@ static inline INT occam_SHIFTRIGHT (INT hi_in, INT lo_in, INT places, INT* resul
 
 static inline INT occam_ASHIFTRIGHT (INT, INT, const char *) occam_unused;
 static inline INT occam_ASHIFTRIGHT (INT x, INT places, const char *pos) {
-	return 0;
+	return x >> places;
 }
 
 static inline INT occam_ASHIFTLEFT (INT, INT, const char *) occam_unused;
 static inline INT occam_ASHIFTLEFT (INT x, INT places, const char *pos) {
-	return 0;
+	//Overflows if positive and 1 bits are shifted out or highest bit ends as 1,
+	//or negative and 0 bits are shifted out or highest bit ends as 0
+	if (places > CHAR_BIT*sizeof(INT)
+	    || places < 0
+	    || (places == CHAR_BIT*sizeof(INT) && x != 0)) {
+		occam_stop(pos,3,"Overflow in ASHIFTLEFT(%d,%d)",x,places);
+	}
+	else if (places != CHAR_BIT*sizeof(INT) && places != 0 &&
+	      (occam_unsign(x) >> (CHAR_BIT*sizeof(INT)-places-1) != 
+	       occam_unsign(x < 0 ? (INT)-1 : (INT)0) >> (CHAR_BIT*sizeof(INT)-places-1))) {
+		occam_stop(pos,3,"Overflow in ASHIFTLEFT(%d,%d)",x,places);
+	} else {
+		return (x << places);
+	}
 }
 
 static inline INT occam_ROTATERIGHT (INT, INT, const char *) occam_unused;
