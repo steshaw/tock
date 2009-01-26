@@ -205,14 +205,30 @@ static inline INT occam_LONGDIV (INT dividend_hi, INT dividend_lo, INT divisor, 
 //TODO implement, and move into the correct order above:
 ///////////////////
 
-static inline INT occam_SHIFTRIGHT (INT, INT, INT, INT*, const char *) occam_unused;
-static inline INT occam_SHIFTRIGHT (INT hi_in, INT lo_in, INT places, INT* result1, const char *pos) {
-	return 0;
-}
-
 static inline INT occam_SHIFTLEFT (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_SHIFTLEFT (INT hi_in, INT lo_in, INT places, INT* result1, const char *pos) {
-	return 0;
+	if (places >= CHAR_BIT*sizeof(INT)) {
+		*result1 = 0;
+		return occam_sign(occam_unsign(lo_in) << (places - CHAR_BIT*sizeof(INT)));
+	} else {
+		const UINT r_lo = occam_unsign(lo_in) << places;
+		const UINT r_hi = (occam_unsign(hi_in) << places) | (occam_unsign(lo_in) >> (CHAR_BIT*sizeof(INT)-places));
+		*result1 = occam_sign(r_lo);
+		return r_hi;
+	}
+}
+
+static inline INT occam_SHIFTRIGHT (INT, INT, INT, INT*, const char *) occam_unused;
+static inline INT occam_SHIFTRIGHT (INT hi_in, INT lo_in, INT places, INT* result1, const char *pos) {
+	if (places >= CHAR_BIT*sizeof(INT)) {
+		*result1 = occam_sign(occam_unsign(hi_in) >> (places - CHAR_BIT*sizeof(INT)));
+		return 0;
+	} else {
+		const UINT r_hi = occam_unsign(hi_in) >> places;
+		const UINT r_lo = (occam_unsign(lo_in) >> places) | (occam_unsign(hi_in) << (CHAR_BIT*sizeof(INT)-places));
+		*result1 = occam_sign(r_lo);
+		return r_hi;
+	}
 }
 
 static inline INT occam_ASHIFTRIGHT (INT, INT, const char *) occam_unused;
