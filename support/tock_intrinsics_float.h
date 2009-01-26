@@ -28,7 +28,13 @@ static inline BOOL SPLICE_SIZE(occam_REAL,GT) (REAL X, REAL Y, const char* pos) 
 }
 static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL, INT, REAL, const char*) occam_unused;
 static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL X, INT Op, REAL Y, const char* pos) {
-	return 0;
+	switch (Op) {
+		case 0: return X+Y;
+		case 1: return X-Y;
+		case 2: return X*Y;
+		case 3: return X/Y;
+		default: return 0;
+	}
 }
 static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL, REAL, const char*) occam_unused;
 static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL X, REAL Y, const char* pos) {
