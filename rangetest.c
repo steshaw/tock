@@ -284,6 +284,16 @@ int main(int argc, char** argv)
 
 	//TODO add tests for the index-checking functions too
 
+	//Arithmetic:
+	testp(-2,occam_LONGADD(-1,-1,0,""));
+	testp(-1,occam_LONGADD(-1,0,0,""));
+	testp(2147483647,occam_LONGADD(2147483647,0,0,""));
+	testf(occam_LONGADD(2147483647,0,1,""));
+	testp(2,occam_LONGADD(-1,3,0,""));
+	testf(occam_LONGADD(2147483647,2147483647,0,""));
+	testf(occam_LONGADD(2147483647,2147483647,1,""));
+	//TODO LONGSUB	
+
 	//Floating point:
 	testf(occam_ABS(NAN,""));
 	testf(occam_DABS(NAN,""));

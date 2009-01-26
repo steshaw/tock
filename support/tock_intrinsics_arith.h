@@ -22,13 +22,50 @@ static inline INT occam_LONGADD (INT left, INT right, INT carry_in, const char *
 	}
 }
 
+static inline INT occam_LONGDIFF (INT, INT, INT, INT*, const char *) occam_unused;
+static inline INT occam_LONGDIFF (INT left, INT right, INT borrow_in, INT* result1, const char *pos) {
+	UINT leftu = occam_unsign(left);
+	UINT rightu = occam_unsign(right);
+	if (leftu == 0) {
+		if (rightu == __MAX(UINT)) {
+			*result1 = 1 - (borrow_in & 1);
+			return 1;
+		} else rightu += borrow_in & 1;
+	} else leftu -= borrow_in & 1;
+	
+	if (rightu > leftu) {
+		//This will overflow -- could be a problem on odd C implementations		
+		*result1 = occam_sign(leftu - rightu);
+		return 1;
+	} else {
+		*result1 = occam_sign(leftu - rightu);
+		return 0;
+	}
+}
+
+
+static inline INT occam_LONGSUB (INT, INT, INT, const char *) occam_unused;
+static inline INT occam_LONGSUB (INT left, INT right, INT borrow_in, const char *pos) {
+	if (left == __MIN(INT)) {
+		if (right == __MIN(INT)) {
+			occam_stop(pos, 3, "Overflow in LONGSUB: %d - %d", left, right);
+		} else right -= borrow_in & 1;
+	} else left -= borrow_in & 1;
+
+	if (((right<1)&&(__MAX(INT)+right>=left)) || ((right>=1)&&(__MIN(INT)+right<=left))) {
+		return left - right;
+	} else {
+		occam_stop(pos, 3, "Overflow in LONGSUB: %d - %d", left, right);
+	}
+}
+
 static inline INT occam_LONGSUM (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_LONGSUM (INT left, INT right, INT carry_in, INT* result1, const char *pos) {
 	UINT leftu = occam_unsign(left);
 	UINT rightu = occam_unsign(right);
 	if (leftu == __MAX(UINT)) {
 		if (rightu == __MAX(UINT)) {
-			*result1 = -2;
+			*result1 = -2 + (carry_in & 1);
 			return 1;
 		} else rightu += carry_in & 1;
 	} else leftu += carry_in & 1;
@@ -37,6 +74,7 @@ static inline INT occam_LONGSUM (INT left, INT right, INT carry_in, INT* result1
 		*result1 = occam_sign(leftu + rightu);
 		return 0;
 	} else {
+		//This will overflow -- could be a problem on odd C implementations
 		*result1 = occam_sign(leftu + rightu);
 		return 1;
 	}
@@ -67,16 +105,6 @@ static inline INT occam_NORMALISE (INT hi_in, INT lo_in, INT* result1, INT* resu
 ////////////////////
 //TODO implement, and move into the correct order above:
 ///////////////////
-
-static inline INT occam_LONGSUB (INT, INT, INT, const char *) occam_unused;
-static inline INT occam_LONGSUB (INT left, INT right, INT borrow_in, const char *pos) {
-	return 0;
-}
-
-static inline INT occam_LONGDIFF (INT, INT, INT, INT*, const char *) occam_unused;
-static inline INT occam_LONGDIFF (INT left, INT right, INT borrow_in, INT* result1, const char *pos) {
-	return 0;
-}
 
 static inline INT occam_LONGPROD (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_LONGPROD (INT left, INT right, INT carry_in, INT* result1, const char *pos) {
