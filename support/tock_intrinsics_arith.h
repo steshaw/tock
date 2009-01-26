@@ -43,6 +43,46 @@ static inline INT occam_LONGDIFF (INT left, INT right, INT borrow_in, INT* resul
 	}
 }
 
+static inline INT occam_LONGPROD (INT, INT, INT, INT*, const char *) occam_unused;
+static inline INT occam_LONGPROD (INT left, INT right, INT carry_in, INT* result1, const char *pos) {
+	const UINT leftu = occam_unsign(left);
+	const UINT rightu = occam_unsign(right);
+	const UINT carryu = occam_unsign(carry_in);
+#define HI_HALF(x) (x >> (CHAR_BIT*sizeof(INT)/2))
+#define LO_HALF(x) (x & ((1<<(CHAR_BIT*sizeof(INT)/2))-1))
+#define MAKE_HI(x) (x << (CHAR_BIT*sizeof(INT)/2))
+	const UINT leftu_hi = HI_HALF(leftu);
+	const UINT rightu_hi = HI_HALF(rightu);
+	const UINT leftu_lo = LO_HALF(leftu);
+	const UINT rightu_lo = LO_HALF(rightu);
+
+	UINT prod_lo = leftu_lo * rightu_lo;
+	UINT prod_hi = leftu_hi * rightu_hi;
+	const UINT prod_med0 = leftu_lo * rightu_hi;
+	const UINT prod_med1 = leftu_hi * rightu_lo;
+	//E.g.s given for 8-bit, L=15,M=255:
+	//prod_hi has max value 225 (L*L)
+	//HI_HALF(prod_med0|1) has max value 14 (L*L)/(L+1)
+	//So no overflow possible here:
+	prod_hi += HI_HALF(prod_med0) + HI_HALF(prod_med1);
+	//prod_hi cannot overflow from these carries,
+	//As mathematically, (M*M)+M < ((M+1)*(M+1)) - 1
+	
+	prod_hi += (__MAX(UINT) - prod_lo >= MAKE_HI(LO_HALF(prod_med0))) ? 0 : 1;
+	prod_lo += MAKE_HI(LO_HALF(prod_med0));
+
+	prod_hi += (__MAX(UINT) - prod_lo >= MAKE_HI(LO_HALF(prod_med1))) ? 0 : 1;
+	prod_lo += MAKE_HI(LO_HALF(prod_med1));
+
+	prod_hi += (__MAX(UINT) - prod_lo >= carryu) ? 0 : 1;
+	prod_lo += carryu;
+	
+	*result1 = occam_sign(prod_lo);
+	return prod_hi;
+#undef HI_HALF
+#undef LO_HALF
+#undef MAKE_HI
+}
 
 static inline INT occam_LONGSUB (INT, INT, INT, const char *) occam_unused;
 static inline INT occam_LONGSUB (INT left, INT right, INT borrow_in, const char *pos) {
@@ -105,11 +145,6 @@ static inline INT occam_NORMALISE (INT hi_in, INT lo_in, INT* result1, INT* resu
 ////////////////////
 //TODO implement, and move into the correct order above:
 ///////////////////
-
-static inline INT occam_LONGPROD (INT, INT, INT, INT*, const char *) occam_unused;
-static inline INT occam_LONGPROD (INT left, INT right, INT carry_in, INT* result1, const char *pos) {
-	return 0;
-}
 
 static inline INT occam_LONGDIV (INT, INT, INT, INT*, const char *) occam_unused;
 static inline INT occam_LONGDIV (INT dividend_hi, INT dividend_lo, INT divisor, INT* result1, const char *pos) {
