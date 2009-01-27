@@ -190,3 +190,9 @@ static inline REAL ADD_PREFIX(SQRT) (REAL X, const char* pos) {
 	}
 }
 
+static inline REAL ADD_PREFIX(RAN) (RINT, RINT*, const char*) occam_unused;
+static inline REAL ADD_PREFIX(RAN) (RINT N, RINT* result1, const char* pos) {
+	int next = rand_r((unsigned*)&N);
+	*result1 = *(int*)&N;
+	return (REAL)next / (REAL)RAND_MAX;
+}

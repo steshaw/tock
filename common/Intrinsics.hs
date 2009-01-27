@@ -79,7 +79,7 @@ intrinsicFunctions =
       -- Elementary floating point functions
       -- Appendix N of the occam 2 manual (and section J.4)
       ++ [(n, ts) | (n, (ts, _)) <- simpleFloatIntrinsics]
-      ++ [("RAN", ([A.Real32, A.Int32], [(A.Int32, "N")]))]
+      ++ concatMap doubleD [("RAN", ([A.Real32, A.Int32], [(A.Int32, "N")]))]
     where
       query n = (n, ([A.Bool], [(A.Real32, "X")]))
       simple n = (n, ([A.Real32], [(A.Real32, "X")]))
