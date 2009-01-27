@@ -147,6 +147,16 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   no_tree_vrp=
 )
 
+#Check whether GCC accepts the -Wno-unused-parameter -Wno-unused-variable flags:
+AC_MSG_CHECKING([whether -Wno-unused-parameter and -Wno-unused-variable flags are accepted])
+CFLAGS="-Wno-unused-parameter -Wno-unused-variable"
+AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
+  AC_MSG_RESULT([yes])
+  no_unused="-Wno-unused-parameter -Wno-unused-variable"
+  ,
+  AC_MSG_RESULT([no])
+  no_unused=
+)
 
 CFLAGS="$old_CFLAGS"
 
@@ -226,7 +236,7 @@ CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # that, but I'm also leaving these flags in so that any other code (for example,
 # that Tock might spit out) that uses increments doesn't have the same issue.
 
-common_cflags="-Wall -ggdb3 -Isupport $no_strict_aliasing"
+common_cflags="-Wall $no_unused -ggdb3 -Isupport $no_strict_aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS"
