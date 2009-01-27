@@ -64,7 +64,21 @@
 #endif
 //}}}
 
-//TODO we should really use more Tock-specific names to avoid clashes
+#ifdef INT
+#define tock_old_INT INT
+#endif
+#ifdef UINT
+#define tock_old_UINT UINT
+#endif
+#ifdef BOOL
+#define tock_old_BOOL BOOL
+#endif
+#ifdef REAL
+#define tock_old_REAL REAL
+#endif
+#ifdef RINT
+#define tock_old_RINT RINT
+#endif
 
 //We use #define so we can #undef afterwards
 #if occam_INT_size == 4
@@ -509,6 +523,21 @@ int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 #undef SPLICE_SIZE
 #undef F
 
+#ifdef tock_old_INT
+#define INT tock_old_INT
+#endif
+#ifdef tock_old_UINT
+#define UINT tock_old_UINT
+#endif
+#ifdef tock_old_BOOL
+#define BOOL tock_old_BOOL
+#endif
+#ifdef tock_old_REAL
+#define REAL tock_old_REAL
+#endif
+#ifdef tock_old_RINT
+#define RINT tock_old_RINT
+#endif
 
 //}}}
 
