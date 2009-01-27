@@ -137,6 +137,9 @@ cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 cppOnlyPass :: PassMaker
 cppOnlyPass = passMakerHelper $ (== BackendCPPCSP) . csBackend
 
+cOrCppOnlyPass :: PassMaker
+cOrCppOnlyPass = passMakerHelper $ (`elem` [BackendC, BackendCPPCSP]) . csBackend
+
 pass :: PassMaker
 pass = passMakerHelper (const True)
 

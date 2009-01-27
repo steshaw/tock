@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import qualified AST as A
 import CompState
 import Errors
+import EvalConstants
 import Metadata
 import Pass
 import PrettyShow
@@ -43,6 +44,7 @@ squashArrays =
   , declareSizesArray
   , addSizesFormalParameters
   , addSizesActualParameters
+  , fixMinInt
   ]
 
 prereq :: [Property]
@@ -87,6 +89,32 @@ removeUnneededDirections
               A.Array _ (A.ChanEnd chanDir _ _) | dir == chanDir -> return v
               _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
     doVariable v = return v
+
+-- | Turns any literals equivalent to a MOSTNEG back into a MOSTNEG
+-- The reason for doing this is that C (and presumably C++) don't technically (according
+-- to the standard) allow you to write INT_MIN directly as a constant.  GCC certainly
+-- warns about it.  So this pass takes any MOSTNEG-equivalent values (that will have been
+-- converted to constants in the constant folding earlier) and turns them back
+-- into MOSTNEG, for which the C backend uses INT_MIN and similar, which avoid
+-- this problem.
+fixMinInt :: Pass
+fixMinInt
+  = cOrCppOnlyPass "Turn any literals that are equal to MOSTNEG INT back into MOSTNEG INT"
+                   prereq
+                   []
+                   (applyDepthM doExpression)
+  where
+    doExpression :: Transform (A.Expression)
+    doExpression l@(A.Literal m t (A.IntLiteral m' s))
+      = do folded <- constantFold (A.MostNeg m t)
+           case folded of
+             (A.Literal _ _ (A.IntLiteral _ s'), _, _)
+               -> if (s == s')
+                    then return $ A.MostNeg m t
+                    else return l
+             _ -> return l -- This can happen as some literals retain the Infer
+                           -- type which fails the constant folding
+    doExpression e = return e
 
 transformWaitFor :: Pass
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
