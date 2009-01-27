@@ -43,14 +43,27 @@ static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL X, REAL Y, const char* pos)
 #if SPLICE_SIZE(4,1) == 4321
 static inline BOOL occam_ARGUMENT_REDUCE (float, float, float, int32_t*, float*, const char*) occam_unused;
 static inline BOOL occam_ARGUMENT_REDUCE (float X, float Y, float Y_err, int32_t* result1, float* result2, const char* pos) {
-	return 0;
-}
+	const INT maxexpdiff = 20;
 #else
 static inline BOOL occam_DARGUMENT_REDUCE (double, double, double, int32_t*, double*, const char*) occam_unused;
 static inline BOOL occam_DARGUMENT_REDUCE (double X, double Y, double Y_err, int32_t* result1, double* result2, const char* pos) {
-	return 0;
-}
+	const INT maxexpdiff = 30;
 #endif
+	int EX;
+	int EY;
+	F(frexp)(X,&EX);
+	F(frexp)(Y,&EY);
+	if (EX > EY + maxexpdiff) {
+		*result2 = F(remainder)(X,Y);
+		return false;
+	} else {
+		int R;
+		*result2 = F(remquo)(X,Y,&R);
+		*result1 = R;
+		return true;
+	}
+}
+
 static inline REAL ADD_PREFIX(ABS) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(ABS) (REAL X, const char* pos) {
 	if (isfinite(X)) {
@@ -73,11 +86,28 @@ static inline REAL ADD_PREFIX(DIVBY2) (REAL X, const char* pos) {
 }
 static inline INT ADD_PREFIX(FLOATING_UNPACK) (REAL, REAL*, const char*) occam_unused;
 static inline INT ADD_PREFIX(FLOATING_UNPACK) (REAL X, REAL* result1, const char* pos) {
-	return 0;
+	if (isnan(X) || X == 0) {
+		//Finding the max exponent is a hack,
+		//but frexp doesn't set the exponent when you pass
+		//it a NAN so I can't see an easier way:
+		*result1 = NAN;
+		return (sizeof(X)*CHAR_BIT == 32 ? 0xFF : 0x7FF);
+	} else {
+		int E;
+		//frexp returns in the range 0.5 to 1, but occam wants
+		//the range 1 to 2, so we must double it, and subtrace
+		//one from our return value:
+		*result1 = F(scalbn)(F(frexp)(X,&E),1);
+		return E - 1;
+	}
 }
 static inline REAL ADD_PREFIX(FPINT) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(FPINT) (REAL X, const char* pos) {
-	return 0;
+	if (F(fabs)(X) >= F(exp2)(CHAR_BIT*sizeof(RINT))) {
+		return X;
+	} else {
+		return F(nearbyint)(X);
+	}
 }
 static inline BOOL ADD_PREFIX(ISNAN) (REAL, const char*) occam_unused;
 static inline BOOL ADD_PREFIX(ISNAN) (REAL X, const char* pos) {
@@ -85,11 +115,26 @@ static inline BOOL ADD_PREFIX(ISNAN) (REAL X, const char* pos) {
 }
 static inline REAL ADD_PREFIX(LOGB) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(LOGB) (REAL X, const char* pos) {
-	return 0;
+	if (isnan(X)) {
+		return X;
+	} else if (!(isfinite(X))) {
+		return INFINITY;
+	} else if (X == 0) {
+		return -INFINITY;
+	} else {
+		int E = 0;
+		F(frexp)(X,&E);
+		//Adjust because frexp puts it in the range 0.5--1 rather than 1--2:
+		return E-1;
+	}
+	
 }
 static inline REAL ADD_PREFIX(MINUSX) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(MINUSX) (REAL X, const char* pos) {
-	return 0;
+	RINT iX = *(RINT*)&X;
+	iX ^= __MIN(RINT); // Flip highest bit
+	return *(REAL*)&iX;
+
 }
 static inline REAL ADD_PREFIX(MULBY2) (REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(MULBY2) (REAL X, const char* pos) {
