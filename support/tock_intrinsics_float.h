@@ -12,15 +12,32 @@ static inline INT ADD_PREFIX(IEEECOMPARE) (REAL X, REAL Y, const char* pos) {
 }
 static inline BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL, INT, INT, REAL, REAL*, const char*) occam_unused;
 static inline BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, INT Rm, INT Op, REAL Y, REAL* result1, const char* pos) {
-	return 0;
+	REAL R;
+	int prevRm = fegetround();
+	switch (Rm) {
+		case 0: fesetround(FE_TOWARDZERO); break;
+		case 1: fesetround(FE_TONEAREST); break;
+		case 2: fesetround(FE_UPWARD); break;
+		case 3: fesetround(FE_DOWNWARD); break;
+	}
+	switch (Op) {
+		case 0: R = X + Y; break;
+		case 1: R = X - Y; break;
+		case 2: R = X * Y; break;
+		case 3: R = X / Y; break;
+	}	
+	fesetround(prevRm);
+	*result1 = R;
+	return (isnan(R));
 }
 static inline BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL, REAL, REAL*, const char*) occam_unused;
 static inline BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL X, REAL Y, REAL* result1, const char* pos) {
-	return 0;
+	*result1 = F(remainder)(X,Y);
+	return isnan((*result1));
 }
 static inline BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL, REAL, const char*) occam_unused;
 static inline BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL X, REAL Y, const char* pos) {
-	return 0;
+	return X==Y;
 }
 static inline BOOL SPLICE_SIZE(occam_REAL,GT) (REAL, REAL, const char*) occam_unused;
 static inline BOOL SPLICE_SIZE(occam_REAL,GT) (REAL X, REAL Y, const char* pos) {
@@ -38,7 +55,7 @@ static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL X, INT Op, REAL Y, const cha
 }
 static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL, REAL, const char*) occam_unused;
 static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL X, REAL Y, const char* pos) {
-	return 0;
+	return F(remainder)(X,Y);
 }
 #if SPLICE_SIZE(4,1) == 4321
 static inline BOOL occam_ARGUMENT_REDUCE (float, float, float, int32_t*, float*, const char*) occam_unused;

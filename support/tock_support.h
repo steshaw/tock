@@ -23,6 +23,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <limits.h>
+#include <fenv.h>
 #include <float.h>
 #include <stdio.h>
 #include <math.h>
