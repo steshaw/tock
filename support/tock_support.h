@@ -122,32 +122,32 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define __MIN(type) ((type)-1 < 1?__MIN_SIGNED(type):(type)0)
 #define __MAX(type) ((type)~__MIN(type))
 
-#define MAKE_ADD(type) \
+#define MAKE_ADD(type, format) \
 	static inline type occam_add_##type (type, type, const char *) occam_unused; \
 	static inline type occam_add_##type (type a, type b, const char *pos) { \
 		if (((b<1)&&(__MIN(type)-b<=a)) || ((b>=1)&&(__MAX(type)-b>=a))) {return a + b;} \
-		else { occam_stop(pos, 3, "integer overflow when doing %d + %d", a, b); return 0; } \
+		else { occam_stop(pos, 3, "integer overflow when doing " format " + " format, a, b); return 0; } \
 	}
 #define MAKE_ADDF(type) \
 	static inline type occam_add_##type (type, type, const char *) occam_unused; \
 	static inline type occam_add_##type (type a, type b, const char *pos) { return a + b;}
-#define MAKE_SUBTR(type) \
+#define MAKE_SUBTR(type,format) \
 	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
 	static inline type occam_subtr_##type (type a, type b, const char *pos) { \
 		if (((b<1)&&(__MAX(type)+b>=a)) || ((b>=1)&&(__MIN(type)+b<=a))) {return a - b;} \
-		else { occam_stop(pos, 3, "integer overflow when doing %d - %d", a, b); } \
+		else { occam_stop(pos, 3, "integer overflow when doing " format " - " format, a, b); } \
 	}
 #define MAKE_SUBTRF(type) \
 	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
 	static inline type occam_subtr_##type (type a, type b, const char *pos) { return a - b;}
 
-#define MAKE_MUL(type) \
+#define MAKE_MUL(type,format) \
 	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
 	static inline type occam_mul_##type (const type a, const type b, const char *pos) { \
 		if (sizeof(type) < sizeof(long)) /*should be statically known*/ { \
 			const long r = (long)a * (long) b; \
 			if (r < (long)__MIN(type) || r > (long)__MAX(type)) { \
-				occam_stop(pos, 3, "integer overflow when doing %d * %d", a, b); \
+				occam_stop(pos, 3, "integer overflow when doing " format " * " format, a, b); \
 			} else { \
 				return (type)r; \
 			} \
@@ -155,7 +155,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 			/* Taken from: http://www.mail-archive.com/debian-bugs-dist@lists.debian.org/msg326431.html */ \
         	const type r = a * b; \
    	    	if (b != 0 && r / b != a) { \
-       			occam_stop(pos, 3, "integer overflow when doing %d * %d", a, b); \
+       			occam_stop(pos, 3, "integer overflow when doing "format " * " format, a, b); \
        		} else { \
         		return r; \
 			} \
@@ -261,9 +261,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 
 #define MAKE_ALL_SIGNED(type,flag,utype) \
 	MAKE_RANGE_CHECK(type,flag) \
-	MAKE_ADD(type) \
-	MAKE_SUBTR(type) \
-	MAKE_MUL(type) \
+	MAKE_ADD(type,flag) \
+	MAKE_SUBTR(type,flag) \
+	MAKE_MUL(type,flag) \
 	MAKE_DIV(type) \
 	MAKE_REM(type) \
 	MAKE_NEGATE(type) \
@@ -274,9 +274,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
-MAKE_ADD(uint8_t)
-MAKE_SUBTR(uint8_t)
-MAKE_MUL(uint8_t)
+MAKE_ADD(uint8_t,"%d")
+MAKE_SUBTR(uint8_t,"%d")
+MAKE_MUL(uint8_t,"%d")
 MAKE_DIV(uint8_t)
 MAKE_SHIFT(uint8_t,uint8_t)
 MAKE_PLUS(uint8_t)
