@@ -129,6 +129,29 @@ intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =
     [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
     , ("RESCHEDULE", [])
+    ] ++ concat [
+      (zip ["INT" ++ suffix ++ "TOSTRING", "HEX" ++ suffix ++ "TOSTRING"] $ repeat
+        [ (A.Abbrev, A.Int, "len")
+        , (A.Abbrev, A.Array [A.UnknownDimension] A.Byte, "string")
+        , (A.ValAbbrev, A.Int, "n")
+        ])
+      ++ (zip ["STRINGTOINT" ++ suffix, "STRINGTOHEX" ++ suffix] $ repeat
+        [ (A.Abbrev, A.Bool, "error")
+        , (A.Abbrev, A.Int, "n")
+        , (A.ValAbbrev, A.Array [A.UnknownDimension] A.Byte, "string")
+        ])
+      | suffix <- ["","16","32","64"]
+    ] ++ [
+      ("BOOLTOSTRING",
+        [ (A.Abbrev, A.Int, "len")
+        , (A.Abbrev, A.Array [A.UnknownDimension] A.Byte, "string")
+        , (A.ValAbbrev, A.Bool, "b")
+        ])
+    , ("STRINGTOBOOL",
+        [ (A.Abbrev, A.Bool, "error")
+        , (A.Abbrev, A.Bool, "b")
+        , (A.ValAbbrev, A.Array [A.UnknownDimension] A.Byte, "string")
+        ])
     ]
 
 rainIntrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]

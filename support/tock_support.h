@@ -26,6 +26,7 @@
 #include <fenv.h>
 #include <float.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -62,6 +63,26 @@
 #define occam_unused
 #endif
 //}}}
+
+//TODO we should really use more Tock-specific names to avoid clashes
+
+//We use #define so we can #undef afterwards
+#if occam_INT_size == 4
+	#define INT int32_t
+	#define UINT uint32_t
+#elif occam_INT_size == 8
+	#define INT int64_t
+	#define UINT uint64_t
+#else
+	#error You must define occam_INT_size when using this header
+#endif
+
+#ifdef __cplusplus
+#define BOOL bool
+#else
+#define BOOL _Bool
+#endif
+
 
 //{{{ runtime check functions
 static inline int occam_check_slice (int, int, int, const char *) occam_unused;
@@ -258,8 +279,61 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a * b; \
 	}
 
+#define MAKE_TOSTRING(type, occname, flag) \
+	static inline void occam_##occname##TOSTRING(INT*, char*, const type) occam_unused; \
+	static inline void occam_##occname##TOSTRING(INT* len, char* string, const type n) { \
+		/* Must use buffer to avoid writing trailing zero: */ char buf[32]; \
+		int chars_written = snprintf(buf, 32, flag, n); \
+		memcpy(string, buf, chars_written * sizeof(char)); \
+		*len = chars_written; \
+	}
 
-#define MAKE_ALL_SIGNED(type,flag,utype) \
+#define MAKE_STRINGTO(type, occname, flag) \
+	static inline void occam_STRINGTO##occname(BOOL*, type*, const char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const char* string) { \
+		*error = 1 != sscanf(string, flag, n); \
+	}
+
+#define MAKE_STRINGTO_SMALL(type, occname, flag) \
+	static inline void occam_STRINGTO##occname(BOOL*, type*, const char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const char* string) { \
+			int t; \
+			*error = 1 != sscanf(string, flag, &t) || (int)(type)t != t; \
+			*n = (type)t; \
+	}
+
+//Same arrangement regardless of our processor size:
+#define MAKE_STRINGTO_8 MAKE_STRINGTO_SMALL
+#define MAKE_STRINGTO_16 MAKE_STRINGTO_SMALL
+#define MAKE_STRINGTO_32 MAKE_STRINGTO
+#define MAKE_STRINGTO_64 MAKE_STRINGTO
+
+static inline void occam_BOOLTOSTRING(INT*, char*, const BOOL) occam_unused;
+static inline void occam_BOOLTOSTRING(INT* len, char* str, const BOOL b) {
+	if (b) {
+		memcpy(str,"TRUE",4*sizeof(char));
+		*len = 4;
+	} else {
+		memcpy(str,"FALSE",5*sizeof(char));
+		*len = 5;
+	}
+}
+
+static inline void occam_STRINGTOBOOL(BOOL*, BOOL*, const char*) occam_unused;
+static inline void occam_STRINGTOBOOL(BOOL* error, BOOL* b, const char* str) {
+	if (memcmp("TRUE", str, 4*sizeof(char)) == 0) {
+		*b = true;
+		*error = false;
+	} else if (memcmp("FALSE", str, 5*sizeof(char)) == 0) {
+		*b = false;
+		*error = false;
+	} else {
+		*error = true;
+	}
+}
+
+
+#define MAKE_ALL_SIGNED(type,bits,flag,hflag,utype) \
 	MAKE_RANGE_CHECK(type,flag) \
 	MAKE_ADD(type,flag) \
 	MAKE_SUBTR(type,flag) \
@@ -270,7 +344,11 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_SHIFT(utype, type) \
 	MAKE_PLUS(type) \
 	MAKE_MINUS(type) \
-	MAKE_TIMES(type)
+	MAKE_TIMES(type) \
+	MAKE_TOSTRING(type, INT##bits, flag) \
+	MAKE_TOSTRING(type, HEX##bits, hflag) \
+	MAKE_STRINGTO_##bits(type, INT##bits, flag) \
+	MAKE_STRINGTO_##bits(type, HEX##bits, hflag)
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
@@ -295,20 +373,26 @@ static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) 
 // we don't define negate for unsigned types 
 
 //}}}
+
 //{{{ int8_t
-MAKE_ALL_SIGNED(int8_t, "%d", uint8_t)
+MAKE_ALL_SIGNED(int8_t, 8, "%d", "%x", uint8_t)
 //}}}
 //{{{ int16_t
-MAKE_ALL_SIGNED(int16_t, "%d", uint16_t)
+MAKE_ALL_SIGNED(int16_t, 16, "%d", "%x", uint16_t)
 //}}}
 //{{{ int
-MAKE_ALL_SIGNED(int, "%d", unsigned int)
+//MAKE_ALL_SIGNED(int, "%d", unsigned int)
+MAKE_TOSTRING(INT, INT, "%d")
+MAKE_TOSTRING(INT, HEX, "%x")
+MAKE_STRINGTO(INT, INT, "%d")
+MAKE_STRINGTO(INT, HEX, "%x")
+
 //}}}
 //{{{ int32_t
-MAKE_ALL_SIGNED(int32_t, "%d", uint32_t)
+MAKE_ALL_SIGNED(int32_t, 32, "%d", "%x", uint32_t)
 //}}}
 //{{{ int64_t
-MAKE_ALL_SIGNED(int64_t, "%lld", uint64_t)
+MAKE_ALL_SIGNED(int64_t, 64, "%lld", "%llx", uint64_t)
 //}}}
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
@@ -397,23 +481,6 @@ int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 
 //{{{ intrinsics
 // FIXME These should do range checks.
-
-//We use #define so we can #undef afterwards
-#if occam_INT_size == 4
-	#define INT int32_t
-	#define UINT uint32_t
-#elif occam_INT_size == 8
-	#define INT int64_t
-	#define UINT uint64_t
-#else
-	#error You must define occam_INT_size when using this header
-#endif
-
-#ifdef __cplusplus
-#define BOOL bool
-#else
-#define BOOL _Bool
-#endif
 
 #include "tock_intrinsics_arith.h"
 #define REAL float
