@@ -21,6 +21,8 @@ module Intrinsics where
 
 import qualified AST as A
 
+import Data.Char
+
 intrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
 intrinsicFunctions =
     [ -- Multiple length arithmetic functions
@@ -71,8 +73,13 @@ intrinsicFunctions =
       , query "NOTFINITE"
       , ("ORDERED", ([A.Bool], [(A.Real32, "X"), (A.Real32, "Y")]))
       , ("SCALEB", ([A.Real32], [(A.Real32, "X"), (A.Int, "n")]))
-      , simple "SQRT"
+      , simple "SQRT"      
       ]
+
+      -- Elementary floating point functions
+      -- Appendix N of the occam 2 manual (and section J.4)
+      ++ [(n, ts) | (n, (ts, _)) <- simpleFloatIntrinsics]
+      ++ [("RAN", ([A.Real32, A.Int32], [(A.Int32, "N")]))]
     where
       query n = (n, ([A.Bool], [(A.Real32, "X")]))
       simple n = (n, ([A.Real32], [(A.Real32, "X")]))
@@ -89,6 +96,34 @@ intrinsicFunctions =
       dt A.Real32 = A.Real64
       dt A.Int32 = A.Int64
       dt t = t
+
+simpleFloatIntrinsics :: [(String, (([A.Type], [(A.Type, String)]), String))]
+simpleFloatIntrinsics = concatMap double $
+    -- Same order as occam manual:
+  [("ALOG", ([A.Real32], [(A.Real32, "X")]), "log")
+  ,("ALOG10", ([A.Real32], [(A.Real32, "X")]), "log10")
+  ] ++ map s [
+    "EXP",
+    "TAN",
+    "SIN",
+    "ASIN",
+    "COS",
+    "ACOS",
+    "SINH",
+    "COSH",
+    "TANH",
+    "ATAN",
+    "ATAN2"
+  ]
+  ++ [("POWER", ([A.Real32], [(A.Real32, "X"), (A.Real32, "Y")]), "pow")]
+  where
+    s n = (n, ([A.Real32], [(A.Real32, "X")]), map toLower n)
+    
+    double (occn, ts@(rts, pts), cn) = [(occn, (ts, cn++"f")),
+      ("D"++occn, ((map dt rts, zip (map (dt . fst) pts) (map snd pts)), cn))]
+    dt A.Real32 = A.Real64
+    dt A.Int32 = A.Int64
+    dt t = t
 
 intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =

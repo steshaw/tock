@@ -53,6 +53,7 @@ import CompState
 import Errors
 import EvalConstants
 import EvalLiterals
+import Intrinsics
 import GenerateCBased
 import Metadata
 import Pass
@@ -940,9 +941,12 @@ cgenTypeSymbol s t
 
 cgenIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen ()
 cgenIntrinsicFunction m s es
-    =  do tell ["occam_", [if c == '.' then '_' else c | c <- s], "("]
-          sequence [call genExpression e >> genComma | e <- es]
-          genMeta m
+    =  do let (funcName, giveMeta) = case lookup s simpleFloatIntrinsics of
+                  Just (_,cName) -> (cName, False)
+                  Nothing -> ("occam_" ++ [if c == '.' then '_' else c | c <- s], True)
+          tell [funcName, "("]
+          seqComma [call genExpression e | e <- es]
+          when (giveMeta) $ genComma >> genMeta m
           tell [")"]
 --}}}
 
@@ -1542,12 +1546,14 @@ cgenAssign m [v] (A.ExpressionList _ [e])
              tell [";"]
 cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
     = do call genVariable v
-         tell ["=occam_",[if c == '.' then '_' else c | c <- n],"("]
+         let (funcName, giveMeta) = case lookup n simpleFloatIntrinsics of
+                Just (_,cName) -> (cName, False)
+                Nothing -> ("occam_" ++ [if c == '.' then '_' else c | c <- n], True)
+         tell ["=",funcName,"("]
          seqComma $ map (call genExpression) es
          mapM (\v -> tell [","] >> call genActual (A.Formal A.Abbrev A.Int (A.Name
            emptyMeta "dummy_intrinsic_param")) (A.ActualVariable v)) vs
-         tell [","]
-         genMeta m
+         when giveMeta $ genComma >> genMeta m
          tell [");"]
          
 cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
