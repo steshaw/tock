@@ -12,6 +12,7 @@ AC_CONFIG_SRCDIR(Main.hs)
 #Find the C and C++ compilers
 AC_PROG_CC
 AC_PROG_CXX
+AM_PROG_CC_C_O
 
 ccsp_available=true
 cppcsp_available=true
@@ -239,10 +240,10 @@ CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 common_cflags="-Wall $no_unused -ggdb3 -Isupport $no_strict_aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
-TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS"
+TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS -lm"
 
 TOCK_CXXFLAGS="$CPPFLAGS $CXXFLAGS $common_cflags $CPPCSP2_CFLAGS"
-TOCK_CXXLDFLAGS="$LDFLAGS $CPPCSP2_LIBS"
+TOCK_CXXLDFLAGS="$LDFLAGS $CPPCSP2_LIBS -lm"
 
 AC_SUBST(TOCK_CFLAGS)
 AC_SUBST(TOCK_CLDFLAGS)
