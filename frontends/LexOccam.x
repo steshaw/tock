@@ -66,7 +66,7 @@ $vertSpace = [\r\n]
           | "PRI" | "PROC" | "PROCESSOR" | "PROTOCOL"
           | "REAL32" | "REAL64" | "RECORD" | "REM" | "RESHAPES"
           | "RESULT" | "RETYPES" | "ROUND"
-          | "SEQ" | "SIZE" | "SKIP" | "STOP"
+          | "SEQ" | "SIZE" | "SKIP" | "STEP" | "STOP"
           | "TIMER" | "TIMES" | "TRUE" | "TRUNC" | "TYPE"
           | "VAL" | "VALOF"
           | "WHILE" | "WORKSPACE"
