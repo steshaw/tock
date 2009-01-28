@@ -114,8 +114,9 @@ sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
   sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG,
   sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS,
   sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM,
-  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTOP, sTIMER,
-  sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
+  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTEP, sSTOP,
+  sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE,
+  sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -174,6 +175,7 @@ sROUND = reserved "ROUND"
 sSEQ = reserved "SEQ"
 sSIZE = reserved "SIZE"
 sSKIP = reserved "SKIP"
+sSTEP = reserved "STEP"
 sSTOP = reserved "STOP"
 sTIMER = reserved "TIMER"
 sTIMES = reserved "TIMES"
@@ -612,7 +614,7 @@ table'
                       A.Infer -> defT
                       _ -> t
            return $ A.Literal m t' lr
-    <|> maybeSliced table A.SubscriptedExpr
+    <|> maybeSliced (table <|> arrayConstructor) A.SubscriptedExpr
     <?> "table'"
 
 tableElems :: OccParser (A.Type, A.LiteralRepr)
@@ -928,7 +930,8 @@ replicator
           b <- expression
           sFOR
           c <- expression
-          return (n, A.For m b c)
+          st <- tryXV sSTEP expression <|> return (makeConstant m 1)
+          return (n, A.For m b c st)
     <?> "replicator"
 --}}}
 --{{{ specifications, declarations, allocations
