@@ -621,9 +621,15 @@ cppintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
     --A helper function for calling the wrapped functions:
     genParamList :: [A.Formal] -> CGen()
     genParamList fs = infixComma $ map genParam fs
-cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array _ (A.ChanEnd {})) (A.DirectedVariable
+cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {})) dirV@(A.DirectedVariable
   m dir v)))
-  = do call genDecl am t n
+  = do t' <- if A.UnknownDimension `elem` ds
+                then do dirVT <- astTypeOf dirV
+                        case dirVT of
+                          A.Array ds' _ -> return $ A.Array ds' c
+                          _ -> diePC m $ formatCode "Expected variable to be an array type, instead: %" dirVT
+                else return t
+       call genDeclaration t' n False
        tell [";"]
        tell ["tockInitChan",if dir == A.DirInput then "in" else "out","Array("]
        call genVariableAM v am
