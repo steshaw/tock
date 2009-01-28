@@ -352,8 +352,8 @@ data OutputItem =
 data Replicator = 
   -- | Count up in 1s from a start value.
   -- The 'Name' names the replicator index, the first expression is the base
-  -- and the second expression is the count.
-  For Meta Expression Expression
+  -- and the second expression is the count, and the third is the step
+  For Meta Expression Expression Expression
   -- | Iterate over a list.
   -- The 'Name' names the loop variable and the expression is the list to
   -- iterate over.
