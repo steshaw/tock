@@ -733,7 +733,7 @@ inferTypes = occamOnlyPass "Infer types"
     doReplicator :: Transform A.Replicator
     doReplicator rep
         = case rep of
-            A.For _ _ _ -> inTypeContext (Just A.Int) $ descend rep
+            A.For _ _ _ _ -> inTypeContext (Just A.Int) $ descend rep
             A.ForEach _ _ -> noTypeContext $ descend rep
 
     doAlternative :: Transform A.Alternative
@@ -1267,9 +1267,10 @@ checkSpecTypes = checkDepthM doSpecType
               checkRetypes m fromT t
               checkValAM m am
               checkAbbrev m A.ValAbbrev am
-    doSpecType (A.Rep _ (A.For _ start count))
+    doSpecType (A.Rep _ (A.For _ start count step))
         =  do checkExpressionInt start
               checkExpressionInt count
+              checkExpressionInt step
     doSpecType (A.Rep _ (A.ForEach _ e))
         =  do t <- astTypeOf e
               checkSequence (findMeta e) t

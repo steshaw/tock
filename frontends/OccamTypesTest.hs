@@ -298,12 +298,13 @@ testOccamTypes = TestList
     , testFail 1186 $ A.Input m tim $ A.InputTimerFor m realE
 
     -- Replicators
-    , testOK   1200 $ testRep i $ A.For m intE intE
-    , testFail 1201 $ testRep i $ A.For m realE intE
-    , testFail 1202 $ testRep i $ A.For m intE realE
+    , testOK   1200 $ testRep i $ A.For m intE intE intE
+    , testFail 1201 $ testRep i $ A.For m realE intE intE
+    , testFail 1202 $ testRep i $ A.For m intE realE intE
     , testOK   1203 $ testRep i $ A.ForEach m twoIntsE
     , testOK   1204 $ testRep i $ A.ForEach m listE
     , testFail 1205 $ testRep i $ A.ForEach m intE
+    , testFail 1206 $ testRep i $ A.For m intE intE realE
 
     -- Choices
     , testOK   1300 $ testChoice $ A.Choice m boolE skip
