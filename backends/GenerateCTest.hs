@@ -450,10 +450,8 @@ testOverArray = TestList $ map testOverArray'
 testReplicator :: Test
 testReplicator = TestList
  [
-  testBothSame "testReplicator 0" "for(int foo=0;foo<10;foo++){" (tcall2 genReplicatorStart foo
-    (A.For emptyMeta (intLiteral 0) (intLiteral 10)))
-  ,testBothSameR "testReplicator 1" "for\\(int ([[:alnum:]_]+)=10,foo=1;\\1>0;\\1--,foo\\+\\+\\)\\{" (tcall2 genReplicatorStart
-    foo (A.For emptyMeta (intLiteral 1) (intLiteral 10)))
+  testBothSameR "testReplicator 1" "for\\(int ([[:alnum:]_]+)=10,foo=1;\\1>0;\\1--,foo\\+=3\\)\\{" (tcall2 genReplicatorStart
+    foo (A.For emptyMeta (intLiteral 1) (intLiteral 10) (intLiteral 3)))
  ]
 
 testDeclaration :: Test

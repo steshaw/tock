@@ -1104,31 +1104,13 @@ cgenReplicatorStart n rep
 cgenReplicatorEnd :: A.Replicator -> CGen ()
 cgenReplicatorEnd rep = tell ["}"]
 
-isZero :: A.Expression -> Bool
-isZero (A.Literal _ A.Int (A.IntLiteral _ "0")) = True
-isZero _ = False
-
 cgenReplicatorLoop :: A.Name -> A.Replicator -> CGen ()
-cgenReplicatorLoop index (A.For m base count)
-    = if isZero base
-        then simple
-        else general
-  where
-    simple :: CGen ()
-    simple
-        =  do tell ["int "]
-              genName index
-              tell ["=0;"]
-              genName index
-              tell ["<"]
-              call genExpression count
-              tell [";"]
-              genName index
-              tell ["++"]
-
-    general :: CGen ()
-    general
-        =  do counter <- csmLift $ makeNonce "replicator_count"
+cgenReplicatorLoop index (A.For m base count step)
+  -- It is now too hard to work out statically if we could make this a
+  -- simple loop (without an additional counter), because step may be
+  -- negative (and that may be determined at run-time.  So we will generate the
+  -- most general loop, and let the C compiler optimise if possibe:
+    =      do counter <- csmLift $ makeNonce "replicator_count"
               tell ["int ", counter, "="]
               call genExpression count
               tell [","]
@@ -1137,7 +1119,8 @@ cgenReplicatorLoop index (A.For m base count)
               call genExpression base
               tell [";", counter, ">0;", counter, "--,"]
               genName index
-              tell ["++"]
+              tell ["+="]
+              call genExpression step
 cgenReplicatorLoop _ _ = cgenMissing "ForEach loops not yet supported in the C backend"
 --}}}
 
