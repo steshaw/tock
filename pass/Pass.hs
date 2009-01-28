@@ -136,7 +136,7 @@ rainOnlyPass = passMakerHelper $ (== FrontendRain) . csFrontend
 occamOnlyPass :: PassMaker t
 occamOnlyPass = passMakerHelper $ (== FrontendOccam) . csFrontend
 
-occamAndCOnlyPass :: PassMaker
+occamAndCOnlyPass :: PassMaker t
 occamAndCOnlyPass = passMakerHelper $
   \st -> (csFrontend st == FrontendOccam) && (csBackend st == BackendC)
 
@@ -146,7 +146,10 @@ cOnlyPass = passMakerHelper $ (== BackendC) . csBackend
 cppOnlyPass :: PassMaker t
 cppOnlyPass = passMakerHelper $ (== BackendCPPCSP) . csBackend
 
-pass :: PassMaker
+cOrCppOnlyPass :: PassMaker t
+cOrCppOnlyPass = passMakerHelper $ (`elem` [BackendC, BackendCPPCSP]) . csBackend
+
+pass :: PassMaker t
 pass = passMakerHelper (const True)
 
 -- | Compose a list of passes into a single pass by running them in the order given.

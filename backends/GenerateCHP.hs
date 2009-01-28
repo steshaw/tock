@@ -245,14 +245,16 @@ genType A.Real32 = tell ["Float"]
 genType A.Real64 = tell ["Double"]
 genType (A.Array _ t) = tell ["(IOUArray Int32 "] >> genType t >> tell [")"]
 genType (A.List t) = tell["(Seq "] >> genType t >> tell [")"]
-genType (A.Chan dir attr inner)
+genType (A.ChanEnd dir attr inner)
   = do tell ["(", case dir of
          A.DirInput -> "Chanin"
-         A.DirOutput -> "Chanout"
-         A.DirUnknown -> "One2OneChannel"]
+         A.DirOutput -> "Chanout"]
        tell ["(IOUArray Word8)"]
        -- genType inner
        tell [")"]
+genType (A.Chan attr inner)
+  = do tell ["(One2OneChannel (IOUArray Word8))"]
+       -- genType inner
 genType _ = genMissing "genType"
 
 --TODO compile IFs into case.  And case into case.

@@ -1000,17 +1000,14 @@ inferTypes = occamOnlyPass "Infer types"
                   return $ A.Only m el'
 
         findDir :: Data a => A.Name -> a -> PassM [A.Direction]
-        findDir n = flip execStateT [] . makeRecurse ops
+        findDir n = flip execStateT [] . makeRecurseM ops
           where
-            ops = baseOp `extOp` doVariable
+            ops = baseOp `extOpM` doVariable
 
             -- This will cover everything, since we will have inferred the direction
             -- specifiers before applying this function.
             doVariable :: A.Variable -> StateT [A.Direction] PassM A.Variable
             doVariable v@(A.DirectedVariable _ dir (A.Variable _ n')) | n == n'
-              = modify (dir:) >> return v
-            doVariable v@(A.DirectedVariable _ dir
-              (A.SubscriptedVariable _ _ (A.Variable _ n'))) | n == n'
               = modify (dir:) >> return v
             doVariable v = makeDescend ops v
 
