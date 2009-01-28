@@ -227,7 +227,8 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
 
     orig = A.Spec m (A.Specification m (simpleName "arr") $
       A.IsExpr m A.ValAbbrev t $ A.ExprConstr m $
-        A.RepConstr m t (simpleName "x") (A.For m (intLiteral 0) (intLiteral 10))
+        A.RepConstr m t (simpleName "x") (A.For m (intLiteral 0) (intLiteral 10)
+          (intLiteral 1))
         (exprVariable "x")) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
     exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m t)) $
@@ -236,7 +237,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
           (A.Declaration m A.Int)) $
         A.Several m [A.Only m $ A.Assign m [variable "i"] $
             A.ExpressionList m [intLiteral 0],
-          A.Spec m (A.Specification m (simpleName "x") $ A.Rep m (A.For m (intLiteral 0) (intLiteral 10))) $
+          A.Spec m (A.Specification m (simpleName "x") $ A.Rep m (A.For m (intLiteral 0) (intLiteral 10) (intLiteral 1))) $
             A.Only m $ A.Seq m $ A.Several m
               [A.Only m $ A.Assign m
                 [A.SubscriptedVariable m (A.Subscript m A.NoCheck $
@@ -586,7 +587,7 @@ testPullRepCounts = TestList
    ,forAllThree $ \blockType -> testOccamPassTransform "testPullRepCounts 5" (nameAndStopCaringPattern "nonce" "A")
       (blockType
         [decl' (simpleName "X")
-          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
+          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6) (intLiteral 1)))
             A.Original A.NameUser []
         ]
       `becomes`
@@ -594,7 +595,7 @@ testPullRepCounts = TestList
         [decl' (simpleName "A")
           (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
           [decl' (simpleName "X")
-            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
+            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A") (intLiteral 1)))
               A.Original A.NameUser []
           ]
         ]
@@ -604,10 +605,10 @@ testPullRepCounts = TestList
      (nameAndStopCaringPattern "nonce1" "A" . nameAndStopCaringPattern "nonce2" "B")
        (blockType
          [decl' (simpleName "X")
-          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6)))
+          (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 6) (intLiteral 1)))
           A.Original A.NameUser
             [decl' (simpleName "Y")
-              (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (intLiteral 8)))
+              (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (intLiteral 8) (intLiteral 2)))
                 A.Original A.NameUser []
             ]
          ]
@@ -616,12 +617,13 @@ testPullRepCounts = TestList
          [decl' (simpleName "A")
           (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
            [decl' (simpleName "X")
-            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A")))
+            (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A") (intLiteral 1)))
               A.Original A.NameUser
               [decl' (simpleName "B")
                 (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8) A.ValAbbrev A.NameNonce
                   [decl' (simpleName "Y")
-                    (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (exprVariable "B")))
+                    (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (exprVariable "B")
+                      (intLiteral 2)))
                       A.Original A.NameUser
                       []
                   ]
@@ -642,7 +644,8 @@ testPullRepCounts = TestList
       (return ())
       where 
         code = (f $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName
-          "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 5))) $ A.Several emptyMeta [])
+          "i") $ A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (intLiteral 5)
+            (intLiteral 1))) $ A.Several emptyMeta [])
 
 
 testRemoveNesting :: Test

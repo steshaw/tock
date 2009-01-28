@@ -159,6 +159,8 @@ expandArrayLiterals = pass "Expand array literals"
 -- Therefore, we only need to pull up the counts for SEQ, PAR and ALT
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
+--
+-- TODO we should also pull up the step counts
 pullRepCounts :: Pass
 pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
@@ -170,10 +172,10 @@ pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   where
     pullRepCount :: Data a => A.Structured a -> PassM (A.Structured a)
     pullRepCount (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
-      from for))) scope)
+      from for step))) scope)
       = do t <- astTypeOf for
            spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
-           let newSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName)))
+           let newSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName) step))
            modifyName n $ \nd -> nd { A.ndSpecType = newSpec }
            return $ A.Spec mspec spec $
              A.Spec m (A.Specification mspec n newSpec) scope

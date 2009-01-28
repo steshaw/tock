@@ -122,7 +122,7 @@ flattenAssign = pass "Flatten assignment"
                       -- inside.
                       do counter <- makeNonceCounter "i" m
                          let zero = A.Literal m A.Int $ A.IntLiteral m "0"
-                         let rep = A.For m zero (A.SizeVariable m srcV)
+                         let rep = A.For m zero (A.SizeVariable m srcV) (makeConstant m 1)
                          itemT <- trivialSubscriptType m t
                          -- Don't need to check bounds, as we'll always be within bounds
                          let sub = A.Subscript m A.NoCheck (A.ExprVariable m
