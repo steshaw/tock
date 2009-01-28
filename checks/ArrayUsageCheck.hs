@@ -449,7 +449,7 @@ makeEquations accesses bound
         rs' = zip (repeat AARead) rs
         
         makeRepVarEq :: ((A.Name, A.Replicator), Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
-        makeRepVarEq ((varName, A.For m from for), _)
+        makeRepVarEq ((varName, A.For m from for _), _)
           = do from' <- makeSingleEq from "replication start"
                upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
                return (A.Variable m varName, from', upper)
@@ -470,7 +470,7 @@ makeEquations accesses bound
     -- | Turns all instances of the variable from the given replicator into their primed version in the given expression
     mirrorFlaggedVars :: [FlattenedExp] -> ((A.Name, A.Replicator),Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
     mirrorFlaggedVars exp (_,False) = return exp
-    mirrorFlaggedVars exp ((varName, A.For m from for), True)
+    mirrorFlaggedVars exp ((varName, A.For m from for _), True)
       = do varIndexes <- lift $ seqPair (varIndex (Scale 1 (A.ExprVariable emptyMeta var,0)), varIndex (Scale 1 (A.ExprVariable emptyMeta var,1)))
            modify (varIndexes :)
            return $ setIndexVar var 1 exp

@@ -239,7 +239,8 @@ getVarFormals m = mapUnionVars (getVarFormal m)
     getVarFormal m (A.Formal _ _ n) = processVarW (A.Variable m n) Nothing
 
 getVarRepExp :: A.Replicator -> Vars
-getVarRepExp (A.For _ e0 e1) = getVarExp e0 `unionVars` getVarExp e1
+getVarRepExp (A.For _ e0 e1 e2) = getVarExp e0 `unionVars` getVarExp e1 `unionVars`
+  getVarExp e2
 getVarRepExp (A.ForEach _ e) = getVarExp e
 
 getVarAlternative :: A.Alternative -> Vars

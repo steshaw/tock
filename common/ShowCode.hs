@@ -584,7 +584,8 @@ instance ShowOccam A.Alternative where
          occamOutdent
   
 instance ShowOccam A.Replicator where
-  showOccamM (A.For _ start count) = tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count
+  showOccamM (A.For _ start count step) = tell [" = "] >> showOccamM start >> tell [" FOR "] >> showOccamM count
+    >> tell [" STEP "] >> showOccamM step
   showOccamM (A.ForEach _ e) = tell [" IN "] >> showOccamM e
 
 instance ShowOccam A.Choice where
@@ -709,7 +710,7 @@ instance ShowRain A.Process where
   showRainM (A.Par _ A.PlacedPar str) = outerRain "placed par" str
 
 instance ShowRain A.Replicator where
-  showRainM (A.For _ start count) = tell [" = "] >> showRainM start >> tell [" for "] >> showRainM count
+  showRainM (A.For _ start count _) = tell [" = "] >> showRainM start >> tell [" for "] >> showRainM count
   showRainM (A.ForEach _ e) = tell ["each ("] >> colon >> showRainM e
 
 --TEMP:

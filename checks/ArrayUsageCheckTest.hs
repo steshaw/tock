@@ -471,7 +471,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor) $
+          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor (makeConstant emptyMeta 1)) $
             makeParItems [Map.fromList [(UsageCheckUtils.Var $ variable "i",
               [RepBoundsIncl (variable "i") repFrom (subOne $ addExprs repFrom repFor)])]] exprs) upperBound)
   

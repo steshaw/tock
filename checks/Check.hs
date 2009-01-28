@@ -124,7 +124,7 @@ addBK mp mp2 g nid n = fmap ((,) $ (map Map.fromList $ productN $ conBK ++
         --TODO only really need consider the connected nodes...
 
         mkBK :: (A.Name, A.Replicator) -> [(Var, [BackgroundKnowledge])]
-        mkBK (n, A.For _ low count) = [(Var v, bk)]
+        mkBK (n, A.For _ low count _) = [(Var v, bk)]
           where
             m = A.nameMeta n
             v = A.Variable m n

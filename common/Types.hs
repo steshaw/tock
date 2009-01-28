@@ -100,7 +100,7 @@ typeOfSpec st
             A.IsChannelArray _ t _ -> return $ Just t
             A.Retypes _ _ t _ -> return $ Just t
             A.RetypesExpr _ _ t _ -> return $ Just t
-            A.Rep _ (A.For _ _ e) -> astTypeOf e >>* Just
+            A.Rep _ (A.For _ _ e _) -> astTypeOf e >>* Just
             A.Rep _ (A.ForEach _ e) -> do t <- astTypeOf e
                                           case t of
                                             A.List t' -> return $ Just t'
@@ -651,7 +651,7 @@ bytesInType _ = return $ BIUnknown
 
 -- | Get the number of items a replicator produces.
 countReplicator :: A.Replicator -> A.Expression
-countReplicator (A.For _ _ count) = count
+countReplicator (A.For _ _ count _) = count
 
 -- | Get the number of items in a Structured as an expression.
 countStructured :: Data a => A.Structured a -> A.Expression

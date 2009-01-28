@@ -84,7 +84,7 @@ sm11 = A.Skip m11
 
 rep :: Data a => Meta -> A.Structured a -> A.Structured a
 rep m = A.Spec mU (A.Specification mU (simpleName "i") (A.Rep m (A.For m undefined
-  undefined)))
+  undefined undefined)))
 
 -- | Shows a graph as a node and edge list.
 showGraph :: (Graph g, Show a, Show b) => g a b -> String
@@ -495,8 +495,8 @@ genElem2 f m = comb2 f (genMeta m)
 genElem3 :: (Meta -> a0 -> a1 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL b
 genElem3 f m = comb3 f (genMeta m) 
 
---genElem4 :: (Meta -> a0 -> a1 -> a2 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
---genElem4 f m = comb4 f (genMeta m) 
+genElem4 :: (Meta -> a0 -> a1 -> a2 -> b) -> Meta -> GenL a0 -> GenL a1 -> GenL a2 -> GenL b
+genElem4 f m = comb4 f (genMeta m) 
 
 -- | A helper function for turning any item that can't be replaced into a GenL form (esp.
 -- for use as a parameter of genElemN).
@@ -525,13 +525,13 @@ comb3 func list0 list1 list2 = (liftM3 (,,)) list0 list1 list2 >>* product3 >>* 
     process3 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],b)
     process3 (keys0, val0) (keys1, val1) (keys2, val2) = (keys0++keys1++keys2, func val0 val1 val2)
 
-{-
+
 comb4 :: forall a0 a1 a2 a3 b. (a0 -> a1 -> a2 -> a3 -> b) -> GenL a0 -> GenL a1 -> GenL a2 -> GenL a3 -> GenL b
 comb4 func list0 list1 list2 list3 = (liftM4 (,,,)) list0 list1 list2 list3 >>* product4 >>* map (uncurry4 process4)
   where
     process4 :: ([Meta], a0) -> ([Meta], a1) -> ([Meta],a2) -> ([Meta],a3) -> ([Meta],b)
     process4 (keys0, val0) (keys1, val1) (keys2, val2) (keys3, val3) = (keys0++keys1++keys2++keys3, func val0 val1 val2 val3)
--}
+
 
 -- | Wrapper for Quickcheck.
 -- In order to stop conflict with Quickcheck's in-built rules for things such as pairs
@@ -684,7 +684,7 @@ genOption' :: (Int, Int -> GenL A.Option)
 genOption' = (1, genOption)
 
 genReplicator :: GenL A.Replicator
-genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem3 A.For m genExpression genExpression
+genReplicator = nextIdT >>* makeMeta' >>= \m -> genElem4 A.For m genExpression genExpression genExpression
 
 class ReplicatorAnnotation a where
   replicatorItem :: (Int, Int -> GenL a) -> Maybe (Int, Int -> GenL (A.Structured a))
