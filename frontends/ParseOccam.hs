@@ -1248,17 +1248,27 @@ pragma = do Pragma p <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
             case matchRegex (mkRegex "^SHARED +(.*)") p of
               Just [varsRaw] ->
+                let varsRawNoComment = if "--" `isInfixOf` varsRaw
+                      then chopTrailingSpaces $ chopComment [] varsRaw
+                      else chopTrailingSpaces varsRaw
+                in
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
                      modify $ \st -> st {csNameAttr = Map.insert n NameShared (csNameAttr st)})
-                  (splitRegex (mkRegex ",") varsRaw)
+                  (splitRegex (mkRegex ",") varsRawNoComment)
               Nothing -> warnP m WarnUnknownPreprocessorDirective $
                 "Unknown PRAGMA: " ++ p
             eol
   where
+    chopComment prev ('-':'-':_) = prev
+    chopComment prev (x:xs) = chopComment (prev++[x]) xs
+    chopComment prev [] = prev
+
+    chopTrailingSpaces = reverse . dropWhile (`elem` " \t") . reverse
+    
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
 --}}}
