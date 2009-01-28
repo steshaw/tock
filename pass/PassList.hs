@@ -68,8 +68,8 @@ commonPasses opts = concat $
   , enablePassesWhen csUsageChecking
      [abbrevCheckPass]
   , backendPasses
---  , [pass "Removing unused variables" [] []
---      (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
+  , [pass "Removing unused variables" [] []
+      (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
   ]
 
 filterPasses :: CompState -> [Pass t] -> [Pass t]

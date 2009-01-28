@@ -571,5 +571,5 @@ checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
                when (not $ A.nameName name `elem` map A.nameName usedNames) $
                 do warnPC mspec WarnUnusedVariable $ formatCode "Unused variable: %" name
                    modify (\st -> st { csNames = Map.delete (A.nameName name) (csNames st) })
-                   substitute scope
+                   -- substitute scope
     doSpec _ = return ()
