@@ -1060,7 +1060,7 @@ definition
            sDATA
            sTYPE
            do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol; return (A.Specification m n (A.DataType m t), DataTypeName) }
-             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return (A.Specification m n rec, DataTypeName) }
+             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return (A.Specification m n rec, RecordName) }
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
