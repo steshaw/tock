@@ -250,7 +250,7 @@ oPROC str params body scope = do
   s <- scope
   defineProc str [(A.nameName name, A.Original, t) | (t, A.Variable _ name) <- params]
   return $ A.Spec emptyMeta (A.Specification emptyMeta (simpleName str) $
-             A.Proc emptyMeta A.PlainSpec formals p
+             A.Proc emptyMeta (A.PlainSpec, A.PlainRec) formals p
            ) (singlify s)
   where
     formals = [A.Formal A.Original t n | (t, A.Variable _ n) <- params]

@@ -58,11 +58,11 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
 
     -- INITIAL formal
   , ok   30 (spec foo (A.Proc m
-                              A.PlainSpec
+                              (A.PlainSpec, A.PlainRec)
                               [A.Formal A.InitialAbbrev A.Int bar]
                               skip)
               inner)
-            (mSpec foo (mProc A.PlainSpec
+            (mSpec foo (mProc (A.PlainSpec, A.PlainRec)
                               [mFormal' A.ValAbbrev A.Int mTemp]
                               (mSeq
                                 (mDeclareAssign bar A.Int mTempE
@@ -71,14 +71,14 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
 
     -- Two INITIAL formals and a regular VAL formal
   , ok   40 (spec foo (A.Proc m
-                              A.PlainSpec
+                              (A.PlainSpec, A.PlainRec)
                               [ A.Formal A.InitialAbbrev A.Int bar
                               , A.Formal A.ValAbbrev     A.Int baz
                               , A.Formal A.InitialAbbrev A.Int quux
                               ]
                               skip)
               inner)
-            (mSpec foo (mProc A.PlainSpec
+            (mSpec foo (mProc (A.PlainSpec, A.PlainRec)
                               [ mFormal' A.ValAbbrev A.Int mTemp
                               , mFormal' A.ValAbbrev A.Int baz
                               , mFormal' A.ValAbbrev A.Int mTemp2

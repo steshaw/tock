@@ -175,20 +175,20 @@ testUnique2b = TestCase $ testPassWithItemsStateCheck "testUnique2b" exp uniquif
 testUnique3 :: Test
 testUnique3 = TestCase $ testPassWithItemsStateCheck "testUnique3" exp uniquifyAndResolveVars orig (return ()) check
   where
-    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [] $ A.Skip m) (A.Only m $ A.ProcCall m (procName "foo") [])
+    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m (A.PlainSpec, A.Recursive) [] $ A.Skip m) (A.Only m $ A.ProcCall m (procName "foo") [])
     exp = orig
     check (items,state) = assertVarDef "testUnique3: Variable was not recorded" state "foo"
                             (tag7 A.NameDef DontCare "foo" "foo"
-                              (A.Proc m A.PlainSpec [] $ A.Skip m) A.Original A.NameUser A.Unplaced)
+                              (A.Proc m (A.PlainSpec, A.Recursive) [] $ A.Skip m) A.Original A.NameUser A.Unplaced)
 
 -- | Tests that parameters are uniquified and resolved:
 testUnique4 :: Test
 testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyAndResolveVars orig (return ()) check
   where
-    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m A.PlainSpec [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ 
+    orig = A.Spec m (A.Specification m (procName "foo") $ A.Proc m (A.PlainSpec, A.Recursive) [A.Formal A.ValAbbrev A.Byte $ simpleName "c"] $ 
       A.ProcCall m (procName "foo") [A.ActualExpression $ exprVariable "c"]) (skipP)
     exp = mSpecP
-             (tag3 A.Specification DontCare (procNamePattern "foo") $ tag4 A.Proc DontCare A.PlainSpec 
+             (tag3 A.Specification DontCare (procNamePattern "foo") $ tag4 A.Proc DontCare (A.PlainSpec, A.Recursive)
                [tag3 A.Formal A.ValAbbrev A.Byte newc] 
                (bodyPattern newc)
              )
@@ -206,7 +206,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyA
                (A.Declaration m A.Byte) A.ValAbbrev A.NameUser A.Unplaced)
            assertVarDef "testUnique4: Variable was not recorded" state "foo"
              (tag7 A.NameDef DontCare "foo" "foo"
-               (tag4 A.Proc DontCare A.PlainSpec 
+               (tag4 A.Proc DontCare (A.PlainSpec, A.Recursive)
                  [tag3 A.Formal A.ValAbbrev A.Byte newcName] (bodyPattern newcName))
                A.Original A.NameUser A.Unplaced)
            
@@ -226,9 +226,9 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyA
 testFindMain0 :: Test
 testFindMain0 = TestCase $ testPassWithItemsStateCheck "testFindMain0" exp (uniquifyAndResolveVars >>> findMain) orig (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m [] :: A.AST
+    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m (A.PlainSpec, A.Recursive) [] (A.Skip m)) $ A.Several m [] :: A.AST
     exp = mSpecAST (tag3 A.Specification DontCare (tag2 A.Name DontCare ("main"@@DontCare)) $
-      tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) $ mSeveralAST ([] :: [A.AST])
+      tag4 A.Proc DontCare (A.PlainSpec, A.Recursive) ([] :: [A.Formal]) (tag1 A.Skip DontCare)) $ mSeveralAST ([] :: [A.AST])
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
            assertNotEqual "testFindMain0 A" "main" mainName
@@ -239,18 +239,18 @@ testFindMain0 = TestCase $ testPassWithItemsStateCheck "testFindMain0" exp (uniq
 testFindMain1 :: Test
 testFindMain1 = TestCase $ testPassWithStateCheck "testFindMain1" orig (uniquifyAndResolveVars >>> findMain) orig (return ()) check
   where
-    orig = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $ A.Several m ([] :: [A.AST])
+    orig = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m (A.PlainSpec, A.Recursive) [] (A.Skip m)) $ A.Several m ([] :: [A.AST])
     check state = assertEqual "testFindMain1" [] (csMainLocals state)
     
 testFindMain2 :: Test
 testFindMain2 = TestCase $ testPassWithItemsStateCheck "testFindMain2" exp (uniquifyAndResolveVars >>> findMain) orig (return ()) check
   where
-    inner = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m A.PlainSpec [] (A.Skip m)) $
+    inner = A.Spec m (A.Specification m (A.Name m "foo") $ A.Proc m (A.PlainSpec, A.Recursive) [] (A.Skip m)) $
                A.Several m ([] :: [A.AST])
-    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m A.PlainSpec [] (A.Skip m)) inner
+    orig = A.Spec m (A.Specification m (A.Name m "main") $ A.Proc m (A.PlainSpec, A.Recursive) [] (A.Skip m)) inner
              
     exp = mSpecAST (tag3 A.Specification DontCare (tag2 A.Name DontCare ("main"@@DontCare)) $
-      tag4 A.Proc DontCare A.PlainSpec ([] :: [A.Formal]) (tag1 A.Skip DontCare)) (stopCaringPattern m $ mkPattern inner)
+      tag4 A.Proc DontCare (A.PlainSpec, A.Recursive) ([] :: [A.Formal]) (tag1 A.Skip DontCare)) (stopCaringPattern m $ mkPattern inner)
     check (items,state) 
       = do mainName <- castAssertADI (Map.lookup "main" items)
            assertNotEqual "testFindMain2 A" "main" mainName
@@ -274,12 +274,12 @@ testParamPass testName formals params transParams
     startStateProc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
                         case formals of
                           Nothing -> return ()
-                          Just formals' -> defineName (procName "foo") $ simpleDef "foo" $ A.Proc m A.PlainSpec formals' (A.Skip m)
+                          Just formals' -> defineName (procName "foo") $ simpleDef "foo" $ A.Proc m (A.PlainSpec, A.Recursive) formals' (A.Skip m)
     startStateFunc :: State CompState ()
     startStateFunc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
                         case formals of
                           Nothing -> return ()
-                          Just formals' -> defineName (funcName "foo") $ simpleDef "foo" $ A.Function m (A.PlainSpec,A.PlainRec) [A.Byte] formals' (Left $ A.Only m $ A.ExpressionList m [])
+                          Just formals' -> defineName (funcName "foo") $ simpleDef "foo" $ A.Function m (A.PlainSpec,A.Recursive) [A.Byte] formals' (Left $ A.Only m $ A.ExpressionList m [])
     origProc = A.ProcCall m (procName "foo") params
     expProc ps = A.ProcCall m (procName "foo") ps
     origFunc = A.FunctionCall m (funcName "foo") (deActualise params)

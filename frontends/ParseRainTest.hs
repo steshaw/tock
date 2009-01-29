@@ -485,21 +485,21 @@ testTopLevelDecl :: [ParseTest A.AST]
 testTopLevelDecl =
  [
   passTop (0, "process noargs() {}", 
-    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral])
   
   ,passTop (1, "process onearg(int: x) {x = 0;}",
-    [A.Spec m (A.Specification m (simpleName "onearg") $ A.Proc m A.PlainSpec
+    [A.Spec m (A.Specification m (simpleName "onearg") $ A.Proc m (A.PlainSpec, A.Recursive)
       [A.Formal A.ValAbbrev A.Int (simpleName "x")] $
       makeSeq [makeAssign (variable "x") (intLiteral 0)])
       emptySeveral
     ])
     
   ,passTop (2, "process noargs0() {} process noargs1 () {}",
-    [A.Spec m (A.Specification m (simpleName "noargs0") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral 
-    ,A.Spec m (A.Specification m (simpleName "noargs1") $ A.Proc m A.PlainSpec [] emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs0") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral 
+    ,A.Spec m (A.Specification m (simpleName "noargs1") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral])
 
   ,passTop (4, "process noargs() par {}",
-    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m A.PlainSpec [] $ A.Par m A.PlainPar emptySeveral) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] $ A.Par m A.PlainPar emptySeveral) emptySeveral])
 
   , fail ("process", RP.topLevelDecl)
   , fail ("process () {}", RP.topLevelDecl)

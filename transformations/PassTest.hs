@@ -74,7 +74,7 @@ singleParamBodyExp = tag2 A.Seq DontCare $ mOnlyP $
 
 -- | Returns the expected specification type of the single parameter process
 singleParamSpecExp :: Pattern -> Pattern -- ^ to match: A.SpecType
-singleParamSpecExp body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare)] body
+singleParamSpecExp body = tag4 A.Proc DontCare (A.PlainSpec, A.PlainRec) [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare)] body
 
 -- | Tests a function with a single return, and a single parameter.
 testFunctionsToProcs0 :: Test
@@ -99,10 +99,11 @@ testFunctionsToProcs0 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
 testFunctionsToProcs1 :: Test
 testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToProcs1 A" exp functionsToProcs orig (return ()) check
   where
-    orig = A.Specification m (simpleName "foo") (A.Function m (A.PlainSpec, A.PlainRec) [A.Int,A.Real32] 
+    orig = A.Specification m (simpleName "foo") (A.Function m (A.PlainSpec, A.Recursive) [A.Int,A.Real32] 
       [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] (Left $ valofTwo "param0" "param1"))
     exp = tag3 A.Specification DontCare (simpleName "foo") procBody
-    procBody = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
+    procBody = tag4 A.Proc DontCare (A.PlainSpec, A.Recursive)
+                                                [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
                                                  tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
                                                  tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
                                                  tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $
@@ -136,7 +137,7 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
       A.PlainRec) [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0")] $ Left $
       A.Spec m (singleParamFunc valof0) valof0)
     exp = tag3 A.Specification DontCare (simpleName "fooOuter") procBodyOuter
-    procHeader body = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0"), tag3 A.Formal A.Abbrev A.Int (Named "retOuter0" DontCare)] body
+    procHeader body = tag4 A.Proc DontCare (A.PlainSpec, A.PlainRec) [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0"), tag3 A.Formal A.Abbrev A.Int (Named "retOuter0" DontCare)] body
     procBodyOuter = procHeader $
                  tag2 A.Seq DontCare $                 
                    mSpecP (tag3 A.Specification DontCare (simpleName "foo") (singleParamSpecExp singleParamBodyExp)) $
@@ -191,7 +192,7 @@ testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
       [A.Formal A.ValAbbrev A.Byte (simpleName "param0"),A.Formal A.Abbrev A.Real32 (simpleName "param1")] $
         Right $ A.Seq m $ A.Only m $ A.Assign m [variable "foo"] $ A.ExpressionList m [exprVariable "param0", exprVariable "param1"])
     exp = tag3 A.Specification DontCare (simpleName "foo") procBody
-    procBody = tag4 A.Proc DontCare A.PlainSpec [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
+    procBody = tag4 A.Proc DontCare (A.PlainSpec, A.PlainRec) [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "param0"), 
                                                  tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
                                                  tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
                                                  tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $

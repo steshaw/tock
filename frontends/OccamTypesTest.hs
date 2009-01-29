@@ -461,15 +461,15 @@ testOccamTypes = TestList
                                        ]
 
     -- Proc
-    , testOK   2090 $ A.Proc m A.PlainSpec [] skip
-    , testOK   2091 $ A.Proc m A.InlineSpec [] skip
-    , testOK   2092 $ A.Proc m A.PlainSpec
+    , testOK   2090 $ A.Proc m (A.PlainSpec, A.PlainRec) [] skip
+    , testOK   2091 $ A.Proc m (A.InlineSpec, A.PlainRec) [] skip
+    , testOK   2092 $ A.Proc m (A.PlainSpec, A.PlainRec)
                              [ A.Formal A.Abbrev A.Int (simpleName "x")
                              , A.Formal A.ValAbbrev A.Int (simpleName "y")
                              , A.Formal A.Abbrev chanIntT (simpleName "c")
                              ]
                              skip
-    , testFail 2093 $ A.Proc m A.PlainSpec
+    , testFail 2093 $ A.Proc m (A.PlainSpec, A.PlainRec)
                              [ A.Formal A.Original A.Int (simpleName "x")
                              ]
                              skip

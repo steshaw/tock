@@ -384,7 +384,7 @@ qcTestSizeParameters =
           | (n, t) <- zip [(0::Integer)..] ts]
     
     makeProcDef :: [(String, A.Type, A.AbbrevMode)] -> A.SpecType
-    makeProcDef nts = A.Proc emptyMeta A.PlainSpec [A.Formal am t (simpleName n) | (n, t, am) <- nts] (A.Skip emptyMeta)
+    makeProcDef nts = A.Proc emptyMeta (A.PlainSpec, A.PlainRec) [A.Formal am t (simpleName n) | (n, t, am) <- nts] (A.Skip emptyMeta)
     
     recordProcDef :: [(String, A.Type, A.AbbrevMode)] -> State CompState ()
     recordProcDef nts = defineTestName "p" (makeProcDef nts) A.Original
