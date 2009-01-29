@@ -499,7 +499,7 @@ data SpecType =
   -- The list pairs tag names with item types.
   | ProtocolCase Meta [(Name, [Type])]
   -- | Declare a @PROC@.
-  | Proc Meta SpecMode [Formal] Process
+  | Proc Meta (SpecMode, RecMode) [Formal] Process
   -- | Declare a @FUNCTION@.
   | Function Meta (SpecMode, RecMode) [Type] [Formal]
              (Either (Structured ExpressionList) Process)

@@ -409,6 +409,7 @@ scopeInSpec (spec@(A.Specification m n st), nt)
           return $ A.Specification m n' st
   where
     isRecursive (A.Function _ (_, A.Recursive) _ _ _) = True
+    isRecursive (A.Proc _ (_, A.Recursive) _ _) = True
     isRecursive _ = False
 
 scopeOutSpec :: A.Specification -> OccParser ()
@@ -1087,18 +1088,22 @@ definition
            do { sIS; p <- sequentialProtocol; sColon; eol; return (A.Specification m n $ A.Protocol m p, ProtocolName) }
              <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return (A.Specification m n $ A.ProtocolCase m ps, ProtocolName) }
     <|> do m <- md
-           (sm, _) <- specMode sPROC
+           (sm, (rm, _)) <- specMode $ recMode sPROC
            n <- newProcName
            fs <- formalList
            eol
            indent
+           n' <- if rm == A.Recursive
+                   then scopeIn n ProcName
+                          (A.Proc m (sm, rm) (map fst fs) (A.Skip m)) A.Original
+                   else return n
            fs' <- scopeInFormals fs
            p <- process
            scopeOutFormals fs'
            outdent
            sColon
            eol
-           return (A.Specification m n $ A.Proc m sm fs' p, ProcName)
+           return (A.Specification m n' $ A.Proc m (sm, rm) fs' p, ProcName)
     <|> do m <- md
            (rs, (sm, (rm, _))) <- tryVV (sepBy1 dataType sComma) (specMode $ recMode sFUNCTION)
            n <- newFunctionName

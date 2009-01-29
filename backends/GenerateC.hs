@@ -1420,7 +1420,7 @@ realFormals (A.Formal am t n)
 -- This will use ProcGetParam if the Proc is in csParProcs, or the normal C
 -- calling convention otherwise.
 genProcSpec :: A.Name -> A.SpecType -> Bool -> CGen ()
-genProcSpec n (A.Proc _ sm fs p) forwardDecl
+genProcSpec n (A.Proc _ (sm, _) fs p) forwardDecl
     =  do cs <- getCompState
           let (header, params) = if n `Set.member` csParProcs cs
                                    then (genParHeader, genParParams)

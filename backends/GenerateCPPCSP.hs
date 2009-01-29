@@ -537,7 +537,7 @@ cppgenFormal :: (A.Name -> A.Name) -> A.Formal -> CGen ()
 cppgenFormal nameFunc (A.Formal am t n) = call genDecl am t (nameFunc n)
 
 cppgenForwardDeclaration :: A.Specification -> CGen()
-cppgenForwardDeclaration (A.Specification _ n (A.Proc _ sm fs _))
+cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
     =  do --Generate the "process" as a C++ function:
           call genSpecMode sm
           tell ["void "]
@@ -592,7 +592,7 @@ cppgenForwardDeclaration _ = return ()
 
 cppintroduceSpec :: A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
-cppintroduceSpec (A.Specification _ n (A.Proc _ sm fs p))
+cppintroduceSpec (A.Specification _ n (A.Proc _ (sm, _) fs p))
     =  do --Generate the "process" as a C++ function:
           call genSpecMode sm
           tell ["void "]

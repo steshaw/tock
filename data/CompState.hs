@@ -349,7 +349,7 @@ defineNonce m s st am
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: CSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
-    = defineNonce m "wrapper_proc" (A.Proc m A.PlainSpec [] p) A.Abbrev
+    = defineNonce m "wrapper_proc" (A.Proc m (A.PlainSpec, A.PlainRec) [] p) A.Abbrev
 
 -- | Generate and define a counter for a replicator.
 makeNonceCounter :: CSM m => String -> Meta -> m A.Name

@@ -158,4 +158,4 @@ flattenAssign = pass "Flatten assignment"
                          let code = A.Seq m $ A.Several m $ map (A.Only m) assigns
                          
                          return (A.Spec m (A.Specification m (n {A.nameName = "copy_" ++ A.nameName n})
-                           (A.Proc m A.InlineSpec [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS] code)))
+                           (A.Proc m (A.InlineSpec, A.PlainRec) [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS] code)))

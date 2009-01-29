@@ -494,7 +494,7 @@ terminator = A.Several emptyMeta []
 processDecl :: RainParser A.AST
 processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m
-    (A.Specification m procName (A.Proc m A.PlainSpec (formaliseTuple params) body))
+    (A.Specification m procName (A.Proc m (A.PlainSpec, A.Recursive) (formaliseTuple params) body))
   terminator}
 
 functionDecl :: RainParser A.AST
