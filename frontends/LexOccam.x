@@ -64,7 +64,7 @@ $vertSpace = [\r\n]
           | "OF" | "OFFSETOF" | "OR"
           | "PACKED" | "PAR" | "PLACE" | "PLACED" | "PLUS" | "PORT"
           | "PRI" | "PROC" | "PROCESSOR" | "PROTOCOL"
-          | "REAL32" | "REAL64" | "RECORD" | "REM" | "RESHAPES"
+          | "REAL32" | "REAL64" | "REC" | "RECORD" | "RECURSIVE" | "REM" | "RESHAPES"
           | "RESULT" | "RETYPES" | "ROUND"
           | "SEQ" | "SIZE" | "SKIP" | "STEP" | "STOP"
           | "TIMER" | "TIMES" | "TRUE" | "TRUNC" | "TYPE"

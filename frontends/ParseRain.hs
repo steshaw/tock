@@ -500,7 +500,7 @@ processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <
 functionDecl :: RainParser A.AST
 functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- innerBlock False (Just funcName) ;
   return $ A.Spec m
-    (A.Specification m funcName (A.Function m A.PlainSpec [retType] (formaliseTuple params) (Right $ A.Seq m body)))
+    (A.Specification m funcName (A.Function m (A.PlainSpec, A.Recursive) [retType] (formaliseTuple params) (Right $ A.Seq m body)))
     terminator}
 
 topLevelDecl :: RainParser A.AST

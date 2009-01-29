@@ -501,7 +501,7 @@ data SpecType =
   -- | Declare a @PROC@.
   | Proc Meta SpecMode [Formal] Process
   -- | Declare a @FUNCTION@.
-  | Function Meta SpecMode [Type] [Formal]
+  | Function Meta (SpecMode, RecMode) [Type] [Formal]
              (Either (Structured ExpressionList) Process)
   -- | Declare a retyping abbreviation of a variable.
   | Retypes Meta AbbrevMode Type Variable
@@ -519,6 +519,13 @@ data SpecType =
 -- This indicates whether a function is inlined by the compiler.
 data SpecMode =
   PlainSpec | InlineSpec
+  deriving (Show, Eq, Typeable, Data)
+
+-- | Recursive mode for @PROC@s and @FUNCTION@s.
+-- This indicates whether a function/proc can call itself, for which it must be
+-- in scope during its own definition
+data RecMode =
+  PlainRec | Recursive
   deriving (Show, Eq, Typeable, Data)
 
 -- | Formal parameters for @PROC@s and @FUNCTION@s.

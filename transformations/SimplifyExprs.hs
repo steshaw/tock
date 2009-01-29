@@ -53,7 +53,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (applyDepthM doSpecification)
   where
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification (A.Specification m n (A.Function mf sm rts fs evp))
+    doSpecification (A.Specification m n (A.Function mf (sm, _) rts fs evp))
         = do -- Create new names for the return values.
              specs <- sequence [makeNonceVariable "return_formal" mf t A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]

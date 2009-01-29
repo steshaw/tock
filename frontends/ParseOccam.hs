@@ -113,10 +113,10 @@ sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
   sBYTESIN, sCASE, sCHAN, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
   sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG,
   sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS,
-  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREM,
-  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTEP, sSTOP,
-  sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE,
-  sVECSPACE
+  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD,
+  sREC_RECURSIVE, sREM, sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE,
+  sSKIP, sSTEP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
+  sWHILE, sWORKSPACE, sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -166,6 +166,7 @@ sPROCESSOR = reserved "PROCESSOR"
 sPROTOCOL = reserved "PROTOCOL"
 sREAL32 = reserved "REAL32"
 sREAL64 = reserved "REAL64"
+sREC_RECURSIVE = reserved "REC" <|> reserved "RECURSIVE"
 sRECORD = reserved "RECORD"
 sREM = reserved "REM"
 sRESHAPES = reserved "RESHAPES"
@@ -398,9 +399,17 @@ scopeOutRep n = scopeOut n
 type NameSpec = (A.Specification, NameType)
 
 scopeInSpec :: NameSpec -> OccParser A.Specification
-scopeInSpec (A.Specification m n st, nt)
+scopeInSpec (spec@(A.Specification m n st), nt)
+   -- If it's recursive, the spec has already been defined:
+ | isRecursive st
+    = do modifyName n $ \nd -> nd {A.ndSpecType = st}
+         return spec
+ | otherwise
     =  do n' <- scopeIn n nt st (abbrevModeOfSpec st)
           return $ A.Specification m n' st
+  where
+    isRecursive (A.Function _ (_, A.Recursive) _ _ _) = True
+    isRecursive _ = False
 
 scopeOutSpec :: A.Specification -> OccParser ()
 scopeOutSpec (A.Specification _ n _) = scopeOut n
@@ -1049,13 +1058,21 @@ chanArrayAbbrev
           return (A.Specification m n $ A.IsChannelArray m t' cs, ChannelName)
     <?> "channel array abbreviation"
 
-specMode :: OccParser () -> OccParser A.SpecMode
+specMode :: OccParser a -> OccParser (A.SpecMode, a)
 specMode keyword
-    =   do tryXX sINLINE keyword
-           return A.InlineSpec
-    <|> do keyword
-           return A.PlainSpec
+    =   do x <- tryXV sINLINE keyword
+           return (A.InlineSpec, x)
+    <|> do x <- keyword
+           return (A.PlainSpec, x)
     <?> "specification mode"
+
+recMode :: OccParser a -> OccParser (A.RecMode, a)
+recMode keyword
+    =   do x <- tryXV sREC_RECURSIVE keyword
+           return (A.Recursive, x)
+    <|> do x <- keyword
+           return (A.PlainRec, x)
+    <?> "recursion mode"
 
 definition :: OccParser NameSpec
 definition
@@ -1070,7 +1087,7 @@ definition
            do { sIS; p <- sequentialProtocol; sColon; eol; return (A.Specification m n $ A.Protocol m p, ProtocolName) }
              <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return (A.Specification m n $ A.ProtocolCase m ps, ProtocolName) }
     <|> do m <- md
-           sm <- specMode sPROC
+           (sm, _) <- specMode sPROC
            n <- newProcName
            fs <- formalList
            eol
@@ -1083,11 +1100,23 @@ definition
            eol
            return (A.Specification m n $ A.Proc m sm fs' p, ProcName)
     <|> do m <- md
-           (rs, sm) <- tryVV (sepBy1 dataType sComma) (specMode sFUNCTION)
+           (rs, (sm, (rm, _))) <- tryVV (sepBy1 dataType sComma) (specMode $ recMode sFUNCTION)
            n <- newFunctionName
            fs <- formalList
-           do { sIS; fs' <- scopeInFormals fs; el <- expressionList; scopeOutFormals fs'; sColon; eol; return (A.Specification m n $ A.Function m sm rs fs' (Left $ A.Only m el), FunctionName) }
-             <|> do { eol; indent; fs' <- scopeInFormals fs; vp <- valueProcess; scopeOutFormals fs'; outdent; sColon; eol; return (A.Specification m n $ A.Function m sm rs fs' (Left vp), FunctionName) }
+           let addScope body
+                 = do n' <- if rm == A.Recursive
+                              then scopeIn n FunctionName
+                                     (A.Function m (sm, rm) rs (map fst fs) (Left $ A.Several m []))
+                                     A.Original
+                              else return n
+                      fs' <- scopeInFormals fs
+                      x <- body
+                      scopeOutFormals fs'
+                      return (x, fs', n')
+           do { sIS; (el, fs', n') <- addScope expressionList; sColon; eol;
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left $ A.Only m el), FunctionName) }
+             <|> do { eol; indent; (vp, fs', n') <- addScope valueProcess; outdent; sColon; eol;
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left vp), FunctionName) }
     <|> retypesAbbrev
     <?> "definition"
 
