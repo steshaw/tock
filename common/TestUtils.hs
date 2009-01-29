@@ -369,7 +369,7 @@ defineFunction :: String -> [A.Type] -> [(String, A.Type)]
 defineFunction s rs as
     = defineThing s st A.Original A.NameUser
   where
-    st = A.Function emptyMeta A.PlainSpec rs fs (Right $ A.Skip emptyMeta)
+    st = A.Function emptyMeta (A.PlainSpec, A.PlainRec) rs fs (Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
 -- | Define a proc.

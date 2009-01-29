@@ -475,23 +475,23 @@ testOccamTypes = TestList
                              skip
 
     -- Function
-    , testOK   2100 $ A.Function m A.PlainSpec [A.Int] [] returnOne
-    , testOK   2110 $ A.Function m A.InlineSpec [A.Int] [] returnOne
-    , testFail 2120 $ A.Function m A.PlainSpec [] [] returnNone
-    , testOK   2130 $ A.Function m A.PlainSpec [A.Int]
+    , testOK   2100 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int] [] returnOne
+    , testOK   2110 $ A.Function m (A.InlineSpec, A.PlainRec) [A.Int] [] returnOne
+    , testFail 2120 $ A.Function m (A.PlainSpec, A.PlainRec) [] [] returnNone
+    , testOK   2130 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int]
                                  [ A.Formal A.ValAbbrev A.Int (simpleName "x")
                                  , A.Formal A.ValAbbrev A.Bool (simpleName "b")
                                  , A.Formal A.ValAbbrev A.Int (simpleName "q")
                                  ]
                                  returnOne
-    , testFail 2140 $ A.Function m A.PlainSpec [A.Int]
+    , testFail 2140 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int]
                                  [A.Formal A.Abbrev A.Int (simpleName "x")]
                                  returnOne
-    , testFail 2150 $ A.Function m A.PlainSpec [A.Int]
+    , testFail 2150 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int]
                         [A.Formal A.ValAbbrev chanIntT (simpleName "c")]
                         returnOne
-    , testFail 2160 $ A.Function m A.PlainSpec [A.Int] [] returnNone
-    , testFail 2170 $ A.Function m A.PlainSpec [A.Int] [] returnTwo
+    , testFail 2160 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int] [] returnNone
+    , testFail 2170 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int] [] returnTwo
 
     --}}}
     --{{{  retyping

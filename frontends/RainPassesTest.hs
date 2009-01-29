@@ -279,7 +279,7 @@ testParamPass testName formals params transParams
     startStateFunc = do defineName (simpleName "x") $ simpleDefDecl "x" (A.UInt16)
                         case formals of
                           Nothing -> return ()
-                          Just formals' -> defineName (funcName "foo") $ simpleDef "foo" $ A.Function m A.PlainSpec [A.Byte] formals' (Left $ A.Only m $ A.ExpressionList m [])
+                          Just formals' -> defineName (funcName "foo") $ simpleDef "foo" $ A.Function m (A.PlainSpec,A.PlainRec) [A.Byte] formals' (Left $ A.Only m $ A.ExpressionList m [])
     origProc = A.ProcCall m (procName "foo") params
     expProc ps = A.ProcCall m (procName "foo") ps
     origFunc = A.FunctionCall m (funcName "foo") (deActualise params)
