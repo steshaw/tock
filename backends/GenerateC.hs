@@ -521,18 +521,17 @@ cgenLiteral :: A.LiteralRepr -> A.Type -> CGen ()
 cgenLiteral lr t
     = if isStringLiteral lr
         then do tell ["\""]
-                let A.ArrayLiteral _ aes = lr
+                let A.ArrayListLiteral _ (A.Several _ aes) = lr
                 sequence_ [genByteLiteral m s
-                           | A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral m s)) <- aes]
+                           | A.Only _ (A.Literal _ _ (A.ByteLiteral m s)) <- aes]
                 tell ["\""]
         else call genLiteralRepr lr t
 
 -- | Does a LiteralRepr represent something that can be a plain string literal?
 isStringLiteral :: A.LiteralRepr -> Bool
-isStringLiteral (A.ArrayLiteral _ []) = False
-isStringLiteral (A.ArrayLiteral _ aes)
+isStringLiteral (A.ArrayListLiteral _ (A.Several _ aes))
     = and [case ae of
-             A.ArrayElemExpr (A.Literal _ _ (A.ByteLiteral _ _)) -> True
+             A.Only _ (A.Literal _ _ (A.ByteLiteral _ _)) -> True
              _ -> False
            | ae <- aes]
 isStringLiteral _ = False
@@ -545,9 +544,9 @@ genLitSuffix A.Real32 = tell ["F"]
 genLitSuffix _ = return ()
 
 -- TODO don't allocate for things less than 64-bits in size
-cgenListLiteral :: [A.Expression] -> A.Type -> CGen ()
-cgenListLiteral es t
-  = foldl addItem (tell ["g_queue_new()"]) es
+cgenListLiteral :: A.Structured A.Expression -> A.Type -> CGen ()
+cgenListLiteral (A.Several _ es) t
+  = foldl addItem (tell ["g_queue_new()"]) [e | A.Only _ e <- es]
   where
     addItem :: CGen () -> A.Expression -> CGen ()
     addItem prev add
@@ -587,15 +586,14 @@ cgenLiteralRepr (A.HexLiteral m s) t
        tell [")"]
 cgenLiteralRepr (A.ByteLiteral m s) _
     = tell ["'"] >> genByteLiteral m s >> tell ["'"]
-cgenLiteralRepr (A.ArrayLiteral m aes) _
-    =  do genLeftB
-          call genArrayLiteralElems aes
-          genRightB
 cgenLiteralRepr (A.RecordLiteral _ es) _
     =  do genLeftB
           seqComma $ map (call genUnfoldedExpression) es
           genRightB
-cgenLiteralRepr (A.ListLiteral _ es) t = call genListLiteral es t
+cgenLiteralRepr (A.ArrayListLiteral m aes) (A.Array {})
+    = call genArrayLiteralElems aes
+cgenLiteralRepr (A.ArrayListLiteral _ es) t@(A.List {})
+    = call genListLiteral es t
           
 -- | Generate an expression inside a record literal.
 --
@@ -647,13 +645,10 @@ genDecimal ('0':s) = genDecimal s
 genDecimal ('-':s) = tell ["-"] >> genDecimal s
 genDecimal s = tell [s]
 
-cgenArrayLiteralElems :: [A.ArrayElem] -> CGen ()
-cgenArrayLiteralElems aes
-    = seqComma $ map genElem aes
-  where
-    genElem :: A.ArrayElem -> CGen ()
-    genElem (A.ArrayElemArray aes) = call genArrayLiteralElems aes
-    genElem (A.ArrayElemExpr e) = call genUnfoldedExpression e
+cgenArrayLiteralElems :: A.Structured A.Expression -> CGen ()
+cgenArrayLiteralElems (A.Only _ e) = call genUnfoldedExpression e
+cgenArrayLiteralElems (A.Several _ aes)
+    = genLeftB >> (seqComma $ map cgenArrayLiteralElems aes) >> genRightB
 
 genByteLiteral :: Meta -> String -> CGen ()
 genByteLiteral m s

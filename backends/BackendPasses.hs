@@ -249,8 +249,8 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                sizeType = A.Array [makeDimension m $ length ds] A.Int
                sizeExpr = case sliceSize of
                  Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
-                   A.Literal m sizeType $ A.ArrayLiteral m $
-                     [A.ArrayElemExpr exp] ++ map (A.ArrayElemExpr . A.ExprVariable m) subDims
+                   A.Literal m sizeType $ A.ArrayListLiteral m $ A.Several m $
+                     A.Only m exp : map (A.Only m . A.ExprVariable m) subDims
                  Nothing -> A.ExprVariable m subSrcSizeVar
                sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeExpr
            defineSizesName m n_sizes sizeSpecType
@@ -306,7 +306,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
     makeDynamicSizeSpec m n es = sizeSpecType
       where
         sizeType = A.Array [makeDimension m $ length es] A.Int
-        sizeLit = A.Literal m sizeType $ A.ArrayLiteral m $ map A.ArrayElemExpr es
+        sizeLit = A.Literal m sizeType $ A.ArrayListLiteral m $ A.Several m $ map (A.Only m) es
         sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
 
     declareFieldSizes :: Data a => String -> Meta -> A.Structured a -> (A.Name, A.Type) -> PassM (A.Structured a)

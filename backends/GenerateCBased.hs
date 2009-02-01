@@ -96,7 +96,7 @@ data GenOps = GenOps {
     genAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen(),
     genAlt :: Bool -> A.Structured A.Alternative -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
-    genArrayLiteralElems :: [A.ArrayElem] -> CGen (),
+    genArrayLiteralElems :: A.Structured A.Expression -> CGen (),
     -- | Writes out the actual data storage array name.
     genArrayStoreName :: A.Name -> CGen(),
     -- | Generates an array subscript for the given variable (with error checking according to the first variable), using the given expression list as subscripts
@@ -136,7 +136,7 @@ data GenOps = GenOps {
     genIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen (),
     genListAssign :: A.Variable -> A.Expression -> CGen (),
     genListConcat :: A.Expression -> A.Expression -> CGen (),
-    genListLiteral :: [A.Expression] -> A.Type -> CGen (),
+    genListLiteral :: A.Structured A.Expression -> A.Type -> CGen (),
     genListSize :: A.Variable -> CGen (),
     genLiteral :: A.LiteralRepr -> A.Type -> CGen (),
     genLiteralRepr :: A.LiteralRepr -> A.Type -> CGen (),

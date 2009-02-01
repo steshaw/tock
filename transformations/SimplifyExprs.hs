@@ -33,6 +33,7 @@ import qualified Properties as Prop
 import ShowCode
 import Traversal
 import Types
+import Utils
 
 simplifyExprs :: [Pass]
 simplifyExprs =
@@ -124,16 +125,16 @@ expandArrayLiterals = pass "Expand array literals"
   [Prop.arrayLiteralsExpanded]
   (applyDepthM doArrayElem)
   where
-    doArrayElem :: A.ArrayElem -> PassM A.ArrayElem
-    doArrayElem ae@(A.ArrayElemExpr e)
+    doArrayElem :: A.Structured A.Expression -> PassM (A.Structured A.Expression)
+    doArrayElem ae@(A.Only _ e)
         =  do t <- astTypeOf e
               case t of
                 A.Array ds _ -> expand ds e
                 _ -> return ae
     doArrayElem ae = return ae
 
-    expand :: [A.Dimension] -> A.Expression -> PassM A.ArrayElem
-    expand [] e = return $ A.ArrayElemExpr e
+    expand :: [A.Dimension] -> A.Expression -> PassM (A.Structured A.Expression)
+    expand [] e = return $ A.Only (findMeta e) e
     expand (A.UnknownDimension:_) e
         = dieP (findMeta e) "array literal containing non-literal array of unknown size"
     expand (A.Dimension n:ds) e
@@ -143,7 +144,7 @@ expandArrayLiterals = pass "Expand array literals"
                                              (A.Subscript m A.NoCheck $
                                                makeConstant m i) e)
                                  | i <- [0 .. size - 1]]
-              return $ A.ArrayElemArray elems
+              return $ A.Several (findMeta e) elems
       where m = findMeta e
 
 -- | We pull up the loop (Rep) counts into a temporary expression, whenever the loop
@@ -209,7 +210,8 @@ transformConstr = pass "Transform array constructors into initialisation code"
     --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _
-      expr@(A.ExprConstr m'' (A.RepConstr _ t repn rep exp)))) scope)
+      expr@(A.Literal m'' t (A.ArrayListLiteral _ (A.Spec _ (A.Specification _
+        repn (A.Rep _ rep)) (A.Only _ exp)))))) scope)
       = do case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.Original
@@ -250,7 +252,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
         appendItem = A.Only m'' $ A.Assign m'' [A.Variable m'' n] $
           A.ExpressionList m'' [A.Dyadic m'' A.Concat
             (A.ExprVariable m'' $ A.Variable m'' n)
-            (A.Literal m'' t $ A.ListLiteral m'' [exp])]
+            (A.Literal m'' t $ A.ArrayListLiteral m'' $ A.Several m'' [A.Only m'' exp])]
 
         replicateCode :: Data a => A.Structured a -> A.Structured a
         replicateCode = A.Spec m'' (A.Specification m'' repn (A.Rep m'' rep))
@@ -348,7 +350,6 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                     _ -> pull t e'
                 A.List _ ->
                   case e' of
-                    A.ExprConstr {} -> pull t e'
                     A.Literal {} -> pull t e'
                     _ -> return e'
                 _ -> return e'

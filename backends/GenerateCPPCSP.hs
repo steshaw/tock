@@ -725,11 +725,11 @@ cppgenListSize v
  = do call genVariable v
       tell [".size()"]
 
-cppgenListLiteral :: [A.Expression] -> A.Type -> CGen ()
-cppgenListLiteral es t
+cppgenListLiteral :: A.Structured A.Expression -> A.Type -> CGen ()
+cppgenListLiteral (A.Several _ es) t
  = do call genType t
       tell ["()"]
-      mapM_ (\e -> tell ["("] >> call genExpression e >> tell [")"]) es
+      sequence_ [tell ["("] >> call genExpression e >> tell [")"] | A.Only _ e <- es]
 
 cppgenListConcat :: A.Expression -> A.Expression -> CGen ()
 cppgenListConcat a b
