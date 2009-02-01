@@ -33,6 +33,7 @@ import qualified Properties as Prop
 import ShowCode
 import Traversal
 import Types
+import Utils
 
 -- | Occam-specific frontend passes.
 occamPasses :: [Pass]
@@ -40,11 +41,15 @@ occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
     , inferTypes
     , foldConstants
+--    , fixNestedArrayLiterals
     , fixConstructorTypes
     , checkConstants
     , resolveAmbiguities
     , checkTypes
     ]
+
+--fixNestedArrayLiterals :: Pass
+--fixNestedArrayLiterals = occamOnlyPass "Collapse nested array literals"
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Pass
@@ -54,11 +59,30 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   (applyDepthM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.ExprConstr m (A.RepConstr m' _ n rep expr))
-      = do t <- astTypeOf expr
-           let count = countReplicator rep
-               t' = A.Array [A.Dimension count] t
-           return $ A.ExprConstr m $ A.RepConstr m' t' n rep expr
+    doExpression (A.Literal m prevT lit@(A.ArrayListLiteral _ expr))
+      = do t' <- doExpr (Left $ getDims prevT) expr
+           return $ A.Literal m t' lit
+      where
+        getEither = either id id
+        addRight x = Right . either (const [x]) (++[x])
+
+        getDims :: A.Type -> [A.Dimension]
+        getDims (A.Array ds _) = ds
+        getDims t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
+
+        -- Left means previous guess (to be used if there's no replicator)
+        -- Right means current accumulation
+        doExpr :: Either [A.Dimension] [A.Dimension] -> A.Structured A.Expression -> PassM A.Type
+        doExpr dims (A.Several m ss@(s:_))
+          = doExpr (addRight (A.Dimension $ makeConstant m $ length ss) dims) s
+        doExpr dims (A.Only _ e)
+          = astTypeOf e >>* A.Array (getEither dims)
+        doExpr dims (A.ProcThen _ _ e) = doExpr dims e
+        doExpr dims (A.Spec _ (A.Specification _ _ (A.Rep _ rep)) body)
+          = doExpr (addRight count dims) body
+          where
+            count = A.Dimension $ countReplicator rep
+
     doExpression e = return e
 
 -- | Handle ambiguities in the occam syntax that the parser can't resolve.

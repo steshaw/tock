@@ -92,7 +92,7 @@ checkType m et rt
              when (not same) $ bad
   where
     bad :: PassM ()
-    bad = diePC m $ formatCode "Type mismatch: found %, expected %" rt et
+    bad = diePC m $ formatCode ("Type mismatch: found %, expected % ("++show (rt,et)++")") rt et
 
 -- | Check a type against a predicate.
 checkTypeClass :: (A.Type -> Bool) -> String -> Meta -> A.Type -> PassM ()
@@ -621,7 +621,6 @@ inferTypes = occamOnlyPass "Infer types"
           `extOp` doExpression
           `extOp` doDimension
           `extOp` doSubscript
-          `extOp` doArrayConstr
           `extOp` doReplicator
           `extOp` doAlternative
           `extOp` doInputMode
@@ -710,14 +709,6 @@ inferTypes = occamOnlyPass "Infer types"
 
     doSubscript :: Transform A.Subscript
     doSubscript s = inTypeContext (Just A.Int) $ descend s
-
-    -- FIXME: RepConstr shouldn't contain the type -- and this won't fill it in.
-    -- (That is, it should just be a kind of literal.)
-    doArrayConstr :: Transform A.ArrayConstr
-    doArrayConstr ac
-        = case ac of
-            A.RangeConstr m t _ _ -> inSubscriptedContext m $ descend ac
-            A.RepConstr m t _ _ _ -> inSubscriptedContext m $ descend ac
 
     doExpressionList :: [A.Type] -> Transform A.ExpressionList
     doExpressionList ts el
@@ -988,10 +979,12 @@ inferTypes = occamOnlyPass "Infer types"
     doLiteral :: Transform (A.Type, A.LiteralRepr)
     doLiteral (wantT, lr)
         = case lr of
-            A.ArrayLiteral m aes ->
-               do (t, A.ArrayElemArray aes') <-
-                    doArrayElem wantT (A.ArrayElemArray aes)
-                  lr' <- buildTable t aes'
+            A.ArrayListLiteral m aes ->
+               do (t, aes') <-
+                    doArrayElem wantT aes
+                  lr' <- case aes' of
+                    A.Several _ ss -> buildTable t ss
+                    _ -> return $ A.ArrayListLiteral m aes'
                   return (t, lr')
             _ ->
                do lr' <- descend lr
@@ -1010,9 +1003,20 @@ inferTypes = occamOnlyPass "Infer types"
       where
         m = findMeta lr
 
-        doArrayElem :: A.Type -> A.ArrayElem -> PassM (A.Type, A.ArrayElem)
+        doArrayElem :: A.Type -> A.Structured A.Expression -> PassM (A.Type, A.Structured A.Expression)
+        doArrayElem wantT (A.Spec m spec body)
+        -- A replicator: strip off a subscript and keep going
+            =  do underT <- resolveUserType m wantT
+                  subT <- trivialSubscriptType m underT
+                  dim <- case underT of
+                    A.Array (dim:_) _ -> return dim
+                    A.Infer -> return A.UnknownDimension
+                    _ -> diePC m $ formatCode "Unexpected type in array constructor: %" underT
+                  (t, body') <- doArrayElem subT body
+                  spec' <- doSpecification spec
+                  return (applyDimension dim wantT, A.Spec m spec' body')
         -- A table: this could be an array or a record.
-        doArrayElem wantT (A.ArrayElemArray aes)
+        doArrayElem wantT (A.Several m aes)
             =  do underT <- resolveUserType m wantT
                   case underT of
                     A.Array _ _ ->
@@ -1020,12 +1024,12 @@ inferTypes = occamOnlyPass "Infer types"
                           (elemT, aes') <- doElems subT aes
                           let dim = makeDimension m (length aes)
                           return (applyDimension dim wantT,
-                                  A.ArrayElemArray aes')
+                                  A.Several m aes')
                     A.Record _ ->
                        do nts <- recordFields m underT
                           aes <- sequence [doArrayElem t ae >>* snd
                                            | ((_, t), ae) <- zip nts aes]
-                          return (wantT, A.ArrayElemArray aes)
+                          return (wantT, A.Several m aes)
                     -- If we don't know, assume it's an array.
                     A.Infer ->
                        do (elemT, aes') <- doElems A.Infer aes
@@ -1033,55 +1037,55 @@ inferTypes = occamOnlyPass "Infer types"
                             dieP m "Cannot infer type of (empty?) array"
                           let dims = [makeDimension m (length aes)]
                           return (addDimensions dims elemT,
-                                  A.ArrayElemArray aes')
+                                  A.Several m aes')
                     _ -> diePC m $ formatCode "Table literal is not valid for type %" wantT
           where
-            doElems :: A.Type -> [A.ArrayElem] -> PassM (A.Type, [A.ArrayElem])
+            doElems :: A.Type -> [A.Structured A.Expression] -> PassM (A.Type, [A.Structured A.Expression])
             doElems t aes
                 =  do ts <- mapM (\ae -> doArrayElem t ae >>* fst) aes
                       let bestT = foldl betterType t ts
                       aes' <- mapM (\ae -> doArrayElem bestT ae >>* snd) aes
                       return (bestT, aes')
         -- An expression: descend into it with the right context.
-        doArrayElem wantT (A.ArrayElemExpr e)
+        doArrayElem wantT (A.Only m e)
             =  do e' <- inTypeContext (Just wantT) $ doExpression e
                   t <- astTypeOf e'
                   checkType (findMeta e') wantT t
-                  return (t, A.ArrayElemExpr e')
+                  return (t, A.Only m e')
 
         -- | Turn a raw table literal into the appropriate combination of
         -- arrays and records.
-        buildTable :: A.Type -> [A.ArrayElem] -> PassM A.LiteralRepr
+        buildTable :: A.Type -> [A.Structured A.Expression] -> PassM A.LiteralRepr
         buildTable t aes
             =  do underT <- resolveUserType m t
                   case underT of
                     A.Array _ _ ->
                        do elemT <- trivialSubscriptType m t
                           aes' <- mapM (buildElem elemT) aes
-                          return $ A.ArrayLiteral m aes'
+                          return $ A.ArrayListLiteral m $ A.Several m aes'
                     A.Record _ ->
                        do nts <- recordFields m underT
                           aes' <- sequence [buildExpr elemT ae
                                             | ((_, elemT), ae) <- zip nts aes]
                           return $ A.RecordLiteral m aes'
           where
-            buildExpr :: A.Type -> A.ArrayElem -> PassM A.Expression
-            buildExpr t (A.ArrayElemArray aes)
+            buildExpr :: A.Type -> A.Structured A.Expression -> PassM A.Expression
+            buildExpr t (A.Several _ aes)
                 =  do lr <- buildTable t aes
                       return $ A.Literal m t lr
-            buildExpr _ (A.ArrayElemExpr e) = return e
+            buildExpr _ (A.Only _ e) = return e
 
-            buildElem :: A.Type -> A.ArrayElem -> PassM A.ArrayElem
+            buildElem :: A.Type -> A.Structured A.Expression -> PassM (A.Structured A.Expression)
             buildElem t ae
                 =  do underT <- resolveUserType m t
                       case (underT, ae) of
-                        (A.Array _ _, A.ArrayElemArray aes) ->
-                           do A.ArrayLiteral _ aes' <- buildTable t aes
-                              return $ A.ArrayElemArray aes'
-                        (A.Record _, A.ArrayElemArray _) ->
+                        (A.Array _ _, A.Several _ aes) ->
+                           do A.ArrayListLiteral _ aes' <- buildTable t aes
+                              return aes'
+                        (A.Record _, A.Several {}) ->
                            do e <- buildExpr t ae
-                              return $ A.ArrayElemExpr e
-                        (_, A.ArrayElemExpr _) -> return ae
+                              return $ A.Only m e
+                        (_, A.Only {}) -> return ae
 
 --}}}
 --{{{  checkTypes
@@ -1167,8 +1171,8 @@ checkExpressions = checkDepthM doExpression
     doExpression _ = ok
 
     doLiteralRepr :: A.Type -> A.LiteralRepr -> PassM ()
-    doLiteralRepr t (A.ArrayLiteral m aes)
-        = doArrayElem m t (A.ArrayElemArray aes)
+    doLiteralRepr t (A.ArrayListLiteral m aes)
+        = doArrayElem m t aes
     doLiteralRepr t (A.RecordLiteral m es)
         =  do rfs <- resolveUserType m t >>= recordFields m
               when (length es /= length rfs) $
@@ -1177,13 +1181,15 @@ checkExpressions = checkDepthM doExpression
                          | ((_, ft), fe) <- zip rfs es]
     doLiteralRepr _ _ = ok
 
-    doArrayElem :: Meta -> A.Type -> A.ArrayElem -> PassM ()
-    doArrayElem m t (A.ArrayElemArray aes)
+    doArrayElem :: Meta -> A.Type -> A.Structured A.Expression -> PassM ()
+    doArrayElem m t (A.Several _ aes)
         =  do checkArraySize m t (length aes)
               t' <- subscriptType (A.Subscript m A.NoCheck undefined) t
               sequence_ $ map (doArrayElem m t') aes
-    doArrayElem _ t (A.ArrayElemExpr e) = checkExpressionType t e
-
+    doArrayElem _ t (A.Only _ e) = checkExpressionType t e
+    doArrayElem m t (A.Spec _ (A.Specification _ _ (A.Rep _ (A.For _ _ count _))) body)
+      = do t' <- subscriptType (A.Subscript m A.NoCheck undefined) t
+           doArrayElem m t' body
 --}}}
 --{{{  checkSpecTypes
 
