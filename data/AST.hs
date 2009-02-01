@@ -225,17 +225,9 @@ data LiteralRepr =
   | IntLiteral Meta String
   | HexLiteral Meta String
   | ByteLiteral Meta String
-  | ArrayLiteral Meta [ArrayElem]
-  | ListLiteral Meta [Expression]
+  -- | This can be for arrays and for lists
+  | ArrayListLiteral Meta (Structured Expression)
   | RecordLiteral Meta [Expression]
-  deriving (Show, Eq, Typeable, Data)
-
--- | An item inside an array literal -- which might be an expression, or might
--- be a nested array. (occam multidimensional arrays are not arrays of arrays,
--- which is why we can't just use nested Literals.)
-data ArrayElem =
-  ArrayElemArray [ArrayElem]
-  | ArrayElemExpr Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | A variable.
@@ -248,19 +240,6 @@ data Variable =
   | DirectedVariable Meta Direction Variable
   -- | A dereferenced mobile variable (e.g. using MOBILE INT as INT)
   | DerefVariable Meta Variable
-  deriving (Show, Eq, Typeable, Data)
-
--- | An array constructor expression.
-data ArrayConstr =
-  -- | A simple integer range, beginning at the first value (inclusive) and
-  -- ending at the second value (inclusive), with stepping 1.
-  -- If the first value is bigger than the second, the effective value is an
-  -- empty array.  This will be transformed by an early pass into the second
-  -- form (RepConstr).
-  RangeConstr Meta Type Expression Expression
-  -- | A more general and powerful array constructor as used in occam-pi.
-  -- The first item is the replicator, the second is the expression
-  | RepConstr Meta Type Name Replicator Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | An expression.
@@ -292,7 +271,6 @@ data Expression =
   | BytesInExpr Meta Expression
   | BytesInType Meta Type
   | OffsetOf Meta Type Name
-  | ExprConstr Meta ArrayConstr
   -- | A mobile allocation. The type should always be Mobile t, and the
   -- Expression should be of type t.
   | AllocMobile Meta Type (Maybe Expression)
@@ -350,13 +328,12 @@ data OutputItem =
 
 -- | A replicator.
 data Replicator = 
-  -- | Count up in 1s from a start value.
-  -- The 'Name' names the replicator index, the first expression is the base
-  -- and the second expression is the count, and the third is the step
+  -- | Count in steps from a start value.
+  -- The first expression is the base, the second expression is the count,
+  -- and the third is the step
   For Meta Expression Expression Expression
   -- | Iterate over a list.
-  -- The 'Name' names the loop variable and the expression is the list to
-  -- iterate over.
+  -- The expression is the list to iterate over.
   | ForEach Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
