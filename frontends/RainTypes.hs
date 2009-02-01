@@ -222,17 +222,15 @@ markExpressionTypes = checkDepthM checkExpression
     checkExpression :: RainTypeCheck A.Expression
     checkExpression (A.Dyadic _ _ lhs rhs)
       = markUnify lhs rhs
-    checkExpression (A.Literal _ t (A.ListLiteral _ es))
-      = do ts <- mapM astTypeOf es
-           mapM_ (markUnify t . A.List) ts
-    checkExpression (A.ExprConstr _ con)
-      = case con of
-          A.RangeConstr _ t e e' ->
-            do astTypeOf e >>= markUnify t . A.List
-               astTypeOf e' >>= markUnify t . A.List
-          A.RepConstr _ t n _ e ->
-            astTypeOf e >>= markUnify t . A.List
+    checkExpression (A.Literal _ t (A.ArrayListLiteral _ es))
+      = checkListElems (markUnify t) es
     checkExpression _ = return ()
+
+    checkListElems :: RainTypeCheck A.Type -> RainTypeCheck (A.Structured A.Expression)
+    checkListElems ch (A.Only _ e) = astTypeOf e >>= ch
+    checkListElems ch (A.Several _ es) = mapM_ (checkListElems (ch . A.List)) es
+    checkListElems ch (A.Spec _ _ s) = checkListElems ch s
+    checkListElems ch (A.ProcThen _ _ s) = checkListElems ch s
 
 -- | Checks the types in assignments
 markAssignmentTypes :: RainTypePassType

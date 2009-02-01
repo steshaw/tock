@@ -51,7 +51,6 @@ rainPasses =
      [ findMain
      , transformEachRange
      , pullUpForEach
-     , transformRangeRep
      , pullUpParDeclarations
      , mobiliseLists
      , implicitMobility
@@ -186,32 +185,26 @@ transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges int
   (applyDepthM doSpec)
   where
     doSpec :: A.Specification -> PassM A.Specification
-    doSpec (A.Specification mspec loopVar (A.Rep repMeta (A.ForEach eachMeta (A.ExprConstr
-      _ (A.RangeConstr _ _ begin end)))))
+    doSpec
+      (A.Specification mspec loopVar
+        (A.Rep repMeta             -- Outer replicator
+          (A.ForEach eachMeta      -- goes through each itme
+            (A.Literal _ _
+              (A.ArrayListLiteral _  -- in a list
+                (A.Spec _
+                  (A.Specification _ n r@(A.Rep {})) -- made from a replicator
+                  (A.Only _ (A.ExprVariable _ (A.Variable _ n')))
+                  -- where the inner expression is just the replicator
+                )
+              )
+            )
+          )
+        )
+      ) | A.nameName n' == A.nameName n
         =   do -- Need to change the stored abbreviation mode to original:
                modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
-               return $ A.Specification mspec loopVar $ A.Rep repMeta $ A.For eachMeta begin
-                 (addOne $ subExprs end begin) (makeConstant eachMeta 1)
+               return $ A.Specification mspec loopVar r
     doSpec s = return s
-
--- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
---
--- TODO make sure when the range has a bad order that an empty list is
--- returned
-transformRangeRep :: Pass
-transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into more general array constructors"
-  (Prop.agg_typesDone ++ [Prop.eachRangeTransformed])
-  [Prop.rangeTransformed]
-  (applyDepthM doExpression)
-  where
-    doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
-          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.ValAbbrev
-                      let count = addOne $ subExprs end begin
-                      return $ A.ExprConstr m $ A.RepConstr m t rep
-                        (A.For m begin count $ makeConstant m 1)
-                          (A.ExprVariable m $ A.Variable m rep)
-    doExpression e = return e
 
 -- TODO this is almost certainly better figured out from the CFG
 checkFunction :: PassType
