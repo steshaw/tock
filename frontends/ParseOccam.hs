@@ -632,7 +632,7 @@ tableElems
     =   stringLiteral
     <|> do m <- md
            es <- tryXVX sLeft (sepBy1 expression sComma) sRight
-           return (A.Infer, A.ArrayLiteral m (map A.ArrayElemExpr es))
+           return (A.Infer, A.ArrayListLiteral m $ A.Several m (map (A.Only m) es))
     <?> "table elements"
 
 -- String literals are implicitly typed []BYTE unless otherwise specified, so
@@ -641,9 +641,9 @@ stringLiteral :: OccParser (A.Type, A.LiteralRepr)
 stringLiteral
     =  do m <- md
           cs <- stringCont <|> stringLit
-          let aes = [A.ArrayElemExpr $ A.Literal m' A.Infer c
+          let aes = A.Several m [A.Only m $ A.Literal m' A.Infer c
                      | c@(A.ByteLiteral m' _) <- cs]
-          return (A.Array [A.UnknownDimension] A.Byte, A.ArrayLiteral m aes)
+          return (A.Array [A.UnknownDimension] A.Byte, A.ArrayListLiteral m aes)
     <?> "string literal"
   where
     stringCont :: OccParser [A.LiteralRepr]
@@ -718,7 +718,8 @@ arrayConstructor
           e <- expression
           scopeOutRep n'
           sRight
-          return $ A.ExprConstr m $ A.RepConstr m A.Infer n' r e
+          return $ A.Literal m A.Infer $ A.ArrayListLiteral m $ A.Spec m
+            (A.Specification m n' (A.Rep m r)) $ A.Only m e
     <?> "array constructor expression"
 
 associativeOpExpression :: OccParser A.Expression

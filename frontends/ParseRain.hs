@@ -35,6 +35,7 @@ import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
+import Types
 import Utils
 
 type RainState = CompState
@@ -187,8 +188,8 @@ stringLiteral :: RainParser A.LiteralRepr
 stringLiteral
     =  do (m,str) <- getToken testToken
           let processed = replaceEscapes str
-          let aes = [A.Literal m A.Byte $ A.ByteLiteral m [c] | c <- processed]
-          return (A.ListLiteral m aes)
+              aes = A.Several m [A.Only m $ A.Literal m A.Byte $ A.ByteLiteral m [c] | c <- processed]
+          return (A.ArrayListLiteral m aes)
     <?> "string literal"
   where
     testToken (L.TokStringLiteral str) = Just str
@@ -227,11 +228,11 @@ listLiteral
              u <- getUniqueIdentifer
              let t = A.List $ A.UnknownVarType (A.TypeRequirements False) (Right (m,u))
              (do try sRightQ
-                 return $ A.Literal m t $ A.ListLiteral m []
+                 return $ A.Literal m t $ A.ArrayListLiteral m (A.Several m [])
               <|> do e0 <- try expression
                      (do try sRightQ
-                         return $ A.Literal m t $
-                           A.ListLiteral m [e0]
+                         return $ A.Literal m t $ A.ArrayListLiteral m $
+                           A.Several m [A.Only m e0]
                       -- Up until the first comma, this may be a type declaration
                       -- in a cast expression, so we "try" all the way
                       -- up until that comma
@@ -239,7 +240,8 @@ listLiteral
                              es <- sepBy1 expression sComma
                              sRightQ
                              return $ A.Literal m t $
-                               A.ListLiteral m (e0 : es)
+                               A.ArrayListLiteral m $ A.Several m $
+                                 map (A.Only m) (e0 : es)
                       )
               )
 
@@ -264,16 +266,20 @@ range = try $ do m <- sLeftQ
                  sDots
                  end <- literal
                  sRightQ
-                 case optTy of
-                   Just (t, mc) -> return $ A.ExprConstr m $ A.RangeConstr m
-                     (A.List t)
-                     (A.Conversion mc A.DefaultConversion t begin)
-                     (A.Conversion mc A.DefaultConversion t end)
+                 (t, rep) <- case optTy of
+                   Just (t, mc) ->
+                     let begin' = A.Conversion mc A.DefaultConversion t begin
+                         end' = A.Conversion mc A.DefaultConversion t end
+                     in return (t, A.For m begin' (subOne $ addExprs begin' end') (makeConstant m 1))
                    Nothing -> do u <- getUniqueIdentifer
                                  let t = A.List $ A.UnknownVarType (A.TypeRequirements
                                            False) (Right (m,u))
-                                 return $ A.ExprConstr m $ A.RangeConstr m
-                                   t begin end
+                                 return (t, A.For m begin
+                                           (subOne $ addExprs begin end) (makeConstant m 1))
+                 repSpec@(A.Specification _ repN _) <- defineNonce m "range_rep" (A.Rep m rep) A.ValAbbrev
+                 return $ A.Literal m t $ A.ArrayListLiteral m $
+                   A.Spec m repSpec $ A.Only m $
+                     A.ExprVariable m $ A.Variable m repN
 
 expression :: RainParser A.Expression
 expression
