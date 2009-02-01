@@ -235,6 +235,7 @@ instance ShowOccam A.Type where
   showOccamM A.Any = tell ["ANY"]
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
+  showOccamM A.Infer = tell ["inferred type"]
   showOccamM (A.UnknownVarType _ en)
     = do tell ["(inferred type for: "]
          either showName (tell . (:[]) . show) en
@@ -376,16 +377,12 @@ instance ShowRain A.Variable where
   showRainM (A.DirectedVariable _ A.DirOutput v) = tell ["!"] >> showRainM v
   showRainM x = tell ["<invalid Rain variable: ", show x, ">"]
 
-instance ShowOccam A.ArrayElem where
-  showOccamM (A.ArrayElemArray elems) = tell ["["] >> showWithCommas elems >> tell ["]"]
-  showOccamM (A.ArrayElemExpr e) = showOccamM e
-
 instance ShowOccam A.LiteralRepr where
   showOccamM (A.RealLiteral _ s) = tell [s]
   showOccamM (A.IntLiteral _ s) = tell [s]
   showOccamM (A.HexLiteral _ s) = tell ["#", s]
   showOccamM (A.ByteLiteral _ s) = tell ["'", s, "'"]
-  showOccamM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
+  showOccamM (A.ArrayListLiteral _ elems) = tell ["["] >> showOccamM elems >> tell ["]"]  
   --TODO record literals
 
 instance ShowRain A.LiteralRepr where
@@ -393,9 +390,7 @@ instance ShowRain A.LiteralRepr where
   showRainM (A.IntLiteral _ s) = tell [s]
   showRainM (A.HexLiteral _ s) = tell ["#", s]
   showRainM (A.ByteLiteral _ s) = tell ["'", s, "'"]
-  showRainM (A.ArrayLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
-  showRainM (A.ListLiteral _ elems) = tell ["["] >> showWithCommas elems >> tell ["]"]  
-
+  showRainM (A.ArrayListLiteral _ elems) = tell ["["] >> showRainM elems >> tell ["]"]  
 
 instance ShowOccam A.Subscript where
   showOccamM (A.Subscript _ _ e) = getTempItem >> tell ["["] >> showOccamM e >> tell ["]"]
@@ -450,12 +445,11 @@ instance ShowRain A.Expression where
   showRainM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showRainM e
   showRainM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showRainM t
   showRainM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showRainM t >> tell [" , "] >> showName n >> tell [")"]
-  showRainM (A.ExprConstr _ (A.RangeConstr _ _ e e'))
-    = showRainM e >> tell [".."] >> showRainM e'
-  showRainM (A.ExprConstr _ (A.RepConstr _ _ n r e))
+
+{-  showRainM (A.ExprConstr _ (A.RepConstr _ _ n r e))
     = tell ["["] >> showRainM e >> tell ["|"] >> showName n >>
       showRainM r >> tell ["]"]
-
+-}
 instance ShowOccam A.Formal where
   showOccamM (A.Formal am t n) = (maybeVal am)
                                  >> (showOccamM t)

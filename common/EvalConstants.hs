@@ -87,17 +87,17 @@ isConstantName n
 
 --{{{  expression evaluator
 evalLiteral :: A.Expression -> EvalM OccValue
-evalLiteral (A.Literal m _ (A.ArrayLiteral _ []))
-    = throwError (Just m, "empty array")
-evalLiteral (A.Literal _ _ (A.ArrayLiteral _ aes))
-    = liftM OccArray (mapM evalLiteralArray aes)
+evalLiteral (A.Literal _ _ (A.ArrayListLiteral _ aes))
+    = evalLiteralStruct aes
 evalLiteral (A.Literal _ (A.Record n) (A.RecordLiteral _ es))
     = liftM (OccRecord n) (mapM evalExpression es)
 evalLiteral l = evalSimpleLiteral l
 
-evalLiteralArray :: A.ArrayElem -> EvalM OccValue
-evalLiteralArray (A.ArrayElemArray aes) = liftM OccArray (mapM evalLiteralArray aes)
-evalLiteralArray (A.ArrayElemExpr e) = evalExpression e
+evalLiteralStruct :: A.Structured A.Expression -> EvalM OccValue
+evalLiteralStruct (A.Several _ aes) = liftM OccArray $ mapM evalLiteralStruct aes
+evalLiteralStruct (A.Only _ e) = evalExpression e
+-- TODO should probably evaluate the ones involving constants:
+evalLiteralStruct s = throwError (Just $ findMeta s, "Non-constant array (replicator) used in eval literals")
 
 evalVariable :: A.Variable -> EvalM OccValue
 evalVariable (A.Variable m n)
@@ -321,11 +321,11 @@ renderLiteral m t v
     renderArray :: [OccValue] -> m (A.Type, A.LiteralRepr)
     renderArray vs
         =  do (t', aes) <- renderArrayElems t vs
-              return (t', A.ArrayLiteral m aes)
+              return (t', A.ArrayListLiteral m aes)
 
     -- We must make sure to apply array sizes if we've learned them while
     -- expanding the literal.
-    renderArrayElems :: A.Type -> [OccValue] -> m (A.Type, [A.ArrayElem])
+    renderArrayElems :: A.Type -> [OccValue] -> m (A.Type, A.Structured A.Expression)
     renderArrayElems t vs
         =  do subT <- trivialSubscriptType m t
               (ts, aes) <- mapM (renderArrayElem subT) vs >>* unzip
@@ -333,16 +333,15 @@ renderLiteral m t v
                   t' = case ts of
                          [] -> applyDimension dim t
                          _ -> addDimensions [dim] (head ts)
-              return (t', aes)
+              return (t', A.Several m aes)
 
-    renderArrayElem :: A.Type -> OccValue -> m (A.Type, A.ArrayElem)
+    renderArrayElem :: A.Type -> OccValue -> m (A.Type, A.Structured A.Expression)
     renderArrayElem t (OccArray vs)
-        =  do (t', aes) <- renderArrayElems t vs
-              return (t', A.ArrayElemArray aes)
+        =  renderArrayElems t vs
     renderArrayElem t v
         =  do e <- renderValue m t v
               t' <- astTypeOf e
-              return (t', A.ArrayElemExpr e)
+              return (t', A.Only m e)
 
     renderRecord :: [OccValue] -> m (A.Type, A.LiteralRepr)
     renderRecord vs

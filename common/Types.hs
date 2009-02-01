@@ -272,8 +272,6 @@ typeOfExpression e
         A.BytesInExpr m e -> return A.Int
         A.BytesInType m t -> return A.Int
         A.OffsetOf m t n -> return A.Int
-        A.ExprConstr m (A.RangeConstr _ t _ _) -> return t
-        A.ExprConstr m (A.RepConstr _ t _ _ _) -> return t
         A.AllocMobile _ t _ -> return t
 --}}}
 

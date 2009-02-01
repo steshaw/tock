@@ -58,8 +58,8 @@ data OccValue =
 
 -- | Is an expression a constant literal?
 isConstant :: A.Expression -> Bool
-isConstant (A.Literal _ _ (A.ArrayLiteral _ aes))
-    = and $ map isConstantArray aes
+isConstant (A.Literal _ _ (A.ArrayListLiteral _ aes))
+    = isConstantStruct aes
 isConstant (A.Literal _ _ (A.RecordLiteral _ es))
     = and $ map isConstant es
 isConstant (A.Literal _ _ _) = True
@@ -68,9 +68,11 @@ isConstant (A.False _) = True
 isConstant _ = False
 
 -- | Is an array literal element constant?
-isConstantArray :: A.ArrayElem -> Bool
-isConstantArray (A.ArrayElemArray aes) = and $ map isConstantArray aes
-isConstantArray (A.ArrayElemExpr e) = isConstant e
+isConstantStruct :: A.Structured A.Expression -> Bool
+isConstantStruct (A.Several _ ss) = and $ map isConstantStruct ss
+isConstantStruct (A.Only _ e) = isConstant e
+isConstantStruct (A.ProcThen {}) = False
+isConstantStruct (A.Spec {}) = False
 
 -- | Evaluate a byte literal.
 evalByte :: (CSMR m, Die m) => Meta -> String -> m Char
