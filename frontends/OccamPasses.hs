@@ -41,15 +41,11 @@ occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
     , inferTypes
     , foldConstants
---    , fixNestedArrayLiterals
     , fixConstructorTypes
     , checkConstants
     , resolveAmbiguities
     , checkTypes
     ]
-
---fixNestedArrayLiterals :: Pass
---fixNestedArrayLiterals = occamOnlyPass "Collapse nested array literals"
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Pass

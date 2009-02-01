@@ -591,7 +591,7 @@ cgenLiteralRepr (A.RecordLiteral _ es) _
           seqComma $ map (call genUnfoldedExpression) es
           genRightB
 cgenLiteralRepr (A.ArrayListLiteral m aes) (A.Array {})
-    = call genArrayLiteralElems aes
+    = genLeftB >> call genArrayLiteralElems aes >> genRightB
 cgenLiteralRepr (A.ArrayListLiteral _ es) t@(A.List {})
     = call genListLiteral es t
           
@@ -648,7 +648,7 @@ genDecimal s = tell [s]
 cgenArrayLiteralElems :: A.Structured A.Expression -> CGen ()
 cgenArrayLiteralElems (A.Only _ e) = call genUnfoldedExpression e
 cgenArrayLiteralElems (A.Several _ aes)
-    = genLeftB >> (seqComma $ map cgenArrayLiteralElems aes) >> genRightB
+    = seqComma $ map cgenArrayLiteralElems aes
 
 genByteLiteral :: Meta -> String -> CGen ()
 genByteLiteral m s
