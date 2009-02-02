@@ -281,6 +281,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
     ops = baseOp
           `extOpS` doStructured
           `extOp` doProcess
+          `extOp` doRepArray
           `extOp` doSpecification
           `extOp` doLiteralRepr
           `extOp` doExpression
@@ -314,6 +315,38 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                        else return p'
               popPullContext
               return p''
+
+    -- | There are issues with array constructors.  Consider:
+    --   [i = 0 FOR 10 | [i, i+1]]
+    -- You cannot pull the inner array literal up past the replicator,
+    -- because then i will not be in scope.  So what we must do is
+    -- pull the array up to just inside the replicator (while pulling the whole
+    -- literal up as normal):
+    --   VAL array_expr_outer IS [i = 3 FOR 5 |
+    --     VAL array_expr_inner IS [i, i + 1]:
+    --       array_expr_inner]
+    -- Then when it is transformed later, it should become:
+    --   array_expr_outer:
+    --   PROCTHEN
+    --     INT array_constr_index:
+    --     SEQ
+    --       array_constr_index := 0
+    --       SEQ i = 3 FOR 5
+    --         VAL array_expr_inner IS [i, i + 1]:
+    --         SEQ
+    --           array_expr_outer[array_constr_index] := array_expr_inner -- itself flattened later!
+    --           array_constr_index := array_constr_index + 1
+    doRepArray :: A.Structured A.Expression -> PassM (A.Structured A.Expression)
+    doRepArray (A.Spec m spec@(A.Specification _ _ (A.Rep {})) scope)
+      = do -- We descend into the spec before we push a new context,
+           -- as anything in the spec should be pulled up to the outer context,
+           -- not inside the replicator
+           spec' <- descend spec
+           pushPullContext
+           scope' <- recurse scope >>= applyPulled
+           popPullContext
+           return $ A.Spec m spec' scope'
+    doRepArray s = descend s
 
     -- | Filter what can be pulled in Specifications.
     doSpecification :: A.Specification -> PassM A.Specification
