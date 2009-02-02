@@ -594,7 +594,9 @@ cgenLiteralRepr (A.ArrayListLiteral m aes) (A.Array {})
     = genLeftB >> call genArrayLiteralElems aes >> genRightB
 cgenLiteralRepr (A.ArrayListLiteral _ es) t@(A.List {})
     = call genListLiteral es t
-          
+cgenLiteralRepr (A.ArrayListLiteral m _) t
+    = diePC m $ formatCode "Unknown type for array/list literal: %" t
+
 -- | Generate an expression inside a record literal.
 --
 -- This is awkward: the sort of literal that this produces when there's a
@@ -649,6 +651,7 @@ cgenArrayLiteralElems :: A.Structured A.Expression -> CGen ()
 cgenArrayLiteralElems (A.Only _ e) = call genUnfoldedExpression e
 cgenArrayLiteralElems (A.Several _ aes)
     = seqComma $ map cgenArrayLiteralElems aes
+cgenArrayLiteralElems x = call genMissingC $ formatCode "Missing cgenArrayLiteralElems for %" x
 
 genByteLiteral :: Meta -> String -> CGen ()
 genByteLiteral m s
