@@ -156,6 +156,19 @@ flattenAssign = pass "Flatten assignment"
                                             (A.SubscriptedVariable m sub srcV))
                                      | (fName, fType) <- fs]
                          let code = A.Seq m $ A.Several m $ map (A.Only m) assigns
+                             n' = n {A.nameName = "copy_" ++ A.nameName n}
+                             proc = A.Proc m (A.InlineSpec, A.PlainRec)
+                                      [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS]
+                                      code
+                         defineName n' $ A.NameDef {
+                           A.ndMeta = m,
+                           A.ndName = A.nameName n',
+                           A.ndOrigName = A.nameName n',
+                           A.ndSpecType = proc,
+                           A.ndAbbrevMode = A.Original,
+                           A.ndNameSource = A.NameNonce,
+                           A.ndPlacement = A.Unplaced
+                           }
+                           
                          
-                         return (A.Spec m (A.Specification m (n {A.nameName = "copy_" ++ A.nameName n})
-                           (A.Proc m (A.InlineSpec, A.PlainRec) [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS] code)))
+                         return (A.Spec m (A.Specification m n' proc))
