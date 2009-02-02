@@ -63,7 +63,12 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
         getDims (A.Array ds _) = ds
         getDims t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
 
+        innerType :: A.Type -> A.Type
+        innerType (A.Array _ t) = t
+        innerType t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
+
         doExpr :: [A.Dimension] -> [A.Dimension] -> A.Structured A.Expression -> PassM A.Type
+        doExpr prev (d:_) (A.Several m []) = return $ A.Array (prev ++ [d]) $ innerType prevT
         doExpr prev (d:dims) (A.Several m ss@(s:_))
           = doExpr (prev ++ [d]) dims s
         doExpr prev _ (A.Only _ e)
@@ -73,6 +78,8 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
           = doExpr (prev ++ [count]) (dims) body
           where
             count = A.Dimension $ countReplicator rep
+        doExpr _ dims s = diePC (findMeta s) $ formatCode
+          ("fixConstructorTypes found unexpected: %, " ++ show s) dims
 
     doExpression e = return e
 
