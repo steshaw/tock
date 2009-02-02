@@ -211,18 +211,20 @@ transformConstr = pass "Transform array constructors into initialisation code"
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
     doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _
       expr@(A.Literal m'' t (A.ArrayListLiteral _ (A.Spec _ (A.Specification _
-        repn (A.Rep _ rep)) (A.Only _ exp)))))) scope)
+        repn (A.Rep _ rep)) repExp))))) scope)
       = do case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.Original
                   let indexVar = A.Variable m'' indexName
+
+                  tInner <- trivialSubscriptType m t
                   
                   return $ declDest $ A.ProcThen m''
                     (A.Seq m'' $ A.Spec m'' indexVarSpec $
                       A.Several m'' [assignIndex0 indexVar,
                         replicateCode $ A.Only m'' $ A.Seq m'' $
                           A.Several m''
-                            [ assignItem indexVar
+                            [ assignItem tInner indexVar
                             , incrementIndex indexVar ]
                     ])
                     scope
@@ -243,16 +245,17 @@ transformConstr = pass "Transform array constructors into initialisation code"
         incrementIndex indexVar = A.Only m'' $ A.Assign m'' [indexVar] $
           A.ExpressionList m'' [addOne $ A.ExprVariable m'' indexVar]
 
-        assignItem :: A.Variable -> A.Structured A.Process
-        assignItem indexVar = A.Only m'' $ A.Assign m'' [A.SubscriptedVariable m''
+        assignItem :: A.Type -> A.Variable -> A.Structured A.Process
+        assignItem t' indexVar = A.Only m'' $ A.Assign m'' [A.SubscriptedVariable m''
           (A.Subscript m'' A.NoCheck $ A.ExprVariable m'' indexVar) $
-            A.Variable m'' n] $ A.ExpressionList m'' [exp]
+            A.Variable m'' n] $ A.ExpressionList m'' [
+              A.Literal m'' t' $ A.ArrayListLiteral m'' repExp]
 
         appendItem :: A.Structured A.Process
         appendItem = A.Only m'' $ A.Assign m'' [A.Variable m'' n] $
           A.ExpressionList m'' [A.Dyadic m'' A.Concat
             (A.ExprVariable m'' $ A.Variable m'' n)
-            (A.Literal m'' t $ A.ArrayListLiteral m'' $ A.Several m'' [A.Only m'' exp])]
+            (A.Literal m'' (let A.List tInner = t in tInner) $ A.ArrayListLiteral m'' repExp)]
 
         replicateCode :: Data a => A.Structured a -> A.Structured a
         replicateCode = A.Spec m'' (A.Specification m'' repn (A.Rep m'' rep))
