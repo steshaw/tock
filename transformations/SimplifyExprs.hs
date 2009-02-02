@@ -129,7 +129,6 @@ expandArrayLiterals = pass "Expand array literals"
     doArrayElem ae@(A.Only _ e)
         =  do t <- astTypeOf e
               case (t, e) of
-                (A.Array {}, A.Literal {}) -> return ae
                 (A.Array ds _, _) -> expand ds e
                 _ -> return ae
     doArrayElem ae = return ae
@@ -141,7 +140,10 @@ expandArrayLiterals = pass "Expand array literals"
     expand (A.Dimension n:ds) e
         =  do -- Because it's an array literal, we must know the size.
               size <- evalIntExpression n
-              elems <- sequence [expand ds (A.SubscriptedExpr m
+              elems <- sequence [case e of
+                         A.Literal _ _ (A.ArrayListLiteral _ (A.Several _ ls)) ->
+                           return $ ls !! i
+                         _ -> expand ds (A.SubscriptedExpr m
                                              (A.Subscript m A.NoCheck $
                                                makeConstant m i) e)
                                  | i <- [0 .. size - 1]]
