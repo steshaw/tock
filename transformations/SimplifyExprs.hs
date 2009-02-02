@@ -128,8 +128,9 @@ expandArrayLiterals = pass "Expand array literals"
     doArrayElem :: A.Structured A.Expression -> PassM (A.Structured A.Expression)
     doArrayElem ae@(A.Only _ e)
         =  do t <- astTypeOf e
-              case t of
-                A.Array ds _ -> expand ds e
+              case (t, e) of
+                (A.Array {}, A.Literal {}) -> return ae
+                (A.Array ds _, _) -> expand ds e
                 _ -> return ae
     doArrayElem ae = return ae
 
