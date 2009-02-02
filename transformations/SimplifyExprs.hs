@@ -226,14 +226,16 @@ transformConstr = pass "Transform array constructors into initialisation code"
                   -- to Original, since we are now actually declaring it and assigning
                   -- to it:
                   modifyName n $ \nd -> nd {A.ndAbbrevMode = A.Original}
-                  
+
+                  let body = specs $ A.Several m''
+                            [ assignItem tInner indexVar repExp'
+                            , incrementIndex indexVar ]
+                  body' <- applyDepthSM doStructured body
+
                   return $ declDest $ A.ProcThen m''
                     (A.Seq m'' $ A.Spec m'' indexVarSpec $
                       A.Several m'' [assignIndex0 indexVar,
-                        replicateCode $ A.Only m'' $ A.Seq m'' $
-                          specs $ A.Several m''
-                            [ assignItem tInner indexVar repExp'
-                            , incrementIndex indexVar ]
+                        replicateCode $ body'
                     ])
                     scope
              A.List {} ->
@@ -242,11 +244,15 @@ transformConstr = pass "Transform array constructors into initialisation code"
                  scope
              _ -> diePC m $ formatCode "Unsupported type for array constructor: %" t
       where
+        -- Also strips ProcThen
         stripSpecs :: A.Structured A.Expression -> (A.Structured A.Expression,
           A.Structured A.Process -> A.Structured A.Process)
         stripSpecs (A.Spec m spec scope)
           = let (result, innerSpecs) = stripSpecs scope in
               (result, A.Spec m spec . innerSpecs)
+        stripSpecs (A.ProcThen m proc body)
+          = let (result, innerSpecs) = stripSpecs body in
+              (result, A.ProcThen m proc . innerSpecs)
         stripSpecs se = (se, id)
         
         declDest :: Data a => A.Structured a -> A.Structured a
