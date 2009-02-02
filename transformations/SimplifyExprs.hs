@@ -219,6 +219,12 @@ transformConstr = pass "Transform array constructors into initialisation code"
                   let indexVar = A.Variable m'' indexName
 
                   tInner <- trivialSubscriptType m t
+
+                  -- To avoid confusion in later passes, we must change the abbreviation
+                  -- mode for this thing from ValAbbrev (which it must have been)
+                  -- to Original, since we are now actually declaring it and assigning
+                  -- to it:
+                  modifyName n $ \nd -> nd {A.ndAbbrevMode = A.Original}
                   
                   return $ declDest $ A.ProcThen m''
                     (A.Seq m'' $ A.Spec m'' indexVarSpec $
