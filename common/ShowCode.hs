@@ -219,6 +219,10 @@ instance ShowOccam A.Name where
 instance ShowRain A.Name where
   showRainM n = showName n
 
+instance ShowOccam A.Dimension where
+  showOccamM (A.Dimension n) = tell ["["] >> showOccamM n >> tell ["]"]
+  showOccamM A.UnknownDimension = tell ["[]"]
+
 instance ShowOccam A.Type where
   showOccamM A.Bool = tell ["BOOL"]
   showOccamM A.Byte = tell ["BYTE"]
@@ -244,12 +248,7 @@ instance ShowOccam A.Type where
     = tell ["(inferred numeric type: ",show m," ",show n,")"]
   showOccamM (A.Mobile t) = tell ["MOBILE "] >> showOccamM t
   showOccamM (A.Array ds t)
-      = (sequence dims) >> showOccamM t
-    where
-      dims = [case d of
-                A.Dimension n -> tell ["["] >> showOccamM n >> tell ["]"]
-                A.UnknownDimension -> tell ["[]"]
-              | d <- ds]
+      = mapM showOccamM ds >> showOccamM t
   showOccamM (A.ChanEnd dir ca t)
       = tell [shared, "CHAN", direction, " "] >> showOccamM t
     where
