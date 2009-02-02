@@ -41,7 +41,7 @@ occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
     , inferTypes
     , foldConstants
-    , fixConstructorTypes
+--    , fixConstructorTypes
     , checkConstants
     , resolveAmbiguities
     , checkTypes
