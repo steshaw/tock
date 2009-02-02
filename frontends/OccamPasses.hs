@@ -41,7 +41,7 @@ occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
     , inferTypes
     , foldConstants
---    , fixConstructorTypes
+    , fixConstructorTypes
     , checkConstants
     , resolveAmbiguities
     , checkTypes
@@ -56,26 +56,21 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m prevT lit@(A.ArrayListLiteral _ expr))
-      = do t' <- doExpr (Left $ getDims prevT) expr
+      = do t' <- doExpr [] (getDims prevT) expr
            return $ A.Literal m t' lit
       where
-        getEither = either id id
-        addRight x = Right . either (const [x]) (++[x])
-
         getDims :: A.Type -> [A.Dimension]
         getDims (A.Array ds _) = ds
         getDims t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
 
-        -- Left means previous guess (to be used if there's no replicator)
-        -- Right means current accumulation
-        doExpr :: Either [A.Dimension] [A.Dimension] -> A.Structured A.Expression -> PassM A.Type
-        doExpr dims (A.Several m ss@(s:_))
-          = doExpr (addRight (A.Dimension $ makeConstant m $ length ss) dims) s
-        doExpr dims (A.Only _ e)
-          = astTypeOf e >>* A.Array (getEither dims)
-        doExpr dims (A.ProcThen _ _ e) = doExpr dims e
-        doExpr dims (A.Spec _ (A.Specification _ _ (A.Rep _ rep)) body)
-          = doExpr (addRight count dims) body
+        doExpr :: [A.Dimension] -> [A.Dimension] -> A.Structured A.Expression -> PassM A.Type
+        doExpr prev (d:dims) (A.Several m ss@(s:_))
+          = doExpr (prev ++ [d]) dims s
+        doExpr prev _ (A.Only _ e)
+          = astTypeOf e >>* addDimensions prev
+        doExpr prev dims (A.ProcThen _ _ e) = doExpr prev dims e
+        doExpr prev (_:dims) (A.Spec _ (A.Specification _ _ (A.Rep _ rep)) body)
+          = doExpr (prev ++ [count]) (dims) body
           where
             count = A.Dimension $ countReplicator rep
 
