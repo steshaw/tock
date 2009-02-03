@@ -82,7 +82,8 @@ intLiteralPattern :: Integer -> Pattern
 intLiteralPattern = pat . intLiteral
 
 makeListLiteralPattern :: [Pattern] -> Pattern
-makeListLiteralPattern items = mLiteral (A.List inferExpType) (mListLiteral items)
+makeListLiteralPattern items = mLiteral (A.List inferExpType) (mArrayListLiteral $
+  mSeveralE items)
 
 
 -- | Runs a parse test, given a tuple of: (source text, parser function, assertion)
@@ -286,13 +287,13 @@ testLiteral =
 
   -- Lists:
   ,pass ("[0]", RP.literal, assertPatternMatch "testLiteral 400" $ pat $
-    makeListLiteralPattern [intLiteralPattern 0])
+    makeListLiteralPattern [mOnlyE $ intLiteralPattern 0])
   ,pass ("[]", RP.literal, assertPatternMatch "testLiteral 401" $ pat $ 
     makeListLiteralPattern [])
   ,pass ("[0,1,2]", RP.literal, assertPatternMatch "testLiteral 402" $ pat $
-    makeListLiteralPattern $ map intLiteralPattern [0,1,2])
+    makeListLiteralPattern $ map (mOnlyE . intLiteralPattern) [0,1,2])
   ,pass ("['0']", RP.literal, assertPatternMatch "testLiteral 403" $ pat $
-    makeListLiteralPattern [makeLiteralCharPattern '0'])
+    makeListLiteralPattern [mOnlyE $ makeLiteralCharPattern '0'])
 
   ,fail ("[", RP.literal)
   ,fail ("]", RP.literal)
@@ -306,11 +307,11 @@ testRange :: [ParseTest A.Expression]
 testRange =
  [
   pass("[0..1]", RP.expression, assertPatternMatch "testRange 0" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral 0) (intLiteral 1))
+    A.Literal m (A.List inferExpType) $ A.RangeLiteral m (intLiteral 0) (intLiteral 1))
   ,pass("[0..10000]", RP.expression, assertPatternMatch "testRange 1" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral 0) (intLiteral 10000))
+    A.Literal m (A.List inferExpType) $ A.RangeLiteral m (intLiteral 0) (intLiteral 10000))
   ,pass("[-3..-1]", RP.expression, assertPatternMatch "testRange 2" $ pat $
-    A.ExprConstr m $ A.RangeConstr m (A.List inferExpType) (intLiteral $ -3) (intLiteral $ -1))
+    A.Literal m (A.List inferExpType) $ A.RangeLiteral m (intLiteral $ -3) (intLiteral $ -1))
   ,pass("[sint16: 0..1]", RP.expression, rangePattern 4 (A.List A.Int16)
     (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 0))
     (buildExprPattern $ Cast A.Int16 (Lit $ intLiteral 1)))
@@ -321,7 +322,8 @@ testRange =
  where
    rangePattern :: Int -> A.Type -> Pattern -> Pattern -> (A.Expression -> Assertion)
    rangePattern n t start end = assertPatternMatch ("testRange " ++ show n) $
-     pat $ mExprConstr $ mRangeConstr t start end
+     pat $ mLiteral t $ mRangeLiteral start end
+
 
 --Helper function for ifs:
 makeIf :: [(A.Expression,A.Process)] -> A.Process

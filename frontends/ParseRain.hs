@@ -35,7 +35,6 @@ import qualified LexRain as L
 import Metadata
 import ParseUtils
 import Pass
-import Types
 import Utils
 
 type RainState = CompState
@@ -266,20 +265,16 @@ range = try $ do m <- sLeftQ
                  sDots
                  end <- literal
                  sRightQ
-                 (t, rep) <- case optTy of
+                 (t, be) <- case optTy of
                    Just (t, mc) ->
                      let begin' = A.Conversion mc A.DefaultConversion t begin
                          end' = A.Conversion mc A.DefaultConversion t end
-                     in return (t, A.For m begin' (subOne $ addExprs begin' end') (makeConstant m 1))
+                     in return (A.List t, (begin', end'))
                    Nothing -> do u <- getUniqueIdentifer
                                  let t = A.List $ A.UnknownVarType (A.TypeRequirements
-                                           False) (Right (m,u))
-                                 return (t, A.For m begin
-                                           (subOne $ addExprs begin end) (makeConstant m 1))
-                 repSpec@(A.Specification _ repN _) <- defineNonce m "range_rep" (A.Rep m rep) A.ValAbbrev
-                 return $ A.Literal m t $ A.ArrayListLiteral m $
-                   A.Spec m repSpec $ A.Only m $
-                     A.ExprVariable m $ A.Variable m repN
+                                          False) (Right (m,u))
+                                 return (t, (begin, end))
+                 return $ A.Literal m t $ A.RangeLiteral m (fst be) (snd be)
 
 expression :: RainParser A.Expression
 expression

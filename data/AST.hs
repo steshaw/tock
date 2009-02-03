@@ -227,6 +227,9 @@ data LiteralRepr =
   | ByteLiteral Meta String
   -- | This can be for arrays and for lists
   | ArrayListLiteral Meta (Structured Expression)
+  -- | This is transformed out very early on.  The first item is the start of the
+  -- range, the second is the end of the range (both inclusive)
+  | RangeLiteral Meta Expression Expression
   | RecordLiteral Meta [Expression]
   deriving (Show, Eq, Typeable, Data)
 
