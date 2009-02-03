@@ -198,7 +198,7 @@ seqComma :: [CGen ()] -> CGen ()
 seqComma ps = sequence_ $ intersperse (tell [","]) ps
 
 genLiteralRepr :: A.LiteralRepr -> CGen ()
-genLiteralRepr (A.ArrayLiteral _ elems)
+genLiteralRepr (A.ArrayListLiteral _ (A.Several _ elems))
   = do tell ["newListArray (0," ++ show (length elems - 1) ++ ") ["]
        seqComma $ map genArrayElem elems
        tell ["]"]
@@ -226,8 +226,8 @@ convByte c
   | otherwise           = [c]
   where o = ord c
 
-genArrayElem :: A.ArrayElem -> CGen ()
-genArrayElem (A.ArrayElemExpr e) = genExpression e
+genArrayElem :: A.Structured A.Expression -> CGen ()
+genArrayElem (A.Only _ e) = genExpression e
 genArrayElem _ = genMissing "genArrayElem"
 
 genType :: A.Type -> CGen ()

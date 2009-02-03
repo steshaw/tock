@@ -145,7 +145,7 @@ removeAfter = pass "Convert AFTER to MINUS"
 
 -- | For array literals that include other arrays, burst them into their
 -- elements.
-expandArrayLiterals :: PassOn A.ArrayElem
+expandArrayLiterals :: PassOn (A.Structured A.Expression)
 expandArrayLiterals = pass "Expand array literals"
   [Prop.expressionTypesChecked, Prop.processTypesChecked]
   [Prop.arrayLiteralsExpanded]
@@ -189,7 +189,9 @@ expandArrayLiterals = pass "Expand array literals"
 -- Therefore, we only need to pull up the counts for SEQ, PAR and ALT
 --
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
-pullRepCounts :: Pass
+--
+-- TODO we should also pull up the step counts
+pullRepCounts :: PassOn2 (A.Structured A.Process) (A.Structured A.Alternative)
 pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
@@ -271,7 +273,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
                   let body = specs $ A.Several m''
                             [ assignItem tInner indexVar repExp'
                             , incIndex ]
-                  body' <- applyDepthSM doStructured body
+                  body' <- applyBottomUpMS doStructured body
 
                   return $ declDest $ A.ProcThen m''
                     (A.Seq m'' $ A.Spec m'' indexVarSpec $
@@ -332,6 +334,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
 
 type PullUpOps = ExtOpMSP BaseOp
   `ExtOpMP` A.Process
+  `ExtOpMP` A.Structured A.Expression
   `ExtOpMP` A.Specification
   `ExtOpMP` A.LiteralRepr
   `ExtOpMP` A.Expression
@@ -348,17 +351,18 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
   where
     ops :: PullUpOps
     ops = baseOp
-          `extOpS` doStructured
-          `extOp` doProcess
-          `extOp` doSpecification
-          `extOp` doLiteralRepr
-          `extOp` doExpression
-          `extOp` doVariable
-          `extOp` doExpressionList
-    recurse :: Recurse
-    recurse = makeRecurse ops
-    descend :: Descend
-    descend = makeDescend ops
+          `extOpMS` (ops, doStructured)
+          `extOpM` doProcess
+          `extOpM` doRepArray
+          `extOpM` doSpecification
+          `extOpM` doLiteralRepr
+          `extOpM` doExpression
+          `extOpM` doVariable
+          `extOpM` doExpressionList
+    recurse :: RecurseM PassM PullUpOps
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM PullUpOps
+    descend = makeDescendM ops
 
     -- | When we encounter a Structured, create a new pulled items state,
     -- recurse over it, then apply whatever pulled items we found to it.

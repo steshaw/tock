@@ -643,7 +643,6 @@ type InferTypeOps
     `ExtOpMP` A.Expression
     `ExtOpMP` A.Dimension
     `ExtOpMP` A.Subscript
-    `ExtOpMP` A.ArrayConstr
     `ExtOpMP` A.Replicator
     `ExtOpMP` A.Alternative
     `ExtOpMP` A.InputMode
@@ -658,6 +657,7 @@ inferTypes = occamOnlyPass "Infer types"
   [Prop.inferredTypesRecorded]
   recurse
   where
+    ops :: InferTypeOps
     ops = baseOp
           `extOp` doExpression
           `extOp` doDimension
