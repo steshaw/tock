@@ -230,10 +230,10 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
     t = A.Array [dimension 10] A.Int
 
     orig = A.Spec m (A.Specification m (simpleName "arr") $
-      A.IsExpr m A.ValAbbrev t $ A.ExprConstr m $
-        A.RepConstr m t (simpleName "x") (A.For m (intLiteral 0) (intLiteral 10)
-          (intLiteral 1))
-        (exprVariable "x")) skipP
+      A.IsExpr m A.ValAbbrev t $ A.Literal m t $ A.ArrayListLiteral m $
+        A.Spec m (A.Specification m (simpleName "x") (A.Rep m (A.For m (intLiteral 0) (intLiteral 10)
+          (intLiteral 1))))
+          $ (A.Only m $ exprVariable "x")) skipP
     exp = nameAndStopCaringPattern "indexVar" "i" $ mkPattern exp'
     exp' = A.Spec m (A.Specification m (simpleName "arr") (A.Declaration m t)) $
       A.ProcThen m 
@@ -242,7 +242,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
         A.Several m [A.Only m $ A.Assign m [variable "i"] $
             A.ExpressionList m [intLiteral 0],
           A.Spec m (A.Specification m (simpleName "x") $ A.Rep m (A.For m (intLiteral 0) (intLiteral 10) (intLiteral 1))) $
-            A.Only m $ A.Seq m $ A.Several m
+            A.Several m
               [A.Only m $ A.Assign m
                 [A.SubscriptedVariable m (A.Subscript m A.NoCheck $
                   exprVariable "i") (variable "arr")] $
