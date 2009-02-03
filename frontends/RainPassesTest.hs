@@ -70,8 +70,8 @@ testEachRangePass0 :: Test
 testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp transformEachRange orig (return ())
   where
     orig = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
-               $ A.Rep m (A.ForEach m (A.ExprConstr m (A.RangeConstr m
-                 undefined (intLiteral 0) (intLiteral 9)))))
+               $ A.Rep m (A.ForEach m (A.Literal m (A.List A.Int) (A.RangeLiteral m
+                 (intLiteral 0) (intLiteral 9)))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
                $ A.Rep m (A.For m (intLiteral 0) (makeRange 0 9) (intLiteral 1)))
@@ -81,8 +81,8 @@ testEachRangePass1 :: Test
 testEachRangePass1 = TestCase $ testPass "testEachRangePass1" exp transformEachRange orig (return ())
   where
     orig = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
-               $ A.Rep m (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
-                 (intLiteral (-5)) (intLiteral (-2))))))
+               $ A.Rep m (A.ForEach m (A.Literal m (A.List A.Int) (A.RangeLiteral
+                 m (intLiteral (-5)) (intLiteral (-2))))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Par m A.PlainPar $ A.Spec m (A.Specification m (simpleName "x")
                $ A.Rep m (A.For m (intLiteral (-5)) (makeRange (-5)
@@ -93,7 +93,7 @@ testEachRangePass2 :: Test
 testEachRangePass2 = TestCase $ testPass "testEachRangePass2" exp transformEachRange orig (return ())
   where
     orig = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
-               (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
+               (A.ForEach m (A.Literal m (A.List A.Int) (A.RangeLiteral m
                  (intLiteral 6) (intLiteral 6)))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
@@ -104,7 +104,7 @@ testEachRangePass3 :: Test
 testEachRangePass3 = TestCase $ testPass "testEachRangePass3" exp transformEachRange orig (return ())
   where
     orig = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
-               (A.ForEach m (A.ExprConstr m (A.RangeConstr m undefined
+               (A.ForEach m (A.Literal m (A.List A.Int) (A.RangeLiteral m
                  (intLiteral 6) (intLiteral 0)))))
                (A.Only m (makeSimpleAssign "c" "x"))
     exp = A.Seq m $ A.Spec m (A.Specification m (simpleName "x") $ A.Rep m
@@ -355,10 +355,10 @@ testParamPass8 = TestList [TestCase $ testPassShouldFail "testParamPass8/process
 testRangeRepPass0 :: Test
 testRangeRepPass0 = TestCase $ testPass "testRangeRepPass0" exp transformRangeRep orig (return())
   where
-    orig = A.ExprConstr m $ A.RangeConstr m A.Byte (intLiteral 0) (intLiteral 1)
-    exp = tag2 A.ExprConstr DontCare $ mRepConstr A.Byte ("repIndex"@@DontCare)
-        (mFor (intLiteral 0) (makeRange 0 1) (intLiteral 1))
-      (tag2 A.ExprVariable DontCare $ tag2 A.Variable DontCare $ "repIndex"@@DontCare)
+    orig = A.Literal m (A.List A.Int) $ A.RangeLiteral m (intLiteral 0) (intLiteral 1)
+    exp = mLiteral (A.List A.Int) $ mArrayListLiteral $ mSpecE
+        (mSpecification ("repIndex"@@DontCare) (mRep $ mFor (intLiteral 0) (makeRange 0 1) (intLiteral 1)))
+      (mOnlyE $ mExprVariable $ mVariable $ "repIndex"@@DontCare)
 
 --TODO consider/test pulling up the definitions of variables involved in return statements in functions
 

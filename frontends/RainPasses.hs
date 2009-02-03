@@ -51,6 +51,7 @@ rainPasses =
      [ findMain
      , transformEachRange
      , pullUpForEach
+     , transformRangeRep
      , pullUpParDeclarations
      , mobiliseLists
      , implicitMobility
@@ -190,21 +191,32 @@ transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges int
         (A.Rep repMeta             -- Outer replicator
           (A.ForEach eachMeta      -- goes through each itme
             (A.Literal _ _
-              (A.ArrayListLiteral _  -- in a list
-                (A.Spec _
-                  (A.Specification _ n r@(A.Rep {})) -- made from a replicator
-                  (A.Only _ (A.ExprVariable _ (A.Variable _ n')))
-                  -- where the inner expression is just the replicator
-                )
-              )
+              (A.RangeLiteral _ begin end) -- a list made from a range
             )
           )
         )
-      ) | A.nameName n' == A.nameName n
-        =   do -- Need to change the stored abbreviation mode to original:
+      ) =   do -- Need to change the stored abbreviation mode to original:
                modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
-               return $ A.Specification mspec loopVar r
+               return $ A.Specification mspec loopVar $ A.Rep repMeta $
+                 A.For eachMeta begin (addOne $ subExprs end begin) (makeConstant eachMeta 1)
     doSpec s = return s
+
+transformRangeRep :: Pass
+transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into more general array constructors"
+  (Prop.agg_typesDone ++ [Prop.eachRangeTransformed])
+  [Prop.rangeTransformed]
+  (applyDepthM doExpression)
+  where
+    doExpression :: A.Expression -> PassM A.Expression
+    doExpression (A.Literal m t (A.RangeLiteral m' begin end))
+          = do let count = addOne $ subExprs end begin
+                   rep = A.Rep m' $ A.For m' begin count $ makeConstant m 1
+               spec@(A.Specification _ repN _) <- defineNonce m' "rep_constr"
+                 rep A.ValAbbrev
+               return $ A.Literal m t $ A.ArrayListLiteral m' $
+                 A.Spec m' spec $ A.Only m' $
+                   (A.ExprVariable m' $ A.Variable m' repN)
+    doExpression e = return e
 
 -- TODO this is almost certainly better figured out from the CFG
 checkFunction :: PassType
