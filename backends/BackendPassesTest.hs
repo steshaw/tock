@@ -304,8 +304,8 @@ qcTestDeclareSizes =
     valSize ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [dimension $ length ds] A.Int) $ makeSizesLiteral ds
 
     makeSizesLiteral :: [A.Expression] -> A.Expression
-    makeSizesLiteral xs = A.Literal emptyMeta (A.Array [dimension $ length xs] A.Int) $ A.ArrayLiteral emptyMeta $
-      map A.ArrayElemExpr xs
+    makeSizesLiteral xs = A.Literal emptyMeta (A.Array [dimension $ length xs] A.Int) $
+      A.ArrayListLiteral emptyMeta $ A.Several emptyMeta $ map (A.Only emptyMeta) xs
     
     checkFooSizes :: TestMonad m r => A.SpecType -> CompState -> m ()
     checkFooSizes sp = checkName "foo_sizes" sp A.ValAbbrev

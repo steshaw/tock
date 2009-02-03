@@ -306,9 +306,12 @@ testStop =
 testArraySizes :: Test
 testArraySizes = TestList
  [
-   testBothSame "genArrayLiteralElems 0" "$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined])
-  ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined, A.ArrayElemExpr undefined])
-  ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ unfolded (tcall genArrayLiteralElems [A.ArrayElemExpr undefined, A.ArrayElemArray [A.ArrayElemExpr undefined, A.ArrayElemExpr undefined]])
+   testBothSame "genArrayLiteralElems 0" "$" $ unfolded (tcall genArrayLiteralElems $
+     A.Only emptyMeta undefined)
+  ,testBothSame "genArrayLiteralElems 1" "$,$,$" $ unfolded (tcall genArrayLiteralElems $
+     A.Several emptyMeta [A.Only emptyMeta undefined, A.Only emptyMeta undefined, A.Only emptyMeta undefined])
+  ,testBothSame "genArrayLiteralElems 2" "$,$,$" $ unfolded (tcall genArrayLiteralElems $
+     A.Several emptyMeta [A.Only emptyMeta undefined, A.Several emptyMeta [A.Only emptyMeta undefined, A.Only emptyMeta undefined]])
  ]
  where
   unfolded :: Override

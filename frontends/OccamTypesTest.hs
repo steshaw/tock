@@ -73,7 +73,7 @@ startState
           defineProc "proc2" [("x", A.ValAbbrev, A.Int), ("y", A.Abbrev, A.Int)]
   where
     intsT = A.Array [A.UnknownDimension] A.Int
-    arrayLit = A.ArrayLiteral m []
+    arrayLit = A.ArrayListLiteral m $ A.Several m []
     chanT t = A.Chan (A.ChanAttributes False False) t
     chanIntT = chanT A.Int
     countedIntsT = chanT $ A.UserProtocol (simpleName "countedInts")
@@ -144,9 +144,6 @@ testOccamTypes = TestList
     , testFail 113 $ A.Dyadic m A.And boolE intE
     , testFail 114 $ A.Dyadic m A.And intE boolE
     , testFail 115 $ A.Dyadic m A.Add twoIntsE twoIntsE
-    , testOK   116 $ A.Dyadic m A.Concat listE listE
-    , testFail 117 $ A.Dyadic m A.Concat listE intE
-    , testFail 118 $ A.Dyadic m A.Concat intE listE
 
     -- Miscellaneous expressions
     , testOK   150 $ A.MostPos m A.Int
@@ -302,7 +299,6 @@ testOccamTypes = TestList
     , testFail 1201 $ testRep i $ A.For m realE intE intE
     , testFail 1202 $ testRep i $ A.For m intE realE intE
     , testOK   1203 $ testRep i $ A.ForEach m twoIntsE
-    , testOK   1204 $ testRep i $ A.ForEach m listE
     , testFail 1205 $ testRep i $ A.ForEach m intE
     , testFail 1206 $ testRep i $ A.For m intE intE realE
 
@@ -554,11 +550,12 @@ testOccamTypes = TestList
     twoTwoIntsT = A.Array [dimension 2, dimension 2] A.Int
     twoBytesT = A.Array [dimension 2] A.Byte
     threeIntsT = A.Array [dimension 3] A.Int
-    ae = A.ArrayElemExpr intE
-    twoInts = A.ArrayLiteral m [ae, ae]
+    ae = A.Only m intE
+    twoInts = A.ArrayListLiteral m $ A.Several m [ae, ae]
     twoIntsE = A.Literal m twoIntsT twoInts
-    twoTwoInts = A.ArrayLiteral m [A.ArrayElemArray [ae, ae],
-                                   A.ArrayElemArray [ae, ae]]
+    twoTwoInts = A.ArrayListLiteral m $ A.Several m
+                                  [A.Several m [ae, ae],
+                                   A.Several m [ae, ae]]
     twoTwoIntsE = A.Literal m twoTwoIntsT twoTwoInts
     myIntT = A.UserDataType (simpleName "MYINT")
     myTwoIntsT = A.UserDataType (simpleName "MY2INT")
@@ -585,8 +582,6 @@ testOccamTypes = TestList
     function1 = simpleName "function1"
     function2 = simpleName "function2"
     function22 = simpleName "function22"
-    listT = A.List A.Int
-    listE = A.Literal m listT (A.ListLiteral m [intE, intE, intE])
     i = simpleName "i"
     countedIntsC = variable "chanCountedInts"
     countedIntsCin = A.DirectedVariable emptyMeta A.DirInput countedIntsC
