@@ -250,7 +250,8 @@ makeAssignPattern v e = tag3 A.Assign DontCare [v] $ tag2 A.ExpressionList DontC
  
 -- | Creates a literal string expression from the given 'String'.
 makeLiteralStringRain :: String -> A.Expression
-makeLiteralStringRain str = A.Literal emptyMeta (A.List A.Byte) (A.ListLiteral emptyMeta (map makeLiteralChar str))
+makeLiteralStringRain str = A.Literal emptyMeta (A.List A.Byte) (A.ArrayListLiteral emptyMeta $
+  A.Several emptyMeta (map (A.Only emptyMeta . makeLiteralChar) str))
   where
     makeLiteralChar :: Char -> A.Expression
     makeLiteralChar c = A.Literal emptyMeta A.Byte (A.ByteLiteral emptyMeta [c] {-(show (fromEnum c))-})
@@ -274,7 +275,6 @@ data ExprHelper =
   | DirVar A.Direction String
   | Lit A.Expression
   | EHTrue
-  | Range A.Type ExprHelper ExprHelper
   | Func String [ExprHelper]
 
 buildExprPattern :: ExprHelper -> Pattern
@@ -288,8 +288,6 @@ buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
 buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
 buildExpr (Lit e) = e
 buildExpr EHTrue = A.True emptyMeta
-buildExpr (Range t begin end) = A.ExprConstr emptyMeta $ A.RangeConstr emptyMeta t
-  (buildExpr begin) (buildExpr end)
 buildExpr (Func f es) = A.FunctionCall emptyMeta (simpleName f) (map buildExpr es)
 
 -- | A simple definition of a variable
