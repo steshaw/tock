@@ -50,6 +50,7 @@ commonPasses :: CompState -> [Pass]
 commonPasses opts = concat $
   -- Rain does simplifyTypes separately:
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
+  , [fixLowReplicators]
   , enablePassesWhen csUsageChecking
     [pass "Usage checking" Prop.agg_namesDone [Prop.parUsageChecked]
       (passOnlyOnAST "usageCheckPass" usageCheckPass)]

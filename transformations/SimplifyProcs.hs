@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Simplify processes.
-module SimplifyProcs (simplifyProcs) where
+module SimplifyProcs (simplifyProcs, fixLowReplicators) where
 
 import Control.Monad.State
 import Data.Generics
@@ -25,11 +25,14 @@ import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
+import EvalConstants
+import EvalLiterals
 import Metadata
 import Pass
 import qualified Properties as Prop
 import Traversal
 import Types
+import Utils
 
 simplifyProcs :: [Pass]
 simplifyProcs =
@@ -172,3 +175,40 @@ flattenAssign = pass "Flatten assignment"
                            
                          
                          return (A.Spec m (A.Specification m n' proc))
+
+-- | Removes replicators with a replicator count of zero,
+-- and transforms replicators with a replicator count of one.
+--
+-- We don't currently transform replicators in array constructors,
+-- just replicators in SEQ, PAR, ALT, IF.
+--
+-- This pass is primarily to make sure that PAR replicators with 0 or 1 counts
+-- pass the usage checking, but it doesn't hurt to remove any redundant code (or
+-- simplify code) in the other replicators.
+fixLowReplicators :: Pass
+fixLowReplicators = pass "Fix low-count (0, 1) replicators" [] []
+  (applyDepthM doProcess)
+  where
+    doProcess :: Transform A.Process
+    doProcess (A.Seq m s) = doStructured s >>* A.Seq m
+    doProcess (A.Par m p s) = doStructured s >>* A.Par m p
+    doProcess (A.If m s) = doStructured s >>* A.If m
+    doProcess (A.Alt m p s) = doStructured s >>* A.Alt m p
+    doProcess p = return p
+
+    doStructured :: Data a => Transform (A.Structured a)
+    doStructured s@(A.Only {}) = return s
+    doStructured (A.Several m ss) = mapM doStructured ss >>* A.Several m
+    doStructured (A.ProcThen m p s) = doStructured s >>* A.ProcThen m p
+    doStructured (A.Spec m sp@(A.Specification m' n (A.Rep m''
+      (A.For m''' begin end _))) s)
+      | isConstant end
+      = do endVal <- evalIntExpression end
+           case endVal of
+             0 -> return $ A.Several m []
+             1 -> doStructured s >>*
+                    A.Spec m (A.Specification m' n
+                      (A.IsExpr m'' A.ValAbbrev A.Int begin)) 
+             _ -> doStructured s >>* A.Spec m sp
+    doStructured (A.Spec m sp s) = doStructured s >>* A.Spec m sp
+    
