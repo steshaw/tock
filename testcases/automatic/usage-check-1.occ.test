@@ -43,6 +43,23 @@ PROC m()
     x := 3
     x := 4
 
+%FAIL Identical variables deep within a PAR
+    PAR
+      PAR
+        x := 3
+        x := 4
+      SKIP
+    SKIP
+
+%PASS Identical variables deep within a PAR, but SEQ
+    PAR
+      SEQ
+        x := 3
+        x := 4
+      SKIP
+    SKIP
+
+
 %FAIL Identical variables, PAR assign
     x,x := 3,4
 
