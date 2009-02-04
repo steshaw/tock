@@ -40,6 +40,8 @@ import Errors
 import ExSet
 import FlowAlgorithms
 import FlowGraph
+import FlowUtils
+import GenericUtils
 import Metadata
 import Pass
 import ShowCode
@@ -64,13 +66,14 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                 Left err -> dieP emptyMeta $ "findConstraints:"
                                   ++ err
                                 Right c -> return c
+                      let g' = labelMapWithNodeId (addBK reach cons g) g
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
                           checkArrayUsage
                           (checkPlainVarUsage . transformPair id (fmap snd)))
-                          $ labelMapWithNodeId (addBK reach cons g) g
-                      checkParAssignUsage t
-                      checkProcCallArgsUsage t
+                          g'
+                      checkParAssignUsage g' t
+                      checkProcCallArgsUsage g' t
 --                      mapM_ (checkInitVar (findMeta t) g) roots
                       return t
 
@@ -261,8 +264,18 @@ checkInitVar = forAnyFlowNode
                 m <- getFlowMeta
                 warnP m WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
-checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
-checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
+findAllProcess :: forall t m a. (Data t, Monad m) =>
+  (A.Process -> Bool) -> FlowGraph' m a t -> A.Structured t -> [(A.Process, a)]
+findAllProcess f g t = filter (f . fst) $ mapMaybe getProcess $ map snd $ labNodes g
+  where
+    getProcess :: FNode' t m a -> Maybe (A.Process, a)
+    getProcess n = case getNodeFunc n of
+      AlterProcess f -> Just (routeGet f t, getNodeData n)
+      _ -> Nothing
+
+checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
+  FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
+checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
   where
     isParAssign :: A.Process -> Bool
     isParAssign (A.Assign _ vs _) = length vs >= 2
@@ -270,18 +283,19 @@ checkParAssignUsage = mapM_ checkParAssign . listify isParAssign
 
     -- | Need to check that all the destinations in a parallel assignment
     -- are distinct.  So we check plain variables, and array variables
-    checkParAssign :: A.Process -> m ()
-    checkParAssign (A.Assign m vs _)
+    checkParAssign :: (A.Process, (BK, UsageLabel)) -> m ()
+    checkParAssign (A.Assign m vs _, (bk, _))
       = do checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, fmap ((,) []) mockedupParItems) -- TODO add BK properly
+           checkArrayUsage (m, fmap ((,) bk) mockedupParItems)
       where
         mockedupParItems :: ParItems UsageLabel
         mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing
           $ processVarW v Nothing] | v <- vs]
 
 
-checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) => t -> m ()
-checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
+checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
+  FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
+checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
   where
     isProcCall :: A.Process -> Bool
     isProcCall (A.ProcCall {}) = True
@@ -289,13 +303,13 @@ checkProcCallArgsUsage = mapM_ checkArgs . listify isProcCall
 
     -- | Need to check that all the destinations in a parallel assignment
     -- are distinct.  So we check plain variables, and array variables
-    checkArgs :: A.Process -> m ()
-    checkArgs p@(A.ProcCall m _ _)
+    checkArgs :: (A.Process, (BK, UsageLabel)) -> m ()
+    checkArgs (p@(A.ProcCall m _ _), (bk, _))
       = do vars <- getVarProcCall p
            let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing v]
                                             | v <- vars]
            checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, fmap ((,) []) mockedupParItems)
+           checkArrayUsage (m, fmap ((,) bk) mockedupParItems)
 
 -- This isn't actually just unused variables, it's all unused names (except PROCs)
 checkUnusedVar :: CheckOptM ()
