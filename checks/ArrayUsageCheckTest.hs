@@ -1180,7 +1180,8 @@ ioqcTests
          ,"testcases/automatic/usage-check-3.occ.test"
          ,"testcases/automatic/usage-check-4.occ.test"
          ,"testcases/automatic/usage-check-5.occ.test"
-         , "testcases/automatic/usage-check-6.occ.test"
+         ,"testcases/automatic/usage-check-6.occ.test"
+         ,"testcases/automatic/usage-check-7.occ.test"
          ]
       ,return $ qcOmegaEquality ++ qcOmegaPrune ++ qcTestMakeEquations)
 

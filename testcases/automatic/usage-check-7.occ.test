@@ -1,0 +1,96 @@
+-- This file tests non-array variables used in safe but odd ways
+-- in replicated PARs
+
+PROC foo (VAL INT param)
+  INT x,y,z:
+  SEQ
+    x,y,z := 1,2,3
+%%
+:
+
+PROC m ()
+  SKIP
+:
+
+%PASS Size one replicated PAR
+    PAR i = 7 FOR 1
+      x := 4
+%PASS Size one replicated PAR, swap
+    PAR i = 7 FOR 1
+      x, y := y, x
+%PASS Size one replicated PAR, hidden
+    [1]INT arr:
+    PAR i = 7 FOR SIZE arr
+      x := 4
+%FAIL Size one replicated PAR, but double
+    PAR i = 7 FOR 1
+      PAR
+        x := 4
+        x := 5
+%FAIL Size one replicated PAR, but double 2
+    PAR
+      PAR i = 7 FOR 1
+        x := 4
+      x := 5
+%PASS Size zero unsafe replicated PAR
+    PAR i = 8 FOR 0
+      PAR
+        x := 4
+        x := 3
+%PASS Size one and size zero replicated PAR
+    PAR
+      PAR i = 8 FOR 0
+        x := 4
+      PAR i = 7 FOR 1
+        x := 3
+
+%PASS Result stored in one branch of replicated PAR
+    PAR i = 0 FOR 10
+      IF
+        i = 0
+          x := i
+        TRUE
+          SKIP
+%PASS Unsafe in obviously not-possible branch of replicated PAR
+    PAR i = 0 FOR 10
+      IF
+        i > 10
+          x := i
+        TRUE
+          SKIP
+%PASS Unsafe in less-obviously not-possible branch of replicated PAR
+    PAR i = 5 FOR param
+      IF
+        i > (param+5)
+          x := i
+        TRUE
+          SKIP
+%FAIL Unsafe in possible branches of replicated PAR
+    PAR i = 0 FOR 10
+      IF
+        i = 0
+          x := 3
+        i = 1
+          x := 4
+        TRUE
+          SKIP
+%FAIL Unsafe in possible branch of replicated PAR
+    PAR i = 0 FOR 10
+      IF
+        i <= 1
+          x := 3
+        TRUE
+          SKIP
+%PASS Unsafe in one possible branched-branch of replicated PAR
+    PAR i = -5 FOR 10
+      IF
+        i <= 0
+          IF
+            i >= 0
+              x := 3
+            TRUE
+              SKIP
+        TRUE
+          SKIP
+
+%

@@ -44,4 +44,19 @@ PROC m()
       PAR
         a[i] := 0
         a[4] := 0
+%PASS Distinct variables, passed to PROC
+  PROC foo(INT x, INT y)
+    x, y := y, x
+  :
+  SEQ
+    i, j := 1, 2
+    foo(i, j)
+%PASS Distinct array variables, passed to PROC
+  PROC foo(INT x, INT y)
+    x, y := y, x
+  :
+  SEQ
+    i, j := 1, 2
+    foo(a[i], a[j])
+
 %
