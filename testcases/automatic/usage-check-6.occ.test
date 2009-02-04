@@ -58,5 +58,12 @@ PROC m()
   SEQ
     i, j := 1, 2
     foo(a[i], a[j])
+%PASS Distinct array variables, used in assignment
+  PROC foo(INT x, INT y)
+    x, y := y, x
+  :
+  SEQ
+    i, j := 1, 2
+    a[i], a[j] := 3, 4
 
 %
