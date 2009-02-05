@@ -99,6 +99,9 @@ addBK mp mp2 g nid n = fmap ((,) $ (map (Map.fromListWith (++)) $ productN $ con
           | op == A.Eq = [Equal lhs rhs]
           | op == A.LessEq = [LessThanOrEqual lhs rhs]
           | op == A.MoreEq = [LessThanOrEqual rhs lhs]
+          | op == A.Less = [LessThanOrEqual (addOne lhs) rhs]
+          | op == A.More = [LessThanOrEqual (addOne rhs) lhs]
+          -- TODO add support for OR, and NOT-EQUAL
         g _ = []
 
     conBK :: [[(Var, [BackgroundKnowledge])]]
