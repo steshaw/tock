@@ -68,10 +68,8 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                 Right c -> return c
                       let g' = labelMapWithNodeId (addBK reach cons g) g
                       checkPar (nodeRep . snd)
-                        (joinCheckParFunctions
-                          checkArrayUsage
-                          (checkPlainVarUsage . transformPair id (fmap snd)))
-                          g'
+                        (joinCheckParFunctions checkArrayUsage checkPlainVarUsage)
+                        g'
                       checkParAssignUsage g' t
                       checkProcCallArgsUsage g' t
 --                      mapM_ (checkInitVar (findMeta t) g) roots
@@ -80,7 +78,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
   Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp mp2 g nid n = fmap ((,) $ (map Map.fromList $ productN $ conBK ++
+addBK mp mp2 g nid n = fmap ((,) $ (map (Map.fromListWith (++)) $ productN $ conBK ++
   repBK ++ values)) n
   where
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
@@ -134,9 +132,9 @@ addBK mp mp2 g nid n = fmap ((,) $ (map Map.fromList $ productN $ conBK ++
             bk = [ RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)]
     
 -- filter out replicators, leave everything else in:
-filterPlain :: CSMR m => Set.Set Var -> m (Set.Set Var)
-filterPlain vs = do defs <- getCompState >>* (Map.map A.ndSpecType . csNames)
-                    return $ Set.filter (plain defs) vs
+filterPlain :: CSMR m => m (Var -> Bool)
+filterPlain = do defs <- getCompState >>* (Map.map A.ndSpecType . csNames)
+                 return $ plain defs
   where
     plain defs (Var v) = all nonRep (listify (const True :: A.Variable -> Bool) v)
       where
@@ -147,7 +145,7 @@ filterPlain vs = do defs <- getCompState >>* (Map.map A.ndSpecType . csNames)
 
 filterPlain' :: CSMR m => ExSet Var -> m (ExSet Var)
 filterPlain' Everything = return Everything
-filterPlain' (NormalSet s) = filterPlain s >>* NormalSet
+filterPlain' (NormalSet s) = filterPlain >>* flip Set.filter s >>* NormalSet
 
 -- | I am not sure how you could build this out of the standard functions, so I built it myself
 --Takes a list (let's say Y), a function that applies to a single item and a list, and then goes through applying the function
@@ -160,53 +158,90 @@ permuteHelper func (x:xs) = permuteHelper' func [] x xs
     permuteHelper' func prev cur [] = [func cur prev]
     permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
 
-checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems UsageLabel) -> m ()
-checkPlainVarUsage (m, p) = {- liftIO (putStrLn ("Checking: " ++ show (m,p))) >> -}
-  check p
+data VarsBK = VarsBK {
+  readVarsBK :: Map.Map Var [BK]
+  ,writtenVarsBK :: Map.Map Var ([A.Expression], [BK])
+}
+
+foldUnionVarsBK :: [VarsBK] -> VarsBK
+foldUnionVarsBK = foldl join (VarsBK Map.empty Map.empty)
   where
-    getVars :: ParItems UsageLabel -> Vars
-    getVars (SeqItems ss) = foldUnionVars $ map nodeVars ss
-    getVars (ParItems ps) = foldUnionVars $ map getVars ps
+    join (VarsBK r w) (VarsBK r' w')
+      = VarsBK (Map.unionWith (++) r r') (Map.unionWith (\(x,y) (x',y') -> (x++x',y++y')) w w')
+
+checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
+checkPlainVarUsage (m, p) = check p
+  where
+    addBK :: BK -> Vars -> VarsBK
+    addBK bk vs = VarsBK (Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat [bk]))
+                         (Map.map (\me -> (maybeToList me, [bk])) $ writtenVars vs)
+
+    reps (RepParItem r p) = r : reps p
+    reps (SeqItems _) = []
+    reps (ParItems ps) = concatMap reps ps
+
+    getVars :: ParItems (BK, UsageLabel) -> VarsBK
+    getVars (SeqItems ss) = foldUnionVarsBK $ [addBK bk $ nodeVars u | (bk, u) <- ss]
+    getVars (ParItems ps) = foldUnionVarsBK $ map getVars ps
     getVars (RepParItem _ p) = getVars p
 
-    getDecl :: ParItems UsageLabel -> [Var]
+    getDecl :: ParItems (BK, UsageLabel) -> [Var]
     getDecl (ParItems ps) = concatMap getDecl ps
     getDecl (RepParItem _ p) = getDecl p
     getDecl (SeqItems ss) = mapMaybe
-      (fmap (Var . A.Variable emptyMeta . A.Name emptyMeta) . join . fmap getScopeIn . nodeDecl) ss
+      (fmap (Var . A.Variable emptyMeta . A.Name emptyMeta) . join . fmap getScopeIn . nodeDecl
+        . snd) ss
       where
         getScopeIn (ScopeIn _ n) = Just n
         getScopeIn _ = Nothing
 
-    check :: ParItems UsageLabel -> m ()
+    -- Check does not have to descend, because the overall checkPlainVarUsage function
+    -- will be called on every single PAR in the whole tree
+    check :: ParItems (BK, UsageLabel) -> m ()
     check (SeqItems {}) = return ()
     check (ParItems ps) = sequence_ $ permuteHelper (checkCREW $ concatMap getDecl ps) (map getVars ps)
     check (RepParItem _ p) = check (ParItems [p,p]) -- Easy way to check two replicated branches
     
-    checkCREW :: [Var] -> Vars -> [Vars] -> m ()
+    checkCREW :: [Var] -> VarsBK -> [VarsBK] -> m ()
     checkCREW decl item rest
       = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (== NameShared)
              >>* Map.keysSet >>* (Set.map $ UsageCheckUtils.Var . A.Variable emptyMeta . A.Name emptyMeta)
-           writtenTwice <- filterPlain $
-                             ((Map.keysSet (writtenVars item)
-                                `Set.intersection`
-                              Map.keysSet (writtenVars otherVars)
-                             ) `Set.difference` Set.fromList decl
-                             ) `Set.difference` sharedNames
-           writtenAndRead <- filterPlain $
-                               ((Map.keysSet (writtenVars item)
-                                   `Set.intersection`
-                                  readVars otherVars
-                                ) `Set.difference` Set.fromList decl
-                               ) `Set.difference` sharedNames
-           when (not $ Set.null writtenTwice) $
-             diePC m $ formatCode
-               "The following variables are written-to in at least two places inside a PAR: %" writtenTwice
-           when (not $ Set.null writtenAndRead) $
-             diePC m $ formatCode
-               "The following variables are written-to and read-from in separate branches of a PAR: %" writtenAndRead
+           writtenTwice <- filterPlain >>* flip filterMapByKey
+                             ((writtenVarsBK item
+                                 `intersect`
+                                writtenVarsBK otherVars
+                              ) `difference` (Set.fromList decl `Set.union` sharedNames)
+                             )
+           writtenAndRead <- filterPlain >>* flip filterMapByKey
+                               ((writtenVarsBK item
+                                    `intersect`
+                                 readVarsBK otherVars
+                                ) `difference` (Set.fromList decl `Set.union` sharedNames)
+                               )
+           checkBKReps
+               "The following variables are written-to in at least two places inside a PAR: % "
+               (Map.map (transformPair snd snd) writtenTwice)
+           checkBKReps
+               "The following variables are written-to and read-from in separate branches of a PAR: % "
+               (Map.map (transformPair snd id) writtenAndRead)
       where
-        otherVars = foldUnionVars rest
+        intersect :: Ord k => Map.Map k v -> Map.Map k v' -> Map.Map k (v, v')
+        intersect = Map.intersectionWith (,)
+        difference m s = m `Map.difference` (Map.fromAscList $ zip (Set.toAscList
+          s) (repeat ()))
+        otherVars = foldUnionVarsBK rest
+
+    checkBKReps :: String -> Map.Map Var ([BK], [BK]) -> m ()
+    checkBKReps _ vs | Map.null vs = return ()
+    checkBKReps msg vs
+      = do sols <- if null (reps p)
+                     -- If there are no replicators, it's definitely dangerous:
+                     then return $ Map.map (const $ [Just ""]) $ vs
+                     else mapMapM (mapM (findRepSolutions (reps p)) . map (uncurry (++)) . product2) vs
+           case Map.filter (not . null) $ Map.map catMaybes sols of
+             vs' | Map.null vs' -> return ()
+                 | otherwise -> diePC m $ formatCode (msg ++ concat (concat
+                   $ Map.elems vs')) (Map.keysSet vs')
 
 showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
@@ -286,10 +321,10 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
     checkParAssign :: (A.Process, (BK, UsageLabel)) -> m ()
     checkParAssign (A.Assign m vs _, (bk, _))
       = do checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, fmap ((,) bk) mockedupParItems)
+           checkArrayUsage (m, mockedupParItems)
       where
-        mockedupParItems :: ParItems UsageLabel
-        mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing
+        mockedupParItems :: ParItems (BK, UsageLabel)
+        mockedupParItems = fmap ((,) bk) $ ParItems [SeqItems [Usage Nothing Nothing Nothing
           $ processVarW v Nothing] | v <- vs]
 
 
@@ -306,10 +341,11 @@ checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
     checkArgs :: (A.Process, (BK, UsageLabel)) -> m ()
     checkArgs (p@(A.ProcCall m _ _), (bk, _))
       = do vars <- getVarProcCall p
-           let mockedupParItems = ParItems [SeqItems [Usage Nothing Nothing Nothing v]
-                                            | v <- vars]
+           let mockedupParItems = fmap ((,) bk) $
+                 ParItems [SeqItems [Usage Nothing Nothing Nothing v]
+                          | v <- vars]
            checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, fmap ((,) bk) mockedupParItems)
+           checkArrayUsage (m, mockedupParItems)
 
 -- This isn't actually just unused variables, it's all unused names (except PROCs)
 checkUnusedVar :: CheckOptM ()

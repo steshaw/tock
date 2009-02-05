@@ -16,7 +16,20 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheck (BackgroundKnowledge(..), BK, checkArrayUsage, FlattenedExp(..), makeEquations, makeExpSet, ModuloCase(..), onlyConst, showFlattenedExp, VarMap, canonicalise, fmapFlattenedExp) where
+module ArrayUsageCheck (
+  BackgroundKnowledge(..),
+  BK,
+  canonicalise,
+  checkArrayUsage,
+  findRepSolutions,
+  FlattenedExp(..),
+  fmapFlattenedExp,
+  makeEquations,
+  makeExpSet,
+  ModuloCase(..),
+  onlyConst,
+  showFlattenedExp,
+  VarMap) where
 
 import Control.Monad.Error
 import Control.Monad.State
@@ -44,6 +57,28 @@ import Utils
 -- of constraints.  So it is a disjunction of map from variables to conjunctions
 type BK = [Map.Map Var [BackgroundKnowledge]]
 type BK' = [Map.Map Var (EqualityProblem, InequalityProblem)]
+
+-- | Given a list of replicators, and some background knowledge,
+-- checks if there are any solutions for a combination of the normal replicator
+-- constraints, and the given background knowledge.
+-- Returns Nothing if no solutions, a String with a counter-example if there are solutions
+findRepSolutions :: (CSMR m, MonadIO m) => [(A.Name, A.Replicator)] -> BK -> m (Maybe String)
+findRepSolutions reps bk = case makeEquations (addReps $ ParItems $ map (\x -> SeqItems [(bk, [x], [])]) $
+          [A.ExprVariable (A.nameMeta n) $ A.Variable (A.nameMeta n) n
+                      | (n, _) <- reps]) maxInt of
+            Right problems -> do
+              probs <- concatMapM id [formatProblem vm prob | (_,vm,prob) <- problems]
+              case mapMaybe solve problems of
+                [] -> return Nothing -- No solutions, safe
+                xs -> liftM (Just . concat) $ mapM format xs
+            res -> error $ "Unexpected reachability result"
+  where
+    maxInt = makeConstant emptyMeta $ fromInteger $ toInteger (maxBound :: Int32)
+
+    format ((lx,ly),varMapping,vm,problem)
+      = formatSolution varMapping (getCounterEqs vm)
+
+    addReps = flip (foldl $ flip RepParItem) reps
 
 -- | A check-pass that checks the given ParItems (usually generated from a control-flow graph)
 -- for any overlapping array indices.
