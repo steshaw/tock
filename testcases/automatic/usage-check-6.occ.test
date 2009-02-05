@@ -44,6 +44,16 @@ PROC m()
       PAR
         a[i] := 0
         a[4] := 0
+    TRUE
+      SKIP
+%FAIL Non-distinct despite IF
+  IF
+    i <= 4
+      PAR
+        a[i] := 0
+        a[4] := 0
+    TRUE
+      SKIP
 %PASS Distinct variables, passed to PROC
   PROC foo(INT x, INT y)
     x, y := y, x
@@ -65,5 +75,46 @@ PROC m()
   SEQ
     i, j := 1, 2
     a[i], a[j] := 3, 4
+%PASS IF, safe over replication
+  PAR k = 0 FOR 10
+    IF
+      k = 3
+        PAR
+          a[k] := 1
+          a[k+1] := 2
+      TRUE
+        SKIP
+%FAIL IF, unsafe over replication
+  PAR k = 0 FOR 10
+    IF
+      k = 3
+        a[2] := 1
+      TRUE
+        a[k] := 3
+%PASS IF, safe indirectly over replication
+  PAR k = 0 FOR 10
+    IF
+      k = 3
+        a[0] := 1
+      TRUE
+        SKIP
+%PASS IF, safe indirectly over replication 2
+  PAR k = 0 FOR 10
+    IF
+      k = 3
+        a[0] := 1
+      k <> 0
+        a[k] := 1
+      TRUE
+        SKIP
+%FAIL IF, unsafe indirectly over replication
+  PAR k = 0 FOR 10
+    IF
+      k = 3
+        a[0] := 1
+      k = 0
+        a[k] := 1
+      TRUE
+        SKIP
 
 %

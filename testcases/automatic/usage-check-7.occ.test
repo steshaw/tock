@@ -74,6 +74,16 @@ PROC m ()
           x := 4
         TRUE
           SKIP
+%FAIL Unsafe in possible branch of replicated PAR vs normal PAR
+    PAR i = 0 FOR 10
+      PAR
+        IF
+          i = 0
+            x := 3
+          TRUE
+            SKIP
+        x := 4
+
 %FAIL Unsafe in possible branch of replicated PAR
     PAR i = 0 FOR 10
       IF
@@ -92,5 +102,34 @@ PROC m ()
               SKIP
         TRUE
           SKIP
+%PASS Unsafe in one possible branched-branch of replicated PAR in a replicated SEQ
+    SEQ k = 0 FOR 3
+      PAR i = -5 FOR 10
+        IF
+          i <= 0
+            IF
+              i >= 0
+                x := 3
+              TRUE
+                SKIP
+          TRUE
+            SKIP
+
+%PASS Safe in two replicators only
+    PAR i = 0 FOR 10
+      PAR j = 0 FOR 10
+        IF
+          ((i * j) = 0) AND (i = j)
+            x := 3
+          TRUE
+            SKIP
+%FAIL Unsafe in two replicators
+    PAR i = 0 FOR 10
+      PAR j = 0 FOR 10
+        IF
+          i = j
+            x := 3
+          TRUE
+            SKIP
 
 %
