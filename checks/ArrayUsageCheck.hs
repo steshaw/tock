@@ -333,25 +333,25 @@ data ModuloCase =
 
 -- | Transforms background knowledge into problems
 -- TODO allow modulo in background knowledge
-transformBK :: BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
-transformBK (Equal eL eR)     = do eL' <- makeSingleEq eL "background knowledge"
-                                   eR' <- makeSingleEq eR "background knowledge"
+transformBK :: ([FlattenedExp] -> [FlattenedExp]) -> BackgroundKnowledge -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
+transformBK f (Equal eL eR)   = do eL' <- makeSingleEq f eL "background knowledge"
+                                   eR' <- makeSingleEq f eR "background knowledge"
                                    let e = addEq eL' (amap negate eR')
                                    return ([e],[])
-transformBK (LessThanOrEqual eL eR)
-      = do eL' <- makeSingleEq eL "background knowledge"
-           eR' <- makeSingleEq eR "background knowledge"
+transformBK f (LessThanOrEqual eL eR)
+      = do eL' <- makeSingleEq f eL "background knowledge"
+           eR' <- makeSingleEq f eR "background knowledge"
            -- eL <= eR implies eR - eL >= 0
            let e = addEq (amap negate eL') eR'
            return ([],[e])
-transformBK (RepBoundsIncl v low high)
-  = do eLow <- makeSingleEq low "background knowledge, lower bound"
-       eHigh <- makeSingleEq high "background knowledge, upper bound"
+transformBK f (RepBoundsIncl v low high)
+  = do eLow <- makeSingleEq f low "background knowledge, lower bound"
+       eHigh <- makeSingleEq f high "background knowledge, upper bound"
        -- v <= eH implies eH - v >= 0
        -- eL <= v implies v - eL >= 0
-       ev <- makeEquation v [] (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 0)]
+       ev <- makeEquation v ([], id) (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 0)]
          >>= getSingleAccessItem ("Modulo or divide impossible")
-       ev' <- makeEquation v [] (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 1)]
+       ev' <- makeEquation v ([], id) (error "Irrelevant type") [Scale 1 (A.ExprVariable emptyMeta v, 1)]
          >>= getSingleAccessItem ("Modulo or divide impossible")
        return ([], [ addEq (amap negate ev) eHigh
                    , addEq (amap negate ev') eHigh
@@ -359,13 +359,14 @@ transformBK (RepBoundsIncl v low high)
                    , addEq (amap negate eLow) ev'
                    ])
 
-transformBKList :: [BackgroundKnowledge] -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
-transformBKList bk = mapM transformBK bk >>* foldl accumProblem ([],[])
+transformBKList :: ([FlattenedExp] -> [FlattenedExp]) -> [BackgroundKnowledge] -> StateT VarMap (Either String) (EqualityProblem,InequalityProblem)
+transformBKList f bk = mapM (transformBK f) bk >>* foldl accumProblem ([],[])
 
 -- | Turns a single expression into an equation-item.  An error is given if the resulting 
 -- expression is anything complicated (for example, modulo or divide)
-makeSingleEq :: A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
-makeSingleEq e desc = lift (flatten e) >>= makeEquation e [{-TODO-}] (error $ "Type is irrelevant for " ++ desc)
+makeSingleEq :: ([FlattenedExp] -> [FlattenedExp]) -> A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
+makeSingleEq f e desc = (lift (flatten e) >>* f) >>= makeEquation e ([{-TODO-}],
+  f) (error $ "Type is irrelevant for " ++ desc)
   >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
 
 -- | A helper function for joining two problems
@@ -404,7 +405,7 @@ makeEquations :: ParItems (BK, [A.Expression], [A.Expression]) -> A.Expression -
 makeEquations accesses bound
   = do ((v,h,repVarIndexes),s) <- (flip runStateT) Map.empty $
           do (accesses',repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
-             high <- makeSingleEq bound "upper bound"
+             high <- makeSingleEq id bound "upper bound"
              return (accesses', high, nub repVars)
        return $ squareAndPair lookupBK (\(x,y,_) -> (x,y)) repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
@@ -450,8 +451,8 @@ makeEquations accesses bound
         
         makeRepVarEq :: ((A.Name, A.Replicator), Bool) -> StateT VarMap (Either String) (A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)
         makeRepVarEq ((varName, A.For m from for _), _)
-          = do from' <- makeSingleEq from "replication start"
-               upper <- makeSingleEq (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
+          = do from' <- makeSingleEq id from "replication start"
+               upper <- makeSingleEq id (A.Dyadic m A.Subtr (A.Dyadic m A.Add for from) (makeConstant m 1)) "replication count"
                return (A.Variable m varName, from', upper)
 
         mkEq' :: [(A.Variable, EqualityConstraintEquation, EqualityConstraintEquation)] ->
@@ -461,19 +462,19 @@ makeEquations accesses bound
                      [((A.Expression, [ModuloCase], BK'), ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
         mkEq' repVarEqs (aat, e) 
                        = do f <- lift . lift $ flatten e
-                            f' <- foldM mirrorFlaggedVars f reps
-                            g <- lift $ makeEquation e bk aat f'
+                            mirrorFunc <- liftM foldFuncs $ mapM mirrorFlaggedVar reps
+                            g <- lift $ makeEquation e (bk, mirrorFunc) aat (mirrorFunc f)
                             case g of
                               Group g' -> return g'
                               _ -> throwError "Replicated group found unexpectedly"
 
     -- | Turns all instances of the variable from the given replicator into their primed version in the given expression
-    mirrorFlaggedVars :: [FlattenedExp] -> ((A.Name, A.Replicator),Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) [FlattenedExp]
-    mirrorFlaggedVars exp (_,False) = return exp
-    mirrorFlaggedVars exp ((varName, A.For m from for _), True)
+    mirrorFlaggedVar :: ((A.Name, A.Replicator),Bool) -> StateT [(CoeffIndex,CoeffIndex)] (StateT VarMap (Either String)) ([FlattenedExp] -> [FlattenedExp])
+    mirrorFlaggedVar (_,False) = return id
+    mirrorFlaggedVar ((varName, A.For m from for _), True)
       = do varIndexes <- lift $ seqPair (varIndex (Scale 1 (A.ExprVariable emptyMeta var,0)), varIndex (Scale 1 (A.ExprVariable emptyMeta var,1)))
            modify (varIndexes :)
-           return $ setIndexVar var 1 exp
+           return $ setIndexVar var 1
       where
         var = A.Variable m varName
 
@@ -724,11 +725,11 @@ getIneqs (low, high) = concatMap getLH
 
     
 -- | Given an expression, forms equations (and accompanying additional equation-sets) and returns it
-makeEquation :: label -> BK -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess (label,[ModuloCase],
+makeEquation :: label -> (BK, [FlattenedExp] -> [FlattenedExp]) -> ArrayAccessType -> [FlattenedExp] -> StateT VarMap (Either String) (ArrayAccess (label,[ModuloCase],
   BK'))
-makeEquation l bk t summedItems
+makeEquation l (bk, bkF) t summedItems
       = do eqs <- process summedItems
-           bk' <- mapM (mapMapM transformBKList) bk
+           bk' <- mapM (mapMapM $ transformBKList bkF) bk
            let eqs' = map (transformQuad id mapToArray (map mapToArray) (map mapToArray)) eqs :: [([ModuloCase], EqualityConstraintEquation, EqualityProblem, InequalityProblem)]
            return $ Group [((l,c,bk'),t,(e0,e1,e2)) | (c,e0,e1,e2) <- eqs']
       where
