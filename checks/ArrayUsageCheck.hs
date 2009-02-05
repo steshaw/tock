@@ -118,16 +118,15 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                         dieP m $ "Indexes of array \"" ++ userArrName ++ "\" "
                                  ++ "(\"" ++ cx ++ "\" and \"" ++ cy ++ "\") could overlap"
                                  ++ if sol /= "" then " when: " ++ sol else ""
-    
-    -- Solves the problem and munges the arguments and results into a useful order
-    solve :: (labels,vm,(EqualityProblem,InequalityProblem)) -> Maybe (labels,vm,VariableMapping,(EqualityProblem,InequalityProblem))
-    solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
-      Nothing -> Nothing
-      Just vm' -> Just (ls,vm,vm',(eq,ineq))
 
-    -- Formats an entire problem ready to print it out half-legibly for debugging purposes
-    formatProblem :: VarMap -> (EqualityProblem, InequalityProblem) -> m String
-    formatProblem varToIndex (eq, ineq)
+    -- TODO this is surely defined elsewhere already?
+    getRealName :: A.Name -> m String
+    getRealName n = lookupName n >>* A.ndOrigName
+
+    
+-- | Formats an entire problem ready to print it out half-legibly for debugging purposes
+formatProblem :: forall m. CSMR m => VarMap -> (EqualityProblem, InequalityProblem) -> m String
+formatProblem varToIndex (eq, ineq)
       = do feqs <- mapM (showWithConst "=") $ eq
            fineqs <- mapM (showWithConst ">=") $ ineq
            return $ concat $ intersperse "\n" $ feqs ++ fineqs
@@ -150,20 +149,25 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
               1 -> ""
               -1 -> "-"
               _ -> show a ++ "*"
-    
-    -- Formats a solution (not a problem, just the solution) ready to print it out for the user
-    formatSolution :: VarMap -> Map.Map CoeffIndex Integer -> m String
-    formatSolution varToIndex indexToConst = do names <- mapM valOfVar $ Map.assocs varToIndex
-                                                return $ concat $ intersperse " , " $ catMaybes names
+
+-- | Solves the problem and munges the arguments and results into a useful order
+solve :: (labels,vm,(EqualityProblem,InequalityProblem)) ->
+  Maybe (labels,vm,VariableMapping,(EqualityProblem,InequalityProblem))
+solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
+      Nothing -> Nothing
+      Just vm' -> Just (ls,vm,vm',(eq,ineq))
+
+-- | Formats a solution (not a problem, just the solution) ready to print it out for the user
+formatSolution :: (CSMR m, Monad m) => VarMap -> Map.Map CoeffIndex Integer -> m String
+formatSolution varToIndex indexToConst
+ = do names <- mapM valOfVar $ Map.assocs varToIndex
+      return $ concat $ intersperse " , " $ catMaybes names
       where
         valOfVar (varExp,k) = case Map.lookup k indexToConst of 
-                                 Nothing -> return Nothing
-                                 Just val -> do varExp' <- showFlattenedExp showCode varExp
-                                                return $ Just $ varExp' ++ " = " ++ show val
+          Nothing -> return Nothing
+          Just val -> do varExp' <- showFlattenedExp showCode varExp
+                         return $ Just $ varExp' ++ " = " ++ show val
 
-    -- TODO this is surely defined elsewhere already?
-    getRealName :: A.Name -> m String
-    getRealName n = lookupName n >>* A.ndOrigName
 
 showFlattenedExpSet :: Monad m => (A.Expression -> m String) -> Set.Set FlattenedExp -> m String
 showFlattenedExpSet showExp s = liftM concat $ sequence $ intersperse (return " + ") $ map (showFlattenedExp showExp) $ Set.toList s
