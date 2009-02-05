@@ -375,27 +375,26 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
      ("i", intLiteral 1, intLiteral 6),[exprVariable "i"],intLiteral 8)
      
    -- i vs i' vs 3
-   ,testRep' (201,
+   ,let common = ij_16 &&& [i <== j ++ con (-1)] in testRep' (201,
      [(((0,[]),(0,[])),rep_i_mapping, [i === j],
-       ij_16 &&& [i <== j ++ con (-1)]
-       &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
-     ++ replicate 2 (((0,[]),(1,[])),rep_i_mapping,[i === con 3], leq [con 1,j, con 6] &&&
-          leq [con 1,i, con 6] &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
-     ++ [(((1,[]),(1,[])),rep_i_mapping,[con 3 === con 3],concat $ replicate 2 (leq [con 0, con 3, con 7]))]
+       common &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])]
+     ++ replicate 2 (((0,[]),(1,[])),rep_i_mapping,[i === con 3], common
+          &&& leq [con 0, i, con 7] &&& leq [con 0, con 3, con 7])
+     ++ [(((1,[]),(1,[])),rep_i_mapping,[con 3 === con 3],common &&& (concat $ replicate 2 (leq [con 0, con 3, con 7])))]
      ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", intLiteral 3],intLiteral 8)
 
    -- i vs i + 1 vs i' vs i' + 1
-   ,testRep' (202,[
-        (((0,[]),(1,[])),rep_i_mapping,[i === j ++ con 1],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
-       ,(((0,[]),(1,[])),rep_i_mapping,[i ++ con 1 === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
-       ,(((0,[]),(0,[])),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
-       ,(((1,[]),(1,[])),rep_i_mapping,[i === j],ij_16 &&& [i <== j ++ con (-1)] &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
-       ++ [(((0,[]),(1,[])),rep_i_mapping, [i === i ++ con 1], leq [con 1, i, con 6] &&& leq [con 1, j, con 6] &&&
+   ,let common = ij_16 &&& [i <== j ++ con (-1)] in testRep' (202,[
+        (((0,[]),(1,[])),rep_i_mapping,[i === j ++ con 1],common &&& leq [con 0, i, con 7] &&& leq [con 0, j ++ con 1, con 7])
+       ,(((0,[]),(1,[])),rep_i_mapping,[i ++ con 1 === j],common &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j, con 7])
+       ,(((0,[]),(0,[])),rep_i_mapping,[i === j],common &&& leq [con 0, i, con 7] &&& leq [con 0, j, con 7])
+       ,(((1,[]),(1,[])),rep_i_mapping,[i === j],common &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
+       ++ [(((0,[]),(1,[])),rep_i_mapping, [i === i ++ con 1], common &&&
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
      ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
 
    -- Only a constant:
-   ,testRep' (210,[(((0,[]),(0,[])),rep_i_mapping,[con 4 === con 4],concat $ replicate 2 $ leq [con 0, con 4, con 7])]
+   ,testRep' (210,[(((0,[]),(0,[])),rep_i_mapping,[con 4 === con 4],ij_16 &&& [i <== j ++ con (-1)] &&& (concat $ replicate 2 $ leq [con 0, con 4, con 7]))]
      ,("i", intLiteral 1, intLiteral 6),[intLiteral 4],intLiteral 8)
 
 

@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007--2009  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -266,15 +266,17 @@ parItemToArrayAccessM :: Monad m =>
      m [(label, ArrayAccessType, (EqualityConstraintEquation, EqualityProblem, InequalityProblem))]
   ) -> 
   ParItems a -> 
-  m [ArrayAccess label]
+  m ([ArrayAccess label], [A.Name])
 parItemToArrayAccessM f (SeqItems xs)
   -- Each sequential item is a group of one:
-  = sequence [concatMapM (f []) xs >>* Group]
-parItemToArrayAccessM f (ParItems ps) = concatMapM (parItemToArrayAccessM f) ps
+  = do aas <- sequence [concatMapM (f []) xs >>* Group]
+       return (aas, [])
+parItemToArrayAccessM f (ParItems ps)
+   = liftM (transformPair concat concat . unzip) $ mapM (parItemToArrayAccessM f) ps
 parItemToArrayAccessM f (RepParItem rep p) 
-  = do normal <- parItemToArrayAccessM (\reps -> f ((rep,False):reps)) p
-       mirror <- parItemToArrayAccessM (\reps -> f ((rep,True):reps)) p
-       return [Replicated normal mirror]
+  = do (normal, otherReps) <- parItemToArrayAccessM (\reps -> f ((rep,False):reps)) p
+       mirror <- liftM fst $ parItemToArrayAccessM (\reps -> f ((rep,True):reps)) p
+       return ([Replicated normal mirror], fst rep : otherReps)
 
 -- | Turns a list of expressions (which may contain many constants, or duplicated variables)
 -- into a set of expressions with at most one constant term, and at most one appearance
@@ -403,16 +405,19 @@ accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
 makeEquations :: ParItems (BK, [A.Expression], [A.Expression]) -> A.Expression ->
   Either String [(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap, (EqualityProblem, InequalityProblem))]
 makeEquations accesses bound
-  = do ((v,h,repVarIndexes),s) <- (flip runStateT) Map.empty $
-          do (accesses',repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
+  = do ((v,h,repVarIndexes, allReps),s) <- (flip runStateT) Map.empty $
+          do ((accesses', allReps),repVars) <- flip runStateT [] $ parItemToArrayAccessM mkEq accesses
              high <- makeSingleEq id bound "upper bound"
-             return (accesses', high, nub repVars)
-       return $ squareAndPair lookupBK (\(x,y,_) -> (x,y)) repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
+             return (accesses', high, nub repVars, allReps)
+       return $ squareAndPair (lookupBK allReps) (\(x,y,_) -> (x,y)) repVarIndexes s v (amap (const 0) h, addConstant (-1) h)
 
   where
-    lookupBK :: (A.Expression, [ModuloCase], BK') -> [(EqualityProblem, InequalityProblem)]
-    lookupBK (e,_,bk) = map (foldl accumProblem ([],[]) . map snd . filter (\(v,eq) -> v `elem` vs) . Map.toList) bk
+    lookupBK :: [A.Name] -> (A.Expression, [ModuloCase], BK') -> [(EqualityProblem, InequalityProblem)]
+    lookupBK reps (e,_,bk) = map (foldl accumProblem ([],[]) . map snd .
+      filter (\(v,eq) -> v `elem` vs || v `elem` reps') . Map.toList) bk
       where
+        reps' :: [Var]
+        reps' = map (Var . A.Variable emptyMeta) reps
         vs :: [Var]
         vs = map Var $ listify (const True :: A.Variable -> Bool) e
     
@@ -631,12 +636,8 @@ squareAndPair lookupBK strip repVars s v lh
     
     addExtra :: (CoeffIndex, CoeffIndex) -> (EqualityProblem,InequalityProblem) -> InequalityProblem
     addExtra (plain,prime) (eq, ineq)
-      | itemPresent plain (eq ++ ineq) && itemPresent prime (eq ++ ineq) = extraIneq
-      | otherwise = []
-      where
-        extraIneq :: InequalityProblem
-          -- prime >= plain + 1  (prime - plain - 1 >= 0)
-        extraIneq = [mapToArray $ Map.fromList [(prime,1), (plain,-1), (0, -1)]]
+       -- prime >= plain + 1  (prime - plain - 1 >= 0)
+       = [mapToArray $ Map.fromList [(prime,1), (plain,-1), (0, -1)]]
 
 getSingleAccessItem :: MonadTrans m => String -> ArrayAccess label -> m (Either String) EqualityConstraintEquation
 getSingleAccessItem _ (Group [(_,_,(acc,_,_))]) = lift $ return acc

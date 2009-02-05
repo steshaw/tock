@@ -107,6 +107,13 @@ PROC m()
         a[k] := 1
       TRUE
         SKIP
+%PASS IF, safe indirectly over replication 3
+  PAR k = 0 FOR 9
+    IF
+      k = 0
+        a[9] := 3
+      TRUE
+        a[k] := 3
 %FAIL IF, unsafe indirectly over replication
   PAR k = 0 FOR 10
     IF
