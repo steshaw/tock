@@ -361,6 +361,12 @@ data BackgroundKnowledge
     | LessThanOrEqual A.Expression A.Expression
     | RepBoundsIncl A.Variable A.Expression A.Expression
 
+instance Show BackgroundKnowledge where
+  show (Equal e e') = showOccam e ++ " = " ++ showOccam e'
+  show (LessThanOrEqual e e') = showOccam e ++ " <= " ++ showOccam e'
+  show (RepBoundsIncl v e e')
+    = showOccam e ++ " <= " ++ showOccam v ++ " <= " ++ showOccam e'
+
 -- | The names relate to the equations given in my Omega Test presentation.
 -- X is the top, Y is the bottom, A is the other var (x REM y = x + a)
 data ModuloCase =
