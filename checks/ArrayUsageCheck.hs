@@ -58,19 +58,31 @@ import Utils
 type BK = [Map.Map Var [BackgroundKnowledge]]
 type BK' = [Map.Map Var (EqualityProblem, InequalityProblem)]
 
--- | Given a list of replicators, and some background knowledge,
--- checks if there are any solutions for a combination of the normal replicator
--- constraints, and the given background knowledge.
--- Returns Nothing if no solutions, a String with a counter-example if there are solutions
-findRepSolutions :: (CSMR m, MonadIO m) => [(A.Name, A.Replicator)] -> BK -> m (Maybe String)
-findRepSolutions reps bk = case makeEquations (addReps $ ParItems $ map (\x -> SeqItems [(bk, [x], [])]) $
-          [A.ExprVariable (A.nameMeta n) $ A.Variable (A.nameMeta n) n
-                      | (n, _) <- reps]) maxInt of
+-- | Given a list of replicators, and a set of background knowledge for each
+-- access inside the replicator, checks if there are any solutions for a
+-- combination of the normal replicator constraints, and the given background
+-- knowledge (pairing each set against each other, applying one set to the replicator,
+-- and the other to the mirror of the replicator).
+--
+-- Returns Nothing if no solutions, a String with a counter-example if there
+-- are solutions
+findRepSolutions :: (CSMR m, MonadIO m) => [(A.Name, A.Replicator)] -> [BK] -> m (Maybe String)
+findRepSolutions reps bks
+  -- To get the right comparison, we create a SeqItems with all the accesses
+  -- Because they are inside a PAR replicator, they will all get compared to each
+  -- other with one set of BK applied to i and one applied to i', but they will
+  -- never be compared to each other just with the constraints on i (which is not
+  -- what we are checking here).  We set the dummy array accesses to all be zero,
+  -- which means they can overlap -- but only if there is also a solution to the
+  -- replicator background knowledge, which is what this function is trying to
+  -- determine.
+  = case makeEquations (addReps $ SeqItems [(bk, [makeConstant emptyMeta 0], [])
+                                           | bk <- bks]) maxInt of
             Right problems -> do
               probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
               case mapMaybe solve problems of
                 [] -> return Nothing -- No solutions, safe
-                xs -> liftM (Just . concat) $ mapM format xs
+                xs -> liftM (Just . unlines) $ mapM format xs
             res -> error $ "Unexpected reachability result"
   where
     maxInt = makeConstant emptyMeta $ fromInteger $ toInteger (maxBound :: Int32)
@@ -144,7 +156,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                      do sol <- formatSolution varMapping (getCounterEqs vm)
                         cx <- showCode (fst lx)
                         cy <- showCode (fst ly)
---                        liftIO $ putStrLn $ "Found solution for problem: " ++ prob
+--                        liftIO $ putStrLn $ "Found solution for problem: " ++ probs
 --                         ++ show p
 --                        liftIO $ putStrLn $ "Succeeded on problem: " ++ prob
 --                        allProbs <- concatMapM (\(_,_,p) -> formatProblem varMapping p >>* (++ "\n#\n")) problems
