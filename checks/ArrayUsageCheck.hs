@@ -418,7 +418,7 @@ makeSingleEq f e desc = (lift (flatten e) >>* f) >>= makeEquation e ([{-TODO-}],
 
 -- | A helper function for joining two problems
 accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
-accumProblem (a,b) (c,d) = (a ++ c, b ++ d)
+accumProblem = concatPair
 
 
 -- | Given a list of (written,read) expressions, an expression representing the upper array bound, returns either an error

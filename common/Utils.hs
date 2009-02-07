@@ -117,6 +117,10 @@ combineCompare (LT:_) = LT
 combineCompare (GT:_) = GT
 combineCompare (EQ:os) = combineCompare os
 
+-- Takes two pairs of lists, returns a pair with the fsts join and the snds joined
+concatPair :: ([a], [b]) -> ([a], [b]) -> ([a], [b])
+concatPair a b = (fst a ++ fst b, snd a ++ snd b)
+
 -- | Maps two functions over members of a pair
 transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
 transformPair f g (x,y) = (f x, g y)
