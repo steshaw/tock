@@ -67,7 +67,7 @@ findRepSolutions reps bk = case makeEquations (addReps $ ParItems $ map (\x -> S
           [A.ExprVariable (A.nameMeta n) $ A.Variable (A.nameMeta n) n
                       | (n, _) <- reps]) maxInt of
             Right problems -> do
-              probs <- concatMapM id [formatProblem vm prob | (_,vm,prob) <- problems]
+              probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
               case mapMaybe solve problems of
                 [] -> return Nothing -- No solutions, safe
                 xs -> liftM (Just . concat) $ mapM format xs
@@ -135,7 +135,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                Left err -> dieP m $ "Could not work with array indexes for array \"" ++ userArrName ++ "\": " ++ err
                Right [] -> return () -- No problems to work with
                Right problems -> do
-                 probs <- concatMapM id [formatProblem vm prob | (_,vm,prob) <- problems]
+                 probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
                  debug probs
                  case mapMaybe solve problems of
                    -- No solutions; no worries!
@@ -158,13 +158,22 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     getRealName :: A.Name -> m String
     getRealName n = lookupName n >>* A.ndOrigName
 
-    
+formatProblems :: CSMR m => [(VarMap, (EqualityProblem, InequalityProblem))] -> m String
+formatProblems probs = do formatted <- mapM (uncurry formatProblem) probs
+                          return $ concat [addNum i (lines p) | (p, i) <- zip formatted [0..]]
+  where
+    addNum :: Int -> [String] -> String
+    addNum i [] = ""
+    addNum i (p:ps) = unlines $
+      ("#" ++ show i ++ (if length (show i) == 1 then " :" else ":")
+        ++ p) : map ("    " ++) ps
+
 -- | Formats an entire problem ready to print it out half-legibly for debugging purposes
 formatProblem :: forall m. CSMR m => VarMap -> (EqualityProblem, InequalityProblem) -> m String
 formatProblem varToIndex (eq, ineq)
       = do feqs <- mapM (showWithConst "=") $ eq
            fineqs <- mapM (showWithConst ">=") $ ineq
-           return $ concat $ intersperse "\n" $ feqs ++ fineqs
+           return $ unlines $ feqs ++ fineqs
       where
         showWithConst :: String -> Array CoeffIndex Integer -> m String
         showWithConst op item = do text <- showEq item
