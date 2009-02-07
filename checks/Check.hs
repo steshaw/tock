@@ -150,42 +150,53 @@ filterPlain' :: CSMR m => ExSet Var -> m (ExSet Var)
 filterPlain' Everything = return Everything
 filterPlain' (NormalSet s) = filterPlain >>* flip Set.filter s >>* NormalSet
 
--- | I am not sure how you could build this out of the standard functions, so I built it myself
---Takes a list (let's say Y), a function that applies to a single item and a list, and then goes through applying the function
---to each item in the list, with the rest of the list Y as a parameter.  Perhaps the code is clearer:
-permuteHelper :: (a -> [a] -> b) -> [a] -> [b]
-permuteHelper _ [] = []
-permuteHelper func (x:xs) = permuteHelper' func [] x xs
-  where
-    permuteHelper' :: (a -> [a] -> b) -> [a] -> a -> [a] -> [b]
-    permuteHelper' func prev cur [] = [func cur prev]
-    permuteHelper' func prev cur (next:rest) = (func cur (prev ++ (next:rest))) : (permuteHelper' func (prev ++ [cur]) next rest)
-
 data VarsBK = VarsBK {
-  readVarsBK :: Map.Map Var [BK]
-  ,writtenVarsBK :: Map.Map Var ([A.Expression], [BK])
+  readVarsBK :: Map.Map Var BK
+  ,writtenVarsBK :: Map.Map Var ([A.Expression], BK)
 }
 
-foldUnionVarsBK :: [VarsBK] -> VarsBK
-foldUnionVarsBK = foldl join (VarsBK Map.empty Map.empty)
+-- | Unions all the maps into one, with possible BK for read, and possible BK for written.
+-- Since BK is a list which is a disjunction of things, we concatenate the BK for
+-- different things, because a variable access under conditions A, as well as a
+-- variable access under conditions B, is equivalent to a variable access in which
+-- condition A or condition B holds.
+foldUnionVarsBK :: [VarsBK] -> Map.Map Var (Maybe BK, Maybe BK)
+foldUnionVarsBK
+  -- unionWith, unlike intersectionWith, requires the same value type
+  -- for both maps in the union, so we must convert then join:
+  = Map.map squish . foldl (Map.unionWith concatPair) Map.empty . map convert
   where
-    join (VarsBK r w) (VarsBK r' w')
-      = VarsBK (Map.unionWith (++) r r') (Map.unionWith (\(x,y) (x',y') -> (x++x',y++y')) w w')
+    squish :: (BK, BK) -> (Maybe BK, Maybe BK)
+    squish = transformPair squish' squish'
+    squish' [] = Nothing
+    squish' as = Just as        
+
+    convert :: VarsBK -> Map.Map Var (BK, BK)
+    convert (VarsBK r w) = Map.unionWith concatPair (Map.map mkR r) (Map.map mkW w)
+
+    mkR bk = (bk, [])
+    mkW (_, bk) = ([], bk)
 
 checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
 checkPlainVarUsage (m, p) = check p
   where
     addBK :: BK -> Vars -> VarsBK
-    addBK bk vs = VarsBK (Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat [bk]))
-                         (Map.map (\me -> (maybeToList me, [bk])) $ writtenVars vs)
+    addBK bk vs = VarsBK (Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat bk))
+                         (Map.map (\me -> (maybeToList me, bk)) $ writtenVars vs)
 
     reps (RepParItem r p) = r : reps p
     reps (SeqItems _) = []
     reps (ParItems ps) = concatMap reps ps
 
-    getVars :: ParItems (BK, UsageLabel) -> VarsBK
+    getVars :: ParItems (BK, UsageLabel) -> Map.Map Var (Maybe BK, Maybe BK)
     getVars (SeqItems ss) = foldUnionVarsBK $ [addBK bk $ nodeVars u | (bk, u) <- ss]
-    getVars (ParItems ps) = foldUnionVarsBK $ map getVars ps
+    getVars (ParItems ps) = foldl (Map.unionWith join) Map.empty (map getVars ps)
+      where
+        join a b = (f (fst a) (fst b), f (snd a) (snd b))
+        f Nothing x = x
+        f x Nothing = x
+        f (Just x) (Just y) = Just (x ++ y)
+
     getVars (RepParItem _ p) = getVars p
 
     getDecl :: ParItems (BK, UsageLabel) -> [Var]
@@ -202,49 +213,56 @@ checkPlainVarUsage (m, p) = check p
     -- will be called on every single PAR in the whole tree
     check :: ParItems (BK, UsageLabel) -> m ()
     check (SeqItems {}) = return ()
-    check (ParItems ps) = sequence_ $ permuteHelper (checkCREW $ concatMap getDecl ps) (map getVars ps)
     check (RepParItem _ p) = check (ParItems [p,p]) -- Easy way to check two replicated branches
-    
-    checkCREW :: [Var] -> VarsBK -> [VarsBK] -> m ()
-    checkCREW decl item rest
+    -- We first need to ignore all names that are shared, or declared inside the
+    -- PAR that we are currently checking.  After that, we need to find all the
+    -- variables written to in two of the maps in a list, and all the variables
+    -- written to in one of the maps and read in another.  So we can find, for
+    -- all the variables written in a map, whether it is read in any other.
+    --
+    -- A quick way to do this is to do a fold-union across all the maps, turning
+    -- the values into lists that can then be scanned for any problems.
+    check (ParItems ps)
       = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (== NameShared)
              >>* Map.keysSet >>* (Set.map $ UsageCheckUtils.Var . A.Variable emptyMeta . A.Name emptyMeta)
-           writtenTwice <- filterPlain >>* flip filterMapByKey
-                             ((writtenVarsBK item
-                                 `intersect`
-                                writtenVarsBK otherVars
-                              ) `difference` (Set.fromList decl `Set.union` sharedNames)
-                             )
-           writtenAndRead <- filterPlain >>* flip filterMapByKey
-                               ((writtenVarsBK item
-                                    `intersect`
-                                 readVarsBK otherVars
-                                ) `difference` (Set.fromList decl `Set.union` sharedNames)
-                               )
-           checkBKReps
-               "The following variables are written-to in at least two places inside a PAR: % "
-               (Map.map (transformPair snd snd) writtenTwice)
-           checkBKReps
-               "The following variables are written-to and read-from in separate branches of a PAR: % "
-               (Map.map (transformPair snd id) writtenAndRead)
+           let decl = concatMap getDecl ps
+           filt <- filterPlain
+           let examineVars =
+                 map (filterMapByKey filt . (`difference` (Set.fromList decl `Set.union` sharedNames)))
+                   (map getVars ps)
+           checkCREW examineVars
       where
-        intersect :: Ord k => Map.Map k v -> Map.Map k v' -> Map.Map k (v, v')
-        intersect = Map.intersectionWith (,)
         difference m s = m `Map.difference` (Map.fromAscList $ zip (Set.toAscList
           s) (repeat ()))
-        otherVars = foldUnionVarsBK rest
 
-    checkBKReps :: String -> Map.Map Var ([BK], [BK]) -> m ()
-    checkBKReps _ vs | Map.null vs = return ()
-    checkBKReps msg vs
-      = do sols <- if null (reps p)
+    -- We must compare each read against all writes after us in the list,
+    -- and each write against all reads and writes after us in the list:
+    checkCREW :: [Map.Map Var (Maybe BK, Maybe BK)] -> m ()
+    checkCREW [] = return ()
+    checkCREW (m:ms) = do let folded = foldl (Map.unionWith concatPair) Map.empty $
+                                map (Map.map (transformPair maybeToList maybeToList)) ms
+
+                              reads = Map.map (fromJust . fst) $ Map.filter (isJust . fst) m
+                              writes = Map.map (fromJust . snd) $ Map.filter (isJust . snd) m
+                          sequence_ [checkBKReps msg v bk bks
+                                    | (v, (bk, bks)) <- Map.toList $ Map.intersectionWith (,)
+                                      reads (Map.map snd folded)]
+                          sequence_ [checkBKReps msg v bk (bks++bks')
+                                    | (v, (bk, (bks, bks'))) <- Map.toList $ Map.intersectionWith (,)
+                                      writes folded]
+                          checkCREW ms
+      where
+        msg = "The following variables are written and (written-to/read-from) inside a PAR: % when: "
+    checkBKReps :: String -> Var -> BK -> [BK] -> m ()
+    checkBKReps _ _ _ [] = return ()
+    checkBKReps msg v bk bks
+      = do sol <- if null (reps p)
                      -- If there are no replicators, it's definitely dangerous:
-                     then return $ Map.map (const $ [Just ""]) $ vs
-                     else mapMapM (mapM (findRepSolutions (reps p)) . map (uncurry (++)) . product2) vs
-           case Map.filter (not . null) $ Map.map catMaybes sols of
-             vs' | Map.null vs' -> return ()
-                 | otherwise -> diePC m $ formatCode (msg ++ concat (concat
-                   $ Map.elems vs')) (Map.keysSet vs')
+                     then return $ Just "<always>"
+                     else findRepSolutions (reps p) (bk:bks)
+           case sol of
+             Nothing -> return ()
+             Just sol' -> diePC m $ formatCode (msg ++ sol') v
 
 showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
