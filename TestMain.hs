@@ -66,7 +66,7 @@ import Test.HUnit
 import qualified AnalyseAsmTest (tests)
 import qualified ArrayUsageCheckTest (vioqcTests)
 import qualified BackendPassesTest (qcTests)
-import qualified CheckTest (tests)
+import qualified CheckTest (viotests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
@@ -188,7 +188,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               noqc AnalyseAsmTest.tests
               ,ArrayUsageCheckTest.vioqcTests v
               ,return BackendPassesTest.qcTests
-              ,noqc CheckTest.tests
+              ,noqcButIO $ CheckTest.viotests v
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests

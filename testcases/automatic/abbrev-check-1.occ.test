@@ -1,0 +1,55 @@
+-- This file tests abbreviation checking
+
+PROC m()
+  INT x:
+%%
+:
+
+%PASS Normal abbreviation, used properly
+  INT z IS x:
+  z := 3
+%FAIL Normal abbreviation, used improperly
+  INT z IS x:
+  x := 3
+%FAIL Val abbreviation, used improperly
+  VAL INT z IS x:
+  z := 3
+%FAIL Val abbreviation, used improperly 2
+  VAL INT z IS x:
+  x := 3
+%FAIL Val abbreviation, used properly
+  VAL INT z IS x:
+  INT y:
+  y := z
+%PASS Formal normal abbreviation, used properly
+  PROC p(INT y)
+    y := 2
+  :
+  p(x)
+%PASS Formal val abbreviation, used properly
+  PROC p(VAL INT y)
+    INT z:
+    z := y
+  :
+  p(x)
+%FAIL Formal val abbreviation, used improperly
+  PROC p(VAL INT y)
+    y := 3
+  :
+  p(x)
+%FAIL Formal normal abbreviation, overlaps (bad -- KRoC disallows)
+  PROC p(INT y)
+    y := x
+  :
+  p(x)
+%PASS Formal val abbreviation, overlaps (KRoC disallows, I'm unsure)
+  PROC p(VAL INT y)
+    x := y
+  :
+  p(x)
+%PASS Formal normal abbreviation, overlaps, no call
+  PROC p(INT y)
+    y := x
+  :
+  x := 3
+%

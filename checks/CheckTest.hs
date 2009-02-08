@@ -16,15 +16,18 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module CheckTest (tests) where
+module CheckTest (viotests) where
 
+import Control.Monad
 import Test.HUnit
 
 import qualified AST as A
 import Check
 import CheckFramework
+import CompState
 import Metadata
 import OccamEDSL
+import TestHarness
 import TestUtils
 
 testUnusedVar :: Test
@@ -98,10 +101,11 @@ testUnusedVar = TestList
    testWarn n name x = testOccamPassWarn ("checkUnusedVar " ++ name) ((== n) . length) x
      (runChecksPass checkUnusedVar)
 
-tests :: Test
-tests = TestLabel "CheckTest" $ TestList
+viotests :: Int -> IO Test
+viotests v = liftM (TestLabel "CheckTest" . TestList) $ sequence
  [
-  testUnusedVar
+  return testUnusedVar
+ ,automaticTest FrontendOccam v "testcases/automatic/abbrev-check-1.occ.test"
  ]
 
 
