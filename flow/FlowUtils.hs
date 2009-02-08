@@ -229,7 +229,7 @@ withDeclName n m = do st <- get
                       put $ st {nameStack = n : nameStack st}
                       x <- m
                       st' <- get
-                      put $ st' {nameStack = tail $ nameStack st}
+                      put $ st' {nameStack = tail $ nameStack st'}
                       return x
 
 withDeclSpec :: (Monad mLabel, Monad mAlter) =>
