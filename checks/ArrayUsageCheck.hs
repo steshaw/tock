@@ -446,7 +446,8 @@ transformBKList f bk = mapM (transformBK f) bk >>* foldl accumProblem ([],[])
 makeSingleEq :: ([FlattenedExp] -> [FlattenedExp]) -> A.Expression -> String -> StateT VarMap (Either String) EqualityConstraintEquation
 makeSingleEq f e desc = (lift (flatten e) >>* f) >>= makeEquation e ([{-TODO-}],
   f) (error $ "Type is irrelevant for " ++ desc)
-  >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc)
+  >>= getSingleAccessItem ("Modulo or Divide not allowed in " ++ desc
+        ++ "(while processing: " ++ showOccam e ++ ")")
 
 -- | A helper function for joining two problems
 accumProblem :: (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem) -> (EqualityProblem,InequalityProblem)
