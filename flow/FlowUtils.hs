@@ -90,7 +90,13 @@ type NodesEdges m a b = ([LNode (FNode' b m a)],[LEdge EdgeLabel])
 -- * The list of nodes and edges to put into the graph
 -- * The list of root nodes thus far (those with no links to them)
 -- * The list of terminator nodes thus far (those with no links from them)
-type GraphMakerState mAlter a b = (Node, Int, NodesEdges mAlter a b, [Node], [Node])
+data GraphMakerState mAlter a b = GraphMakerState
+  { nextNodeId :: Node
+  , nextParId :: Int
+  , graphNodesEdges :: NodesEdges mAlter a b
+  , rootNodes :: [Node]
+  , termNodes :: [Node]
+  }
 
 type GraphMaker mLabel mAlter a b c = ErrorT String (ReaderT (GraphLabelFuncs mLabel a) (StateT (GraphMakerState mAlter a b) mLabel)) c
 
@@ -178,27 +184,30 @@ run func x = do f <- asks func
                 lift . lift .lift $ f x
 
 addNode :: (Monad mLabel, Monad mAlter) => (Meta, label, AlterAST mAlter structType) -> GraphMaker mLabel mAlter label structType Node
-addNode x = do (n,pi,(nodes, edges), rs, ts) <- get
-               put (n+1, pi,((n, Node x):nodes, edges), rs, ts)
-               return n
+addNode x = do st <- get
+               let (nodes, edges) = graphNodesEdges st
+               put $ st { nextNodeId = nextNodeId st + 1
+                        , graphNodesEdges = ((nextNodeId st, Node x):nodes, edges)
+                        }
+               return $ nextNodeId st
     
 denoteRootNode :: (Monad mLabel, Monad mAlter) => Node -> GraphMaker mLabel mAlter label structType ()
-denoteRootNode root = do (n, pi, nes, roots, ts) <- get
-                         put (n, pi, nes, root : roots, ts)
+denoteRootNode root = modify $ \st -> st {rootNodes = root : rootNodes st}
 
 denoteTerminatorNode :: (Monad mLabel, Monad mAlter) => Node -> GraphMaker mLabel mAlter label structType ()
-denoteTerminatorNode t = do (n, pi, nes, roots, ts) <- get
-                            put (n, pi, nes, roots, t : ts)
+denoteTerminatorNode t = modify $ \st -> st {termNodes = t : termNodes st}
 
     
 addEdge :: (Monad mLabel, Monad mAlter) => EdgeLabel -> Node -> Node -> GraphMaker mLabel mAlter label structType ()
-addEdge label start end = do (n, pi, (nodes, edges), rs, ts) <- get
+addEdge label start end = do st <- get
+                             let (nodes,edges) = graphNodesEdges st
                              -- Edges should only be added after the nodes, so
                              -- for safety here we can check that the nodes exist:
                              if (notElem start $ map fst nodes) || (notElem end $ map fst nodes)
                                then throwError "Could not add edge between non-existent nodes"
-                               else put (n + 1, pi, (nodes,(start, end, label):edges), rs,
-                                 ts)
+                               else put $ st { nextNodeId = nextNodeId st + 1
+                                             , graphNodesEdges = (nodes,(start, end, label):edges)
+                                             }
 
 -- It is important for the flow-graph tests that the Meta tag passed in is the same as the
 -- result of calling findMeta on the third parameter
@@ -217,14 +226,15 @@ addDummyNode :: (Monad mLabel, Monad mAlter) => Meta -> ASTModifier mAlter a str
 addDummyNode m mod = addNode' m labelDummy m (AlterNothing $ routeId mod)
 
 getNextParEdgeId :: (Monad mLabel, Monad mAlter) => GraphMaker mLabel mAlter label structType Int
-getNextParEdgeId = do (a, pi, b, c, d) <- get
-                      put (a, pi + 1, b, c, d)
-                      return pi
+getNextParEdgeId = do st <- get
+                      put $ st {nextParId = nextParId st + 1}
+                      return $ nextParId st
 
 addParEdges :: (Monad mLabel, Monad mAlter) => Int -> (Node,Node) -> [(Node,Node)] -> GraphMaker mLabel mAlter label structType ()
 addParEdges usePI (s,e) pairs
-  = do (n,pi,(nodes,edges),rs,ts) <- get
-       put (n,pi,(nodes,edges ++ (concatMap (parEdge usePI) pairs)),rs,ts)
+  = do st <- get
+       let (nodes,edges) = graphNodesEdges st
+       put $ st {graphNodesEdges = (nodes,edges ++ (concatMap (parEdge usePI) pairs))}
   where
     parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
     parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
