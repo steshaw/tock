@@ -102,9 +102,13 @@ followBK = map followBK'
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
   Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp mp2 g nid n = fmap ((,) $ followBK (map (Map.fromListWith (++)) $ productN $ conBK ++
-  repBK ++ values)) n
+addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith (++)) $
+  productN $ conBK ++ repBK ++ values)) n
   where
+    keepDefined :: Map.Map Var a -> Map.Map Var a
+    keepDefined m = Map.intersection m $ Map.fromList
+      [(Var (A.Variable emptyMeta (A.Name emptyMeta n)), ()) | n <- getNodeNames n]
+    
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
     nodeInQuestion = fromMaybe Map.empty $ Map.lookup nid mp
 
