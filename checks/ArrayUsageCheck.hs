@@ -391,6 +391,7 @@ data BackgroundKnowledge
   = Equal A.Expression A.Expression
     | LessThanOrEqual A.Expression A.Expression
     | RepBoundsIncl A.Variable A.Expression A.Expression
+  deriving (Typeable, Data)
 
 instance Show BackgroundKnowledge where
   show (Equal e e') = showOccam e ++ " = " ++ showOccam e'

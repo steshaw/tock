@@ -75,10 +75,34 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
 --                      mapM_ (checkInitVar (findMeta t) g) roots
                       return t
 
+-- | For each entry in the BK, finds all the variables involved in a given piece
+-- of BK and adds the BK from all other variables.  For example, let's say that
+-- the BK for variable x is "x = y".  This function will add, under the key of
+-- x, the BK from variable y, which might be say, "y <= z + 1", at which point
+-- it will add the BK for z to the entry for x and so on.
+followBK :: BK -> BK
+followBK = map followBK'
+  where
+    followBK' :: Map.Map Var [BackgroundKnowledge] -> Map.Map Var [BackgroundKnowledge]
+    followBK' m = Map.mapWithKey addAll m
+      where
+        addAll :: Var -> [BackgroundKnowledge] -> [BackgroundKnowledge]
+        addAll v = addAll' (Set.singleton v)
+
+        addAll' :: Set.Set Var -> [BackgroundKnowledge] -> [BackgroundKnowledge]
+        addAll' prev bk
+          | Set.null (next `Set.difference` prev) = bk
+          | otherwise = bk ++ addAll' (next `Set.union` prev)
+                          (concat $ mapMaybe (flip Map.lookup m) (Set.toList $
+                            next `Set.difference` prev))
+          where
+            next = Set.fromList $ map Var $ listify (const True :: A.Variable -> Bool) bk
+
+
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
   Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp mp2 g nid n = fmap ((,) $ (map (Map.fromListWith (++)) $ productN $ conBK ++
+addBK mp mp2 g nid n = fmap ((,) $ followBK (map (Map.fromListWith (++)) $ productN $ conBK ++
   repBK ++ values)) n
   where
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
@@ -134,17 +158,13 @@ addBK mp mp2 g nid n = fmap ((,) $ (map (Map.fromListWith (++)) $ productN $ con
             v = A.Variable m n
             bk = [ RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)]
     
--- filter out replicators, leave everything else in:
+-- filter out array accesses, leave everything else in:
 filterPlain :: CSMR m => m (Var -> Bool)
-filterPlain = do defs <- getCompState >>* (Map.map A.ndSpecType . csNames)
-                 return $ plain defs
+filterPlain = return isPlain
   where
-    plain defs (Var v) = all nonRep (listify (const True :: A.Variable -> Bool) v)
-      where
-        nonRep (A.Variable _ n) = case Map.lookup (A.nameName n) defs of
-          Just (A.Rep {}) -> False
-          _ -> True
-        nonRep _ = True
+    isPlain (Var (A.SubscriptedVariable _ (A.SubscriptField {}) v)) = isPlain (Var v)
+    isPlain (Var (A.SubscriptedVariable {})) = False
+    isPlain _ = True
 
 filterPlain' :: CSMR m => ExSet Var -> m (ExSet Var)
 filterPlain' Everything = return Everything
