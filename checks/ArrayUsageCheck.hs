@@ -81,15 +81,15 @@ findRepSolutions reps bks
             Right problems -> do
               probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
               debug $ "Problems in findRepSolutions:\n" ++ probs
-              case mapMaybe solve problems of
+              case catMaybes [fmap ((,) i) $ solve p | (i::Integer, p) <- zip [0..] problems] of
                 [] -> return Nothing -- No solutions, safe
                 xs -> liftM (Just . unlines) $ mapM format xs
             res -> error $ "Unexpected reachability result"
   where
     maxInt = makeConstant emptyMeta $ fromInteger $ toInteger (maxBound :: Int32)
 
-    format ((lx,ly),varMapping,vm,problem)
-      = formatSolution varMapping (getCounterEqs vm)
+    format (i, ((lx,ly),varMapping,vm,problem))
+      = formatSolution varMapping (getCounterEqs vm) >>* (("#" ++ show i ++ ": ") ++)
 
     addReps = flip (foldl $ flip RepParItem) reps
 
@@ -185,9 +185,18 @@ formatProblems probs = do formatted <- mapM (uncurry formatProblem) probs
 formatProblem :: forall m. CSMR m => VarMap -> (EqualityProblem, InequalityProblem) -> m String
 formatProblem varToIndex (eq, ineq)
       = do feqs <- mapM (showWithConst "=") $ eq
-           fineqs <- mapM (showWithConst ">=") $ ineq
+           fineqs <- mapM (\e -> if allNegative e
+                                   then showWithConst "<=" (negateAll e)
+                                   else showWithConst ">=" e) $ ineq
            return $ unlines $ feqs ++ fineqs
       where
+        --Returns true if all the variable coefficients are negative (ignoring
+        -- the constant term)
+        allNegative :: Array CoeffIndex Integer -> Bool
+        allNegative = all (<= 0) . tail . elems
+        negateAll :: Array CoeffIndex Integer -> Array CoeffIndex Integer
+        negateAll = amap negate
+        
         showWithConst :: String -> Array CoeffIndex Integer -> m String
         showWithConst op item = do text <- showEq item
                                    return $
