@@ -99,6 +99,13 @@ checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems (BK, 
 checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     groupArrayIndexes $ fmap (transformPair id nodeVars) p
   where
+    getDecl :: UsageLabel -> Maybe String
+    getDecl = join . fmap getScopeIn . nodeDecl
+      where
+        getScopeIn (ScopeIn _ n) = Just n
+        getScopeIn _ = Nothing
+
+    
     -- Takes a ParItems Vars, and returns a map from array-variable-name to a list of writes and a list of reads for that array.
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems (BK, Vars) -> Map.Map String (ParItems (BK, [A.Expression], [A.Expression]))
@@ -135,7 +142,8 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     checkIndexes :: Meta -> (String, ParItems (BK, [A.Expression], [A.Expression])) -> m ()
     checkIndexes m (arrName, indexes) = do
       sharedNames <- getCompState >>* csNameAttr
-      when (Map.lookup arrName sharedNames /= Just NameShared) $
+      let declNames = [x | Just x <- fmap (getDecl . snd) $ flattenParItems p]
+      when (Map.lookup arrName sharedNames /= Just NameShared && arrName `notElem` declNames) $
         do userArrName <- getRealName (A.Name undefined arrName)
            arrType <- astTypeOf (A.Name undefined arrName)
            arrLength <- case arrType of

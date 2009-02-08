@@ -48,4 +48,12 @@ PROC m()
     PAR j = 0 FOR 2
       b[(j * 8) + i] := 3
 
+%PASS Safe use of variable declared inside PAR
+    [10]INT c:
+    c[0] := 1
+%PASS Safe parallel use of variable declared inside PAR
+    [10]INT c:
+    PAR
+      c[0] := 1
+      c[1] := 2
 %
