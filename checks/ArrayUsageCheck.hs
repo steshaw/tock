@@ -80,6 +80,7 @@ findRepSolutions reps bks
                                            | bk <- bks]) maxInt of
             Right problems -> do
               probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
+              debug $ "Problems in findRepSolutions:\n" ++ probs
               case mapMaybe solve problems of
                 [] -> return Nothing -- No solutions, safe
                 xs -> liftM (Just . unlines) $ mapM format xs
@@ -148,7 +149,7 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
                Right [] -> return () -- No problems to work with
                Right problems -> do
                  probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
-                 debug probs
+                 debug $ "Problems in checkArrayUsage:\n" ++ probs
                  case mapMaybe solve problems of
                    -- No solutions; no worries!
                    [] -> return ()

@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- #ignore-exports
 
 -- | Tests for 'OccamTypes'.
-module OccamTypesTest (ioTests) where
+module OccamTypesTest (vioTests) where
 
 import Control.Monad.State
 import Data.Generics
@@ -631,12 +631,12 @@ testOccamTypes = TestList
 
     --}}}
 
-ioTests :: IO Test
-ioTests = liftM (TestLabel "OccamTypesTest" . TestList) $ sequence $
+vioTests :: Int -> IO Test
+vioTests v = liftM (TestLabel "OccamTypesTest" . TestList) $ sequence $
     map return
         [ testOccamTypes
         ]
-    ++ map (automaticTest FrontendOccam)
+    ++ map (automaticTest FrontendOccam v)
         [ "testcases/automatic/direction-decorators-1.occ.test"
         , "testcases/automatic/direction-decorators-2.occ.test"
         , "testcases/automatic/direction-decorators-3.occ.test"

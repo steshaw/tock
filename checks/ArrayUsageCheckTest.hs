@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ArrayUsageCheckTest (ioqcTests) where
+module ArrayUsageCheckTest (vioqcTests) where
 
 import Control.Monad.Identity
 import Control.Monad.State
@@ -1164,8 +1164,8 @@ qcOmegaPrune = [("Omega Test Pruning", scaleQC (100,1000,10000,50000) prop)]
         result = undefined -- TODO replace solveAndPrune: solveProblem [] inp
     -}
     
-ioqcTests :: IO (Test, [LabelledQuickCheckTest])
-ioqcTests
+vioqcTests :: Int -> IO (Test, [LabelledQuickCheckTest])
+vioqcTests v
   = seqPair
       (liftM (TestLabel "ArrayUsageCheckTest" . TestList) $ sequence $
         map return [
@@ -1173,7 +1173,7 @@ ioqcTests
          ,testIndexes
          ,testMakeEquations
          ]
-        ++ map (automaticTest FrontendOccam)
+        ++ map (automaticTest FrontendOccam v)
          ["testcases/automatic/usage-check-1.occ.test"
          ,"testcases/automatic/usage-check-2.occ.test"
          ,"testcases/automatic/usage-check-3.occ.test"

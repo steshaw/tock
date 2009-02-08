@@ -66,33 +66,32 @@ data AutoTest = AutoTest
   , bodies :: [TestBody]
   }
 
-automaticTest :: CompFrontend -> FilePath -> IO Test
-automaticTest fr fileName = readFile fileName >>* performTest fr fileName
+automaticTest :: CompFrontend -> Int -> FilePath -> IO Test
+automaticTest fr verb fileName = readFile fileName >>* performTest fr verb fileName
 
--- Bit of a hard-hack, until usage-checking is on by default:
-defaultState :: CompFrontend -> CompState
-defaultState fr = emptyState {csUsageChecking = True, csFrontend = fr}
+defaultState :: CompFrontend -> Int -> CompState
+defaultState fr v = emptyState {csVerboseLevel = v, csFrontend = fr}
 
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
-testOccam :: String -> IO (Maybe String)
-testOccam source = do (result,_) <- runPassM (defaultState FrontendOccam) compilation
-                      return $ case result of
+testOccam :: Int -> String -> IO (Maybe String)
+testOccam v source = do (result,_) <- runPassM (defaultState FrontendOccam v) compilation
+                        return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
   where
     compilation = preprocessOccamSource source
                   >>= parseOccamProgram
-                  >>= runPasses (getPassList $ defaultState FrontendOccam)
+                  >>= runPasses (getPassList $ defaultState FrontendOccam v)
 
-testRain :: String -> IO (Maybe String)
-testRain  source = do (result,_) <- runPassM (defaultState FrontendRain) compilation
-                      return $ case result of
+testRain :: Int -> String -> IO (Maybe String)
+testRain v source = do (result,_) <- runPassM (defaultState FrontendRain v) compilation
+                       return $ case result of
                                  Left (_,err) -> Just err
                                  Right _  -> Nothing
   where
     compilation = parseRainProgram "<test>" source
-                  >>= runPasses (getPassList $ defaultState FrontendRain)
+                  >>= runPasses (getPassList $ defaultState FrontendRain v)
 
 -- | Substitutes each substitution into the prologue
 substitute :: AutoTest -> Either String [(Bool, String, String)]
@@ -113,8 +112,8 @@ substitute t = sequence [ do ls <- execWriterT $ subst n (prologueLines t, ss)
 
 
 -- | Given a file's contents, tests it
-performTest :: CompFrontend -> String -> String -> Test
-performTest fr fileName fileContents
+performTest :: CompFrontend -> Int -> String -> String -> Test
+performTest fr v fileName fileContents
   = case parseTestFile fileContents of
       Left err -> TestCase $ assertFailure $ "Error processing file \"" ++ fileName ++ "\": " ++ err
       Right test -> TestLabel fileName $ TestList $
@@ -126,7 +125,7 @@ performTest fr fileName fileContents
     performTest' :: (Bool, String, String) -> Test
     performTest' (expPass, testName, testText)
       = TestCase $ 
-        do result <- (if fr == FrontendOccam then testOccam else testRain) testText
+        do result <- (if fr == FrontendOccam then testOccam else testRain) v testText
            case result of
              Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ err) else return ()
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")

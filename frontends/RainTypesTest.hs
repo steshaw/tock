@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | A module testing things from the RainTypes module.
-module RainTypesTest (ioTests) where
+module RainTypesTest (vioTests) where
 
 import Control.Monad.State
 import Control.Monad.Error
@@ -108,10 +108,10 @@ testUnify = TestList [] {-
      where
        names = take (min (length xs) (length ys)) $ map (:[]) ['a'..]
 -}
-ioTests :: IO Test
-ioTests = liftM (TestLabel "RainTypesTest" . TestList) $ sequence
+vioTests :: Int -> IO Test
+vioTests v = liftM (TestLabel "RainTypesTest" . TestList) $ sequence
  [
   return constantFoldTest
   ,return testUnify
-  ,automaticTest FrontendRain "testcases/automatic/unify-types-1.rain.test"
+  ,automaticTest FrontendRain v "testcases/automatic/unify-types-1.rain.test"
  ]

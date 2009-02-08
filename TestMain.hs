@@ -64,19 +64,19 @@ import System.IO
 import Test.HUnit
 
 import qualified AnalyseAsmTest (tests)
-import qualified ArrayUsageCheckTest (ioqcTests)
+import qualified ArrayUsageCheckTest (vioqcTests)
 import qualified BackendPassesTest (qcTests)
 import qualified CheckTest (tests)
 import qualified CommonTest (tests)
 import qualified FlowGraphTest (qcTests)
 import qualified GenerateCTest (tests)
 import qualified OccamPassesTest (tests)
-import qualified OccamTypesTest (ioTests)
+import qualified OccamTypesTest (vioTests)
 import qualified ParseRainTest (tests)
 import qualified PassTest (tests)
 import qualified PreprocessOccamTest (tests)
 import qualified RainPassesTest (tests)
-import qualified RainTypesTest (ioTests)
+import qualified RainTypesTest (vioTests)
 import qualified SimplifyAbbrevsTest (tests)
 import qualified SimplifyTypesTest (tests)
 import qualified StructureOccamTest (tests)
@@ -89,6 +89,7 @@ data TestOption =
   | OutputType Bool -- True is plain, False is erasing
   | ListTests
   | RunJust String
+  | Verbose
   deriving (Eq)
 
 type TestSet = (Test, [LabelledQuickCheckTest])
@@ -109,7 +110,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
                        Right level -> return level
                        Left unknown -> err $ "Unknown level: " ++ unknown
 
-          allSets <- sequence tests
+          allSets <- sequence $ tests opts
           let labelled = getLabels allSets
           selectedSets <-
             case (find (== ListTests) opts, findJust opts) of
@@ -144,6 +145,7 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
               , Option [] ["plain"] (NoArg (OutputType True)) "Show the test output as plain text"
               , Option ['l'] ["list-tests"] (NoArg (ListTests)) "Show the top-level test names"
               , Option ['f'] ["filter"] (ReqArg RunJust "TESTNAME") "Run just the tests that have this in their name (use -l to list)"
+              , Option ['v'] ["verbose"] (NoArg Verbose) "be more verbose (use multiple times for more detail)"
               ]
     
     findLevel :: [TestOption] -> Either String (Maybe QuickCheckLevel)
@@ -181,27 +183,29 @@ main = do (opts, nonOpts, errs) <- getArgs >>* getOpt RequireOrder options
         getLabel _ t@(TestLabel label _, _) = (label, t)
         getLabel n t = ("Unknown test: " ++ show n, t)
 
-    tests :: [IO TestSet]
-    tests = [
+    tests :: [TestOption] -> [IO TestSet]
+    tests opts = [
               noqc AnalyseAsmTest.tests
-              ,ArrayUsageCheckTest.ioqcTests
+              ,ArrayUsageCheckTest.vioqcTests v
               ,return BackendPassesTest.qcTests
               ,noqc CheckTest.tests
               ,noqc CommonTest.tests
               ,return FlowGraphTest.qcTests
               ,noqc GenerateCTest.tests
               ,noqc OccamPassesTest.tests
-              ,noqcButIO OccamTypesTest.ioTests
+              ,noqcButIO $ OccamTypesTest.vioTests v
               ,noqc ParseRainTest.tests
               ,noqc PassTest.tests
               ,noqc PreprocessOccamTest.tests
               ,noqc RainPassesTest.tests
-              ,noqcButIO RainTypesTest.ioTests
+              ,noqcButIO $ RainTypesTest.vioTests v
               ,noqc SimplifyAbbrevsTest.tests
               ,noqc SimplifyTypesTest.tests
               ,noqc StructureOccamTest.tests
               ,noqc UsageCheckTest.tests
             ]
+      where
+        v = length $ filter (== Verbose) opts
 
     noqc :: Test -> IO (Test, [LabelledQuickCheckTest])
     noqc t = return (t,[])
