@@ -1,0 +1,119 @@
+-- This file checks the array usage checking on channel arrays
+
+PROC read(CHAN OF INT c)
+  INT x:
+  c ? x
+:
+
+PROC write(CHAN OF INT c)
+  c ! 0
+:
+
+PROC both(CHAN OF INT c)
+  INT x:
+  SEQ
+    c ? x
+    c ! x
+:
+
+PROC both.2(CHAN OF INT c, CHAN OF INT d)
+  PAR
+    read(c)
+    write(d)
+:
+
+PROC m()
+  [10]CHAN OF INT c:
+%%
+:
+
+%PASS Safe direct parallel use of distinct
+  PAR
+    write(c[0])
+    read(c[1])
+    both(c[2])
+%PASS Safe direct parallel use with overlap
+  PAR
+    write(c[0])
+    read(c[0])
+    both(c[1])
+%FAIL Unsafe direct parallel use
+  PAR
+    write(c[0])
+    both(c[0])
+
+%PASS Safe replicated parallel use of distinct
+  PAR i = 0 FOR 10
+    both(c[i])
+
+%PASS Safe replicated parallel use with overlap #1
+  PAR i = 0 FOR 10
+    PAR
+      write(c[i])
+      read(c[i])
+%PASS Safe replicated parallel use with overlap #2
+  PAR
+    PAR i = 0 FOR 10
+      write(c[i])
+    PAR j = 0 FOR 10
+      read(c[j])
+%PASS Safe replicated parallel use with overlap #3
+  PAR
+    PAR i = 0 FOR 5
+      write(c[i])
+    PAR j = 0 FOR 5
+      read(c[j])
+    PAR i = 5 FOR 5
+      write(c[i])
+    PAR j = 5 FOR 5
+      read(c[j])
+%PASS Safe replicated parallel use with overlap #4
+  PAR
+    PAR i = 0 FOR 10
+      IF
+        i >= 5
+          write(c[i])
+        TRUE
+          read(c[i])
+    PAR j = 0 FOR 10
+      IF
+        j >= 5
+          read(c[j])
+        TRUE
+          write(c[i])
+%FAIL Unsafe replicated parallel use with overlap #3
+  PAR
+    PAR i = 0 FOR 5
+      write(c[i])
+    PAR j = 0 FOR 5
+      read(c[j])
+    PAR i = 4 FOR 5
+      write(c[i])
+    PAR j = 5 FOR 5
+      read(c[j])
+
+%PASS Safe overlapping use with modulo (ring)
+  PAR i = 0 FOR 10
+    both.2(c[i],c[(i + 1) \ 10])
+%FAIL Unsafe overlapping use with modulo (ring)
+  PAR i = 0 FOR 11
+    both.2(c[i],c[(i + 1) \ 10])
+
+%PASS Safe overlapping use with modulo (pipeline)
+  PAR
+    PAR i = 0 FOR 9
+      both.2(c[i],c[(i + 1) \ 10])
+    c[0] ! 3
+    INT x:
+    c[9] ? x
+
+%FAIL Unsafe overlapping use with modulo (pipeline)
+  PAR
+    PAR i = 0 FOR 9
+      both.2(c[(i + 1) \ 10],c[i])
+    c[0] ! 3
+    INT x:
+    c[9] ? x
+
+
+%
