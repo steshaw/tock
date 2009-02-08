@@ -61,10 +61,10 @@ data AlterAST m structType =
  deriving (Show)
 
 data Monad mAlter => FNode' structType mAlter label
-  = Node (Meta, label, AlterAST mAlter structType)
+  = Node (Meta, label, [String], AlterAST mAlter structType)
 
 instance Monad m => Functor (FNode' s m) where
-  fmap f (Node (m, l, a)) = Node (m, f l, a)
+  fmap f (Node (m, l, ns, a)) = Node (m, f l, ns, a)
 
 -- | The label for a node.  A Meta tag, a custom label, and a function
 -- for altering the part of the AST that this node came from
@@ -72,7 +72,7 @@ type FNode mAlter label = FNode' () mAlter label
 --type FEdge = (Node, EdgeLabel, Node)
 
 instance (Monad m, Show a) => Show (FNode' b m a) where
-  show (Node (m,x,r)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x ++ "<" ++ show r
+  show (Node (m,x,_,r)) = (filter ((/=) '\"')) $ show m ++ ":" ++ show x ++ "<" ++ show r
 
 type FlowGraph' mAlter label structType = Gr (FNode' structType mAlter label) EdgeLabel
 
@@ -96,6 +96,7 @@ data GraphMakerState mAlter a b = GraphMakerState
   , graphNodesEdges :: NodesEdges mAlter a b
   , rootNodes :: [Node]
   , termNodes :: [Node]
+  , nameStack :: [String]
   }
 
 type GraphMaker mLabel mAlter a b c = ErrorT String (ReaderT (GraphLabelFuncs mLabel a) (StateT (GraphMakerState mAlter a b) mLabel)) c
@@ -121,13 +122,16 @@ data Monad m => GraphLabelFuncs m label = GLF {
   }
 
 getNodeMeta :: Monad m => FNode' b m a -> Meta
-getNodeMeta (Node (m,_,_)) = m
+getNodeMeta (Node (m,_,_,_)) = m
 
 getNodeData :: Monad m => FNode' b m a -> a
-getNodeData (Node (_,d,_)) = d
+getNodeData (Node (_,d,_,_)) = d
 
 getNodeFunc :: Monad m => FNode' b m a -> AlterAST m b
-getNodeFunc (Node (_,_,f)) = f
+getNodeFunc (Node (_,_,_,f)) = f
+
+getNodeNames :: Monad m => FNode' b m a -> [String]
+getNodeNames (Node (_,_,ns,_)) = ns
 
 getNodeRouteId :: Monad m => FNode' b m a -> [Int]
 getNodeRouteId = get . getNodeFunc
@@ -142,7 +146,7 @@ getNodeRouteId = get . getNodeFunc
     get (AlterNothing r) = r
 
 makeTestNode :: Monad m => Meta -> a -> FNode m a
-makeTestNode m d = Node (m,d,undefined)
+makeTestNode m d = Node (m,d,[],undefined)
 
 -- | Builds the instructions to send to GraphViz
 makeFlowGraphInstr :: (Monad m, Show a, Data b) => FlowGraph' m a b -> String
@@ -184,10 +188,12 @@ run func x = do f <- asks func
                 lift . lift .lift $ f x
 
 addNode :: (Monad mLabel, Monad mAlter) => (Meta, label, AlterAST mAlter structType) -> GraphMaker mLabel mAlter label structType Node
-addNode x = do st <- get
+addNode (x, y, z)
+          = do st <- get
                let (nodes, edges) = graphNodesEdges st
                put $ st { nextNodeId = nextNodeId st + 1
-                        , graphNodesEdges = ((nextNodeId st, Node x):nodes, edges)
+                        , graphNodesEdges = ((nextNodeId st,
+                            Node (x,y,nameStack st, z)):nodes, edges)
                         }
                return $ nextNodeId st
     
@@ -214,7 +220,24 @@ addEdge label start end = do st <- get
 addNode' :: (Monad mLabel, Monad mAlter) => Meta -> (GraphLabelFuncs mLabel label -> (b -> mLabel label)) -> b -> AlterAST mAlter structType -> GraphMaker mLabel mAlter label structType Node
 addNode' m f t r = do val <- run f t
                       addNode (m, val, r)
-    
+
+withDeclName :: (Monad mLabel, Monad mAlter) =>
+                String ->
+                GraphMaker mLabel mAlter label structType a ->
+                GraphMaker mLabel mAlter label structType a
+withDeclName n m = do st <- get
+                      put $ st {nameStack = n : nameStack st}
+                      x <- m
+                      st' <- get
+                      put $ st' {nameStack = tail $ nameStack st}
+                      return x
+
+withDeclSpec :: (Monad mLabel, Monad mAlter) =>
+                A.Specification ->
+                GraphMaker mLabel mAlter label structType a ->
+                GraphMaker mLabel mAlter label structType a
+withDeclSpec (A.Specification _ n _) = withDeclName (A.nameName n)
+
 addNodeExpression :: (Monad mLabel, Monad mAlter) => Meta -> A.Expression -> (ASTModifier mAlter A.Expression structType) -> GraphMaker mLabel mAlter label structType Node
 addNodeExpression m e r = addNode' m labelExpression e (AlterExpression r)
 

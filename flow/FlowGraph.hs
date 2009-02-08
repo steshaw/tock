@@ -96,7 +96,7 @@ buildStructuredAST (A.Several _ ss) route
        return () 
 buildStructuredAST (A.Spec _ spec str) route
   = do buildProcessOrFunctionSpec spec (route23 route A.Spec)
-       buildStructuredAST str (route33 route A.Spec)
+       withDeclSpec spec $ buildStructuredAST str (route33 route A.Spec)
 buildStructuredAST s _ = throwError $ "Unexpected element at top-level: " ++ show s
 
 buildStructuredEL :: (Monad mLabel, Monad mAlter) => A.Structured A.ExpressionList -> ASTModifier mAlter (A.Structured A.ExpressionList) structType ->
@@ -110,7 +110,7 @@ buildStructuredEL (A.ProcThen _ p str) route
 buildStructuredEL (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
-       (s,e) <- buildStructuredEL str (route33 route A.Spec)
+       (s,e) <- withDeclSpec spec $ buildStructuredEL str (route33 route A.Spec)
        n --> s
        e --> n'
        return (n, n')
@@ -124,7 +124,7 @@ buildStructuredAltNoSpecs :: (Monad mLabel, Monad mAlter) => (Node,Node) -> A.St
   -- of constraints on i (TODO record the replicators in ALTs somehow)
   -- only one of the replicated guards will be chosen, so we can effectively
   -- ignore the replication (in terms of the flow graph at least)
-buildStructuredAltNoSpecs se (A.Spec _ _ str) route = buildStructuredAltNoSpecs se str (route33 route A.Spec)
+buildStructuredAltNoSpecs se (A.Spec _ spec str) route = withDeclSpec spec $ buildStructuredAltNoSpecs se str (route33 route A.Spec)
 buildStructuredAltNoSpecs se (A.Several m ss) route
   = mapMR (route22 route A.Several) (buildStructuredAltNoSpecs se) ss >> return ()
 buildStructuredAltNoSpecs se (A.ProcThen _ _ str) route
@@ -152,7 +152,7 @@ buildJustSpecs (A.Only {}) _ = return Nothing
 buildJustSpecs (A.Several _ ss) route = mapMR (route22 route A.Several) buildJustSpecs ss >>= foldSpecs
 buildJustSpecs (A.Spec _ spec str) route
   = do (scopeIn, scopeOut) <- addSpecNodes spec route
-       inner <- buildJustSpecs str (route33 route A.Spec)
+       inner <- withDeclSpec spec $ buildJustSpecs str (route33 route A.Spec)
        case inner of
          Nothing -> return $ Just ((scopeIn, scopeIn), (scopeOut, scopeOut))
          Just ((innerInStart, innerInEnd), (innerOutStart, innerOutEnd)) ->
@@ -173,17 +173,17 @@ buildStructuredSeq :: (Monad mLabel, Monad mAlter) => A.Structured A.Process -> 
 buildStructuredSeq (A.Several m ss) route
   = do nodes <- mapMR (route22 route A.Several) buildStructuredSeq ss
        joinPairs m route nodes
-buildStructuredSeq (A.Spec m (A.Specification mspec nm (A.Rep mrep rep)) str) route
+buildStructuredSeq (A.Spec m spec@(A.Specification mspec nm (A.Rep mrep rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do n <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
-       (s,e) <- buildStructuredSeq str (route33 route A.Spec)
+       (s,e) <- withDeclSpec spec $ buildStructuredSeq str (route33 route A.Spec)
        n --> s
        e --> n
        return (n, n)
 buildStructuredSeq (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
-       (s,e) <- buildStructuredSeq str (route33 route A.Spec)
+       (s,e) <- withDeclSpec spec $ buildStructuredSeq str (route33 route A.Spec)
        n --> s
        e --> n'
        return (n, n')
@@ -201,12 +201,12 @@ buildStructuredPar pId (nStart, nEnd) (A.Several m ss) route
   = do nodes <- mapMRE (route22 route A.Several) (buildStructuredPar pId (nStart, nEnd)) ss
        addParEdges pId (nStart, nEnd) $ either (const []) id nodes
        return $ Left $ nonEmpty nodes
-buildStructuredPar pId (nStart, nEnd) (A.Spec mstr (A.Specification mspec nm (A.Rep m rep)) str) route
+buildStructuredPar pId (nStart, nEnd) (A.Spec mstr spec@(A.Specification mspec nm (A.Rep m rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do s <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
        e <- addDummyNode m route
        pId' <- getNextParEdgeId
-       nodes <- buildStructuredPar pId' (s,e) str (route33 route A.Spec)
+       nodes <- withDeclSpec spec $ buildStructuredPar pId' (s,e) str (route33 route A.Spec)
        case nodes of
          Left False -> s --> e
          Left True -> return ()
@@ -217,7 +217,7 @@ buildStructuredPar pId (nStart, nEnd) (A.Spec m spec str) route
   = do (n,n') <- addSpecNodes spec route
        pId' <- getNextParEdgeId
        buildProcessOrFunctionSpec spec (route23 route A.Spec)
-       nodes <- buildStructuredPar pId' (n, n') str (route33 route A.Spec)
+       nodes <- withDeclSpec spec $ buildStructuredPar pId' (n, n') str (route33 route A.Spec)
        case nodes of
          Left False -> n --> n'
          Left True -> return ()
@@ -251,7 +251,7 @@ buildStructuredCase (nStart, nEnd) (A.Spec _ spec str) route
   = do (n, n') <- addSpecNodes spec route
        nStart --> n
        n' --> nEnd
-       buildStructuredCase (n, n') str (route33 route A.Spec)
+       withDeclSpec spec $ buildStructuredCase (n, n') str (route33 route A.Spec)
 
 buildStructuredIf :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType ->
   GraphMaker mLabel mAlter label structType Node
@@ -266,10 +266,10 @@ buildStructuredIf (prev, end) (A.ProcThen _ p str) route
        buildStructuredIf (pe, end) str (route33 route A.ProcThen)
 buildStructuredIf (prev, end) (A.Only _ c) route
   = buildOnlyChoice (prev, end) (route22 route A.Only) c
-buildStructuredIf (prev, end) (A.Spec _ (A.Specification _ nm (A.Rep _ rep)) str) route
+buildStructuredIf (prev, end) (A.Spec _ spec@(A.Specification _ nm (A.Rep _ rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
     do repNode <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
-       lastNode <- buildStructuredIf (repNode, end) str (route33 route A.Spec)
+       lastNode <- withDeclSpec spec $ buildStructuredIf (repNode, end) str (route33 route A.Spec)
        prev --> repNode
        lastNode --> repNode
        return repNode
@@ -282,7 +282,7 @@ buildStructuredIf (prev, end) (A.Spec _ spec str) route
        nOutBlock <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
        nOutNext <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
        
-       last <- buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
+       last <- withDeclSpec spec $ buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
        
        prev --> nIn
        when (last /= prev) $ -- Only add the edge if there was a block it's connected to!
@@ -405,10 +405,10 @@ buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.AST  ->
   mLabel (Either String (FlowGraph' mAlter label (), [Node], [Node]))
 buildFlowGraph funcs s
-  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s routeIdentity
+  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s routeIdentity
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right _,GraphMakerState _ _ (nodes, edges) roots terminators)
+                  (Right _,GraphMakerState _ _ (nodes, edges) roots terminators _)
                     -> Right (mkGraph nodes edges, roots, terminators)
 
 buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
@@ -416,10 +416,10 @@ buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.Structured A.Process ->
   mLabel (Either String (FlowGraph' mAlter label A.Process, [Node], [Node]))
 buildFlowGraphP funcs s
-  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s routeIdentity
+  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s routeIdentity
        return $ case res of
                   (Left err,_) -> Left err
-                  (Right (root,_),GraphMakerState _ _ (nodes, edges) roots terminators)
+                  (Right (root,_),GraphMakerState _ _ (nodes, edges) roots terminators _)
                     -> Right (mkGraph nodes edges, root : roots, terminators)
 
     
