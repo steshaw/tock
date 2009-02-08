@@ -132,5 +132,63 @@ PROC m()
         a[k] := 1
       TRUE
         SKIP
+%PASS Replicated, with VAL abbrev of replicator
+  PAR
+    PAR k = 0 FOR 5
+      VAL kay IS k + 5:
+      a[kay] := 4
+    a[4] := 3
+%FAIL Replicated, with VAL abbrev of replicator (unsafe)
+  PAR
+    PAR k = 0 FOR 5
+      VAL kay IS k + 5:
+      a[kay] := 4
+    a[5] := 3
+%PASS Replicated, with VAL and normal abbrev of replicator
+  PAR
+    PAR k = 0 FOR 5
+      VAL kayplus3 IS k + 3:
+      INT kay:
+      SEQ
+        kay := kayplus3 - 3
+        a[kay] := 4
+    a[5] := 3
+%FAIL Replicated, with VAL and normal abbrev of replicator (unsafe)
+  PAR
+    PAR k = 0 FOR 5
+      VAL kayplus3 IS k + 4:
+      INT kay:
+      SEQ
+        kay := kayplus3 - 3
+        a[kay] := 4
+    a[5] := 3
+
+%PASS Replicated, with VAL and normal abbrev of replicator in IF
+  PAR
+    PAR k = 0 FOR 5
+      VAL kayplus3 IS k + 3:
+      INT kay:
+      SEQ
+        IF
+          i > 65
+            kay := kayplus3 - 3
+          TRUE
+            kay := kayplus3 - 4
+        a[kay] := 4
+    a[5] := 3
+%FAIL Replicated, with VAL and normal abbrev of replicator in IF (unsafe)
+  PAR
+    PAR k = 0 FOR 5
+      VAL kayplus3 IS k + 3:
+      INT kay:
+      SEQ
+        IF
+          i > 65
+            kay := kayplus3 - 3
+          TRUE
+            kay := kayplus3 - 2
+        a[kay] := 4
+    a[5] := 3
+
 
 %
