@@ -207,6 +207,8 @@ findConstraints graph startNode
             valFilt = filter (not . overlapsWithWritten) $
                 nub $ nodeVal ++ (case e of
                   ESeq (Just (n, Just True)) -> maybeToList (fmap ((,) n) $ nodeCond u)
+                  ESeq (Just (n, Just False)) -> maybeToList
+                    (fmap ((,) n . A.Monadic emptyMeta A.MonadicNot) (nodeCond u))
                   _ -> [])
             removeOld = case e of
               ESeq (Just (n, Nothing)) -> filter ((/= n) . fst)
