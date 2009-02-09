@@ -110,7 +110,8 @@ checkArrayUsage (m,p) = mapM_ (checkIndexes m) $ Map.toList $
     -- Returns (array name, list of written-to indexes, list of read-from indexes)
     groupArrayIndexes :: ParItems (BK, Vars) -> Map.Map String (ParItems (BK, [A.Expression], [A.Expression]))
     groupArrayIndexes = filterByKey . fmap
-      (\(bk,vs) -> zipMap (join bk) (makeList $ Map.keysSet $ writtenVars vs) (makeList $ readVars vs))
+      (\(bk,vs) -> zipMap (join bk) (makeList $ (Map.keysSet $ writtenVars vs)
+        `Set.union` (usedVars vs)) (makeList $ readVars vs))
       where
         join :: b -> Maybe [a] -> Maybe [a] -> Maybe (b, [a],[a])
         join k x y = Just (k, fromMaybe [] x, fromMaybe [] y)

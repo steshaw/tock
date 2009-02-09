@@ -211,7 +211,9 @@ checkPlainVarUsage (m, p) = check p
   where
     addBK :: BK -> Vars -> VarsBK
     addBK bk vs = VarsBK (Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat bk))
-                         (Map.map (\me -> (maybeToList me, bk)) $ writtenVars vs)
+                         ((Map.map (\me -> (maybeToList me, bk)) $ writtenVars vs)
+                          `Map.union` Map.fromAscList (zip (Set.toAscList $ usedVars
+                            vs) (repeat ([], bk))))
 
     reps (RepParItem r p) = r : reps p
     reps (SeqItems _) = []
