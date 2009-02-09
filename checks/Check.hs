@@ -188,18 +188,23 @@ foldUnionVarsBK :: [VarsBK] -> Map.Map Var (Maybe BK, Maybe BK)
 foldUnionVarsBK
   -- unionWith, unlike intersectionWith, requires the same value type
   -- for both maps in the union, so we must convert then join:
-  = Map.map squish . foldl (Map.unionWith concatPair) Map.empty . map convert
+  = foldl (Map.unionWith concatPair') Map.empty . map convert
   where
-    squish :: (BK, BK) -> (Maybe BK, Maybe BK)
-    squish = transformPair squish' squish'
-    squish' [] = Nothing
-    squish' as = Just as        
+    joinPair (Just a, Nothing) (Nothing, Just b) = (Just a, Just b)
 
-    convert :: VarsBK -> Map.Map Var (BK, BK)
-    convert (VarsBK r w) = Map.unionWith concatPair (Map.map mkR r) (Map.map mkW w)
+    concatPair' (a,b) (c,d) = (join a c, join b d)
+      where
+        join Nothing Nothing = Nothing
+        join (Just a) Nothing = Just a
+        join Nothing (Just a) = Just a
+        join (Just a) (Just b) = Just (a++b)
 
-    mkR bk = (bk, [])
-    mkW (_, bk) = ([], bk)
+
+    convert :: VarsBK -> Map.Map Var (Maybe BK, Maybe BK)
+    convert (VarsBK r w) = Map.unionWith joinPair (Map.map mkR r) (Map.map mkW w)
+
+    mkR bk = (Just bk, Nothing)
+    mkW (_, bk) = (Nothing, Just bk)
 
 checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
 checkPlainVarUsage (m, p) = check p
