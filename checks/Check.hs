@@ -162,12 +162,30 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
           | op == A.NotEq = noAnd (Or [LessThanOrEqual (addOne lhs) rhs
                                       ,LessThanOrEqual (addOne rhs) lhs])
         g (A.Monadic _ A.MonadicNot rhs)
-          = mempty -- TODO
+          = g $ negateExpr rhs
+          where
+            -- It is much easier (and clearer) to do the negation in the AST rather
+            -- than play around with De Morgan's laws and so on to figure out how
+            -- to invert the conjunction of disjunctions
+            negateExpr (A.Monadic _ A.MonadicNot rhs) = rhs
+            negateExpr (A.Dyadic m op lhs rhs)
+              | op == A.And = A.Dyadic m A.Or (negateExpr lhs) (negateExpr rhs)
+              | op == A.Or  = A.Dyadic m A.And (negateExpr lhs) (negateExpr rhs)
+              | otherwise = case revOp op of
+                 Just op' -> A.Dyadic m op' lhs rhs
+                 Nothing -> -- Leave as is, because it won't be used anyway:
+                   A.Dyadic m op lhs rhs
+            negateExpr e = e -- As above, leave as is
+
+            revOp A.NotEq = Just A.Eq
+            revOp A.Eq = Just A.NotEq
+            revOp A.LessEq = Just A.More
+            revOp A.MoreEq = Just A.Less
+            revOp A.Less = Just A.MoreEq
+            revOp A.More = Just A.LessEq
+            revOp _ = Nothing
         g _ =  mempty
 
---    conBK :: Or (Var, And BackgroundKnowledge)
---    conBK = [zip (repeat v) (snd conInterMed) | v <- fst conInterMed]
-    
     values :: And (Var, Or BackgroundKnowledge)
     values = And [
                (Var v, Or $ catMaybes [fmap (Equal $ A.ExprVariable (findMeta v) v) val
@@ -201,6 +219,8 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
        , possCon <- makeNonEmpty (And []) $ deOr convCon
        ]
       where
+        union :: Map.Map Var (And BackgroundKnowledge) -> Map.Map Var (And BackgroundKnowledge)
+          -> Map.Map Var (And BackgroundKnowledge)
         union = Map.unionWith mappend
 
         makeNonEmpty :: a -> [a] -> [a]
