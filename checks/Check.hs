@@ -115,26 +115,30 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith
     consInQuestion :: [A.Expression]
     consInQuestion = fromMaybe [] $ Map.lookup nid mp2
 
-    conInterMed :: [([Var], [BackgroundKnowledge])]
-    conInterMed = map f consInQuestion
+    conInterMed :: ([Var], [[BackgroundKnowledge]])
+    conInterMed = f $ foldl (A.Dyadic emptyMeta (A.And)) (A.True emptyMeta) consInQuestion
       where
-        f :: A.Expression -> ([Var], [BackgroundKnowledge])
-        f e = (map Var $ listify (const True) e, g e)
+        f :: A.Expression -> ([Var], [[BackgroundKnowledge]])
+        f e = (map Var $ listify (const True) $ g e, g e)
 
-        g :: A.Expression -> [BackgroundKnowledge]
+        g :: A.Expression -> [[BackgroundKnowledge]]
         g (A.Dyadic _ op lhs rhs)
-          | op == A.And = g lhs ++ g rhs
-          | op == A.Eq = [Equal lhs rhs]
-          | op == A.LessEq = [LessThanOrEqual lhs rhs]
-          | op == A.MoreEq = [LessThanOrEqual rhs lhs]
-          | op == A.Less = [LessThanOrEqual (addOne lhs) rhs]
-          | op == A.More = [LessThanOrEqual (addOne rhs) lhs]
+          -- (A or B) and (C or D) = ((A or B) and C) or ((A or B) and D)
+          -- = (A and C) or (B and C) or (A and D) or (B and D)
+          | op == A.And = let l = g lhs
+                              r = g rhs
+                          in if null l || null r then l ++ r
+                             else [a ++ b | a <- l, b <- r]
+          | op == A.Eq = [[Equal lhs rhs]]
+          | op == A.LessEq = [[LessThanOrEqual lhs rhs]]
+          | op == A.MoreEq = [[LessThanOrEqual rhs lhs]]
+          | op == A.Less = [[LessThanOrEqual (addOne lhs) rhs]]
+          | op == A.More = [[LessThanOrEqual (addOne rhs) lhs]]
           -- TODO add support for OR, and NOT-EQUAL
         g _ = []
 
     conBK :: [[(Var, [BackgroundKnowledge])]]
-    conBK = [ [(v, concatMap snd $ filter (elem v . fst) conInterMed)]
-            | v <- nub $ concatMap fst conInterMed]
+    conBK = [zip (repeat v) (snd conInterMed) | v <- fst conInterMed]
     
     -- Each list (xs) in the whole thing (xss) relates to a different variable
     -- Each item in a list xs is a different possible constraint on that variable
