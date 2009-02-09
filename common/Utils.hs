@@ -125,6 +125,12 @@ concatPair a b = (fst a ++ fst b, snd a ++ snd b)
 transformPair :: (x -> a) -> (y -> b) -> (x,y) -> (a,b)
 transformPair f g (x,y) = (f x, g y)
 
+mapFst :: (a -> b) -> [(a, c)] -> [(b, c)]
+mapFst f = map (transformPair f id)
+
+mapSnd :: (a -> b) -> [(c, a)] -> [(c, b)]
+mapSnd f = map (transformPair id f)
+
 -- | Maps three functions over members of a triple
 transformTriple :: (x -> a) -> (y -> b) -> (z -> c) -> (x,y,z) -> (a,b,c)
 transformTriple f g h (x,y,z) = (f x, g y, h z)
