@@ -185,9 +185,9 @@ findConstraints :: Monad m => FlowGraph m UsageLabel -> Node -> Either String
   (Map.Map Node [A.Expression])
 findConstraints graph startNode
   = flowAlgorithm graphFuncs (dfs [startNode] graph) (startNode, [])
-      >>* Map.filter (not . null)
+      >>* Map.map (map snd) >>* Map.filter (not . null)
   where
-    graphFuncs :: GraphFuncs Node EdgeLabel [A.Expression]
+    graphFuncs :: GraphFuncs Node EdgeLabel [(Integer, A.Expression)]
     graphFuncs = GF
       {
           nodeFunc = processNode
@@ -197,15 +197,20 @@ findConstraints graph startNode
         , userErrLabel = (++ " in graph: " ++ makeFlowGraphInstr graph) . ("for node at: " ++) . show . fmap getNodeMeta . lab graph
       }
 
-    processNode :: (Node, EdgeLabel) -> [A.Expression] -> Maybe [A.Expression]
-      -> [A.Expression]
+    processNode :: (Node, EdgeLabel) -> [(Integer, A.Expression)]
+      -> Maybe [(Integer, A.Expression)] -> [(Integer, A.Expression)]
     processNode (n, e) nodeVal curAgg = case fmap getNodeData $ lab graph n of
       Just u ->
-        let valFilt = filter (\e -> null $ intersect (listify (const
-              True) e) [v | Var v <- Map.keys $ writtenVars $ nodeVars u]) $
+        let overlapsWithWritten e = not $ null $ intersect
+              (listify (const True) e)
+              [v | Var v <- Map.keys $ writtenVars $ nodeVars u]
+            valFilt = filter (not . overlapsWithWritten) $
                 nub $ nodeVal ++ (case e of
-                  ESeq (Just (_, Just True)) -> maybeToList (nodeCond u)
-                  _ -> []) in
-        nub $ valFilt ++ fromMaybe [] curAgg
+                  ESeq (Just (n, Just True)) -> maybeToList (fmap ((,) n) $ nodeCond u)
+                  _ -> [])
+            removeOld = case e of
+              ESeq (Just (n, Nothing)) -> filter ((/= n) . fst)
+              _ -> id
+        in removeOld $ nub $ valFilt ++ fromMaybe [] curAgg
       Nothing -> []
        
