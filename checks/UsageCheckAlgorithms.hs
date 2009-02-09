@@ -203,8 +203,9 @@ findConstraints graph startNode
       Just u ->
         let valFilt = filter (\e -> null $ intersect (listify (const
               True) e) [v | Var v <- Map.keys $ writtenVars $ nodeVars u]) $
-                nub $ nodeVal ++ if e == ESeq (Just True) then maybeToList (nodeCond u)
-                  else [] in
+                nub $ nodeVal ++ (case e of
+                  ESeq (Just (_, Just True)) -> maybeToList (nodeCond u)
+                  _ -> []) in
         nub $ valFilt ++ fromMaybe [] curAgg
       Nothing -> []
        

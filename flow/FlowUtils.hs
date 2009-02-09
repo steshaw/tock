@@ -39,7 +39,14 @@ import Utils
 -- Multiple Seq links means choice.
 -- Multiple Par links means a parallel branch.  All outgoing par links should have the same identifier,
 -- and this identifier is unique and matches a later endpar link
-data EdgeLabel = ESeq (Maybe Bool) | EStartPar Integer | EEndPar Integer deriving (Show, Eq, Ord)
+--
+-- If a Seq link has a Just label, it indicates whether the condition at the source
+-- node evaluated to True or False.  Each such link has an associated Integer.
+--  When you see that integer again in a Seq link with a Nothing for the bool value,
+-- that is the point at which you can no longer assume the condition holds.  So
+-- for example, going into an IF block will have an Just (N, Just True) label,
+-- and the end of that block will have a Just (N, Nothing) label.
+data EdgeLabel = ESeq (Maybe (Integer, Maybe Bool)) | EStartPar Integer | EEndPar Integer deriving (Show, Eq, Ord)
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
@@ -99,7 +106,7 @@ data GraphMakerState mAlter a b = GraphMakerState
   , nameStack :: [String]
   }
 
-type GraphMaker mLabel mAlter a b c = ErrorT String (ReaderT (GraphLabelFuncs mLabel a) (StateT (GraphMakerState mAlter a b) mLabel)) c
+type GraphMaker mLabel mAlter a b = ErrorT String (ReaderT (GraphLabelFuncs mLabel a) (StateT (GraphMakerState mAlter a b) mLabel))
 
 -- | The GraphLabelFuncs type.  These are a group of functions
 -- used to provide labels for different elements of AST.

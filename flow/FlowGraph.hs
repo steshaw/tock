@@ -253,52 +253,59 @@ buildStructuredCase (nStart, nEnd) (A.Spec _ spec str) route
        n' --> nEnd
        withDeclSpec spec $ buildStructuredCase (n, n') str (route33 route A.Spec)
 
+-- While building an IF, we keep a stack of identifiers used for the various conditionals.
+--  At the end of the block you must make sure there are edges that terminate all
+-- these identifiers, after the joining together of all the branches
 buildStructuredIf :: forall mLabel mAlter label structType. (Monad mLabel, Monad mAlter) => (Node, Node) -> A.Structured A.Choice -> ASTModifier mAlter (A.Structured A.Choice) structType ->
-  GraphMaker mLabel mAlter label structType Node
+  StateT [Integer] (GraphMaker mLabel mAlter label structType) Node
 buildStructuredIf (prev, end) (A.Several _ ss) route
   = foldM foldIf prev (zip [0..] ss)
       where
-        foldIf :: Node -> (Int,A.Structured A.Choice) -> GraphMaker mLabel mAlter label structType Node
+        foldIf :: Node -> (Int,A.Structured A.Choice) ->
+          StateT [Integer] (GraphMaker mLabel mAlter label structType) Node
         foldIf prev (ind, s) = buildStructuredIf (prev, end) s $ route22 route A.Several @-> (routeList ind)
 buildStructuredIf (prev, end) (A.ProcThen _ p str) route
-  = do (ps, pe) <- buildProcess p (route23 route A.ProcThen)
-       prev --> ps
+  = do (ps, pe) <- lift $ buildProcess p (route23 route A.ProcThen)
+       lift $ prev --> ps
        buildStructuredIf (pe, end) str (route33 route A.ProcThen)
 buildStructuredIf (prev, end) (A.Only _ c) route
-  = buildOnlyChoice (prev, end) (route22 route A.Only) c
+  = do id <- lift getNextParEdgeId
+       modify (id:)
+       lift $ buildOnlyChoice (prev, end) (route22 route A.Only) c id
 buildStructuredIf (prev, end) (A.Spec _ spec@(A.Specification _ nm (A.Rep _ rep)) str) route
   = let alter = AlterReplicator $ route22 (route33 (route23 route A.Spec) A.Specification) A.Rep in
-    do repNode <- addNode' (findMeta rep) labelReplicator (nm, rep) alter
-       lastNode <- withDeclSpec spec $ buildStructuredIf (repNode, end) str (route33 route A.Spec)
-       prev --> repNode
-       lastNode --> repNode
+    do repNode <- lift $ addNode' (findMeta rep) labelReplicator (nm, rep) alter
+       lastNode <- liftWrapStateT (withDeclSpec spec) $ buildStructuredIf (repNode, end) str (route33 route A.Spec)
+       lift $ prev --> repNode
+       lift $ lastNode --> repNode
        return repNode
 buildStructuredIf (prev, end) (A.Spec _ spec str) route
        -- Specs are tricky in IFs, because they can scope out either
        -- at the end of a choice-block, or when moving on to the next
        -- choice.  But these nodes are not the same because they have
        -- different connections leading out of them
-  = do nIn <- addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
-       nOutBlock <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
-       nOutNext <- addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+  = do nIn <- lift $ addNode' (findMeta spec) labelScopeIn spec (AlterSpec $ route23 route A.Spec)
+       nOutBlock <- lift $ addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
+       nOutNext <- lift $ addNode' (findMeta spec) labelScopeOut spec (AlterSpec $ route23 route A.Spec)
        
-       last <- withDeclSpec spec $ buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
-       
-       prev --> nIn
-       when (last /= prev) $ -- Only add the edge if there was a block it's connected to!
-         nOutBlock --> end
-       last --> nOutNext
-       return nOutNext
+       last <- liftWrapStateT (withDeclSpec spec) $ buildStructuredIf (nIn, nOutBlock) str (route33 route A.Spec)
+       lift $ do
+         prev --> nIn
+         when (last /= prev) $ -- Only add the edge if there was a block it's connected to!
+           nOutBlock --> end
+         last --> nOutNext
+         return nOutNext
 
-buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice -> GraphMaker mLabel mAlter label structType Node
-buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p)
+buildOnlyChoice :: (Monad mLabel, Monad mAlter) => (Node, Node) -> ASTModifier mAlter A.Choice structType -> A.Choice ->
+  Integer -> GraphMaker mLabel mAlter label structType Node
+buildOnlyChoice (cPrev, cEnd) route (A.Choice m exp p) edgeId
   = do nexp <- addNode' (findMeta exp) labelConditionalExpression exp
                  $ AlterExpression $ route23 route A.Choice
        nexpf <- addDummyNode m route
        (nbodys, nbodye) <- buildProcess p $ route33 route A.Choice
        cPrev --> nexp
-       addEdge (ESeq $ Just True) nexp nbodys
-       addEdge (ESeq $ Just False) nexp nexpf
+       addEdge (ESeq $ Just (edgeId, Just True)) nexp nbodys
+       addEdge (ESeq $ Just (edgeId, Just False)) nexp nexpf
        nbodye --> cEnd
        return nexpf
 
@@ -362,9 +369,12 @@ buildProcess (A.While m e p) route
          $ route23 route A.While)
        nAfter <- addDummyNode m route
        (start, end) <- buildProcess p (route33 route A.While)
-       addEdge (ESeq $ Just True) n start
-       addEdge (ESeq $ Just False) n nAfter
-       end --> n
+       edgeId <- getNextParEdgeId
+       addEdge (ESeq $ Just (edgeId, Just True)) n start
+       addEdge (ESeq $ Just (edgeId, Just False)) n nAfter
+       addEdge (ESeq $ Just (edgeId, Nothing)) end n
+       -- We are still taking the condition to be true after the while loop --
+       -- and it will remain so until the variables are later modified
        return (n, nAfter)
 buildProcess (A.Case m e s) route
   = do nStart <- addNodeExpression (findMeta e) e (route23 route A.Case)
@@ -373,9 +383,15 @@ buildProcess (A.Case m e s) route
        return (nStart, nEnd)
 buildProcess (A.If m s) route
   = do nStart <- addDummyNode m route
-       nEnd <- addDummyNode m route
-       buildStructuredIf (nStart, nEnd) s (route22 route A.If)
-       return (nStart, nEnd)
+       nFirstEnd <- addDummyNode m route
+       allEdgeIds <- flip execStateT [] $ buildStructuredIf (nStart, nFirstEnd) s (route22 route A.If)
+       nLastEnd <- foldM addEndEdge nFirstEnd allEdgeIds
+       return (nStart, nLastEnd)
+  where
+    --addEndEdge :: Node -> Integer -> GraphMaker mLabel mAlter label structType Node
+    addEndEdge n id = do n' <- addDummyNode m route
+                         addEdge (ESeq (Just (id, Nothing))) n n'
+                         return n'
 buildProcess (A.Alt m _ s) route
   = do nStart <- addDummyNode m route
        nEnd <- addDummyNode m route

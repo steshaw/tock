@@ -277,22 +277,23 @@ testPar = TestLabel "testPar" $ TestList
 testWhile :: Test
 testWhile = TestLabel "testWhile" $ TestList
  [
-    testGraph "testWhile 0" [(0,m0), (1,m1), (2, m2)] [0] [(0,1,ESeq $ Just True), (1,0,ESeq Nothing),
-      (0,2, ESeq $ Just False)] (A.While m2 (A.True m0) sm1)
+    testGraph "testWhile 0" [(0,m0), (1,m1), (2, m2)] [0] [(0,1,ESeq $ Just (0,
+      Just True)), (1,0,ESeq $ Just (0, Nothing)), (0,2, ESeq $ Just (0, Just False))]
+      (A.While m2 (A.True m0) sm1)
 
    ,testGraph "testWhile 1" [(2,m2), (3, m3), (5, m5), (8, m8)] [2]
-      [(2,3,ESeq $ Just True), (3,2,ESeq Nothing), (8,5,ESeq Nothing), (2,8, ESeq
-        $ Just False)] 
+      [(2,3,ESeq $ Just (0, Just True)), (3,2,ESeq $ Just (0, Nothing)), (8,5,ESeq Nothing), (2,8, ESeq
+        $ Just (0, Just False))] 
       (A.Seq m0 $ A.Several m1 [A.Only m9 $ A.While m8 (A.True m2) sm3,A.Only m4 sm5])
 
    ,testGraph "testWhile 2" [(2,m2), (3, m3), (5, m5), (7, m7), (8, m8)] [7]
-     [(7,2,ESeq Nothing), (2,3,ESeq $ Just True), (3,2,ESeq Nothing), (2, 8, ESeq
-       $ Just False), (8,5,ESeq Nothing)] 
+     [(7,2,ESeq Nothing), (2,3,ESeq $ Just (0, Just True)), (3,2,ESeq $ Just (0, Nothing)),
+      (2, 8, ESeq $ Just (0, Just False)), (8,5,ESeq Nothing)] 
       (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only m9 $ A.While m8 (A.True m2) sm3,A.Only m4 sm5])
 
    ,testGraph "testWhile 3" [(2,m2), (3, m3), (5, m5), (7, m7), (9, m9), (8, m8)] [7]
-     [(7,2,ESeq Nothing), (2,3,ESeq $ Just True), (3,9,ESeq Nothing), (9,2,ESeq Nothing), (2,
-       8, ESeq $ Just False), (8,5,ESeq Nothing)] 
+     [(7,2,ESeq Nothing), (2,3,ESeq $ Just (0, Just True)), (3,9,ESeq Nothing), (9,2,ESeq $
+       Just (0, Nothing)), (2, 8, ESeq $ Just (0, Just False)), (8,5,ESeq Nothing)] 
       (A.Seq m0 $ A.Several m1 [A.Only m6 sm7,A.Only mU $ A.While m8 (A.True m2) $ A.Seq mU $ A.Several mU [A.Only mU sm3,A.Only mU sm9],A.Only m4 sm5])
  ]
 
@@ -320,21 +321,26 @@ testIf = TestLabel "testIf" $ TestList
    -- Remember that the last branch of an IF doesn't link to the end of the IF, because
    -- occam stops if no option is found.
  
-   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (4, sub m2 1), (3,m3)] [0]
-     [(0,2,nt),(2,3,tr), (2,4, fal), (3,1,nt)]
+   testGraph "testIf 0" [(0,m0), (1,sub m0 1), (2,m2), (4, sub m2 1), (3,m3), (5,
+     sub m0 2)] [0]
+     [(0,2,nt),(2,3,tr 0), (2,4, fal 0), (3,1,nt), (1, 5, inv 0)]
      (A.If m0 $ ifs mU [(A.True m2, sm3)])
 
   ,testGraph "testIf 1" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3),
-                         (4,m4), (14, m4 `sub` 1), (5, m5)] [0]
-                        [(0,2,nt),(2,3,tr),(3,1,nt),(2,12, fal), (12, 4, nt),
-                         (4,5,tr),(5,1,nt),(4,14,fal)]
+                         (4,m4), (14, m4 `sub` 1), (5, m5), (11, sub m0 2), (21,
+                           sub m0 3)] [0]
+                        [(0,2,nt),(2,3,tr 0),(3,1,nt),(2,12, fal 0), (12, 4, nt),
+                         (4,5,tr 1),(5,1,nt),(4,14,fal 1), (1, 11, inv 1), (11,
+                           21, inv 0)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5)])
 
   ,testGraph "testIf 2" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3),
-                         (4,m4), (14, m4 `sub` 1), (5, m5), (6, m6), (16, m6 `sub` 1),(7, m7)] [0]
-                        [(0,2,nt),(2,3,tr),(3,1,nt),(2,12,fal),(12,4,nt),
-                         (4,5,tr),(5,1,nt),(4,14,fal),
-                         (14,6,nt),(6,7,tr),(7,1,nt),(6,16,fal)]
+                         (4,m4), (14, m4 `sub` 1), (5, m5), (6, m6), (16, m6 `sub` 1),(7, m7),
+                         (11, sub m0 2), (21, sub m0 3), (31, sub m0 4)] [0]
+                        [(0,2,nt),(2,3,tr 0),(3,1,nt),(2,12,fal 0),(12,4,nt),
+                         (4,5,tr 1),(5,1,nt),(4,14,fal 1),
+                         (14,6,nt),(6,7,tr 2),(7,1,nt),(6,16,fal 2),
+                         (1,11,inv 2), (11, 21, inv 1), (21, 31, inv 0)]
                         (A.If m0 $ ifs mU [(A.True m2, sm3), (A.True m4, sm5), (A.True m6, sm7)])
 
 {-
@@ -345,26 +351,31 @@ testIf = TestLabel "testIf" $ TestList
      (A.If m0 $ A.Spec mU (someSpec m4) $ ifs mU [(A.True m2, sm3)])  
 -}     
 
-  ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3), (5, m5)] [0]
-    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12, fal), (12, 5, nt)]
+  ,testGraph "testIf 10" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3), (5, m5),
+      (11, sub m0 2)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr 0), (3,1,nt), (2,12, fal 0), (12, 5, nt), (1, 11, inv 0)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3)])
 
   ,testGraph "testIf 11" [(0,m0), (1,sub m0 1), (2,m2), (12, m2 `sub` 1), (3,m3), (5, m5), (6, m6), (16,
-    m6 `sub` 1), (7, m7)] [0]
-    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12,fal), (12, 6, nt), (6,7,tr), (7,1,nt), (6,16,fal),(16, 5, nt)]
+    m6 `sub` 1), (7, m7), (11, sub m0 2), (21, sub m0 3)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr 0), (3,1,nt), (2,12,fal 0), (12, 6, nt), (6,7,tr
+      1), (7,1,nt), (6,16,fal 1),(16, 5, nt), (1, 11, inv 1), (11, 21, inv 0)]
     (A.If m0 $ rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)])    
 
   ,testGraph "testIf 12" [(0,m0), (1,sub m0 1), (2,m2), (3,m3), (5, m5), (6, m6), (7, m7), (8, m8), (9, m9),
-    (12, m2 `sub` 1), (16,  m6 `sub` 1), (18,  m8 `sub` 1)] [0]
-    [(0,5,nt), (5,2,nt), (2,3,tr), (3,1,nt), (2,12,fal), (12, 6, nt),
-     (6,7,tr), (7,1,nt), (6,16,fal), (16, 5, nt), (5,8,nt),
-     (8,9,tr), (9,1,nt),(8,18,fal)]
+    (12, m2 `sub` 1), (16,  m6 `sub` 1), (18,  m8 `sub` 1), (11, sub m0 2),  (21,
+      sub m0 3), (31, sub m0 4)] [0]
+    [(0,5,nt), (5,2,nt), (2,3,tr 0), (3,1,nt), (2,12,fal 0), (12, 6, nt),
+     (6,7,tr 1), (7,1,nt), (6,16,fal 1), (16, 5, nt), (5,8,nt),
+     (8,9,tr 2), (9,1,nt),(8,18,fal 2), (1,11, inv 2), (11, 21, inv 1), (21, 31,
+       inv 0)]
     (A.If m0 $ A.Several mU [rep m5 $ ifs mU [(A.True m2, sm3), (A.True m6, sm7)]
                             , ifs mU [(A.True m8, sm9)]])
  ]
  where
-   fal = ESeq $ Just False
-   tr = ESeq $ Just True
+   fal n = ESeq $ Just (n, Just False)
+   tr n = ESeq $ Just (n, Just True)
+   inv n = ESeq $ Just (n, Nothing)
    nt = ESeq Nothing
    
    ifs :: Meta -> [(A.Expression, A.Process)] -> A.Structured A.Choice
