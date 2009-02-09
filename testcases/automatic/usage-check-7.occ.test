@@ -91,7 +91,7 @@ PROC m ()
           x := 3
         TRUE
           SKIP
-%PASS Unsafe in one possible branched-branch of replicated PAR
+%PASS Safe in one possible branched-branch of replicated PAR
     PAR i = -5 FOR 10
       IF
         i <= 0
