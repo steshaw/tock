@@ -137,6 +137,35 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith
           | op == A.More = [[LessThanOrEqual (addOne rhs) lhs]]
           | op == A.NotEq = [[LessThanOrEqual (addOne lhs) rhs]
                             ,[LessThanOrEqual (addOne rhs) lhs]]
+        g (A.Monadic _ A.MonadicNot rhs)
+          = negate $ g rhs
+          where
+            -- We have something with a disjunctive normal form, that we need to
+            -- negate:
+            -- not ((A and B) or (C and D))
+            -- De Morgan:
+            -- (not (A and B)) and (not (C and D))
+            -- De Morgan again:
+            -- (not A or not B) and (not C or not D)
+            -- Distribution:
+            -- (not A and not C) or (not A and not D) or (not B and not C) or (not
+            -- B and not D)
+            --
+            -- So what we must do is do a cross-product across all the lists,
+            -- and negate each element.  But this is futher complicated by the
+            -- way that Equals expands out to an ORed item.
+            negate orig = productN $ negateORs orig
+
+            -- Takes a list of things ORed, gives back a list of things ANDed
+            negateORs = map negateANDs
+
+            -- Takes a list of things ANDed, gives back a list of things ORed
+            negateANDs = concatMap negateItem
+
+            negateItem (Equal lhs rhs) = [LessThanOrEqual (addOne lhs) rhs
+                                         ,LessThanOrEqual (addOne rhs) lhs]
+            negateItem (LessThanOrEqual lhs rhs) = [LessThanOrEqual (addOne rhs) lhs]
+
         g _ = []
 
     conBK :: [[(Var, [BackgroundKnowledge])]]
