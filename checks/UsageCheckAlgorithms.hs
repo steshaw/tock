@@ -41,13 +41,13 @@ joinCheckParFunctions f g x = seqPair (f x, g x)
 checkPar :: forall m a b. Monad m => (a -> Maybe (A.Name, A.Replicator)) -> ((Meta, ParItems a) -> m b) -> FlowGraph m a -> m [b]
 checkPar getRep f g = mapM f =<< allParItems
   where
-    allStartParEdges :: m (Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]))
+    allStartParEdges :: m (Map.Map Integer (Maybe (A.Name, A.Replicator), [(Node,Node)]))
     allStartParEdges = foldM helper Map.empty parEdges
       where
         parEdges = mapMaybe tagStartParEdge $ labEdges g
 
-        helper :: Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]) -> (Node,Node,Int) ->
-          m (Map.Map Int (Maybe (A.Name, A.Replicator), [(Node,Node)]))
+        helper :: Map.Map Integer (Maybe (A.Name, A.Replicator), [(Node,Node)]) -> (Node,Node,Integer) ->
+          m (Map.Map Integer (Maybe (A.Name, A.Replicator), [(Node,Node)]))
         helper mp (s,e,n)
           | r == Nothing = fail "Could not find label for node"
           | prevR == Nothing || prevR == r =  return $ Map.insertWith add n (join r,[(s,e)]) mp
@@ -61,7 +61,7 @@ checkPar getRep f g = mapM f =<< allParItems
             r :: Maybe (Maybe (A.Name, A.Replicator))
             r = lab g s >>* (getRep . getNodeData)
   
-    tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Int)
+    tagStartParEdge :: (Node,Node,EdgeLabel) -> Maybe (Node,Node,Integer)
     tagStartParEdge (s,e,EStartPar n) = Just (s,e,n)
     tagStartParEdge _ = Nothing
     
@@ -78,13 +78,13 @@ checkPar getRep f g = mapM f =<< allParItems
           where
             distinctItems = nub $ map fst ns
 
-        findMetaAndNodes :: (Int,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> m (Meta, ParItems a)
+        findMetaAndNodes :: (Integer,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> m (Meta, ParItems a)
         findMetaAndNodes x@(_,(_,ns)) = seqPair (checkAndGetMeta ns, return $ findNodes x)
 
-        findNodes :: (Int,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> ParItems a
+        findNodes :: (Integer,(Maybe (A.Name, A.Replicator), [(Node,Node)])) -> ParItems a
         findNodes (n, (mr, ses)) = maybe id RepParItem mr $ ParItems $ map (makeSeqItems n . snd) ses
         
-        makeSeqItems :: Int -> Node -> ParItems a
+        makeSeqItems :: Integer -> Node -> ParItems a
         makeSeqItems n e = SeqItems (followUntilEdge e (EEndPar n))
     
     -- | We need to follow all edges out of a particular node until we reach

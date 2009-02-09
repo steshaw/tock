@@ -39,7 +39,7 @@ import Utils
 -- Multiple Seq links means choice.
 -- Multiple Par links means a parallel branch.  All outgoing par links should have the same identifier,
 -- and this identifier is unique and matches a later endpar link
-data EdgeLabel = ESeq (Maybe Bool) | EStartPar Int | EEndPar Int deriving (Show, Eq, Ord)
+data EdgeLabel = ESeq (Maybe Bool) | EStartPar Integer | EEndPar Integer deriving (Show, Eq, Ord)
 
 -- | A type used to build up tree-modifying functions.  When given an inner modification function,
 -- it returns a modification function for the whole tree.  The functions are monadic, to
@@ -92,7 +92,7 @@ type NodesEdges m a b = ([LNode (FNode' b m a)],[LEdge EdgeLabel])
 -- * The list of terminator nodes thus far (those with no links from them)
 data GraphMakerState mAlter a b = GraphMakerState
   { nextNodeId :: Node
-  , nextParId :: Int
+  , nextParId :: Integer
   , graphNodesEdges :: NodesEdges mAlter a b
   , rootNodes :: [Node]
   , termNodes :: [Node]
@@ -248,18 +248,18 @@ addDummyNode :: (Monad mLabel, Monad mAlter) => Meta -> ASTModifier mAlter a str
   -> GraphMaker mLabel mAlter label structType Node
 addDummyNode m mod = addNode' m labelDummy m (AlterNothing $ routeId mod)
 
-getNextParEdgeId :: (Monad mLabel, Monad mAlter) => GraphMaker mLabel mAlter label structType Int
+getNextParEdgeId :: (Monad mLabel, Monad mAlter) => GraphMaker mLabel mAlter label structType Integer
 getNextParEdgeId = do st <- get
                       put $ st {nextParId = nextParId st + 1}
                       return $ nextParId st
 
-addParEdges :: (Monad mLabel, Monad mAlter) => Int -> (Node,Node) -> [(Node,Node)] -> GraphMaker mLabel mAlter label structType ()
+addParEdges :: (Monad mLabel, Monad mAlter) => Integer -> (Node,Node) -> [(Node,Node)] -> GraphMaker mLabel mAlter label structType ()
 addParEdges usePI (s,e) pairs
   = do st <- get
        let (nodes,edges) = graphNodesEdges st
        put $ st {graphNodesEdges = (nodes,edges ++ (concatMap (parEdge usePI) pairs))}
   where
-    parEdge :: Int -> (Node, Node) -> [LEdge EdgeLabel]
+    parEdge :: Integer -> (Node, Node) -> [LEdge EdgeLabel]
     parEdge id (a,z) = [(s,a,(EStartPar id)),(z,e,(EEndPar id))]
 
 mapMR :: forall inner mAlter mLabel label retType structType. (Monad mLabel, Monad mAlter) =>

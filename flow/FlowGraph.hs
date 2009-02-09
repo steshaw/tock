@@ -194,7 +194,7 @@ buildStructuredSeq (A.ProcThen _ p str) route
        pe --> ss
        return (ps, se)
 
-buildStructuredPar :: (Monad mLabel, Monad mAlter) => Int -> (Node, Node) ->
+buildStructuredPar :: (Monad mLabel, Monad mAlter) => Integer -> (Node, Node) ->
   A.Structured A.Process -> ASTModifier mAlter (A.Structured A.Process) structType ->
   GraphMaker mLabel mAlter label structType (Either Bool (Node, Node))
 buildStructuredPar pId (nStart, nEnd) (A.Several m ss) route
