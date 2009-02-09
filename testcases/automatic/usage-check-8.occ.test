@@ -81,6 +81,21 @@ PROC m()
           read(c[j])
         TRUE
           write(c[j])
+%PASS Safe replicated parallel use with overlap #5
+  PAR
+    PAR i = 0 FOR 10
+      IF
+        (i = 5) OR (i >= 6)
+          write(c[i])
+        TRUE
+          read(c[i])
+    PAR j = 0 FOR 10
+      IF
+        (j >= 5) AND ((j = 5) OR (j = 6) OR (j > 6))
+          read(c[j])
+        TRUE
+          write(c[j])
+
 %FAIL Unsafe replicated parallel use with overlap #3
   PAR
     PAR i = 0 FOR 5

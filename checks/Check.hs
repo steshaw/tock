@@ -149,11 +149,19 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
       where
         g :: A.Expression -> And (Or BackgroundKnowledge)
         g (A.Dyadic _ op lhs rhs)
-          -- (A or B) and (C or D) = ((A or B) and C) or ((A or B) and D)
-          -- = (A and C) or (B and C) or (A and D) or (B and D)
+          -- If one of the components of an AND is unrecognised, we still keep
+          -- the other part:
           | op == A.And = g lhs `mappend` g rhs
--- TODO:
---          | op == A.Or = And $ map Or $ productN $ map (map deOr . deAnd) [g lhs, g rhs]
+          -- (A and B) or (C and D) = ((A and B) or C) and ((A and B) or D)
+          -- = (A or C) and (B or C) and (A or D) and (B or D)
+          --
+          -- If one component of an OR is unrecognised, we end up dropping both
+          -- halves because we can no longer count on that BK (given A OR B, where
+          -- we recognise A, since we can't tell if B is true, we actually have
+          -- no information about A even if the branch is taken).  We do know that
+          -- if the branch is not taken, A cannot be true, but that's dealt with
+          -- because a negated OR ends up as an AND, see above.
+          | op == A.Or = let f = deAnd . g in And $ map (\(x,y) -> x `mappend` y) $ product2 (f lhs, f rhs)
           | op == A.Eq = noAnd $ noOr $ Equal lhs rhs
           | op == A.LessEq = noAnd $ noOr $ LessThanOrEqual lhs rhs
           | op == A.MoreEq = noAnd $ noOr $ LessThanOrEqual rhs lhs
