@@ -45,6 +45,7 @@ occamPasses =
     , checkConstants
     , resolveAmbiguities
     , checkTypes
+    , pushUpDirections
     ]
 
 -- | Fixed the types of array constructors according to the replicator count
@@ -146,4 +147,17 @@ checkConstants = occamOnlyPass "Check mandatory constants"
               return o
     doOption o = return o
 
-
+pushUpDirections :: Pass
+pushUpDirections = occamOnlyPass "Push up direction specifiers on arrays"
+  [] []
+  (applyDepthM doVariable)
+  where
+    doVariable :: Transform A.Variable
+    doVariable origV@(A.DirectedVariable m dir v)
+      = do t <- astTypeOf v
+           case (t, v) of
+             (A.Array {}, _) -> return origV
+             (_, A.SubscriptedVariable m sub v') ->
+               return $ A.SubscriptedVariable m sub $ A.DirectedVariable m dir v'
+             _ -> return origV
+    doVariable v = return v
