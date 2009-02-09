@@ -1,0 +1,79 @@
+-- This file checks the usage checking on channels
+
+PROC read(CHAN OF INT c)
+  INT x:
+  c ? x
+:
+
+PROC write(CHAN OF INT c)
+  c ! 0
+:
+
+PROC both(CHAN OF INT c)
+  INT x:
+  SEQ
+    c ? x
+    c ! x
+:
+
+PROC both.2(CHAN OF INT c, CHAN OF INT d)
+  PAR
+    read(c)
+    write(d)
+:
+
+PROC m()
+  CHAN OF INT c, d, e:
+%%
+:
+
+%PASS Safe direct use of each
+  PAR
+    c ! 1
+    d ! 2
+    e ! 3
+%PASS Safe direct use of each with overlap
+  INT x, y, z:
+  PAR
+    c ! 1
+    c ? x
+    d ! 2
+    d ? y
+    e ! 3
+    e ? z
+%FAIL Unsafe direct use of each with overlap
+  INT x, y, z:
+  PAR
+    c ! 1
+    c ? x
+    d ! 2
+    d ? x
+    e ! 3
+    e ? x
+    c ! 4
+%PASS Safe direct/indirect use of each with overlap
+  INT x, y, z:
+  PAR
+    write(c)
+    c ? x
+    read(d)
+    d ! 4
+    both.2(e,e)
+%FAIL Unsafe direct/indirect use of each with overlap
+  INT x, y, z:
+  PAR
+    write(c)
+    c ? x
+    read(d)
+    d ! 4
+    both.2(e,e)
+    e ! 5
+%FAIL Unsafe direct/indirect use of each with overlap 2
+  INT x, y, z:
+  PAR
+    write(c)
+    c ? x
+    read(d)
+    d ? y
+    both.2(e,e)
+%
