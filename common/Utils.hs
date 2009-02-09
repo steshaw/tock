@@ -363,3 +363,12 @@ labelMapWithNodeId f = gmap (\(x,n,l,y) -> (x,n,f n l,y))
 
 reverseLookup :: (Ord k, Eq v) => v -> Map.Map k v -> Maybe k
 reverseLookup x m = lookup x $ map revPair $ Map.toList m
+
+-- Where you have a wrapper for an inner monadic action, but you want to apply
+-- this to an action that has state wrapped around it:
+liftWrapStateT :: Monad m => (forall b. m b -> m b) -> StateT s m a -> StateT s m a
+liftWrapStateT wrap m
+  = do st <- get
+       (x, st') <- lift $ wrap (runStateT m st)
+       put st'
+       return x
