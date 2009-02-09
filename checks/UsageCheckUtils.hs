@@ -18,12 +18,15 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarProcCall, getVarProc, labelUsageFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
+import Control.Applicative
 import Control.Monad.Writer (tell)
+import qualified Data.Foldable as F
 import Data.Generics hiding (GT)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
+import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
@@ -86,6 +89,26 @@ transformParItems f (RepParItem r p) = RepParItem r (transformParItems f p)
 
 instance Functor ParItems where
   fmap = transformParItems
+
+instance F.Foldable ParItems where
+  foldr _ x (ParItems []) = x
+  foldr f x (ParItems (p:ps)) = F.foldr f (F.foldr f x p) (ParItems ps)
+  foldr f x (SeqItems ss) = foldr f x ss
+  foldr f x (RepParItem nr p) = F.foldr f x p
+
+instance T.Traversable ParItems where
+  -- traverse :: Applicative f => (a -> f b) -> ParItems a -> f (ParItems b)
+  -- <*> :: Applicative f => f (a -> b) -> f a -> f b
+  traverse f (ParItems ps) = liftA ParItems $ rec ps
+    where
+      -- rec :: Applicative f => [ParItems a] -> f [ParItems b]
+      rec [] = pure []
+      rec (p:ps) = liftA2 (:) (T.traverse f p) (rec ps)
+  traverse f (RepParItem nr p) = liftA (RepParItem nr) $ T.traverse f p
+  traverse f (SeqItems ss) = liftA SeqItems $ rec ss
+    where
+      rec [] = pure []
+      rec (s:ss) = liftA2 (:) (f s) (rec ss)
 
 -- Gets all the items inside a ParItems and returns them in a flat list.
 flattenParItems :: ParItems a -> [a]
