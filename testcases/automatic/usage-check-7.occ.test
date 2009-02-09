@@ -74,6 +74,16 @@ PROC m ()
           x := 4
         TRUE
           SKIP
+%FAIL Unsafe after possible branches of replicated PAR
+    PAR i = 0 FOR 10
+      SEQ
+        IF
+          i = 0
+            x := 3
+          TRUE
+            SKIP
+        x := 2
+
 %FAIL Unsafe in possible branch of replicated PAR vs normal PAR
     PAR i = 0 FOR 10
       PAR
