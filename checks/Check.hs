@@ -30,6 +30,7 @@ import Data.Graph.Inductive
 import Data.List hiding (union)
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Set as Set
 
 import ArrayUsageCheck
@@ -97,6 +98,35 @@ followBK = map followBK'
                             next `Set.difference` prev))
           where
             next = Set.fromList $ map Var $ listify (const True :: A.Variable -> Bool) bk
+
+
+data And a = And [a]
+data Or a = Or [a]
+
+instance Monoid (And a) where
+  mempty = And []
+  mappend (And a) (And b) = And (a ++ b)
+instance Monoid (Or a) where
+  mempty = Or []
+  mappend (Or a) (Or b) = Or (a ++ b)
+
+instance Functor And where
+  fmap f (And xs) = And $ map f xs
+
+instance Functor Or where
+  fmap f (Or xs) = Or $ map f xs
+
+deAnd :: And a -> [a]
+deAnd (And xs) = xs
+
+deOr :: Or a -> [a]
+deOr (Or xs) = xs
+
+noOr :: a -> Or a
+noOr = Or . singleton
+
+noAnd :: a -> And a
+noAnd = And . singleton
 
 
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
