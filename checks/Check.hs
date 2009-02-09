@@ -26,7 +26,7 @@ import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Trans
 import Data.Generics
-import Data.Graph.Inductive
+import Data.Graph.Inductive hiding (mapSnd)
 import Data.List hiding (union)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -132,8 +132,7 @@ noAnd = And . singleton
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
   Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
   Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith (++)) $
-  productN $ conBK ++ repBK ++ values)) n
+addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
   where
     keepDefined :: Map.Map Var a -> Map.Map Var a
     keepDefined m = Map.intersection m $ Map.fromList
@@ -142,91 +141,87 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith
     nodeInQuestion :: Map.Map Var (Set.Set (Maybe A.Expression))
     nodeInQuestion = fromMaybe Map.empty $ Map.lookup nid mp
 
-    consInQuestion :: [A.Expression]
-    consInQuestion = fromMaybe [] $ Map.lookup nid mp2
+    consInQuestion :: And A.Expression
+    consInQuestion = And $ fromMaybe [] $ Map.lookup nid mp2
 
-    conInterMed :: ([Var], [[BackgroundKnowledge]])
-    conInterMed = f $ foldl (A.Dyadic emptyMeta (A.And)) (A.True emptyMeta) consInQuestion
+    conInterMed :: And (Or BackgroundKnowledge)
+    conInterMed = mconcat $ map g $ deAnd consInQuestion
       where
-        f :: A.Expression -> ([Var], [[BackgroundKnowledge]])
-        f e = (map Var $ listify (const True) $ g e, g e)
-
-        g :: A.Expression -> [[BackgroundKnowledge]]
+        g :: A.Expression -> And (Or BackgroundKnowledge)
         g (A.Dyadic _ op lhs rhs)
           -- (A or B) and (C or D) = ((A or B) and C) or ((A or B) and D)
           -- = (A and C) or (B and C) or (A and D) or (B and D)
-          | op == A.And = let l = g lhs
-                              r = g rhs
-                          in if null l || null r then l ++ r
-                             else [a ++ b | a <- l, b <- r]
-          | op == A.Or = g lhs ++ g rhs
-          | op == A.Eq = [[Equal lhs rhs]]
-          | op == A.LessEq = [[LessThanOrEqual lhs rhs]]
-          | op == A.MoreEq = [[LessThanOrEqual rhs lhs]]
-          | op == A.Less = [[LessThanOrEqual (addOne lhs) rhs]]
-          | op == A.More = [[LessThanOrEqual (addOne rhs) lhs]]
-          | op == A.NotEq = [[LessThanOrEqual (addOne lhs) rhs]
-                            ,[LessThanOrEqual (addOne rhs) lhs]]
+          | op == A.And = g lhs `mappend` g rhs
+-- TODO:
+--          | op == A.Or = And $ map Or $ productN $ map (map deOr . deAnd) [g lhs, g rhs]
+          | op == A.Eq = noAnd $ noOr $ Equal lhs rhs
+          | op == A.LessEq = noAnd $ noOr $ LessThanOrEqual lhs rhs
+          | op == A.MoreEq = noAnd $ noOr $ LessThanOrEqual rhs lhs
+          | op == A.Less = noAnd $ noOr $ LessThanOrEqual (addOne lhs) rhs
+          | op == A.More = noAnd $ noOr $ LessThanOrEqual (addOne rhs) lhs
+          | op == A.NotEq = noAnd (Or [LessThanOrEqual (addOne lhs) rhs
+                                      ,LessThanOrEqual (addOne rhs) lhs])
         g (A.Monadic _ A.MonadicNot rhs)
-          = negate $ g rhs
-          where
-            -- We have something with a disjunctive normal form, that we need to
-            -- negate:
-            -- not ((A and B) or (C and D))
-            -- De Morgan:
-            -- (not (A and B)) and (not (C and D))
-            -- De Morgan again:
-            -- (not A or not B) and (not C or not D)
-            -- Distribution:
-            -- (not A and not C) or (not A and not D) or (not B and not C) or (not
-            -- B and not D)
-            --
-            -- So what we must do is do a cross-product across all the lists,
-            -- and negate each element.  But this is futher complicated by the
-            -- way that Equals expands out to an ORed item.
-            negate orig = productN $ negateORs orig
+          = mempty -- TODO
+        g _ =  mempty
 
-            -- Takes a list of things ORed, gives back a list of things ANDed
-            negateORs = map negateANDs
-
-            -- Takes a list of things ANDed, gives back a list of things ORed
-            negateANDs = concatMap negateItem
-
-            negateItem (Equal lhs rhs) = [LessThanOrEqual (addOne lhs) rhs
-                                         ,LessThanOrEqual (addOne rhs) lhs]
-            negateItem (LessThanOrEqual lhs rhs) = [LessThanOrEqual (addOne rhs) lhs]
-
-        g _ = []
-
-    conBK :: [[(Var, [BackgroundKnowledge])]]
-    conBK = [zip (repeat v) (snd conInterMed) | v <- fst conInterMed]
+--    conBK :: Or (Var, And BackgroundKnowledge)
+--    conBK = [zip (repeat v) (snd conInterMed) | v <- fst conInterMed]
     
-    -- Each list (xs) in the whole thing (xss) relates to a different variable
-    -- Each item in a list xs is a different possible constraint on that variable
-    -- (effectively joined together by OR)
-    -- The items in the list of BackgroundKnowledge are joined together with
-    -- AND
-    values :: [[(Var, [BackgroundKnowledge])]]
-    values = [ [(Var v, maybeToList $ fmap (Equal $ A.ExprVariable (findMeta v)
-      v) val)  | val <- Set.toList vals]
+    values :: And (Var, Or BackgroundKnowledge)
+    values = And [
+               (Var v, Or $ catMaybes [fmap (Equal $ A.ExprVariable (findMeta v) v) val
+                          | val <- Set.toList vals])
              | (Var v, vals) <- Map.toList nodeInQuestion]
     -- Add bk based on replicator bounds
     -- Search for the node containing the replicator definition,
     -- TODO Then use background knowledge related to any variables mentioned in
     -- the bounds *at that node* not at the current node-in-question
 
-    repBK :: [[(Var, [BackgroundKnowledge])]]
-    repBK = mapMaybe (fmap mkBK . nodeRep . getNodeData . snd) $ labNodes g
+    repBK :: And (Var, BackgroundKnowledge)
+    repBK = And . mapMaybe (fmap mkBK . nodeRep . getNodeData . snd) $ labNodes g
       where
         --TODO only really need consider the connected nodes...
 
-        mkBK :: (A.Name, A.Replicator) -> [(Var, [BackgroundKnowledge])]
-        mkBK (n, A.For _ low count _) = [(Var v, bk)]
+        mkBK :: (A.Name, A.Replicator) -> (Var, BackgroundKnowledge)
+        mkBK (n, A.For _ low count _) = (Var v, bk)
           where
             m = A.nameMeta n
             v = A.Variable m n
-            bk = [ RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)]
-    
+            bk = RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)
+
+    -- How to join:
+    -- repBK is just anded stuff, so we join that on to every conjunction in that
+    -- variable.  values and constraints are And/Or, so we need to do some work to turn it into
+    -- Or/And, and combine the two in a cartesian-product-like operation.
+    joined :: Or (Map.Map Var (And BackgroundKnowledge))
+    joined = Or
+       [ possVal `union` makeMap possCon `union` (Map.map noAnd $ Map.fromList (deAnd repBK))
+       | possVal <- makeNonEmpty Map.empty $ deOr convValues
+       , possCon <- makeNonEmpty (And []) $ deOr convCon
+       ]
+      where
+        union = Map.unionWith mappend
+
+        makeNonEmpty :: a -> [a] -> [a]
+        makeNonEmpty x [] = [x]
+        makeNonEmpty _ xs = xs
+        
+        makeMap :: And BackgroundKnowledge -> Map.Map Var (And BackgroundKnowledge)
+        makeMap (And bks) = Map.fromListWith mappend $ concat
+          [zip (map Var $ listify (const True) bk) (repeat $ noAnd bk) | bk <- bks]
+        
+        convValues :: Or (Map.Map Var (And BackgroundKnowledge))
+        convValues = Or $ map (Map.fromListWith mappend) $
+          map (mapSnd noAnd) $
+          productN $ map (\(x, y) -> zip (repeat x) (deOr y)) $ deAnd values
+
+        convCon :: Or (And BackgroundKnowledge)
+        convCon = Or $ map And $ productN $ map deOr $ deAnd conInterMed
+
+    joined' :: BK
+    joined' = map (Map.map deAnd) $ deOr joined
+
 -- filter out array accesses, leave everything else in:
 filterPlain :: CSMR m => m (Var -> Bool)
 filterPlain = return isPlain
