@@ -222,14 +222,17 @@ uncurry4 :: (a -> b -> c -> d -> e) -> (a,b,c,d) -> e
 uncurry4 f (x,y,z,a) = f x y z a
 
 -- | Given a pair of lists, produces a list of pairs that is the cartesian product of the two lists.
+-- If either list is empty, the result will be empty
 product2 :: ([a],[b]) -> [(a,b)]
 product2 (l0,l1) = [(x0,x1) | x0 <- l0, x1 <- l1]
 
 -- | Given a triple of lists, produces a list of pairs that is the cartesian product of the three lists.
+-- If any list is empty, the result will be empty
 product3 :: ([a],[b],[c]) -> [(a,b,c)]
 product3 (l0,l1,l2) = [(x0,x1,x2) | x0 <- l0, x1 <- l1, x2 <- l2]
 
 -- | Given a quadruple of lists, produces a list of pairs that is the cartesian product of the four lists.
+-- If any list is empty, the result will be empty
 product4 :: ([a],[b],[c],[d]) -> [(a,b,c,d)]
 product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3]
 
@@ -238,6 +241,10 @@ product4 (l0,l1,l2,l3) = [(x0,x1,x2,x3) | x0 <- l0, x1 <- l1, x2 <- l2, x3 <- l3
 --
 -- So, given: [[0,1,2],[3],[],[4,5]], it should return:
 -- [[0,3,4],[1,3,4],[2,3,4],[0,3,5],[1,3,5],[2,3,5]] (or some permutation thereof)
+--
+-- Note that empty lists are ignored, which means that productN [a, b] is different
+-- from map (\(x,y) -> [x,y]) $ product2 (x, y) in the cases where one of the lists
+-- is empty (and the same applies for product3, etc)
 productN :: [[a]] -> [[a]]
 productN [] = []
 productN ([]:xss) = productN xss
