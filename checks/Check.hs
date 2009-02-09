@@ -129,12 +129,14 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map (keepDefined . Map.fromListWith
                               r = g rhs
                           in if null l || null r then l ++ r
                              else [a ++ b | a <- l, b <- r]
+          | op == A.Or = g lhs ++ g rhs
           | op == A.Eq = [[Equal lhs rhs]]
           | op == A.LessEq = [[LessThanOrEqual lhs rhs]]
           | op == A.MoreEq = [[LessThanOrEqual rhs lhs]]
           | op == A.Less = [[LessThanOrEqual (addOne lhs) rhs]]
           | op == A.More = [[LessThanOrEqual (addOne rhs) lhs]]
-          -- TODO add support for OR, and NOT-EQUAL
+          | op == A.NotEq = [[LessThanOrEqual (addOne lhs) rhs]
+                            ,[LessThanOrEqual (addOne rhs) lhs]]
         g _ = []
 
     conBK :: [[(Var, [BackgroundKnowledge])]]
