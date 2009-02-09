@@ -190,5 +190,73 @@ PROC m()
         a[kay] := 4
     a[5] := 3
 
+%PASS Replicated, following TRUE branch
+  PAR
+    a[0] := 3
+    PAR k = 0 FOR 10
+      IF
+        k = 0
+          SKIP
+        TRUE
+          a[k] := 4
+%FAIL Replicated, following TRUE branch (unsafe)
+  PAR
+    a[0] := 3
+    PAR k = 0 FOR 10
+      IF
+        k = 1
+          SKIP
+        TRUE
+          a[k] := 4
+%PASS Replicated, following NOT with = branch
+  PAR
+    a[0] := 3
+    PAR k = 0 FOR 10
+      IF
+        NOT (k = 0)
+          a[k] := 4
+        TRUE
+          SKIP
+%FAIL Replicated, following NOT with = branch (unsafe)
+  PAR
+    a[0] := 3
+    PAR k = 0 FOR 10
+      IF
+        NOT (k = 0)
+          SKIP
+        TRUE
+          a[k] := 4
+%PASS Replicated, following TRUE branch with OR
+  PAR
+    a[0] := 3
+    a[9] := 4
+    PAR k = 0 FOR 10
+      IF
+        (k = 0) OR (k = 9)
+          SKIP
+        TRUE
+          a[k] := 4
+%PASS Replicated, following TRUE branch with NOT and AND
+  PAR
+    a[0] := 3
+    a[9] := 4
+    PAR k = 0 FOR 10
+      IF
+        NOT ((k <> 0) AND (k <> 9))
+          SKIP
+        TRUE
+          a[k] := 4
+%FAIL Replicated, following TRUE branch with bad AND
+  PAR
+    a[0] := 3
+    a[9] := 4
+    PAR k = 0 FOR 10
+      IF
+        (k = 0) AND (k = 9)
+          SKIP
+        TRUE
+          a[k] := 4
+
+        
 
 %
