@@ -1,0 +1,43 @@
+-- This file tests PRAGMAs for SHARED and PERMITALIASES
+
+PROC p(INT x, INT y, CHAN INT c)
+  SKIP
+:
+
+PROC m()
+  INT x:
+  INT y:
+  CHAN INT c:
+%%
+  PAR
+    c ! 3
+    p(x,x,c)
+    y := 3
+    y := 4
+:
+
+%PASS Correct pragmas
+  #PRAGMA SHARED c, y 
+  #PRAGMA PERMITALIASES x
+%PASS Correct pragmas #2
+  #PRAGMA SHARED c, y, x 
+  #PRAGMA PERMITALIASES x
+%PASS Correct pragmas #3
+  #PRAGMA SHARED c, y, x
+  #PRAGMA PERMITALIASES x, c, y
+%FAIL Incorrect pragmas #1
+
+%FAIL Incorrect pragmas #2
+  #PRAGMA SHARED c, y
+%FAIL Incorrect pragmas #3
+  #PRAGMA SHARED c
+  #PRAGMA PERMITALIASES x
+%FAIL Incorrect pragmas #4
+  #PRAGMA SHARED c, y, x
+%FAIL Incorrect pragmas #5
+  #PRAGMA SHARED c
+  #PRAGMA PERMITALIASES x, y
+%FAIL Incorrect pragmas #6
+  #PRAGMA SHARED y
+  #PRAGMA PERMITALIASES x, c
+%

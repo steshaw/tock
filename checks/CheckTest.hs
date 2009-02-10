@@ -106,6 +106,7 @@ viotests v = liftM (TestLabel "CheckTest" . TestList) $ sequence
  [
   return testUnusedVar
  ,automaticTest FrontendOccam v "testcases/automatic/abbrev-check-1.occ.test"
+ ,automaticTest FrontendOccam v "testcases/automatic/pragma-1.occ.test"
  ]
 
 

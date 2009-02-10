@@ -467,7 +467,8 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
         mockedupParItems = fmap ((,) bk) $ ParItems [SeqItems [Usage Nothing Nothing Nothing
           $ processVarW v Nothing] | v <- vs]
 
-
+-- TODO for this pass, make the usage checker examine the PERMITALIASES pragma
+-- instead of SHARED
 checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
   FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
