@@ -38,6 +38,7 @@ import Pass
 import qualified Properties as Prop
 import ShowCode
 import Traversal
+import UsageCheckUtils
 import Utils
 
 simplifyAbbrevs :: [Pass]
@@ -192,63 +193,97 @@ updateAbbrevsInState
 abbrevCheckPass :: Pass
 abbrevCheckPass
     = pass "Abbreviation checking" [] []
-           (passOnlyOnAST "abbrevCheck" $ applyDepthSM doStructured)
+           (passOnlyOnAST "abbrevCheck" $ flip evalStateT [Map.empty] . recurse)
   where
-    doStructured :: Data a => Transform (A.Structured a)
+    ops = baseOp `extOpS` doStructured `extOp` doVariable
+            `extOp` doProcess `extOp` doInputItem
+
+    descend, recurse :: Data a => a -> StateT [Map.Map Var Bool] PassM a
+    descend = makeDescend ops
+    recurse = makeRecurse ops
+
+    pushRecurse x = modify (Map.empty:) >> recurse x
+    pop :: StateT [Map.Map Var Bool] PassM ()
+    pop = modify $ \st -> case st of
+      (m:m':ms) -> Map.unionWith (||) m m' : ms
+      _ -> st
+
+    record b v = modify (\(m:ms) -> (Map.insertWith (||) (Var v) b m : ms))
+
+    doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
+      (A.Structured a)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ v)) scope)
-      = do checkAbbreved v scope "Abbreviated variable % used inside the scope of the abbreviation"
+      = do pushRecurse scope
+           checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
+           pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ v)) scope)
-      = do checkAbbreved v scope "Abbreviated variable % used inside the scope of the abbreviation"
-           checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+      = do pushRecurse scope
+           checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
+           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+           pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
-      = do checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-           sequence_ [checkNotWritten v scope
+      = do pushRecurse scope
+           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+           sequence_ [checkNotWritten v
              "Abbreviated variable % used inside the scope of the abbreviation"
              | A.ExprVariable _ v <- fastListify (const True) e]
+           pop
            return s
-    doStructured s = return s
+    doStructured s = descend s
 
-    isExempt :: A.Variable -> PassM Bool
+    isExempt :: A.Variable -> StateT [Map.Map Var Bool] PassM Bool
     isExempt (A.DirectedVariable _ _ v) = isExempt v
     isExempt (A.SubscriptedVariable _ _ v) = isExempt v
     isExempt (A.Variable _ n)
-      = do st <- getCompState
+      = do st <- lift getCompState
            case Map.lookup (A.nameName n) (csNameAttr st) of
              Just attrs | NameAliasesPermitted `Set.member` attrs -> return True
              _ -> return False
 
-    checkAbbreved :: Data a => A.Variable -> a -> String -> PassM ()
-    checkAbbreved v@(A.Variable {}) x msg = checkNone v x msg
-    checkAbbreved v@(A.DirectedVariable {}) x msg = checkNone v x msg
-    checkAbbreved (A.SubscriptedVariable _ sub v) x msg
-      = sequence_ [checkNotWritten subV x msg | subV <- fastListify (const True) sub]
+    --In the map, True means written-to (and maybe read), False means just read
+    
+    checkAbbreved :: A.Variable -> String -> StateT [Map.Map Var Bool] PassM ()
+    checkAbbreved v@(A.Variable {}) msg = checkNone v msg
+    checkAbbreved v@(A.DirectedVariable {}) msg = checkNone v msg
+    checkAbbreved (A.SubscriptedVariable _ sub v) msg
+      = sequence_ [checkNotWritten subV msg | subV <- fastListify (const True) sub]
 
-    checkNone :: Data a => A.Variable -> a -> String -> PassM ()
-    -- Must use Ord instance, not Eq:
-    checkNone v x msg
-      = do ex <- isExempt v
+    checkNone :: A.Variable -> String -> StateT [Map.Map Var Bool] PassM ()
+    checkNone v msg
+      = do m <- get >>* head
+           ex <- isExempt v
            when (not ex) $
-             case fastListify ((EQ ==) . compare v) x of
-               [] -> return ()
-               xs -> diePC (findMeta xs) $ formatCode msg v
+             case Map.lookup (Var v) m of
+               Nothing -> return ()
+               _ -> lift $ diePC (findMeta v) $ formatCode msg v
 
-    checkNotWritten :: Data a => A.Variable -> a -> String -> PassM ()
-    checkNotWritten v x msg
-      = mapM_ checkAssign (fastListify (const True) x)
-        >> mapM_ checkInput (fastListify (const True) x)
-      where
-        checkAssign :: A.Process -> PassM ()
-        checkAssign (A.Assign m lhs _)
-          = when (any ((EQ ==) . compare v) lhs) $
-              dieP m msg
-        checkAssign _ = return ()
+    checkNotWritten :: A.Variable -> String -> StateT [Map.Map Var Bool] PassM ()
+    checkNotWritten v msg
+      = do m <- get >>* head
+           ex <- isExempt v
+           when (not ex) $
+             case Map.lookup (Var v) m of
+               Just True -> lift $ diePC (findMeta v) $ formatCode msg v
+               _ -> return ()
+           
 
-        checkInput :: A.InputItem -> PassM ()
-        checkInput (A.InCounted m a b)
-          = when (any ((EQ ==) . compare v) [a,b]) $
-              dieP m msg
-        checkInput (A.InVariable m a)
-          = when (EQ == compare v a) $
-              dieP m msg
+    doVariable :: A.Variable -> StateT [Map.Map Var Bool] PassM A.Variable
+    doVariable v = record False v >> descend v
+
+    doProcess :: A.Process -> StateT [Map.Map Var Bool] PassM A.Process
+    doProcess p@(A.Assign m lhs rhs)
+          = do mapM (record True) lhs
+               mapM descend lhs -- To catch sub-variables
+               recurse rhs
+               return p
+    doProcess p = descend p
+
+    doInputItem :: A.InputItem -> StateT [Map.Map Var Bool] PassM A.InputItem
+    doInputItem i@(A.InCounted m a b)
+          = do mapM (record True) [a, b]
+               descend i -- To catch sub-variables
+    doInputItem i@(A.InVariable m a)
+          = do record True a
+               descend i -- To catch sub-variables
