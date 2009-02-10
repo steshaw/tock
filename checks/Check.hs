@@ -69,7 +69,9 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                 Right c -> return c
                       let g' = labelMapWithNodeId (addBK reach cons g) g
                       checkPar (nodeRep . snd)
-                        (joinCheckParFunctions checkArrayUsage checkPlainVarUsage)
+                        (joinCheckParFunctions
+                          (checkArrayUsage NameShared)
+                          (checkPlainVarUsage NameShared))
                         g'
                       checkParAssignUsage g' t
                       checkProcCallArgsUsage g' t
@@ -294,8 +296,8 @@ foldUnionVarsBK
     mkR bk = (Just bk, Nothing)
     mkW (_, bk) = (Nothing, Just bk)
 
-checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
-checkPlainVarUsage (m, p) = check p
+checkPlainVarUsage :: forall m. (MonadIO m, Die m, CSMR m) => NameAttr -> (Meta, ParItems (BK, UsageLabel)) -> m ()
+checkPlainVarUsage sharedAttr (m, p) = check p
   where
     addBK :: BK -> Vars -> VarsBK
     addBK bk vs = VarsBK (Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat bk))
@@ -342,7 +344,7 @@ checkPlainVarUsage (m, p) = check p
     -- A quick way to do this is to do a fold-union across all the maps, turning
     -- the values into lists that can then be scanned for any problems.
     check (ParItems ps)
-      = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (Set.member NameShared)
+      = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (Set.member sharedAttr)
              >>* Map.keysSet >>* (Set.map $ UsageCheckUtils.Var . A.Variable emptyMeta . A.Name emptyMeta)
            let decl = concatMap getDecl ps
            filt <- filterPlain
@@ -460,8 +462,8 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
     -- are distinct.  So we check plain variables, and array variables
     checkParAssign :: (A.Process, (BK, UsageLabel)) -> m ()
     checkParAssign (A.Assign m vs _, (bk, _))
-      = do checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, mockedupParItems)
+      = do checkPlainVarUsage NameShared (m, mockedupParItems)
+           checkArrayUsage NameShared (m, mockedupParItems)
       where
         mockedupParItems :: ParItems (BK, UsageLabel)
         mockedupParItems = fmap ((,) bk) $ ParItems [SeqItems [Usage Nothing Nothing Nothing
@@ -485,8 +487,8 @@ checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
            let mockedupParItems = fmap ((,) bk) $
                  ParItems [SeqItems [Usage Nothing Nothing Nothing v]
                           | v <- vars]
-           checkPlainVarUsage (m, mockedupParItems)
-           checkArrayUsage (m, mockedupParItems)
+           checkPlainVarUsage NameAliasesPermitted (m, mockedupParItems)
+           checkArrayUsage NameAliasesPermitted (m, mockedupParItems)
 
 -- This isn't actually just unused variables, it's all unused names (except PROCs)
 checkUnusedVar :: CheckOptM ()

@@ -40,4 +40,7 @@ PROC m()
 %FAIL Incorrect pragmas #6
   #PRAGMA SHARED y
   #PRAGMA PERMITALIASES x, c
+%FAIL Incorrect pragmas #7
+  #PRAGMA SHARED y
+  #PRAGMA PERMITALIASES x
 %

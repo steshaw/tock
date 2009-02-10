@@ -96,8 +96,8 @@ findRepSolutions reps bks
 
 -- | A check-pass that checks the given ParItems (usually generated from a control-flow graph)
 -- for any overlapping array indices.
-checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => (Meta, ParItems (BK, UsageLabel)) -> m ()
-checkArrayUsage (m,p)
+checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => NameAttr -> (Meta, ParItems (BK, UsageLabel)) -> m ()
+checkArrayUsage sharedAttr (m,p)
   = do indexes <- groupArrayIndexes $ fmap (transformPair id nodeVars) p
        mapM_ (checkIndexes m) $ Map.toList indexes
   where
@@ -158,7 +158,7 @@ checkArrayUsage (m,p)
     checkIndexes m ((arrName, arrDir), indexes) = do
       sharedNames <- getCompState >>* csNameAttr
       let declNames = [x | Just x <- fmap (getDecl . snd) $ flattenParItems p]
-      when (fmap (Set.member NameShared) (Map.lookup arrName sharedNames) /= Just True && arrName `notElem` declNames) $
+      when (fmap (Set.member sharedAttr) (Map.lookup arrName sharedNames) /= Just True && arrName `notElem` declNames) $
         do userArrName <- getRealName (A.Name undefined arrName)
            arrType <- astTypeOf (A.Name undefined arrName)
            arrLength <- case arrType of
