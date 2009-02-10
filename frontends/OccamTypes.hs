@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | The occam typechecker.
 module OccamTypes (inferTypes, checkTypes, addDirections) where
 
+import Control.Monad.Reader
 import Control.Monad.State
 import Data.Generics
 import Data.List
@@ -664,7 +665,7 @@ inferTypes = occamOnlyPass "Infer types"
           `extOp` doReplicator
           `extOp` doAlternative
           `extOp` doInputMode
-          `extOp` doSpecification
+          `extOpS` doStructured
           `extOp` doProcess
           `extOp` doVariable
 
@@ -782,35 +783,53 @@ inferTypes = occamOnlyPass "Infer types"
     doInputMode :: Transform A.InputMode
     doInputMode im = inTypeContext (Just A.Int) $ descend im
 
-    -- FIXME: This should be shared with foldConstants.
-    doSpecification :: Transform A.Specification
-    doSpecification s@(A.Specification m n st)
-        =  do st' <- doSpecType st
+    doStructured :: Data a => Transform (A.Structured a)
+    doStructured (A.Spec mspec s@(A.Specification m n st) body)
+        =  do st' <- runReaderT (doSpecType n st) body
               -- Update the definition of each name after we handle it.
               modifyName n (\nd -> nd { A.ndSpecType = st' })
-              return $ A.Specification m n st'
+              recurse body >>* A.Spec mspec (A.Specification m n st')
+    doStructured s = descend s
 
-    doSpecType :: Transform A.SpecType
-    doSpecType st
+    doSpecType :: Data a => A.Name -> A.SpecType -> ReaderT (A.Structured a) PassM A.SpecType
+    doSpecType n st
         = case st of
-            A.Place _ _ -> inTypeContext (Just A.Int) $ descend st
+            A.Place _ _ -> lift $ inTypeContext (Just A.Int) $ descend st
             A.Is m am t v ->
-               do am' <- recurse am
-                  t' <- recurse t
-                  v' <- inTypeContext (Just t') $ recurse v
-                  (t'', v'') <- case t' of
-                    A.Infer -> do r <- astTypeOf v'
-                                  return (r, v')
-                    A.ChanEnd dir _ _ -> do v'' <- makeEnd m dir v'
+               do am' <- lift $ recurse am
+                  t' <- lift $ recurse t
+                  v' <- lift $ inTypeContext (Just t') $ recurse v
+                  vt <- lift $ astTypeOf v'
+                  (t'', v'') <- case (t', vt) of
+                    (A.Infer, A.Chan attr innerT) ->
+                         do dirs <- ask >>= (lift . findDir n)
+                            case nub dirs of
+                              [dir] ->
+                                do let tEnd = A.ChanEnd dir attr innerT
+                                   return (tEnd, A.DirectedVariable m dir v')
+                              _ -> return (vt, v') -- no direction, or two
+                    (A.Infer, _) -> return (vt, v')
+                    (A.ChanEnd dir _ _, _) -> do v'' <- lift $ makeEnd m dir v'
+                                                 return (t', v'')
+                    (A.Array _ (A.ChanEnd dir _ _), _) ->
+                                         do v'' <- lift $ makeEnd m dir v'
                                             return (t', v'')
-                    A.Array _ (A.ChanEnd dir _ _) ->
-                                         do v'' <- makeEnd m dir v'
-                                            return (t', v'')
-                    -- TODO infer direction of IS channel type
-                    -- We will need the body!
+                    (A.Chan cattr cinnerT, A.ChanEnd dir _ einnerT)
+                      -> do cinnerT' <- lift $ recurse cinnerT
+                            einnerT' <- lift $ recurse einnerT
+                            if cinnerT' /= einnerT'
+                              then lift $ diePC m $ formatCode "Inner types of channels do not match in type inference: % %" cinnerT' einnerT'
+                              else return (vt, v')
+                    (A.Chan attr innerT, A.Chan {}) ->
+                         do dirs <- ask >>= (lift . findDir n)
+                            case nub dirs of
+                              [dir] ->
+                                do let tEnd = A.ChanEnd dir attr innerT
+                                   return (tEnd, A.DirectedVariable m dir v')
+                              _ -> return (t', v') -- no direction, or two
                     _ -> return (t', v')
                   return $ A.Is m am' t'' v''
-            A.IsExpr m am t e ->
+            A.IsExpr m am t e -> lift $
                do am' <- recurse am
                   t' <- recurse t
                   e' <- inTypeContext (Just t') $ recurse e
@@ -821,32 +840,40 @@ inferTypes = occamOnlyPass "Infer types"
             A.IsChannelArray m t vs ->
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".
-               do t' <- recurse t
-                  vs' <- mapM recurse vs >>= case t' of
+               do t' <- lift $ recurse t
+                  vs' <- lift $ mapM recurse vs >>= case t' of
                     A.Infer -> return
                     A.Array _ (A.Chan {}) -> return
                     A.Array _ (A.ChanEnd dir _ _) -> mapM (makeEnd m dir)
                     _ -> const $ dieP m "Cannot coerce non-channels into channels"
                   let dim = makeDimension m $ length vs'
-                  t'' <- case (t', vs') of
+                  t'' <- lift $ case (t', vs') of
                            (A.Infer, (v:_)) ->
                              do elemT <- astTypeOf v
                                 return $ addDimensions [dim] elemT
                            (A.Infer, []) ->
                              dieP m "Cannot infer type of empty channel array"
                            _ -> return $ applyDimension dim t'
-                  return $ A.IsChannelArray m t'' vs'
-            A.Function m sm ts fs (Left sel) ->
+                  (t''', f) <- case t'' of
+                    A.Array ds (A.Chan attr innerT) -> do
+                      dirs <- ask >>= (lift . findDir n)
+                      case nub dirs of
+                        [dir] -> return (A.Array ds $ A.ChanEnd dir attr innerT
+                                        ,A.DirectedVariable m dir)
+                        _ -> return (t'', id)
+                    _ -> return (t'', id)
+                  return $ A.IsChannelArray m t''' $ map f vs'
+            A.Function m sm ts fs (Left sel) -> lift $
                do sm' <- recurse sm
                   ts' <- recurse ts
                   fs' <- recurse fs
                   sel' <- doFuncDef ts sel
                   return $ A.Function m sm' ts' fs' (Left sel')
-            A.RetypesExpr _ _ _ _ -> noTypeContext $ descend st
+            A.RetypesExpr _ _ _ _ -> lift $ noTypeContext $ descend st
             -- For PROCs that take any channels without direction,
             -- we must determine if we can infer a specific direction
             -- for that channel
-            A.Proc m sm fs body ->
+            A.Proc m sm fs body -> lift $
                do body' <- recurse body
                   fs' <- mapM (processFormal body') fs
                   return $ A.Proc m sm fs' body'
@@ -864,7 +891,7 @@ inferTypes = occamOnlyPass "Infer types"
                                    return f'
                               _ -> return f -- no direction, or two
                        _ -> return f
-            _ -> descend st
+            _ -> lift $ descend st
       where
         -- | This is a bit ugly: walk down a Structured to find the single
         -- ExpressionList that must be in there.
@@ -883,7 +910,7 @@ inferTypes = occamOnlyPass "Infer types"
             =  do el' <- doExpressionList ts el
                   return $ A.Only m el'
 
-        findDir :: A.Name -> A.Process -> PassM [A.Direction]
+        findDir :: Data a => A.Name -> a -> PassM [A.Direction]
         findDir n = flip execStateT [] . makeRecurse ops
           where
             ops = baseOp `extOp` doVariable
@@ -892,6 +919,9 @@ inferTypes = occamOnlyPass "Infer types"
             -- specifiers before applying this function.
             doVariable :: A.Variable -> StateT [A.Direction] PassM A.Variable
             doVariable v@(A.DirectedVariable _ dir (A.Variable _ n')) | n == n'
+              = modify (dir:) >> return v
+            doVariable v@(A.DirectedVariable _ dir
+              (A.SubscriptedVariable _ _ (A.Variable _ n'))) | n == n'
               = modify (dir:) >> return v
             doVariable v = makeDescend ops v
 
@@ -1041,8 +1071,8 @@ inferTypes = occamOnlyPass "Infer types"
                     A.Infer -> return A.UnknownDimension
                     _ -> diePC m $ formatCode "Unexpected type in array constructor: %" underT
                   (t, body') <- doArrayElem subT body
-                  spec' <- doSpecification spec
-                  return (applyDimension dim wantT, A.Spec m spec' body')
+                  specAndBody' <- doStructured $ A.Spec m spec body'
+                  return (applyDimension dim wantT, specAndBody')
         -- A table: this could be an array or a record.
         doArrayElem wantT (A.Several m aes)
             =  do underT <- resolveUserType m wantT
