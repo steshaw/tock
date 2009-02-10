@@ -217,7 +217,8 @@ typeOfVariable (A.DirectedVariable m dir v)
              if dir == dir'
                then return t
                else dieP m $ "Attempted to reverse direction of a channel-end"
-           _ -> dieP m $ "Direction specified on non-channel variable"
+           A.Infer -> return $ A.ChanEnd dir (A.ChanAttributes False False) A.Infer
+           _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
 
 -- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (CSMR m, Die m) => A.Variable -> m A.AbbrevMode
