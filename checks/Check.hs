@@ -314,8 +314,13 @@ checkPlainVarUsage sharedAttr (m, p) = check p
     splitEnds :: (Var, a) -> m [(Var, a)]
     splitEnds (Var v, x)
       = do t <- astTypeOf v
-           case t of
-             A.Chan {} -> return
+           case (t, v) of
+             -- Push the direction up to the array, not outside:
+             (A.Chan {}, A.SubscriptedVariable m sub v')
+               -> return [(Var $ A.SubscriptedVariable m sub $
+                            A.DirectedVariable m dir v', x)
+                         | dir <- [A.DirInput, A.DirOutput]]
+             (A.Chan {}, _) -> return
                [(Var $ A.DirectedVariable (findMeta v) dir v, x)
                | dir <- [A.DirInput, A.DirOutput]]
              _ -> return [(Var v, x)]

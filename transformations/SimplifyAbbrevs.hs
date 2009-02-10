@@ -204,7 +204,7 @@ abbrevCheckPass
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
       = do checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-           sequence_ [checkAbbreved v scope
+           sequence_ [checkNotWritten v scope
              "Abbreviated variable % used inside the scope of the abbreviation"
              | A.ExprVariable _ v <- listify (const True) e]
            return s
