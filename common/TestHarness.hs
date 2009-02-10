@@ -51,6 +51,7 @@ import System.IO
 import Test.HUnit hiding (performTest)
 
 import CompState
+import Metadata
 import ParseOccam
 import ParseRain
 import Pass
@@ -74,20 +75,20 @@ defaultState fr v = emptyState {csVerboseLevel = v, csFrontend = fr}
 
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
-testOccam :: Int -> String -> IO (Maybe String)
+testOccam :: Int -> String -> IO (Maybe (Maybe Meta, String))
 testOccam v source = do (result,_) <- runPassM (defaultState FrontendOccam v) compilation
                         return $ case result of
-                                 Left (_,err) -> Just err
+                                 Left err -> Just err
                                  Right _  -> Nothing
   where
     compilation = preprocessOccamSource source
                   >>= parseOccamProgram
                   >>= runPasses (getPassList $ defaultState FrontendOccam v)
 
-testRain :: Int -> String -> IO (Maybe String)
+testRain :: Int -> String -> IO (Maybe (Maybe Meta, String))
 testRain v source = do (result,_) <- runPassM (defaultState FrontendRain v) compilation
                        return $ case result of
-                                 Left (_,err) -> Just err
+                                 Left err -> Just err
                                  Right _  -> Nothing
   where
     compilation = parseRainProgram "<test>" source
@@ -127,7 +128,7 @@ performTest fr v fileName fileContents
       = TestCase $ 
         do result <- (if fr == FrontendOccam then testOccam else testRain) v testText
            case result of
-             Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ err) else return ()
+             Just err -> if expPass then assertFailure (testName ++ " failed with error: " ++ show err) else return ()
              Nothing  -> if expPass then return () else assertFailure (testName ++ " expected to fail but passed")
 
 -- | Splits a file's contents into the prologue, and subsequent testcases
