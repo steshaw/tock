@@ -451,8 +451,14 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
       = do t <- astTypeOf innerV
            case t of
              A.Array ds (A.Chan attr innerT) ->
-               do spec@(A.Specification _ n _) <- makeNonceIs "dir_array" m
-                    (A.Array ds $ A.ChanEnd dir attr innerT) A.Abbrev v
+               do let ds' = [case d of
+                        A.Dimension {} -> d
+                        A.UnknownDimension -> A.Dimension $ A.SizeVariable m $
+                          foldr (\n v -> A.SubscriptedVariable m (A.Subscript m A.CheckBoth
+                            n) v) innerV (replicate i $ makeConstant m 0)
+                        | (d, i) <- zip ds [0..]]
+                  spec@(A.Specification _ n _) <- makeNonceIs "dir_array" m
+                    (A.Array ds' $ A.ChanEnd dir attr innerT) A.Abbrev v
                   addPulled $ (m, Left spec)
                   return $ A.Variable m n
              _ -> descend v

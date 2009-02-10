@@ -891,6 +891,13 @@ cgenArraySubscript check v es
         genChunks = map genDim subs
 --}}}
 
+countSubscripts :: A.Variable -> (Int, A.Variable)
+countSubscripts (A.SubscriptedVariable _ (A.Subscript {}) v)
+  = let (n, v') = countSubscripts v in (1+n, v')
+countSubscripts (A.SubscriptedVariable _ _ v) = countSubscripts v
+countSubscripts (A.DirectedVariable _ _ v) = countSubscripts v
+countSubscripts v@(A.Variable _ _) = (0, v)
+
 --{{{  expressions
 cgenExpression :: A.Expression -> CGen ()
 cgenExpression (A.Monadic m op e) = call genMonadic m op e
@@ -907,8 +914,10 @@ cgenExpression (A.SizeVariable m v)
             A.Array (d:_) _  ->
               case d of
                 A.Dimension n -> call genExpression n
-                A.UnknownDimension -> do call genVariable v
-                                         call genSizeSuffix "0"
+                A.UnknownDimension ->
+                  let (n, v') = countSubscripts v
+                  in do call genVariable v'
+                        call genSizeSuffix (show n)
             A.List _ ->
               call genListSize v
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e

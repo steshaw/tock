@@ -176,6 +176,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
       A.SubscriptField {} -> (Nothing, wv)
       A.SubscriptFromFor _ _ _ for -> (Just for, snd $ findInnerVar v) -- Keep the outer most
       A.Subscript {} -> findInnerVar v
+    findInnerVar (A.DirectedVariable _ _ v) = findInnerVar v
     findInnerVar v = (Nothing, v)
 
     -- | Generate the @_sizes@ array for a 'Retypes' expression.
@@ -237,6 +238,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                   return (A.Variable m $ A.Name m $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
              A.DirectedVariable _ _ (A.Variable _ srcN) -> return (A.Variable m
                $ append_sizes srcN)
+             _ -> diePC m $ formatCode "Cannot handle variable % in abbrevVarSizes" innerV
            -- Get the dimensions of the source variable:
            innerVT <- astTypeOf innerV
            srcDs <- case innerVT of
