@@ -17,7 +17,7 @@ PROC m()
 %FAIL Val abbreviation, used improperly 2
   VAL INT z IS x:
   x := 3
-%FAIL Val abbreviation, used properly
+%PASS Val abbreviation, used properly
   VAL INT z IS x:
   INT y:
   y := z
