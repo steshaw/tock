@@ -421,7 +421,7 @@ buildFlowGraph :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.AST  ->
   mLabel (Either String (FlowGraph' mAlter label (), [Node], [Node]))
 buildFlowGraph funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s routeIdentity
+  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredAST s identityRoute
        return $ case res of
                   (Left err,_) -> Left err
                   (Right _,GraphMakerState _ _ (nodes, edges) roots terminators _)
@@ -432,7 +432,7 @@ buildFlowGraphP :: forall mLabel mAlter label. (Monad mLabel, Monad mAlter) =>
   A.Structured A.Process ->
   mLabel (Either String (FlowGraph' mAlter label A.Process, [Node], [Node]))
 buildFlowGraphP funcs s
-  = do res <- flip runStateT (0, 0, ([],[]), [], []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s routeIdentity
+  = do res <- flip runStateT (GraphMakerState 0 0 ([],[]) [] [] []) $ flip runReaderT funcs $ runErrorT $ buildStructuredSeq s identityRoute
        return $ case res of
                   (Left err,_) -> Left err
                   (Right (root,_),GraphMakerState _ _ (nodes, edges) roots terminators _)

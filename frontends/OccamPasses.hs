@@ -228,10 +228,10 @@ checkConstants = occamOnlyPass "Check mandatory constants"
 
 -- | Turns things like cs[0]? into cs?[0], which helps later on in the usage checking
 -- (as we can consider cs? a different array than cs!).
-pushUpDirections :: Pass
+pushUpDirections :: PassOn A.Variable
 pushUpDirections = occamOnlyPass "Push up direction specifiers on arrays"
   [] []
-  (applyDepthM doVariable)
+  (applyBottomUpM doVariable)
   where
     doVariable :: Transform A.Variable
     doVariable origV@(A.DirectedVariable m dir v)

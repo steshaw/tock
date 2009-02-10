@@ -190,24 +190,21 @@ updateAbbrevsInState
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
 
-    -- Until Polyplate is merged, this fixes updating the abbreviation modes in
-    -- the csNames map
-    doNameAbbrevs :: CompState -> CompState
-    doNameAbbrevs cs = cs { csNames = flip Map.map (csNames cs) $
-      \nd -> nd { A.ndAbbrevMode = doAbbrevMode (A.ndAbbrevMode nd) } }
-
 abbrevCheckPass :: Pass
 abbrevCheckPass
     = pass "Abbreviation checking" [] []
-           (passOnlyOnAST "abbrevCheck" $ flip evalStateT [Map.empty] . recurse)
+           ({-passOnlyOnAST "abbrevCheck" $ -} flip evalStateT [Map.empty] . recurse)
   where
-    ops = baseOp `extOpS` doStructured `extOp` doVariable
-            `extOp` doProcess `extOp` doInputItem
+    ops :: AbbrevCheckOps
+    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doVariable
+            `extOpM` doProcess `extOpM` doInputItem
 
-    descend, recurse :: Data a => a -> StateT [Map.Map Var Bool] PassM a
-    descend = makeDescend ops
-    recurse = makeRecurse ops
+    descend :: DescendM AbbrevCheckM AbbrevCheckOps
+    descend = makeDescendM ops
+    recurse :: RecurseM AbbrevCheckM AbbrevCheckOps
+    recurse = makeRecurseM ops
 
+    pushRecurse :: (PolyplateM a AbbrevCheckOps () AbbrevCheckM) => a -> AbbrevCheckM a
     pushRecurse x = modify (Map.empty:) >> recurse x
     pop :: StateT [Map.Map Var Bool] PassM ()
     pop = modify $ \st -> case st of
@@ -215,17 +212,6 @@ abbrevCheckPass
       _ -> st
 
     record b v = modify (\(m:ms) -> (Map.insertWith (||) (Var v) b m : ms))
-
-    nameIsNonce :: A.Name -> StateT [Map.Map Var Bool] PassM Bool
-    nameIsNonce n
-      = do names <- lift getCompState >>* csNames
-           case fmap A.ndNameSource $ Map.lookup (A.nameName n) names of
-             Just A.NameNonce -> return True
-             _ -> return False
-
-    -- Judging by the cgtests (cgtest18, line 232), we should turn off usage checking
-    -- on an abbreviation if either the RHS *or* the LHS is exempt by a PERMITALIASEs
-    -- pragma
 
     doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
       (A.Structured a)
@@ -249,16 +235,12 @@ abbrevCheckPass
                      pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ (A.ActualExpression e))) scope)
-      = do nonce <- nameIsNonce n
-           ex <- isNameExempt n
-           if nonce || ex
-             then descend s >> return ()
-             else do pushRecurse scope
-                     checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-                     sequence_ [checkNotWritten v
-                       "Abbreviated variable % used inside the scope of the abbreviation"
-                       | A.ExprVariable _ v <- fastListify (const True) e]
-                     pop
+      = do pushRecurse scope
+           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+           sequence_ [checkNotWritten v
+             "Abbreviated variable % used inside the scope of the abbreviation"
+             | A.ExprVariable _ v <- fastListify (const True) e]
+           pop
            return s
     doStructured s = descend s
 
@@ -282,7 +264,7 @@ abbrevCheckPass
     checkAbbreved v@(A.Variable {}) msg = checkNone v msg
     checkAbbreved v@(A.DirectedVariable {}) msg = checkNone v msg
     checkAbbreved (A.SubscriptedVariable _ sub v) msg
-      = sequence_ [checkNotWritten subV msg | subV <- fastListify (const True) sub]
+      = sequence_ [checkNotWritten subV msg | subV <- listifyDepth (const True) sub]
 
     checkNone :: A.Variable -> String -> StateT [Map.Map Var Bool] PassM ()
     checkNone v msg

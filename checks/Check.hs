@@ -37,12 +37,12 @@ import ArrayUsageCheck
 import qualified AST as A
 import CheckFramework
 import CompState
+import Data.Generics.Polyplate.Route
 import Errors
 import ExSet
 import FlowAlgorithms
 import FlowGraph
 import FlowUtils
-import GenericUtils
 import Metadata
 import Pass
 import ShowCode

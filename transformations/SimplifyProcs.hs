@@ -193,9 +193,9 @@ flattenAssign = pass "Flatten assignment"
 -- This pass is primarily to make sure that PAR replicators with 0 or 1 counts
 -- pass the usage checking, but it doesn't hurt to remove any redundant code (or
 -- simplify code) in the other replicators.
-fixLowReplicators :: Pass
+fixLowReplicators :: PassOn A.Process
 fixLowReplicators = pass "Fix low-count (0, 1) replicators" [] []
-  (applyDepthM doProcess)
+  (applyBottomUpM doProcess)
   where
     doProcess :: Transform A.Process
     doProcess (A.Seq m s) = doStructured s >>* A.Seq m
