@@ -147,6 +147,8 @@ checkConstants = occamOnlyPass "Check mandatory constants"
               return o
     doOption o = return o
 
+-- | Turns things like cs[0]? into cs?[0], which helps later on in the usage checking
+-- (as we can consider cs? a different array than cs!).
 pushUpDirections :: Pass
 pushUpDirections = occamOnlyPass "Push up direction specifiers on arrays"
   [] []

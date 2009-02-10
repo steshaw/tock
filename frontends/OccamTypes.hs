@@ -769,6 +769,8 @@ inferTypes = occamOnlyPass "Infer types"
                     A.Array _ (A.ChanEnd dir _ _) ->
                                          do v'' <- makeEnd m dir v'
                                             return (t', v'')
+                    -- TODO infer direction of IS channel type
+                    -- We will need the body!
                     _ -> return (t', v')
                   return $ A.Is m am' t'' v''
             A.IsExpr m am t e ->
