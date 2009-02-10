@@ -1319,8 +1319,12 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
 cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
-    =  do call genType c        
-          tell ["*"]
+    =  do call genType c
+          case c of
+             A.Chan _ _ -> tell ["*"]
+             -- Channel ends don't need an extra indirection; in C++ they are not
+             -- pointers, and in C they are already pointers
+             _ -> return ()
           call genArrayStoreName n
           tell ["[]={"]
           seqComma (map (call genVariable) cs)
