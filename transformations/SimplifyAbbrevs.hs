@@ -206,7 +206,7 @@ abbrevCheckPass
       = do checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
            sequence_ [checkNotWritten v scope
              "Abbreviated variable % used inside the scope of the abbreviation"
-             | A.ExprVariable _ v <- listify (const True) e]
+             | A.ExprVariable _ v <- fastListify (const True) e]
            return s
     doStructured s = return s
 
@@ -223,21 +223,21 @@ abbrevCheckPass
     checkAbbreved v@(A.Variable {}) x msg = checkNone v x msg
     checkAbbreved v@(A.DirectedVariable {}) x msg = checkNone v x msg
     checkAbbreved (A.SubscriptedVariable _ sub v) x msg
-      = sequence_ [checkNotWritten subV x msg | subV <- listify (const True) sub]
+      = sequence_ [checkNotWritten subV x msg | subV <- fastListify (const True) sub]
 
     checkNone :: Data a => A.Variable -> a -> String -> PassM ()
     -- Must use Ord instance, not Eq:
     checkNone v x msg
       = do ex <- isExempt v
            when (not ex) $
-             case listify ((EQ ==) . compare v) x of
+             case fastListify ((EQ ==) . compare v) x of
                [] -> return ()
                xs -> diePC (findMeta xs) $ formatCode msg v
 
     checkNotWritten :: Data a => A.Variable -> a -> String -> PassM ()
     checkNotWritten v x msg
-      = mapM_ checkAssign (listify (const True) x)
-        >> mapM_ checkInput (listify (const True) x)
+      = mapM_ checkAssign (fastListify (const True) x)
+        >> mapM_ checkInput (fastListify (const True) x)
       where
         checkAssign :: A.Process -> PassM ()
         checkAssign (A.Assign m lhs _)
