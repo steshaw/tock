@@ -5,6 +5,7 @@ PROC main ()
   [10]CHAN INT cs:
   INT n:
 
+  #PRAGMA PERMITALIASES c
   CHAN INT out! IS c!:
   CHAN INT in? IS c?:
 

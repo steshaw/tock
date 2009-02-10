@@ -200,30 +200,30 @@ PROC main()
   foo(c!)
 
 %PASS Both body sep abbrev, with no direction
-  CHAN INT d IS c:
+  CHAN INT d IS c!:
   SEQ
     d ! 3
-    CHAN INT e IS c:
+    CHAN INT e IS c?:
     INT x:
     e ? x
 %M
   foo(c)
 
 %FAIL Both body sep abbrev, with input direction
-  CHAN INT d IS c:
+  CHAN INT d IS c!:
   SEQ
     d ! 3
-    CHAN INT e IS c:
+    CHAN INT e IS c?:
     INT x:
     e ? x
 %M
   foo(c?)
 
 %FAIL Both body sep abbrev, with output direction
-  CHAN INT d IS c:
+  CHAN INT d IS c!:
   SEQ
     d ! 3
-    CHAN INT e IS c:
+    CHAN INT e IS c?:
     INT x:
     e ? x
 %M

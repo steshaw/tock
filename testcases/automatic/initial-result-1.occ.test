@@ -12,6 +12,7 @@ PROC main ()
 :
 
 %PASS Normal kinds of abbreviations
+  #PRAGMA PERMITALIASES var, const
   INT abbrev IS var:
   inferred.abbrev IS var:
   VAL INT val IS var:

@@ -13,6 +13,7 @@ PROC main ()
 %PASS Normal kinds of abbreviations
     -- Actually, these probably shouldn't be allowed, since they're
     -- abbreviating a whole channel.
+    #PRAGMA PERMITALIASES c
     CHAN INT abbrev IS c:
     inferred.abbrev IS c:
 
