@@ -63,6 +63,8 @@ commonPasses opts = concat $
   , simplifyExprs
   , simplifyProcs
   , unnest
+  , enablePassesWhen csUsageChecking
+     [abbrevCheckPass]
   , squashArrays
   , [pass "Removing unused variables" [] []
       (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]

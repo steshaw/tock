@@ -21,16 +21,22 @@ module SimplifyAbbrevs (
     simplifyAbbrevs
   , removeInitial
   , removeResult
+  , abbrevCheckPass
   ) where
 
+import Control.Monad.State
 import Data.Generics
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
-import Control.Monad.State
+import Errors
 import Metadata
+import OrdAST()
 import Pass
 import qualified Properties as Prop
+import ShowCode
 import Traversal
 import Utils
 
@@ -182,3 +188,67 @@ updateAbbrevsInState
     doAbbrevMode A.InitialAbbrev = A.Original
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
+
+abbrevCheckPass :: Pass
+abbrevCheckPass
+    = pass "Abbreviation checking" [] []
+           (passOnlyOnAST "abbrevCheck" $ applyDepthSM doStructured)
+  where
+    doStructured :: Data a => Transform (A.Structured a)
+    doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ v)) scope)
+      = do checkAbbreved v scope "Abbreviated variable % used inside the scope of the abbreviation"
+           return s
+    doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ v)) scope)
+      = do checkAbbreved v scope "Abbreviated variable % used inside the scope of the abbreviation"
+           checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+           return s
+    doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
+      = do checkNotWritten (A.Variable m n) scope "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+           sequence_ [checkAbbreved v scope
+             "Abbreviated variable % used inside the scope of the abbreviation"
+             | A.ExprVariable _ v <- listify (const True) e]
+           return s
+    doStructured s = return s
+
+    isExempt :: A.Variable -> PassM Bool
+    isExempt (A.DirectedVariable _ _ v) = isExempt v
+    isExempt (A.SubscriptedVariable _ _ v) = isExempt v
+    isExempt (A.Variable _ n)
+      = do st <- getCompState
+           case Map.lookup (A.nameName n) (csNameAttr st) of
+             Just attrs | NameAliasesPermitted `Set.member` attrs -> return True
+             _ -> return False
+
+    checkAbbreved :: Data a => A.Variable -> a -> String -> PassM ()
+    checkAbbreved v@(A.Variable {}) x msg = checkNone v x msg
+    checkAbbreved v@(A.DirectedVariable {}) x msg = checkNone v x msg
+    checkAbbreved (A.SubscriptedVariable _ sub v) x msg
+      = sequence_ [checkNotWritten subV x msg | subV <- listify (const True) sub]
+
+    checkNone :: Data a => A.Variable -> a -> String -> PassM ()
+    -- Must use Ord instance, not Eq:
+    checkNone v x msg
+      = do ex <- isExempt v
+           when (not ex) $
+             case listify ((EQ ==) . compare v) x of
+               [] -> return ()
+               xs -> diePC (findMeta xs) $ formatCode msg v
+
+    checkNotWritten :: Data a => A.Variable -> a -> String -> PassM ()
+    checkNotWritten v x msg
+      = mapM_ checkAssign (listify (const True) x)
+        >> mapM_ checkInput (listify (const True) x)
+      where
+        checkAssign :: A.Process -> PassM ()
+        checkAssign (A.Assign m lhs _)
+          = when (any ((EQ ==) . compare v) lhs) $
+              dieP m msg
+        checkAssign _ = return ()
+
+        checkInput :: A.InputItem -> PassM ()
+        checkInput (A.InCounted m a b)
+          = when (any ((EQ ==) . compare v) [a,b]) $
+              dieP m msg
+        checkInput (A.InVariable m a)
+          = when (EQ == compare v a) $
+              dieP m msg
