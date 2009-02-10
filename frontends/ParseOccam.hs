@@ -24,6 +24,7 @@ import Control.Monad.State (MonadState, modify, get, put)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import qualified Data.Set as Set
 import Text.ParserCombinators.Parsec
 import Text.Regex
 
@@ -1284,27 +1285,41 @@ structuredTypeField
 pragma :: OccParser ()
 pragma = do Pragma p <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
-            case matchRegex (mkRegex "^SHARED +(.*)") p of
-              Just [varsRaw] ->
-                let varsRawNoComment = if "--" `isInfixOf` varsRaw
-                      then chopTrailingSpaces $ chopComment [] varsRaw
-                      else chopTrailingSpaces varsRaw
-                in
+            case map (flip matchRegex p . mkRegex)
+              ["^SHARED +(.*)", "^PERMITALIASES +(.*)"] of
+              [Just [varsRaw], _] ->
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
-                     modify $ \st -> st {csNameAttr = Map.insert n NameShared (csNameAttr st)})
-                  (splitRegex (mkRegex ",") varsRawNoComment)
-              Nothing -> warnP m WarnUnknownPreprocessorDirective $
+                     modify $ \st -> st {csNameAttr = Map.insertWith Set.union
+                       n (Set.singleton NameShared) (csNameAttr st)})
+                  (processVarList varsRaw)
+              [Nothing, Just [varsRaw]] ->
+                mapM_ (\var ->
+                  do st <- get
+                     A.Name _ n <- case lookup var (csLocalNames st) of
+                       Nothing -> dieP m $ "name " ++ var ++ " not defined"
+                       Just def -> return $ fst def
+                     modify $ \st -> st {csNameAttr = Map.insertWith Set.union
+                       n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
+                  (processVarList varsRaw)
+              _ -> warnP m WarnUnknownPreprocessorDirective $
                 "Unknown PRAGMA: " ++ p
             eol
   where
+    processVarList raw = map chopBoth $
+      splitRegex (mkRegex ",") $ if "--" `isInfixOf` raw
+                      then chopComment [] raw
+                      else raw
+    
     chopComment prev ('-':'-':_) = prev
     chopComment prev (x:xs) = chopComment (prev++[x]) xs
     chopComment prev [] = prev
 
+    chopBoth = chopLeadingSpaces . chopTrailingSpaces
+    chopLeadingSpaces = dropWhile (`elem` " \t")
     chopTrailingSpaces = reverse . dropWhile (`elem` " \t") . reverse
     
     isPragma (Token _ p@(Pragma {})) = Just p

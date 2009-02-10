@@ -342,7 +342,7 @@ checkPlainVarUsage (m, p) = check p
     -- A quick way to do this is to do a fold-union across all the maps, turning
     -- the values into lists that can then be scanned for any problems.
     check (ParItems ps)
-      = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (== NameShared)
+      = do sharedNames <- getCompState >>* csNameAttr >>* Map.filter (Set.member NameShared)
              >>* Map.keysSet >>* (Set.map $ UsageCheckUtils.Var . A.Variable emptyMeta . A.Name emptyMeta)
            let decl = concatMap getDecl ps
            filt <- filterPlain

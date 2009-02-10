@@ -85,7 +85,7 @@ instance Ord UnifyIndex where
 -- | An entry in the map corresponding to a UnifyIndex
 type UnifyValue = TypeExp A.Type
 
-data NameAttr = NameShared deriving (Typeable, Data, Eq, Show, Ord)
+data NameAttr = NameShared | NameAliasesPermitted deriving (Typeable, Data, Eq, Show, Ord)
 
 -- | State necessary for compilation.
 data CompState = CompState {
@@ -116,7 +116,7 @@ data CompState = CompState {
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
-    csNameAttr :: Map String NameAttr,
+    csNameAttr :: Map String (Set.Set NameAttr),
 
     -- Set by passes
     csTypeContext :: [Maybe A.Type],
