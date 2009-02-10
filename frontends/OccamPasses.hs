@@ -39,6 +39,7 @@ import Utils
 occamPasses :: [Pass]
 occamPasses =
     [ occamOnlyPass "Dummy occam pass" [] (Prop.agg_namesDone ++ [Prop.mainTagged]) return
+    , addDirections
     , inferTypes
     , foldConstants
     , fixConstructorTypes

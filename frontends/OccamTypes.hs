@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam typechecker.
-module OccamTypes (inferTypes, checkTypes) where
+module OccamTypes (inferTypes, checkTypes, addDirections) where
 
 import Control.Monad.State
 import Data.Generics
@@ -607,6 +607,46 @@ inSubscriptedContext m body
 
 --}}}
 
+addDirections :: Pass
+addDirections = occamOnlyPass "Add direction specifiers to inputs and outputs"
+  [] []
+  (applyDepthM2 doProcess doAlternative)
+  where
+    doProcess :: Transform A.Process
+    doProcess (A.Output m v os)
+      = do v' <- makeEnd m A.DirOutput v
+           return $ A.Output m v' os
+    doProcess (A.OutputCase m v n os)
+      = do v' <- makeEnd m A.DirOutput v
+           return $ A.OutputCase m v' n os
+    doProcess (A.Input m v im@(A.InputSimple {}))
+      = do v' <- makeEnd m A.DirInput v
+           return $ A.Input m v' im
+    doProcess (A.Input m v im@(A.InputCase {}))
+      = do v' <- makeEnd m A.DirInput v
+           return $ A.Input m v' im
+    doProcess p = return p
+
+    doAlternative :: Transform A.Alternative
+    doAlternative (A.Alternative m pre v im p)
+      = do v' <- case im of
+                   A.InputSimple {} -> makeEnd m A.DirInput v
+                   A.InputCase {} -> makeEnd m A.DirInput v
+                   _ -> return v
+           return $ A.Alternative m pre v' im p
+    doAlternative a = return a
+
+makeEnd :: Meta -> A.Direction -> Transform A.Variable
+makeEnd m dir v
+      = do t <- astTypeOf v
+           case t of
+             A.ChanEnd {} -> return v
+             A.Chan {} -> return $ A.DirectedVariable m dir v
+             A.Array _ (A.ChanEnd {}) -> return v
+             A.Array _ (A.Chan {}) -> return $ A.DirectedVariable m dir v
+             -- If unsure (e.g. Infer), just shove a direction on it to be sure:
+             _ -> return $ A.DirectedVariable m dir v       
+
 --{{{  inferTypes
 
 -- | Infer types.
@@ -730,10 +770,7 @@ inferTypes = occamOnlyPass "Infer types"
     doAlternative :: Transform A.Alternative
     doAlternative (A.Alternative m pre v im p)
       = do pre' <- inTypeContext (Just A.Bool) $ recurse pre
-           v' <- recurse v >>= case im of
-                   A.InputSimple {} -> makeEnd m A.DirInput
-                   A.InputCase {} -> makeEnd m A.DirInput
-                   _ -> return
+           v' <- recurse v
            im' <- recurse im
            p' <- recurse p
            return $ A.Alternative m pre' v' im' p'
@@ -859,17 +896,6 @@ inferTypes = occamOnlyPass "Infer types"
             doVariable v = makeDescend ops v
 
 
-    makeEnd :: Meta -> A.Direction -> Transform A.Variable
-    makeEnd m dir v
-      = do t <- astTypeOf v
-           case t of
-             A.ChanEnd {} -> return v
-             A.Chan {} -> return $ A.DirectedVariable m dir v
-             A.Array _ (A.ChanEnd {}) -> return v
-             A.Array _ (A.Chan {}) -> return $ A.DirectedVariable m dir v
-             _ -> dieP m "Cannot infer direction for things that are not a channel or channel-end"
-
-
     doProcess :: Transform A.Process
     doProcess p
         = case p of
@@ -879,7 +905,7 @@ inferTypes = occamOnlyPass "Infer types"
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
             A.Output m v ois ->
-               do v' <- recurse v >>= makeEnd m A.DirOutput
+               do v' <- recurse v
                   -- At this point we must resolve the "c ! x" ambiguity:
                   -- we definitely know what c is, and we must know what x is
                   -- before trying to infer its type.
@@ -896,7 +922,7 @@ inferTypes = occamOnlyPass "Infer types"
                     else do ois' <- doOutputItems m v' Nothing ois
                             return $ A.Output m v' ois'
             A.OutputCase m v tag ois ->
-               do v' <- recurse v >>= makeEnd m A.DirOutput
+               do v' <- recurse v
                   ois' <- doOutputItems m v' (Just tag) ois
                   return $ A.OutputCase m v' tag ois'
             A.If _ _ -> inTypeContext (Just A.Bool) $ descend p
@@ -915,11 +941,11 @@ inferTypes = occamOnlyPass "Infer types"
             A.IntrinsicProcCall _ _ _ -> noTypeContext $ descend p
             A.Input m v im@(A.InputSimple {})
               -> do im' <- recurse im
-                    v' <- recurse v >>= makeEnd m A.DirInput
+                    v' <- recurse v
                     return $ A.Input m v' im'
             A.Input m v im@(A.InputCase {})
               -> do im' <- recurse im
-                    v' <- recurse v >>= makeEnd m A.DirInput
+                    v' <- recurse v
                     return $ A.Input m v' im'
             _ -> descend p
       where
