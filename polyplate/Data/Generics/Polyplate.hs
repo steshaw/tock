@@ -43,7 +43,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- >
 -- > main :: IO ()
 -- > main = writeInstancesTo GenWithoutOverlapped GenOneClass
--- >          [genInstance $ undefined :: Company]
+-- >          [genInstance (undefined :: Company)]
 -- >          ["module Instances where"
 -- >          ,"import Data.Generics.Polyplate"
 -- >          ,"import Data.Generics.Polyplate.Route"
