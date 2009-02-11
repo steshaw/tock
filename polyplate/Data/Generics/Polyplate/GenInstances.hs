@@ -28,6 +28,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- after all your data-types, then use the functions in this module to generate
 -- some Haskell code with instances of the Polyplate classes.  The simplest functions
 -- for doing this are 'writeInstances' and 'writeInstancesTo'.
+--
+-- You do not even have to modify the definitions of your data-types if you are
+-- using GHC 6.8.2 or later, you can simply add these lines in your module for
+-- generating the instances (assuming the data-type is not hidden during import):
+--
+-- > deriving Typeable for Foo
+-- > deriving Data for Foo
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
    GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
