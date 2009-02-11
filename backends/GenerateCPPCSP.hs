@@ -636,7 +636,8 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
        tell [","]
        genName n
        tell [","]
-       call genExpression (A.SizeVariable m $ A.Variable m n)
+       genName n
+       call genSizeSuffix "0"
        tell [");"]
 --For all other cases, use the C implementation:
 cppintroduceSpec n = cintroduceSpec n
