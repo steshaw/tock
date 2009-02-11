@@ -898,10 +898,11 @@ inferTypes = occamOnlyPass "Infer types"
         -- (This can go away once we represent all functions in the new Process
         -- form.)
         doFuncDef :: [A.Type] -> Transform (A.Structured A.ExpressionList)
-        doFuncDef ts (A.Spec m spec s)
-            =  do spec' <- recurse spec
+        doFuncDef ts (A.Spec m (A.Specification m' n st) s)
+            =  do st' <- runReaderT (doSpecType n st) s
+                  modifyName n (\nd -> nd { A.ndSpecType = st' })
                   s' <- doFuncDef ts s
-                  return $ A.Spec m spec' s'
+                  return $ A.Spec m (A.Specification m' n st') s'
         doFuncDef ts (A.ProcThen m p s)
             =  do p' <- recurse p
                   s' <- doFuncDef ts s
