@@ -210,26 +210,42 @@ abbrevCheckPass
 
     record b v = modify (\(m:ms) -> (Map.insertWith (||) (Var v) b m : ms))
 
+    nameIsNonce :: A.Name -> StateT [Map.Map Var Bool] PassM Bool
+    nameIsNonce n
+      = do names <- lift getCompState >>* csNames
+           case fmap A.ndNameSource $ Map.lookup (A.nameName n) names of
+             Just A.NameNonce -> return True
+             _ -> return False
+
     doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
       (A.Structured a)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ v)) scope)
-      = do pushRecurse scope
-           checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
-           pop
+      = do nonce <- nameIsNonce n
+           if nonce
+             then descend s >> return ()
+             else do pushRecurse scope
+                     checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
+                     pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ v)) scope)
-      = do pushRecurse scope
-           checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
-           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-           pop
+      = do nonce <- nameIsNonce n
+           if nonce
+             then descend s >> return ()
+             else do pushRecurse scope
+                     checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
+                     checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+                     pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
-      = do pushRecurse scope
-           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-           sequence_ [checkNotWritten v
-             "Abbreviated variable % used inside the scope of the abbreviation"
-             | A.ExprVariable _ v <- fastListify (const True) e]
-           pop
+      = do nonce <- nameIsNonce n
+           if nonce
+             then descend s >> return ()
+             else do pushRecurse scope
+                     checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+                     sequence_ [checkNotWritten v
+                       "Abbreviated variable % used inside the scope of the abbreviation"
+                       | A.ExprVariable _ v <- fastListify (const True) e]
+                     pop
            return s
     doStructured s = descend s
 
