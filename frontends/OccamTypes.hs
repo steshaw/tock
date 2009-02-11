@@ -999,12 +999,15 @@ inferTypes = occamOnlyPass "Infer types"
                    ) => A.Name -> a -> PassM [A.Direction]
         findDir n x
           = do r <- liftIO $ newIORef []
-               makeRecurseM (ops r) x
+               makeRecurseM (makeOps r) x
                liftIO $ readIORef r
           where
-            ops :: IORef [A.Direction] -> InferTypeOps
-            ops r = baseOp
-                    `extOpMS` (ops r, descend)
+            makeOps :: IORef [A.Direction] -> InferTypeOps
+            makeOps r = ops
+              where
+                ops :: InferTypeOps
+                ops = baseOp
+                    `extOpMS` (ops, descend)
                     `extOpM` descend
                     `extOpM` descend
                     `extOpM` descend
@@ -1013,6 +1016,8 @@ inferTypes = occamOnlyPass "Infer types"
                     `extOpM` descend
                     `extOpM` descend
                     `extOpM` (doVariable r)
+                descend :: DescendM PassM InferTypeOps
+                descend = makeDescendM ops
 
             -- This will cover everything, since we will have inferred the direction
             -- specifiers before applying this function.
@@ -1022,7 +1027,7 @@ inferTypes = occamOnlyPass "Infer types"
             doVariable r v@(A.DirectedVariable _ dir
               (A.SubscriptedVariable _ _ (A.Variable _ n'))) | n == n'
               = liftIO $ modifyIORef r (dir:) >> return v
-            doVariable r v = makeDescendM (ops r) v
+            doVariable r v = makeDescendM (makeOps r) v
 
     doProcess :: Transform A.Process
     doProcess p
