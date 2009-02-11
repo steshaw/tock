@@ -29,6 +29,100 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- generate source files with the appropriate instances.  Instances are generated
 -- for PolyplateMRoute and PolyplateSpine.  There is a single instance for each
 -- of PolyplateM and Polyplate that automatically use PolyplateMRoute.
+--
+-- As an example of how to use polyplate we will use the Paradise benchmark, first
+-- used by Ralf Lammel for SYB.
+--
+-- The data-types can be found at: <http://www.cs.vu.nl/boilerplate/testsuite/paradise/CompanyDatatypes.hs>
+--
+-- If you view that file, you can see that the Company type contains all the other
+-- types.  So to generate instances you need only do this:
+--
+-- > import CompanyDatatypes
+-- > import Data.Generics.Polyplate.GenInstances
+-- >
+-- > main :: IO ()
+-- > main = writeInstancesTo GenWithoutOverlapped GenOneClass
+-- >          [genInstance $ undefined :: Company]
+-- >          ["module Instances where"
+-- >          ,"import Data.Generics.Polyplate"
+-- >          ,"import Data.Generics.Polyplate.Route"
+-- >          ,"import Data.Maybe"
+-- >          ,"import Data.Tree"
+-- >          ,"import qualified CompanyDatatypes"
+-- >          ] "Instances.hs"
+--
+-- You must then compile the Instances module in your program, and make sure it
+-- is regenerated every time CompanyDatatypes changes (see the documentation for
+-- your build system).
+--
+-- Then you can write the function to increase salaries as follows (converting
+-- from <http://www.cs.vu.nl/boilerplate/testsuite/paradise/Main.hs>):
+--
+-- > import CompanyDatatypes
+-- > import Data.Generics.Polyplate
+-- > import Data.Generics.Polyplate.Schemes
+-- > import Instances
+-- >
+-- > increase :: Float -> Company -> Company
+-- > increase k = applyBottomUp (incS k)
+-- >
+-- > incS :: Float -> Salary -> Salary
+-- > incS k (S s) = S (s * (1+k))
+-- >
+-- > main = print $ increase 0.1 genCom
+--
+-- As well as doing transformations (both monadic and non-monadic), you can
+-- also perform queries.  For this example, we will adapt another SYB example,
+-- that of crushing binary trees
+-- (<http://www.cs.vu.nl/boilerplate/testsuite/foldTree.hs>).  This has the
+-- following data types, and example item (here renamed to avoid a conflict):
+--
+-- > data MyTree a w = Leaf a
+-- >                 | Fork (MyTree a w) (MyTree a w)
+-- >                 | WithWeight (MyTree a w) w
+-- >   deriving (Typeable, Data)
+-- >
+-- > mytree :: MyTree Int Int
+-- > mytree = Fork (WithWeight (Leaf 42) 1)
+-- >               (WithWeight (Fork (Leaf 88) (Leaf 37)) 2)
+--
+-- The instance generation is identical to before, with the caveat with our
+-- current instance generation, you can only generate instances for concrete
+-- types (e.g. MyTree String Float), not for all parameterised types (e.g. MyTree
+-- String a).  The SYB example then prints out two things: first it prints out
+-- all Ints in the tree (thus: both weights and items), and second it prints out
+-- just the values (i.e. Ints wrapped in a Leaf).  We can do the same:
+--
+-- > main = print ( catMaybes $ flatten $ applyQuery (id :: Int -> Int) myTree
+-- >              , catMaybes $ flatten $ fmap join $ applyQuery fromLeafInt myTree
+-- >              )
+-- >  where
+-- >    fromLeafInt :: MyTree Int Int -> Maybe Int
+-- >    fromLeafInt (Leaf x) = Just x
+-- >    fromLeafInt _ = Nothing
+--
+-- The 'applyQuery' function takes a query function that transforms items of interest
+-- into query results.  In the first case, we simply pass the identity function
+-- on Ints.  This will then give us a Tree (Maybe Int) of all the Ints in myTree.
+--  We use flatten to flatten the tree into a list (depth-first ordering) and catMaybes
+-- to filter out any Nothing results.  We could also have written this first call
+-- as:
+--
+-- > listifyDepth (const True :: Int -> Bool) myTree
+--
+-- The second call gives Maybe Int as its query result, giving us a Tree (Maybe
+-- (Maybe Int)).  We use fmap join to turn this into a Tree (Maybe Int) then catMaybes
+-- and flatten again to get back a list.  Another way of writing the second call
+-- would have been:
+--
+-- > [x | Leaf x <- listifyDepth isLeafInt myTree]
+-- >   where
+-- >     isLeaf :: MyTree Int Int -> Bool
+-- >     isLeaf (Leaf _) = True
+-- >     isLeaf _ = False
+-- 
+-- TODO include an example with routes
 module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(..),
   PolyplateSpine(..), {-FullSpine(..),-} transformSpine, {-transformSpineFull,-} trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
