@@ -33,8 +33,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- using GHC 6.8.2 or later, you can simply add these lines in your module for
 -- generating the instances (assuming the data-type is not hidden during import):
 --
--- > deriving Typeable for Foo
--- > deriving Data for Foo
+-- > deriving instance Typeable Foo
+-- > deriving instance Data Foo
 module Data.Generics.Polyplate.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
    GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
