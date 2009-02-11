@@ -217,11 +217,16 @@ abbrevCheckPass
              Just A.NameNonce -> return True
              _ -> return False
 
+    -- Judging by the cgtests (cgtest18, line 232), we should turn off usage checking
+    -- on an abbreviation if either the RHS *or* the LHS is exempt by a PERMITALIASEs
+    -- pragma
+
     doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
       (A.Structured a)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ v)) scope)
       = do nonce <- nameIsNonce n
-           if nonce
+           ex <- isNameExempt n
+           if nonce || ex
              then descend s >> return ()
              else do pushRecurse scope
                      checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
@@ -229,7 +234,8 @@ abbrevCheckPass
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ v)) scope)
       = do nonce <- nameIsNonce n
-           if nonce
+           ex <- isNameExempt n
+           if nonce || ex
              then descend s >> return ()
              else do pushRecurse scope
                      checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
@@ -238,7 +244,8 @@ abbrevCheckPass
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
       = do nonce <- nameIsNonce n
-           if nonce
+           ex <- isNameExempt n
+           if nonce || ex
              then descend s >> return ()
              else do pushRecurse scope
                      checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
@@ -252,7 +259,10 @@ abbrevCheckPass
     isExempt :: A.Variable -> StateT [Map.Map Var Bool] PassM Bool
     isExempt (A.DirectedVariable _ _ v) = isExempt v
     isExempt (A.SubscriptedVariable _ _ v) = isExempt v
-    isExempt (A.Variable _ n)
+    isExempt (A.Variable _ n) = isNameExempt n
+
+    isNameExempt :: A.Name -> StateT [Map.Map Var Bool] PassM Bool
+    isNameExempt n
       = do st <- lift getCompState
            case Map.lookup (A.nameName n) (csNameAttr st) of
              Just attrs | NameAliasesPermitted `Set.member` attrs -> return True
