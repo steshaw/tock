@@ -213,8 +213,20 @@ abbrevCheckPass
 
     record b v = modify (\(m:ms) -> (Map.insertWith (||) (Var v) b m : ms))
 
-    doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
-      (A.Structured a)
+    nameIsNonce :: A.Name -> StateT [Map.Map Var Bool] PassM Bool
+    nameIsNonce n
+      = do names <- lift getCompState >>* csNames
+           case fmap A.ndNameSource $ Map.lookup (A.nameName n) names of
+             Just A.NameNonce -> return True
+             _ -> return False
+
+    -- Judging by the cgtests (cgtest18, line 232), we should turn off usage checking
+    -- on an abbreviation if either the RHS *or* the LHS is exempt by a PERMITALIASEs
+    -- pragma
+
+    doStructured :: (PolyplateM (A.Structured t) () AbbrevCheckOps AbbrevCheckM
+                    ,PolyplateM (A.Structured t) AbbrevCheckOps () AbbrevCheckM, Data t) =>
+      A.Structured t -> AbbrevCheckM (A.Structured t)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ (A.ActualVariable v))) scope)
       = do nonce <- nameIsNonce n
            ex <- isNameExempt n
@@ -235,12 +247,16 @@ abbrevCheckPass
                      pop
            return s
     doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ (A.ActualExpression e))) scope)
-      = do pushRecurse scope
-           checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
-           sequence_ [checkNotWritten v
-             "Abbreviated variable % used inside the scope of the abbreviation"
-             | A.ExprVariable _ v <- fastListify (const True) e]
-           pop
+      = do nonce <- nameIsNonce n
+           ex <- isNameExempt n
+           if nonce || ex
+             then descend s >> return ()
+             else do pushRecurse scope
+                     checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
+                     sequence_ [checkNotWritten v
+                       "Abbreviated variable % used inside the scope of the abbreviation"
+                       | A.ExprVariable _ v <- listifyDepth (const True) e]
+                     pop
            return s
     doStructured s = descend s
 
