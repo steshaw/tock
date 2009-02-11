@@ -24,6 +24,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Function (on)
 import Data.Generics
+import Data.IORef
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -569,10 +570,10 @@ inSubscriptedContext m body
 
 --}}}
 
-addDirections :: Pass
+addDirections :: PassOn2 A.Process A.Alternative
 addDirections = occamOnlyPass "Add direction specifiers to inputs and outputs"
   [] []
-  (applyDepthM2 doProcess doAlternative)
+  (applyBottomUpM2 doProcess doAlternative)
   where
     doProcess :: Transform A.Process
     doProcess (A.Output m v os)
@@ -639,14 +640,13 @@ inferAllocMobile _ _ e = return e
 -- I can't put this in the where clause of inferTypes, so it has to be out
 -- here.  It should be the type of ops inside the inferTypes function below.
 type InferTypeOps
-  = BaseOp
+  = ExtOpMSP BaseOp
     `ExtOpMP` A.Expression
     `ExtOpMP` A.Dimension
     `ExtOpMP` A.Subscript
     `ExtOpMP` A.Replicator
     `ExtOpMP` A.Alternative
     `ExtOpMP` A.InputMode
-    `ExtOpMP` A.Specification
     `ExtOpMP` A.Process
     `ExtOpMP` A.Variable
 
@@ -824,22 +824,6 @@ inferTypes = occamOnlyPass "Infer types"
            inTypeContext (Just ct) (recurse sv) >>* A.InputCase m
     doInputMode _ im = inTypeContext (Just A.Int) $ descend im
 
-    doVariant :: Transform A.Variant
-    doVariant (A.Variant m n iis p)
-      = do ctx <- getTypeContext
-           ets <- case ctx of
-             Just x -> protocolItems m x
-             Nothing -> dieP m "Could not deduce protocol"
-           case ets of
-             Left {} -> dieP m "Simple protocol expected during input CASE"
-             Right ps -> case lookup n ps of
-               Nothing -> diePC m $ formatCode "Name % is not part of protocol %"
-                 n (fromJust ctx)
-               Just ts -> do iis' <- sequence [inTypeContext (Just t) $ recurse ii
-                                              | (t, ii) <- zip ts iis]
-                             p' <- recurse p
-                             return $ A.Variant m n iis' p'
-
     doStructured :: Data a => Transform (A.Structured a)
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
         =  do (st', wrap) <- runReaderT (doSpecType n st) body
@@ -848,9 +832,7 @@ inferTypes = occamOnlyPass "Infer types"
               wrap (recurse body) >>* A.Spec mspec (A.Specification m n st')
     doStructured s = descend s
 
-    -- The second parameter is a modifier (wrapper) for the descent into the body
-    doSpecType :: Data a => A.Name -> A.SpecType -> ReaderT (A.Structured a) PassM
-      (A.SpecType, PassM (A.Structured a) -> PassM (A.Structured a))
+    doSpecType :: Data a => A.Name -> A.SpecType -> ReaderT (A.Structured a) PassM A.SpecType
     doSpecType n st
         = case st of
             A.Place _ _ -> lift $ inTypeContext (Just A.Int) $ descend st >>* addId
@@ -999,18 +981,48 @@ inferTypes = occamOnlyPass "Infer types"
             =  do el' <- doExpressionList ts el
                   return $ A.Only m el'
 
-        findDir :: Data a => A.Name -> a -> PassM [A.Direction]
-        findDir n = flip execStateT [] . makeRecurseM ops
+        -- findDir only really needs to descend operating on Variables
+        -- But since this is called by doStructured, that would require doStructured
+        -- to have an extra constraint that the Structured supports descent into
+        -- Variables.  But that constraint, in turn, is not satisfied when we build
+        -- our ops using extOpMS.  Rather than fix all the constraints, I've decided
+        -- to adopt a slightly sneaky approach, and build a set of ops for findDir
+        -- with the same type as the one for infer types (thus the constraints
+        -- don't change), but where everything apart from the Variable operation
+        -- is a call to descend.
+        --
+        -- Also, to fit with the normal ops, we must do so in the PassM monad.
+        --  Normally we would do this pass in a StateT monad, but to slip inside
+        -- PassM, I've used an IORef instead.
+        findDir :: ( PolyplateM a InferTypeOps () PassM
+                   , PolyplateM a () InferTypeOps PassM
+                   ) => A.Name -> a -> PassM [A.Direction]
+        findDir n x
+          = do r <- liftIO $ newIORef []
+               makeRecurseM (ops r) x
+               liftIO $ readIORef r
           where
-            ops = baseOp `extOpM` doVariable
+            ops :: IORef [A.Direction] -> InferTypeOps
+            ops r = baseOp
+                    `extOpMS` (ops r, descend)
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` descend
+                    `extOpM` (doVariable r)
 
             -- This will cover everything, since we will have inferred the direction
             -- specifiers before applying this function.
-            doVariable :: A.Variable -> StateT [A.Direction] PassM A.Variable
-            doVariable v@(A.DirectedVariable _ dir (A.Variable _ n')) | n == n'
-              = modify (dir:) >> return v
-            doVariable v = makeDescend ops v
-
+            doVariable :: IORef [A.Direction] -> A.Variable -> PassM A.Variable
+            doVariable r v@(A.DirectedVariable _ dir (A.Variable _ n')) | n == n'
+              = liftIO $ modifyIORef r (dir:) >> return v
+            doVariable r v@(A.DirectedVariable _ dir
+              (A.SubscriptedVariable _ _ (A.Variable _ n'))) | n == n'
+              = liftIO $ modifyIORef r (dir:) >> return v
+            doVariable r v = makeDescendM (ops r) v
 
     doProcess :: Transform A.Process
     doProcess p
