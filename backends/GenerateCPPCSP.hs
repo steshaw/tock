@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec, cremoveSpec,
+import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec,
   generate, genComma, genLeftB, genMeta, genName, genRightB, justOnly, seqComma, withIf)
 import GenerateCBased
 import Errors
@@ -88,8 +88,7 @@ cppgenOps = cgenOps {
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
     getScalarType = cppgetScalarType,
-    introduceSpec = cppintroduceSpec,
-    removeSpec = cppremoveSpec
+    introduceSpec = cppintroduceSpec
   }
 --}}}
 
@@ -512,18 +511,6 @@ cppdeclareInit _ _ _ = Nothing
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
 cppdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cppdeclareFree _ _ _ = Nothing
-
--- | Changed to work properly with declareFree to free channel arrays.
-cppremoveSpec :: A.Specification -> CGen ()
-cppremoveSpec (A.Specification m n (A.Declaration _ t))
-    = do fdeclareFree <- fget declareFree
-         case fdeclareFree m t var of
-               Just p -> p
-               Nothing -> return ()
-  where
-    var = A.Variable m n
--- Otherwise, defer to the C implementation:
-cppremoveSpec sp = cremoveSpec sp
 
 --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
 --and also changed to use infixComma.
