@@ -54,6 +54,10 @@ sameType (A.Array (A.Dimension e1 : ds1) t1)
 sameType (A.Array (A.UnknownDimension : ds1) t1)
          (A.Array (A.UnknownDimension : ds2) t2)
     = sameType (A.Array ds1 t1) (A.Array ds2 t2)
+-- We might be dealing with channels of arrays, so we must dig through channels:
+sameType (A.Chan _ ta) (A.Chan _ tb) = sameType ta tb
+sameType (A.ChanEnd dira _ ta) (A.ChanEnd dirb _ tb)
+  = liftM (dira == dirb &&) (sameType ta tb)
 sameType a b = return $ a == b
 
 -- | Check that the second dimension can be used in a context where the first
@@ -879,18 +883,21 @@ inferTypes = occamOnlyPass "Infer types"
                   return $ A.Proc m sm fs' body'
                where
                  processFormal body f@(A.Formal am t n)
-                   = case t of
-                       A.Chan attr t ->
+                  = do t' <- recurse t
+                       case t' of
+                        A.Chan attr innerT ->
                          do dirs <- findDir n body
                             case nub dirs of
                               [dir] ->
-                                do let t' = A.ChanEnd dir attr t
+                                do let t' = A.ChanEnd dir attr innerT
                                        f' = A.Formal am t' n
                                    modifyName n (\nd -> nd {A.ndSpecType =
                                      A.Declaration m t'})
                                    return f'
-                              _ -> return f -- no direction, or two
-                       _ -> return f
+                              _ -> return $ A.Formal am t' n -- no direction, or two
+                        _ -> do modifyName n (\nd -> nd {A.ndSpecType =
+                                     A.Declaration m t'})
+                                return $ A.Formal am t' n
             _ -> lift $ descend st
       where
         -- | This is a bit ugly: walk down a Structured to find the single
