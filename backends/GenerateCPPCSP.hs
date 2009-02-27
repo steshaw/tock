@@ -61,9 +61,7 @@ cppgenOps = cgenOps {
     declareFree = cppdeclareFree,
     declareInit = cppdeclareInit,
     genActuals = cppgenActuals,
-    genAllocMobile = cppgenAllocMobile,
     genAlt = cppgenAlt,
-    genClearMobile = cppgenClearMobile,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
@@ -510,6 +508,7 @@ cppdeclareInit _ _ _ = Nothing
 
 -- | Changed because we don't need any de-initialisation in C++, regardless of whether C does.
 cppdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
+cppdeclareFree m (A.Mobile t) v = Just $ call genClearMobile m v
 cppdeclareFree _ _ _ = Nothing
 
 --Changed from GenerateC to add a name function (to allow us to use the same function for doing function parameters as constructor parameters)
@@ -818,26 +817,6 @@ cppgenDirectedVariable m t v dir
          A.Array _ (A.ChanEnd {}) -> v
          A.Array _ (A.Chan {}) -> dieP m "Should have pulled up directed arrays"
          _ -> dieP m "Attempted to direct unknown type"
-         
-cppgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen ()
-cppgenAllocMobile m (A.Mobile t) me
-  = do tell ["new "]
-       call genType t 
-       case me of
-         Just e -> tell ["("] >> call genExpression e >> tell [")"]
-         Nothing -> return ()
-
-cppgenClearMobile :: Meta -> A.Variable -> CGen ()
-cppgenClearMobile _ v
-  = do tell ["if("]
-       genVar
-       tell ["!=NULL){delete "]
-       genVar
-       tell [";"]
-       genVar
-       tell ["=NULL;}"]
-  where
-    genVar = call genVariable v
 
 cppgenReschedule :: CGen ()
 cppgenReschedule = tell ["csp::CPPCSP_Yield();"]
