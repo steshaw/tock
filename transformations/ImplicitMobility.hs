@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
-module ImplicitMobility (implicitMobility) where
+module ImplicitMobility (implicitMobility, mobiliseArrays, inferDeref) where
 
 import Control.Monad
 import Control.Monad.Trans
@@ -28,13 +28,17 @@ import Data.Maybe
 import qualified Data.Set as Set
 
 import qualified AST as A
+import CompState
 import Errors
 import FlowAlgorithms
 import FlowGraph
 import FlowUtils
 import GenericUtils
+import Intrinsics
 import Metadata
 import Pass
+import ShowCode
+import Traversal
 import Types
 import UsageCheckUtils
 import Utils
@@ -174,3 +178,90 @@ implicitMobility
               printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
+mobiliseArrays :: Pass
+mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
+  where
+    ops = baseOp `extOpS` doStructured
+    recurse, descend :: Data t => Transform t
+    recurse = makeRecurse ops
+    descend = makeDescend ops
+
+    doStructured :: Data t => Transform (A.Structured t)
+    doStructured s@(A.Spec m (A.Specification m' n (A.Declaration m'' t@(A.Array ds
+      innerT))) scope)
+      = case innerT of
+          A.Chan {} -> descend s
+          A.ChanEnd {} -> descend s
+          _ -> do scope' <- descend {-addAtEndOfScopeDyn m'' (A.ClearMobile m'' $ A.Variable m' n)-} scope
+                  let newSpec = A.IsExpr m'' A.Original (A.Mobile t) $ A.AllocMobile m'' (A.Mobile t) Nothing
+                  modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+                  let name_sizes = n {A.nameName = A.nameName n ++ "_sizes"}
+                      nd = A.NameDef {
+                             A.ndMeta = m,
+                             A.ndName = A.nameName name_sizes,
+                             A.ndOrigName = A.nameName name_sizes,
+                             A.ndSpecType = A.Declaration m $
+                               A.Array [A.Dimension $ makeConstant m (length ds)]
+                                 A.Int,
+                             A.ndAbbrevMode = A.Original,
+                             A.ndNameSource = A.NamePredefined,
+                             A.ndPlacement = A.Unplaced
+                             }
+                  defineName name_sizes nd
+                  return $ A.Spec m (A.Specification m' n newSpec) scope'
+
+    doStructured s = descend s
+
+class Dereferenceable a where
+  deref :: Meta -> a -> Maybe a
+
+instance Dereferenceable A.Variable where
+  deref m = Just . A.DerefVariable m
+
+instance Dereferenceable A.Expression where
+  deref m (A.ExprVariable m' v) = fmap (A.ExprVariable m') $ deref m v
+  deref m (A.AllocMobile _ _ (Just e)) = Just e
+  deref _ _ = Nothing
+
+instance Dereferenceable A.Actual where
+  deref m (A.ActualVariable v) = fmap A.ActualVariable $ deref m v
+  deref m (A.ActualExpression e) = fmap A.ActualExpression $ deref m e
+
+inferDeref :: Pass
+inferDeref = pass "Infer mobile dereferences" [] [] recurse
+  where
+    ops = baseOp `extOp` doProcess `extOp` doVariable
+    recurse, descend :: Data t => Transform t
+    recurse = makeRecurse ops
+    descend = makeDescend ops
+
+    unify :: (Dereferenceable a, ASTTypeable a, ShowOccam a, ShowRain a) => Meta
+      -> A.Type -> a -> PassM a
+    unify _ (A.Mobile t) x = return x
+    unify m t x = do xt <- astTypeOf x
+                     case xt of
+                       A.Mobile {} -> case deref m x of
+                         Just x' -> return x'
+                         Nothing -> diePC m $ formatCode "Unable to dereference %" x
+                       _ -> return x
+
+    doProcess :: Transform A.Process
+    doProcess (A.ProcCall m n as)
+      = do A.Proc _ _ fs _ <- specTypeOfName n
+           ts <- mapM astTypeOf fs
+           as' <- mapM (uncurry $ unify m) (zip ts as)
+           return $ A.ProcCall m n as'
+    doProcess (A.IntrinsicProcCall m n as)
+      = do let Just amtns = lookup n intrinsicProcs
+           as' <- mapM (uncurry $ unify m) (zip (map mid amtns) as)
+           return $ A.IntrinsicProcCall m n as'
+      where mid (_,y,_) = y
+    doProcess p = descend p
+
+    doVariable :: Transform A.Variable
+    doVariable all@(A.SubscriptedVariable m sub v)
+      = do t <- astTypeOf v
+           case t of
+             A.Mobile {} -> return $ A.SubscriptedVariable m sub $ fromJust (deref m v)
+             _ -> descend all
+    doVariable v = descend v

@@ -33,6 +33,7 @@ import CompState
 import Errors
 import GenerateC
 import GenerateCPPCSP
+import ImplicitMobility
 import Metadata
 import OccamPasses
 import Pass
@@ -58,6 +59,8 @@ commonPasses opts = concat $
   , enablePassesWhen (not . csUsageChecking)
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
       return]
+    -- TODO add an implicit mobility pass after these two:
+  , enablePassesWhen csClassicOccamMobility [mobiliseArrays, inferDeref]
   , simplifyAbbrevs
   , simplifyComms
   , simplifyExprs

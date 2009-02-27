@@ -104,6 +104,7 @@ data CompState = CompState {
     csOutputFile :: String,
     csKeepTemporaries :: Bool,
     csEnabledWarnings :: Set WarningType,
+    csClassicOccamMobility :: Bool,
 
     -- Set by preprocessor
     csCurrentFile :: String,
@@ -146,6 +147,7 @@ emptyState = CompState {
       , WarnUnknownPreprocessorDirective
       , WarnUnusedVariable],
 -- TODO enable WarnUninitialisedVariable by default
+    csClassicOccamMobility = True,
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
@@ -345,6 +347,7 @@ defineNonce m s st am
                    }
           defineName n nd
           return $ A.Specification m n st
+
 
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: CSM m => Meta -> A.Process -> m A.Specification
