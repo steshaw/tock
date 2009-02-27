@@ -294,8 +294,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 
 #define MAKE_TOSTRING(type, occname, flag) \
-	static inline void occam_##occname##TOSTRING(INT*, char*, const type) occam_unused; \
-	static inline void occam_##occname##TOSTRING(INT* len, char* string, const type n) { \
+	static inline void occam_##occname##TOSTRING(INT*, unsigned char*, const type) occam_unused; \
+	static inline void occam_##occname##TOSTRING(INT* len, unsigned char* string, const type n) { \
 		/* Must use buffer to avoid writing trailing zero: */ char buf[32]; \
 		int chars_written = snprintf(buf, 32, flag, n); \
 		memcpy(string, buf, chars_written * sizeof(char)); \
@@ -303,16 +303,16 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 
 #define MAKE_STRINGTO(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(BOOL*, type*, const char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const char* string) { \
-		*error = 1 != sscanf(string, flag, n); \
+	static inline void occam_STRINGTO##occname(BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const unsigned char* string) { \
+	  *error = 1 != sscanf((const char*)string, flag, n);			\
 	}
 
 #define MAKE_STRINGTO_SMALL(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(BOOL*, type*, const char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const char* string) { \
+	static inline void occam_STRINGTO##occname(BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const unsigned char* string) { \
 			int t; \
-			*error = 1 != sscanf(string, flag, &t) || (int)(type)t != t; \
+			*error = 1 != sscanf((const char*)string, flag, &t) || (int)(type)t != t; \
 			*n = (type)t; \
 	}
 
@@ -322,8 +322,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_STRINGTO_32 MAKE_STRINGTO
 #define MAKE_STRINGTO_64 MAKE_STRINGTO
 
-static inline void occam_BOOLTOSTRING(INT*, char*, const BOOL) occam_unused;
-static inline void occam_BOOLTOSTRING(INT* len, char* str, const BOOL b) {
+static inline void occam_BOOLTOSTRING(INT*, unsigned char*, const BOOL) occam_unused;
+static inline void occam_BOOLTOSTRING(INT* len, unsigned char* str, const BOOL b) {
 	if (b) {
 		memcpy(str,"TRUE",4*sizeof(char));
 		*len = 4;
@@ -333,8 +333,8 @@ static inline void occam_BOOLTOSTRING(INT* len, char* str, const BOOL b) {
 	}
 }
 
-static inline void occam_STRINGTOBOOL(BOOL*, BOOL*, const char*) occam_unused;
-static inline void occam_STRINGTOBOOL(BOOL* error, BOOL* b, const char* str) {
+static inline void occam_STRINGTOBOOL(BOOL*, BOOL*, const unsigned char*) occam_unused;
+static inline void occam_STRINGTOBOOL(BOOL* error, BOOL* b, const unsigned char* str) {
 	if (memcmp("TRUE", str, 4*sizeof(char)) == 0) {
 		*b = true;
 		*error = false;
