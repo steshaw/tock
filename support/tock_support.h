@@ -493,6 +493,16 @@ int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 //}}}
 //}}}
 
+//{{{ Mobile Stuff
+
+static inline INT * tock_mobile_sizes(void* const ptr) occam_unused;
+static inline INT * tock_mobile_sizes(void* const ptr) {
+  return ((INT *)ptr) - 2;
+}
+
+//}}}
+
+
 //{{{ intrinsics
 // FIXME These should do range checks.
 

@@ -380,15 +380,17 @@ addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
     transformActual a = return [a]
 
     transformActualVariable :: A.Actual -> A.Variable -> PassM [A.Actual]
-    transformActualVariable a v@(A.Variable m n)
+    transformActualVariable a v
       = do t <- astTypeOf v
            case t of
              A.Array ds _ ->
-               return [a, A.ActualVariable a_sizes]
+               return [a, A.ActualVariable $ sizes v]
              _ -> return [a]
       where
-        a_sizes = A.Variable m (append_sizes n)
-    transformActualVariable a _ = return [a]
+        sizes (A.Variable m n) = A.Variable m (append_sizes n)
+        sizes (A.DerefVariable _ v) = sizes v
+        sizes (A.DirectedVariable _ _ v) = sizes v
+        sizes (A.SubscriptedVariable _ _ v) = sizes v
 
 -- | Transforms all slices into the FromFor form.
 simplifySlices :: Pass

@@ -769,9 +769,11 @@ cgenVariable' checkValid v
            return (genName n, ind')
     inner ind (A.DerefVariable _ v) mt
       = do (A.Mobile t) <- astTypeOf v
-           case t of
-             A.Array {} -> inner ind v mt
-             A.Record {} -> inner ind v mt
+           am <- abbrevModeOfVariable v
+           case (t, am, mt) of
+             (A.Array {}, A.Original,_) -> inner ind v mt
+             (A.Array {}, _,Nothing) -> inner ind v mt
+             (A.Record {}, A.Original,_) -> inner ind v mt
              _ -> inner (ind+1) v mt
     inner ind (A.DirectedVariable m dir v) mt
       = do (cg,n) <- (inner ind v mt)
@@ -782,11 +784,13 @@ cgenVariable' checkValid v
            t <- if checkValid
                   then astTypeOf sv
                   else return t'
-           A.Array ds _ <- astTypeOf v
+           ds <- astTypeOf v >>= \t -> case t of
+                   A.Array ds _ -> return ds
+                   A.Mobile (A.Array ds _) -> return ds
            (cg, n) <- inner ind v (Just t)
            let check = if checkValid then subCheck else A.NoCheck
-           return ((if (length ds /= length es) then tell ["&"] else return ()) >> cg
-                    >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), n)
+           return ((if (length ds /= length es) then tell ["/*stillarray*/&"] else return ()) >> addPrefix
+             cg n >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), 0)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
               t <- astTypeOf sv
@@ -845,13 +849,24 @@ cgenDirectedVariable _ _ var _ = var
 cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen ()
 cgenArraySubscript check v es
     =  do t <- astTypeOf v
-          let numDims = case t of A.Array ds _ -> length ds
+          let numDims = case t of
+                 A.Array ds _ -> length ds
+                 A.Mobile (A.Array ds _) -> length ds
           tell ["["]
           sequence_ $ intersperse (tell ["+"]) $ genPlainSub (genDynamicDim v) es [0..(numDims - 1)]
           tell ["]"]
   where
     genDynamicDim :: A.Variable -> Int -> CGen ()
-    genDynamicDim v i = call genVariable v >> call genSizeSuffix (show i)
+    genDynamicDim v i
+      = do t <- astTypeOf v
+           case (t, v) of
+             (A.Mobile {}, _) -> do tell ["tock_mobile_sizes("]
+                                    call genVariable v
+                                    tell [")[", show i, "]"]
+             (_, A.DerefVariable _ v') -> do tell ["tock_mobile_sizes("]
+                                             call genVariable v'
+                                             tell [")[", show i, "]"]
+             _ -> call genVariable v >> call genSizeSuffix (show i)
     
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -1142,6 +1157,7 @@ cgenVariableAM v am
                  (False, A.Array {}) -> return ()
                  (False, A.Chan {}) -> return ()
                  (False, A.ChanEnd {}) -> return ()
+--                 (False, A.Mobile {}) -> return ()
                  _ -> tell ["&"]
           call genVariable v
 
@@ -1259,7 +1275,7 @@ cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
 cdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareFree _ _ _ = Nothing
+cdeclareFree _ _ _ = Nothing -- TODO free mobiles that are going out of scope
 
 {-
                   Original        Abbrev
@@ -1318,6 +1334,17 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [" = "]
                  rhs
                  tell [";\n"]
+          case t of
+            A.Mobile (A.Array ds _) -> do
+              sequence_ [case d of
+                A.Dimension e -> do tell ["tock_mobile_sizes("]
+                                    genName n
+                                    tell [")[", show i, "]="]
+                                    call genExpression e
+                                    tell [";"]
+                A.UnknownDimension -> return ()
+                | (d, i) <- zip ds [0..]]
+            _ -> return ()
 cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
     =  do call genType c
           case c of
@@ -1396,6 +1423,13 @@ cremoveSpec (A.Specification m n (A.Declaration _ t))
     var = A.Variable m n
 cremoveSpec (A.Specification _ n (A.Rep _ rep))
   = call genReplicatorEnd rep
+cremoveSpec (A.Specification m n (A.IsExpr _ am t e))
+  = do fdeclareFree <- fget declareFree
+       case fdeclareFree m t var of
+         Just p -> p
+         Nothing -> return ()
+  where
+    var = A.Variable m n
 cremoveSpec _ = return ()
 
 cgenSpecMode :: A.SpecMode -> CGen ()
@@ -1853,11 +1887,24 @@ cgenAssert m e
 
 --{{{ mobiles
 cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
-cgenAllocMobile m (A.Mobile t) Nothing = tell ["malloc("] >> call genBytesIn m t (Left False) >> tell [")"]
+cgenAllocMobile m (A.Mobile t@(A.Array ds _)) Nothing
+  = do tell ["(void*)(("]
+       call genType A.Int
+       -- TODO use some Tock function instead of malloc
+       tell ["*)malloc((", show (length ds), "*sizeof("]
+       call genType A.Int
+       tell [")) + ("]
+       call genBytesIn m t (Left False)
+       tell [")) + ", show (length ds), ")"]
+cgenAllocMobile m (A.Mobile t) Nothing
+  = do tell ["malloc("]
+       call genBytesIn m t (Left False)
+       tell [")"]
 --TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
 -- into a subsequent assignment
 cgenAllocMobile _ _ _ = call genMissing "Mobile allocation with initialising-expression"
 
+-- TODO adjust for being a mobile array
 cgenClearMobile :: Meta -> A.Variable -> CGen ()
 cgenClearMobile _ v
   = do tell ["if("]
