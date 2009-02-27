@@ -38,7 +38,9 @@ import Utils
 
 squashArrays :: [Pass]
 squashArrays =
-  [ removeDirections
+    -- Note that removeDirections is only for C, whereas removeUnneededDirections
+    -- is for all backends
+  [ removeDirectionsForC
   , removeUnneededDirections
   , simplifySlices
   , declareSizesArray
@@ -50,11 +52,11 @@ squashArrays =
 prereq :: [Property]
 prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [Prop.subscriptsPulledUp, Prop.arrayLiteralsExpanded]
 
--- | Remove all variable directions.
+-- | Remove all variable directions for the C backend.
 -- They're unimportant in occam code once the directions have been checked,
 -- and this somewhat simplifies the work of the later passes.
-removeDirections :: Pass
-removeDirections
+removeDirectionsForC :: Pass
+removeDirectionsForC
     = occamAndCOnlyPass "Remove variable directions"
                     prereq
                     [Prop.directionsRemoved]
