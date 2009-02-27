@@ -130,6 +130,7 @@ plainSubscriptType m (A.Array (_:ds) t)
     = return $ case ds of
                  [] -> t
                  _ -> A.Array ds t
+plainSubscriptType m (A.Mobile t) = plainSubscriptType m t
 plainSubscriptType m t = diePC m $ formatCode "Subscript of non-array type: %" t
 
 -- | Turn an expression into a 'Dimension'.
@@ -188,6 +189,7 @@ trivialSubscriptType m t@(A.UserDataType _)
     = resolveUserType m t >>= trivialSubscriptType m
 trivialSubscriptType _ (A.Array [d] t) = return t
 trivialSubscriptType _ (A.Array (d:ds) t) = return $ A.Array ds t
+trivialSubscriptType m (A.Mobile t) = trivialSubscriptType m t
 trivialSubscriptType m t = diePC m $ formatCode "not plain array type: %" t
 
 instance ASTTypeable A.Variable where
