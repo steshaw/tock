@@ -421,11 +421,13 @@ instance ShowOccam A.Expression where
   showOccamM (A.True _) = tell ["TRUE"]
   showOccamM (A.False _) = tell ["FALSE"]
   showOccamM (A.FunctionCall _ n es) = showName n >> tell ["("] >> showWithCommas es >> tell [")"]
+  showOccamM (A.IntrinsicFunctionCall _ n es) = tell [n, "("] >> showWithCommas es >> tell [")"]
   showOccamM (A.SubscriptedExpr _ s e) = showSubscriptOccamM e s
   showOccamM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showOccamM e
   showOccamM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showOccamM t
   showOccamM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showOccamM t >> tell [" , "] >> showName n >> tell [")"]
-  --TODO exprconstr
+  showOccamM (A.AllocMobile _ t me) = showOccamM t >> maybe (return ()) showOccamM me
+    
 
 instance ShowRain A.Expression where
   showRainM (A.Monadic _ op e) = bracket $ showRainM op >> space >> showRainM e
@@ -638,8 +640,8 @@ instance ShowOccam A.Process where
     (sequence_ $ intersperse (tell [" ; "]) $ [showName n] ++ (map showOccamM ois))
   --TODO gettime and wait ?
   
-  --TODO proccall
   showOccamM (A.ProcCall _ n params) = showOccamLine $ showName n >> tell [" ( "] >> showWithCommas params >> tell [" ) "]
+  showOccamM (A.IntrinsicProcCall _ n params) = showOccamLine $ tell [n, " ( "] >> showWithCommas params >> tell [" ) "]
   showOccamM (A.While _ e p) = (showOccamLine $ tell ["WHILE "] >> showOccamM e) >> occamIndent >> showOccamM p >> occamOutdent
   showOccamM (A.Case _ e s) = (showOccamLine $ tell ["CASE "] >> showOccamM e) >> occamBlock (showOccamM s)
   showOccamM (A.If _ str) = outerOccam "IF" str
