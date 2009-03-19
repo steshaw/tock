@@ -1,0 +1,35 @@
+PROC id.picture(CHAN [256][256]INT in?, CHAN [256][256]INT out!)
+  [256][256]INT pic:
+  SEQ i = 0 FOR 100
+    SEQ
+      in ? pic
+      out ! pic
+:
+
+PROC m (CHAN BYTE out!)
+  [1000]CHAN [256][256]INT cs:
+  [256][256]INT start.pic, end.pic:
+  TIMER tim:
+  [128]BYTE str:
+  INT len:
+  INT t, t2:
+  SEQ
+    SEQ i = 0 FOR 256
+      SEQ j = 0 FOR 256
+        start.pic[i][j] := 0
+    PAR
+      PAR i = 0 FOR 999
+        id.picture(cs[i]?, cs[i+1]!)
+      SEQ
+        tim ? t
+        PAR
+          SEQ i = 0 FOR 100
+            cs[0] ! start.pic
+          SEQ i = 0 FOR 100
+            cs[999] ? end.pic
+        tim ? t2
+        t2 := t2 - t
+        INTTOSTRING(len,str,t2)
+        SEQ i = 0 FOR len
+          out ! str[i]
+:
