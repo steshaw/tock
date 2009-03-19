@@ -1299,7 +1299,13 @@ cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
 cdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareFree _ _ _ = Nothing -- TODO free mobiles that are going out of scope
+cdeclareFree _ (A.Mobile {}) v = Just $
+  do tell ["if ("]
+     call genVariable v
+     tell ["!=NULL){MTRelease(wptr,(void*)"]
+     call genVariable v
+     tell [");}"]
+cdeclareFree _ _ _ = Nothing
 
 {-
                   Original        Abbrev
