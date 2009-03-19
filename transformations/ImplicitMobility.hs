@@ -26,6 +26,7 @@ import Data.Graph.Inductive.Query.DFS
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
+import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
@@ -45,7 +46,7 @@ import Utils
 
 effectDecision :: Var -> Decision -> AlterAST PassM () -> A.AST -> PassM A.AST
 effectDecision _ Move _ = return -- Move is the default
-effectDecision targetVar Copy (AlterProcess wrapper) = routeModify wrapper alterProc
+effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper alterProc
   where
     derefExp :: A.Expression -> PassM A.Expression
     derefExp e
@@ -74,7 +75,7 @@ effectDecision targetVar Copy (AlterProcess wrapper) = routeModify wrapper alter
       = do e' <- derefExp e
            return $ A.Output m cv [A.OutExpression m' e']
     alterProc x = dieP (findMeta x) "Cannot alter process to copy"
-effectDecision _ Copy _ = return
+effectDecision _ (Copy _) _ = return
 
 -- | Calculates a map from each node to a set of variables that will be
 -- used again afterwards.  Used in this context means it can possibly be
@@ -119,24 +120,45 @@ printMoveCopyDecisions decs
     printDec ((_,v), dec) = astTypeOf v >>= \t -> (liftIO $ putStrLn $
       show (findMeta v) ++ show v ++ " " ++ show t ++ " " ++ show dec)
 
-data Decision = Move | Copy deriving (Show, Ord, Eq)
+data Decision = Move | Copy Meta deriving (Show, Ord, Eq)
 
-makeMoveCopyDecisions :: Monad m => FlowGraph m UsageLabel -> [Node] ->
+makeMoveCopyDecisions :: forall m. Monad m => FlowGraph m UsageLabel -> [Node] ->
   PassM Decisions
-makeMoveCopyDecisions gr
-  = foldM processConnected (Map.empty)
+makeMoveCopyDecisions grOrig ns
+  = do namesWithTypes <- getCompState >>* csNames >>= T.mapM (typeOfSpec . A.ndSpecType)
+       let mobVars = Set.mapMonotonic (Var . A.Variable emptyMeta . A.Name emptyMeta)
+                     . Map.keysSet
+                     . Map.filter isJustMobileType
+                     $ namesWithTypes
+       foldM (processConnected $ nmap (fmap $ filterVars mobVars) grOrig) (Map.empty) ns
   where
+    isJustMobileType :: Maybe A.Type -> Bool
+    isJustMobileType (Just (A.Mobile {})) = True
+    isJustMobileType _ = False
+    
+    filterVars :: Set.Set Var -> UsageLabel -> UsageLabel
+    filterVars keep u
+      = u { nodeVars = filterNodeVars (nodeVars u) }
+      where
+        keepM = Map.fromAscList $ flip zip (repeat ()) $ Set.toAscList keep
+
+        filterNodeVars :: Vars -> Vars
+        filterNodeVars vs
+          = vs { readVars = readVars vs `Set.intersection` keep
+               , writtenVars = writtenVars vs `Map.intersection` keepM
+               , usedVars = readVars vs `Set.intersection` keep }
+    
     -- Processes the entire sub-graph that is connected to the given node
-    processConnected :: Map.Map (Node, Var) Decision -> Node ->
+    processConnected :: FlowGraph m UsageLabel -> Map.Map (Node, Var) Decision -> Node ->
       PassM (Map.Map (Node, Var) Decision)
-    processConnected m n = case calculateUsedAgainAfter gr n of
+    processConnected gr m n = case calculateUsedAgainAfter gr n of
       Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
-      Right mvs -> foldM (processNode mvs) m $ Map.keys mvs
+      Right mvs -> foldM (processNode gr mvs) m $ Map.keys mvs
 
     -- Processes all the variables at a given node
-    processNode :: Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision
+    processNode :: FlowGraph m UsageLabel -> Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision
       -> Node -> PassM (Map.Map (Node, Var) Decision)
-    processNode mvs m n 
+    processNode gr mvs m n
       = case fmap (readVars . nodeVars . getNodeData) $ lab gr n of
           Nothing -> dieP emptyMeta "Did not find node label during implicit mobility"
           Just rvs -> return $ foldl (process n mvs) m $ Set.toList rvs
@@ -144,10 +166,10 @@ makeMoveCopyDecisions gr
     -- Processes a single variable at a given node
     process :: Node -> Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision ->
       Var -> Map.Map (Node, Var) Decision
-    process n useAgain prev v =
-      Map.insert (n, v)
-        (if v `Set.member` Map.findWithDefault Set.empty n useAgain
-           then Copy
+    process n useAgain prev v = let s = Map.findWithDefault Set.empty n useAgain
+      in Map.insert (n, v)
+        (if v `Set.member` s
+           then Copy $ findMeta $ Set.findMin $ Set.filter (== v) s
            else Move) prev
 
 type Decisions = Map.Map (Node, Var) Decision
@@ -163,7 +185,7 @@ effectMoveCopyDecisions g decs = foldFuncsM $ map effect $ Map.toList decs
 
 implicitMobility :: Pass
 implicitMobility 
-  = rainOnlyPass "Implicit mobility optimisation"
+  = pass "Implicit mobility optimisation"
     [] [] --TODO properties
    (passOnlyOnAST "implicitMobility" $ \t -> do
        g' <- buildFlowGraph labelUsageFunctions t
