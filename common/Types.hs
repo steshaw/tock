@@ -283,6 +283,7 @@ typeOfExpression e
         A.BytesInType m t -> return A.Int
         A.OffsetOf m t n -> return A.Int
         A.AllocMobile _ t _ -> return t
+        A.CloneMobile _ e -> typeOfExpression e
 --}}}
 
 -- | Gets the return type(s) of a function call from the 'CompState'.

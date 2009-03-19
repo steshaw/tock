@@ -112,6 +112,7 @@ data GenOps = GenOps {
     genCase :: Meta -> A.Expression -> A.Structured A.Option -> CGen (),
     genCheckedConversion :: Meta -> A.Type -> A.Type -> CGen () -> CGen (),
     genClearMobile :: Meta -> A.Variable -> CGen (),
+    genCloneMobile :: Meta -> A.Expression -> CGen (),
     genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
     genConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen (),
     genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen (),

@@ -59,7 +59,7 @@ effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper a
            case e of
              A.ExprVariable m' v ->
                if (Var v == targetVar)
-                 then return $ A.ExprVariable m' $ A.DerefVariable m' v
+                 then return $ A.CloneMobile m' $ A.ExprVariable m' v
                  else return e
              -- TODO handle concat expressions with repeated vars
              A.Dyadic m A.Concat lhs rhs ->
@@ -69,11 +69,9 @@ effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper a
              _ -> return e
     alterProc :: A.Process -> PassM A.Process
     alterProc (A.Assign m lhs (A.ExpressionList m' [e]))
-      = do e' <- derefExp e
-           return $ A.Assign m lhs $ A.ExpressionList m' [e']
+      = return $ A.Assign m lhs $ A.ExpressionList m' [A.CloneMobile m' e]
     alterProc (A.Output m cv [A.OutExpression m' e])
-      = do e' <- derefExp e
-           return $ A.Output m cv [A.OutExpression m' e']
+      = return $ A.Output m cv [A.OutExpression m' $ A.CloneMobile m' e]
     alterProc x = dieP (findMeta x) "Cannot alter process to copy"
 effectDecision _ (Copy _) _ = return
 
@@ -280,8 +278,6 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
     mobiliseArrayInside (A.Array ds (A.ChanEnd attr dir t@(A.Array {})), f)
       = Just $ f $ A.Array ds $ A.ChanEnd attr dir $ A.Mobile t
     mobiliseArrayInside _ = Nothing
-
--- TODO I think I want to clone, not dereference
 
 class Dereferenceable a where
   deref :: Meta -> a -> Maybe a

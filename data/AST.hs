@@ -277,6 +277,9 @@ data Expression =
   -- | A mobile allocation. The type should always be Mobile t, and the
   -- Expression should be of type t.
   | AllocMobile Meta Type (Maybe Expression)
+  -- | A CLONE operation.  The inner expression should have a Mobile type, and
+  -- this will have the same type as the inner component:
+  | CloneMobile Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | A list of expressions.

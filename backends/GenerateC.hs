@@ -91,6 +91,7 @@ cgenOps = GenOps {
     genCase = cgenCase,
     genCheckedConversion = cgenCheckedConversion,
     genClearMobile = cgenClearMobile,
+    genCloneMobile = cgenCloneMobile,
     genConversion = cgenConversion,
     genConversionSymbol = cgenConversionSymbol,
     genDecl = cgenDecl,
@@ -948,6 +949,7 @@ cgenExpression (A.BytesInType m t) = call genBytesIn m t (Left False)
 --cgenExpression (A.OffsetOf m t n)
 --cgenExpression (A.ExprConstr {})
 cgenExpression (A.AllocMobile m t me) = call genAllocMobile m t me
+cgenExpression (A.CloneMobile m e) = call genCloneMobile m e
 cgenExpression t = call genMissing $ "genExpression " ++ show t
 
 cgenSizeSuffix :: String -> CGen ()
@@ -1356,16 +1358,6 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [" = "]
                  rhs
                  tell [";\n"]
-          case t of
-            A.Mobile (A.Array ds _) -> do
-              sequence_ [case d of
-                A.Dimension e -> do genName n
-                                    tell ["->dimensions[", show i, "]="]
-                                    call genExpression e
-                                    tell [";"]
-                A.UnknownDimension -> return ()
-                | (d, i) <- zip ds [0..]]
-            _ -> return ()
 cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
     =  do call genType c
           case c of
@@ -1937,5 +1929,11 @@ cgenClearMobile _ v
        tell ["=NULL;}"]
   where
     genVar = call genVariable v
+
+cgenCloneMobile :: Meta -> A.Expression -> CGen ()
+cgenCloneMobile _ e
+  = do tell ["MTClone(wptr,(void*)"]
+       call genExpression e
+       tell [")"]
 
 --}}}
