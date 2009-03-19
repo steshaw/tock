@@ -1073,6 +1073,12 @@ cgenInputItem c (A.InVariable m v)
                  tell [","]
                  rhs
                  tell [");"]
+            A.Mobile {} ->
+              do tell ["MTChanIn(wptr,"]
+                 call genVariable c
+                 tell [",(void*)"]
+                 rhs
+                 tell [");"]
             _ ->
               do tell ["ChanIn(wptr,"]
                  call genVariable c
@@ -1099,13 +1105,28 @@ cgenOutputItem c (A.OutCounted m ce ae)
                  call genBytesIn m subT (Right v)
                  tell [");"]
 cgenOutputItem c (A.OutExpression m e)
-    =  do t <- astTypeOf e
-          case (t, e) of
+    =  do t <- astTypeOf c
+          let innerT = case t of
+                A.Chan _ t' -> t'
+                A.ChanEnd _ _ t' -> t'
+          case (innerT, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt(wptr,"]
                  call genVariable c
                  tell [","]
                  call genExpression e
+                 tell [");"]
+            (A.Mobile {}, A.ExprVariable _ (A.DerefVariable _ v)) ->
+              do tell ["{void* outtmp = MTClone(*"]
+                 call genVariableAM v A.Abbrev
+                 tell [");MTChanOut(wptr,"]
+                 call genVariable c
+                 tell [",&outtmp);}"]
+            (A.Mobile {}, A.ExprVariable _ v) ->
+              do tell ["MTChanOut(wptr,"]
+                 call genVariable c
+                 tell [",(void*)"]
+                 call genVariableAM v A.Abbrev
                  tell [");"]
             (_, A.ExprVariable _ v) ->
               do tell ["ChanOut(wptr,"]
@@ -1113,7 +1134,8 @@ cgenOutputItem c (A.OutExpression m e)
                  tell [","]
                  call genVariableAM v A.Abbrev
                  tell [","]
-                 call genBytesIn m t (Right v)
+                 te <- astTypeOf e
+                 call genBytesIn m te (Right v)
                  tell [");"]
 --}}}
 
