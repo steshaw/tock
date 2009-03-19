@@ -342,7 +342,7 @@ cgenType (A.Array _ t)
             _ -> return ()
           tell ["*"]
 cgenType (A.Record n) = genName n
-cgenType (A.Mobile t@(A.Array {})) = call genType t
+cgenType (A.Mobile t@(A.Array {})) = tell["mt_array_t*"]
 cgenType (A.Mobile t) = call genType t >> tell ["*"]
 
 -- UserProtocol -- not used
@@ -771,8 +771,10 @@ cgenVariable' checkValid v
       = do (A.Mobile t) <- astTypeOf v
            am <- abbrevModeOfVariable v
            case (t, am, mt) of
-             (A.Array {}, A.Original,_) -> inner ind v mt
-             (A.Array {}, _,Nothing) -> inner ind v mt
+             (A.Array _ t, _, _) ->
+               do (cg, n) <- inner ind v Nothing
+                  let cast = tell ["("] >> call genType t >> tell ["*)"]
+                  return (tell ["("] >> cast >> tell ["(("] >> addPrefix cg n >> tell [")->data))"], 0)
              (A.Record {}, A.Original,_) -> inner ind v mt
              _ -> inner (ind+1) v mt
     inner ind (A.DirectedVariable m dir v) mt
@@ -789,7 +791,7 @@ cgenVariable' checkValid v
                    A.Mobile (A.Array ds _) -> return ds
            (cg, n) <- inner ind v (Just t)
            let check = if checkValid then subCheck else A.NoCheck
-           return ((if (length ds /= length es) then tell ["/*stillarray*/&"] else return ()) >> addPrefix
+           return ((if (length ds /= length es) then tell ["&"] else return ()) >> addPrefix
              cg n >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), 0)
     inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
         =  do (cg, ind') <- inner ind v mt
@@ -860,12 +862,10 @@ cgenArraySubscript check v es
     genDynamicDim v i
       = do t <- astTypeOf v
            case (t, v) of
-             (A.Mobile {}, _) -> do tell ["tock_mobile_sizes("]
-                                    call genVariable v
-                                    tell [")[", show i, "]"]
-             (_, A.DerefVariable _ v') -> do tell ["tock_mobile_sizes("]
-                                             call genVariable v'
-                                             tell [")[", show i, "]"]
+             (A.Mobile {}, _) -> do call genVariable v
+                                    tell ["->dimensions[", show i, "]"]
+             (_, A.DerefVariable _ v') -> do call genVariable v'
+                                             tell ["->dimensions[", show i, "]"]
              _ -> call genVariable v >> call genSizeSuffix (show i)
     
     -- | Generate the individual offsets that need adding together to find the
@@ -1337,9 +1337,8 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
           case t of
             A.Mobile (A.Array ds _) -> do
               sequence_ [case d of
-                A.Dimension e -> do tell ["tock_mobile_sizes("]
-                                    genName n
-                                    tell [")[", show i, "]="]
+                A.Dimension e -> do genName n
+                                    tell ["->dimensions[", show i, "]="]
                                     call genExpression e
                                     tell [";"]
                 A.UnknownDimension -> return ()
@@ -1887,29 +1886,29 @@ cgenAssert m e
 
 --{{{ mobiles
 cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
-cgenAllocMobile m (A.Mobile t@(A.Array ds _)) Nothing
-  = do tell ["(void*)(("]
-       call genType A.Int
-       -- TODO use some Tock function instead of malloc
-       tell ["*)malloc((", show (length ds), "*sizeof("]
-       call genType A.Int
-       tell [")) + ("]
-       call genBytesIn m t (Left False)
-       tell [")) + ", show (length ds), ")"]
+cgenAllocMobile m (A.Mobile t@(A.Array ds innerT)) Nothing
+  = do tell ["MTAllocArray(wptr,"]
+       mobileElemType innerT
+       tell [",", show $ length ds]
+       prefixComma $ [call genExpression e | A.Dimension e <- ds]
+       tell [")"]
 cgenAllocMobile m (A.Mobile t) Nothing
-  = do tell ["malloc("]
-       call genBytesIn m t (Left False)
+  = do tell ["MTAlloc(wptr,"]
+       mobileElemType t
        tell [")"]
 --TODO add a pass, just for C, that pulls out the initialisation expressions for mobiles
 -- into a subsequent assignment
 cgenAllocMobile _ _ _ = call genMissing "Mobile allocation with initialising-expression"
 
--- TODO adjust for being a mobile array
+mobileElemType :: A.Type -> CGen ()
+mobileElemType A.Int = mobileElemType cIntReplacement
+mobileElemType t = tell ["MT_NUM_", showOccam t]
+
 cgenClearMobile :: Meta -> A.Variable -> CGen ()
 cgenClearMobile _ v
   = do tell ["if("]
        genVar
-       tell ["!=NULL){free("]
+       tell ["!=NULL){MTRelease("]
        genVar
        tell [");"]
        genVar
