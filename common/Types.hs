@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Type inference and checking.
 module Types
   (
-    specTypeOfName, typeOfSpec, abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
+    specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
@@ -91,22 +91,29 @@ typeOfName n
             Nothing -> dieP (findMeta n) $ "cannot type name " ++ pshow n ++
               ":" ++ show st
 
-typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)
-typeOfSpec st
+typeOfSpec' :: (CSMR m, Die m) => A.SpecType -> m (Maybe (A.Type, A.Type -> A.SpecType))
+typeOfSpec' st
         = case st of
-            A.Declaration _ t -> return $ Just t
-            A.Is _ _ t _ -> return $ Just t
-            A.IsExpr _ _ t _ -> return $ Just t
-            A.IsChannelArray _ t _ -> return $ Just t
-            A.Retypes _ _ t _ -> return $ Just t
-            A.RetypesExpr _ _ t _ -> return $ Just t
-            A.Rep _ (A.For _ _ e _) -> astTypeOf e >>* Just
-            A.Rep _ (A.ForEach _ e) -> do t <- astTypeOf e
-                                          case t of
-                                            A.List t' -> return $ Just t'
-                                            A.Array _ t' -> return $ Just t'
-                                            _ -> return Nothing
+            A.Declaration a t -> return $ Just (t, A.Declaration a)
+            A.Is a b t c -> return $ Just (t, \t' -> A.Is a b t' c)
+            A.IsExpr a b t c -> return $ Just (t, \t' -> A.IsExpr a b t' c)
+            A.IsChannelArray a t b
+              -> return $ Just (t, \t' -> A.IsChannelArray a t' b)
+            A.Retypes a b t c -> return $ Just (t, \t' -> A.Retypes a b t' c)
+            A.RetypesExpr a b t c
+              -> return $ Just (t, \t' -> A.RetypesExpr a b t' c)
+            A.Rep _ (A.For _ _ e _) -> do t <- astTypeOf e
+                                          return $ Just (t, error "typeOfSpec'")
+            A.Rep _ (A.ForEach _ e) ->
+              do t <- astTypeOf e
+                 case t of
+                   A.List t' -> return $ Just (t', error "typeOfSpec'")
+                   A.Array _ t' -> return $ Just (t', error "typeOfSpec'")
+                   _ -> return Nothing
             _ -> return Nothing
+
+typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)
+typeOfSpec = liftM (fmap fst) . typeOfSpec'
 
 --{{{  identifying types
 -- | Get the fields of a record type.
