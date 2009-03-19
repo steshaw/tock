@@ -1076,7 +1076,8 @@ cgenInputItem c (A.InVariable m v)
                  rhs
                  tell [");"]
             A.Mobile {} ->
-              do tell ["MTChanIn(wptr,"]
+              do call genClearMobile m v -- TODO insert this via a pass
+                 tell ["MTChanIn(wptr,"]
                  call genVariable c
                  tell [",(void*)"]
                  rhs
@@ -1299,12 +1300,7 @@ cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
 cdeclareFree :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareFree _ (A.Mobile {}) v = Just $
-  do tell ["if ("]
-     call genVariable v
-     tell ["!=NULL){MTRelease(wptr,(void*)"]
-     call genVariable v
-     tell [");}"]
+cdeclareFree m (A.Mobile {}) v = Just $ call genClearMobile m v
 cdeclareFree _ _ _ = Nothing
 
 {-
@@ -1928,7 +1924,7 @@ cgenClearMobile :: Meta -> A.Variable -> CGen ()
 cgenClearMobile _ v
   = do tell ["if("]
        genVar
-       tell ["!=NULL){MTRelease("]
+       tell ["!=NULL){MTRelease(wptr,(void*)"]
        genVar
        tell [");"]
        genVar
