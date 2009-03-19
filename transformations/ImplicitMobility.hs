@@ -51,11 +51,11 @@ effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper a
     derefExp :: A.Expression -> PassM A.Expression
     derefExp e
       = do t <- astTypeOf e
-           case t of
+           {-case t of
              A.Mobile (A.List _) -> return ()
              A.List _ -> return ()
              _ -> dieP (findMeta e) $
-               "Cannot dereference a non-list assignment RHS: " ++ show t
+               "Cannot dereference a non-list assignment RHS: " ++ show t -}
            case e of
              A.ExprVariable m' v ->
                if (Var v == targetVar)
@@ -212,9 +212,17 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
     doStructured s@(A.Spec m (A.Specification m' n (A.Declaration m'' t@(A.Array ds
       innerT))) scope)
       = case innerT of
-          A.Chan {} -> descend s
-          A.ChanEnd {} -> descend s
-          _ -> do scope' <- descend {-addAtEndOfScopeDyn m'' (A.ClearMobile m'' $ A.Variable m' n)-} scope
+          A.Chan {} -> case mobiliseArrayInside (t, A.Declaration m'') of
+            Just newSpec ->
+              do modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+                 recurse scope >>* A.Spec m (A.Specification m' n newSpec)
+            Nothing -> descend s
+          A.ChanEnd {} -> case mobiliseArrayInside (t, A.Declaration m'') of
+            Just newSpec ->
+              do modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+                 recurse scope >>* A.Spec m (A.Specification m' n newSpec)
+            Nothing -> descend s
+          _ -> do scope' <- recurse {-addAtEndOfScopeDyn m'' (A.ClearMobile m'' $ A.Variable m' n)-} scope
                   let newSpec = A.IsExpr m'' A.Original (A.Mobile t) $ A.AllocMobile m'' (A.Mobile t) Nothing
                   modifyName n (\nd -> nd {A.ndSpecType = newSpec})
                   let name_sizes = n {A.nameName = A.nameName n ++ "_sizes"}
@@ -232,7 +240,32 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
                   defineName name_sizes nd
                   return $ A.Spec m (A.Specification m' n newSpec) scope'
 
+    -- Must also mobilise channels of arrays, and arrays of channels of arrays:
+    doStructured s@(A.Spec m (A.Specification m' n st) scope)
+      = do mtf <- typeOfSpec' st
+           case mtf >>= mobiliseArrayInside of
+             Just newSpec ->
+               do scope' <- recurse scope
+                  modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+                  return $ A.Spec m (A.Specification m' n newSpec) scope'
+             Nothing -> descend s
+
+    -- TODO should also mobilise the channels in formal parameters
+
     doStructured s = descend s
+
+    
+
+    mobiliseArrayInside :: (A.Type, A.Type -> A.SpecType) -> Maybe A.SpecType
+    mobiliseArrayInside (A.Chan attr t@(A.Array {}), f)
+      = Just $ f $ A.Chan attr $ A.Mobile t
+    mobiliseArrayInside (A.ChanEnd attr dir t@(A.Array {}), f)
+      = Just $ f $ A.ChanEnd attr dir $ A.Mobile t
+    mobiliseArrayInside (A.Array ds (A.Chan attr t@(A.Array {})), f)
+      = Just $ f $ A.Array ds $ A.Chan attr $ A.Mobile t
+    mobiliseArrayInside (A.Array ds (A.ChanEnd attr dir t@(A.Array {})), f)
+      = Just $ f $ A.Array ds $ A.ChanEnd attr dir $ A.Mobile t
+    mobiliseArrayInside _ = Nothing
 
 class Dereferenceable a where
   deref :: Meta -> a -> Maybe a
