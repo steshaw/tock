@@ -240,6 +240,16 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
                   defineName name_sizes nd
                   return $ A.Spec m (A.Specification m' n newSpec) scope'
 
+    doStructured (A.Spec m (A.Specification m' n (A.Proc m'' sm fs body)) scope)
+      = do scope' <- recurse scope
+           body' <- recurse body
+           fs' <- mapM processFormal fs
+           let newSpecF = A.Proc m'' sm fs'
+           modifyName n (\nd -> nd {A.ndSpecType =
+             let A.Proc _ _ _ stub = A.ndSpecType nd in newSpecF stub})
+           return $ A.Spec m (A.Specification m' n (newSpecF body')) scope'
+
+
     -- Must also mobilise channels of arrays, and arrays of channels of arrays:
     doStructured s@(A.Spec m (A.Specification m' n st) scope)
       = do mtf <- typeOfSpec' st
@@ -250,11 +260,15 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
                   return $ A.Spec m (A.Specification m' n newSpec) scope'
              Nothing -> descend s
 
-    -- TODO should also mobilise the channels in formal parameters
-
     doStructured s = descend s
 
-    
+    processFormal :: A.Formal -> PassM A.Formal
+    processFormal f@(A.Formal am t n)
+      = case mobiliseArrayInside (t, A.Declaration (A.nameMeta n)) of
+          Just decl@(A.Declaration _ t') ->
+            do modifyName n $ \nd -> nd {A.ndSpecType = decl}
+               return $ A.Formal am t' n
+          Nothing -> return f 
 
     mobiliseArrayInside :: (A.Type, A.Type -> A.SpecType) -> Maybe A.SpecType
     mobiliseArrayInside (A.Chan attr t@(A.Array {}), f)
@@ -266,6 +280,8 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
     mobiliseArrayInside (A.Array ds (A.ChanEnd attr dir t@(A.Array {})), f)
       = Just $ f $ A.Array ds $ A.ChanEnd attr dir $ A.Mobile t
     mobiliseArrayInside _ = Nothing
+
+-- TODO I think I want to clone, not dereference
 
 class Dereferenceable a where
   deref :: Meta -> a -> Maybe a
