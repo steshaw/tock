@@ -60,7 +60,7 @@ commonPasses opts = concat $
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
       return]
     -- TODO add an implicit mobility pass after these two:
-  , enablePassesWhen csClassicOccamMobility [mobiliseArrays, inferDeref]
+  , enablePassesWhen csClassicOccamMobility [mobiliseArrays, inferDeref, implicitMobility]
   , simplifyAbbrevs
   , simplifyComms
   , simplifyExprs

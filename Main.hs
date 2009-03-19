@@ -67,7 +67,8 @@ optionsNoWarnings =
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
-  , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (EXPERIMENTAL) (options: on, off)"
+  , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
+  , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (options: on, off)"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   ]
 
@@ -123,22 +124,22 @@ optPrintHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" 
 optPrintWarningHelp :: OptFunc
 optPrintWarningHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsWarnings)
 
+optOnOff :: (String, Bool -> CompState -> CompState) -> String -> OptFunc
+optOnOff (n, f) s ps
+    =  do mode <- case s of
+            "on" -> return True
+            "off" -> return False
+            _ -> dieIO (Nothing, "Unknown " ++ n ++ " mode: " ++ s)
+          return $ f mode ps
 
 optUsageChecking :: String -> OptFunc
-optUsageChecking s ps
-    =  do usageCheck <- case s of
-            "on" -> return True
-            "off" -> return False
-            _ -> dieIO (Nothing, "Unknown usage checking mode: " ++ s)
-          return $ ps { csUsageChecking = usageCheck }
+optUsageChecking = optOnOff ("usage checking", \m ps -> ps { csUsageChecking = m })
 
 optSanityCheck :: String -> OptFunc
-optSanityCheck s ps
-    =  do sanityCheck <- case s of
-            "on" -> return True
-            "off" -> return False
-            _ -> dieIO (Nothing, "Unknown sanity checking mode: " ++ s)
-          return $ ps { csSanityCheck = sanityCheck }
+optSanityCheck = optOnOff ("sanity checking", \m ps -> ps { csSanityCheck = m })
+
+optClassicOccamMobility :: String -> OptFunc
+optClassicOccamMobility = optOnOff ("occam 2 mobility", \m ps -> ps { csClassicOccamMobility = m })
 
 optEnableWarning :: WarningType -> OptFunc
 optEnableWarning w ps = return $ ps { csEnabledWarnings = Set.insert w (csEnabledWarnings ps) }

@@ -147,7 +147,7 @@ emptyState = CompState {
       , WarnUnknownPreprocessorDirective
       , WarnUnusedVariable],
 -- TODO enable WarnUninitialisedVariable by default
-    csClassicOccamMobility = True,
+    csClassicOccamMobility = False,
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
