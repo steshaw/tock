@@ -58,6 +58,7 @@ sameType (A.Array (A.UnknownDimension : ds1) t1)
 sameType (A.Chan _ ta) (A.Chan _ tb) = sameType ta tb
 sameType (A.ChanEnd dira _ ta) (A.ChanEnd dirb _ tb)
   = liftM (dira == dirb &&) (sameType ta tb)
+sameType (A.Mobile ta) (A.Mobile tb) = sameType ta tb
 sameType a b = return $ a == b
 
 -- | Check that the second dimension can be used in a context where the first
@@ -652,6 +653,21 @@ makeEnd m dir v
              -- If unsure (e.g. Infer), just shove a direction on it to be sure:
              _ -> return $ A.DirectedVariable m dir v       
 
+scrubMobile :: PassM a -> PassM a
+scrubMobile m
+  = do ctx <- getTypeContext
+       case ctx of
+         (Just (A.Mobile t)) -> inTypeContext (Just t) m
+         _ -> m
+
+inferAllocMobile :: Meta -> A.Type -> A.Expression -> PassM A.Expression
+inferAllocMobile m (A.Mobile {}) e
+  = do t <- astTypeOf e >>= underlyingType m
+       case t of
+         A.Mobile {} -> return e
+         _ -> return $ A.AllocMobile m (A.Mobile t) (Just e)
+inferAllocMobile _ _ e = return e
+
 --{{{  inferTypes
 
 -- | Infer types.
@@ -668,7 +684,6 @@ inferTypes = occamOnlyPass "Infer types"
           `extOp` doSubscript
           `extOp` doReplicator
           `extOp` doAlternative
-          `extOp` doInputMode
           `extOpS` doStructured
           `extOp` doProcess
           `extOp` doVariable
@@ -683,7 +698,8 @@ inferTypes = occamOnlyPass "Infer types"
         = case outer of
             -- Literals are what we're really looking for here.
             A.Literal m t lr ->
-               do t' <- recurse t
+             do t' <- recurse t
+                scrubMobile $ do
                   ctx <- getTypeContext
                   let wantT = case (ctx, t') of
                                 -- No type specified on the literal,
@@ -709,7 +725,7 @@ inferTypes = occamOnlyPass "Infer types"
                     =  do le' <- recurse le
                           re' <- inTypeContext (Just A.Int) $ recurse re
                           return $ A.Dyadic m op le' re'
-              in case classifyOp op of
+              in scrubMobile $ case classifyOp op of
                    ComparisonOp -> noTypeContext $ bothSame
                    ShiftOp -> intOnRight
                    _ -> bothSame
@@ -732,6 +748,15 @@ inferTypes = occamOnlyPass "Infer types"
             -- FIXME: ExprConstr
             -- FIXME: AllocMobile
 
+            A.ExprVariable m v ->
+              do ctx <- getTypeContext
+                 v' <- recurse v
+                 t <- astTypeOf v' >>= underlyingType m
+                 case (ctx, t) of
+                   (Just (A.Mobile {}), A.Mobile {}) -> return $ A.ExprVariable m v'
+                   (Just _, A.Mobile {}) -> return $ A.ExprVariable m
+                     $ A.DerefVariable m v'
+                   _ -> return $ A.ExprVariable m v'
             -- Other expressions don't modify the type context.
             _ -> descend outer
 
@@ -764,7 +789,8 @@ inferTypes = occamOnlyPass "Infer types"
             A.ExpressionList m es ->
                do es' <- sequence [inTypeContext (Just t) $ recurse e
                                    | (t, e) <- zip ts es]
-                  return $ A.ExpressionList m es'
+                  es'' <- mapM (uncurry $ inferAllocMobile m) $ zip ts es'
+                  return $ A.ExpressionList m es''
 
     doReplicator :: Transform A.Replicator
     doReplicator rep
@@ -776,7 +802,7 @@ inferTypes = occamOnlyPass "Infer types"
     doAlternative (A.Alternative m pre v im p)
       = do pre' <- inTypeContext (Just A.Bool) $ recurse pre
            v' <- recurse v
-           im' <- recurse im
+           im' <- doInputMode v' im
            p' <- recurse p
            return $ A.Alternative m pre' v' im' p'
     doAlternative (A.AlternativeSkip m pre p)
@@ -784,8 +810,13 @@ inferTypes = occamOnlyPass "Infer types"
            p' <- recurse p
            return $ A.AlternativeSkip m pre' p'
 
-    doInputMode :: Transform A.InputMode
-    doInputMode im = inTypeContext (Just A.Int) $ descend im
+    doInputMode :: A.Variable -> Transform A.InputMode
+    doInputMode v (A.InputSimple m iis)
+      = do ts <- protocolItems v >>* either id (const [])
+           iis' <- sequence [inTypeContext (Just t) $ recurse ii
+                            | (t, ii) <- zip ts iis]
+           return $ A.InputSimple m iis'
+    doInputMode _ im = inTypeContext (Just A.Int) $ descend im
 
     doStructured :: Data a => Transform (A.Structured a)
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
@@ -978,8 +1009,8 @@ inferTypes = occamOnlyPass "Infer types"
                   return $ A.ProcCall m n as'
             A.IntrinsicProcCall _ _ _ -> noTypeContext $ descend p
             A.Input m v im@(A.InputSimple {})
-              -> do im' <- recurse im
-                    v' <- recurse v
+              -> do v' <- recurse v
+                    im' <- doInputMode v' im
                     return $ A.Input m v' im'
             A.Input m v im@(A.InputCase {})
               -> do im' <- recurse im
@@ -1018,9 +1049,20 @@ inferTypes = occamOnlyPass "Infer types"
     doVariable (A.SubscriptedVariable m s v)
         =  do v' <- recurse v
               t <- astTypeOf v'
+              underT <- resolveUserType m t
               s' <- recurse s >>= fixSubscript t
-              return $ A.SubscriptedVariable m s' v'
-    doVariable v = descend v
+              v'' <- case underT of
+                A.Mobile {} -> return $ A.DerefVariable m v'
+                _ -> return v'
+              return $ A.SubscriptedVariable m s' v''
+    doVariable v
+        =  do v' <- descend v
+              ctx <- getTypeContext
+              underT <- astTypeOf v' >>= resolveUserType (findMeta v)
+              case (ctx, underT) of
+                (Just (A.Mobile {}), A.Mobile {}) -> return v'
+                (Just _, A.Mobile {}) -> return $ A.DerefVariable (findMeta v) v'
+                _ -> return v'
 
     -- | Resolve the @v[s]@ ambiguity: this takes the type that @v@ is, and
     -- returns the correct 'Subscript'.
