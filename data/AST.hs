@@ -460,6 +460,12 @@ data Specification =
   Specification Meta Name SpecType
   deriving (Show, Eq, Typeable, Data)
 
+data RecordAttr = RecordAttr
+  { packedRecord :: Bool
+  , mobileRecord :: Bool
+  }
+  deriving (Show, Eq, Typeable, Data)
+
 -- | The type of a 'Specification'.
 data SpecType =
   -- | Set placement for an existing variable.
@@ -475,9 +481,8 @@ data SpecType =
   -- | Declare a user data type.
   | DataType Meta Type
   -- | Declare a new record type.
-  -- The 'Bool' indicates whether the record is @PACKED@.
   -- The list is the fields of the record.
-  | RecordType Meta Bool [(Name, Type)]
+  | RecordType Meta RecordAttr [(Name, Type)]
   -- | Declare a simple protocol.
   -- The list contains the types of the items.
   | Protocol Meta [Type]
