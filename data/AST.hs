@@ -263,6 +263,9 @@ data Expression =
   -- | The size of the outermost dimension of an array variable (see
   -- 'SizeExpr').
   | SizeVariable Meta Variable
+  -- | An array that contains all the dimensions of an array.  Hence this is different
+  -- from SizeVariable which is only the outermost dimension.
+  | AllSizesVariable Meta Variable
   | Conversion Meta ConversionMode Type Expression
   | ExprVariable Meta Variable
   | Literal Meta Type LiteralRepr

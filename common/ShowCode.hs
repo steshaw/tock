@@ -415,6 +415,7 @@ instance ShowOccam A.Expression where
   showOccamM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showOccamM t
   showOccamM (A.SizeExpr _ e) = bracket $ tell ["SIZE "] >> showOccamM e
   showOccamM (A.SizeVariable _ v) = bracket $ tell ["SIZE "] >> showOccamM v
+  showOccamM (A.AllSizesVariable _ v) = bracket $ tell ["SIZES "] >> showOccamM v
   showOccamM (A.Conversion _ cm t e) = bracket $ showOccamM t >> convOrSpace cm >> showOccamM e
   showOccamM (A.ExprVariable _ v) = showOccamM v
   showOccamM (A.Literal _ _ lit) = showOccamM lit
@@ -427,7 +428,7 @@ instance ShowOccam A.Expression where
   showOccamM (A.BytesInType _ t) = bracket $ tell ["BYTESIN "] >> showOccamM t
   showOccamM (A.OffsetOf _ t n) = tell ["OFFSETOF("] >> showOccamM t >> tell [" , "] >> showName n >> tell [")"]
   showOccamM (A.AllocMobile _ t me) = showOccamM t >> maybe (return ()) showOccamM me
-    
+  showOccamM (A.CloneMobile _ e) = tell["CLONE "] >> showOccamM e
 
 instance ShowRain A.Expression where
   showRainM (A.Monadic _ op e) = bracket $ showRainM op >> space >> showRainM e

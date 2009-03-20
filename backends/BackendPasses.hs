@@ -384,10 +384,10 @@ addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
       = do t <- astTypeOf v
            case t of
              A.Array ds _ ->
-               return [a, A.ActualVariable $ sizes v]
+               return [a, A.ActualExpression $ sizes v]
              _ -> return [a]
       where
-        sizes (A.Variable m n) = A.Variable m (append_sizes n)
+        sizes v@(A.Variable m _) = A.AllSizesVariable m v
         sizes (A.DerefVariable _ v) = sizes v
         sizes (A.DirectedVariable _ _ v) = sizes v
         sizes (A.SubscriptedVariable _ _ v) = sizes v

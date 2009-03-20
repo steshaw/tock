@@ -936,6 +936,20 @@ cgenExpression (A.SizeVariable m v)
                         call genSizeSuffix (show n)
             A.List _ ->
               call genListSize v
+cgenExpression e@(A.AllSizesVariable m v)
+  = case v of
+      A.SubscriptedVariable {} -> call genMissing $ "genExpression" ++ show e
+      A.DirectedVariable _ _ v' -> call genExpression $ A.AllSizesVariable m v'
+      A.DerefVariable _ v' -> do call genVariable v'
+                                 tell ["->dimensions"]
+      A.Variable _ n -> do t <- astTypeOf v
+                           case t of
+                             A.Array {} -> do call genVariable v
+                                              tell ["_sizes"]
+                             A.Mobile (A.Array {})
+                               -> do call genVariable v
+                                     tell ["->dimensions"]
+                             _ -> call genMissing $ "genExpression" ++ show e
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
 cgenExpression (A.ExprVariable m v) = call genVariable v
 cgenExpression (A.Literal _ t lr) = call genLiteral lr t
