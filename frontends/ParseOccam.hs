@@ -111,8 +111,8 @@ sSemi = reserved ";"
 --}}}
 --{{{ keywords
 sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
-  sBYTESIN, sCASE, sCHAN, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
-  sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOSTNEG,
+  sBYTESIN, sCASE, sCHAN, sCLONE, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
+  sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG,
   sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS,
   sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD,
   sREC_RECURSIVE, sREM, sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE,
@@ -133,6 +133,7 @@ sBYTE = reserved "BYTE"
 sBYTESIN = reserved "BYTESIN"
 sCASE = reserved "CASE"
 sCHAN = reserved "CHAN"
+sCLONE = reserved "CLONE"
 sDATA = reserved "DATA"
 sELSE = reserved "ELSE"
 sFALSE = reserved "FALSE"
@@ -149,6 +150,7 @@ sINT32 = reserved "INT32"
 sINT64 = reserved "INT64"
 sIS = reserved "IS"
 sMINUS = reserved "MINUS"
+sMOBILE = reserved "MOBILE"
 sMOSTNEG = reserved "MOSTNEG"
 sMOSTPOS = reserved "MOSTPOS"
 sNOT = reserved "NOT"
@@ -242,6 +244,9 @@ tryVXV a b c = try (do { av <- a; b; cv <- c; return (av, cv) })
 
 tryVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser (a, b)
 tryVVX a b c = try (do { av <- a; bv <- b; c; return (av, bv) })
+
+tryXXX :: OccParser a -> OccParser b -> OccParser c -> OccParser ()
+tryXXX a b c = try (do { a; b; c; return () })
 
 tryXVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (b, d)
 tryXVXV a b c d = try (do { a; bv <- b; c; dv <- d; return (bv, dv) })
@@ -530,6 +535,7 @@ dataType
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
     <|> arrayType dataType
+    <|> do { sMOBILE; dataType >>* A.Mobile }
     <|> do { n <- try dataTypeName; return $ A.UserDataType n }
     <|> do { n <- try recordName; return $ A.Record n }
     <?> "data type"
@@ -699,6 +705,7 @@ expression
            return $ A.Monadic m o v
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
+    <|> do { m <- md; sCLONE; e <- expression; return $ A.CloneMobile m e }
     <|> sizeExpr
     <|> do m <- md
            (l, o) <- tryVV operand dyadicOperator
@@ -1258,18 +1265,21 @@ valueProcess
 structuredType :: OccParser A.SpecType
 structuredType
     =   do m <- md
-           isPacked <- recordKeyword
+           attr <- recordKeyword
            eol
            indent
            fs <- many1 structuredTypeField
            outdent
-           return $ A.RecordType m isPacked (concat fs)
+           return $ A.RecordType m attr (concat fs)
     <?> "structured type"
 
-recordKeyword :: OccParser Bool
+recordKeyword :: OccParser A.RecordAttr
 recordKeyword
-    =   do { sPACKED; sRECORD; return True }
-    <|> do { sRECORD; return False }
+    =   do { tryXXX sPACKED sMOBILE sRECORD; return $ A.RecordAttr True True }
+    <|> do { tryXXX sMOBILE sPACKED sRECORD; return $ A.RecordAttr True True }
+    <|> do { tryXX sPACKED sRECORD; return $ A.RecordAttr True False }
+    <|> do { tryXX sMOBILE sRECORD; return $ A.RecordAttr False True }
+    <|> do { sRECORD; return $ A.RecordAttr False False }
 
 structuredTypeField :: OccParser [(A.Name, A.Type)]
 structuredTypeField
