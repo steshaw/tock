@@ -1322,12 +1322,12 @@ cintroduceSpec (A.Specification _ n (A.Rep m rep))
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec n = call genMissing $ "introduceSpec " ++ show n
 
-cgenRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen ()
-cgenRecordTypeSpec n b fs
+cgenRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
+cgenRecordTypeSpec n attr fs
     =  do tell ["typedef struct{"]
           sequence_ [call genDeclaration t n True | (n, t) <- fs]
           tell ["}"]
-          when b $ tell [" occam_struct_packed "]
+          when (A.packedRecord attr) $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
 

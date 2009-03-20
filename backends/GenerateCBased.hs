@@ -156,7 +156,7 @@ data GenOps = GenOps {
     genPoison :: Meta -> A.Variable -> CGen (),
     genProcCall :: A.Name -> [A.Actual] -> CGen (),
     genProcess :: A.Process -> CGen (),
-    genRecordTypeSpec :: A.Name -> Bool -> [(A.Name, A.Type)] -> CGen (),
+    genRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen (),
     genReplicatorStart :: A.Name -> A.Replicator -> CGen (),
     genReplicatorEnd :: A.Replicator -> CGen (),
     -- | Generates the three bits of a for loop (e.g. @int i = 0; i < 10; i++@ for the given replicator)

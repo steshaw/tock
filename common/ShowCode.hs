@@ -473,6 +473,10 @@ maybeVal am = tell [if (am == A.ValAbbrev) then "VAL " else ""]
 maybeValRain :: A.AbbrevMode -> CodeWriter ()
 maybeValRain am = tell [if (am == A.ValAbbrev) then "const " else ""]
 
+instance ShowOccam A.RecordAttr where
+  showOccamM attr
+    = do when (A.packedRecord attr) $ tell ["PACKED "]
+         when (A.mobileRecord attr) $ tell ["MOBILE "]
 
 instance ShowOccam A.Specification where
   -- TODO add specmode to the output
@@ -497,10 +501,10 @@ instance ShowOccam A.Specification where
     = showOccamLine $ showOccamM t >> space >> showName n >> tell [" IS ["] >> showWithCommas vs >> tell ["]:"]
   showOccamM (A.Specification _ n (A.DataType _ t))
     = showOccamLine $ tell ["DATA TYPE "] >> showName n >> tell [" IS "] >> showOccamM t >> colon
-  showOccamM (A.Specification _ n (A.RecordType _ packed fields))
+  showOccamM (A.Specification _ n (A.RecordType _ attr fields))
     = do (showOccamLine $ tell ["DATA TYPE "] >> showName n)
          occamIndent
-         (showOccamLine $ tell [if packed then "PACKED RECORD" else "RECORD"])
+         (showOccamLine $ showOccamM attr >> tell ["RECORD"])
          occamIndent
          (sequence_ (map (\(n,t) -> showOccamLine $ showOccamM t >> space >> showName n >> colon) fields))
          occamOutdent

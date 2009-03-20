@@ -359,7 +359,7 @@ defineRecordType :: String -> [(String, A.Type)] -> State CompState ()
 defineRecordType s fs
     = defineThing s st A.Original A.NameUser
   where
-    st = A.RecordType emptyMeta False [(simpleName s, t) | (s, t) <- fs]
+    st = A.RecordType emptyMeta (A.RecordAttr False False) [(simpleName s, t) | (s, t) <- fs]
 
 -- | Define a function.
 defineFunction :: String -> [A.Type] -> [(String, A.Type)]

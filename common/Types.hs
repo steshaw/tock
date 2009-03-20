@@ -644,7 +644,7 @@ bytesInType (A.Record n)
           case st of
             -- We can only do this for *packed* records -- for normal records,
             -- the compiler might insert padding.
-            (A.RecordType _ True nts) -> bytesInList nts
+            (A.RecordType _ (A.RecordAttr {A.packedRecord=True}) nts) -> bytesInList nts
             _ -> return $ BIUnknown
   where
     bytesInList :: (CSMR m, Die m) => [(A.Name, A.Type)] -> m BytesInResult
