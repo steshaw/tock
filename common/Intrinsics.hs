@@ -153,6 +153,9 @@ intrinsicProcs =
         , (A.ValAbbrev, A.Array [A.UnknownDimension] A.Byte, "string")
         ])
     ]
+    ++ [("RESIZE.MOBILE.ARRAY.1D", [(A.Abbrev, A.Mobile A.Infer, "mobile")
+                                   ,(A.ValAbbrev, A.Int, "count")
+                                   ])]
 
 rainIntrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
 rainIntrinsicFunctions =

@@ -111,13 +111,13 @@ sSemi = reserved ";"
 --}}}
 --{{{ keywords
 sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
-  sBYTESIN, sCASE, sCHAN, sCLONE, sDATA, sELSE, sFALSE, sFOR, sFROM, sFUNCTION, sIF,
-  sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG,
-  sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS,
-  sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD,
-  sREC_RECURSIVE, sREM, sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSIZE,
-  sSKIP, sSTEP, sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF,
-  sWHILE, sWORKSPACE, sVECSPACE
+  sBYTESIN, sCASE, sCHAN, sCLONE, sDATA, sDEFINED, sELSE, sFALSE, sFOR, sFROM,
+  sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS,
+  sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED,
+  sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL,
+  sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM, sRESHAPES, sRESULT,
+  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTEP, sSTOP, sTIMER, sTIMES, sTRUE,
+  sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -135,6 +135,7 @@ sCASE = reserved "CASE"
 sCHAN = reserved "CHAN"
 sCLONE = reserved "CLONE"
 sDATA = reserved "DATA"
+sDEFINED = reserved "DEFINED"
 sELSE = reserved "ELSE"
 sFALSE = reserved "FALSE"
 sFOR = reserved "FOR"
@@ -535,7 +536,9 @@ dataType
     <|> do { sREAL32; return A.Real32 }
     <|> do { sREAL64; return A.Real64 }
     <|> arrayType dataType
-    <|> do { sMOBILE; dataType >>* A.Mobile }
+    -- Mobile arrays can lack dimensions:
+    <|> do { tryXV sMOBILE (specArrayType dataType) >>* A.Mobile }
+    <|> do { tryXV sMOBILE dataType >>* A.Mobile }
     <|> do { n <- try dataTypeName; return $ A.UserDataType n }
     <|> do { n <- try recordName; return $ A.Record n }
     <?> "data type"
@@ -706,6 +709,8 @@ expression
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> do { m <- md; sCLONE; e <- expression; return $ A.CloneMobile m e }
+    <|> do { m <- md; sMOBILE; t <- dataType ; return $ A.AllocMobile m (A.Mobile t) Nothing }
+    <|> do { m <- md; sDEFINED; e <- expression; return $ A.IsDefined m e }
     <|> sizeExpr
     <|> do m <- md
            (l, o) <- tryVV operand dyadicOperator

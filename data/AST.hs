@@ -283,6 +283,9 @@ data Expression =
   -- | A CLONE operation.  The inner expression should have a Mobile type, and
   -- this will have the same type as the inner component:
   | CloneMobile Meta Expression
+  -- | The DEFINED operator.  Returns a boolean as to whether the mobile type is
+  -- defined or not.
+  | IsDefined Meta Expression
   deriving (Show, Eq, Typeable, Data)
 
 -- | A list of expressions.

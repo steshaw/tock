@@ -54,7 +54,7 @@ $vertSpace = [\r\n]
           | "AFTER" | "ALT" | "AND" | "ANY" | "AT"
           | "BITAND" | "BITNOT" | "BITOR" | "BOOL" | "BYTE" | "BYTESIN"
           | "CASE" | "CHAN" | "CLONE"
-          | "DATA"
+          | "DATA" | "DEFINED"
           | "ELSE"
           | "FALSE" | "FOR" | "FROM" | "FUNCTION"
           | "IF" | "IN" | "INITIAL" | "INLINE" | "INT" | "INT16" | "INT32" | "INT64"

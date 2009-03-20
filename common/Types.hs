@@ -293,6 +293,7 @@ typeOfExpression e
         A.OffsetOf m t n -> return A.Int
         A.AllocMobile _ t _ -> return t
         A.CloneMobile _ e -> typeOfExpression e
+        A.IsDefined {} -> return A.Bool
 --}}}
 
 -- | Gets the return type(s) of a function call from the 'CompState'.
