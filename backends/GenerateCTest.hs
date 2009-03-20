@@ -1144,9 +1144,11 @@ testOutput = TestList
    testOutputItem' :: Int -> String -> String -> A.OutputItem -> A.Type -> A.Type -> Test
    testOutputItem' n eC eCPP oi t ct = TestList
      [
-       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi))
+       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP)
+         (over (tcall3 genOutputItem A.Int64 (A.Variable emptyMeta $ simpleName "c") oi))
          (state $ A.Chan)
-       ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genOutputItem (A.Variable emptyMeta $ simpleName "c") oi))
+       ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP)
+         (over (tcall3 genOutputItem A.Int64 (A.Variable emptyMeta $ simpleName "c") oi))
          (state $ A.ChanEnd A.DirOutput)
      ]
      where
@@ -1167,7 +1169,7 @@ testOutput = TestList
               defineName chanOut $ simpleDefDecl "cOut" (A.ChanEnd A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
    overOutput, overOutputItem, over :: Override
    overOutput = local $ \ops -> ops {genOutput = override2 caret}
-   overOutputItem = local $ \ops -> ops {genOutputItem = override2 caret}
+   overOutputItem = local $ \ops -> ops {genOutputItem = override3 caret}
    over = local $ \ops -> ops {genBytesIn = override3 caret}
 
 testBytesIn :: Test

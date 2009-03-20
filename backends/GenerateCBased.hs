@@ -145,11 +145,11 @@ data GenOps = GenOps {
     genMissingC :: CGen String -> CGen (),
     genMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen (),
     -- | Generates an output statement.
-    genOutput :: A.Variable -> [A.OutputItem] -> CGen (),
+    genOutput :: A.Variable -> [(A.Type, A.OutputItem)] -> CGen (),
     -- | Generates an output statement for a tagged protocol.
     genOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen (),
     -- | Generates an output for an individual item.
-    genOutputItem :: A.Variable -> A.OutputItem -> CGen (),
+    genOutputItem :: A.Type -> A.Variable -> A.OutputItem -> CGen (),
     -- | Generates a loop that maps over every element in a (potentially multi-dimensional) array
     genOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen (),
     genPar :: A.ParMode -> A.Structured A.Process -> CGen (),

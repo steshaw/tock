@@ -322,8 +322,8 @@ cppgenInputItem c dest
                        genPoint v
                        tell ["));"]
 
-cppgenOutputItem :: A.Variable -> A.OutputItem -> CGen ()
-cppgenOutputItem chan item
+cppgenOutputItem :: A.Type -> A.Variable -> A.OutputItem -> CGen ()
+cppgenOutputItem _ chan item
   = case item of
       (A.OutCounted m (A.ExprVariable _ cv) (A.ExprVariable _ av)) -> (sendBytes cv) >> (sendBytes av)
       (A.OutExpression _ (A.ExprVariable _ sv)) ->
@@ -380,7 +380,7 @@ cppgenOutputCase c tag ois
           tell ["_"]
           genName proto
           tell [");"]
-          call genOutput c ois
+          call genOutput c $ zip (repeat undefined) ois
 
 
 -- | We use the process wrappers here, in order to execute the functions in parallel.

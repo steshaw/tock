@@ -1105,9 +1105,10 @@ cgenInputItem c (A.InVariable m v)
                  call genBytesIn m t (Right v)
                  tell [");"]
 
-cgenOutputItem :: A.Variable -> A.OutputItem -> CGen ()
-cgenOutputItem c (A.OutCounted m ce ae)
-    =  do call genOutputItem c (A.OutExpression m ce)
+cgenOutputItem :: A.Type -> A.Variable -> A.OutputItem -> CGen ()
+cgenOutputItem _ c (A.OutCounted m ce ae)
+    =  do tce <- astTypeOf ce
+          call genOutputItem tce c (A.OutExpression m ce)
           t <- astTypeOf ae
           case ae of
             A.ExprVariable m v ->
@@ -1121,12 +1122,8 @@ cgenOutputItem c (A.OutCounted m ce ae)
                  tell ["*"]
                  call genBytesIn m subT (Right v)
                  tell [");"]
-cgenOutputItem c (A.OutExpression m e)
-    =  do t <- astTypeOf c
-          let innerT = case t of
-                A.Chan _ t' -> t'
-                A.ChanEnd _ _ t' -> t'
-          case (innerT, e) of
+cgenOutputItem innerT c (A.OutExpression m e)
+    =     case (innerT, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt(wptr,"]
                  call genVariable c
@@ -1564,7 +1561,9 @@ cgenProcess :: A.Process -> CGen ()
 cgenProcess p = case p of
   A.Assign m vs es -> call genAssign m vs es
   A.Input m c im -> call genInput c im
-  A.Output m c ois -> call genOutput c ois
+  A.Output m c ois ->
+    do Left ts <- protocolItems c
+       call genOutput c $ zip ts ois
   A.OutputCase m c t ois -> call genOutputCase c t ois
   A.Skip m -> tell ["/* skip */\n"]
   A.Stop m -> call genStop m "STOP process"
@@ -1641,8 +1640,8 @@ cgenGetTime v
 
 --}}}
 --{{{  output
-cgenOutput :: A.Variable -> [A.OutputItem] -> CGen ()
-cgenOutput c ois = sequence_ $ map (call genOutputItem c) ois
+cgenOutput :: A.Variable -> [(A.Type, A.OutputItem)] -> CGen ()
+cgenOutput c tois = sequence_ [call genOutputItem t c oi | (t, oi) <- tois]
 
 cgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cgenOutputCase c tag ois
@@ -1657,7 +1656,10 @@ cgenOutputCase c tag ois
           tell ["_"]
           genName proto
           tell [");"]
-          call genOutput c ois
+          Right ps <- protocolItems c
+          let ts = fromMaybe (error "genOutputCase unknown tag")
+                     $ lookup tag ps
+          call genOutput c $ zip ts ois
 --}}}
 --{{{  stop
 cgenStop :: Meta -> String -> CGen ()
