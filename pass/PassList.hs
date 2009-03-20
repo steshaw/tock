@@ -59,7 +59,6 @@ commonPasses opts = concat $
   , enablePassesWhen (not . csUsageChecking)
     [pass "Usage checking turned OFF" Prop.agg_namesDone [Prop.parUsageChecked]
       return]
-    -- TODO add an implicit mobility pass after these two:
   , enablePassesWhen csClassicOccamMobility [mobiliseArrays, inferDeref, implicitMobility]
   , simplifyAbbrevs
   , simplifyComms
@@ -100,8 +99,10 @@ nullStateBodies = Pass
 getPassList :: CompState -> [Pass]
 getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 [ [nullStateBodies]
-                                , occamPasses
-                                , rainPasses
+                                , enablePassesWhen ((== FrontendOccam) . csFrontend)
+                                    occamPasses
+                                , enablePassesWhen ((== FrontendRain) . csFrontend)
+                                    rainPasses
                                 , commonPasses optsPS
                                 , genCPasses
                                 , genCPPCSPPasses
