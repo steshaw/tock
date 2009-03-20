@@ -1,0 +1,86 @@
+VAL INT width IS 512:
+VAL INT height IS 512:
+
+PROTOCOL maybe.image
+  CASE
+    nothing
+    just ; [height][width]BYTE
+:
+
+INT FUNCTION add.pixel(VAL INT kw, x, y, p.x, p.y, pixel)
+  VAL INT d.x IS x - p.x:
+  VAL INT d.y IS y - p.y:
+  VAL INT d IS (d.x*d.x) + (d.y*d.y):
+  INT r:
+  VALOF
+    IF
+      d = 0
+        r := pixel * kw
+      TRUE
+        r := (pixel * kw) / d
+    RESULT r
+:
+
+PROC blur.image(VAL INT kw, [height][width]BYTE img)
+  VAL INT kw.half IS kw / 2:
+  SEQ y = 0 FOR height
+    SEQ x = 0 FOR width
+      INITIAL INT sum IS 0:
+      INITIAL INT c IS 0:
+      SEQ
+        SEQ j = 0 FOR kw
+          VAL INT p.y IS (y + j) - kw.half:
+          IF
+            (p.y < 0) OR (p.y >= height)
+              SKIP
+            TRUE
+              SEQ i = 0 FOR kw
+                VAL INT p.x IS (x + i) - kw.half:
+                IF
+                  (p.x < 0) OR (p.x >= width)
+                    SKIP
+                  TRUE
+                    SEQ
+                      sum := sum + add.pixel(kw, x, y, p.x, p.y, INT img[p.y][p.x])
+                      c := c + 1
+        INITIAL INT n IS sum / c:
+        SEQ
+          IF
+            n > 255
+              n := 255
+            TRUE
+              SKIP
+          img[y][x] := BYTE n
+:
+
+PROC element(CHAN maybe.image in?)
+  [height][width]BYTE img:
+  INITIAL BOOL cont IS TRUE:
+  WHILE cont
+    SEQ
+      in ? CASE
+        nothing
+          cont := FALSE
+        just ; img
+          blur.image(9, img)
+:
+
+PROC server(VAL INT frames, CHAN maybe.image out!)
+  SEQ
+    SEQ i = 0 FOR frames
+      [height][width]BYTE img:
+      SEQ
+        SEQ y = 0 FOR height
+          SEQ x = 0 FOR width
+            img[y][x] := 128
+        out ! just ; img
+    out ! nothing
+:
+
+PROC main()
+  VAL INT frames IS 8:
+  CHAN maybe.image c:
+  PAR
+    element(c?)
+    server(frames, c!)
+:

@@ -249,9 +249,9 @@ testGenType = TestList
   ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
   ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType $ A.Timer A.OccamTimer) 
   
-  ,testBothSame "GenType 250" "int32_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
-  ,testBothSame "GenType 251" "int32_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
-  ,testBothSame "GenType 251" "int32_t*" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int32) 
+  ,testBothSame "GenType 250" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
+  ,testBothSame "GenType 251" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
+  ,testBothSame "GenType 251" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int32) 
   ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
   ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
 
@@ -547,8 +547,8 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   ,testAllRA 200 ("^^","") ("","") (A.Array [dimension 4,dimension 5] A.Int) id
 
   -- Mobile versions
-  ,testAllSame 1003 ("","") $ A.Mobile $ A.Array [dimension 4] A.Int
-  ,testAllSame 1004 ("","") $ A.Mobile $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes False False) A.Int
+  ,testAllSame 1003 ("if(foo!=NULL){MTRelease(wptr,(void*)foo);foo=NULL;}","") $ A.Mobile $ A.Array [dimension 4] A.Int
+  ,testAllSame 1004 ("if(foo!=NULL){MTRelease(wptr,(void*)foo);foo=NULL;}","") $ A.Mobile $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes False False) A.Int
   ,testAllR 1100 ("","") ("","") A.Int A.Mobile
   -- Records containing an array:
   ,testAllR 1101 ("","") ("","") (A.Array [dimension 4,dimension 5] A.Int) A.Mobile
@@ -1058,11 +1058,11 @@ testInput = TestList
 testOutput :: Test
 testOutput = TestList
  [
-  testBothSame "testOutput 0" "" (overOutputItem (tcall2 genOutput undefined []))
-  ,testBothSame "testOutput 1" "^" (overOutputItem (tcall2 genOutput undefined [undefined]))
-  ,testBothSame "testOutput 2" "^^^" (overOutputItem (tcall2 genOutput undefined [undefined,undefined,undefined]))
+--  testBothSame "testOutput 0" "" (overOutputItem (tcall2 genOutput undefined []))
+--  ,testBothSame "testOutput 1" "^" (overOutputItem (tcall2 genOutput undefined [undefined]))
+--  ,testBothSame "testOutput 2" "^^^" (overOutputItem (tcall2 genOutput undefined [undefined,undefined,undefined]))
  
-  ,testBothS "testOutput 100" "ChanOutInt(wptr,(&c),bar_foo);^" "tockSendInt((&c)->writer(),bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chan) bar [])) state
+  testBothS "testOutput 100" "ChanOutInt(wptr,(&c),bar_foo);^" "tockSendInt((&c)->writer(),bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chan) bar [])) state
   ,testBothS "testOutput 101" "ChanOutInt(wptr,cOut,bar_foo);^" "tockSendInt(cOut,bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar [])) state
   
   --Integers are a special case in the C backend:
@@ -1167,6 +1167,7 @@ testOutput = TestList
    state :: CSM m => m ()
    state = do defineName chan $ simpleDefDecl "c" (A.Chan (A.ChanAttributes False False) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.ChanEnd A.DirOutput (A.ChanAttributes False False) $ A.UserProtocol foo)
+              defineName foo $ simpleDef "foo" $ A.ProtocolCase emptyMeta [(simpleName "bar", [])]
    overOutput, overOutputItem, over :: Override
    overOutput = local $ \ops -> ops {genOutput = override2 caret}
    overOutputItem = local $ \ops -> ops {genOutputItem = override3 caret}
