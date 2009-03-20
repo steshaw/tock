@@ -29,7 +29,7 @@ module Types
       mulExprs, divExprs
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
-    , recordFields, protocolItems
+    , recordFields, recordAttr, protocolItems
 
     , leastGeneralSharedTypeRain
     
@@ -124,6 +124,15 @@ recordFields m (A.Record rec)
             A.RecordType _ _ fs -> return fs
             _ -> dieP m "not record type"
 recordFields m _ = dieP m "not record type"
+
+recordAttr :: (CSMR m, Die m) => Meta -> A.Type -> m A.RecordAttr
+recordAttr m (A.Record rec)
+    =  do st <- specTypeOfName rec
+          case st of
+            A.RecordType _ attr _ -> return attr
+            _ -> dieP m "not record type"
+recordAttr m _ = dieP m "not record type"
+
 
 -- | Get the type of a record field.
 typeOfRecordField :: (CSMR m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
