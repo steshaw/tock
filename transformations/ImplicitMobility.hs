@@ -247,6 +247,25 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
              let A.Proc _ _ _ stub = A.ndSpecType nd in newSpecF stub})
            return $ A.Spec m (A.Specification m' n (newSpecF body')) scope'
 
+    doStructured (A.Spec m (A.Specification m' n (A.Protocol m'' ts)) scope)
+      = do let ts' = [case t of
+                        A.Array {} -> A.Mobile t
+                        _ -> t
+                     | t <- ts]
+               newSpec = A.Protocol m'' ts'
+           modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+           scope' <- recurse scope
+           return $ A.Spec m (A.Specification m' n newSpec) scope'
+
+    doStructured (A.Spec m (A.Specification m' n (A.ProtocolCase m'' nts)) scope)
+      = do let nts' = [(n, [case t of
+                         A.Array {} -> A.Mobile t
+                         _ -> t
+                      | t <- ts]) | (n, ts) <- nts]
+               newSpec = A.ProtocolCase m'' nts'
+           modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+           scope' <- recurse scope
+           return $ A.Spec m (A.Specification m' n newSpec) scope'
 
     -- Must also mobilise channels of arrays, and arrays of channels of arrays:
     doStructured s@(A.Spec m (A.Specification m' n st) scope)
