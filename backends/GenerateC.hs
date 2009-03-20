@@ -25,7 +25,6 @@ module GenerateC
   , cintroduceSpec
   , cPreReq
   , cremoveSpec
-  , genComma
   , genCPasses
   , generate
   , generateC
@@ -34,7 +33,6 @@ module GenerateC
   , genName
   , genRightB
   , justOnly
-  , seqComma
   , withIf
   ) where
 
@@ -245,12 +243,6 @@ cgenMissing :: String -> CGen ()
 cgenMissing s = tell ["\n#error Unimplemented: ", s, "\n"]
 
 --{{{  simple punctuation
-genComma :: CGen ()
-genComma = tell [","]
-
-seqComma :: [CGen ()] -> CGen ()
-seqComma ps = sequence_ $ intersperse genComma ps
-
 genLeftB :: CGen ()
 genLeftB = tell ["{"]
 

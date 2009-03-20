@@ -40,7 +40,7 @@ import System.IO
 import qualified AST as A
 import CompState
 import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec,
-  generate, genComma, genLeftB, genMeta, genName, genRightB, justOnly, seqComma, withIf)
+  generate, genLeftB, genMeta, genName, genRightB, justOnly, withIf)
 import GenerateCBased
 import Errors
 import Metadata
@@ -157,7 +157,7 @@ cppgenTopLevel s
                 "(csp::InSequenceOneThread ( new proc_"]
           genName name 
           tell ["("]
-          infixComma $ map tlpChannel chans
+          seqComma $ map tlpChannel chans
           tell [")) (new LethalProcess()) ) );",
                 "csp::End_CPPCSP(); return 0;}\n"]
   where
@@ -361,12 +361,6 @@ isPoint (A.Record _) = True
 isPoint (A.Array _ _) = True
 isPoint _ = False
 
--- FIXME Should be a generic helper somewhere (along with the others from GenerateC)
--- | Helper function to place a comma between items, but not before or after
-infixComma :: [CGen ()] -> CGen ()
-infixComma (c0:cs) = c0 >> sequence_ [genComma >> c | c <- cs]
-infixComma [] = return ()
-
 cppgenOutputCase :: A.Variable -> A.Name -> [A.OutputItem] -> CGen ()
 cppgenOutputCase c tag ois 
     =  do t <- astTypeOf c
@@ -470,7 +464,7 @@ cppgenAlt _ s
 
 -- | In GenerateC this uses prefixComma (because "Process * me" is always the first argument), but here we use infixComma.
 cppgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
-cppgenActuals fs as = infixComma [call genActual f a | (f, a) <- zip fs as]
+cppgenActuals fs as = seqComma [call genActual f a | (f, a) <- zip fs as]
 
 -- | The only change from GenerateC is that passing "me" is not necessary in C++CSP
 cppgenProcCall :: A.Name -> [A.Actual] -> CGen ()
@@ -516,7 +510,7 @@ cppdeclareFree _ _ _ = Nothing
 --Therefore these functions are not part of GenOps.  They are called directly by cppgenForwardDeclaration and cppintroduceSpec.
 --To use for a constructor list, pass prefixUnderscore as the function, otherwise pass the identity function
 cppgenFormals :: (A.Name -> A.Name) -> [A.Formal] -> CGen ()
-cppgenFormals nameFunc list = infixComma (map (cppgenFormal nameFunc) list)
+cppgenFormals nameFunc list = seqComma (map (cppgenFormal nameFunc) list)
 
 --Changed as genFormals
 cppgenFormal :: (A.Name -> A.Name) -> A.Formal -> CGen ()
@@ -606,7 +600,7 @@ cppintroduceSpec (A.Specification _ n (A.Proc _ (sm, _) fs p))
 
     --A helper function for calling the wrapped functions:
     genParamList :: [A.Formal] -> CGen()
-    genParamList fs = infixComma $ map genParam fs
+    genParamList fs = seqComma $ map genParam fs
 cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {})) dirV@(A.DirectedVariable
   m dir v)))
   = do t' <- if A.UnknownDimension `elem` ds

@@ -21,9 +21,8 @@ module GenerateCBased where
 
 import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Writer hiding (tell)
+import Control.Monad.Writer
 import Data.Generics
-import Data.List
 import System.IO
 
 import qualified AST as A
@@ -227,6 +226,12 @@ fget = asks
 
 generate :: GenOps -> Handle -> A.AST -> PassM ()
 generate ops h ast = evalStateT (runReaderT (call genTopLevel ast) ops) (Right h)
+
+genComma :: CGen ()
+genComma = tell [","]
+
+seqComma :: [CGen ()] -> CGen ()
+seqComma ps = sequence_ $ intersperse genComma ps
 
 -- C or C++ type, really.
 data CType
