@@ -1472,14 +1472,24 @@ cgenRecordTypeSpec n attr fs
           when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
-          tell ["const word "]
-          genName n
-          tell ["_mttype[", show (length mtEntries), "] = {"]
-          seqComma mtEntries
-          tell ["};"]
-          tell ["const int "]
-          genName n
-          tell ["_mtsize = ", show (length mtEntries), ";"]
+          if null [t | (_, A.Mobile t) <- fs]
+            then do tell ["const word "]
+                    genName n
+                    tell ["_mttype = MT_SIMPLE | MT_MAKE_TYPE(MT_DATA);"]
+                    tell ["const int "]
+                    genName n
+                    tell ["_mtsize = sizeof("]
+                    genName n
+                    tell [");"]
+                    -- Not quite certain CCSP handles these descriptors:
+            else do tell ["const word "]
+                    genName n
+                    tell ["_mttype[", show (length mtEntries), "] = {"]
+                    seqComma mtEntries
+                    tell ["};"]
+                    tell ["const int "]
+                    genName n
+                    tell ["_mtsize = ", show (length mtEntries), ";"]
   where
     mtEntries :: [CGen ()]
     mtEntries = concatMap (mt . snd) fs
@@ -2042,7 +2052,9 @@ mobileElemType (A.Record n)
        genName n
        tell ["_mttype"]
 mobileElemType A.Int = mobileElemType cIntReplacement
-mobileElemType t = tell ["MT_NUM_", showOccam t]
+mobileElemType t = tell ["MT_SIMPLE|MT_MAKE_TYPE(MT_DATA)"]
+ -- Looks like CCSP may not support NUM with MTAlloc:
+ -- tell ["MT_MAKE_NUM(MT_NUM_", showOccam t,")"]
 
 cgenClearMobile :: Meta -> A.Variable -> CGen ()
 cgenClearMobile _ v
