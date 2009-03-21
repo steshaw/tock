@@ -751,7 +751,16 @@ cgenVariableWithAM checkValid v mam
     inner v@(A.Variable  m n)
       = do ct <- details v
            return (genName n, ct)
-    inner (A.DerefVariable _ v) = inner v
+    inner (A.DerefVariable m v)
+      = do (A.Mobile t) <- astTypeOf v
+           case t of
+             A.Array _ innerT ->
+               do (cg, ct) <- inner v
+                  innerCT <- getVariableCType m (t, A.Original)
+                  let cast = tell ["("] >> call genType innerT >> tell ["*)"]
+                  return (tell ["("] >> cast >> tell ["(("] >> cg >> tell [")->data))"]
+                         , Pointer $ innerCT)
+             _ -> inner v
     inner (A.DirectedVariable _ _ v) = inner v
     inner sv@(A.SubscriptedVariable m sub v)
       = case sub of
@@ -900,14 +909,20 @@ cgenVariableWithAM checkValid v mam
     collectSubs v = do t <- astTypeOf v
                        return ([], v, t)
 
+unwrapMobileType :: A.Type -> CGen (Bool, A.Type)
+unwrapMobileType (A.Mobile t) = return (True, t)
+unwrapMobileType t = return (False, t)
+
 getVariableCType :: Meta -> (A.Type, A.AbbrevMode) -> CGen CType
-getVariableCType m (t, am)
-  = do sc <- fget getScalarType >>* ($ t)
-       let isMobile = False
+getVariableCType m (origT, am)
+  = do (isMobile, t) <- unwrapMobileType origT
+       sc <- fget getScalarType >>* ($ t)
        case (t, sc, isMobile, am) of
          -- All abbrev modes:
          (A.Array _ t, _, False, _)
            -> getVariableCType m (t, A.Original) >>* Pointer
+         (A.Array {}, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain "mt_array_t"
+         (A.Array {}, _, True, _) -> return $ Pointer $ Plain "mt_array_t"
 
          (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
          -- Abbrev and ValAbbrev:
