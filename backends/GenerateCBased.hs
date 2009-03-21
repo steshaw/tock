@@ -22,7 +22,7 @@ module GenerateCBased where
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (tell)
 import Data.Generics
 import System.IO
 
@@ -230,3 +230,40 @@ fget = asks
 
 generate :: GenOps -> Handle -> A.AST -> PassM ()
 generate ops h ast = evalStateT (runReaderT (call genTopLevel ast) ops) (Right h)
+
+data CType
+  = Plain String
+    | Pointer CType
+    | Const CType
+--    | Subscript CType
+    deriving (Eq)
+
+instance Show CType where
+  show (Plain s) = s
+  show (Pointer t) = show t ++ "*"
+  show (Const t) = "(const " ++ show t ++ ")"
+--  show (Subscript t) = "(" ++ show t ++ "[n])"
+
+-- Like Eq, but ignores const
+closeEnough :: CType -> CType -> Bool
+closeEnough (Const t) t' = closeEnough t t'
+closeEnough t (Const t') = closeEnough t t'
+closeEnough t t' = t == t'
+
+-- Given some code to generate, and its type, and the type that you actually want,
+-- adds the required decorators.  Only pass it simplified types!
+dressUp :: Meta -> (CGen (), CType) -> CType -> CGen ()
+dressUp _ (gen, t) t' | t `closeEnough` t' = gen
+--Every line after here is not close enough, so we know equality fails:
+dressUp m (gen, t@(Plain {})) t'@(Plain {})
+  = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'
+dressUp m (gen, Pointer t) (Pointer t')
+  = dressUp m (gen, t) t'
+dressUp m (gen, Const t) t'
+  = dressUp m (gen, t) t'
+dressUp m (gen, t) (Const t')
+  = dressUp m (gen, t) t'
+dressUp m (gen, t@(Plain {})) (Pointer t')
+  = dressUp m (tell ["(&("] >> gen >> tell ["))"], t) t'
+dressUp m (gen, Pointer t) t'@(Plain {})
+  = dressUp m (tell ["(*("] >> gen >> tell ["))"], t) t'

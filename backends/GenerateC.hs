@@ -38,6 +38,7 @@ module GenerateC
   , withIf
   ) where
 
+import Control.Arrow
 import Data.Char
 import Data.Generics
 import Data.List
@@ -147,9 +148,9 @@ cgenOps = GenOps {
     genTypeSymbol = cgenTypeSymbol,
     genUnfoldedExpression = cgenUnfoldedExpression,
     genUnfoldedVariable = cgenUnfoldedVariable,
-    genVariable = cgenVariable,
-    genVariableAM = cgenVariableAM,
-    genVariableUnchecked = cgenVariableUnchecked,
+    genVariable = \v -> cgenVariableWithAM True v (Just A.Original),
+    genVariableAM = \v am -> cgenVariableWithAM True v (Just am),
+    genVariableUnchecked = \v -> cgenVariableWithAM False v (Just A.Original),
     genWhile = cgenWhile,
     getScalarType = cgetScalarType,
     introduceSpec = cintroduceSpec,
@@ -718,6 +719,7 @@ CHAN OF INT c:          Channel c;                  Channel *c;
 I suspect there's probably a nicer way of doing this, but as a translation of
 the above table this isn't too horrible...
 -}
+{-
 -- | Generate C code for a variable.
 cgenVariable :: A.Variable -> CGen ()
 cgenVariable = cgenVariable' True
@@ -725,12 +727,26 @@ cgenVariable = cgenVariable' True
 -- | Generate C code for a variable without doing any range checks.
 cgenVariableUnchecked :: A.Variable -> CGen ()
 cgenVariableUnchecked = cgenVariable' False
+-}
 
-cgenVariable' :: Bool -> A.Variable -> CGen ()
-cgenVariable' checkValid v
-  = do (cg, n) <- inner 0 v Nothing
+cgenVariableWithAM :: Bool -> A.Variable -> Maybe A.AbbrevMode -> CGen ()
+cgenVariableWithAM checkValid v mam
+  = do let iv@(A.Variable m n) = findInnerV v
+       t <- astTypeOf v
+       ct <- getVariableCType m (maybe (Right v) (\am -> Left (t, am)) mam)
+       cti <- getVariableCType m (Right iv)
+       dressUp m (genName n, cti) ct
+
+{-  = do (cg, n) <- inner 0 v Nothing
        addPrefix cg n
+-}
   where
+    findInnerV :: A.Variable -> A.Variable
+    findInnerV v@(A.Variable {}) = v
+    findInnerV (A.DerefVariable _ v) = findInnerV v
+    findInnerV (A.DirectedVariable _ _ v) = findInnerV v
+    findInnerV (A.SubscriptedVariable _ _ v) = findInnerV v
+    
     -- The general plan here is to generate the variable, while also
     -- putting in the right prefixes (&/*/**/***/etc).
     -- We use an "indirection level" to record the prefix needed.
@@ -740,7 +756,7 @@ cgenVariable' checkValid v
     -- so that we can add the appropriate prefixes before the array
     -- name.  That is, we make sure we write (&foo[0]), not
     -- (&foo)[0]
-  
+{-  
     inner :: Int -> A.Variable -> Maybe A.Type -> CGen (CGen (), Int)
     inner ind (A.Variable _ n) mt
       = do amN <- abbrevModeOfName n
@@ -838,6 +854,32 @@ cgenVariable' checkValid v
              return (es' ++ [e], v', t)
     collectSubs v = do t <- astTypeOf v
                        return ([], v, t)
+-}
+getVariableCType :: Meta -> Either (A.Type, A.AbbrevMode) A.Variable -> CGen CType
+getVariableCType m e
+  = do (t, am) <- either return (seqPair . (astTypeOf &&& abbrevModeOfVariable)) e
+       sc <- fget getScalarType >>* ($ t)
+       let isMobile = False
+       case (t, sc, isMobile, am) of
+         -- All abbrev modes:
+         (A.Array _ t, _, False, _)
+           -> getVariableCType m (Left (t, A.Original)) >>* Pointer
+
+         (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
+         -- Abbrev and ValAbbrev:
+         (A.Record n, _, False, _) -> return $ Pointer $ Plain $ nameString n
+
+         -- All abbrev modes for channels:
+         (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+         (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+
+         -- Scalar types:
+         (_, Just pl, False, A.Original) -> return $ Plain pl
+         (_, Just pl, False, A.Abbrev) -> return $ Pointer $ Plain pl
+         (_, Just pl, False, A.ValAbbrev) -> return $ Plain pl
+
+         -- Must have missed one:
+         _ -> diePC m $ formatCode "Cannot work out the C type for: %" t
 
 -- | Return whether a type is one that is declared as a structure, but
 -- abbreviated as a pointer.
@@ -1183,19 +1225,6 @@ cgenReplicatorLoop _ _ = cgenMissing "ForEach loops not yet supported in the C b
 --}}}
 
 --{{{  abbreviations
-
-cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
-cgenVariableAM v am
-    =  do when (am == A.Abbrev) $
-            do t <- astTypeOf v
-               case (indirectedType t, t) of
-                 (True, _) -> return ()
-                 (False, A.Array {}) -> return ()
-                 (False, A.Chan {}) -> return ()
-                 (False, A.ChanEnd {}) -> return ()
---                 (False, A.Mobile {}) -> return ()
-                 _ -> tell ["&"]
-          call genVariable v
 
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 cgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
