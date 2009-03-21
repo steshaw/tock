@@ -160,7 +160,7 @@ checkArrayUsage sharedAttr (m,p)
       let declNames = [x | Just x <- fmap (getDecl . snd) $ flattenParItems p]
       when (fmap (Set.member sharedAttr) (Map.lookup arrName sharedNames) /= Just True && arrName `notElem` declNames) $
         do userArrName <- getRealName (A.Name undefined arrName)
-           arrType <- astTypeOf (A.Name undefined arrName)
+           arrType <- astTypeOf (A.Name undefined arrName) >>= resolveUserType m
            arrLength <- case arrType of
              A.Array (A.Dimension d:_) _ -> return d
              -- Unknown dimension, use the maximum value for a (assumed 32-bit for INT) integer:
