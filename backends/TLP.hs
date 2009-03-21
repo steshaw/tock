@@ -82,6 +82,7 @@ tlpInterface
     tlpChanNames
         = [ ("in", TLPIn)
           , ("kb", TLPIn)
+          , ("kyb", TLPIn)
           , ("keyb", TLPIn)
           , ("keyboard", TLPIn)
           , ("out", TLPOut)
