@@ -1549,7 +1549,7 @@ cgenOutputCase c tag ois
                         A.Chan _ (A.UserProtocol n) -> n
                         A.ChanEnd _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt(wptr,"]
-          call genVariable c A.Original
+          call genVariable c A.Abbrev
           tell [","]
           genName tag
           tell ["_"]
@@ -1731,7 +1731,7 @@ cgenAlt isPri s
                         tell [");\n"]
                    _ ->
                      do tell ["AltEnableChannel (wptr,", id, "++,"]
-                        call genVariable c A.Original
+                        call genVariable c A.Abbrev
                         tell [");\n"]
 
     genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
@@ -1751,7 +1751,7 @@ cgenAlt isPri s
                         tell [");\n"]
                    _ ->
                      do tell ["AltDisableChannel (wptr,", id, "++, "]
-                        call genVariable c A.Original
+                        call genVariable c A.Abbrev
                         tell [");\n"]
 
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
