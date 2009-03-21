@@ -761,7 +761,10 @@ cgenVariableWithAM checkValid v mam
                   return (tell ["("] >> cast >> tell ["(("] >> cg >> tell [")->data))"]
                          , Pointer $ innerCT)
              _ -> inner v
-    inner (A.DirectedVariable _ _ v) = inner v
+    inner (A.DirectedVariable _ dir v)
+      = do (cg, ct) <- inner v
+           t <- astTypeOf v
+           return (call genDirectedVariable m t cg dir, ct)
     inner sv@(A.SubscriptedVariable m sub v)
       = case sub of
           A.Subscript _ subCheck _
