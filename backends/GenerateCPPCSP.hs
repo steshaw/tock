@@ -39,7 +39,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cgenReplicatorLoop, cgenType, cintroduceSpec,
+import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec,
   generate, genComma, genLeftB, genMeta, genName, genRightB, justOnly, seqComma, withIf)
 import GenerateCBased
 import Errors
@@ -62,6 +62,7 @@ cppgenOps = cgenOps {
     declareInit = cppdeclareInit,
     genActuals = cppgenActuals,
     genAlt = cppgenAlt,
+    getCType = cppgetCType,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
     genGetTime = cppgenGetTime,
@@ -82,7 +83,6 @@ cppgenOps = cgenOps {
     genTimerRead = cppgenTimerRead,
     genTimerWait = cppgenTimerWait,
     genTopLevel = cppgenTopLevel,
-    genType = cppgenType,
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
     getScalarType = cppgetScalarType,
@@ -191,10 +191,10 @@ genCPPCSPChannelInput :: A.Variable -> CGen()
 genCPPCSPChannelInput var
   = do t <- astTypeOf var
        case t of
-         (A.ChanEnd A.DirInput _ _) -> call genVariable var
+         (A.ChanEnd A.DirInput _ _) -> call genVariable var A.Original
          -- TODO remove the following line, eventually
-         (A.Chan _ _) -> do call genVariable var
-                            tell ["->reader()"]
+         (A.Chan _ _) -> do call genVariable var A.Original
+                            tell [".reader()"]
          _ -> call genMissing $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
@@ -202,15 +202,15 @@ genCPPCSPChannelOutput :: A.Variable -> CGen()
 genCPPCSPChannelOutput var
   = do t <- astTypeOf var
        case t of
-         (A.ChanEnd A.DirOutput _ _) -> call genVariable var
+         (A.ChanEnd A.DirOutput _ _) -> call genVariable var A.Original
          -- TODO remove the following line, eventually
-         (A.Chan _ _) -> do call genVariable var
-                            tell ["->writer()"]
+         (A.Chan _ _) -> do call genVariable var A.Original
+                            tell [".writer()"]
          _ -> call genMissing $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
 
 cppgenPoison :: Meta -> A.Variable -> CGen ()
 cppgenPoison _m var
-  = do call genVariable var
+  = do call genVariable var A.Original
        tell ["->poison();"]
 --}}}
 
@@ -222,23 +222,23 @@ cppgenTimerRead c v = do
    tt <- astTypeOf c
    case tt of
      A.Timer A.RainTimer ->
-       do tell ["csp::CurrentTime (&"]
-          call genVariable v
+       do tell ["csp::CurrentTime ("]
+          call genVariable v A.Abbrev
           tell [");"]
      A.Timer A.OccamTimer ->
-       do tell ["csp::CurrentTime (&"]
-          call genVariable c
+       do tell ["csp::CurrentTime ("]
+          call genVariable c A.Abbrev
           tell [");\n"]
-          call genVariable v
+          call genVariable v A.Original
           tell [" = (int)(unsigned)remainder(1000000.0 * csp::GetSeconds("]
-          call genVariable c
+          call genVariable c A.Original
           tell ["),4294967296.0);"]
      _ -> call genMissing $ "Unsupported timer type: " ++ show tt
 
 cppgenGetTime :: A.Variable -> CGen ()
 cppgenGetTime v
     =  do tell ["csp::CurrentTime(&"]
-          call genVariable v
+          call genVariable v A.Original
           tell [");"]
 
 {-|
@@ -301,7 +301,7 @@ cppgenInputItem c dest
       (A.InCounted m cv av) -> 
         do call genInputItem c (A.InVariable m cv)
            recvBytes av (
-             do call genVariable cv
+             do call genVariable cv A.Original
                 tell ["*"]
                 t <- astTypeOf av
                 subT <- trivialSubscriptType m t
@@ -351,11 +351,11 @@ byteArrayChan _ = False
 genPoint :: A.Variable -> CGen()
 genPoint v = do t <- astTypeOf v
                 when (not $ isPoint t) $ tell ["&"]
-                call genVariable v
+                call genVariable v A.Original
 genNonPoint :: A.Variable -> CGen()
 genNonPoint v = do t <- astTypeOf v
                    when (isPoint t) $ tell ["*"]
-                   call genVariable v                    
+                   call genVariable v A.Original
 isPoint :: A.Type -> Bool
 isPoint (A.Record _) = True
 isPoint (A.Array _ _) = True
@@ -487,9 +487,9 @@ cppdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
                   A.Chan _ _ ->
                     do tell ["tockInitChanArray("]
-                       call genVariableUnchecked var
+                       call genVariableUnchecked var A.Original
                        tell ["_storage,"]
-                       call genVariableUnchecked var
+                       call genVariableUnchecked var A.Original
                        tell [","]
                        sequence_ $ intersperse (tell ["*"])
                                                [call genExpression n
@@ -618,7 +618,7 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
        call genDeclaration t' n False
        tell [";"]
        tell ["tockInitChan",if dir == A.DirInput then "in" else "out","Array("]
-       call genVariableAM v am
+       call genVariable v am
        tell [","]
        genName n
        tell [","]
@@ -654,11 +654,8 @@ cppgetScalarType _ = Nothing
 
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
-cppgenType :: A.Type -> CGen ()
-cppgenType arr@(A.Array _ _)
-    =  cgenType arr
-cppgenType (A.Record n) = genName n
-cppgenType t | isChan t
+cppgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
+cppgetCType m t am | isChan t
     = do let (chanType, innerT) = case t of
                           A.ChanEnd A.DirInput _ innerT -> ("csp::AltChanin", innerT)
                           A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT)
@@ -669,51 +666,46 @@ cppgenType t | isChan t
                               (True,False)  -> "csp::Any2OneChannel"
                               (True,True)   -> "csp::Any2AnyChannel"
                             , innerT)
-         tell [chanType,"<"]
-         cppTypeInsideChannel innerT
-         tell [">/**/"]
+         innerCT <- cppTypeInsideChannel innerT
+         return $ Template chanType [innerCT]
   where
     isChan :: A.Type -> Bool
     isChan (A.Chan _ _) = True
     isChan (A.ChanEnd _ _ _) = True
     isChan _ = False
     
-    cppTypeInsideChannel :: A.Type -> CGen ()
-    cppTypeInsideChannel A.Any = tell ["tockSendableArrayOfBytes"]
-    cppTypeInsideChannel (A.Counted _ _) = tell ["tockSendableArrayOfBytes"]
-    cppTypeInsideChannel (A.UserProtocol _) = tell ["tockSendableArrayOfBytes"]
+    cppTypeInsideChannel :: A.Type -> CGen CType
+    cppTypeInsideChannel A.Any = return $ Plain "tockSendableArrayOfBytes"
+    cppTypeInsideChannel (A.Counted _ _) = return $ Plain "tockSendableArrayOfBytes"
+    cppTypeInsideChannel (A.UserProtocol _) = return $ Plain "tockSendableArrayOfBytes"
     cppTypeInsideChannel (A.Array ds t)
       = do tell ["tockSendableArray<"]
-           call genType t
-           tell [","]
-           sequence_ $ intersperse (tell ["*"]) [call genExpression n | A.Dimension n <- ds]
-           tell [">/**/"]
-    cppTypeInsideChannel t = call genType t
-cppgenType (A.Mobile t@(A.Array {})) = call genType t
-cppgenType (A.Mobile t@(A.List {})) = call genType t
-cppgenType (A.Mobile t) = call genType t >> tell ["*"]
-cppgenType (A.List t) = tell ["tockList<"] >> call genType t >> tell [">/**/"]
-cppgenType t
- = do fgetScalarType <- fget getScalarType
-      case fgetScalarType t of
-        Just s -> tell [s]
-        Nothing -> call genMissingC $ formatCode "genType %" t
+           ct <- call getCType m t A.Original
+           return $ Template "tockSendableArray"
+             [ct
+             ,Plain $ error "cppTypeInsideChannel-TODO" -- intersperse "*" [call genExpression n | A.Dimension n <- ds]
+             ]
+    cppTypeInsideChannel t = call getCType m t A.Original
+cppgetCType m (A.List t) am
+  = do ct <- call getCType m t am
+       return $ Template "tockList" [ct]
+cppgetCType m t am = cgetCType m t am
 
 cppgenListAssign :: A.Variable -> A.Expression -> CGen ()
 cppgenListAssign v e
-  = do call genVariable v
+  = do call genVariable v A.Original
        tell ["="]
        call genExpression e
        tell [";"]
 
 cppgenListSize :: A.Variable -> CGen ()
 cppgenListSize v
- = do call genVariable v
+ = do call genVariable v A.Original
       tell [".size()"]
 
 cppgenListLiteral :: A.Structured A.Expression -> A.Type -> CGen ()
 cppgenListLiteral (A.Several _ es) t
- = do call genType t
+ = do genType t
       tell ["()"]
       sequence_ [tell ["("] >> call genExpression e >> tell [")"] | A.Only _ e <- es]
 
@@ -729,15 +721,15 @@ cppgenReplicatorLoop :: A.Name -> A.Replicator -> CGen ()
 cppgenReplicatorLoop n rep@(A.For {}) = cgenReplicatorLoop n rep
 cppgenReplicatorLoop n (A.ForEach m (A.ExprVariable _ v))
   = do t <- astTypeOf v
-       call genType t
+       genType t
        tell ["::iterator "]
        genName n
        tell ["="]
-       call genVariable v
+       call genVariable v A.Original
        tell [".beginSeqEach();"] --TODO what if this is a pareach?
        genName n
        tell ["!="]
-       call genVariable v
+       call genVariable v A.Original
        tell [".limitIterator();"]
        genName n
        tell ["++"]
@@ -772,7 +764,7 @@ cppgenUnfoldedVariable m var
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariableUnchecked var
+            _ -> call genVariableUnchecked var A.Original
 
 --{{{  if
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
