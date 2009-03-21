@@ -21,7 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module GenerateC
   ( cgenOps
   , cgenReplicatorLoop
-  , cgenType
+  , cgetCType
   , cintroduceSpec
   , cPreReq
   , cremoveSpec
@@ -38,7 +38,6 @@ module GenerateC
   , withIf
   ) where
 
-import Control.Arrow
 import Data.Char
 import Data.Generics
 import Data.List
@@ -95,8 +94,8 @@ cgenOps = GenOps {
     genCloneMobile = cgenCloneMobile,
     genConversion = cgenConversion,
     genConversionSymbol = cgenConversionSymbol,
+    getCType = cgetCType,
     genDecl = cgenDecl,
-    genDeclType = cgenDeclType,
     genDeclaration = cgenDeclaration,
     genDirectedVariable = cgenDirectedVariable,
     genDyadic = cgenDyadic,
@@ -144,13 +143,11 @@ cgenOps = GenOps {
     genTimerRead = cgenTimerRead,
     genTimerWait = cgenTimerWait,
     genTopLevel = cgenTopLevel,
-    genType = cgenType,
     genTypeSymbol = cgenTypeSymbol,
     genUnfoldedExpression = cgenUnfoldedExpression,
     genUnfoldedVariable = cgenUnfoldedVariable,
-    genVariable = \v -> cgenVariableWithAM True v (Just A.Original),
-    genVariableAM = \v am -> cgenVariableWithAM True v (Just am),
-    genVariableUnchecked = \v -> cgenVariableWithAM False v (Just A.Original),
+    genVariable = cgenVariableWithAM True,
+    genVariableUnchecked = cgenVariableWithAM False,
     genWhile = cgenWhile,
     getScalarType = cgetScalarType,
     introduceSpec = cintroduceSpec,
@@ -272,17 +269,17 @@ cgenOverArray m var func
           case func arg of
             Just p ->
               do sequence_ [do tell ["for(int "]
-                               call genVariable i
+                               call genVariable i A.Original
                                tell ["=0;"]
-                               call genVariable i
+                               call genVariable i A.Original
                                tell ["<"]
                                case d of
                                  A.UnknownDimension ->
-                                      do call genVariable var
+                                      do call genVariable var A.Original
                                          call genSizeSuffix (show v)
                                  A.Dimension n -> call genExpression n
                                tell [";"]
-                               call genVariable i
+                               call genVariable i A.Original
                                tell ["++){"]
                             | (v :: Integer, i, d) <- zip3 [0..] indices ds]
                  p
@@ -332,37 +329,6 @@ cgetScalarType (A.Timer A.OccamTimer) = Just "Time"
 cgetScalarType A.Time = Just "Time"
 cgetScalarType _ = Nothing
 
--- | Generate the C type corresponding to a variable being declared.
--- It must be possible to use this in arrays.
-cgenType :: A.Type -> CGen ()
-cgenType (A.Array _ t)
-    =  do call genType t
-          case t of
-            A.Chan _ _ -> tell ["*"]
-            -- Channel ends don't need an extra indirection; in C++ they are not
-            -- pointers, and in C they are already pointers
-            _ -> return ()
-          tell ["*"]
-cgenType (A.Record n) = genName n
-cgenType (A.Mobile t@(A.Array {})) = tell["mt_array_t*"]
-cgenType (A.Mobile t) = call genType t >> tell ["*"]
-
--- UserProtocol -- not used
--- Channels are of type "Channel", but channel-ends are of type "Channel*"
-cgenType (A.Chan _ t) = tell ["Channel"]
-cgenType (A.ChanEnd _ _ t) = tell ["Channel*"]
--- Counted -- not used
--- Any -- not used
---cgenType (A.Port t) =
-
-cgenType (A.List {}) = tell ["GQueue*"]
-
-cgenType t
- = do f <- fget getScalarType
-      case f t of
-        Just s -> tell [s]
-        Nothing -> call genMissingC $ formatCode "genType %" t
-
 indexOfFreeDimensions :: [A.Dimension] -> [Int]
 indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
   where
@@ -397,11 +363,11 @@ cgenBytesIn m t v
     -- allow retyping between channels and other things.
     genBytesIn' t@(A.Chan {})
       = do tell ["sizeof("]
-           call genType t
+           genType t
            tell [")"]
     genBytesIn' t@(A.ChanEnd {})
       = do tell ["sizeof("]
-           call genType t
+           genType t
            tell [")"]
     genBytesIn' (A.Mobile _)
       = tell ["sizeof(void*)"]
@@ -423,7 +389,7 @@ cgenBytesIn m t v
     genBytesInArrayDim (A.UnknownDimension, i)
         = case v of
             Right rv ->
-              do call genVariable rv
+              do call genVariable rv A.Original
                  call genSizeSuffix (show i)
                  tell ["*"]
             _ -> return ()
@@ -431,20 +397,9 @@ cgenBytesIn m t v
 --}}}
 
 --{{{  declarations
-cgenDeclType :: A.AbbrevMode -> A.Type -> CGen ()
-cgenDeclType am t
-    =  do when (am == A.ValAbbrev) $ tell ["const "]
-          call genType t
-          case t of
-            A.Array _ _ -> return ()
-            A.ChanEnd A.DirInput _ _ -> return ()
-            A.ChanEnd A.DirOutput _ _ -> return ()
-            A.Record _ -> tell ["*const"]
-            _ -> when (am == A.Abbrev) $ tell ["*const"]
-
 cgenDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
 cgenDecl am t n
-    =  do call genDeclType am t
+    =  do genCType (A.nameMeta n) t am
           tell [" "]
           genName n
 --}}}
@@ -453,7 +408,7 @@ cgenDecl am t n
 cgenCheckedConversion :: Meta -> A.Type -> A.Type -> CGen () -> CGen ()
 cgenCheckedConversion m fromT toT exp
     =  do tell ["(("]
-          call genType toT
+          genType toT
           tell [") "]
           if isSafeConversion fromT toT
             then exp
@@ -509,9 +464,9 @@ cgenConversion m cm toT e
 cgenConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen ()
 cgenConversionSymbol fromT toT cm
     =  do tell ["occam_convert_"]
-          call genType fromT
+          genType fromT
           tell ["_"]
-          call genType toT
+          genType toT
           tell ["_"]
           case cm of
             A.Round -> tell ["round"]
@@ -560,15 +515,15 @@ cgenListLiteral (A.Several _ es) t
 
 cgenListSize :: A.Variable -> CGen ()
 cgenListSize v = do tell ["g_queue_get_length("]
-                    call genVariable v
+                    call genVariable v A.Original
                     tell [")"]
 
 cgenListAssign :: A.Variable -> A.Expression -> CGen ()
 cgenListAssign v e
   = do tell ["tock_free_queue("]
-       call genVariable v
+       call genVariable v A.Original
        tell [");"]
-       call genVariable v
+       call genVariable v A.Original
        tell ["="]
        call genExpression e
        tell [";"]
@@ -631,7 +586,7 @@ cgenUnfoldedVariable m var
             -- We can defeat the usage check here because we know it's safe; *we're*
             -- generating the subscripts.
             -- FIXME Is that actually true for something like [a[x]]?
-            _ -> call genVariableUnchecked var
+            _ -> call genVariableUnchecked var A.Original
   where
     unfoldArray :: [A.Dimension] -> A.Variable -> CGen ()
     unfoldArray [] v = call genUnfoldedVariable m v
@@ -729,11 +684,11 @@ cgenVariableUnchecked :: A.Variable -> CGen ()
 cgenVariableUnchecked = cgenVariable' False
 -}
 
-cgenVariableWithAM :: Bool -> A.Variable -> Maybe A.AbbrevMode -> CGen ()
-cgenVariableWithAM checkValid v mam
+cgenVariableWithAM :: Bool -> A.Variable -> A.AbbrevMode -> CGen ()
+cgenVariableWithAM checkValid v am
   = do iv <- inner v
        t <- astTypeOf v
-       ct <- getVariableCType m (t, fromMaybe A.Original mam)
+       ct <- call getCType m t am
        dressUp m iv ct
 
 {-  = do (cg, n) <- inner 0 v Nothing
@@ -745,7 +700,7 @@ cgenVariableWithAM checkValid v mam
     details :: A.Variable -> CGen CType
     details v = do t <- astTypeOf v
                    am <- abbrevModeOfVariable v
-                   getVariableCType m (t, am)
+                   call getCType m t am
     
     inner :: A.Variable -> CGen (CGen (), CType)
     inner v@(A.Variable  m n)
@@ -756,8 +711,8 @@ cgenVariableWithAM checkValid v mam
            case t of
              A.Array _ innerT ->
                do (cg, ct) <- inner v
-                  innerCT <- getVariableCType m (t, A.Original)
-                  let cast = tell ["("] >> call genType innerT >> tell ["*)"]
+                  innerCT <- call getCType m t A.Original
+                  let cast = tell ["("] >> genType innerT >> tell ["*)"]
                   return (tell ["("] >> cast >> tell ["(("] >> cg >> tell [")->data))"]
                          , Pointer $ innerCT)
              _ -> inner v
@@ -772,14 +727,14 @@ cgenVariableWithAM checkValid v mam
                   Pointer ct <- details iv
                   let check = if checkValid then subCheck else A.NoCheck
                   -- Arrays should be pointers to the inner element:
-                  return (do cgenVariableWithAM checkValid iv Nothing
+                  return (do cgenVariableWithAM checkValid iv A.Original
                              call genArraySubscript check iv (map (\e -> (findMeta e, call genExpression e)) es)
                          , ct)
           A.SubscriptField _ fieldName
             -> do ct <- details v
                   -- For records, we expect it to be a pointer to a record:
                   return (do tell ["("]
-                             cgenVariableWithAM checkValid v Nothing
+                             cgenVariableWithAM checkValid v A.Original
                              tell [")."]
                              genName fieldName
                          , ct)
@@ -787,7 +742,7 @@ cgenVariableWithAM checkValid v mam
             -> do ct <- details v
                   return (do let check = if checkValid then subCheck else A.NoCheck
                              tell ["(&"]
-                             cgenVariableWithAM checkValid v Nothing
+                             cgenVariableWithAM checkValid v A.Original
                              call genArraySubscript A.NoCheck v [(m',
                                case check of
                                   A.NoCheck -> call genExpression start
@@ -847,7 +802,7 @@ cgenVariableWithAM checkValid v mam
            case (t, am, mt) of
              (A.Array _ t, _, _) ->
                do (cg, n) <- inner ind v Nothing
-                  let cast = tell ["("] >> call genType t >> tell ["*)"]
+                  let cast = tell ["("] >> genType t >> tell ["*)"]
                   return (tell ["("] >> cast >> tell ["(("] >> addPrefix cg n >> tell [")->data))"], 0)
              (A.Record {}, A.Original,_) -> inner ind v mt
              _ -> inner (ind+1) v mt
@@ -916,32 +871,42 @@ unwrapMobileType :: A.Type -> CGen (Bool, A.Type)
 unwrapMobileType (A.Mobile t) = return (True, t)
 unwrapMobileType t = return (False, t)
 
-getVariableCType :: Meta -> (A.Type, A.AbbrevMode) -> CGen CType
-getVariableCType m (origT, am)
+cgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
+cgetCType m origT am
   = do (isMobile, t) <- unwrapMobileType origT
        sc <- fget getScalarType >>* ($ t)
        case (t, sc, isMobile, am) of
+         -- Channel arrays are a special case, because they are arrays of pointers
+         -- to channels (so that an abbreviated array of channels, and an array
+         -- of abbreviations of channels, both look the same)
+         (A.Array _ (A.Chan {}), _, False, _)
+           -> return $ Pointer $ Pointer $ Plain "Channel"
+         (A.Array _ (A.ChanEnd {}), _, False, _)
+           -> return $ Pointer $ Pointer $ Plain "Channel"
+       
          -- All abbrev modes:
          (A.Array _ t, _, False, _)
-           -> getVariableCType m (t, A.Original) >>* Pointer
+           -> call getCType m t A.Original >>* (Pointer . const)
          (A.Array {}, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain "mt_array_t"
          (A.Array {}, _, True, _) -> return $ Pointer $ Plain "mt_array_t"
 
          (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
          -- Abbrev and ValAbbrev:
-         (A.Record n, _, False, _) -> return $ Pointer $ Plain $ nameString n
+         (A.Record n, _, False, _) -> return $ Pointer $ const $ Plain $ nameString n
 
-         -- All abbrev modes for channels:
-         (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+         (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
+         (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
          (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
 
          -- Scalar types:
          (_, Just pl, False, A.Original) -> return $ Plain pl
          (_, Just pl, False, A.Abbrev) -> return $ Pointer $ Plain pl
-         (_, Just pl, False, A.ValAbbrev) -> return $ Plain pl
+         (_, Just pl, False, A.ValAbbrev) -> return $ Const $ Plain pl
 
          -- Must have missed one:
          _ -> diePC m $ formatCode "Cannot work out the C type for: %" t
+  where
+    const = if am == A.ValAbbrev then Const else id
 
 -- | Return whether a type is one that is declared as a structure, but
 -- abbreviated as a pointer.
@@ -967,11 +932,11 @@ cgenArraySubscript check v es
     genDynamicDim v i
       = do t <- astTypeOf v
            case (t, v) of
-             (A.Mobile {}, _) -> do call genVariable v
+             (A.Mobile {}, _) -> do call genVariable v A.Original
                                     tell ["->dimensions[", show i, "]"]
-             (_, A.DerefVariable _ v') -> do call genVariable v'
+             (_, A.DerefVariable _ v') -> do call genVariable v' A.Original
                                              tell ["->dimensions[", show i, "]"]
-             _ -> call genVariable v >> call genSizeSuffix (show i)
+             _ -> call genVariable v A.Original >> call genSizeSuffix (show i)
     
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -1036,7 +1001,7 @@ cgenExpression (A.SizeVariable m v)
                 A.Dimension n -> call genExpression n
                 A.UnknownDimension ->
                   let (n, v') = countSubscripts v
-                  in do call genVariable v'
+                  in do call genVariable v' A.Original
                         call genSizeSuffix (show n)
             A.List _ ->
               call genListSize v
@@ -1044,18 +1009,18 @@ cgenExpression e@(A.AllSizesVariable m v)
   = case v of
       A.SubscriptedVariable {} -> call genMissing $ "genExpression" ++ show e
       A.DirectedVariable _ _ v' -> call genExpression $ A.AllSizesVariable m v'
-      A.DerefVariable _ v' -> do call genVariable v'
+      A.DerefVariable _ v' -> do call genVariable v' A.Original
                                  tell ["->dimensions"]
       A.Variable _ n -> do t <- astTypeOf v
                            case t of
-                             A.Array {} -> do call genVariable v
+                             A.Array {} -> do call genVariable v A.Original
                                               tell ["_sizes"]
                              A.Mobile (A.Array {})
-                               -> do call genVariable v
+                               -> do call genVariable v A.Original
                                      tell ["->dimensions"]
                              _ -> call genMissing $ "genExpression" ++ show e
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
-cgenExpression (A.ExprVariable m v) = call genVariable v
+cgenExpression (A.ExprVariable m v) = call genVariable v A.Original
 cgenExpression (A.Literal _ t lr) = call genLiteral lr t
 cgenExpression (A.True m) = tell ["true"]
 cgenExpression (A.False m) = tell ["false"]
@@ -1174,35 +1139,35 @@ cgenInputItem c (A.InCounted m cv av)
     =  do call genInputItem c (A.InVariable m cv)
           t <- astTypeOf av
           tell ["ChanIn(wptr,"]
-          call genVariable c
+          call genVariable c A.Abbrev
           tell [","]
-          call genVariableAM av A.Abbrev
+          call genVariable av A.Abbrev
           tell [","]
           subT <- trivialSubscriptType m t
-          call genVariable cv
+          call genVariable cv A.Original
           tell ["*"]
           call genBytesIn m subT (Right av)
           tell [");"]
 cgenInputItem c (A.InVariable m v)
     =  do t <- astTypeOf v
-          let rhs = call genVariableAM v A.Abbrev
+          let rhs = call genVariable v A.Abbrev
           case t of
             A.Int ->
               do tell ["ChanInInt(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [","]
                  rhs
                  tell [");"]
             A.Mobile {} ->
               do call genClearMobile m v -- TODO insert this via a pass
                  tell ["MTChanIn(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [",(void*)"]
                  rhs
                  tell [");"]
             _ ->
               do tell ["ChanIn(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [","]
                  rhs
                  tell [","]
@@ -1217,9 +1182,9 @@ cgenOutputItem _ c (A.OutCounted m ce ae)
           case ae of
             A.ExprVariable m v ->
               do tell ["ChanOut(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [","]
-                 call genVariableAM v A.Abbrev
+                 call genVariable v A.Abbrev
                  tell [","]
                  subT <- trivialSubscriptType m t
                  call genExpression ce
@@ -1230,27 +1195,27 @@ cgenOutputItem innerT c (A.OutExpression m e)
     =     case (innerT, e) of
             (A.Int, _) ->
               do tell ["ChanOutInt(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [","]
                  call genExpression e
                  tell [");"]
             (A.Mobile {}, A.ExprVariable _ (A.DerefVariable _ v)) ->
               do tell ["{void* outtmp = MTClone(*"]
-                 call genVariableAM v A.Abbrev
+                 call genVariable v A.Abbrev
                  tell [");MTChanOut(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [",&outtmp);}"]
             (A.Mobile {}, A.ExprVariable _ v) ->
               do tell ["MTChanOut(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [",(void*)"]
-                 call genVariableAM v A.Abbrev
+                 call genVariable v A.Abbrev
                  tell [");"]
             (_, A.ExprVariable _ v) ->
               do tell ["ChanOut(wptr,"]
-                 call genVariable c
+                 call genVariable c A.Abbrev
                  tell [","]
-                 call genVariableAM v A.Abbrev
+                 call genVariable v A.Abbrev
                  tell [","]
                  te <- astTypeOf e
                  call genBytesIn m te (Right v)
@@ -1316,7 +1281,7 @@ cgenRetypeSizes m destT destN srcT srcV
 abbrevExpression :: A.AbbrevMode -> A.Type -> A.Expression -> CGen ()
 abbrevExpression am t@(A.Array _ _) e
     = case e of
-        A.ExprVariable _ v -> call genVariableAM v am
+        A.ExprVariable _ v -> call genVariable v am
         A.Literal _ t@(A.Array _ _) r -> call genExpression e
         _ -> call genMissing "array expression abbreviation"
 abbrevExpression am _ e = call genExpression e
@@ -1332,7 +1297,7 @@ cgenSpec spec body
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
 cgenDeclaration at@(A.Array ds t) n False
-    =  do call genType t
+    =  do genType t
           tell [" "]
           case t of
             A.Chan _ _ ->
@@ -1340,20 +1305,20 @@ cgenDeclaration at@(A.Array ds t) n False
                  tell ["_storage"]
                  call genFlatArraySize ds
                  tell [";"]
-                 call genType t
+                 genType t
                  tell ["* "]
             _ -> return ()
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
 cgenDeclaration (A.Array ds t) n True
-    =  do call genType t
+    =  do genType t
           tell [" "]
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
 cgenDeclaration t n _
-    =  do call genType t
+    =  do genType t
           tell [" "]
           genName n
           tell [";"]
@@ -1372,15 +1337,15 @@ cgenFlatArraySize ds
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
 cdeclareInit _ (A.Chan _ _) var
     = Just $ do tell ["ChanInit(wptr,"]
-                call genVariableUnchecked var
+                call genVariableUnchecked var A.Abbrev
                 tell [");"]
 cdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
                   A.Chan _ _ ->
                     do tell ["tock_init_chan_array("]
-                       call genVariableUnchecked var
+                       call genVariableUnchecked var A.Original
                        tell ["_storage,"]
-                       call genVariableUnchecked var
+                       call genVariableUnchecked var A.Original
                        tell [","]
                        sequence_ $ intersperse (tell ["*"])
                                    [call genExpression n | A.Dimension n <- ds]
@@ -1428,7 +1393,7 @@ cintroduceSpec (A.Specification m n (A.Declaration _ t))
            Just p -> p
            Nothing -> return ()
 cintroduceSpec (A.Specification _ n (A.Is _ am t v))
-    =  do let rhs = call genVariableAM v am
+    =  do let rhs = call genVariable v am
           call genDecl am t n
           tell ["="]
           rhs
@@ -1440,7 +1405,7 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
               -- declaration, since you can't say "int *foo = {vs};" in C.
               do tell ["const "]
-                 call genType ts
+                 genType ts
                  tell [" "]
                  genName n
                  tell ["[] = "]
@@ -1451,7 +1416,7 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
               -- directly writing a struct literal in C that you can use -> on.
               do tmp <- csmLift $ makeNonce "record_literal"
                  tell ["const "]
-                 call genType t
+                 genType t
                  tell [" ", tmp, " = "]
                  rhs
                  tell [";\n"]
@@ -1463,15 +1428,15 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  rhs
                  tell [";\n"]
 cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
-    =  do call genType c
+    =  do genType c
           case c of
-             A.Chan _ _ -> tell ["*"]
+             A.Chan _ _ -> tell ["* "]
              -- Channel ends don't need an extra indirection; in C++ they are not
              -- pointers, and in C they are already pointers
-             _ -> return ()
+             _ -> tell [" "]
           call genArrayStoreName n
           tell ["[]={"]
-          seqComma (map (call genVariable) cs)
+          seqComma (map (\v -> call genVariable v A.Abbrev) cs)
           tell ["};"]
 cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec (A.Specification _ _ (A.RecordType _ _ _)) = return ()
@@ -1489,7 +1454,7 @@ cintroduceSpec (A.Specification _ n st@(A.Proc _ _ _ _))
     = genProcSpec n st False
 cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- astTypeOf v
-          let rhs = call genVariableAM v A.Abbrev
+          let rhs = call genVariable v A.Abbrev
           call genDecl am t n
           tell ["="]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
@@ -1503,7 +1468,7 @@ cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
                         _ -> False
           when deref $ tell ["*"]
           tell ["("]
-          call genDeclType am t
+          genCType m t am
           when deref $ tell ["*"]
           tell [")"]
           rhs
@@ -1570,13 +1535,13 @@ realActuals :: A.Formal -> A.Actual -> [CGen ()]
 realActuals _ (A.ActualExpression e)
     = [call genExpression e]
 realActuals (A.Formal am _ _) (A.ActualVariable v)
-    = [call genVariableAM v am]
+    = [call genVariable v am]
 
 -- | Return (type, name) generator pairs for all the real formals corresponding
 -- to a single formal.
 realFormals :: A.Formal -> [(CGen (), CGen ())]
 realFormals (A.Formal am t n)
-    = [(call genDeclType am t, genName n)]
+    = [(genCType (A.nameMeta n) t am, genName n)]
 
 -- | Generate a Proc specification, which maps to a C function.
 -- This will use ProcGetParam if the Proc is in csParProcs, or the normal C
@@ -1687,12 +1652,12 @@ cgenAssign m [v] (A.ExpressionList _ [e])
   where
     doAssign :: A.Variable -> A.Expression -> CGen ()
     doAssign v e
-        = do call genVariable v
+        = do call genVariable v A.Original
              tell ["="]
              call genExpression e
              tell [";"]
 cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
-    = do call genVariable v
+    = do call genVariable v A.Original
          let (funcName, giveMeta) = case lookup n simpleFloatIntrinsics of
                 Just (_,cName) -> (cName, False)
                 Nothing -> ("occam_" ++ [if c == '.' then '_' else c | c <- n], True)
@@ -1726,7 +1691,7 @@ cgenTimerWait e
 
 cgenGetTime :: A.Variable -> CGen ()
 cgenGetTime v
-    =  do call genVariable v
+    =  do call genVariable v A.Original
           tell [" = TimerRead(wptr);"]
 
 --}}}
@@ -1741,7 +1706,7 @@ cgenOutputCase c tag ois
                         A.Chan _ (A.UserProtocol n) -> n
                         A.ChanEnd _ _ (A.UserProtocol n) -> n
           tell ["ChanOutInt(wptr,"]
-          call genVariable c
+          call genVariable c A.Original
           tell [","]
           genName tag
           tell ["_"]
@@ -1923,7 +1888,7 @@ cgenAlt isPri s
                         tell [");\n"]
                    _ ->
                      do tell ["AltEnableChannel (wptr,", id, "++,"]
-                        call genVariable c
+                        call genVariable c A.Original
                         tell [");\n"]
 
     genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
@@ -1943,7 +1908,7 @@ cgenAlt isPri s
                         tell [");\n"]
                    _ ->
                      do tell ["AltDisableChannel (wptr,", id, "++, "]
-                        call genVariable c
+                        call genVariable c A.Original
                         tell [");\n"]
 
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
@@ -2037,7 +2002,7 @@ cgenClearMobile _ v
        genVar
        tell ["=NULL;}"]
   where
-    genVar = call genVariable v
+    genVar = call genVariable v A.Original
 
 cgenCloneMobile :: Meta -> A.Expression -> CGen ()
 cgenCloneMobile _ e

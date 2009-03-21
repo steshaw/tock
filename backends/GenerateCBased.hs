@@ -19,11 +19,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | The function dictionary and various types and helper functions for backends based around C
 module GenerateCBased where
 
-import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer hiding (tell)
 import Data.Generics
+import Data.List
 import System.IO
 
 import qualified AST as A
@@ -115,8 +115,8 @@ data GenOps = GenOps {
     genCloneMobile :: Meta -> A.Expression -> CGen (),
     genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
     genConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen (),
+    getCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType,
     genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen (),
-    genDeclType :: A.AbbrevMode -> A.Type -> CGen (),
     -- | Generates a declaration of a variable of the specified type and name.  
     -- The Bool indicates whether the declaration is inside a record (True) or not (False).
     genDeclaration :: A.Type -> A.Name -> Bool -> CGen (),
@@ -175,16 +175,13 @@ data GenOps = GenOps {
     genTimerRead :: A.Variable -> A.Variable -> CGen (),
     genTimerWait :: A.Expression -> CGen (),
     genTopLevel :: A.AST -> CGen (),
-    -- | Generates the type as it might be used in a cast expression
-    genType :: A.Type -> CGen (),
     genTypeSymbol :: String -> A.Type -> CGen (),
     genUnfoldedExpression :: A.Expression -> CGen (),
     genUnfoldedVariable :: Meta -> A.Variable -> CGen (),
     -- | Generates a variable, with indexing checks if needed
-    genVariable :: A.Variable -> CGen (),
-    genVariableAM :: A.Variable -> A.AbbrevMode -> CGen (),
+    genVariable :: A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
-    genVariableUnchecked :: A.Variable -> CGen (),
+    genVariableUnchecked :: A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a while loop with the given condition and body.
     genWhile :: A.Expression -> A.Process -> CGen (),
     getScalarType :: A.Type -> Maybe String,
@@ -231,32 +228,37 @@ fget = asks
 generate :: GenOps -> Handle -> A.AST -> PassM ()
 generate ops h ast = evalStateT (runReaderT (call genTopLevel ast) ops) (Right h)
 
+-- C or C++ type, really.
 data CType
   = Plain String
     | Pointer CType
     | Const CType
+    | Template String [CType]
 --    | Subscript CType
     deriving (Eq)
 
 instance Show CType where
   show (Plain s) = s
   show (Pointer t) = show t ++ "*"
-  show (Const t) = "(const " ++ show t ++ ")"
+  show (Const t) = show t ++ " const "
+  show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map show cts) ++ ">/**/"
 --  show (Subscript t) = "(" ++ show t ++ "[n])"
 
 -- Like Eq, but ignores const
 closeEnough :: CType -> CType -> Bool
 closeEnough (Const t) t' = closeEnough t t'
 closeEnough t (Const t') = closeEnough t t'
-closeEnough t t' = t == t'
+closeEnough (Pointer t) (Pointer t') = closeEnough t t'
+closeEnough (Plain s) (Plain s') = s == s'
+closeEnough (Template wr cts) (Template wr' cts')
+  = wr == wr' && length cts == length cts' && and (zipWith closeEnough cts cts')
+closeEnough _ _ = False
 
 -- Given some code to generate, and its type, and the type that you actually want,
 -- adds the required decorators.  Only pass it simplified types!
 dressUp :: Meta -> (CGen (), CType) -> CType -> CGen ()
 dressUp _ (gen, t) t' | t `closeEnough` t' = gen
 --Every line after here is not close enough, so we know equality fails:
-dressUp m (gen, t@(Plain {})) t'@(Plain {})
-  = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'
 dressUp m (gen, Pointer t) (Pointer t')
   = dressUp m (gen, t) t'
 dressUp m (gen, Const t) t'
@@ -267,3 +269,13 @@ dressUp m (gen, t@(Plain {})) (Pointer t')
   = dressUp m (tell ["(&("] >> gen >> tell ["))"], t) t'
 dressUp m (gen, Pointer t) t'@(Plain {})
   = dressUp m (tell ["(*("] >> gen >> tell ["))"], t) t'
+dressUp m (gen, t) t'
+  = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'
+
+genType :: A.Type -> CGen ()
+genType t = do ct <- call getCType emptyMeta t A.Original
+               tell [show ct]
+
+genCType :: Meta -> A.Type -> A.AbbrevMode -> CGen ()
+genCType m t am = do ct <- call getCType m t am
+                     tell [show ct]
