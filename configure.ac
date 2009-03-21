@@ -159,6 +159,18 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
   no_unused=
 )
 
+#Check whether GCC accepts the -Werror=cast-qual option
+AC_MSG_CHECKING([whether -Werror=cast-qual flag is accepted])
+CFLAGS="-Werror=cast-qual"
+AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
+  AC_MSG_RESULT([yes])
+  warn_error="-Werror=cast-qual"
+  ,
+  AC_MSG_RESULT([no])
+  warn_error=
+)
+
+
 CFLAGS="$old_CFLAGS"
 
 
@@ -237,7 +249,7 @@ CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # that, but I'm also leaving these flags in so that any other code (for example,
 # that Tock might spit out) that uses increments doesn't have the same issue.
 
-common_cflags="-Wall $no_unused -ggdb3 -Isupport $no_strict_aliasing"
+common_cflags="-Wall $no_unused $warn_error -ggdb3 -Isupport $no_strict_aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS -lm"
