@@ -215,14 +215,14 @@ override5 val = (\_ _ _ _ _ -> val)
 testGenType :: Test
 testGenType = TestList 
  [
-  testBothSame "GenType 0" "uint8_t" (tcall genType A.Byte) 
-  ,testBothSame "GenType 1" "uint16_t" (tcall genType A.UInt16) 
-  ,testBothSame "GenType 2" "uint32_t" (tcall genType A.UInt32) 
-  ,testBothSame "GenType 3" "uint64_t" (tcall genType A.UInt64) 
-  ,testBothSame "GenType 4" "int8_t" (tcall genType A.Int8) 
-  ,testBothSame "GenType 5" "int16_t" (tcall genType A.Int16) 
-  ,testBothSame "GenType 6" "int32_t" (tcall genType A.Int32) 
-  ,testBothSame "GenType 7" "int64_t" (tcall genType A.Int64) 
+  testBothSame "GenType 0" "uint8_t" (gt A.Byte) 
+  ,testBothSame "GenType 1" "uint16_t" (gt A.UInt16) 
+  ,testBothSame "GenType 2" "uint32_t" (gt A.UInt32) 
+  ,testBothSame "GenType 3" "uint64_t" (gt A.UInt64) 
+  ,testBothSame "GenType 4" "int8_t" (gt A.Int8) 
+  ,testBothSame "GenType 5" "int16_t" (gt A.Int16) 
+  ,testBothSame "GenType 6" "int32_t" (gt A.Int32) 
+  ,testBothSame "GenType 7" "int64_t" (gt A.Int64) 
   ,testBoth "GenType 8"
     (case cIntSize of
        2 -> "int16_t"
@@ -232,72 +232,74 @@ testGenType = TestList
        2 -> "int16_t"
        4 -> "int32_t"
        8 -> "int64_t")
-    (tcall genType A.Int)
-  ,testBothSame "GenType 9" "bool" (tcall genType A.Bool) 
-  ,testBothSame "GenType 10" "float" (tcall genType A.Real32) 
-  ,testBothSame "GenType 11" "double" (tcall genType A.Real64) 
+    (gt A.Int)
+  ,testBothSame "GenType 9" "bool" (gt A.Bool) 
+  ,testBothSame "GenType 10" "float" (gt A.Real32) 
+  ,testBothSame "GenType 11" "double" (gt A.Real64) 
   
-  ,testBothSame "GenType 20" "uint8_t*" (tcall genType $ A.Mobile A.Byte)
-  ,testBothSame "GenType 21" "bool*" (tcall genType $ A.Mobile A.Bool)
-  ,testBothSame "GenType 22" "float*" (tcall genType $ A.Mobile A.Real32)
+  ,testBothSame "GenType 20" "uint8_t*" (gt $ A.Mobile A.Byte)
+  ,testBothSame "GenType 21" "bool*" (gt $ A.Mobile A.Bool)
+  ,testBothSame "GenType 22" "float*" (gt $ A.Mobile A.Real32)
   
   
-  ,testBothSame "GenType 100" "int32_t*" (tcall genType $ A.Array [dimension 5] A.Int32) 
-  ,testBothSame "GenType 101" "int32_t*" (tcall genType $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
-  ,testBothSame "GenType 102" "int32_t*" (tcall genType $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
-  ,testBothSame "GenType 103" "foo" (tcall genType $ A.Record (simpleName "foo")) 
-  ,testBoth "GenType 200" "Time" "csp::Time" (tcall genType A.Time) 
-  ,testBoth "GenType 201" "Time" "csp::Time" (tcall genType $ A.Timer A.OccamTimer) 
+  ,testBothSame "GenType 100" "int32_t*" (gt $ A.Array [dimension 5] A.Int32) 
+  ,testBothSame "GenType 101" "int32_t*" (gt $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
+  ,testBothSame "GenType 102" "int32_t*" (gt $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
+  ,testBothSame "GenType 103" "foo" (gt $ A.Record (simpleName "foo")) 
+  ,testBoth "GenType 200" "Time" "csp::Time" (gt A.Time) 
+  ,testBoth "GenType 201" "Time" "csp::Time" (gt $ A.Timer A.OccamTimer) 
   
-  ,testBothSame "GenType 250" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
-  ,testBothSame "GenType 251" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
-  ,testBothSame "GenType 251" "mt_array_t*" (tcall genType $ A.Mobile $ A.Array [A.UnknownDimension] A.Int32) 
-  ,testBothSame "GenType 252" "foo*" (tcall genType $ A.Mobile $ A.Record (simpleName "foo")) 
-  ,testBoth "GenType 253" "Time*" "csp::Time*" (tcall genType $ A.Mobile A.Time)  
+  ,testBothSame "GenType 250" "mt_array_t*" (gt $ A.Mobile $ A.Array [dimension 5, dimension 2, dimension 9] A.Int32) 
+  ,testBothSame "GenType 251" "mt_array_t*" (gt $ A.Mobile $ A.Array [dimension 5, A.UnknownDimension] A.Int32) 
+  ,testBothSame "GenType 251" "mt_array_t*" (gt $ A.Mobile $ A.Array [A.UnknownDimension] A.Int32) 
+  ,testBothSame "GenType 252" "foo*" (gt $ A.Mobile $ A.Record (simpleName "foo")) 
+  ,testBoth "GenType 253" "Time*" "csp::Time*" (gt $ A.Mobile A.Time)  
 
-  ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes False True) A.Int32) 
-  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes True False) A.Int32) 
-  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int32_t>" (tcall genType $ A.Chan (A.ChanAttributes True True) A.Int32) 
+  ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes False True) A.Int32) 
+  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes True False) A.Int32) 
+  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes True True) A.Int32) 
 
-  ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (tcall genType $ A.Chan (A.ChanAttributes False False) (A.Mobile A.Int32))
+  ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (gt $ A.Chan (A.ChanAttributes False False) (A.Mobile A.Int32))
   
-  ,testBoth "GenType 400" "Channel*" "csp::AltChanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 401" "Channel*" "csp::AltChanin<int32_t>" (tcall genType $ A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) 
+  ,testBoth "GenType 400" "Channel*" "csp::AltChanin<int32_t>" (gt $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 401" "Channel*" "csp::AltChanin<int32_t>" (gt $ A.ChanEnd A.DirInput (A.ChanAttributes False True) A.Int32) 
 
-  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) 
-  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int32_t>" (tcall genType $ A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) 
+  ,testBoth "GenType 402" "Channel*" "csp::Chanout<int32_t>" (gt $ A.ChanEnd A.DirOutput (A.ChanAttributes False False) A.Int32) 
+  ,testBoth "GenType 403" "Channel*" "csp::Chanout<int32_t>" (gt $ A.ChanEnd A.DirOutput (A.ChanAttributes True False) A.Int32) 
   
   --ANY and protocols cannot occur outside channels in C++ or C, they are tested here:
-  ,testBothFail "GenType 500" (tcall genType $ A.Any) 
-  ,testBothFail "GenType 600" (tcall genType $ A.UserProtocol (simpleName "foo")) 
-  ,testBothFail "GenType 650" (tcall genType $ A.Counted A.Int32 A.Int32) 
+  ,testBothFail "GenType 500" (gt $ A.Any) 
+  ,testBothFail "GenType 600" (gt $ A.UserProtocol (simpleName "foo")) 
+  ,testBothFail "GenType 650" (gt $ A.Counted A.Int32 A.Int32) 
    
-  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int32_t>**" (tcall genType $ A.Array [dimension 5] $ A.Chan (A.ChanAttributes False False) A.Int32)
-  ,testBoth "GenType 701" "Channel**" "csp::AltChanin<int32_t>*" (tcall genType $ A.Array [dimension 5] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32)
+  ,testBoth "GenType 700" "Channel**" "csp::One2OneChannel<int32_t>**" (gt $ A.Array [dimension 5] $ A.Chan (A.ChanAttributes False False) A.Int32)
+  ,testBoth "GenType 701" "Channel**" "csp::AltChanin<int32_t>*" (gt $ A.Array [dimension 5] $ A.ChanEnd A.DirInput (A.ChanAttributes False False) A.Int32)
   
   --Test types that can only occur inside channels:
   --ANY:
-  ,testBoth "GenType 800" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) A.Any)
+  ,testBoth "GenType 800" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (gt $ A.Chan (A.ChanAttributes False False) A.Any)
   --Protocol:
-  ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
+  ,testBoth "GenType 900" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (gt $ A.Chan (A.ChanAttributes False False) $ A.UserProtocol (simpleName "foo"))
   --Counted:
-  ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Counted A.Int32 A.Int32)
+  ,testBoth "GenType 1000" "Channel" "csp::One2OneChannel<tockSendableArrayOfBytes>" (gt $ A.Chan (A.ChanAttributes False False) $ A.Counted A.Int32 A.Int32)
   
   --Channels of arrays are special in C++:
   ,testBoth "GenType 1100" "Channel" "csp::One2OneChannel<tockSendableArray<int32_t,6>>" 
-    (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6] A.Int32)
+    (gt $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6] A.Int32)
   ,testBoth "GenType 1101" "Channel" "csp::One2OneChannel<tockSendableArray<int32_t,6*7*8>>" 
-    (tcall genType $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6,dimension 7,dimension 8] A.Int32)
+    (gt $ A.Chan (A.ChanAttributes False False) $ A.Array [dimension 6,dimension 7,dimension 8] A.Int32)
 
 
   -- List types:
-  ,testBothS "GenType 2000" "GQueue*" "tockList<int16_t>" (tcall genType $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2001" "GQueue*" "tockList<tockList<int16_t>>" (tcall genType $ A.List $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2010" "GQueue**" "tockList<int16_t>" (tcall genType $ A.Mobile $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2011" "GQueue**" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.List A.Int16) markRainTest
-  ,testBothS "GenType 2012" "GQueue**" "tockList<tockList<int16_t>>" (tcall genType $ A.Mobile $ A.List $ A.Mobile $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2000" "GQueue*" "tockList<int16_t>" (gt $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2001" "GQueue*" "tockList<tockList<int16_t>>" (gt $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2010" "GQueue**" "tockList<int16_t>" (gt $ A.Mobile $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2011" "GQueue**" "tockList<tockList<int16_t>>" (gt $ A.Mobile $ A.List $ A.List A.Int16) markRainTest
+  ,testBothS "GenType 2012" "GQueue**" "tockList<tockList<int16_t>>" (gt $ A.Mobile $ A.List $ A.Mobile $ A.List A.Int16) markRainTest
  ]
+ where
+   gt t = genType t
 
 testStop :: Test
 testStop =
@@ -349,7 +351,7 @@ testActuals = TestList
    overActual :: Override
    overActual = local (\ops -> ops {genActual = override2 at})
    over :: Override
-   over = local (\ops -> ops {genVariable = override1 at, genExpression = override1 dollar})
+   over = local (\ops -> ops {genVariable = override2 at, genExpression = override1 dollar})
 
 -- TODO test the other two array checking methods   
 testArraySubscript :: Test
@@ -400,6 +402,7 @@ testArraySlice = TestList
      = testBothSameS ("genSlice " ++ show index) exp
       (tcall genVariable
         (A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta A.CheckBoth (intLiteral start) (intLiteral count)) (variable nm))
+        A.Original
       )
       (defineName (simpleName nm) $ simpleDefDecl nm (A.Array ds A.Int))
 
@@ -428,7 +431,7 @@ testOverArray = TestList $ map testOverArray'
          testRS "testOverArray'" rx3Dynamic (flip runReaderT ops $ tcall3 genOverArray emptyMeta (A.Variable emptyMeta foo) func) state3Dynamic
          return ()
       where
-        func f = Just $ call genVariableUnchecked (f $ A.Variable emptyMeta foo) >> tell [";"]
+        func f = Just $ call genVariableUnchecked (f $ A.Variable emptyMeta foo) A.Original >> tell [";"]
         rx1Static = "^for\\(int ([[:alnum:]_]+)=0;\\1<7;\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
         rx1Dynamic = "^for\\(int ([[:alnum:]_]+)=0;\\1<foo" ++ sz 0 ++ ";\\1\\+\\+)\\{foo\\[\\1\\]" ++ suff ++ ";\\}$"
         rx3Static
@@ -603,8 +606,8 @@ testRecord = TestList
     testAllSame n e s0 s1 s2 = testAll n e e s0 s1 s2
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
-                   ,genType = (\x -> tell ["$(",show x,")"])
-                   ,genVariable = override1 at
+                   ,getCType = (\_ x _ -> return $ Plain $ "$(" ++ show x ++ ")")
+                   ,genVariable = override2 at
                    }
  
 testSpec :: Test
@@ -726,9 +729,9 @@ testSpec = TestList
     testAllSameS n e s st o = testAllS n e e s st o
     over' ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
-                   ,genType = (\x -> tell ["$(",show x,")"])
+                   ,getCType = (\_ x _ -> return $ Plain $ "$(" ++ show x ++ ")")
                    }
-    over ops = (over' ops) { genVariable = override1 at }
+    over ops = (over' ops) { genVariable = override2 at }
 testRetypeSizes :: Test
 testRetypeSizes = TestList
  [
@@ -840,8 +843,10 @@ testGenVariable = TestList
    test :: Int -> (String,String) -> (String,String) -> (A.Variable -> A.Variable) -> A.AbbrevMode -> A.Type -> Test
    test n (eC,eUC) (eCPP,eUCPP) sub am t = TestList
     [
-     testBothS ("testGenVariable/checked" ++ show n) eC eCPP (over (tcall genVariable $ sub $ A.Variable emptyMeta foo)) state
-     ,testBothS ("testGenVariable/unchecked" ++ show n) eUC eUCPP (over (tcall genVariableUnchecked $ sub $ A.Variable emptyMeta foo)) state
+     testBothS ("testGenVariable/checked" ++ show n) eC eCPP
+       (over (tcall genVariable (sub $ A.Variable emptyMeta foo) A.Original)) state
+     ,testBothS ("testGenVariable/unchecked" ++ show n) eUC eUCPP
+       (over (tcall genVariableUnchecked (sub $ A.Variable emptyMeta foo) A.Original)) state
     ]
      where
        state = do defineName (simpleName "foo") $
@@ -897,7 +902,7 @@ testAssign = TestList
    e = A.True emptyMeta
    state t = defineName (simpleName "foo") $ simpleDefDecl "foo" t
    over :: Override
-   over = local $ \ops -> ops {genVariable = override1 at, genExpression = override1 dollar}
+   over = local $ \ops -> ops {genVariable = override2 at, genExpression = override1 dollar}
 
 testCase :: Test
 testCase = TestList
@@ -1202,7 +1207,7 @@ testBytesIn = TestList
  ]
  where
    over :: Override
-   over = local $ \ops -> ops {genVariable = override1 dollar, genSizeSuffix = (\n -> tell["(@",n,")"])}
+   over = local $ \ops -> ops {genVariable = override2 dollar, genSizeSuffix = (\n -> tell["(@",n,")"])}
 
 testMobile :: Test
 testMobile = TestList
@@ -1216,7 +1221,11 @@ testMobile = TestList
   where
     showBytesInParams _ t (Right _) = tell ["#(" ++ show t ++ " Right)"]
     showBytesInParams _ t v = tell ["#(" ++ show t ++ " " ++ show v ++ ")"]
-    over ops = ops {genBytesIn = showBytesInParams, genType = (\t -> tell [show t]), genExpression = override1 dollar, genVariable = override1 at}
+    over ops = ops { genBytesIn = showBytesInParams
+                   , getCType = (\_ t _ -> return $ Plain $ show t)
+                   , genExpression = override1 dollar
+                   , genVariable = override2 at
+                   }
 
 ---Returns the list of tests:
 tests :: Test
