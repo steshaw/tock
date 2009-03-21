@@ -870,7 +870,7 @@ cgetCType m origT am
          (_, Just pl, False, A.ValAbbrev) -> return $ Const $ Plain pl
 
          -- Must have missed one:
-         _ -> diePC m $ formatCode "Cannot work out the C type for: %" t
+         _ -> diePC m $ formatCode "Cannot work out the C type for: %" origT
   where
     const = if am == A.ValAbbrev then Const else id
 
