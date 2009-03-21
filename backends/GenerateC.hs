@@ -321,37 +321,6 @@ cgetScalarType (A.Timer A.OccamTimer) = Just "Time"
 cgetScalarType A.Time = Just "Time"
 cgetScalarType _ = Nothing
 
--- | Generate the C type corresponding to a variable being declared.
--- It must be possible to use this in arrays.
-cgenType :: A.Type -> CGen ()
-cgenType (A.Array _ t)
-    =  do call genType t
-          case t of
-            A.Chan _ _ -> tell ["*"]
-            -- Channel ends don't need an extra indirection; in C++ they are not
-            -- pointers, and in C they are already pointers
-            _ -> return ()
-          tell ["*"]
-cgenType (A.Record n) = genName n
-cgenType (A.Mobile t@(A.Array {})) = tell["mt_array_t*"]
-cgenType (A.Mobile t) = call genType t >> tell ["*"]
-
--- UserProtocol -- not used
--- Channels are of type "Channel", but channel-ends are of type "Channel*"
-cgenType (A.Chan _ t) = tell ["Channel"]
-cgenType (A.ChanEnd _ _ t) = tell ["Channel*"]
--- Counted -- not used
--- Any -- not used
---cgenType (A.Port t) =
-
-cgenType (A.List {}) = tell ["GQueue*"]
-
-cgenType t
- = do f <- fget getScalarType
-      case f t of
-        Just s -> tell [s]
-        Nothing -> call genMissingC $ formatCode "genType %" t
-
 indexOfFreeDimensions :: [A.Dimension] -> [Int]
 indexOfFreeDimensions = (mapMaybe indexOfFreeDimensions') . (zip [0..])
   where
@@ -724,106 +693,6 @@ cgenVariableWithAM checkValid v am
                                )]
                              tell [")"]
                          , ct)
-
-    -- The general plan here is to generate the variable, while also
-    -- putting in the right prefixes (&/*/**/***/etc).
-    -- We use an "indirection level" to record the prefix needed.
-    -- 0 means no prefix, -1 means &, 1 means *, 2 means **, etc
-    
-    -- For arrays, we must pass through the inner type of the array
-    -- so that we can add the appropriate prefixes before the array
-    -- name.  That is, we make sure we write (&foo[0]), not
-    -- (&foo)[0]
-{-  
-    inner :: Int -> A.Variable -> Maybe A.Type -> CGen (CGen (), Int)
-    inner ind (A.Variable _ n) mt
-      = do amN <- abbrevModeOfName n
-           (am,t) <- case (amN,mt) of 
-                       -- Channel arrays are special, because they are arrays of abbreviations:
-                       (_, Just t'@(A.Chan {})) -> return (A.Abbrev, t')
-                       (_, Just t'@(A.ChanEnd {})) -> return (A.Abbrev, t')
-                       -- If we are dealing with an array element, treat it as if it had the original abbreviation mode,
-                       -- regardless of the abbreviation mode of the array:
-                       (_, Just t') -> return (A.Original, t')
-                       (am,Nothing) -> do t <- astTypeOf n
-                                          return (am, t)
-           let ind' = case (am, t, indirectedType t) of
-                        -- For types that are referred to by pointer (such as records)
-                        -- we need to take the address:
-                        (A.Original, _, True) -> ind - 1
-                        -- If the type is referred to by pointer but is already abbreviated,
-                        -- no need to change the indirection:
-                        (_, _, True) -> ind                        
-                        -- Undirected channels will already have been handled, so this is for directed:
-                        (A.Abbrev, A.ChanEnd {}, _) -> ind
-                        -- Abbreviations of arrays are pointers, just like arrays, so no
-                        -- need for a * operator:
-                        (A.Abbrev, A.Array {}, _) -> ind
-                        (A.Abbrev, _, _) -> ind + 1
-                        _ -> ind
-           return (genName n, ind')
-    inner ind (A.DerefVariable _ v) mt
-      = do (A.Mobile t) <- astTypeOf v
-           am <- abbrevModeOfVariable v
-           case (t, am, mt) of
-             (A.Array _ t, _, _) ->
-               do (cg, n) <- inner ind v Nothing
-                  let cast = tell ["("] >> genType t >> tell ["*)"]
-                  return (tell ["("] >> cast >> tell ["(("] >> addPrefix cg n >> tell [")->data))"], 0)
-             (A.Record {}, A.Original,_) -> inner ind v mt
-             _ -> inner (ind+1) v mt
-    inner ind (A.DirectedVariable m dir v) mt
-      = do (cg,n) <- (inner ind v mt)
-           t <- astTypeOf v
-           return (call genDirectedVariable m t (addPrefix cg n) dir, 0)
-    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ subCheck _) v) mt
-      = do (es, v, t') <- collectSubs sv
-           t <- if checkValid
-                  then astTypeOf sv
-                  else return t'
-           ds <- astTypeOf v >>= \t -> case t of
-                   A.Array ds _ -> return ds
-                   A.Mobile (A.Array ds _) -> return ds
-           (cg, n) <- inner ind v (Just t)
-           let check = if checkValid then subCheck else A.NoCheck
-           return ((if (length ds /= length es) then tell ["&"] else return ()) >> addPrefix
-             cg n >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), 0)
-    inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
-        =  do (cg, ind') <- inner ind v mt
-              t <- astTypeOf sv
-              let outerInd :: Int
-                  outerInd = if indirectedType t then -1 else 0
-              return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
-
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' subCheck start count) v) mt
-        = return (
-           do let check = if checkValid then subCheck else A.NoCheck
-              tell ["(&"]
-              join $ liftM fst $ inner ind v mt
-              call genArraySubscript A.NoCheck v [(m',
-                case check of
-                  A.NoCheck -> call genExpression start
-                  _ -> do tell ["occam_check_slice("]
-                          call genExpression start
-                          genComma
-                          call genExpression count
-                          genComma
-                          call genExpression (A.SizeVariable m' v)
-                          genComma
-                          genMeta m'
-                          tell [")"]
-                )]
-              tell [")"], 0)
-    
-    addPrefix :: CGen () -> Int -> CGen ()
-    addPrefix cg 0 = cg
-    addPrefix cg n = tell ["(", getPrefix n] >> cg >> tell [")"]
-
-    getPrefix :: Int -> String
-    getPrefix 0 = ""
-    getPrefix (-1) = "&"
-    getPrefix n = if n > 0 then replicate n '*' else "#error Negative prefix lower than -1"
--}
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
     collectSubs (A.SubscriptedVariable m (A.Subscript _ _ e) v)
@@ -835,6 +704,9 @@ cgenVariableWithAM checkValid v am
 
 unwrapMobileType :: A.Type -> CGen (Bool, A.Type)
 unwrapMobileType (A.Mobile t) = return (True, t)
+unwrapMobileType t@(A.Record n)
+  = do isMobile <- recordAttr (A.nameMeta n) t >>* A.mobileRecord
+       return (isMobile, t)
 unwrapMobileType t = return (False, t)
 
 cgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
@@ -857,8 +729,8 @@ cgetCType m origT am
          (A.Array {}, _, True, _) -> return $ Pointer $ Plain "mt_array_t"
 
          (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
-         -- Abbrev and ValAbbrev:
-         (A.Record n, _, False, _) -> return $ Pointer $ const $ Plain $ nameString n
+         -- Abbrev and ValAbbrev, and mobile:
+         (A.Record n, _, _, _) -> return $ Pointer $ const $ Plain $ nameString n
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
          (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
@@ -868,6 +740,11 @@ cgetCType m origT am
          (_, Just pl, False, A.Original) -> return $ Plain pl
          (_, Just pl, False, A.Abbrev) -> return $ Pointer $ Plain pl
          (_, Just pl, False, A.ValAbbrev) -> return $ Const $ Plain pl
+
+         -- Mobile scalar types:
+         (_, Just pl, True, A.Original) -> return $ Pointer $ Plain pl
+         (_, Just pl, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain pl
+         (_, Just pl, True, A.ValAbbrev) -> return $ Pointer $ Const $ Plain pl
 
          -- Must have missed one:
          _ -> diePC m $ formatCode "Cannot work out the C type for: %" origT
@@ -903,7 +780,12 @@ cgenArraySubscript check v es
                                     tell ["->dimensions[", show i, "]"]
              (_, A.DerefVariable _ v') -> do call genVariable v' A.Original
                                              tell ["->dimensions[", show i, "]"]
-             _ -> call genVariable v >> call genSizeSuffix (show i)
+             (_, A.SubscriptedVariable _ (A.SubscriptField _ fn) v)
+               -> do A.Record n <- astTypeOf v
+                     genName n
+                     genName fn
+                     tell ["[", show i, "]"]
+             _ -> call genVariable v A.Original >> call genSizeSuffix (show i)
     
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -1117,15 +999,16 @@ cgenInputItem c (A.InCounted m cv av)
           tell [");"]
 cgenInputItem c (A.InVariable m v)
     =  do t <- astTypeOf v
+          isMobile <- isMobileType t
           let rhs = call genVariable v A.Abbrev
-          case t of
-            A.Int ->
+          case (t, isMobile) of
+            (A.Int, _) ->
               do tell ["ChanInInt(wptr,"]
                  call genVariable c A.Abbrev
                  tell [","]
                  rhs
                  tell [");"]
-            A.Mobile {} ->
+            (_, True) ->
               do call genClearMobile m v -- TODO insert this via a pass
                  tell ["MTChanIn(wptr,"]
                  call genVariable c A.Abbrev
@@ -1159,26 +1042,21 @@ cgenOutputItem _ c (A.OutCounted m ce ae)
                  call genBytesIn m subT (Right v)
                  tell [");"]
 cgenOutputItem innerT c (A.OutExpression m e)
-    =     case (innerT, e) of
-            (A.Int, _) ->
+    = do isMobile <- isMobileType innerT
+         case (innerT, isMobile, e) of
+            (A.Int, _, _) ->
               do tell ["ChanOutInt(wptr,"]
                  call genVariable c A.Abbrev
                  tell [","]
                  call genExpression e
                  tell [");"]
-            (A.Mobile {}, A.ExprVariable _ (A.DerefVariable _ v)) ->
-              do tell ["{void* outtmp = MTClone(*"]
-                 call genVariable v A.Abbrev
-                 tell [");MTChanOut(wptr,"]
-                 call genVariable c A.Abbrev
-                 tell [",&outtmp);}"]
-            (A.Mobile {}, A.ExprVariable _ v) ->
+            (_, True, A.ExprVariable _ v) ->
               do tell ["MTChanOut(wptr,"]
                  call genVariable c A.Abbrev
                  tell [",(void*)"]
                  call genVariable v A.Abbrev
                  tell [");"]
-            (_, A.ExprVariable _ v) ->
+            (_, _, A.ExprVariable _ v) ->
               do tell ["ChanOut(wptr,"]
                  call genVariable c A.Abbrev
                  tell [","]
@@ -1220,19 +1098,6 @@ cgenReplicatorLoop _ _ = cgenMissing "ForEach loops not yet supported in the C b
 
 --{{{  abbreviations
 
-cgenVariableAM :: A.Variable -> A.AbbrevMode -> CGen ()
-cgenVariableAM v am
-    =  do when (am == A.Abbrev) $
-            do t <- astTypeOf v
-               case (indirectedType t, t) of
-                 (True, _) -> return ()
-                 (False, A.Array {}) -> return ()
-                 (False, A.Chan {}) -> return ()
-                 (False, A.ChanEnd {}) -> return ()
---                 (False, A.Mobile {}) -> return ()
-                 _ -> tell ["&"]
-          call genVariable v
-
 -- | Generate the size part of a RETYPES\/RESHAPES abbrevation of a variable.
 cgenRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen ()
 cgenRetypeSizes _ (A.Chan {}) _ (A.Chan {}) _ = return ()
@@ -1264,6 +1129,8 @@ abbrevExpression am t@(A.Array _ _) e
         A.ExprVariable _ v -> call genVariable v am
         A.Literal _ t@(A.Array _ _) r -> call genExpression e
         _ -> call genMissing "array expression abbreviation"
+abbrevExpression am t@(A.Record _) (A.ExprVariable _ v)
+    = call genVariable v am
 abbrevExpression am _ e = call genExpression e
 --}}}
 
@@ -1340,14 +1207,18 @@ cdeclareInit m rt@(A.Record _) var
                 sequence_ [initField t (A.SubscriptedVariable m (A.SubscriptField m n) var)
                            | (n, t) <- fs]
                 isMobile <- recordAttr m rt >>* A.mobileRecord
-                when isMobile $ call genAssign m [var] $
-                  A.ExpressionList m [A.AllocMobile m rt Nothing]
+                when isMobile $ do
+                  call genVariableUnchecked var A.Original
+                  tell ["=NULL;"]
+                  call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m rt Nothing]
   where
     initField :: A.Type -> A.Variable -> CGen ()
     initField t v = do fdeclareInit <- fget declareInit
                        doMaybe $ fdeclareInit m t v
 cdeclareInit m t@(A.Mobile _) var
-  = Just $ call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
+  = Just $ do call genVariableUnchecked var A.Original
+              tell ["=NULL;"]
+              call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
 cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
@@ -1501,7 +1372,7 @@ cgenRecordTypeSpec n attr fs
                                                  | A.Dimension e <- ds]
             tell [")"]
         ] ++ mt t
-    mt t = [mobileElemType t]
+    mt t = [mobileElemType False t]
 
 cgenForwardDeclaration :: A.Specification -> CGen ()
 cgenForwardDeclaration (A.Specification _ n st@(A.Proc _ _ _ _))
@@ -1675,12 +1546,12 @@ cgenAssign m [v] (A.ExpressionList _ [e])
                        A.CloneMobile {} -> doAssign v e
                        A.ExprVariable _ vrhs ->
                          do doAssign v e
-                            call genVariable vrhs
+                            call genVariable vrhs A.Original
                             tell ["=NULL;"]
                        _ -> call genMissing $ "Mobile assignment from " ++ show e
              (A.Array ds innerT, _) | isPOD innerT && A.UnknownDimension `notElem` ds
                -> do tell ["memcpy("]
-                     call genVariable v
+                     call genVariable v A.Original
                      tell [","]
                      call genExpression e
                      tell [","]
@@ -2022,13 +1893,13 @@ cgenAssert m e
 cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
 cgenAllocMobile m (A.Mobile t@(A.Array ds innerT)) Nothing
   = do tell ["MTAllocArray(wptr,"]
-       mobileElemType innerT
+       mobileElemType True innerT
        tell [",", show $ length ds]
        prefixComma $ [call genExpression e | A.Dimension e <- ds]
        tell [")"]
 cgenAllocMobile m (A.Mobile t) Nothing
   = do tell ["MTAlloc(wptr,"]
-       mobileElemType t
+       mobileElemType False t
        tell [","]
        call genBytesIn m t (Left False)
        tell [")"]
@@ -2036,7 +1907,7 @@ cgenAllocMobile m t@(A.Record n) Nothing
   = do isMobile <- recordAttr m t >>* A.mobileRecord
        if isMobile
          then do tell ["MTAlloc(wptr,"]
-                 mobileElemType t
+                 mobileElemType False t
                  tell [","]
                  genName n
                  tell ["_mtsize)"]
@@ -2046,15 +1917,16 @@ cgenAllocMobile m t@(A.Record n) Nothing
 -- into a subsequent assignment
 cgenAllocMobile _ _ _ = call genMissing "Mobile allocation with initialising-expression"
 
-mobileElemType :: A.Type -> CGen ()
-mobileElemType (A.Record n)
+-- The Bool is True if inside an array, False otherwise
+mobileElemType :: Bool -> A.Type -> CGen ()
+mobileElemType _ (A.Record n)
   = do tell ["(word)"]
        genName n
        tell ["_mttype"]
-mobileElemType A.Int = mobileElemType cIntReplacement
-mobileElemType t = tell ["MT_SIMPLE|MT_MAKE_TYPE(MT_DATA)"]
- -- Looks like CCSP may not support NUM with MTAlloc:
- -- tell ["MT_MAKE_NUM(MT_NUM_", showOccam t,")"]
+mobileElemType b A.Int = mobileElemType b cIntReplacement
+-- CCSP only supports NUM with MTAlloc inside arrays:
+mobileElemType True t = tell ["MT_MAKE_NUM(MT_NUM_", showOccam t,")"]
+mobileElemType False t = tell ["MT_SIMPLE|MT_MAKE_TYPE(MT_DATA)"]
 
 cgenClearMobile :: Meta -> A.Variable -> CGen ()
 cgenClearMobile _ v

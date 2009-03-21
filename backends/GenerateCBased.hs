@@ -21,8 +21,9 @@ module GenerateCBased where
 
 import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Writer
+import Control.Monad.Writer hiding (tell)
 import Data.Generics
+import Data.List
 import System.IO
 
 import qualified AST as A
