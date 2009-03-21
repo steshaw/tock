@@ -630,59 +630,6 @@ convByte c
 --}}}
 
 --{{{  variables
-{-
-The various types are generated like this:
-
-                        ================= Use =================
-                        Original        ValAbbrev   Abbrev
-                        --------------------------------------
-INT x:                  int x;          int x;      int *x;
-  x                     x               x           *x
-
-[10]INT xs:             int xs[10];     int *xs;    int *xs;
-  xs                    xs              xs          xs
-  xs[i]                 xs[i]           xs[i]       xs[i]
-
-[20][10]INT xss:        int xss[20*10]; int *xss;   int *xss;
-  xss                   xss             xss         xss
-  xss[i]                &xss[i*10]      &xss[i*10]  &xss[i*10]  (where 10 = xss_sizes[1])
-  xss[i][j]             xss[i*10+j]     xss[i*10+j] xss[i*10+j]
-
-[6][4][2]INT xsss:      int xsss[6*4*2]; int *xsss;
-  xsss                  xsss             (as left)
-  xsss[i]               &xsss[i*4*2]
-  xsss[i][j]            &xsss[i*4*2+j*2]
-  xsss[i][j][k]         xsss[i*4*2+j*2+k]
-
-MYREC r:                MYREC r;        MYREC *r;   MYREC *r;
-  r                     &r              r           r
-  r[F]                  (&r)->F         (r)->F      (r)->F
-
-[10]MYREC rs:           MYREC rs[10];   MYREC *rs;  MYREC *rs;
-  rs                    rs              rs          rs
-  rs[i]                 &rs[i]          &rs[i]      &rs[i]
-  rs[i][F]              (&rs[i])->F     (&rs[i])->F (&rs[i])->F
-                           -- depending on what F is -- if it's another record...
-
-CHAN OF INT c:          Channel c;                  Channel *c;
-  c                     &c                          c
-
-[10]CHAN OF INT cs:     Channel* cs[10];            Channel **cs;
-  cs                    cs                          cs
-  cs[i]                 cs[i]                       cs[i]
-
-I suspect there's probably a nicer way of doing this, but as a translation of
-the above table this isn't too horrible...
--}
-{-
--- | Generate C code for a variable.
-cgenVariable :: A.Variable -> CGen ()
-cgenVariable = cgenVariable' True
-
--- | Generate C code for a variable without doing any range checks.
-cgenVariableUnchecked :: A.Variable -> CGen ()
-cgenVariableUnchecked = cgenVariable' False
--}
 
 cgenVariableWithAM :: Bool -> A.Variable -> A.AbbrevMode -> CGen ()
 cgenVariableWithAM checkValid v am
@@ -690,10 +637,6 @@ cgenVariableWithAM checkValid v am
        t <- astTypeOf v
        ct <- call getCType m t am
        dressUp m iv ct
-
-{-  = do (cg, n) <- inner 0 v Nothing
-       addPrefix cg n
--}
   where
     m = findMeta v
 
@@ -758,106 +701,6 @@ cgenVariableWithAM checkValid v am
                                )]
                              tell [")"]
                          , ct)
-
-    -- The general plan here is to generate the variable, while also
-    -- putting in the right prefixes (&/*/**/***/etc).
-    -- We use an "indirection level" to record the prefix needed.
-    -- 0 means no prefix, -1 means &, 1 means *, 2 means **, etc
-    
-    -- For arrays, we must pass through the inner type of the array
-    -- so that we can add the appropriate prefixes before the array
-    -- name.  That is, we make sure we write (&foo[0]), not
-    -- (&foo)[0]
-{-  
-    inner :: Int -> A.Variable -> Maybe A.Type -> CGen (CGen (), Int)
-    inner ind (A.Variable _ n) mt
-      = do amN <- abbrevModeOfName n
-           (am,t) <- case (amN,mt) of 
-                       -- Channel arrays are special, because they are arrays of abbreviations:
-                       (_, Just t'@(A.Chan {})) -> return (A.Abbrev, t')
-                       (_, Just t'@(A.ChanEnd {})) -> return (A.Abbrev, t')
-                       -- If we are dealing with an array element, treat it as if it had the original abbreviation mode,
-                       -- regardless of the abbreviation mode of the array:
-                       (_, Just t') -> return (A.Original, t')
-                       (am,Nothing) -> do t <- astTypeOf n
-                                          return (am, t)
-           let ind' = case (am, t, indirectedType t) of
-                        -- For types that are referred to by pointer (such as records)
-                        -- we need to take the address:
-                        (A.Original, _, True) -> ind - 1
-                        -- If the type is referred to by pointer but is already abbreviated,
-                        -- no need to change the indirection:
-                        (_, _, True) -> ind                        
-                        -- Undirected channels will already have been handled, so this is for directed:
-                        (A.Abbrev, A.ChanEnd {}, _) -> ind
-                        -- Abbreviations of arrays are pointers, just like arrays, so no
-                        -- need for a * operator:
-                        (A.Abbrev, A.Array {}, _) -> ind
-                        (A.Abbrev, _, _) -> ind + 1
-                        _ -> ind
-           return (genName n, ind')
-    inner ind (A.DerefVariable _ v) mt
-      = do (A.Mobile t) <- astTypeOf v
-           am <- abbrevModeOfVariable v
-           case (t, am, mt) of
-             (A.Array _ t, _, _) ->
-               do (cg, n) <- inner ind v Nothing
-                  let cast = tell ["("] >> genType t >> tell ["*)"]
-                  return (tell ["("] >> cast >> tell ["(("] >> addPrefix cg n >> tell [")->data))"], 0)
-             (A.Record {}, A.Original,_) -> inner ind v mt
-             _ -> inner (ind+1) v mt
-    inner ind (A.DirectedVariable m dir v) mt
-      = do (cg,n) <- (inner ind v mt)
-           t <- astTypeOf v
-           return (call genDirectedVariable m t (addPrefix cg n) dir, 0)
-    inner ind sv@(A.SubscriptedVariable m (A.Subscript _ subCheck _) v) mt
-      = do (es, v, t') <- collectSubs sv
-           t <- if checkValid
-                  then astTypeOf sv
-                  else return t'
-           ds <- astTypeOf v >>= \t -> case t of
-                   A.Array ds _ -> return ds
-                   A.Mobile (A.Array ds _) -> return ds
-           (cg, n) <- inner ind v (Just t)
-           let check = if checkValid then subCheck else A.NoCheck
-           return ((if (length ds /= length es) then tell ["&"] else return ()) >> addPrefix
-             cg n >> call genArraySubscript check v (map (\e -> (findMeta e, call genExpression e)) es), 0)
-    inner ind sv@(A.SubscriptedVariable _ (A.SubscriptField m n) v) mt
-        =  do (cg, ind') <- inner ind v mt
-              t <- astTypeOf sv
-              let outerInd :: Int
-                  outerInd = if indirectedType t then -1 else 0
-              return (addPrefix (addPrefix cg ind' >> tell ["->"] >> genName n) outerInd, 0)
-
-    inner ind sv@(A.SubscriptedVariable m (A.SubscriptFromFor m' subCheck start count) v) mt
-        = return (
-           do let check = if checkValid then subCheck else A.NoCheck
-              tell ["(&"]
-              join $ liftM fst $ inner ind v mt
-              call genArraySubscript A.NoCheck v [(m',
-                case check of
-                  A.NoCheck -> call genExpression start
-                  _ -> do tell ["occam_check_slice("]
-                          call genExpression start
-                          genComma
-                          call genExpression count
-                          genComma
-                          call genExpression (A.SizeVariable m' v)
-                          genComma
-                          genMeta m'
-                          tell [")"]
-                )]
-              tell [")"], 0)
-    
-    addPrefix :: CGen () -> Int -> CGen ()
-    addPrefix cg 0 = cg
-    addPrefix cg n = tell ["(", getPrefix n] >> cg >> tell [")"]
-
-    getPrefix :: Int -> String
-    getPrefix 0 = ""
-    getPrefix (-1) = "&"
-    getPrefix n = if n > 0 then replicate n '*' else "#error Negative prefix lower than -1"
--}
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
     collectSubs (A.SubscriptedVariable m (A.Subscript _ _ e) v)
