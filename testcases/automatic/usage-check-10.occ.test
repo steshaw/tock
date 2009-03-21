@@ -1,0 +1,40 @@
+-- This file tests array usage checking on user data types.
+
+VAL INT MAX IS 32 :
+DATA TYPE COLUMN IS [MAX]REAL32:
+DATA TYPE MATRIX IS [MAX]COLUMN:
+
+PROC p ()
+  MATRIX m:
+  COLUMN c:
+%%
+:
+
+PROC main ()
+  p ()
+:
+
+%PASS User-defined array
+  PAR i = 0 FOR MAX
+    c[i] := 42.0
+
+%PASS User-defined array, SEQ in PAR
+  PAR
+    m[0][0] := 24.0
+    SEQ i = 0 FOR MAX
+      c[i] := 42.0
+
+%PASS User-defined array of user-defined arrays
+  PAR i = 0 FOR MAX
+    PAR j = 0 FOR MAX
+      m[i][j] := 42.0
+
+%PASS User-defined array of user-defined arrays, SEQ in PAR
+  CHAN OF COLUMN c:
+  COLUMN x:
+  PAR
+    SEQ i = 0 FOR MAX
+      c ! m[i]
+    c ? x
+
+%

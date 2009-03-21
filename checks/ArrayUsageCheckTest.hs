@@ -1183,6 +1183,7 @@ vioqcTests v
          ,"testcases/automatic/usage-check-7.occ.test"
          ,"testcases/automatic/usage-check-8.occ.test"
          ,"testcases/automatic/usage-check-9.occ.test"
+         ,"testcases/automatic/usage-check-10.occ.test"
          ]
       ,return $ qcOmegaEquality ++ qcOmegaPrune ++ qcTestMakeEquations)
 
