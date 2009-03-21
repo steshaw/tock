@@ -63,6 +63,7 @@ optionsNoWarnings =
   , Option [] ["help-warnings"] (NoArg optPrintWarningHelp)
       "print help about warning options"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
+  , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
@@ -114,6 +115,9 @@ optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
 
 optKeepTemporaries :: OptFunc
 optKeepTemporaries ps = return $ ps { csKeepTemporaries = True }
+
+optRunIndent :: OptFunc
+optRunIndent ps = return $ ps { csRunIndent = True }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
@@ -235,6 +239,8 @@ compileFull inputFile moutputFile
           let cFile = outputFile ++ extension
           withOutputFile cFile $ compile ModeCompile inputFile
           noteFile cFile
+          when (csRunIndent optsPS) $
+            exec $ "indent " ++ cFile
 
           case csBackend optsPS of
             BackendC ->

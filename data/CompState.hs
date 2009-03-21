@@ -104,6 +104,7 @@ data CompState = CompState {
     csOutputFile :: String,
     csKeepTemporaries :: Bool,
     csEnabledWarnings :: Set WarningType,
+    csRunIndent :: Bool,
     csClassicOccamMobility :: Bool,
 
     -- Set by preprocessor
@@ -147,6 +148,7 @@ emptyState = CompState {
       , WarnUnknownPreprocessorDirective
       , WarnUnusedVariable],
 -- TODO enable WarnUninitialisedVariable by default
+    csRunIndent = False,
     csClassicOccamMobility = False,
 
     csCurrentFile = "none",
