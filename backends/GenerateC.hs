@@ -731,22 +731,67 @@ cgenVariableUnchecked = cgenVariable' False
 
 cgenVariableWithAM :: Bool -> A.Variable -> Maybe A.AbbrevMode -> CGen ()
 cgenVariableWithAM checkValid v mam
-  = do let iv@(A.Variable m n) = findInnerV v
+  = do iv <- inner v
        t <- astTypeOf v
-       ct <- getVariableCType m (maybe (Right v) (\am -> Left (t, am)) mam)
-       cti <- getVariableCType m (Right iv)
-       dressUp m (genName n, cti) ct
+       ct <- getVariableCType m (t, fromMaybe A.Original mam)
+       dressUp m iv ct
 
 {-  = do (cg, n) <- inner 0 v Nothing
        addPrefix cg n
 -}
   where
-    findInnerV :: A.Variable -> A.Variable
-    findInnerV v@(A.Variable {}) = v
-    findInnerV (A.DerefVariable _ v) = findInnerV v
-    findInnerV (A.DirectedVariable _ _ v) = findInnerV v
-    findInnerV (A.SubscriptedVariable _ _ v) = findInnerV v
+    m = findMeta v
+
+    details :: A.Variable -> CGen CType
+    details v = do t <- astTypeOf v
+                   am <- abbrevModeOfVariable v
+                   getVariableCType m (t, am)
     
+    inner :: A.Variable -> CGen (CGen (), CType)
+    inner v@(A.Variable  m n)
+      = do ct <- details v
+           return (genName n, ct)
+    inner (A.DerefVariable _ v) = inner v
+    inner (A.DirectedVariable _ _ v) = inner v
+    inner sv@(A.SubscriptedVariable m sub v)
+      = case sub of
+          A.Subscript _ subCheck _
+            -> do (es, iv, _) <- collectSubs sv
+                  Pointer ct <- details iv
+                  let check = if checkValid then subCheck else A.NoCheck
+                  -- Arrays should be pointers to the inner element:
+                  return (do cgenVariableWithAM checkValid iv Nothing
+                             call genArraySubscript check iv (map (\e -> (findMeta e, call genExpression e)) es)
+                         , ct)
+          A.SubscriptField _ fieldName
+            -> do ct <- details v
+                  -- For records, we expect it to be a pointer to a record:
+                  return (do tell ["("]
+                             cgenVariableWithAM checkValid v Nothing
+                             tell [")."]
+                             genName fieldName
+                         , ct)
+          A.SubscriptFromFor m' subCheck start count
+            -> do ct <- details v
+                  return (do let check = if checkValid then subCheck else A.NoCheck
+                             tell ["(&"]
+                             cgenVariableWithAM checkValid v Nothing
+                             call genArraySubscript A.NoCheck v [(m',
+                               case check of
+                                  A.NoCheck -> call genExpression start
+                                  _ -> do tell ["occam_check_slice("]
+                                          call genExpression start
+                                          genComma
+                                          call genExpression count
+                                          genComma
+                                          call genExpression (A.SizeVariable m' v)
+                                          genComma
+                                          genMeta m'
+                                          tell [")"]
+                               )]
+                             tell [")"]
+                         , ct)
+
     -- The general plan here is to generate the variable, while also
     -- putting in the right prefixes (&/*/**/***/etc).
     -- We use an "indirection level" to record the prefix needed.
@@ -845,7 +890,7 @@ cgenVariableWithAM checkValid v mam
     getPrefix 0 = ""
     getPrefix (-1) = "&"
     getPrefix n = if n > 0 then replicate n '*' else "#error Negative prefix lower than -1"
-
+-}
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
     collectSubs (A.SubscriptedVariable m (A.Subscript _ _ e) v)
@@ -854,16 +899,15 @@ cgenVariableWithAM checkValid v mam
              return (es' ++ [e], v', t)
     collectSubs v = do t <- astTypeOf v
                        return ([], v, t)
--}
-getVariableCType :: Meta -> Either (A.Type, A.AbbrevMode) A.Variable -> CGen CType
-getVariableCType m e
-  = do (t, am) <- either return (seqPair . (astTypeOf &&& abbrevModeOfVariable)) e
-       sc <- fget getScalarType >>* ($ t)
+
+getVariableCType :: Meta -> (A.Type, A.AbbrevMode) -> CGen CType
+getVariableCType m (t, am)
+  = do sc <- fget getScalarType >>* ($ t)
        let isMobile = False
        case (t, sc, isMobile, am) of
          -- All abbrev modes:
          (A.Array _ t, _, False, _)
-           -> getVariableCType m (Left (t, A.Original)) >>* Pointer
+           -> getVariableCType m (t, A.Original) >>* Pointer
 
          (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
          -- Abbrev and ValAbbrev:
