@@ -183,12 +183,19 @@ updateAbbrevsInState
     = pass "Update INITIAL and RESULT abbreviations in state"
            [Prop.initialRemoved, Prop.resultRemoved]
            []
-           (\v -> get >>= applyDepthM (return . doAbbrevMode) >>= put >> return v)
+           (\v -> get >>* doNameAbbrevs >>= applyDepthM (return . doAbbrevMode)
+                    >>= put >> return v)
   where
     doAbbrevMode :: A.AbbrevMode -> A.AbbrevMode
     doAbbrevMode A.InitialAbbrev = A.Original
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
+
+    -- Until Polyplate is merged, this fixes updating the abbreviation modes in
+    -- the csNames map
+    doNameAbbrevs :: CompState -> CompState
+    doNameAbbrevs cs = cs { csNames = flip Map.map (csNames cs) $
+      \nd -> nd { A.ndAbbrevMode = doAbbrevMode (A.ndAbbrevMode nd) } }
 
 abbrevCheckPass :: Pass
 abbrevCheckPass
