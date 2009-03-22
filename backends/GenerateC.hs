@@ -754,6 +754,10 @@ cgetCType m origT am
          (_, Just pl, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain pl
          (_, Just pl, True, A.ValAbbrev) -> return $ Pointer $ Const $ Plain pl
 
+         -- This shouldn't happen, but no harm:
+         (A.UserDataType {}, _, _, _) -> do t' <- resolveUserType m t
+                                            cgetCType m t' am
+
          -- Must have missed one:
          _ -> diePC m $ formatCode "Cannot work out the C type for: %" origT
   where

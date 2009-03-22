@@ -525,6 +525,8 @@ checkUnusedVar = forAnyASTStructBottomUpAccum doSpec
     doSpec :: Data a => A.Structured a -> CheckOptASTM' [A.Name] (A.Structured a) ()
      -- Don't touch PROCs, for now:
     doSpec (A.Spec _ (A.Specification mspec name (A.Proc {})) scope) = return ()
+     -- Don't remove data types, in case the backend wants them:
+    doSpec (A.Spec _ (A.Specification _ _ (A.DataType {})) _) = return ()
      -- DO NOT remove unused replicators!
     doSpec (A.Spec _ (A.Specification mspec name (A.Rep {})) scope) = return ()      
     doSpec (A.Spec _ (A.Specification mspec name _) scope)
