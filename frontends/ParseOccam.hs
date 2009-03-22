@@ -110,14 +110,16 @@ sRightR = reserved ")"
 sSemi = reserved ";"
 --}}}
 --{{{ keywords
+
 sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
-  sBYTESIN, sCASE, sCHAN, sCLONE, sDATA, sDEFINED, sELSE, sFALSE, sFOR, sFROM,
-  sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS,
-  sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR, sPACKED,
-  sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC, sPROCESSOR, sPROTOCOL,
-  sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM, sRESHAPES, sRESULT,
-  sRETYPES, sROUND, sSEQ, sSIZE, sSKIP, sSTEP, sSTOP, sTIMER, sTIMES, sTRUE,
-  sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE, sVECSPACE
+  sBYTESIN, sCASE, sCHAN, sCLAIM, sCLONE, sDATA, sDEFINED, sELSE, sFALSE,
+  sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32,
+  sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR,
+  sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC, sPROCESSOR,
+  sPROTOCOL, sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM, sRESHAPES,
+  sRESULT, sRETYPES, sROUND, sSEQ, sSHARED, sSIZE, sSKIP, sSTEP, sSTOP,
+  sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE,
+  sVECSPACE
     :: OccParser ()
 
 sAFTER = reserved "AFTER"
@@ -133,6 +135,7 @@ sBYTE = reserved "BYTE"
 sBYTESIN = reserved "BYTESIN"
 sCASE = reserved "CASE"
 sCHAN = reserved "CHAN"
+sCLAIM = reserved "CLAIM"
 sCLONE = reserved "CLONE"
 sDATA = reserved "DATA"
 sDEFINED = reserved "DEFINED"
@@ -178,6 +181,7 @@ sRESULT = reserved "RESULT"
 sRETYPES = reserved "RETYPES"
 sROUND = reserved "ROUND"
 sSEQ = reserved "SEQ"
+sSHARED = reserved "SHARED"
 sSIZE = reserved "SIZE"
 sSKIP = reserved "SKIP"
 sSTEP = reserved "STEP"
@@ -464,11 +468,12 @@ name nt
 newName :: NameType -> OccParser A.Name
 newName nt = anyName nt
 
-channelName, dataTypeName, functionName, portName, procName, protocolName,
+channelName, chanBundleName, dataTypeName, functionName, portName, procName, protocolName,
   recordName, timerName, variableName
     :: OccParser A.Name
 
 channelName = name ChannelName
+chanBundleName = name ChanBundleName
 dataTypeName = name DataTypeName
 functionName = name FunctionName
 portName = name PortName
@@ -478,12 +483,13 @@ recordName = name RecordName
 timerName = name TimerName
 variableName = name VariableName
 
-newChannelName, newDataTypeName, newFunctionName, newPortName,
+newChannelName, newChanBundleName, newDataTypeName, newFunctionName, newPortName,
   newProcName, newProtocolName, newRecordName, newTimerName,
   newVariableName
     :: OccParser A.Name
 
 newChannelName = newName ChannelName
+newChanBundleName = newName ChanBundleName
 newDataTypeName = newName DataTypeName
 newFunctionName = newName FunctionName
 newPortName = newName PortName
@@ -539,6 +545,8 @@ dataType
     -- Mobile arrays can lack dimensions:
     <|> do { tryXV sMOBILE (specArrayType dataType) >>* A.Mobile }
     <|> do { tryXV sMOBILE dataType >>* A.Mobile }
+    <|> do { (n, dir) <- tryVV chanBundleName direction; return $ A.ChanDataType dir A.Unshared n }
+    <|> do { (n, dir) <- tryXVV sSHARED chanBundleName direction; return $ A.ChanDataType dir A.Shared n }
     <|> do { n <- try dataTypeName; return $ A.UserDataType n }
     <|> do { n <- try recordName; return $ A.Record n }
     <?> "data type"
@@ -872,6 +880,7 @@ channel
 channel' :: OccParser A.Variable
 channel'
     =   do { m <- md; n <- try channelName; return $ A.Variable m n }
+    <|> do { m <- md; n <- try variableName; return $ A.Variable m n }
     <|> maybeSliced directedChannel A.SubscriptedVariable
     <?> "channel'"
 
@@ -1094,8 +1103,26 @@ definition
     =   do m <- md
            sDATA
            sTYPE
-           do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol; return (A.Specification m n (A.DataType m t), DataTypeName) }
-             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol; return (A.Specification m n rec, RecordName) }
+           do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol;
+                  return (A.Specification m n (A.DataType m t), DataTypeName) }
+             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol;
+                  return (A.Specification m n rec, RecordName) }
+    <|> do m <- md
+           rec <- recMode sCHAN >>* fst
+           sTYPE
+           n <- newChanBundleName
+           eol
+           indent
+           sMOBILE
+           sRECORD
+           eol
+           indent
+           fs <- many1 chanInBundle
+           outdent
+           outdent
+           sColon
+           eol
+           return (A.Specification m n $ A.ChanBundleType m rec fs, ChanBundleName)
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
@@ -1138,6 +1165,15 @@ definition
                 return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left vp), FunctionName) }
     <|> retypesAbbrev
     <?> "definition"
+  where
+    chanInBundle :: OccParser (A.Name, A.Type)
+    chanInBundle = do sCHAN
+                      t <- protocol
+                      n <- newFieldName
+                      dir <- direction
+                      sColon
+                      eol
+                      return (n, A.ChanEnd dir (A.ChanAttributes A.Unshared A.Unshared) t)
 
 retypesAbbrev :: OccParser NameSpec
 retypesAbbrev
@@ -1360,6 +1396,8 @@ process
     <|> handleSpecs (allocation <|> specification) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
     <|> (pragma >> process)
+    <|> do {m <- md; sCLAIM; v <- variable; eol; indent; p <- process; outdent;
+             return $ A.Claim m v p }
     <?> "process"
 
 --{{{ assignment (:=)

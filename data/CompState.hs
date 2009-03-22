@@ -61,7 +61,7 @@ data PreprocDef =
 -- particular context; in later passes you can look at how the name is actually
 -- defined, which is more useful.
 data NameType =
-  ChannelName | DataTypeName | FunctionName | FieldName | PortName
+  ChannelName | ChanBundleName | DataTypeName | FunctionName | FieldName | PortName
   | ProcName | ProtocolName | RecordName | TagName | TimerName | VariableName
   deriving (Show, Eq, Typeable, Data)
 

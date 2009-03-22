@@ -124,6 +124,8 @@ data Type =
   | List Type
   -- | A user-defined data type.
   | UserDataType Name
+  -- | An end of a channel bundle
+  | ChanDataType Direction ShareMode Name
   -- | A record type.
   | Record Name
   -- | A user-defined protocol.
@@ -491,6 +493,8 @@ data SpecType =
   -- | Declare a new record type.
   -- The list is the fields of the record.
   | RecordType Meta RecordAttr [(Name, Type)]
+  -- | Declares a mobile channel bundle.
+  | ChanBundleType Meta RecMode [(Name, Type)]
   -- | Declare a simple protocol.
   -- The list contains the types of the items.
   | Protocol Meta [Type]
@@ -581,6 +585,7 @@ data Process =
   -- This may go away in the future, since which @PROC@s are intrinsics depends
   -- on the backend.
   | IntrinsicProcCall Meta String [Actual]
+  | Claim Meta Variable Process
   deriving (Show, Eq, Typeable, Data)
 
 -- | The top level of the AST: a sequence of definitions.
