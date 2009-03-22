@@ -93,6 +93,7 @@ checkType m et rt
              if valid
                then checkType m t t'
                else bad
+        (A.Mobile t, A.Mobile t') -> checkType m t t'
         _ ->
           do same <- sameType rt et
              when (not same) $ bad
@@ -142,8 +143,8 @@ checkCommunicable m A.Any = ok
 checkCommunicable m t = checkTypeClass isCommunicableType "communicable" m t
 
 -- | Check that a type is a sequence.
-checkSequence :: Meta -> A.Type -> PassM ()
-checkSequence = checkTypeClass isSequenceType "array or list"
+checkSequence :: Bool -> Meta -> A.Type -> PassM ()
+checkSequence mobileAllowed = checkTypeClass (isSequenceType mobileAllowed) "array or list"
 
 -- | Check that a type is an array.
 checkArray :: Meta -> A.Type -> PassM ()
@@ -229,7 +230,7 @@ checkSubscript m s rawT
             A.SubscriptField m n ->
               checkRecordField m t n
             -- A sequence subscript.
-            A.Subscript _ _ _ -> checkSequence m t
+            A.Subscript _ _ _ -> checkSequence False m t
             -- An array slice.
             _ -> checkArray m t
 
@@ -1252,13 +1253,13 @@ checkExpressions = checkDepthM doExpression
     doExpression (A.Dyadic _ op le re) = checkDyadicOp op le re
     doExpression (A.MostPos m t) = checkNumeric m t
     doExpression (A.MostNeg m t) = checkNumeric m t
-    doExpression (A.SizeType m t) = checkSequence m t
+    doExpression (A.SizeType m t) = checkSequence True m t
     doExpression (A.SizeExpr m e)
         =  do t <- astTypeOf e
-              checkSequence m t
+              checkSequence True m t
     doExpression (A.SizeVariable m v)
         =  do t <- astTypeOf v
-              checkSequence m t
+              checkSequence True m t
     doExpression (A.Conversion m _ t e)
         =  do et <- astTypeOf e
               checkScalar m t >> checkScalar (findMeta e) et
@@ -1387,7 +1388,7 @@ checkSpecTypes = checkDepthM doSpecType
               checkExpressionInt step
     doSpecType (A.Rep _ (A.ForEach _ e))
         =  do t <- astTypeOf e
-              checkSequence (findMeta e) t
+              checkSequence False (findMeta e) t
 
 
     checkValAM :: Meta -> A.AbbrevMode -> PassM ()

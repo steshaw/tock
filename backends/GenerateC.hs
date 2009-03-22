@@ -838,6 +838,7 @@ countSubscripts (A.SubscriptedVariable _ (A.Subscript {}) v)
   = let (n, v') = countSubscripts v in (1+n, v')
 countSubscripts (A.SubscriptedVariable _ _ v) = countSubscripts v
 countSubscripts (A.DirectedVariable _ _ v) = countSubscripts v
+countSubscripts (A.DerefVariable _ v) = countSubscripts v
 countSubscripts v@(A.Variable _ _) = (0, v)
 
 --{{{  expressions

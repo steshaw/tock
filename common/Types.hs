@@ -594,10 +594,11 @@ isCommunicableType (A.Mobile _) = True
 isCommunicableType t = isScalarType t
 
 -- | Types that support 'Size' and subscripting.
-isSequenceType :: A.Type -> Bool
-isSequenceType (A.Array _ _) = True
-isSequenceType (A.List _) = True
-isSequenceType _ = False
+isSequenceType :: Bool -> A.Type -> Bool
+isSequenceType _ (A.Array _ _) = True
+isSequenceType _ (A.List _) = True
+isSequenceType True (A.Mobile t) = isSequenceType False t
+isSequenceType _ _ = False
 
 isMobileType :: (CSMR m, Die m) => A.Type -> m Bool
 isMobileType (A.Mobile {}) = return True
