@@ -80,10 +80,15 @@ data Direction =
   | DirOutput      -- ^ The output end.
   deriving (Show, Eq, Typeable, Data)
 
+data ShareMode
+  = Unshared
+    | Shared
+    deriving (Show, Eq, Typeable, Data)
+
 -- | Attributes of the type of a channel.
 data ChanAttributes = ChanAttributes {
-    caWritingShared :: Bool,
-    caReadingShared :: Bool
+    caWritingShared :: ShareMode,
+    caReadingShared :: ShareMode
   }
   deriving (Show, Eq, Typeable, Data)
 

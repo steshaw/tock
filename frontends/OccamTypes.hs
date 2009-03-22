@@ -433,8 +433,8 @@ checkChannel wantDir c
                   when (wantDir /= dir) $ dieP m $ "Channel directions do not match"
                   -- Check it's not shared in the direction we're using.
                   case (ws, rs, wantDir) of
-                    (False, _, A.DirOutput) -> ok
-                    (_, False, A.DirInput) -> ok
+                    (A.Unshared, _, A.DirOutput) -> ok
+                    (_, A.Unshared, A.DirInput) -> ok
                     _ -> dieP m $ "Shared channel must be claimed before use"
 
                   return innerT

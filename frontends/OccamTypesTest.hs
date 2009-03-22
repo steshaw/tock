@@ -74,7 +74,7 @@ startState
   where
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayListLiteral m $ A.Several m []
-    chanT t = A.Chan (A.ChanAttributes False False) t
+    chanT t = A.Chan (A.ChanAttributes A.Unshared A.Unshared) t
     chanIntT = chanT A.Int
     countedIntsT = chanT $ A.UserProtocol (simpleName "countedInts")
     iirT = chanT $ A.UserProtocol (simpleName "iir")
@@ -564,7 +564,7 @@ testOccamTypes = TestList
     coord2E = A.Literal m coord2T coord2
     coord3T = A.Record (simpleName "COORD3")
     coord3 = A.RecordLiteral m [realE, realE, realE]
-    chanT t = A.Chan (A.ChanAttributes False False) t
+    chanT t = A.Chan (A.ChanAttributes A.Unshared A.Unshared) t
     chanIntT = chanT A.Int
     chansIntT = A.Array [dimension 2] $ chanT A.Int
     uchansIntT = A.Array [A.UnknownDimension] $ chanT A.Int

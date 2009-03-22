@@ -531,7 +531,7 @@ testTopLevelDecl =
    passTop (ind, input, exp) = pass (input, RP.topLevelDecl, assertPatternMatch ("testTopLevelDecl " ++ show ind) $ pat $ A.Several m exp)
 
 nonShared :: A.ChanAttributes
-nonShared = A.ChanAttributes { A.caWritingShared = False, A.caReadingShared = False}
+nonShared = A.ChanAttributes { A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared}
 
 testDataType :: [ParseTest A.Type]
 testDataType =

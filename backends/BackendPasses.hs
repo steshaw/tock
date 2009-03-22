@@ -441,7 +441,7 @@ mobileReturn = cOnlyPass "Add MOBILE returns" [] [] recurse
                      return $ surr $ A.ProcCall m n as'
     doProcess p = descend p
 
-    chanT t = A.Chan (A.ChanAttributes False False) t
+    chanT t = A.Chan (A.ChanAttributes A.Unshared A.Unshared) t
 
     addChansAct :: Meta -> [(A.Formal, A.Actual)] -> PassM (A.Process -> A.Process, [A.Actual])
     addChansAct _ [] = return (id, [])

@@ -545,7 +545,7 @@ dataType
 
 channelType :: OccParser A.Type
 channelType
-    =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = False, A.caReadingShared = False} p }
+    =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared} p }
     <|> arrayType channelType
     <?> "channel type"
 

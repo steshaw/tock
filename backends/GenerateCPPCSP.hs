@@ -655,10 +655,10 @@ cppgetCType m t am | isChan t
                           A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT)
                           A.Chan attr innerT -> (
                             case (A.caWritingShared attr,A.caReadingShared attr) of
-                              (False,False) -> "csp::One2OneChannel"
-                              (False,True)  -> "csp::One2AnyChannel"
-                              (True,False)  -> "csp::Any2OneChannel"
-                              (True,True)   -> "csp::Any2AnyChannel"
+                              (A.Unshared,A.Unshared) -> "csp::One2OneChannel"
+                              (A.Unshared,A.Shared)  -> "csp::One2AnyChannel"
+                              (A.Shared,A.Unshared)  -> "csp::Any2OneChannel"
+                              (A.Shared,A.Shared)   -> "csp::Any2AnyChannel"
                             , innerT)
          innerCT <- cppTypeInsideChannel innerT
          return $ Template chanType [innerCT]

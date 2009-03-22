@@ -254,10 +254,10 @@ instance ShowOccam A.Type where
     where
       shared
           = case (A.caWritingShared ca, A.caReadingShared ca) of
-              (False, False) -> ""
-              (True, False) -> "SHARED! "
-              (False, True) -> "SHARED? "
-              (True, True) -> "SHARED "
+              (A.Unshared, A.Unshared) -> ""
+              (A.Shared, A.Unshared) -> "SHARED! "
+              (A.Unshared, A.Shared) -> "SHARED? "
+              (A.Shared, A.Shared) -> "SHARED "
       direction
           = case dir of
               A.DirInput -> "?"
@@ -267,10 +267,10 @@ instance ShowOccam A.Type where
     where
       shared
           = case (A.caWritingShared ca, A.caReadingShared ca) of
-              (False, False) -> ""
-              (True, False) -> "SHARED! "
-              (False, True) -> "SHARED? "
-              (True, True) -> "SHARED "
+              (A.Unshared, A.Unshared) -> ""
+              (A.Shared, A.Unshared) -> "SHARED! "
+              (A.Unshared, A.Shared) -> "SHARED? "
+              (A.Shared, A.Shared) -> "SHARED "
   showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
   showOccamM (A.Port t) = tell ["PORT "] >> showOccamM t
   showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
@@ -293,12 +293,12 @@ instance ShowRain A.Type where
     = tell ["channel ", ao (A.caWritingShared attr),
           "2", ao (A.caReadingShared attr)," "] >> showRainM t
     where
-      ao :: Bool -> String
-      ao b = if b then "any" else "one"  
+      ao :: A.ShareMode -> String
+      ao b = if b == A.Shared then "any" else "one"  
   showRainM (A.ChanEnd dir attr t) 
     = case dir of
-        A.DirInput -> tell [if A.caReadingShared attr then "shared" else "", " ?"] >> showRainM t
-        A.DirOutput -> tell [if A.caWritingShared attr then "shared" else "", " !"] >> showRainM t
+        A.DirInput -> tell [if A.caReadingShared attr == A.Shared then "shared" else "", " ?"] >> showRainM t
+        A.DirOutput -> tell [if A.caWritingShared attr == A.Shared then "shared" else "", " !"] >> showRainM t
     where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  

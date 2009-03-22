@@ -235,7 +235,7 @@ typeOfVariable (A.DirectedVariable m dir v)
              if dir == dir'
                then return t
                else dieP m $ "Attempted to reverse direction of a channel-end"
-           A.Infer -> return $ A.ChanEnd dir (A.ChanAttributes False False) A.Infer
+           A.Infer -> return $ A.ChanEnd dir (A.ChanAttributes A.Unshared A.Unshared) A.Infer
            _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
 
 -- | Get the abbreviation mode of a variable.
