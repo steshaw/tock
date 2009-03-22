@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Passes associated with the backends
-module BackendPasses (addSizesActualParameters, addSizesFormalParameters, declareSizesArray, simplifySlices, squashArrays, transformWaitFor) where
+module BackendPasses (addSizesActualParameters, addSizesFormalParameters, declareSizesArray, simplifySlices, backendPasses, transformWaitFor) where
 
 import Control.Monad.State
 import Data.Generics
@@ -36,8 +36,8 @@ import Traversal
 import Types
 import Utils
 
-squashArrays :: [Pass]
-squashArrays =
+backendPasses :: [Pass]
+backendPasses =
     -- Note that removeDirections is only for C, whereas removeUnneededDirections
     -- is for all backends
   [ removeDirectionsForC

@@ -67,7 +67,7 @@ commonPasses opts = concat $
   , unnest
   , enablePassesWhen csUsageChecking
      [abbrevCheckPass]
-  , squashArrays
+  , backendPasses
   , [pass "Removing unused variables" [] []
       (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
   ]
