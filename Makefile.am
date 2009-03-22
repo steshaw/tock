@@ -240,6 +240,11 @@ haddock:
 		cat docextra/tock-docs.m4 $$x | m4 -P >$${x}_ && mv $${x}_ $$x; \
 	done
 
-TAGS: $(tocktest_SOURCES)
+TAGS: $(tocktest_SOURCES) ProcessTags.hs
+	ghc -o postprocesstags ProcessTags.hs -odir obj -hidir obj
 	hasktags -e $(tocktest_SOURCES)
+	mv TAGS TAGSorig
+	./postprocesstags < TAGSorig > TAGS
+	rm TAGSorig
+
 
