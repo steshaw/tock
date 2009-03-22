@@ -646,7 +646,7 @@ cgenVariableWithAM checkValid v am
            case t of
              A.Array _ innerT ->
                do (cg, ct) <- inner v
-                  innerCT <- call getCType m t A.Original
+                  innerCT <- call getCType m innerT A.Original
                   let cast = tell ["("] >> genType innerT >> tell ["*)"]
                   return (tell ["("] >> cast >> tell ["(("] >> cg >> tell [")->data))"]
                          , Pointer $ innerCT)
