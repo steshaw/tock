@@ -236,13 +236,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
            -- to the abbreviation source (for everything but record fields)
            -- or the globally declared record field _sizes constant
            varSrcSizes <- case innerV of
-             A.Variable _ srcN -> return (A.Variable m $ append_sizes srcN)
+             A.Variable _ srcN -> return (A.ExprVariable m $ A.Variable m $ append_sizes srcN)
              A.SubscriptedVariable _ (A.SubscriptField _ fieldName) recordV ->
                do A.Record recordName <- astTypeOf recordV
-                  return (A.Variable m $ A.Name m $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
-             A.DirectedVariable _ _ (A.Variable _ srcN) -> return (A.Variable m
-               $ append_sizes srcN)
-             _ -> diePC m $ formatCode "Cannot handle variable % in abbrevVarSizes" innerV
+                  return (A.ExprVariable m $ A.Variable m $ A.Name m $ A.nameName recordName ++ A.nameName fieldName ++ "_sizes")
+             A.DirectedVariable _ _ (A.Variable _ srcN) -> return (A.ExprVariable
+               m $ A.Variable m $ append_sizes srcN)
+             _ -> return $ A.AllSizesVariable m innerV
            -- Get the dimensions of the source variable:
            innerVT <- astTypeOf innerV
            srcDs <- case innerVT of
@@ -251,13 +251,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                                ++ " (%) in declareSizesArray: %") innerV innerVT
            -- Calculate the correct subscript into the source _sizes variable to get to the dimensions for the destination:
            let sizeDiff = length srcDs - length ds
-               subSrcSizeVar = A.SubscriptedVariable m (A.SubscriptFromFor m A.NoCheck (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
+               subSrcSizeVar = A.SubscriptedExpr m (A.SubscriptFromFor m A.NoCheck (makeConstant m sizeDiff) (makeConstant m $ length ds)) varSrcSizes
                sizeType = A.Array [makeDimension m $ length ds] A.Int
                sizeExpr = case sliceSize of
-                 Just exp -> let subDims = [A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
+                 Just exp -> let subDims = [A.SubscriptedExpr m (A.Subscript m A.NoCheck $ makeConstant m n) varSrcSizes | n <- [1 .. (length srcDs - 1)]] in
                    A.Literal m sizeType $ A.ArrayListLiteral m $ A.Several m $
-                     A.Only m exp : map (A.Only m . A.ExprVariable m) subDims
-                 Nothing -> A.ExprVariable m subSrcSizeVar
+                     A.Only m exp : map (A.Only m) subDims
+                 Nothing -> subSrcSizeVar
                sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeExpr
            defineSizesName m n_sizes sizeSpecType
            return $ A.Specification m n_sizes sizeSpecType

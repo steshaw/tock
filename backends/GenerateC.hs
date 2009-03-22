@@ -269,7 +269,8 @@ cgenOverArray m var func
                                case d of
                                  A.UnknownDimension ->
                                       do call genVariable var A.Original
-                                         call genSizeSuffix (show v)
+                                         t <- astTypeOf var
+                                         call genSizeSuffix m t (show v)
                                  A.Dimension n -> call genExpression n
                                tell [";"]
                                call genVariable i A.Original
@@ -384,7 +385,8 @@ cgenBytesIn m t v
         = case v of
             Right rv ->
               do call genVariable rv A.Original
-                 call genSizeSuffix (show i)
+                 t <- astTypeOf rv
+                 call genSizeSuffix (findMeta rv) t (show i)
                  tell ["*"]
             _ -> return ()
 
@@ -797,7 +799,9 @@ cgenArraySubscript check v es
                      genName n
                      genName fn
                      tell ["[", show i, "]"]
-             _ -> call genVariable v A.Original >> call genSizeSuffix (show i)
+             _ -> do call genVariable v A.Original
+                     t <- astTypeOf v
+                     call genSizeSuffix (findMeta v) t (show i)
     
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
@@ -854,7 +858,8 @@ cgenExpression (A.MostNeg m t) = call genTypeSymbol "mostneg" t
 --cgenExpression (A.SizeType m t)
 cgenExpression (A.SizeExpr m e)
     =  do call genExpression e
-          call genSizeSuffix "0"
+          t <- astTypeOf e
+          call genSizeSuffix m t "0"
 cgenExpression (A.SizeVariable m v)
     =  do t <- astTypeOf v
           case t of
@@ -864,7 +869,8 @@ cgenExpression (A.SizeVariable m v)
                 A.UnknownDimension ->
                   let (n, v') = countSubscripts v
                   in do call genVariable v' A.Original
-                        call genSizeSuffix (show n)
+                        v't <- astTypeOf v'
+                        call genSizeSuffix m v't (show n)
             A.List _ ->
               call genListSize v
 cgenExpression e@(A.AllSizesVariable m v)
@@ -895,10 +901,22 @@ cgenExpression (A.BytesInType m t) = call genBytesIn m t (Left False)
 --cgenExpression (A.ExprConstr {})
 cgenExpression (A.AllocMobile m t me) = call genAllocMobile m t me
 cgenExpression (A.CloneMobile m e) = call genCloneMobile m e
+cgenExpression (A.SubscriptedExpr m sub (A.ExprVariable _ v))
+  = call genVariable (A.SubscriptedVariable m sub v) A.Original
+cgenExpression (A.SubscriptedExpr m (A.SubscriptFromFor _ _ start _) e@(A.AllSizesVariable {}))
+  = do tell ["(&("]
+       call genExpression e
+       tell ["["]
+       call genExpression start
+       tell ["]))"]
 cgenExpression t = call genMissing $ "genExpression " ++ show t
 
-cgenSizeSuffix :: String -> CGen ()
-cgenSizeSuffix dim = tell ["_sizes[", dim, "]"]
+cgenSizeSuffix :: Meta -> A.Type -> String -> CGen ()
+cgenSizeSuffix m t dim
+  =    case t of
+         A.Array {} -> tell ["_sizes[", dim, "]"]
+         A.Mobile (A.Array {}) -> tell ["->dimensions[", dim, "]"]
+         _ -> diePC emptyMeta $ formatCode "Cannot produce dimensions for type: %" t
 
 cgenTypeSymbol :: String -> A.Type -> CGen ()
 cgenTypeSymbol s t
@@ -1159,7 +1177,9 @@ abbrevExpression am t@(A.Array _ _) e
     = case e of
         A.ExprVariable _ v -> call genVariable v am
         A.Literal _ t@(A.Array _ _) r -> call genExpression e
-        _ -> call genMissing "array expression abbreviation"
+        A.AllSizesVariable {} -> call genExpression e
+        A.SubscriptedExpr {} -> call genExpression e
+        _ -> call genMissingC $ formatCode "array expression abbreviation %" e
 abbrevExpression am t@(A.Record _) (A.ExprVariable _ v)
     = call genVariable v am
 abbrevExpression am _ e = call genExpression e
@@ -1564,17 +1584,18 @@ cgenProcess p = case p of
 cgenAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
 cgenAssign m [v] (A.ExpressionList _ [e])
     = do t <- astTypeOf v
+         trhs <- astTypeOf e
          f <- fget getScalarType
          isMobile <- isMobileType t
          case f t of
            Just _ -> doAssign v e
-           Nothing -> case (t, isMobile) of
+           Nothing -> case (t, isMobile, trhs) of
              -- Assignment of channel-ends, but not channels, is possible (at least in Rain):
-             (A.ChanEnd A.DirInput _ _, _) -> doAssign v e
-             (A.ChanEnd A.DirOutput _ _, _) -> doAssign v e
-             (A.List _, _) -> call genListAssign v e
-             (A.Mobile (A.List _), _) -> call genListAssign v e
-             (_, True)
+             (A.ChanEnd A.DirInput _ _, _, _) -> doAssign v e
+             (A.ChanEnd A.DirOutput _ _, _, _) -> doAssign v e
+             (A.List _, _, _) -> call genListAssign v e
+             (A.Mobile (A.List _), _, _) -> call genListAssign v e
+             (_, True, _)
                -> do call genClearMobile m v
                      case e of
                        A.AllocMobile _ _ Nothing -> doAssign v e
@@ -1588,13 +1609,21 @@ cgenAssign m [v] (A.ExpressionList _ [e])
                             call genVariable vrhs A.Original
                             tell ["=NULL;"]
                        _ -> call genMissing $ "Mobile assignment from " ++ show e
-             (A.Array ds innerT, _) | isPOD innerT && A.UnknownDimension `notElem` ds
+             (A.Array ds innerT, _, _) | isPOD innerT && A.UnknownDimension `notElem` ds
                -> do tell ["memcpy("]
                      call genVariable v A.Abbrev
                      tell [","]
                      call genExpression e
                      tell [","]
                      call genBytesIn m t (Left False)
+                     tell [");"]
+             (_, _, A.Array ds innerT) | isPOD innerT && A.UnknownDimension `notElem` ds
+               -> do tell ["memcpy("]
+                     call genVariable v A.Abbrev
+                     tell [","]
+                     call genExpression e
+                     tell [","]
+                     call genBytesIn m trhs (Left False)
                      tell [");"]
              _ -> call genMissingC $ formatCode "assignment of type %" t
   where
@@ -1966,6 +1995,7 @@ mobileElemType _ (A.Record n)
        genName n
        tell ["_mttype"]
 mobileElemType b A.Int = mobileElemType b cIntReplacement
+mobileElemType b A.Bool = mobileElemType b A.Byte
 -- CCSP only supports NUM with MTAlloc inside arrays:
 mobileElemType True t = tell ["MT_MAKE_NUM(MT_NUM_", showOccam t,")"]
 mobileElemType False t = tell ["MT_SIMPLE|MT_MAKE_TYPE(MT_DATA)"]

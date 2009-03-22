@@ -166,7 +166,7 @@ data GenOps = GenOps {
     genSeq :: A.Structured A.Process -> CGen (),
     genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: String -> A.Expression -> CGen (),
-    genSizeSuffix :: String -> CGen (),
+    genSizeSuffix :: Meta -> A.Type -> String -> CGen (),
     genSpec :: forall b. A.Specification -> CGen b -> CGen b,
     genSpecMode :: A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
