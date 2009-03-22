@@ -1010,7 +1010,20 @@ cgenInputItem c (A.InCounted m cv av)
           call genBytesIn m subT (Right av)
           tell [");"]
 cgenInputItem c (A.InVariable m v)
-    =  do t <- astTypeOf v
+    =  do case v of
+            -- If we are reading into a dereferenced mobile, we must make sure
+            -- that something is in that mobile first:
+            A.DerefVariable _ v' -> do
+                 tell ["if ("]
+                 call genVariable v' A.Original
+                 tell ["==NULL){"]
+                 call genVariable v' A.Original
+                 tell ["="]
+                 t <- astTypeOf v'
+                 call genAllocMobile m t Nothing
+                 tell [";}"]
+            _ -> return ()
+          t <- astTypeOf v
           isMobile <- isMobileType t
           let rhs = genDest v
           case (t, isMobile) of
