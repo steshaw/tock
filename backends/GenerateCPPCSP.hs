@@ -421,7 +421,7 @@ cppgenAlt _ s
   where
     --This function is like the enable function in GenerateC, but this one merely builds a list of guards.  It does not do anything other than add to the guard list
     initAltGuards :: String -> A.Structured A.Alternative -> CGen ()
-    initAltGuards guardList s = call genStructured s doA
+    initAltGuards guardList s = call genStructured s doA >> return ()
       where
         doA  _ alt
             = case alt of
@@ -442,7 +442,7 @@ cppgenAlt _ s
     -- This is the same as GenerateC for now -- but it's not really reusable
     -- because it's so closely tied to how ALT is implemented in the backend.
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured s doA
+    genAltProcesses id fired label s = call genStructured s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -776,7 +776,7 @@ cppgenIf m s | justOnly s = do call genStructured s doCplain
           tell ["}catch(",ifExc,"){}"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody ifExc s = call genStructured s doC
+    genIfBody ifExc s = call genStructured s doC >> return ()
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]

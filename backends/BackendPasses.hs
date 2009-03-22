@@ -21,6 +21,7 @@ module BackendPasses (addSizesActualParameters, addSizesFormalParameters, declar
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
 import qualified Data.Map as Map
 
 import qualified AST as A
@@ -47,6 +48,7 @@ backendPasses =
   , addSizesFormalParameters
   , addSizesActualParameters
   , fixMinInt
+  , mobileReturn
   ]
 
 prereq :: [Property]
@@ -410,3 +412,85 @@ simplifySlices = occamOnlyPass "Simplify array slices"
            return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (A.Dyadic m A.Subtr limit from)) v)
     doVariable v = return v
 
+-- | Finds all processes that have a MOBILE parameter passed in Abbrev mode, and
+-- add the communication back at the end of the process.
+mobileReturn :: Pass
+mobileReturn = cOnlyPass "Add MOBILE returns" [] [] recurse
+  where
+    ops = baseOp `extOpS` doStructured `extOp` doProcess
+
+    descend, recurse :: Data a => Transform a
+    descend = makeDescend ops
+    recurse = makeRecurse ops
+
+    ignoreProc :: A.Name -> PassM Bool
+    ignoreProc n
+      = do nd <- lookupName n
+           return $ "copy_" `isPrefixOf` A.ndOrigName nd -- Bit of a hard-hack
+
+    doProcess :: Transform A.Process
+    doProcess (A.ProcCall m n as)
+      = do sp <- specTypeOfName n
+           fs <- case sp of
+             A.Proc _ _ fs _ -> return fs
+             _ -> dieP m "PROC with unknown spec-type"
+           ig <- ignoreProc n
+           if ig
+             then return $ A.ProcCall m n as
+             else do (surr, as') <- addChansAct m $ zip fs as
+                     return $ surr $ A.ProcCall m n as'
+    doProcess p = descend p
+
+    chanT t = A.Chan (A.ChanAttributes False False) t
+
+    addChansAct :: Meta -> [(A.Formal, A.Actual)] -> PassM (A.Process -> A.Process, [A.Actual])
+    addChansAct _ [] = return (id, [])
+    addChansAct m ((A.Formal am t n, a):fas)
+      = do isMobile <- isMobileType t
+           (recF, recAS) <- addChansAct m fas
+           case (am, isMobile) of
+             (A.Abbrev, True)
+               -> do sp@(A.Specification _ c _) <- defineNonce m (A.nameName n)
+                       (A.Declaration m $ chanT t) A.Original
+                     let av = getV a
+                     return (\p -> A.Seq m $ A.Spec m sp $ A.Several m
+                               [A.Only m (recF p)
+                               ,A.Only m $ A.Input m (A.Variable m c) $
+                                 A.InputSimple m [A.InVariable m av]]
+                            , a : A.ActualVariable (A.Variable m c) : recAS)
+             _ -> return (recF, a : recAS)
+
+    getV (A.ActualVariable v) = v
+    getV (A.ActualExpression (A.ExprVariable _ v)) = v
+
+    addChansForm :: Meta -> [A.Formal] -> PassM ([A.Process], [A.Formal])
+    addChansForm _ [] = return ([], [])
+    addChansForm m (f@(A.Formal am t n):fs)
+      = do (ps, fs') <- addChansForm m fs
+           isMobile <- isMobileType t
+           case (am, isMobile) of
+             (A.Abbrev, True)
+               -> do A.Specification _ c _ <- defineNonce m (A.nameName n)
+                       (A.Declaration m $ chanT t) A.Abbrev
+                     modifyName n $ \nd -> nd {A.ndAbbrevMode = A.Original}
+                     return ( ps ++ [A.Output m (A.Variable m c)
+                                      [A.OutExpression m
+                                         $ A.ExprVariable m $ A.Variable m n]]
+                            , A.Formal A.Original t n : A.Formal A.Abbrev (chanT t) c : fs')
+             _ -> return (ps, f : fs')
+
+    doStructured :: Data a => Transform (A.Structured a)
+    doStructured s@(A.Spec msp (A.Specification m n (A.Proc m' sm fs pr)) scope)
+      = do pr' <- recurse pr
+           -- We do the scope first, so that all the callers are updated before
+           -- we fix our state:
+           scope' <- recurse scope
+           ig <- ignoreProc n
+           if ig
+             then return $ A.Spec msp (A.Specification m n (A.Proc m' sm fs pr')) scope'
+             else do (ps, fs') <- addChansForm m fs
+                     let newSpec = A.Proc m' sm fs' (A.Seq m' $ A.Several m' $
+                                            map (A.Only m') $ pr' : ps)
+                     modifyName n (\nd -> nd {A.ndSpecType = newSpec})
+                     return $ A.Spec msp (A.Specification m n newSpec) scope'
+    doStructured s = descend s

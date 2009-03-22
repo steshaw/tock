@@ -167,11 +167,11 @@ data GenOps = GenOps {
     genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: String -> A.Expression -> CGen (),
     genSizeSuffix :: String -> CGen (),
-    genSpec :: A.Specification -> CGen () -> CGen (),
+    genSpec :: forall b. A.Specification -> CGen b -> CGen b,
     genSpecMode :: A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
     genStop :: Meta -> String -> CGen (),
-    genStructured :: forall a. Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen (),
+    genStructured :: forall a b. Data a => A.Structured a -> (Meta -> a -> CGen b) -> CGen [b],
     genTimerRead :: A.Variable -> A.Variable -> CGen (),
     genTimerWait :: A.Expression -> CGen (),
     genTopLevel :: A.AST -> CGen (),

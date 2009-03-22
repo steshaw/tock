@@ -280,11 +280,12 @@ cgenOverArray m var func
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
-cgenStructured :: Data a => A.Structured a -> (Meta -> a -> CGen ()) -> CGen ()
+cgenStructured :: Data a => A.Structured a -> (Meta -> a -> CGen b) -> CGen [b]
 cgenStructured (A.Spec _ spec s) def = call genSpec spec (call genStructured s def)
 cgenStructured (A.ProcThen _ p s) def = call genProcess p >> call genStructured s def
-cgenStructured (A.Several _ ss) def = sequence_ [call genStructured s def | s <- ss]
-cgenStructured (A.Only m s) def = def m s
+cgenStructured (A.Several _ ss) def
+  = sequence [call genStructured s def | s <- ss] >>* concat
+cgenStructured (A.Only m s) def = def m s >>* singleton
 
 --}}}
 
@@ -630,7 +631,7 @@ cgenVariableWithAM checkValid v am fct
        t <- astTypeOf v
        ct <- call getCType m t am >>* fct
        -- Temporary, for debugging:
-       tell ["/* ", show (snd iv), " , ", show ct, " */"]
+       tell ["/* ", show (snd iv), " , trying to get: ", show ct, " */"]
        dressUp m iv ct
   where
     m = findMeta v
@@ -1037,7 +1038,7 @@ cgenInputItem c (A.InVariable m v)
               do call genClearMobile m v -- TODO insert this via a pass
                  tell ["MTChanIn(wptr,"]
                  genChan c
-                 tell [",(void*)"]
+                 tell [",(void**)"]
                  rhs
                  tell [");"]
             _ ->
@@ -1079,7 +1080,7 @@ cgenOutputItem innerT c (A.OutExpression m e)
               do tell ["MTChanOut(wptr,"]
                  genChan c
                  tell [",(void*)"]
-                 call genVariable v A.Abbrev
+                 call genVariable' v A.Original Pointer
                  tell [");"]
             (_, _, A.ExprVariable _ v) ->
               do tell ["ChanOut(wptr,"]
@@ -1160,11 +1161,12 @@ abbrevExpression am _ e = call genExpression e
 --}}}
 
 --{{{  specifications
-cgenSpec :: A.Specification -> CGen () -> CGen ()
+cgenSpec :: A.Specification -> CGen b -> CGen b
 cgenSpec spec body
     =  do call introduceSpec spec
-          body
+          x <- body
           call removeSpec spec
+          return x
 
 -- | Generate a declaration of a new variable.
 cgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
@@ -1438,15 +1440,15 @@ cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
 cgenActuals fs as = prefixComma [call genActual f a | (f, a) <- zip fs as]
 
 cgenActual :: A.Formal -> A.Actual -> CGen ()
-cgenActual f a = seqComma $ realActuals f a
+cgenActual f a = seqComma $ realActuals f a id
 
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
-realActuals :: A.Formal -> A.Actual -> [CGen ()]
-realActuals _ (A.ActualExpression e)
+realActuals :: A.Formal -> A.Actual -> (CType -> CType) -> [CGen ()]
+realActuals _ (A.ActualExpression e) _
     = [call genExpression e]
-realActuals (A.Formal am _ _) (A.ActualVariable v)
-    = [call genVariable v am]
+realActuals (A.Formal am _ _) (A.ActualVariable v) fct
+    = [call genVariable' v am fct]
 
 -- | Return (type, name) generator pairs for all the real formals corresponding
 -- to a single formal.
@@ -1508,17 +1510,24 @@ genProcSpec n (A.Proc _ (sm, _) fs p) forwardDecl
 -- workspace pointer and the name of the function to call.
 cgenProcAlloc :: A.Name -> [A.Formal] -> [A.Actual] -> CGen (String, CGen ())
 cgenProcAlloc n fs as
-    =  do let ras = concat [realActuals f a | (f, a) <- zip fs as]
+    =  do ras <- liftM concat $ sequence
+                [do isMobile <- isMobileType t
+                    let (s, fct) = case (am, isMobile) of
+                              (A.ValAbbrev, _) -> ("ProcParam", id)
+                              (_, True) -> ("ProcMTMove", Pointer)
+                              _ -> ("ProcParam", id)
+                    return $ zip (repeat s) $ realActuals f a fct
+                | (f@(A.Formal am t _), a) <- zip fs as]
 
           ws <- csmLift $ makeNonce "workspace"
           tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
           genName n
           tell ["_stack_size);\n"]
 
-          sequence_ [do tell ["ProcParam (wptr, ", ws, ", ", show num, ", "]
+          sequence_ [do tell [pc, " (wptr, ", ws, ", ", show num, ", "]
                         ra
                         tell [");\n"]
-                     | (num, ra) <- zip [(0 :: Int)..] ras]
+                     | (num, (pc, ra)) <- zip [(0 :: Int)..] ras]
 
           return (ws, genName n)
 --}}}
@@ -1663,7 +1672,7 @@ cgenStop m s
 --}}}
 --{{{  seq
 cgenSeq :: A.Structured A.Process -> CGen ()
-cgenSeq s = call genStructured s doP
+cgenSeq s = call genStructured s doP >> return ()
   where
     doP _ p = call genProcess p
 --}}}
@@ -1681,7 +1690,7 @@ cgenIf m s | justOnly s = do call genStructured s doCplain
           tell [label, ":;"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody label s = call genStructured s doC
+    genIfBody label s = call genStructured s doC >> return ()
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]
@@ -1757,18 +1766,26 @@ cgenPar pm s
           call genExpression count
           tell [");\n"]
 
-          call genStructured s (startP bar)
+          after <- call genStructured s (startP bar)
+          mapM_ (call genProcess) after
 
           tell ["LightProcBarrierWait (wptr, &", bar, ");\n"]
-
   where
-    startP :: String -> Meta -> A.Process -> CGen ()
+    startP :: String -> Meta -> A.Process -> CGen A.Process
     startP bar _ (A.ProcCall _ n as)
         =  do (A.Proc _ _ fs _) <- specTypeOfName n
               (ws, func) <- cgenProcAlloc n fs as
               tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
               func
               tell [");\n"]
+              return (A.Skip emptyMeta)
+    -- When we need to receive mobiles back from the processes, we need to perform
+    -- some actions after all the processes have started, but before we wait on
+    -- the barrier, so this hack collects up all such receive operations and returns
+    -- them:
+    startP bar _ (A.Seq m s)
+      = call genStructured s (startP bar) >>* (A.Seq m . A.Several m . map (A.Only m))
+    startP _ _ p = return p
 --}}}
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
@@ -1809,7 +1826,7 @@ cgenAlt isPri s
     containsTimers (A.Several _ ss) = or $ map containsTimers ss
 
     genAltEnable :: String -> A.Structured A.Alternative -> CGen ()
-    genAltEnable id s = call genStructured s doA
+    genAltEnable id s = call genStructured s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -1829,7 +1846,7 @@ cgenAlt isPri s
                         tell [");\n"]
 
     genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
-    genAltDisable id s = call genStructured s doA
+    genAltDisable id s = call genStructured s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -1849,7 +1866,7 @@ cgenAlt isPri s
                         tell [");\n"]
 
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured s doA
+    genAltProcesses id fired label s = call genStructured s doA >> return ()
       where
         doA _ alt
             = case alt of
