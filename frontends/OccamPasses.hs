@@ -129,8 +129,20 @@ checkConstants :: Pass
 checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
   [Prop.constantsChecked]
-  (applyDepthM2 doDimension doOption)
+  recurse
   where
+    ops = baseOp `extOp` doType `extOp` doOption
+
+    descend, recurse :: Data a => a -> PassM a
+    descend = makeDescend ops
+    recurse = makeRecurse ops
+    
+    doType :: A.Type -> PassM A.Type
+    -- Avoid checking that mobile dimensions are constant:
+    doType t@(A.Mobile {}) = return t
+    doType (A.Array ds t) = liftM2 A.Array (mapM doDimension ds) (recurse t)
+    doType t = descend t
+    
     -- Check array dimensions are constant.
     doDimension :: A.Dimension -> PassM A.Dimension
     doDimension d@(A.Dimension e)
