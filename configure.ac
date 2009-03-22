@@ -249,7 +249,11 @@ CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # that, but I'm also leaving these flags in so that any other code (for example,
 # that Tock might spit out) that uses increments doesn't have the same issue.
 
-common_cflags="-Wall $no_unused $warn_error -ggdb3 -Isupport $no_strict_aliasing"
+# We don't use $warn_error because it stops us passing const pointers
+# (for example, from pulling things up) being released when they are
+# mobiles.  Perhaps in future we should drop const modifiers on mobile stuff.
+
+common_cflags="-Wall $no_unused -ggdb3 -Isupport $no_strict_aliasing"
 
 TOCK_CFLAGS="$gnu89_inline $CPPFLAGS $CFLAGS $common_cflags $CCSP_CFLAGS $GLIB_CFLAGS"
 TOCK_CLDFLAGS="$LDFLAGS $CCSP_LIBS $GLIB_LIBS -lm"
