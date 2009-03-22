@@ -896,6 +896,9 @@ cgenExpression (A.False m) = tell ["false"]
 cgenExpression (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction m s es
 --cgenExpression (A.SubscriptedExpr m s e)
 --cgenExpression (A.BytesInExpr m e)
+cgenExpression (A.BytesInExpr m (A.ExprVariable _ v))
+  = do t <- astTypeOf v
+       call genBytesIn m t (Right v)
 cgenExpression (A.BytesInType m t) = call genBytesIn m t (Left False)
 --cgenExpression (A.OffsetOf m t n)
 --cgenExpression (A.ExprConstr {})
