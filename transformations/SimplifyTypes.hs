@@ -23,8 +23,10 @@ module SimplifyTypes (
   ) where
 
 import Control.Monad.State
+import qualified Data.Traversable as T
 
 import qualified AST as A
+import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
@@ -43,9 +45,14 @@ resolveNamedTypes
            (Prop.agg_namesDone
             ++ [Prop.expressionTypesChecked, Prop.processTypesChecked])
            [Prop.typesResolvedInAST, Prop.typesResolvedInState]
-           (\t -> do get >>= resolve >>= put
+           (\t -> do get >>= resolve >>= resolve_csNames >>= put
                      resolve t)
   where
+    -- Work-around for data types not being resolved:
+    resolve_csNames :: Transform CompState
+    resolve_csNames cs = do csNames' <- T.mapM resolve $ csNames cs
+                            return $ cs { csNames = csNames' }
+    
     resolve :: PassType
     resolve = applyDepthM doType
       where
