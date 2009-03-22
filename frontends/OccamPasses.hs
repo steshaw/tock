@@ -83,6 +83,8 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
         doExpr _ dims s = diePC (findMeta s) $ formatCode
           ("fixConstructorTypes found unexpected: %, " ++ show s) dims
 
+    doExpression (A.AllocMobile m _ e@(Just (A.Literal _ t (A.ArrayListLiteral {}))))
+       = return $ A.AllocMobile m (A.Mobile t) e
     doExpression e = return e
 
 -- | Handle ambiguities in the occam syntax that the parser can't resolve.
