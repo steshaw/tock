@@ -144,8 +144,9 @@ cgenOps = GenOps {
     genTypeSymbol = cgenTypeSymbol,
     genUnfoldedExpression = cgenUnfoldedExpression,
     genUnfoldedVariable = cgenUnfoldedVariable,
-    genVariable = cgenVariableWithAM True,
-    genVariableUnchecked = cgenVariableWithAM False,
+    genVariable = \v am -> cgenVariableWithAM True v am id,
+    genVariable' = cgenVariableWithAM True,
+    genVariableUnchecked = \v am -> cgenVariableWithAM False v am id,
     genWhile = cgenWhile,
     getScalarType = cgetScalarType,
     introduceSpec = cintroduceSpec,
@@ -623,11 +624,13 @@ convByte c
 
 --{{{  variables
 
-cgenVariableWithAM :: Bool -> A.Variable -> A.AbbrevMode -> CGen ()
-cgenVariableWithAM checkValid v am
+cgenVariableWithAM :: Bool -> A.Variable -> A.AbbrevMode -> (CType -> CType) -> CGen ()
+cgenVariableWithAM checkValid v am fct
   = do iv <- inner v
        t <- astTypeOf v
-       ct <- call getCType m t am
+       ct <- call getCType m t am >>* fct
+       -- Temporary, for debugging:
+       tell ["/* ", show (snd iv), " , ", show ct, " */"]
        dressUp m iv ct
   where
     m = findMeta v
@@ -662,14 +665,18 @@ cgenVariableWithAM checkValid v am
                   Pointer ct <- details iv
                   let check = if checkValid then subCheck else A.NoCheck
                   -- Arrays should be pointers to the inner element:
-                  return (do cgenVariableWithAM checkValid iv A.Original
+                  return (do cgenVariableWithAM checkValid iv A.Original id
                              call genArraySubscript check iv (map (\e -> (findMeta e, call genExpression e)) es)
                          , ct)
           A.SubscriptField _ fieldName
-            -> do ct <- details v
+            -> do vt <- astTypeOf v
+                  fs <- recordFields m vt
+                  ct <- case lookup fieldName fs of
+                          Just x -> call getCType m x A.Original
+                          Nothing -> dieP m $ "Could not find type of field name: " ++ show fieldName
                   -- For records, we expect it to be a pointer to a record:
                   return (do tell ["("]
-                             cgenVariableWithAM checkValid v A.Original
+                             call genVariable' v A.Original stripPointers
                              tell [")."]
                              genName fieldName
                          , ct)
@@ -677,7 +684,7 @@ cgenVariableWithAM checkValid v am
             -> do ct <- details v
                   return (do let check = if checkValid then subCheck else A.NoCheck
                              tell ["(&"]
-                             cgenVariableWithAM checkValid v A.Original
+                             cgenVariableWithAM checkValid v A.Original id
                              call genArraySubscript A.NoCheck v [(m',
                                case check of
                                   A.NoCheck -> call genExpression start
@@ -983,14 +990,19 @@ cgenListConcat a b
        tell [")"]
 
 --{{{  input/output items
+
+genChan, genDest :: A.Variable -> CGen ()
+genDest v = call genVariable' v A.Original Pointer
+genChan c = call genVariable' c A.Original (const $ Pointer $ Plain "Channel")
+ 
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
 cgenInputItem c (A.InCounted m cv av)
     =  do call genInputItem c (A.InVariable m cv)
           t <- astTypeOf av
           tell ["ChanIn(wptr,"]
-          call genVariable c A.Abbrev
+          genChan c
           tell [","]
-          call genVariable av A.Abbrev
+          genDest av
           tell [","]
           subT <- trivialSubscriptType m t
           call genVariable cv A.Original
@@ -1000,24 +1012,24 @@ cgenInputItem c (A.InCounted m cv av)
 cgenInputItem c (A.InVariable m v)
     =  do t <- astTypeOf v
           isMobile <- isMobileType t
-          let rhs = call genVariable v A.Abbrev
+          let rhs = genDest v
           case (t, isMobile) of
             (A.Int, _) ->
               do tell ["ChanInInt(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [","]
                  rhs
                  tell [");"]
             (_, True) ->
               do call genClearMobile m v -- TODO insert this via a pass
                  tell ["MTChanIn(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [",(void*)"]
                  rhs
                  tell [");"]
             _ ->
               do tell ["ChanIn(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [","]
                  rhs
                  tell [","]
@@ -1032,7 +1044,7 @@ cgenOutputItem _ c (A.OutCounted m ce ae)
           case ae of
             A.ExprVariable m v ->
               do tell ["ChanOut(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [","]
                  call genVariable v A.Abbrev
                  tell [","]
@@ -1046,19 +1058,19 @@ cgenOutputItem innerT c (A.OutExpression m e)
          case (innerT, isMobile, e) of
             (A.Int, _, _) ->
               do tell ["ChanOutInt(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [","]
                  call genExpression e
                  tell [");"]
             (_, True, A.ExprVariable _ v) ->
               do tell ["MTChanOut(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [",(void*)"]
                  call genVariable v A.Abbrev
                  tell [");"]
             (_, _, A.ExprVariable _ v) ->
               do tell ["ChanOut(wptr,"]
-                 call genVariable c A.Abbrev
+                 genChan c
                  tell [","]
                  call genVariable v A.Abbrev
                  tell [","]
@@ -1551,7 +1563,7 @@ cgenAssign m [v] (A.ExpressionList _ [e])
                        _ -> call genMissing $ "Mobile assignment from " ++ show e
              (A.Array ds innerT, _) | isPOD innerT && A.UnknownDimension `notElem` ds
                -> do tell ["memcpy("]
-                     call genVariable v A.Original
+                     call genVariable v A.Abbrev
                      tell [","]
                      call genExpression e
                      tell [","]

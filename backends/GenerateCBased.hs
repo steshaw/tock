@@ -180,6 +180,8 @@ data GenOps = GenOps {
     genUnfoldedVariable :: Meta -> A.Variable -> CGen (),
     -- | Generates a variable, with indexing checks if needed
     genVariable :: A.Variable -> A.AbbrevMode -> CGen (),
+    -- Like genVariable, but modifies the desired CType
+    genVariable' :: A.Variable -> A.AbbrevMode -> (CType -> CType) -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
     genVariableUnchecked :: A.Variable -> A.AbbrevMode -> CGen (),
     -- | Generates a while loop with the given condition and body.
@@ -249,6 +251,11 @@ instance Show CType where
   show (Const t) = show t ++ " const "
   show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map show cts) ++ ">/**/"
 --  show (Subscript t) = "(" ++ show t ++ "[n])"
+
+stripPointers :: CType -> CType
+stripPointers (Pointer t) = t
+stripPointers (Const (Pointer t)) = t
+stripPointers t = t
 
 -- Like Eq, but ignores const
 closeEnough :: CType -> CType -> Bool
