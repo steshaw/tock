@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Types
   (
     specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
-    , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType
+    , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
@@ -598,6 +598,11 @@ isSequenceType :: A.Type -> Bool
 isSequenceType (A.Array _ _) = True
 isSequenceType (A.List _) = True
 isSequenceType _ = False
+
+isMobileType :: (CSMR m, Die m) => A.Type -> m Bool
+isMobileType (A.Mobile {}) = return True
+isMobileType t@(A.Record n) = recordAttr (A.nameMeta n) t >>* A.mobileRecord
+isMobileType _ = return False
 
 --}}}
 

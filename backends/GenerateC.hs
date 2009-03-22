@@ -1594,11 +1594,6 @@ cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple dest
 isPOD :: A.Type -> Bool
 isPOD = isJust . cgetScalarType
 
-isMobileType :: A.Type -> CGen Bool
-isMobileType (A.Mobile {}) = return True
-isMobileType t@(A.Record n) = recordAttr (A.nameMeta n) t >>* A.mobileRecord
-isMobileType _ = return False
-
 --}}}
 --{{{  input
 cgenInput :: A.Variable -> A.InputMode -> CGen ()
