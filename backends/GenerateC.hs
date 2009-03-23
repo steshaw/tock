@@ -904,6 +904,10 @@ cgenExpression (A.BytesInType m t) = call genBytesIn m t (Left False)
 --cgenExpression (A.ExprConstr {})
 cgenExpression (A.AllocMobile m t me) = call genAllocMobile m t me
 cgenExpression (A.CloneMobile m e) = call genCloneMobile m e
+cgenExpression (A.IsDefined m (A.ExprVariable _ (A.DerefVariable _ v)))
+  = tell ["("] >> call genVariable v A.Original >> tell ["!=NULL)"]
+cgenExpression (A.IsDefined m e)
+  = tell ["("] >> call genExpression e >> tell ["!=NULL)"]
 cgenExpression (A.SubscriptedExpr m sub (A.ExprVariable _ v))
   = call genVariable (A.SubscriptedVariable m sub v) A.Original
 cgenExpression (A.SubscriptedExpr m (A.SubscriptFromFor _ _ start _) e@(A.AllSizesVariable {}))

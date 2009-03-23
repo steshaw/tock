@@ -399,6 +399,8 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
     -- | Pull array expressions that aren't already non-subscripted variables.
     -- Also pull lists that are literals or constructed
     doExpression :: A.Expression -> PassM A.Expression
+    -- For is-defined, we don't want to pull up:
+    doExpression e@(A.IsDefined {}) = return e
     doExpression e
               -- This part handles recursing into the expression first:
         =  do e' <- doExpression' e
