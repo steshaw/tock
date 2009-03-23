@@ -556,6 +556,7 @@ dataType
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared} p }
+    <|> do { sSHARED; sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = A.Shared, A.caReadingShared = A.Shared} p }
     <|> arrayType channelType
     <?> "channel type"
 
@@ -719,7 +720,9 @@ expression
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> do { m <- md; sCLONE; e <- expression; return $ A.CloneMobile m e }
-    <|> do { m <- md; sMOBILE; t <- dataType ; return $ A.AllocMobile m (A.Mobile t) Nothing }
+    <|> do { m <- md; t <- tryXV sMOBILE dataType ; return $ A.AllocMobile m (A.Mobile t) Nothing }
+    <|> do { m <- md; n <- tryXV sMOBILE chanBundleName ;
+             return $ A.AllocMobile m (A.Mobile $ A.ChanDataType A.DirInput A.Unshared n) Nothing }
     <|> do { m <- md; sDEFINED; e <- expression; return $ A.IsDefined m e }
     <|> sizeExpr
     <|> do m <- md
