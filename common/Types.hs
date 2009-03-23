@@ -137,6 +137,21 @@ recordFields m (A.Record rec)
           case st of
             A.RecordType _ _ fs -> return fs
             _ -> dieP m "not record type"
+recordFields m (A.ChanDataType A.DirInput _ n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.ChanBundleType _ _ fs -> return fs
+            _ -> dieP m "not record type"
+-- Directions are flipped for the ! end:
+recordFields m (A.ChanDataType A.DirOutput _ n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.ChanBundleType _ _ fs -> return [(n, flipDirOfEnd t) | (n, t) <- fs]
+            _ -> dieP m "not record type"
+  where
+    flipDirOfEnd (A.ChanEnd dir attr t) = A.ChanEnd (flipDir dir) attr t
+    flipDir A.DirInput = A.DirOutput
+    flipDir A.DirOutput = A.DirInput
 recordFields m _ = dieP m "not record type"
 
 recordAttr :: (CSMR m, Die m) => Meta -> A.Type -> m A.RecordAttr
