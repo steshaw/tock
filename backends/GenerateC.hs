@@ -1944,7 +1944,7 @@ cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
 cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
-  Just amtns -> do tell ["occam_", s, "("]
+  Just amtns -> do tell ["occam_", [if c == '.' then '_' else c | c <- s], "(wptr,"]
                    seqComma [call genActual (A.Formal am t (A.Name emptyMeta n)) a
                             | ((am, t, n), a) <- zip amtns as]
                    tell [");"]

@@ -303,14 +303,14 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 
 #define MAKE_STRINGTO(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(BOOL*, type*, const unsigned char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const unsigned char* string) { \
+	static inline void occam_STRINGTO##occname(Workspace, BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(Workspace wptr, BOOL* error, type* n, const unsigned char* string) { \
 	  *error = 1 != sscanf((const char*)string, flag, n);			\
 	}
 
 #define MAKE_STRINGTO_SMALL(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(BOOL*, type*, const unsigned char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(BOOL* error, type* n, const unsigned char* string) { \
+	static inline void occam_STRINGTO##occname(Workspace, BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(Workspace wptr, BOOL* error, type* n, const unsigned char* string) { \
 			int t; \
 			*error = 1 != sscanf((const char*)string, flag, &t) || (int)(type)t != t; \
 			*n = (type)t; \
@@ -322,8 +322,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_STRINGTO_32 MAKE_STRINGTO
 #define MAKE_STRINGTO_64 MAKE_STRINGTO
 
-static inline void occam_BOOLTOSTRING(INT*, unsigned char*, const BOOL) occam_unused;
-static inline void occam_BOOLTOSTRING(INT* len, unsigned char* str, const BOOL b) {
+static inline void occam_BOOLTOSTRING(Workspace, INT*, unsigned char*, const BOOL) occam_unused;
+static inline void occam_BOOLTOSTRING(Workspace wptr, INT* len, unsigned char* str, const BOOL b) {
 	if (b) {
 		memcpy(str,"TRUE",4*sizeof(char));
 		*len = 4;
@@ -333,8 +333,8 @@ static inline void occam_BOOLTOSTRING(INT* len, unsigned char* str, const BOOL b
 	}
 }
 
-static inline void occam_STRINGTOBOOL(BOOL*, BOOL*, const unsigned char*) occam_unused;
-static inline void occam_STRINGTOBOOL(BOOL* error, BOOL* b, const unsigned char* str) {
+static inline void occam_STRINGTOBOOL(Workspace, BOOL*, BOOL*, const unsigned char*) occam_unused;
+static inline void occam_STRINGTOBOOL(Workspace wptr, BOOL* error, BOOL* b, const unsigned char* str) {
 	if (memcmp("TRUE", str, 4*sizeof(char)) == 0) {
 		*b = true;
 		*error = false;
