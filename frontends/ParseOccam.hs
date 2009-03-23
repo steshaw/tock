@@ -422,6 +422,7 @@ scopeInSpec (spec@(A.Specification m n st), nt)
   where
     isRecursive (A.Function _ (_, A.Recursive) _ _ _) = True
     isRecursive (A.Proc _ (_, A.Recursive) _ _) = True
+    isRecursive (A.ChanBundleType _ A.Recursive _) = True
     isRecursive _ = False
 
 scopeOutSpec :: A.Specification -> OccParser ()
@@ -1109,7 +1110,7 @@ definition
              <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol;
                   return (A.Specification m n rec, RecordName) }
     <|> do m <- md
-           rec <- recMode sCHAN >>* fst
+           rm <- recMode sCHAN >>* fst
            sTYPE
            n <- newChanBundleName
            eol
@@ -1118,12 +1119,16 @@ definition
            sRECORD
            eol
            indent
+           n' <- if rm == A.Recursive
+                   then scopeIn n ChanBundleName
+                          (A.ChanBundleType m rm []) A.Original
+                   else return n
            fs <- many1 chanInBundle
            outdent
            outdent
            sColon
            eol
-           return (A.Specification m n $ A.ChanBundleType m rec fs, ChanBundleName)
+           return (A.Specification m n' $ A.ChanBundleType m rm fs, ChanBundleName)
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
