@@ -1546,7 +1546,8 @@ cgenProcAlloc n fs as
                 [do isMobile <- isMobileType t
                     let (s, fct) = case (am, isMobile) of
                               (A.ValAbbrev, _) -> ("ProcParam", id)
-                              (_, True) -> ("ProcMTMove", Pointer)
+                              -- This is not needed unless forking:
+                              --(_, True) -> ("ProcMTMove", Pointer)
                               _ -> ("ProcParam", id)
                     return $ zip (repeat s) $ realActuals f a fct
                 | (f@(A.Formal am t _), a) <- zip fs as]

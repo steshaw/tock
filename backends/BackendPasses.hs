@@ -48,7 +48,8 @@ backendPasses =
   , addSizesFormalParameters
   , addSizesActualParameters
   , fixMinInt
-  , mobileReturn
+-- This is not needed unless forking:
+--  , mobileReturn
   ]
 
 prereq :: [Property]
