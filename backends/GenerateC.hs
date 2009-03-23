@@ -744,7 +744,9 @@ cgetCType m origT am
 
          (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
          -- Abbrev and ValAbbrev, and mobile:
-         (A.Record n, _, _, _) -> return $ Pointer $ const $ Plain $ nameString n
+         (A.Record n, _, False, _) -> return $ Pointer $ const $ Plain $ nameString n
+         (A.Record n, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain $ nameString n
+         (A.Record n, _, True, _) -> return $ Pointer $ const $ Plain $ nameString n
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
          (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
