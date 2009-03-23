@@ -216,11 +216,13 @@ annotateVars :: A.ExpressionList -> [A.Variable] -> [(A.Variable, Maybe A.Expres
 annotateVars (A.FunctionCallList {}) vs = zip vs (repeat Nothing)
 annotateVars (A.IntrinsicFunctionCallList {}) vs = zip vs (repeat Nothing)
 annotateVars (A.ExpressionList _ es) vs = zip vs (map Just es ++ repeat Nothing)
+annotateVars (A.AllocChannelBundle {}) vs = zip vs (repeat Nothing)
 
 getVarExpList :: A.ExpressionList -> Vars
 getVarExpList (A.ExpressionList _ es) = foldUnionVars $ map getVarExp es
 getVarExpList (A.FunctionCallList _ _ es) = foldUnionVars $ map getVarExp es --TODO record stuff in passed as well?
 getVarExpList (A.IntrinsicFunctionCallList _ _ es) = foldUnionVars $ map getVarExp es --TODO record stuff in passed as well?
+getVarExpList (A.AllocChannelBundle {}) = emptyVars
 
 getVarExp :: A.Expression -> Vars
 getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')

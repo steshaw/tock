@@ -303,6 +303,8 @@ data ExpressionList =
   | IntrinsicFunctionCallList Meta String [Expression]
   -- | A list of expressions resulting from, well, a list of expressions.
   | ExpressionList Meta [Expression]
+  -- | A pair of expressions resulting from allocating a mobile channel bundle.
+  | AllocChannelBundle Meta Name
   deriving (Show, Eq, Typeable, Data)
 
 -- | A monadic (unary) operator.

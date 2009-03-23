@@ -709,6 +709,9 @@ expressionList
            es <- sepBy1 expression sComma
            return $ A.ExpressionList m es
 -- XXX: Value processes are not supported (because nobody uses them and they're hard to parse)
+    <|> do m <- md
+           n <- tryXV sMOBILE chanBundleName
+           return $ A.AllocChannelBundle m n
     <?> "expression list"
 
 expression :: OccParser A.Expression
@@ -721,8 +724,6 @@ expression
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> do { m <- md; sCLONE; e <- expression; return $ A.CloneMobile m e }
     <|> do { m <- md; t <- tryXV sMOBILE dataType ; return $ A.AllocMobile m (A.Mobile t) Nothing }
-    <|> do { m <- md; n <- tryXV sMOBILE chanBundleName ;
-             return $ A.AllocMobile m (A.Mobile $ A.ChanDataType A.DirInput A.Unshared n) Nothing }
     <|> do { m <- md; sDEFINED; e <- expression; return $ A.IsDefined m e }
     <|> sizeExpr
     <|> do m <- md

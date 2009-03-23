@@ -520,6 +520,18 @@ checkExpressionList ets el
               sequence_ [do rt <- astTypeOf e
                             checkType (findMeta e) et rt
                          | (e, et) <- zip es ets]
+        A.AllocChannelBundle m n
+              -> case ets of
+                   [A.ChanDataType A.DirInput shA nA
+                     ,A.ChanDataType A.DirOutput shB nB]
+                     | A.nameName nA == A.nameName nB && A.nameName nA == A.nameName n
+                     -> return ()
+                   [A.ChanDataType A.DirOutput shA nA
+                     ,A.ChanDataType A.DirInput shB nB]
+                     | A.nameName nA == A.nameName nB && A.nameName nA == A.nameName n
+                     -> return ()
+                   _ -> dieP m $ "Wrong number of arguments, mismatched directions, or mismatched bundle types"
+
 
 -- | Check a set of names are distinct.
 checkNamesDistinct :: Meta -> [A.Name] -> PassM ()
@@ -801,6 +813,7 @@ inferTypes = occamOnlyPass "Infer types"
                                    | (t, e) <- zip ts es]
                   es'' <- mapM (uncurry $ inferAllocMobile m) $ zip ts es'
                   return $ A.ExpressionList m es''
+            A.AllocChannelBundle {} -> return el
 
     doReplicator :: Transform A.Replicator
     doReplicator rep
@@ -1358,6 +1371,8 @@ checkSpecTypes = checkDepthM doSpecType
                 _ -> dieP m "Expected 1D channel array type"
     doSpecType (A.DataType m t)
         = checkDataType m t
+    doSpecType (A.ChanBundleType m _ fts)
+       = when (null fts) $ dieP m "Channel bundles cannot be empty"
     doSpecType (A.RecordType m _ nts)
         =  do sequence_ [checkDataType (findMeta n) t
                          | (n, t) <- nts]
