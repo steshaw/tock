@@ -149,7 +149,7 @@ flattenAssign = pass "Flatten assignment"
                     = do let t = A.Record n
                          (A.Specification _ nonceLHS _) <- makeNonceVariable "record_copy_arg" m t A.Abbrev
                          let destV = A.Variable m nonceLHS
-                         (A.Specification _ nonceRHS _) <- makeNonceVariable "record_copy_arg" m t A.Abbrev
+                         (A.Specification _ nonceRHS _) <- makeNonceVariable "record_copy_arg" m t A.ValAbbrev
                          let srcV = A.Variable m nonceRHS
                          assigns <-
                            sequence [do let sub = A.SubscriptField m fName
