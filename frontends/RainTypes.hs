@@ -282,8 +282,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> RainTypeM ()
     checkInput chanVar destVar m p
-      = astTypeOf destVar >>= markUnify chanVar . A.ChanEnd A.DirInput (A.ChanAttributes
-        A.Unshared A.Unshared)
+      = astTypeOf destVar >>= markUnify chanVar . A.ChanEnd A.DirInput A.Unshared
 
     checkWait :: RainTypeCheck A.InputMode
     checkWait (A.InputTimerFor m exp) = markUnify A.Time exp
@@ -298,8 +297,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
     checkInputOutput (A.Input _ _ im@(A.InputTimerAfter {})) = checkWait im
     checkInputOutput (A.Input _ _ im@(A.InputTimerRead {})) = checkWait im
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
-      = astTypeOf srcExp >>= markUnify chanVar . A.ChanEnd A.DirOutput (A.ChanAttributes
-        A.Unshared A.Unshared)
+      = astTypeOf srcExp >>= markUnify chanVar . A.ChanEnd A.DirOutput A.Unshared
     checkInputOutput _ = return ()
 
     checkAltInput :: RainTypeCheck A.Alternative

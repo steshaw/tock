@@ -428,14 +428,13 @@ checkChannel wantDir c
     =  do -- Check it's a channel.
           t <- astTypeOf c >>= resolveUserType m
           case t of
-            A.ChanEnd dir (A.ChanAttributes ws rs) innerT ->
+            A.ChanEnd dir sh innerT ->
                do -- Check the direction is appropriate 
                   when (wantDir /= dir) $ dieP m $ "Channel directions do not match"
                   -- Check it's not shared in the direction we're using.
-                  case (ws, rs, wantDir) of
-                    (A.Unshared, _, A.DirOutput) -> ok
-                    (_, A.Unshared, A.DirInput) -> ok
-                    _ -> dieP m $ "Shared channel must be claimed before use"
+                  case sh of
+                    A.Unshared -> ok
+                    A.Shared -> dieP m $ "Shared channel must be claimed before use"
 
                   return innerT
             _ -> diePC m $ formatCode ("Expected channel " ++ exp ++ "; found %") t
@@ -851,7 +850,7 @@ inferTypes = occamOnlyPass "Infer types"
                          do dirs <- ask >>= (lift . findDir n)
                             case nub dirs of
                               [dir] ->
-                                do let tEnd = A.ChanEnd dir attr innerT
+                                do let tEnd = A.ChanEnd dir (dirAttr dir attr) innerT
                                    return (tEnd, A.DirectedVariable m dir v')
                               _ -> return (vt, v') -- no direction, or two
                     (A.Infer, _) -> return (vt, v')
@@ -870,7 +869,7 @@ inferTypes = occamOnlyPass "Infer types"
                          do dirs <- ask >>= (lift . findDir n)
                             case nub dirs of
                               [dir] ->
-                                do let tEnd = A.ChanEnd dir attr innerT
+                                do let tEnd = A.ChanEnd dir (dirAttr dir attr) innerT
                                    return (tEnd, A.DirectedVariable m dir v')
                               _ -> return (t', v') -- no direction, or two
                     _ -> return (t', v')
@@ -904,7 +903,7 @@ inferTypes = occamOnlyPass "Infer types"
                     A.Array ds (A.Chan attr innerT) -> do
                       dirs <- ask >>= (lift . findDir n)
                       case nub dirs of
-                        [dir] -> return (A.Array ds $ A.ChanEnd dir attr innerT
+                        [dir] -> return (A.Array ds $ A.ChanEnd dir (dirAttr dir attr) innerT
                                         ,A.DirectedVariable m dir)
                         _ -> return (t'', id)
                     _ -> return (t'', id)
@@ -931,7 +930,7 @@ inferTypes = occamOnlyPass "Infer types"
                          do dirs <- findDir n body
                             case nub dirs of
                               [dir] ->
-                                do let t' = A.ChanEnd dir attr innerT
+                                do let t' = A.ChanEnd dir (dirAttr dir attr) innerT
                                        f' = A.Formal am t' n
                                    modifyName n (\nd -> nd {A.ndSpecType =
                                      A.Declaration m t'})

@@ -255,11 +255,9 @@ instance ShowOccam A.Type where
       = tell [shared, "CHAN", direction, " "] >> showOccamM t
     where
       shared
-          = case (A.caWritingShared ca, A.caReadingShared ca) of
-              (A.Unshared, A.Unshared) -> ""
-              (A.Shared, A.Unshared) -> "SHARED! "
-              (A.Unshared, A.Shared) -> "SHARED? "
-              (A.Shared, A.Shared) -> "SHARED "
+          = case ca of
+              A.Unshared -> ""
+              A.Shared -> "SHARED "
       direction
           = case dir of
               A.DirInput -> "?"
@@ -303,8 +301,8 @@ instance ShowRain A.Type where
       ao b = if b == A.Shared then "any" else "one"  
   showRainM (A.ChanEnd dir attr t) 
     = case dir of
-        A.DirInput -> tell [if A.caReadingShared attr == A.Shared then "shared" else "", " ?"] >> showRainM t
-        A.DirOutput -> tell [if A.caWritingShared attr == A.Shared then "shared" else "", " !"] >> showRainM t
+        A.DirInput -> tell [if attr == A.Shared then "shared" else "", " ?"] >> showRainM t
+        A.DirOutput -> tell [if attr == A.Shared then "shared" else "", " !"] >> showRainM t
     where
       ao :: Bool -> String
       ao b = if b then "any" else "one"  

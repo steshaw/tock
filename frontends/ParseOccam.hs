@@ -1182,7 +1182,7 @@ definition
                       dir <- direction
                       sColon
                       eol
-                      return (n, A.ChanEnd dir (A.ChanAttributes A.Unshared A.Unshared) t)
+                      return (n, A.ChanEnd dir A.Unshared t)
 
 retypesAbbrev :: OccParser NameSpec
 retypesAbbrev

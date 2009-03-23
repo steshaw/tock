@@ -460,7 +460,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                             n) v) innerV (replicate i $ makeConstant m 0)
                         | (d, i) <- zip ds [0..]]
                   spec@(A.Specification _ n _) <- makeNonceIs "dir_array" m
-                    (A.Array ds' $ A.ChanEnd dir attr innerT) A.Abbrev v
+                    (A.Array ds' $ A.ChanEnd dir (dirAttr dir attr) innerT) A.Abbrev v
                   addPulled $ (m, Left spec)
                   return $ A.Variable m n
              _ -> descend v

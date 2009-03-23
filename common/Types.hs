@@ -29,7 +29,7 @@ module Types
       mulExprs, divExprs
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
-    , recordFields, recordAttr, protocolItems
+    , recordFields, recordAttr, protocolItems, dirAttr
 
     , leastGeneralSharedTypeRain
     
@@ -133,6 +133,9 @@ recordAttr m (A.Record rec)
             _ -> dieP m "not record type"
 recordAttr m _ = dieP m "not record type"
 
+dirAttr :: A.Direction -> A.ChanAttributes -> A.ShareMode
+dirAttr A.DirInput = A.caReadingShared
+dirAttr A.DirOutput = A.caWritingShared
 
 -- | Get the type of a record field.
 typeOfRecordField :: (CSMR m, Die m) => Meta -> A.Type -> A.Name -> m A.Type
@@ -228,14 +231,14 @@ typeOfVariable (A.DirectedVariable m dir v)
              if dir == dir'
                then return t
                else dieP m $ "Attempted to reverse direction of a channel-end"
-           A.Chan attr innerT -> return $ A.ChanEnd dir attr innerT
+           A.Chan attr innerT -> return $ A.ChanEnd dir (dirAttr dir attr) innerT
            A.Array ds (A.Chan attr innerT)
-             -> return $ A.Array ds (A.ChanEnd dir attr innerT)
+             -> return $ A.Array ds (A.ChanEnd dir (dirAttr dir attr) innerT)
            A.Array _ (A.ChanEnd dir' _ _) ->
              if dir == dir'
                then return t
                else dieP m $ "Attempted to reverse direction of a channel-end"
-           A.Infer -> return $ A.ChanEnd dir (A.ChanAttributes A.Unshared A.Unshared) A.Infer
+           A.Infer -> return $ A.ChanEnd dir A.Unshared A.Infer
            _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
 
 -- | Get the abbreviation mode of a variable.
@@ -415,7 +418,7 @@ applyDirection :: Die m => Meta -> A.Direction -> A.Type -> m A.Type
 applyDirection m dir (A.Array ds t)
     = applyDirection m dir t >>* A.Array ds
 applyDirection m dir (A.Chan ca t)
-    = return $ A.ChanEnd dir ca t
+    = return $ A.ChanEnd dir (dirAttr dir ca) t
 applyDirection m _ t
     = dieP m "Direction specified on non-channel type"
 

@@ -133,7 +133,7 @@ data Type =
   -- | A channel of the specified type.
   | Chan ChanAttributes Type
   -- | A channel end of the specified type.
-  | ChanEnd Direction ChanAttributes Type
+  | ChanEnd Direction ShareMode Type
   -- | A counted input or output.
   -- The first type is that of the count; the second is that of the array.
   -- (For example, @INT::[]BYTE@ would be @A.Counted A.Int (A.Array ...)@).

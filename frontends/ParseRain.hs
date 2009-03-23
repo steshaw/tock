@@ -168,8 +168,8 @@ dataType
     <|> do {reserved "sint64" ; return A.Int64}    
     <|> do {reserved "time" ; return A.Time}
     <|> do {sChannel ; inner <- dataType ; return $ A.Chan (A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared}) inner}
-    <|> do {sIn ; inner <- dataType ; return $ A.ChanEnd A.DirInput (A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared}) inner}
-    <|> do {sOut ; inner <- dataType ; return $ A.ChanEnd A.DirOutput (A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared}) inner}
+    <|> do {sIn ; inner <- dataType ; return $ A.ChanEnd A.DirInput A.Unshared inner}
+    <|> do {sOut ; inner <- dataType ; return $ A.ChanEnd A.DirOutput A.Unshared inner}
     <|> do {sLeftQ ; inner <- dataType ; sRightQ ; return $ A.List inner}
     <|> do {(m,n) <- identifier ; return $ A.UserDataType A.Name {A.nameMeta = m, A.nameName = n}}
     <?> "data type"
