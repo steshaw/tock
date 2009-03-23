@@ -364,6 +364,7 @@ cgenBytesIn m t v
       = do tell ["sizeof("]
            genType t
            tell [")"]
+    genBytesIn' (A.Mobile t@(A.Array {})) = genBytesIn' t
     genBytesIn' (A.Mobile _)
       = tell ["sizeof(void*)"]
     genBytesIn' (A.List _)
