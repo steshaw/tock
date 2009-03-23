@@ -654,7 +654,11 @@ cgenVariableWithAM checkValid v am fct
                do (cg, ct) <- inner v
                   innerCT <- call getCType m innerT A.Original
                   let cast = tell ["("] >> genType innerT >> tell ["*)"]
-                  return (tell ["("] >> cast >> tell ["(("] >> cg >> tell [")->data))"]
+                  return (do tell ["("]
+                             cast
+                             tell ["(("]
+                             dressUp m (cg, ct) (Pointer $ Plain "mt_array_t")
+                             tell [")->data))"]
                          , Pointer $ innerCT)
              _ -> inner v
     inner (A.DirectedVariable _ dir v)
