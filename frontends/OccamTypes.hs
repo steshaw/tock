@@ -645,6 +645,16 @@ addDirections = occamOnlyPass "Add direction specifiers to inputs and outputs"
 
 makeEnd :: Meta -> A.Direction -> Transform A.Variable
 makeEnd m dir v
+  = case v of
+      A.SubscriptedVariable _ _ innerV
+        -> do t <- astTypeOf innerV
+              case t of
+                A.ChanDataType {} -> return v
+                _ -> makeEnd'
+      _ -> makeEnd'
+  where
+    makeEnd' :: PassM A.Variable
+    makeEnd'
       = do t <- astTypeOf v
            case t of
              A.ChanEnd {} -> return v
@@ -1072,6 +1082,9 @@ inferTypes = occamOnlyPass "Infer types"
         =  do underT <- resolveUserType m t
               case underT of
                 A.Record _ ->
+                  do n <- nameToUnscoped wrong
+                     return $ A.SubscriptField m n
+                A.ChanDataType {} ->
                   do n <- nameToUnscoped wrong
                      return $ A.SubscriptField m n
                 _ -> return s
