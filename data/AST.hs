@@ -488,6 +488,8 @@ data SpecType =
   | IsExpr Meta AbbrevMode Type Expression
   -- | Declare an abbreviation of an array of channels.
   | IsChannelArray Meta Type [Variable]
+  -- | Declare a CLAIMed abbreviation of a variable.
+  | IsClaimed Meta Variable
   -- | Declare a user data type.
   | DataType Meta Type
   -- | Declare a new record type.
@@ -585,7 +587,6 @@ data Process =
   -- This may go away in the future, since which @PROC@s are intrinsics depends
   -- on the backend.
   | IntrinsicProcCall Meta String [Actual]
-  | Claim Meta Variable Process
   deriving (Show, Eq, Typeable, Data)
 
 -- | The top level of the AST: a sequence of definitions.
