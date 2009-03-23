@@ -99,6 +99,20 @@ typeOfSpec' st
             A.IsExpr a b t c -> return $ Just (t, \t' -> A.IsExpr a b t' c)
             A.IsChannelArray a t b
               -> return $ Just (t, \t' -> A.IsChannelArray a t' b)
+            A.IsClaimed m v
+              -> do t <- typeOfVariable v
+                    let t' = case t of
+                          A.Chan attr innerT -> Just $ A.Chan (attr
+                            { A.caWritingShared = A.Unshared
+                            , A.caReadingShared = A.Unshared
+                            }) innerT
+                          A.ChanEnd A.DirInput _ innerT
+                            -> Just $ A.ChanEnd A.DirInput A.Unshared innerT
+                          A.ChanEnd A.DirOutput _ innerT
+                            -> Just $ A.ChanEnd A.DirOutput A.Unshared innerT
+                          A.ChanDataType dir _ innerT -> Just $ A.ChanDataType dir A.Unshared innerT
+                          _ -> Nothing
+                    return $ fmap (\x -> (x, error "typeOfSpec'")) t'
             A.Retypes a b t c -> return $ Just (t, \t' -> A.Retypes a b t' c)
             A.RetypesExpr a b t c
               -> return $ Just (t, \t' -> A.RetypesExpr a b t' c)

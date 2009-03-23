@@ -1331,6 +1331,12 @@ checkSpecTypes = checkDepthM doSpecType
               checkType (findMeta e) t te
               checkValAM m am
               checkAbbrev m A.ValAbbrev am
+    doSpecType (A.IsClaimed m v)
+        =  do t <- astTypeOf v
+              case t of
+                A.ChanEnd _ A.Shared _ -> return ()
+                A.ChanDataType _ A.Shared _ -> return ()
+                _ -> dieP m "Expected shared channel end in claim"
     doSpecType (A.IsChannelArray m rawT cs)
         =  do t <- resolveUserType m rawT
               let isChan (A.Chan {}) = True
