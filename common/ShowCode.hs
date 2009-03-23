@@ -21,10 +21,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- Primarily, this means showing code as occam in error messages for the occam frontend, and Rain code for the Rain frontend.
 
 
--- TODO: This module is a mess.  It should probably use the writer monad instead of this +>> operator, and I've put
--- in some settings but some of them (such as realCode) are not wired up, and there's no easy way to set them
--- from outside this module.  Also, some things aren't quite right (such as replicated IFs), and due to the way
--- the occam parser works, a few SEQs get introduced if you parse a file then write it out again straight away.
+-- TOO: This module is still a bit of a mess.  I've put in some settings but
+-- some of them (such as realCode) are not wired up, and there's no easy way
+-- to set them from outside this module.  Also, some things aren't quite right
+-- (such as replicated IFs), and due to the way the occam parser works, a few
+-- SEQs get introduced if you parse a file then write it out again straight
+-- away.
 
 -- So I'm committing this for the time being, but it really does need some work (and some tests, of course*) later on.
 
@@ -271,6 +273,10 @@ instance ShowOccam A.Type where
               (A.Shared, A.Unshared) -> "SHARED! "
               (A.Unshared, A.Shared) -> "SHARED? "
               (A.Shared, A.Shared) -> "SHARED "
+  showOccamM (A.ChanDataType dir sh n)
+    = do when (sh == A.Shared) $ tell ["SHARED "]
+         showName n
+         tell [if dir == A.DirInput then "?" else "!"]
   showOccamM (A.Counted ct et) = showOccamM ct >> tell ["::"] >> showOccamM et
   showOccamM (A.Port t) = tell ["PORT "] >> showOccamM t
   showOccamM (A.UserDataType n) = showName n >> helper "{data type}"
