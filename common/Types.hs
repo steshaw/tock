@@ -635,6 +635,7 @@ isSequenceType _ _ = False
 isMobileType :: (CSMR m, Die m) => A.Type -> m Bool
 isMobileType (A.Mobile {}) = return True
 isMobileType t@(A.Record n) = recordAttr (A.nameMeta n) t >>* A.mobileRecord
+isMobileType (A.ChanDataType {}) = return True
 isMobileType _ = return False
 
 --}}}
