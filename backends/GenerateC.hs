@@ -681,11 +681,21 @@ cgenVariableWithAM checkValid v am fct
                   ct <- case lookup fieldName fs of
                           Just x -> call getCType m x A.Original
                           Nothing -> dieP m $ "Could not find type of field name: " ++ show fieldName
-                  -- For records, we expect it to be a pointer to a record:
-                  return (do tell ["("]
+                  case vt of
+                    A.Record {} ->
+                      -- For records, we expect it to be a pointer to a record:
+                      return
+                         (do tell ["("]
                              call genVariable' v A.Original stripPointers
                              tell [")."]
                              genName fieldName
+                         , ct)
+                    A.ChanDataType {} ->
+                      return
+                         (do tell ["(&("]
+                             call genVariable' v A.Original (const $ Plain "mt_cb_t")
+                             let ind = findIndex ((== fieldName) . fst) fs
+                             tell [".channels[", maybe "" show ind, "]))"]
                          , ct)
           A.SubscriptFromFor m' subCheck start count
             -> do ct <- details v
@@ -751,6 +761,8 @@ cgetCType m origT am
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
          (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
          (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+
+         (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
 
          -- Scalar types:
          (_, Just pl, False, A.Original) -> return $ Plain pl
