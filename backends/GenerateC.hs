@@ -1282,7 +1282,7 @@ cdeclareInit m t@(A.Mobile t') var
   = Just $ do call genVariableUnchecked var A.Original
               tell ["=NULL;"]
               case t' of
-                A.Array {} -> return ()
+                A.Array ds _ | A.UnknownDimension `elem` ds -> return ()
                 _ -> call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
 cdeclareInit _ _ _ = Nothing
 
