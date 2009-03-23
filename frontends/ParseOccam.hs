@@ -337,13 +337,14 @@ maybeIndentedList m msg inner
     <|> do warnP m WarnParserOddity msg
            return []
 
-handleSpecs :: OccParser [NameSpec] -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
+handleSpecs :: OccParser ([NameSpec], OccParser ()) -> OccParser a -> (Meta -> A.Specification -> a -> a) -> OccParser a
 handleSpecs specs inner specMarker
     =   do m <- md
-           ss <- specs
+           (ss, after) <- specs
            ss' <- mapM scopeInSpec ss
            v <- inner
            mapM scopeOutSpec ss'
+           after
            return $ foldl (\e s -> specMarker m s e) v ss'
 
 -- | Run several different parsers with a separator between them.
@@ -968,7 +969,7 @@ replicator
     <?> "replicator"
 --}}}
 --{{{ specifications, declarations, allocations
-allocation :: OccParser [NameSpec]
+allocation :: OccParser ([NameSpec], OccParser ())
 allocation
     =   do m <- md
            sPLACE
@@ -978,7 +979,7 @@ allocation
            eol
            nd <- lookupNameOrError n $ dieP m ("Attempted to PLACE unknown variable: " ++ (show $ A.nameName n))
            defineName n $ nd { A.ndPlacement = p }
-           return []
+           return ([], return ())
     <?> "allocation"
 
 placement :: OccParser A.Placement
@@ -991,13 +992,13 @@ placement
            return $ A.PlaceInVecspace
     <?> "placement"
 
-specification :: OccParser [NameSpec]
+specification :: OccParser ([NameSpec], OccParser ())
 specification
     =   do m <- md
            (ns, d, nt) <- declaration
-           return [(A.Specification m n d, nt) | n <- ns]
-    <|> do { a <- abbreviation; return [a] }
-    <|> do { d <- definition; return [d] }
+           return ([(A.Specification m n d, nt) | n <- ns], return ())
+    <|> do { a <- abbreviation; return ([a], return ()) }
+    <|> do { d <- definition; return ([d], return ()) }
     <?> "specification"
 
 declaration :: OccParser ([A.Name], A.SpecType, NameType)
@@ -1393,12 +1394,31 @@ process
     <|> altProcess
     <|> procInstance
     <|> intrinsicProc
-    <|> handleSpecs (allocation <|> specification) process
+    <|> handleSpecs (allocation <|> specification <|> claimSpec) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
     <|> (pragma >> process)
-    <|> do {m <- md; sCLAIM; v <- variable; eol; indent; p <- process; outdent;
-             return $ A.Claim m v p }
     <?> "process"
+
+claimSpec :: OccParser ([NameSpec], OccParser ())
+claimSpec
+  = do m <- md
+       v <- tryXV sCLAIM (variable <|> directedChannel)
+       n <- getName v >>= getOrigName
+       eol
+       indent
+       return ([(A.Specification m (A.Name m n) $ A.IsClaimed m v, ChannelName)], outdent)
+  where
+    getName :: A.Variable -> OccParser A.Name
+    getName (A.Variable _ n) = return n
+    getName (A.DirectedVariable _ _ v) = getName v
+    getName v = dieP (findMeta v) $ "Cannot abbreviate array/dereference"
+
+    getOrigName :: A.Name -> OccParser String
+    getOrigName n
+      = do st <- getCompState
+           case lookup n [(munged, orig) | (orig, (munged, _)) <- csLocalNames st] of
+             Just orig -> return orig
+             Nothing -> dieP (A.nameMeta n) $ "Could not find name: " ++ (A.nameName n)
 
 --{{{ assignment (:=)
 assignment :: OccParser A.Process
