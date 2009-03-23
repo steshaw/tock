@@ -1971,6 +1971,11 @@ cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
 cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
   Just amtns -> do tell ["occam_", [if c == '.' then '_' else c | c <- s], "(wptr,"]
+                   when (s == "RESIZE.MOBILE.ARRAY.1D") $
+                     do let mob = head as
+                        A.Mobile (A.Array _ t) <- astTypeOf mob
+                        call genBytesIn m t (Left False)
+                        tell [","]
                    seqComma [call genActual (A.Formal am t (A.Name emptyMeta n)) a
                             | ((am, t, n), a) <- zip amtns as]
                    tell [");"]

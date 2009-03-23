@@ -50,9 +50,9 @@ static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, 
 //}}}
 
 //{{{ mobile intrinsics
-static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, mt_array_t ** pptr, const int count) occam_unused;
-static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, mt_array_t ** pptr, const int count) {
-	*pptr = MTResize1D (wptr, *pptr, count);
+static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, const int element_size, mt_array_t ** pptr, const int count) occam_unused;
+static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, const int element_size, mt_array_t ** pptr, const int count) {
+	*pptr = MTResize1D (wptr, *pptr, count*element_size);
 	(*pptr)->dimensions[0] = count;
 }
 
