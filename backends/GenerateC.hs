@@ -690,7 +690,7 @@ cgenVariableWithAM checkValid v am fct
           A.SubscriptFromFor m' subCheck start count
             -> do ct <- details v
                   return (do let check = if checkValid then subCheck else A.NoCheck
-                             tell ["(&"]
+                             tell ["(&("]
                              cgenVariableWithAM checkValid v A.Original id
                              call genArraySubscript A.NoCheck v [(m',
                                case check of
@@ -705,7 +705,7 @@ cgenVariableWithAM checkValid v am fct
                                           genMeta m'
                                           tell [")"]
                                )]
-                             tell [")"]
+                             tell ["))"]
                          , ct)
     -- | Collect all the plain subscripts on a variable, so we can combine them.
     collectSubs :: A.Variable -> CGen ([A.Expression], A.Variable, A.Type)
