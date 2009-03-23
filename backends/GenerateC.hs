@@ -1977,8 +1977,8 @@ cgenAssert m e
 --{{{ mobiles
 cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
 cgenAllocMobile m (A.Mobile t@(A.Array ds innerT)) Nothing
-  = do tell ["MTAllocArray(wptr,"]
-       mobileElemType True innerT
+  = do tell ["MTAllocDataArray(wptr,"]
+       call genBytesIn m innerT (Left False)
        tell [",", show $ length ds]
        prefixComma $ [call genExpression e | A.Dimension e <- ds]
        tell [")"]
