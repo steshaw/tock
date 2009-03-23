@@ -1278,10 +1278,12 @@ cdeclareInit m rt@(A.Record _) var
     initField :: A.Type -> A.Variable -> CGen ()
     initField t v = do fdeclareInit <- fget declareInit
                        doMaybe $ fdeclareInit m t v
-cdeclareInit m t@(A.Mobile _) var
+cdeclareInit m t@(A.Mobile t') var
   = Just $ do call genVariableUnchecked var A.Original
               tell ["=NULL;"]
-              call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
+              case t' of
+                A.Array {} -> return ()
+                _ -> call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
 cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
