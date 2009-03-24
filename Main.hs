@@ -65,7 +65,7 @@ optionsNoWarnings =
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
-  , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, parse, compile, post-c, full)"
+  , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, parse, compile, post-c, full)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
@@ -89,6 +89,7 @@ optMode s ps
             "full" -> return ModeFull
             "parse" -> return ModeParse
             "post-c" -> return ModePostC
+            "lex" -> return ModeLex
             _ -> dieIO (Nothing, "Unknown mode: " ++ s)
           return $ ps { csMode = mode }
 
@@ -184,11 +185,9 @@ main = do
 
   let operation
         = case csMode initState of
-            ModeParse -> useOutputOptions (compile ModeParse fn)
-            ModeFlowGraph -> useOutputOptions (compile ModeFlowGraph fn)
-            ModeCompile -> useOutputOptions (compile ModeCompile fn)
             ModePostC -> useOutputOptions (postCAnalyse fn)
             ModeFull -> evalStateT (compileFull fn fileStem) []
+            mode -> useOutputOptions (compile mode fn)
 
   -- Run the compiler.
   v <- runPassM initState operation
@@ -315,13 +314,21 @@ compile mode fn outHandle
 
         debug "{{{ Parse"
         progress "Parse"
-        ast1 <- case csFrontend optsPS of
-          FrontendOccam -> preprocessOccamProgram fn >>= parseOccamProgram
-          FrontendRain -> liftIO (readFile fn) >>= parseRainProgram fn
+        (ast1, lexed) <- case csFrontend optsPS of
+          FrontendOccam ->
+            do lexed <- preprocessOccamProgram fn
+               case mode of
+                 -- In lex mode, don't parse, because it will probably fail anyway:
+                 ModeLex -> return (A.Only emptyMeta (), lexed)
+                 _ -> do parsed <- parseOccamProgram lexed
+                         return (parsed, lexed)
+          FrontendRain -> do parsed <- liftIO (readFile fn) >>= parseRainProgram fn
+                             return (parsed, [])
         debugAST ast1
         debug "}}}"
 
         case mode of
+            ModeLex -> liftIO $ hPutStr outHandle $ pshow lexed
             ModeParse -> liftIO $ hPutStr outHandle $ pshow ast1
             ModeFlowGraph ->
               do procs <- findAllProcesses

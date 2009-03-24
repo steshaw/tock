@@ -38,7 +38,7 @@ import UnifyType
 import Utils
 
 -- | Modes that Tock can run in.
-data CompMode = ModeFlowGraph | ModeParse | ModeCompile | ModePostC | ModeFull
+data CompMode = ModeFlowGraph | ModeLex | ModeParse | ModeCompile | ModePostC | ModeFull
   deriving (Show, Data, Typeable, Eq)
 
 -- | Backends that Tock can use.
