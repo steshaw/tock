@@ -259,7 +259,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                    A.Literal m sizeType $ A.ArrayListLiteral m $ A.Several m $
                      A.Only m exp : map (A.Only m) subDims
                  Nothing -> subSrcSizeVar
-               sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeExpr
+               sizeSpecType = A.Is m A.ValAbbrev sizeType (A.ActualExpression sizeExpr)
            defineSizesName m n_sizes sizeSpecType
            return $ A.Specification m n_sizes sizeSpecType
 
@@ -281,15 +281,15 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                              -- here, and probably isn't handled right
                              A.Retypes _ _ _ v ->
                                retypesSizes m' n_sizes ds elemT v
-                             A.Is _ _ _ v ->
+                             A.Is _ _ _ (A.ActualVariable v) ->
                                abbrevVarSizes m n_sizes ds v
-                             A.IsChannelArray _ _ vs ->
+                             A.Is _ _ _ (A.ActualChannelArray vs) ->
                                defineStaticSizes [makeDimension m' (length vs)]
-                             A.IsExpr _ _ _ (A.ExprVariable _ v) ->
+                             A.Is _ _ _ (A.ActualExpression (A.ExprVariable _ v)) ->
                                abbrevVarSizes m n_sizes ds v
                              -- The dimensions in a literal should all be
                              -- static:
-                             A.IsExpr _ _ _ (A.Literal _ (A.Array ds' _) _) ->
+                             A.Is _ _ _ (A.ActualExpression (A.Literal _ (A.Array ds' _) _)) ->
                                defineStaticSizes ds'
                              _ ->
                                dieP m $ "Could not handle unknown array spec: "
@@ -314,7 +314,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
       where
         sizeType = A.Array [makeDimension m $ length es] A.Int
         sizeLit = A.Literal m sizeType $ A.ArrayListLiteral m $ A.Several m $ map (A.Only m) es
-        sizeSpecType = A.IsExpr m A.ValAbbrev sizeType sizeLit
+        sizeSpecType = A.Is m A.ValAbbrev sizeType $ A.ActualExpression sizeLit
 
     declareFieldSizes :: Data a => String -> Meta -> A.Structured a -> (A.Name, A.Type) -> PassM (A.Structured a)
     declareFieldSizes prep m inner (n, A.Array ds _)

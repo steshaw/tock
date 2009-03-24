@@ -499,10 +499,6 @@ instance ShowOccam A.Specification where
     = showOccamLine $ showOccamM t >> space >> showName n >> colon
   showOccamM (A.Specification _ n (A.Is _ am t v))
     = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM v >> colon
-  showOccamM (A.Specification _ n (A.IsExpr _ am t e))
-    = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM e >> colon
-  showOccamM (A.Specification _ n (A.IsChannelArray _ t vs))
-    = showOccamLine $ showOccamM t >> space >> showName n >> tell [" IS ["] >> showWithCommas vs >> tell ["]:"]
   showOccamM (A.Specification _ n (A.DataType _ t))
     = showOccamLine $ tell ["DATA TYPE "] >> showName n >> tell [" IS "] >> showOccamM t >> colon
   showOccamM (A.Specification _ n (A.RecordType _ attr fields))
@@ -687,8 +683,6 @@ instance ShowRain A.Specification where
     = showRainLine $ showRainM t >> colon >> showName n >> semi
   showRainM (A.Specification _ n (A.Is _ am t v))
     = showRainLine $ (maybeValRain am) >> showRainM t >> colon >> showName n >> tell [" = "] >> showRainM v >> semi
-  showRainM (A.Specification _ n (A.IsExpr _ am t e))
-    = showRainLine $ (maybeValRain am) >> showRainM t >> colon >> showName n >> tell [" = "] >> showRainM e >> semi
 
 
 instance ShowRain A.Process where

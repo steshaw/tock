@@ -365,12 +365,12 @@ makeNonceCounter s m
 -- | Generate and define a variable abbreviation.
 makeNonceIs :: CSM m => String -> Meta -> A.Type -> A.AbbrevMode -> A.Variable -> m A.Specification
 makeNonceIs s m t am v
-    = defineNonce m s (A.Is m am t v) am
+    = defineNonce m s (A.Is m am t (A.ActualVariable v)) am
 
 -- | Generate and define an expression abbreviation.
 makeNonceIsExpr :: CSM m => String -> Meta -> A.Type -> A.Expression -> m A.Specification
 makeNonceIsExpr s m t e
-    = defineNonce m s (A.IsExpr m A.ValAbbrev t e) A.ValAbbrev
+    = defineNonce m s (A.Is m A.ValAbbrev t (A.ActualExpression e)) A.ValAbbrev
 
 -- | Generate and define a variable.
 makeNonceVariable :: CSM m => String -> Meta -> A.Type -> A.AbbrevMode -> m A.Specification

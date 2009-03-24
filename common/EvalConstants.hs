@@ -67,7 +67,7 @@ getConstantName :: (CSMR m, Die m) => A.Name -> m (Maybe A.Expression)
 getConstantName n
     =  do st <- specTypeOfName n
           case st of
-            A.IsExpr _ A.ValAbbrev _ e ->
+            A.Is _ A.ValAbbrev _ (A.ActualExpression e) ->
                do (e', isConst, _) <- constantFold e
                   -- FIXME: This should update the definition if it's constant
                   -- (to avoid folding multiple times), but that would require

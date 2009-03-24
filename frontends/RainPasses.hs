@@ -306,7 +306,7 @@ excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] []
    ,con3 A.InCounted
    ,con3 A.OutCounted
    ,con2 A.Place
-   ,con3 A.IsChannelArray
+   ,con1 A.ActualChannelArray
    ,con4 A.Retypes
    ,con4 A.RetypesExpr
    ,con0 A.PriPar

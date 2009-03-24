@@ -77,7 +77,7 @@ removeInitial
             --   PROCTHEN
             --     foo := bar
             --     inner
-            A.IsExpr m'' A.InitialAbbrev t e ->
+            A.Is m'' A.InitialAbbrev t (A.ActualExpression e) ->
               return $ declareAssign n t e inner
 
             -- INITIAL retyping
@@ -230,7 +230,7 @@ abbrevCheckPass
 
     doStructured :: Data a => A.Structured a -> StateT [Map.Map Var Bool] PassM
       (A.Structured a)
-    doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ v)) scope)
+    doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ (A.ActualVariable v))) scope)
       = do nonce <- nameIsNonce n
            ex <- isNameExempt n
            if nonce || ex
@@ -239,7 +239,7 @@ abbrevCheckPass
                      checkAbbreved v "Abbreviated variable % used inside the scope of the abbreviation"
                      pop
            return s
-    doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ v)) scope)
+    doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ (A.ActualVariable v))) scope)
       = do nonce <- nameIsNonce n
            ex <- isNameExempt n
            if nonce || ex
@@ -249,7 +249,7 @@ abbrevCheckPass
                      checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
                      pop
            return s
-    doStructured s@(A.Spec _ (A.Specification m n (A.IsExpr _ A.ValAbbrev _ e)) scope)
+    doStructured s@(A.Spec _ (A.Specification m n (A.Is _ A.ValAbbrev _ (A.ActualExpression e))) scope)
       = do nonce <- nameIsNonce n
            ex <- isNameExempt n
            if nonce || ex

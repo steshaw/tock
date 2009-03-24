@@ -80,6 +80,23 @@ instance ASTTypeable A.Formal where
 instance ASTTypeable A.Actual where
   astTypeOf (A.ActualVariable v) = astTypeOf v
   astTypeOf (A.ActualExpression e) = astTypeOf e
+  astTypeOf (A.ActualClaim v)
+              =  do t <- typeOfVariable v
+                    case t of
+                          A.Chan attr innerT -> return $ A.Chan (attr
+                            { A.caWritingShared = A.Unshared
+                            , A.caReadingShared = A.Unshared
+                            }) innerT
+                          A.ChanEnd A.DirInput _ innerT
+                            -> return $ A.ChanEnd A.DirInput A.Unshared innerT
+                          A.ChanEnd A.DirOutput _ innerT
+                            -> return $ A.ChanEnd A.DirOutput A.Unshared innerT
+                          A.ChanDataType dir _ innerT -> return $ A.ChanDataType dir A.Unshared innerT
+                          _ -> dieP (findMeta v) "Item in claim not channel"
+  astTypeOf (A.ActualChannelArray (v:vs))
+    = do t <- typeOfVariable v
+         return $ A.Array [A.Dimension $ makeConstant (findMeta v) (length vs+1)] t
+
 
 -- | Gets the 'A.Type' for a given 'A.Name' by looking at its definition in the 'CompState'.  Dies with an error if the name is unknown.
 typeOfName :: (CSMR m, Die m) => A.Name -> m A.Type
@@ -96,23 +113,6 @@ typeOfSpec' st
         = case st of
             A.Declaration a t -> return $ Just (t, A.Declaration a)
             A.Is a b t c -> return $ Just (t, \t' -> A.Is a b t' c)
-            A.IsExpr a b t c -> return $ Just (t, \t' -> A.IsExpr a b t' c)
-            A.IsChannelArray a t b
-              -> return $ Just (t, \t' -> A.IsChannelArray a t' b)
-            A.IsClaimed m v
-              -> do t <- typeOfVariable v
-                    let t' = case t of
-                          A.Chan attr innerT -> Just $ A.Chan (attr
-                            { A.caWritingShared = A.Unshared
-                            , A.caReadingShared = A.Unshared
-                            }) innerT
-                          A.ChanEnd A.DirInput _ innerT
-                            -> Just $ A.ChanEnd A.DirInput A.Unshared innerT
-                          A.ChanEnd A.DirOutput _ innerT
-                            -> Just $ A.ChanEnd A.DirOutput A.Unshared innerT
-                          A.ChanDataType dir _ innerT -> Just $ A.ChanDataType dir A.Unshared innerT
-                          _ -> Nothing
-                    return $ fmap (\x -> (x, error "typeOfSpec'")) t'
             A.Retypes a b t c -> return $ Just (t, \t' -> A.Retypes a b t' c)
             A.RetypesExpr a b t c
               -> return $ Just (t, \t' -> A.RetypesExpr a b t' c)
@@ -372,8 +372,6 @@ abbrevModeOfSpec :: A.SpecType -> A.AbbrevMode
 abbrevModeOfSpec s
     = case s of
         A.Is _ am _ _ -> am
-        A.IsExpr _ am _ _ -> am
-        A.IsChannelArray _ _ _ -> A.Abbrev
         A.Retypes _ am _ _ -> am
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original

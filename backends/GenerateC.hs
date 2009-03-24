@@ -1342,13 +1342,13 @@ cintroduceSpec (A.Specification m n (A.Declaration _ t))
          case fdeclareInit m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
-cintroduceSpec (A.Specification _ n (A.Is _ am t v))
+cintroduceSpec (A.Specification _ n (A.Is _ am t (A.ActualVariable v)))
     =  do let rhs = call genVariable v am
           call genDecl am t n
           tell ["="]
           rhs
           tell [";"]
-cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
+cintroduceSpec (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
     =  do let rhs = abbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
@@ -1377,7 +1377,7 @@ cintroduceSpec (A.Specification _ n (A.IsExpr _ am t e))
                  tell [" = "]
                  rhs
                  tell [";\n"]
-cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
+cintroduceSpec (A.Specification _ n (A.Is _ _ (A.Array _ c) (A.ActualChannelArray cs)))
     =  do genType c
           case c of
              A.Chan _ _ -> tell ["* "]
@@ -1388,7 +1388,7 @@ cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
           tell ["[]={"]
           seqComma (map (\v -> call genVariable v A.Abbrev) cs)
           tell ["};"]
-cintroduceSpec (A.Specification _ n (A.IsClaimed _ v))
+cintroduceSpec (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
     =  do t <- astTypeOf n
           case t of
             A.ChanEnd dir _ _ -> do call genDecl A.Original t n
@@ -1504,14 +1504,14 @@ cremoveSpec (A.Specification m n (A.Declaration _ t))
     var = A.Variable m n
 cremoveSpec (A.Specification _ n (A.Rep _ rep))
   = call genReplicatorEnd rep
-cremoveSpec (A.Specification m n (A.IsExpr _ am t e))
+cremoveSpec (A.Specification m n (A.Is _ am t (A.ActualExpression e)))
   = do fdeclareFree <- fget declareFree
        case fdeclareFree m t var of
          Just p -> p
          Nothing -> return ()
   where
     var = A.Variable m n
-cremoveSpec (A.Specification _ n (A.IsClaimed _ v))
+cremoveSpec (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
     =  do t <- astTypeOf n
           let dir = case t of
                       A.ChanEnd dir _ _ -> dir

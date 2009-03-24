@@ -208,7 +208,7 @@ fixLowReplicators = pass "Fix low-count (0, 1) replicators" [] []
              0 -> return $ A.Several m []
              1 -> doStructured s >>*
                     A.Spec m (A.Specification m' n
-                      (A.IsExpr m'' A.ValAbbrev A.Int begin)) 
+                      (A.Is m'' A.ValAbbrev A.Int $ A.ActualExpression begin)) 
              _ -> doStructured s >>* A.Spec m sp
     doStructured (A.Spec m sp s) = doStructured s >>* A.Spec m sp
     

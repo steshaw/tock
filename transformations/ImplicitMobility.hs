@@ -221,7 +221,8 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
                  recurse scope >>* A.Spec m (A.Specification m' n newSpec)
             Nothing -> descend s
           _ -> do scope' <- recurse {-addAtEndOfScopeDyn m'' (A.ClearMobile m'' $ A.Variable m' n)-} scope
-                  let newSpec = A.IsExpr m'' A.Original (A.Mobile t) $ A.AllocMobile m'' (A.Mobile t) Nothing
+                  let newSpec = A.Is m'' A.Original (A.Mobile t) $
+                        A.ActualExpression $ A.AllocMobile m'' (A.Mobile t) Nothing
                   modifyName n (\nd -> nd {A.ndSpecType = newSpec})
                   let name_sizes = n {A.nameName = A.nameName n ++ "_sizes"}
                       nd = A.NameDef {

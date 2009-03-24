@@ -1050,7 +1050,7 @@ valAbbrev
           e <- expression
           sColon
           eol
-          return (A.Specification m n $ A.IsExpr m am t e, VariableName)
+          return (A.Specification m n $ A.Is m am t (A.ActualExpression e), VariableName)
     <?> "abbreviation by value"
 
 refAbbrevMode :: OccParser A.AbbrevMode
@@ -1070,7 +1070,7 @@ refAbbrev oldVar nt
           sColon
           eol
           t' <- direct t
-          return (A.Specification m n $ A.Is m am t' v, nt)
+          return (A.Specification m n $ A.Is m am t' $ A.ActualVariable v, nt)
     <?> "abbreviation by reference"
 
 chanArrayAbbrev :: OccParser NameSpec
@@ -1085,7 +1085,7 @@ chanArrayAbbrev
           sColon
           eol
           t' <- direct t
-          return (A.Specification m n $ A.IsChannelArray m t' cs, ChannelName)
+          return (A.Specification m n $ A.Is m A.Abbrev t' $ A.ActualChannelArray cs, ChannelName)
     <?> "channel array abbreviation"
 
 specMode :: OccParser a -> OccParser (A.SpecMode, a)
@@ -1415,7 +1415,7 @@ claimSpec
        n <- getName v >>= getOrigName
        eol
        indent
-       return ([(A.Specification m (A.Name m n) $ A.IsClaimed m v, ChannelName)], outdent)
+       return ([(A.Specification m (A.Name m n) $ A.Is m A.Abbrev A.Infer $ A.ActualClaim v, ChannelName)], outdent)
   where
     getName :: A.Variable -> OccParser A.Name
     getName (A.Variable _ n) = return n

@@ -240,9 +240,9 @@ getVarSpec (A.Specification _ n st) = get st
     dv = A.Variable (A.nameMeta n) n
     
     get :: A.SpecType -> Vars
-    get (A.Is _ am _ v) = abbrev am v
-    get (A.IsExpr _ _ _ e) = getVarExp e `unionVars` processVarW dv (Just e)
-    get (A.IsChannelArray _ _ vs) = vars vs' ((Var dv,Nothing):(zip vs' $ repeat Nothing)) []
+    get (A.Is _ am _ (A.ActualVariable v)) = abbrev am v
+    get (A.Is _ _ _ (A.ActualExpression e)) = getVarExp e `unionVars` processVarW dv (Just e)
+    get (A.Is _ _ _ (A.ActualChannelArray vs)) = vars vs' ((Var dv,Nothing):(zip vs' $ repeat Nothing)) []
       where
         vs' = map Var vs
     get (A.Retypes _ am _ v) = abbrev am v

@@ -70,7 +70,9 @@ outExprs = pass "Define temporary variables for outputting expressions"
     
     abbrevExpr :: Meta -> A.Expression -> PassM (A.Name, A.Structured A.Process -> A.Structured A.Process)
     abbrevExpr m e = do t <- astTypeOf e
-                        specification@(A.Specification _ nm _) <- defineNonce m "output_var" (A.IsExpr m A.ValAbbrev t e) A.ValAbbrev
+                        specification@(A.Specification _ nm _) <-
+                          defineNonce m "output_var" (A.Is m A.ValAbbrev t $
+                            A.ActualExpression e) A.ValAbbrev
                         return (nm, A.Spec m specification)
 
 {- The explanation for this pass is taken from my (Neil's) mailing list post "Case protocols" on tock-discuss, dated 10th October 2007:

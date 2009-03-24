@@ -886,16 +886,16 @@ inferTypes = occamOnlyPass "Infer types"
                                    return (tEnd, A.DirectedVariable m dir v')
                               _ -> return (t', v') -- no direction, or two
                     _ -> return (t', v')
-                  return $ A.Is m am' t'' v''
-            A.IsExpr m am t e -> lift $
+                  return $ A.Is m am' t'' $ A.ActualVariable v''
+            A.Is m am t (A.ActualExpression e) -> lift $
                do am' <- recurse am
                   t' <- recurse t
                   e' <- inTypeContext (Just t') $ recurse e
                   t'' <- case t' of
                            A.Infer -> astTypeOf e'
                            _ -> return t'
-                  return $ A.IsExpr m am' t'' e'
-            A.IsChannelArray m t vs ->
+                  return $ A.Is m am' t'' (A.ActualExpression e')
+            A.Is m am t (A.ActualChannelArray vs) ->
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".
                do t' <- lift $ recurse t
@@ -920,7 +920,7 @@ inferTypes = occamOnlyPass "Infer types"
                                         ,A.DirectedVariable m dir)
                         _ -> return (t'', id)
                     _ -> return (t'', id)
-                  return $ A.IsChannelArray m t''' $ map f vs'
+                  return $ A.Is m am t''' $ A.ActualChannelArray $ map f vs'
             A.Function m sm ts fs (Left sel) -> lift $
                do sm' <- recurse sm
                   ts' <- recurse ts
@@ -1333,25 +1333,28 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType :: Check A.SpecType
     doSpecType (A.Place _ e) = checkExpressionInt e
     doSpecType (A.Declaration _ _) = ok
-    doSpecType (A.Is m am t v)
+    doSpecType (A.Is m am t (A.ActualVariable v))
         =  do tv <- astTypeOf v
               checkType (findMeta v) t tv
               checkRefAM m am
               amv <- abbrevModeOfVariable v
               checkAbbrev m amv am
-    doSpecType (A.IsExpr m am t e)
+    doSpecType (A.Is m am t (A.ActualExpression e))
         =  do te <- astTypeOf e
               checkType (findMeta e) t te
               checkValAM m am
               checkAbbrev m A.ValAbbrev am
-    doSpecType (A.IsClaimed m v)
-        =  do t <- astTypeOf v
-              case t of
+    doSpecType (A.Is m am t (A.ActualClaim v))
+        =  do tv <- astTypeOf v
+              checkAbbrev m A.Abbrev am
+              checkType (findMeta v) t tv
+              case tv of
                 A.ChanEnd _ A.Shared _ -> return ()
                 A.ChanDataType _ A.Shared _ -> return ()
                 _ -> dieP m "Expected shared channel end in claim"
-    doSpecType (A.IsChannelArray m rawT cs)
+    doSpecType (A.Is m am rawT (A.ActualChannelArray cs))
         =  do t <- resolveUserType m rawT
+              checkAbbrev m A.Abbrev am
               let isChan (A.Chan {}) = True
                   isChan (A.ChanEnd {}) = True
                   isChan _ = False

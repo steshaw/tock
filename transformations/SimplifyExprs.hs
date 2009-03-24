@@ -212,9 +212,9 @@ transformConstr = pass "Transform array constructors into initialisation code"
     --   SEQ i = rep
     --     name += [expr]
     doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
-    doStructured (A.Spec m (A.Specification m' n (A.IsExpr _ _ _
-      expr@(A.Literal m'' t (A.ArrayListLiteral _ (A.Spec _ (A.Specification _
-        repn (A.Rep _ rep)) repExp))))) scope)
+    doStructured (A.Spec m (A.Specification m' n (A.Is _ _ _
+      (A.ActualExpression expr@(A.Literal m'' t (A.ArrayListLiteral _ (A.Spec _ (A.Specification _
+        repn (A.Rep _ rep)) repExp)))))) scope)
       = do case t of
              A.Array {} ->
                do indexVarSpec@(A.Specification _ indexName _) <- makeNonceVariable "array_constr_index" m'' A.Int A.Original
@@ -370,13 +370,13 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
     -- | Filter what can be pulled in Specifications.
     doSpecification :: A.Specification -> PassM A.Specification
     -- Iss might be SubscriptedVars -- which is fine; the backend can deal with that.
-    doSpecification (A.Specification m n (A.Is m' am t v))
+    doSpecification (A.Specification m n (A.Is m' am t (A.ActualVariable v)))
         =  do v' <- descend v    -- note descend rather than pullUp
-              return $ A.Specification m n (A.Is m' am t v')
+              return $ A.Specification m n (A.Is m' am t $ A.ActualVariable v')
     -- IsExprs might be SubscriptedExprs, and if so we have to convert them.
-    doSpecification (A.Specification m n (A.IsExpr m' am t e))
+    doSpecification (A.Specification m n (A.Is m' am t (A.ActualExpression e)))
         =  do e' <- doExpression' e  -- note doExpression' rather than recurse
-              return $ A.Specification m n (A.IsExpr m' am t e')
+              return $ A.Specification m n (A.Is m' am t $ A.ActualExpression e')
     -- Convert RetypesExpr into Retypes of a variable.
     doSpecification (A.Specification m n (A.RetypesExpr m' am toT e))
         =  do e' <- doExpression e

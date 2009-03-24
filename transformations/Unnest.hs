@@ -159,8 +159,6 @@ removeFreeNames = pass "Convert free names to arguments"
                 -- Declaration also covers PROC formals.
                 A.Declaration {} -> True
                 A.Is {} -> True
-                A.IsExpr {} -> True
-                A.IsChannelArray {} -> True
                 A.Retypes {} -> True
                 A.RetypesExpr {} -> True
                 A.Rep {} -> True
