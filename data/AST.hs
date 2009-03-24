@@ -484,14 +484,8 @@ data SpecType =
   Place Meta Expression
   -- | Declare a variable
   | Declaration Meta Type
-  -- | Declare an abbreviation of a variable.
-  | Is Meta AbbrevMode Type Variable
-  -- | Declare an abbreviation of an expression.
-  | IsExpr Meta AbbrevMode Type Expression
-  -- | Declare an abbreviation of an array of channels.
-  | IsChannelArray Meta Type [Variable]
-  -- | Declare a CLAIMed abbreviation of a variable.
-  | IsClaimed Meta Variable
+  -- | Declare an abbreviation of something.
+  | Is Meta AbbrevMode Type Actual
   -- | Declare a user data type.
   | DataType Meta Type
   -- | Declare a new record type.
@@ -540,12 +534,22 @@ data Formal =
   Formal AbbrevMode Type Name
   deriving (Show, Eq, Typeable, Data)
 
--- | Actual parameters for @PROC@s and @FUNCTION@s.
+-- | Anything that can be abbreviated, such as:
+--
+-- * @FUNCTION@ parameters.
+--
+-- * @PROC@ parameters.
+--
+-- * The right hand side of @IS@.
 data Actual =
   -- | A variable used as a parameter.
   ActualVariable Variable
   -- | An expression used as a parameter.
   | ActualExpression Expression
+  -- | An array literal filled with channel(-end)s.
+  | ActualChannelArray [Variable]
+  -- | Claim a channel(-bundle)-end variable
+  | ActualClaim Variable
   deriving (Show, Eq, Typeable, Data)
 
 -- | The mode in which a @PAR@ operates.
