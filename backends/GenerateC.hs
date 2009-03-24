@@ -1728,7 +1728,12 @@ cgenAssign m [vA, vB] (A.AllocChannelBundle _ n)
          call genVariable' vA A.Original (const $ Pointer $ Plain "mt_cb_t")
          tell ["=MTAllocChanType(wptr,", show (length fs), ",",
            if shA == A.Shared || shB == A.Shared then "true" else "false", ");"]
-         call genAssign m [vB] (el $ A.CloneMobile m $ A.ExprVariable m vA)
+         -- Mobile channel types start with a reference count of 2, so no need
+         -- to clone, just assign:
+         call genVariable' vB A.Original (const $ Pointer $ Plain "mt_cb_t")
+         tell ["="]
+         call genVariable' vA A.Original (const $ Pointer $ Plain "mt_cb_t")
+         tell [";"]
   where
     el e = A.ExpressionList m [e]
 cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
