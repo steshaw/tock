@@ -39,6 +39,7 @@ module GenerateC
 import Data.Char
 import Data.Generics
 import Data.List
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Control.Monad.State
@@ -172,7 +173,11 @@ cgenTopLevel s
                           (listify (const True :: A.Specification -> Bool) s)
 
           sequence_ [tell ["extern int ", nameString n, "_stack_size;\n"]
-                     | n <- Set.toList $ csParProcs cs]
+                     | n <- (Set.toList $ csParProcs cs)
+                           ++ [A.Name emptyMeta n | A.NameDef
+                                    {A.ndName = n
+                                    ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
+                                    } <- Map.elems $ csNames cs]]
           tell ["extern int "]
           genName tlpName
           tell ["_stack_size;\n"]
@@ -1553,9 +1558,10 @@ realFormals (A.Formal am t n)
 -- This will use ProcGetParam if the Proc is in csParProcs, or the normal C
 -- calling convention otherwise.
 genProcSpec :: A.Name -> A.SpecType -> Bool -> CGen ()
-genProcSpec n (A.Proc _ (sm, _) fs p) forwardDecl
+genProcSpec n (A.Proc _ (sm, rm) fs p) forwardDecl
     =  do cs <- getCompState
           let (header, params) = if n `Set.member` csParProcs cs
+                                    || rm == A.Recursive
                                    then (genParHeader, genParParams)
                                    else (genNormalHeader, return ())
           header
@@ -2010,11 +2016,19 @@ withIf cond body
 --{{{  proc call
 cgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cgenProcCall n as
-    =  do genName n
-          tell [" (wptr"]
-          (A.Proc _ _ fs _) <- specTypeOfName n
-          call genActuals fs as
-          tell [");\n"]
+    =  do A.Proc _ (_, rm) _ _ <- specTypeOfName n
+          case rm of
+            -- This is rather inefficient, because if a recursive PROC is called
+            -- anywhere (from other processes as well as from itself), it will
+            -- be done in a PAR.
+            A.Recursive ->
+              let m = A.nameMeta n
+              in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
+            _ -> do genName n
+                    tell [" (wptr"]
+                    (A.Proc _ _ fs _) <- specTypeOfName n
+                    call genActuals fs as
+                    tell [");\n"]
 --}}}
 --{{{  intrinsic procs
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
