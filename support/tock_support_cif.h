@@ -58,6 +58,13 @@ static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, const int eleme
 
 //}}}
 
+//{{{ other mobile stuff
+static inline void* TockMTLock(Workspace wptr, void* ptr, int lock) {
+	MTLock(wptr, ptr, lock);
+	return ptr;
+}
+//}}}
+
 //{{{  top-level process interface
 static void tock_tlp_input_bcall (FILE *in, int *ch) occam_unused;
 static void tock_tlp_input_bcall (FILE *in, int *ch) {

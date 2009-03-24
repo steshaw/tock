@@ -759,6 +759,9 @@ cgetCType m origT am
          (A.Record n, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain $ nameString n
          (A.Record n, _, True, _) -> return $ Pointer $ const $ Plain $ nameString n
 
+         (A.Chan (A.ChanAttributes A.Shared A.Shared) _, _, False, _)
+           -> return $ Pointer $ Plain "mt_cb_t"
+
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
          (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
          (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
@@ -1260,10 +1263,13 @@ cgenFlatArraySize ds
 
 -- | Initialise an item being declared.
 cdeclareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ())
-cdeclareInit _ (A.Chan _ _) var
+cdeclareInit _ (A.Chan (A.ChanAttributes A.Unshared A.Unshared) _) var
     = Just $ do tell ["ChanInit(wptr,"]
                 call genVariableUnchecked var A.Abbrev
                 tell [");"]
+cdeclareInit _ (A.Chan (A.ChanAttributes A.Shared A.Shared) _) var
+    = Just $ do call genVariable' var A.Original (const $ Pointer $ Plain "mt_cb_t")
+                tell [" = MTAllocChanType(wptr, 1, true);"]
 cdeclareInit m t@(A.Array ds t') var
     = Just $ do case t' of
                   A.Chan _ _ ->
@@ -1299,6 +1305,9 @@ cdeclareInit m t@(A.Mobile t') var
               case t' of
                 A.Array ds _ | A.UnknownDimension `elem` ds -> return ()
                 _ -> call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
+cdeclareInit m (A.ChanDataType {}) var
+  = Just $ do call genVariable' var A.Original (const $ Pointer $ Plain "mt_cb_t")
+              tell ["=NULL;"]
 cdeclareInit _ _ _ = Nothing
 
 -- | Free a declared item that's going out of scope.
@@ -1374,8 +1383,27 @@ cintroduceSpec (A.Specification _ n (A.IsChannelArray _ (A.Array _ c) cs))
           tell ["[]={"]
           seqComma (map (\v -> call genVariable v A.Abbrev) cs)
           tell ["};"]
+cintroduceSpec (A.Specification _ n (A.IsClaimed _ v))
+    =  do t <- astTypeOf n
+          case t of
+            A.ChanEnd dir _ _ -> do call genDecl A.Original t n
+                                    tell ["=(&(((mt_cb_t*)"]
+                                    lock dir
+                                    tell [")->channels[0]));"]
+            A.ChanDataType dir _ _ -> do call genDecl A.Original t n
+                                         tell ["="]
+                                         lock dir
+                                         tell [";"]
+  where
+    lock dir = do tell ["TockMTLock(wptr,"]
+                  call genVariable' v A.Original (const $ Pointer $ Plain "mt_cb_t")
+                  tell [",",if dir == A.DirInput
+                              then "MT_CB_CLIENT"
+                              else "MT_CB_SERVER"
+                       ,")"]
 cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec (A.Specification _ _ (A.RecordType _ _ _)) = return ()
+cintroduceSpec (A.Specification _ _ (A.ChanBundleType {})) = return ()
 cintroduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
 cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
     =  do tell ["typedef enum{"]
@@ -1478,6 +1506,18 @@ cremoveSpec (A.Specification m n (A.IsExpr _ am t e))
          Nothing -> return ()
   where
     var = A.Variable m n
+cremoveSpec (A.Specification _ n (A.IsClaimed _ v))
+    =  do t <- astTypeOf n
+          let dir = case t of
+                      A.ChanEnd dir _ _ -> dir
+                      A.ChanDataType dir _ _ -> dir
+          tell ["MTUnlock(wptr,"]
+          call genVariable' v A.Original (const $ Pointer $ Plain "mt_cb_t")
+          tell [",",if dir == A.DirInput
+                      then "MT_CB_CLIENT"
+                      else "MT_CB_SERVER"
+               ,");"]
+
 cremoveSpec _ = return ()
 
 cgenSpecMode :: A.SpecMode -> CGen ()
@@ -1673,7 +1713,18 @@ cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
            emptyMeta "dummy_intrinsic_param")) (A.ActualVariable v)) vs
          when giveMeta $ genComma >> genMeta m
          tell [");"]
-         
+cgenAssign m [vA, vB] (A.AllocChannelBundle _ n)
+    = do t@(A.ChanDataType dirA shA _) <- astTypeOf vA
+         A.ChanDataType dirB shB _ <- astTypeOf vB
+         call genClearMobile m vA
+         call genClearMobile m vB
+         fs <- recordFields m t
+         call genVariable' vA A.Original (const $ Pointer $ Plain "mt_cb_t")
+         tell ["=MTAllocChanType(wptr,", show (length fs), ",",
+           if shA == A.Shared || shB == A.Shared then "true" else "false", ");"]
+         call genAssign m [vB] (el $ A.CloneMobile m $ A.ExprVariable m vA)
+  where
+    el e = A.ExpressionList m [e]
 cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
 
 isPOD :: A.Type -> Bool
