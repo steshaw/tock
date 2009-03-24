@@ -1812,6 +1812,7 @@ topLevelItem :: OccParser A.AST
 topLevelItem
     =   handleSpecs (allocation <|> specification) topLevelItem
                     (\m s inner -> A.Spec m s inner)
+    <|> (pragma >> topLevelItem)
     <|> do m <- md
            eof
            -- Stash the current locals so that we can either restore them
