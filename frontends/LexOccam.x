@@ -164,6 +164,7 @@ instance Show TokenType where
           TokRealLiteral s   -> quote "real literal" s
           TokPreprocessor s  -> quote "preprocessor directive" s
           IncludeFile s      -> quote "file inclusion" s
+          Pragma s           -> quote "pragma" s
           Indent             -> "indentation increase"
           Outdent            -> "indentation decrease"
           EndOfLine          -> "end of line"
