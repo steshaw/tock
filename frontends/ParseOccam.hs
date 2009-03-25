@@ -1779,14 +1779,16 @@ actual (A.Formal am t n)
             A.ValAbbrev -> expression >>* A.ActualExpression
             _ ->
               case stripArrayType t of
-                A.Chan {} -> var directedChannel
-                A.ChanEnd {} -> var directedChannel
+                A.Chan {} -> var directedChannel <|> chanArray
+                A.ChanEnd {} -> var directedChannel <|> chanArray
                 A.Timer {} -> var timer
                 A.Port _ -> var port
                 _ -> var variable
     <?> "actual of type " ++ showOccam t ++ " for " ++ show n
     where
       var inner = inner >>* A.ActualVariable
+      chanArray = tryXVX sLeft (sepBy1 directedChannel sComma) sRight
+                    >>* A.ActualChannelArray
 --}}}
 --{{{ intrinsic PROC call
 intrinsicProcName :: OccParser (String, [A.Formal])

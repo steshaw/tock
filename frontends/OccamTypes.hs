@@ -348,13 +348,13 @@ checkActuals m n fs as
 -- | Check an actual against its matching formal.
 checkActual :: A.Formal -> A.Actual -> PassM ()
 checkActual (A.Formal newAM et _) a
-    =  do rt <- case a of
-                  A.ActualVariable v -> astTypeOf v
-                  A.ActualExpression e -> astTypeOf e
+    =  do rt <- astTypeOf a
           checkType (findMeta a) et rt
           origAM <- case a of
                       A.ActualVariable v -> abbrevModeOfVariable v
                       A.ActualExpression _ -> return A.ValAbbrev
+                      A.ActualChannelArray {} -> return A.Abbrev
+                      A.ActualClaim {} -> return A.Abbrev
           checkAbbrev (findMeta a) origAM newAM
 
 -- | Check a function exists.
