@@ -90,7 +90,7 @@ findRepSolutions reps bks
     maxInt = makeConstant emptyMeta $ fromInteger $ toInteger (maxBound :: Int32)
 
     format (i, ((lx,ly),varMapping,vm,problem))
-      = formatSolution varMapping (getCounterEqs vm) >>* (("#" ++ show i ++ ": ") ++)
+      = formatSolution varMapping vm >>* (("#" ++ show i ++ ": ") ++)
 
     addReps = flip (foldl $ flip RepParItem) reps
 
@@ -177,7 +177,7 @@ checkArrayUsage sharedAttr (m,p)
                    -- No solutions; no worries!
                    [] -> return ()
                    (((lx,ly),varMapping,vm,problem):_) ->
-                     do sol <- formatSolution varMapping (getCounterEqs vm)
+                     do sol <- formatSolution varMapping vm
                         cx <- showCode (fst lx)
                         cy <- showCode (fst ly)
 --                        liftIO $ putStrLn $ "Found solution for problem: " ++ probs
@@ -247,16 +247,45 @@ solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
       Just vm' -> Just (ls,vm,vm',(eq,ineq))
 
 -- | Formats a solution (not a problem, just the solution) ready to print it out for the user
-formatSolution :: (CSMR m, Monad m) => VarMap -> Map.Map CoeffIndex Integer -> m String
-formatSolution varToIndex indexToConst
+formatSolution :: (CSMR m, Monad m) => VarMap -> VariableMapping -> m String
+formatSolution varToIndex vm
  = do names <- mapM valOfVar $ Map.assocs varToIndex
       return $ concat $ intersperse " , " $ catMaybes names
       where
+        indexToVar = flip lookup $ map revPair $ Map.assocs varToIndex
+
+        indexToVar' (0, x) = Just (Nothing, x)
+        indexToVar' (_, 0) = Nothing
+        indexToVar' (i, x) = case indexToVar i of
+          Just v -> Just (Just v, x)
+          Nothing -> Nothing
+
+        indexToConst = getCounterEqs vm
+
+        showWithCoeff' (Nothing, n) = return $ show n
+        showWithCoeff' (Just v, n) = liftM (mult ++) $ showFlattenedExp showCode v
+          where
+            mult = case n of
+              1 -> ""
+              -1 -> "-"
+              n -> show n ++ "*"
+
+        showWithCoeff xs = liftM (concat . intersperse " + ") $ mapM showWithCoeff' xs
+
         valOfVar (varExp,k) = case Map.lookup k indexToConst of 
           Nothing -> return Nothing
-          Just val -> do varExp' <- showFlattenedExp showCode varExp
-                         return $ Just $ varExp' ++ " = " ++ show val
+          Just (Left (n, low, high)) ->
+            do varExp' <- showWithCoeff' (Just varExp, n)
+               low' <- mapM showWithCoeff $ map (mapMaybe indexToVar') low
+               high' <- mapM showWithCoeff $ map (mapMaybe indexToVar') high
+               return $ Just $ formatBounds (++ " <= ") low' 
+                  ++ varExp' ++ formatBounds (" <= " ++) high'
+          Just (Right val) -> do varExp' <- showFlattenedExp showCode varExp
+                                 return $ Just $ varExp' ++ " = " ++ show val
 
+        formatBounds _ [] = ""
+        formatBounds f [b] = f b
+        formatBounds f bs = f $ "(" ++ concat (intersperse "," bs) ++ ")"
 
 showFlattenedExpSet :: Monad m => (A.Expression -> m String) -> Set.Set FlattenedExp -> m String
 showFlattenedExpSet showExp s = liftM concat $ sequence $ intersperse (return " + ") $ map (showFlattenedExp showExp) $ Set.toList s

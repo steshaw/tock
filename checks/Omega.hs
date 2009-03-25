@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2009  University of Kent
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -18,6 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Omega where
 
+import Control.Arrow
 import Control.Monad.State
 import Data.Array.IArray
 import Data.List
@@ -48,15 +49,20 @@ type InequalityProblem = [InequalityConstraintEquation]
 -- we can map from x_k to the RHS of its substitution (including the resolved value for x_k').
 -- We keep a map from the original variables into the current variables.
 -- This does not require fractional coefficients.
-type VariableMapping = Map.Map CoeffIndex EqualityConstraintEquation
+newtype VariableMapping
+  = VariableMapping (Map.Map CoeffIndex
+      (Either
+        ([(Integer, InequalityConstraintEquation)]
+          ,[(Integer, InequalityConstraintEquation)])
+        EqualityConstraintEquation))
 
 -- | Given a maximum variable, produces a default mapping
 defaultMapping :: Int -> VariableMapping
-defaultMapping n = Map.fromList $ [ (i,array (0,n) [(j,if i == j then 1 else 0) | j <- [0 .. n]]) | i <- [0 .. n]]
+defaultMapping n = VariableMapping $ Map.empty
 
 -- | Adds a new variable to a map.  The first parameter is (k,value of old x_k)
-addToMapping :: (CoeffIndex,EqualityConstraintEquation) -> VariableMapping -> VariableMapping
-addToMapping (k, subst) = addOldToNew
+addEqToMapping :: (CoeffIndex,EqualityConstraintEquation) -> VariableMapping -> VariableMapping
+addEqToMapping (k, subst) (VariableMapping vm) = VariableMapping $ addOldToNew vm
   where
     -- We want to update all the existing entries to be scaled according to the new substitution.
     -- Additionally, iff there was no previous entry for k, we should add the new substitution.
@@ -77,23 +83,45 @@ addToMapping (k, subst) = addOldToNew
     -- Therefore you must update your reference for y by adding 3*tau:
     --
     -- y = sigma + (-6sigma - 3) = -5sigma - 3
-    addOldToNew :: Map.Map CoeffIndex EqualityConstraintEquation -> Map.Map CoeffIndex EqualityConstraintEquation
-    addOldToNew = (Map.insertWith ignoreNewVal k subst) . (Map.map updateSub)
+    addOldToNew = (Map.insertWith ignoreNewVal k (Right subst))
+                    . (Map.map (transformEither (map (second updateSub) *** map (second updateSub)) updateSub))
       where
         ignoreNewVal = flip const
     
     updateSub eq = arrayZipWith (+) (eq // [(k,0)]) $ scaleEq eq_k subst
       where
         eq_k = eq ! k
+
+addIneqToMapping :: (CoeffIndex, [(Integer, InequalityConstraintEquation)]
+  , [(Integer, InequalityConstraintEquation)])
+  -> VariableMapping -> VariableMapping
+addIneqToMapping (k, ineqA, ineqB) (VariableMapping vm)
+  = VariableMapping $ Map.insert k (Left (ineqA, ineqB)) vm
   
--- | Returns a mapping from i to constant values of x_i for the solutions of the equations.
--- This function should only be called if the VariableMapping comes from a problem that
--- definitely has constant solutions after all equalities have been eliminated.
--- If variables remain in the inequalities, you will get invalid\/odd answers from this function.
-getCounterEqs :: VariableMapping -> Map.Map CoeffIndex Integer
-getCounterEqs origToLast = Map.delete 0 $ Map.map expressAsConst origToLast
+-- | Returns a mapping from i to either bunches of lower and upper bounds (with
+-- the coefficient of i at the time) or constant values of x_i for the solutions of the equation.
+getCounterEqs :: VariableMapping
+  -> Map.Map CoeffIndex (Either (Integer, [[(CoeffIndex, Integer)]], [[(CoeffIndex, Integer)]]) Integer)
+getCounterEqs (VariableMapping origToLast)
+  = Map.delete 0 $ Map.mapWithKey (\k -> transformEither (getBounds k) (! 0)) origToLast
   where
-    expressAsConst rhs = rhs ! 0
+    getBounds :: CoeffIndex -> ([(Integer, InequalityConstraintEquation)]
+                               ,[(Integer, InequalityConstraintEquation)])
+      -> (Integer, [[(CoeffIndex, Integer)]], [[(CoeffIndex, Integer)]])
+    getBounds i (lowerBounds, upperBounds) = (thelcm, merge unNormalisedLower, merge unNormalisedUpper)
+      where
+            merge = map (mergeBounds thelcm)
+            thelcm = foldl lcm 1 $ filter (/= 0) $
+              map fst $ unNormalisedLower ++ unNormalisedUpper
+            
+            unNormalisedLower = map (second assocs) lowerBounds
+            unNormalisedUpper = map (second assocs) upperBounds
+
+    mergeBounds :: Integer -> (Integer, [(CoeffIndex, Integer)]) -> [(CoeffIndex, Integer)]
+    mergeBounds _ (0, _) = []
+    mergeBounds endTarget (cur, vals)
+      = map (second (* (endTarget `div` cur))) vals
+
     
 scaleEq :: (IArray a e, Ix i, Num e) => e -> a i e -> a i e
 scaleEq n = amap (* n)
@@ -149,7 +177,7 @@ solveConstraints vm p ineq
     -- then zeroing out the a_k value.  Note that the (x_k_val ! k) value will be ignored;
     -- it should be zero, in any case (otherwise x_k would be defined in terms of itself!).
     substIn :: CoeffIndex -> Array CoeffIndex Integer -> (VariableMapping, EqualityProblem) -> (VariableMapping, EqualityProblem)
-    substIn k x_k_val = transformPair (addToMapping (k,x_k_val)) (map substIn')
+    substIn k x_k_val = transformPair (addEqToMapping (k,x_k_val)) (map substIn')
       where
         substIn' eq = (arrayZipWith (+) eq scaled_x_k_val) // [(k,0)]
           where
@@ -203,7 +231,7 @@ solveConstraints vm p ineq
                                           let (_,p') = change (undefined,p)
                                           put (mp,ineq)
                                           return p'
-                           change = transformPair (addToMapping (k,x_k_eq)) (map alterEquation)
+                           change = transformPair (addEqToMapping (k,x_k_eq)) (map alterEquation)
                          
                            -- | Adds a scaled version of x_k_eq onto the current equation, after zeroing out
                            -- the a_k coefficient in the current equation.
@@ -412,10 +440,12 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
            case listToMaybe $ filter (flip isExactProjection ineqsPruned) indexes of
              -- If there is an exact projection (real shadow = dark shadow), eliminate that
              -- variable, and therefore just recurse to process this shadow:
-             Just ex -> fmElimination' vm' (indexes \\ [ex]) (getRealShadow ex ineqsPruned)
+             Just ex -> let (shad, vm'') = getRealShadow ex (ineqsPruned, vm')
+                        in fmElimination' vm'' (indexes \\ [ex]) shad
              Nothing ->
                -- Otherwise, check the real shadow first:
-               case fmElimination' vm' ixs (getRealShadow ix ineqsPruned) of
+               case let (shad, vm'') = getRealShadow ix (ineqsPruned, vm')
+                    in fmElimination' vm'' ixs shad of
                  -- No solution to the real shadow means no solution to the problem:
                  Nothing -> Nothing
                  -- Check the dark shadow:
@@ -453,8 +483,11 @@ fmElimination vm ineq = fmElimination' vm (presentItems ineq) ineq
     -- Gets the real shadow of a given variable.  The real shadow, for all possible
     -- upper bounds (ax <= alpha) and lower bounds (beta <= bx) is the inequality
     -- (a beta <= b alpha), or (a beta - b alpha >= 0).
-    getRealShadow :: Int -> InequalityProblem -> InequalityProblem
-    getRealShadow k ineqs = eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
+    getRealShadow :: Int -> (InequalityProblem, VariableMapping)
+      -> (InequalityProblem, VariableMapping)
+    getRealShadow k (ineqs, vm)
+      = (eqC ++ map (uncurry pairIneqs) (product2 (eqA,eqB))
+        ,addIneqToMapping (k, map (second (amap negate)) eqB, eqA) vm)
       where
         (eqA,eqB,eqC) = splitBounds k ineqs
                 
