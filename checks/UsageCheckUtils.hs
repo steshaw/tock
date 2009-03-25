@@ -184,6 +184,8 @@ getVarProcCall (A.ProcCall _ proc as)
 
 getVarActual :: (Die m, CSMR m) => A.Formal -> A.Actual -> m Vars
 getVarActual _ (A.ActualExpression e) = return $ getVarExp e
+getVarActual _ (A.ActualChannelArray vs) = return $ mapUnionVars processVarUsed vs
+getVarActual _ (A.ActualClaim v) = return $ processVarUsed v
 getVarActual (A.Formal am t _) (A.ActualVariable v)
     = case (am, t) of
         (A.ValAbbrev,_) -> return $ processVarR v
