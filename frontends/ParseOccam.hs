@@ -1347,8 +1347,11 @@ pragma :: OccParser ()
 pragma = do Pragma p <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
             case map (flip matchRegex p . mkRegex)
-              ["^SHARED +(.*)", "^PERMITALIASES +(.*)"] of
-              [Just [varsRaw], _] ->
+                   [ "^SHARED.*"
+                   , "^PERMITALIASES.*"
+                   , "^EXTERNAL.*"] of
+              [Just _, _, _] -> do
+                vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
@@ -1356,8 +1359,9 @@ pragma = do Pragma p <- genToken isPragma
                        Just def -> return $ fst def
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
-                  (processVarList varsRaw)
-              [Nothing, Just [varsRaw]] ->
+                  vars
+              [Nothing, Just _, _] -> do
+                vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
@@ -1365,24 +1369,25 @@ pragma = do Pragma p <- genToken isPragma
                        Just def -> return $ fst def
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
-                  (processVarList varsRaw)
+                  vars
+              [Nothing, Nothing, Just _] -> do
+                m <- md
+                sPROC
+                n <- newProcName
+                fs <- formalList >>* map fst
+                sEq
+                integer
+                let on = A.nameName n
+                    sp = A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m)
+                    nd = A.NameDef m on on sp A.Original A.NamePredefined A.Unplaced
+                modify $ \st -> st
+                  { csNames = Map.insert on nd (csNames st)
+                  , csLocalNames = (on, (n, ProcName)) : csLocalNames st
+                  }
               _ -> warnP m WarnUnknownPreprocessorDirective $
                 "Unknown PRAGMA: " ++ p
             eol
   where
-    processVarList raw = map chopBoth $
-      splitRegex (mkRegex ",") $ if "--" `isInfixOf` raw
-                      then chopComment [] raw
-                      else raw
-    
-    chopComment prev ('-':'-':_) = prev
-    chopComment prev (x:xs) = chopComment (prev++[x]) xs
-    chopComment prev [] = prev
-
-    chopBoth = chopLeadingSpaces . chopTrailingSpaces
-    chopLeadingSpaces = dropWhile (`elem` " \t")
-    chopTrailingSpaces = reverse . dropWhile (`elem` " \t") . reverse
-    
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
 --}}}

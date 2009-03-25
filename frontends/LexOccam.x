@@ -36,7 +36,7 @@ $horizSpace = [\ \t]
 $vertSpace = [\r\n]
 
 @directive = "COMMENT" | "ELSE" | "ENDIF" | "IF" | "INCLUDE"
-           | "OPTION" | "PRAGMA" | "RELAX" | "USE"
+           | "OPTION" | "RELAX" | "USE" | "DEFINE"
 
 @preprocessor = "#" @directive [^\n]*
 
@@ -99,8 +99,14 @@ occam :-
 -- In state one, we're reading the first thing on a line.
 -- In state two, we're reading the rest of the line.
 -- In state three, we're in the middle of a multi-line string.
+-- In state four, we're in the middle of a pragma-external string
 
 <0>           $horizSpace*   { mkState one }
+
+<one>         "#PRAGMA" $horizSpace+ "SHARED" { mkToken TokPreprocessor two }
+<one>         "#PRAGMA" $horizSpace+ "PERMITALIASES" { mkToken TokPreprocessor two }
+<one>         "#PRAGMA" $horizSpace+ "EXTERNAL" $horizSpace* \" { mkToken TokPreprocessor four }
+<four>        \" $horizSpace* $vertSpace+ { mkState 0 }
 
 <one>         @preprocessor  { mkToken TokPreprocessor 0 }
 <one, two>    "--" [^\n]*    { mkState 0 }
@@ -108,6 +114,9 @@ occam :-
 
 <one, two>    @reserved      { mkToken TokReserved two }
 <one, two>    @identifier    { mkToken TokIdentifier two }
+
+<four>    @reserved      { mkToken TokReserved four }
+<four>    @identifier    { mkToken TokIdentifier four }
 
 <one, two>    @charLiteral   { mkToken TokCharLiteral two }
 <one, two>    @fullString    { mkToken TokStringLiteral two }
@@ -121,7 +130,11 @@ occam :-
 <one, two>    @hexLiteral    { mkToken TokHexLiteral two }
 <one, two>    @realLiteral   { mkToken TokRealLiteral two }
 
-<two>         $horizSpace+   { mkState two }
+<four>    @intLiteral    { mkToken TokIntLiteral four }
+<four>    @hexLiteral    { mkToken TokHexLiteral four }
+<four>    @realLiteral   { mkToken TokRealLiteral four }
+
+<two, four>         $horizSpace+   ;
 
 {
 -- | An occam source token and its position.
