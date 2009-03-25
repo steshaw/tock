@@ -322,12 +322,29 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
               popPullContext
               return s'
 
+    doProcActual :: Transform A.Actual
+    doProcActual a@(A.ActualVariable {}) = return a
+    doProcActual a@(A.ActualExpression {}) = return a
+    -- Definitely pull up channel arrays and claims:
+    doProcActual a
+        =  do a' <- recurse a
+              t <- astTypeOf a
+              spec@(A.Specification _ n' _)
+                <- defineNonce m "actual" (A.Is m A.Abbrev t a) A.Abbrev
+              addPulled (m, Left spec)
+              return $ A.ActualVariable (A.Variable m n')
+      where
+        m = findMeta a
+
     -- | As with doStructured: when we find a process, create a new pulled items
     -- context, and if we find any items apply them to it.
     doProcess :: A.Process -> PassM A.Process
     doProcess p
         =  do pushPullContext
-              p' <- descend p
+              p' <- case p of
+                A.ProcCall m n as
+                  -> mapM doProcActual as >>* A.ProcCall m n
+                _ -> descend p
               pulled <- havePulled
               p'' <- if pulled
                        then liftM (A.Seq emptyMeta) $ applyPulled (A.Only emptyMeta p')
