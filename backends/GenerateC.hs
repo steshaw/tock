@@ -768,7 +768,7 @@ cgetCType m origT am
            -> return $ Pointer $ Plain "mt_cb_t"
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
-         (A.Chan {}, _, False, A.Abbrev) -> return $ Pointer $ Plain "Channel"
+         (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
          (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
 
          (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
@@ -788,7 +788,8 @@ cgetCType m origT am
                                             cgetCType m t' am
 
          -- Must have missed one:
-         _ -> diePC m $ formatCode "Cannot work out the C type for: %" origT
+         (_,_,_,am) -> diePC m $ formatCode ("Cannot work out the C type for: % ("
+                           ++ show (origT, am) ++ ")") origT
   where
     const = if am == A.ValAbbrev then Const else id
 
