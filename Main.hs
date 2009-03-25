@@ -63,6 +63,7 @@ optionsNoWarnings =
   , Option [] ["help-warnings"] (NoArg optPrintWarningHelp)
       "print help about warning options"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
+  , Option ['f'] ["compiler-flags"] (ReqArg optCompilerFlags "FLAGS") "flags for C/C++ compiler"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, parse, compile, post-c, full)"
@@ -110,6 +111,9 @@ optFrontend s ps
             "rain" -> return FrontendRain
             _ -> dieIO (Nothing, "Unknown frontend: " ++ s)
           return $ ps { csFrontend = frontend }
+
+optCompilerFlags :: String -> OptFunc
+optCompilerFlags flags ps = return $ ps { csCompilerFlags = flags }
 
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
@@ -252,19 +256,19 @@ compileFull inputFile moutputFile
               do sequence_ $ map noteFile [sFile, oFile, postCFile, postOFile, occFile]
 
                  -- Compile the C into assembly, and assembly into an object file
-                 exec $ cAsmCommand cFile sFile
-                 exec $ cCommand sFile oFile
+                 exec $ cAsmCommand cFile sFile (csCompilerFlags optsPS)
+                 exec $ cCommand sFile oFile (csCompilerFlags optsPS)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" C file
                  withOutputFile postCFile $ postCAnalyse sFile
                  -- Compile this new "post" C file into an object file
-                 exec $ cCommand postCFile postOFile
+                 exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
                  -- Link the object files into a binary
-                 exec $ cLinkCommand [oFile, postOFile] outputFile
+                 exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerFlags optsPS)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
-              exec $ cxxCommand cFile outputFile
+              exec $ cxxCommand cFile outputFile (csCompilerFlags optsPS)
 
             _ -> dieReport (Nothing, "Cannot use specified backend: "
                                      ++ show (csBackend optsPS)

@@ -8,14 +8,18 @@ import Paths
 tockIncludeFlags :: String
 tockIncludeFlags = "-I" ++ pkgIncludeDir
 
-cCommand :: String -> String -> String
-cCommand inp out = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ inp
+cCommand :: String -> String -> String -> String
+cCommand inp out extra = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ inp
+  ++ " " ++ extra
 
-cAsmCommand :: String -> String -> String
-cAsmCommand inp out = "@CC@ @TOCK_CFLAGS@ -S -o " ++ out ++ " " ++ inp
+cAsmCommand :: String -> String -> String -> String
+cAsmCommand inp out extra = "@CC@ @TOCK_CFLAGS@ -S -o " ++ out ++ " " ++ inp ++
+  " " ++ extra
 
-cLinkCommand :: [String] -> String -> String
-cLinkCommand files out = "@CC@ @TOCK_CFLAGS@ -o " ++ out ++ " " ++ (concat (intersperse " " files)) ++ " @TOCK_CLDFLAGS@"
+cLinkCommand :: [String] -> String -> String -> String
+cLinkCommand files out extra = "@CC@ @TOCK_CFLAGS@ -o " ++ out ++ " " ++ (concat (intersperse " " files)) ++ " @TOCK_CLDFLAGS@"
+  ++ " " ++ extra
 
-cxxCommand :: String -> String -> String
-cxxCommand inp out = "@CXX@ @TOCK_CXXFLAGS@ " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++ " @TOCK_CXXLDFLAGS@"
+cxxCommand :: String -> String -> String -> String
+cxxCommand inp out extra = "@CXX@ @TOCK_CXXFLAGS@ " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++ " @TOCK_CXXLDFLAGS@"
+  ++ " " ++ extra
