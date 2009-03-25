@@ -853,7 +853,7 @@ inferTypes = occamOnlyPass "Infer types"
     doSpecType n st
         = case st of
             A.Place _ _ -> lift $ inTypeContext (Just A.Int) $ descend st
-            A.Is m am t v ->
+            A.Is m am t (A.ActualVariable v) ->
                do am' <- lift $ recurse am
                   t' <- lift $ recurse t
                   v' <- lift $ inTypeContext (Just t') $ recurse v
@@ -893,6 +893,7 @@ inferTypes = occamOnlyPass "Infer types"
                   e' <- inTypeContext (Just t') $ recurse e
                   t'' <- case t' of
                            A.Infer -> astTypeOf e'
+                           A.Array ds _ | A.UnknownDimension `elem` ds -> astTypeOf e'
                            _ -> return t'
                   return $ A.Is m am' t'' (A.ActualExpression e')
             A.Is m am t (A.ActualChannelArray vs) ->
