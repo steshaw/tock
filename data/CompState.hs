@@ -108,6 +108,7 @@ data CompState = CompState {
     csEnabledWarnings :: Set WarningType,
     csRunIndent :: Bool,
     csClassicOccamMobility :: Bool,
+    csUnknownStackSize :: Int,
 
     -- Set by preprocessor
     csCurrentFile :: String,
@@ -155,6 +156,7 @@ emptyState = CompState {
 -- TODO enable WarnUninitialisedVariable by default
     csRunIndent = False,
     csClassicOccamMobility = False,
+    csUnknownStackSize = 512,
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,

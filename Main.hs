@@ -73,6 +73,8 @@ optionsNoWarnings =
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (options: on, off)"
+  , Option [] ["unknown-stack-size"] (ReqArg optStackSize "BYTES")
+    "stack amount to allocate for unknown C functions"
   , Option ['v'] ["verbose"] (NoArg $ optVerbose) "be more verbose (use multiple times for more detail)"
   ]
 
@@ -129,6 +131,9 @@ optKeepTemporaries ps = return $ ps { csKeepTemporaries = True }
 
 optRunIndent :: OptFunc
 optRunIndent ps = return $ ps { csRunIndent = True }
+
+optStackSize :: String -> OptFunc
+optStackSize s ps = return $ ps { csUnknownStackSize = read s }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }

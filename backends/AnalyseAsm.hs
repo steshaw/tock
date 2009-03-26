@@ -37,6 +37,7 @@ import qualified Data.Set as Set
 import Numeric (readDec)
 import Text.Printf
 
+import CompState
 import Errors
 import Pass
 import PrettyShow
@@ -148,10 +149,6 @@ collectInfo ais = collectInfo' ais ""
               modify $ Map.insert func fi'
               collectInfo' ais func'
 
--- | Stack size for unknown functions.
-unknownSize :: Int
-unknownSize = 512
-
 -- | Additional stack size to give to all functions.
 -- This is necessary because CCSP does odd things with the provided stack
 -- size; it doesn't calculate the space that it needs for the arguments.
@@ -159,8 +156,8 @@ baseStackSize :: Int
 baseStackSize = 32
 
 -- | Add the stack sizes for called functions to their callers.
-addCalls :: AAM ()
-addCalls
+addCalls :: Int -> AAM ()
+addCalls unknownSize
     =  do fmap <- get
           sequence_ $ map computeStack (Map.keys fmap)
   where
@@ -193,7 +190,8 @@ analyseAsm :: String -> PassM String
 analyseAsm asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
-        info <- execStateT (collectInfo stream >> addCalls) Map.empty
+        cs <- getCompState
+        info <- execStateT (collectInfo stream >> addCalls (csUnknownStackSize cs)) Map.empty
         debug $ "Analysed function information:"
         debug $ concat [printf "  %-40s %5d %5d %s\n"
                           func (fiStack fi) (fiTotalStack fi)
