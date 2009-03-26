@@ -531,7 +531,10 @@ cgenListAssign v e
        tell [";"]
 
 cgenLiteralRepr :: A.LiteralRepr -> A.Type -> CGen ()
-cgenLiteralRepr (A.RealLiteral m s) t = tell [s] >> genLitSuffix t
+cgenLiteralRepr (A.RealLiteral m s) t
+  | "Infinity" `isPrefixOf` s = tell ["INFINITY"]
+  | "NaN" `isPrefixOf` s = tell ["NAN"]
+  | otherwise = tell [s] >> genLitSuffix t
 cgenLiteralRepr (A.IntLiteral m s) t
   = do genDecimal s
        genLitSuffix t
