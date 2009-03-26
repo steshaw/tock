@@ -2041,8 +2041,12 @@ cgenProcCall n as
             (A.Recursive, _) ->
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
-            (_, Just fs) ->
+            (_, Just _) ->
                  do tell ["{int args_plus_blank[] = {0"]
+                    -- We don't use the formals in externals because they won't
+                    -- have had array sizes added:
+                    (A.Proc _ _ fs _) <- specTypeOfName n
+                    liftIO $ putStrLn $ show (fs, as)
                     call genActuals fs as
                     tell ["};"]
                     let (_:cs) = A.nameName n

@@ -330,7 +330,13 @@ addSizesFormalParameters :: Pass
 addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
   (prereq ++ [Prop.arraySizesDeclared])
   []
-  (applyDepthM doSpecification)
+  (\t -> do t' <- applyDepthM doSpecification t
+            cs <- getCompState
+            sequence_ [doSpecification $ A.Specification emptyMeta (A.Name emptyMeta n)
+                         (A.Proc emptyMeta (A.PlainSpec, A.PlainRec)
+                           fs (A.Skip emptyMeta))
+                      | (n, fs) <- csExternals cs]
+            return t')
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Proc m' sm args body))
