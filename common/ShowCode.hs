@@ -386,6 +386,7 @@ instance ShowOccam A.LiteralRepr where
   showOccamM (A.HexLiteral _ s) = tell ["#", s]
   showOccamM (A.ByteLiteral _ s) = tell ["'", s, "'"]
   showOccamM (A.ArrayListLiteral _ elems) = tell ["["] >> showOccamM elems >> tell ["]"]  
+  showOccamM (A.RecordLiteral _ es) = tell ["["] >> showOccamM es >> tell ["]"]
   --TODO record literals
 
 instance ShowRain A.LiteralRepr where
@@ -550,6 +551,8 @@ instance ShowOccam A.Variant where
 instance ShowOccam A.Actual where
   showOccamM (A.ActualVariable v) = showOccamM v
   showOccamM (A.ActualExpression e) = showOccamM e
+  showOccamM (A.ActualChannelArray vs) = tell ["["] >> showOccamM vs >> tell ["]"]
+  showOccamM (A.ActualClaim v) = tell ["CLAIM "] >> showOccamM v
   
 instance ShowOccam A.OutputItem where
   showOccamM (A.OutExpression _ e) = showOccamM e
@@ -609,7 +612,12 @@ showWithSemis ss = sequence_ $ intersperse (tell [" ; "]) $ map showOccamM ss
 
 instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
-  --TODO functioncalllist
+  showOccamM (A.FunctionCallList _ n es)
+    = showOccamM n >> tell ["("] >> showOccamM es >> tell [")"]
+  showOccamM (A.IntrinsicFunctionCallList _ n es)
+    = tell [n, "("] >> showOccamM es >> tell [")"]
+  showOccamM (A.AllocChannelBundle _ n)
+    = tell ["MOBILE "] >> showOccamM n
 
 instance ShowRain A.ExpressionList where
   showRainM (A.ExpressionList _ [e]) = showRainM e
