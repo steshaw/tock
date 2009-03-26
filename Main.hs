@@ -43,6 +43,7 @@ import Errors
 import FlowGraph
 import GenerateC
 import GenerateCPPCSP
+import LexOccam
 import Metadata
 import ParseOccam
 import ParseRain
@@ -66,7 +67,7 @@ optionsNoWarnings =
   , Option ['f'] ["compiler-flags"] (ReqArg optCompilerFlags "FLAGS") "flags for C/C++ compiler"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
-  , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, parse, compile, post-c, full)"
+  , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
@@ -91,6 +92,7 @@ optMode s ps
             "parse" -> return ModeParse
             "post-c" -> return ModePostC
             "lex" -> return ModeLex
+            "html" -> return ModeHTML
             _ -> dieIO (Nothing, "Unknown mode: " ++ s)
           return $ ps { csMode = mode }
 
@@ -309,6 +311,41 @@ useOutputOptions func
                func f
                liftIO $ hClose f
 
+showTokens :: Bool -> [Token] -> String
+showTokens html ts = evalState (mapM showToken ts >>* spaceOut) 0
+  where
+    spaceOut = foldl join ""
+    join prev (Right str) = prev ++ " " ++ str
+    join prev (Left spacing)
+      | spacing >= 0 = prev ++ concat (replicate spacing space)
+      | spacing < 0 = foldl (.) id (replicate (length space * negate spacing) init) $ prev
+
+    showToken (Token _ tt) = showTokenType tt
+
+    showTokenType :: TokenType -> State Int (Either Int String)
+    showTokenType (TokReserved s) = ret $ h s
+    showTokenType (TokIdentifier s) = ret s
+    showTokenType (TokStringCont s) = ret s
+    showTokenType (TokStringLiteral s) = ret s
+    showTokenType (TokCharLiteral s) = ret s
+    showTokenType (TokIntLiteral s) = ret s
+    showTokenType (TokHexLiteral s) = ret s
+    showTokenType (TokRealLiteral s) = ret s
+    showTokenType (TokPreprocessor s) = ret $ h s
+    showTokenType (IncludeFile s) = ret $ h "#INCLUDE \"" ++ s ++ "\""
+    showTokenType (Pragma s) = ret $ h "#PRAGMA " ++ s
+    showTokenType (Indent) = modify (+2) >> return (Left 2)
+    showTokenType (Outdent) = modify (subtract 2) >> return (Left (-2))
+    showTokenType (EndOfLine)
+      = do indentation <- get
+           ret $ newline ++ concat (replicate indentation space)
+    ret :: String -> State Int (Either Int String)
+    ret = return . Right
+
+    (space, newline, h) = if html
+                            then ("&nbsp;", "<br/>\n", \s -> "<b>" ++ s ++ "</b>")
+                            else (" ", "\n", id)
+
 -- | Compile a file.
 -- This is written in the PassM monad -- as are most of the things it calls --
 -- because then it's very easy to pass the state around.
@@ -324,6 +361,7 @@ compile mode fn outHandle
                case mode of
                  -- In lex mode, don't parse, because it will probably fail anyway:
                  ModeLex -> return (A.Only emptyMeta (), lexed)
+                 ModeHTML -> return (A.Only emptyMeta (), lexed)
                  _ -> do parsed <- parseOccamProgram lexed
                          return (parsed, lexed)
           FrontendRain -> do parsed <- liftIO (readFile fn) >>= parseRainProgram fn
@@ -333,6 +371,7 @@ compile mode fn outHandle
 
         case mode of
             ModeLex -> liftIO $ hPutStr outHandle $ pshow lexed
+            ModeHTML -> liftIO $ hPutStr outHandle $ showTokens True lexed
             ModeParse -> liftIO $ hPutStr outHandle $ pshow ast1
             ModeFlowGraph ->
               do procs <- findAllProcesses
