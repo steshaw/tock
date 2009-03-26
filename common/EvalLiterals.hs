@@ -52,6 +52,8 @@ data OccValue =
   | OccInt CIntReplacement
   | OccInt32 Int32
   | OccInt64 Int64
+  | OccReal32 Float
+  | OccReal64 Double
   | OccArray [OccValue]
   | OccRecord A.Name [OccValue]
   deriving (Show, Eq, Typeable, Data)
@@ -117,6 +119,8 @@ evalSimpleLiteral (A.Literal _ t lr)
         A.Int    -> into OccInt
         A.Int32  -> into OccInt32
         A.Int64  -> into OccInt64
+        A.Real32 -> intoF OccReal32
+        A.Real64 -> intoF OccReal64
         _        -> bad
   where
     defaults :: EvalM OccValue
@@ -125,6 +129,7 @@ evalSimpleLiteral (A.Literal _ t lr)
             A.ByteLiteral _ s -> evalByteLiteral m OccByte s
             A.IntLiteral _ s  -> fromRead m OccInt (readSigned readDec) s
             A.HexLiteral _ s  -> fromRead m OccInt readHex s
+            A.RealLiteral _ s -> fromRead m OccReal32 readFloat s
             _                 -> bad
 
     into :: (Num t, Real t) => (t -> OccValue) -> EvalM OccValue
@@ -134,6 +139,16 @@ evalSimpleLiteral (A.Literal _ t lr)
             A.IntLiteral _ s  -> fromRead m cons (readSigned readDec) s
             A.HexLiteral _ s  -> fromRead m cons readHex s
             _                 -> bad
+
+    intoF :: RealFrac t => (t -> OccValue) -> EvalM OccValue
+    intoF cons
+        = case lr of
+            A.ByteLiteral _ s -> evalByteLiteral m cons s
+            A.IntLiteral _ s  -> fromRead m cons (readSigned readDec) s
+            A.HexLiteral _ s  -> fromRead m cons readHex s
+            A.RealLiteral _ s -> fromRead m cons readFloat s
+            _                 -> bad
+
 
     bad :: EvalM OccValue
     bad = throwError (Just m, "Cannot evaluate literal")
