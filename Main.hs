@@ -65,6 +65,7 @@ optionsNoWarnings =
       "print help about warning options"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option ['f'] ["compiler-flags"] (ReqArg optCompilerFlags "FLAGS") "flags for C/C++ compiler"
+  , Option [] ["external-link"] (ReqArg optCompilerLinkFlags "FLAGS") "link flags for C/C++ compiler"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
@@ -115,7 +116,10 @@ optFrontend s ps
           return $ ps { csFrontend = frontend }
 
 optCompilerFlags :: String -> OptFunc
-optCompilerFlags flags ps = return $ ps { csCompilerFlags = flags }
+optCompilerFlags flags ps = return $ ps { csCompilerFlags = flags ++ " " ++ csCompilerFlags ps}
+
+optCompilerLinkFlags :: String -> OptFunc
+optCompilerLinkFlags flags ps = return $ ps { csCompilerLinkFlags = flags ++ " " ++ csCompilerLinkFlags ps}
 
 optVerbose :: OptFunc
 optVerbose ps = return $ ps { csVerboseLevel = csVerboseLevel ps + 1 }
@@ -266,11 +270,12 @@ compileFull inputFile moutputFile
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
                  -- Link the object files into a binary
-                 exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerFlags optsPS)
+                 exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerLinkFlags optsPS)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
-              exec $ cxxCommand cFile outputFile (csCompilerFlags optsPS)
+              exec $ cxxCommand cFile outputFile
+                (csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
 
             _ -> dieReport (Nothing, "Cannot use specified backend: "
                                      ++ show (csBackend optsPS)
