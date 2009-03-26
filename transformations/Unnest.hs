@@ -180,9 +180,9 @@ removeNesting = pass "Pull nested definitions to top level"
   [Prop.nestedPulled]
   (passOnlyOnAST "removeNesting" $ \s ->
        do pushPullContext
-          s' <- (makeRecurse ops) s >>= applyPulled
+          s' <- recurse s >>= applyPulled
           popPullContext
-          return $ fromJust $ cast s')
+          return s')
   where
     ops :: Ops
     ops = baseOp `extOpS` doStructured
