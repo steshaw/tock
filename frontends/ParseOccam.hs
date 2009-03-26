@@ -1383,6 +1383,7 @@ pragma = do Pragma p <- genToken isPragma
                 modify $ \st -> st
                   { csNames = Map.insert on nd (csNames st)
                   , csLocalNames = (on, (n, ProcName)) : csLocalNames st
+                  , csExternals = (on, fs) : csExternals st
                   }
               _ -> warnP m WarnUnknownPreprocessorDirective $
                 "Unknown PRAGMA: " ++ p

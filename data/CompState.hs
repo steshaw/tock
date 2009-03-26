@@ -121,6 +121,7 @@ data CompState = CompState {
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
     csNameAttr :: Map String (Set.Set NameAttr),
+    csExternals :: [(String, [A.Formal])],
 
     -- Set by passes
     csTypeContext :: [Maybe A.Type],
@@ -165,6 +166,7 @@ emptyState = CompState {
     csUnscopedNames = Map.empty,
     csNameCounter = 0,
     csNameAttr = Map.empty,
+    csExternals = [],
 
     csTypeContext = [],
     csNonceCounter = 0,

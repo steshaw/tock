@@ -182,6 +182,10 @@ cgenTopLevel s
           genName tlpName
           tell ["_stack_size;\n"]
 
+          -- Forward declarations of externals:
+          sequence_ [tell ["extern void ", mungeExternalName n, "(int*);"]
+                    | (n, fs) <- csExternals cs]
+
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
           tell ["void tock_main (Workspace wptr) {\n"]
@@ -227,6 +231,8 @@ cgenTopLevel s
                 \    return 0;\n\
                 \}\n"]
   where
+    mungeExternalName (_:cs) = [if c == '.' then '_' else c | c <- cs]
+
     -- | Allocate a TLP channel handler process, and return the function that
     -- implements it.
     genTLPHandler :: (Maybe A.Direction, TLPChannel) -> String -> String -> String -> CGen String
@@ -2026,13 +2032,22 @@ withIf cond body
 cgenProcCall :: A.Name -> [A.Actual] -> CGen ()
 cgenProcCall n as
     =  do A.Proc _ (_, rm) _ _ <- specTypeOfName n
-          case rm of
+          externalProcs <- getCompState >>* csExternals
+          let ext = lookup (A.nameName n) externalProcs
+          case (rm, ext) of
             -- This is rather inefficient, because if a recursive PROC is called
             -- anywhere (from other processes as well as from itself), it will
             -- be done in a PAR.
-            A.Recursive ->
+            (A.Recursive, _) ->
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
+            (_, Just fs) ->
+                 do tell ["{int args_plus_blank[] = {0"]
+                    call genActuals fs as
+                    tell ["};"]
+                    let (_:cs) = A.nameName n
+                    tell [[if c == '.' then '_' else c | c <- cs]]
+                    tell ["(args_plus_blank + 1);}"]
             _ -> do genName n
                     tell [" (wptr"]
                     (A.Proc _ _ fs _) <- specTypeOfName n
