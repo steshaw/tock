@@ -122,6 +122,14 @@ foldConstants = occamOnlyPass "Fold constants"
     -- (Even if it isn't an expression itself, it might have others inside it,
     -- so we just update them all.)
     doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification spec@(A.Specification m n (A.RetypesExpr _ _ t _))
+        = do e <- getConstantName n
+             case e of
+               Just e' ->
+                 let newSpec = A.Is m A.ValAbbrev t (A.ActualExpression e') in
+                 do modifyName n $ \nd -> nd { A.ndSpecType = newSpec }
+                    return $ A.Specification m n newSpec
+               Nothing -> return spec
     doSpecification s@(A.Specification _ n st)
         =  do modifyName n (\nd -> nd { A.ndSpecType = st })
               return s
