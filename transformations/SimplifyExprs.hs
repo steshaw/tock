@@ -323,8 +323,8 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
               return s'
 
     doProcActual :: Transform A.Actual
-    doProcActual a@(A.ActualVariable {}) = return a
-    doProcActual a@(A.ActualExpression {}) = return a
+    doProcActual a@(A.ActualVariable {}) = descend a
+    doProcActual a@(A.ActualExpression {}) = descend a
     -- Definitely pull up channel arrays and claims:
     doProcActual a
         =  do a' <- recurse a
