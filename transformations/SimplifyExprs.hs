@@ -169,21 +169,31 @@ pullRepCounts :: Pass
 pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
-  (applyDepthM2
-    (pullRepCount :: A.Structured A.Process -> PassM (A.Structured A.Process))
-    (pullRepCount :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative))
-  )
+  (applyDepthM pullRepCountProc)
   where
-    pullRepCount :: Data a => A.Structured a -> PassM (A.Structured a)
-    pullRepCount (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
+    pullRepCountStr :: Data a => Bool -> A.Structured a
+      -> StateT (A.Structured A.Process -> A.Structured A.Process)
+           PassM (A.Structured a)
+    pullRepCountStr addHere (A.Spec m (A.Specification mspec n (A.Rep mrep (A.For mfor
       from for step))) scope)
-      = do t <- astTypeOf for
-           spec@(A.Specification _ nonceName _) <- makeNonceIsExpr "rep_for" mspec t for
-           let newSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName) step))
-           modifyName n $ \nd -> nd { A.ndSpecType = newSpec }
-           return $ A.Spec mspec spec $
-             A.Spec m (A.Specification mspec n newSpec) scope
-    pullRepCount s = return s
+      = do t <- lift $ astTypeOf for
+           spec@(A.Specification _ nonceName _) <- lift $ makeNonceIsExpr "rep_for" mspec t for
+           let newRepSpec = (A.Rep mrep (A.For mfor from (A.ExprVariable mspec $ A.Variable mspec nonceName) step))
+           lift $ modifyName n $ \nd -> nd { A.ndSpecType = newRepSpec }
+           if addHere
+             then return $ A.Spec mspec spec $
+                    A.Spec m (A.Specification mspec n newRepSpec) scope
+             else do modify (. A.Spec mspec spec)
+                     return $ A.Spec m (A.Specification mspec n newRepSpec) scope
+    pullRepCountStr _ s = return s
+
+    pullRepCountProc :: Transform A.Process
+    pullRepCountProc (A.Alt m p body) = evalStateT (pullRepCountStr True body) id >>* A.Alt m p
+    pullRepCountProc (A.Seq m body) = evalStateT (pullRepCountStr True body) id >>* A.Seq m
+    pullRepCountProc (A.Par m p body)
+      = do (body', spec) <- runStateT (pullRepCountStr False body) id
+           return $ A.Seq m $ spec $ A.Only m $ A.Par m p body'
+    pullRepCountProc p = return p
 
 transformConstr :: Pass
 transformConstr = pass "Transform array constructors into initialisation code"
