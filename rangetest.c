@@ -3,7 +3,7 @@ int g_stopped;
 #define occam_stop(pos, nargs, format, args...) do { g_stopped = 1; } while (0)
 
 #define occam_INT_size SIZEOF_INT
-#include "support/tock_support.h"
+#include "support/tock_support_cif.h"
 
 #define report_failure(msg, args...) { printf(msg, ##args); }
 
