@@ -57,6 +57,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right (g,rs,_) -> return (g,rs)
+                      debug "Analysing flow graph"
                       reach <- case mapM (findReachDef g) roots >>* foldl Map.union
                         Map.empty of
                           Left err -> dieP emptyMeta $ "findReachDef: " ++
@@ -68,14 +69,18 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                   ++ err
                                 Right c -> return c
                       let g' = labelMapWithNodeId (addBK reach cons g) g
+                      debug "Checking flow graph for problems"
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
                           (checkArrayUsage NameShared)
                           (checkPlainVarUsage NameShared))
                         g'
+                      debug "Checking parallel assignments"
                       checkParAssignUsage g' t
+                      debug "Checking PROC arguments"
                       checkProcCallArgsUsage g' t
 --                      mapM_ (checkInitVar (findMeta t) g) roots
+                      debug "Completed usage checking"
                       return t
 
 -- | For each entry in the BK, finds all the variables involved in a given piece
@@ -497,8 +502,6 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
         mockedupParItems = fmap ((,) bk) $ ParItems [SeqItems [Usage Nothing Nothing Nothing
           $ processVarW v Nothing] | v <- vs]
 
--- TODO for this pass, make the usage checker examine the PERMITALIASES pragma
--- instead of SHARED
 checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
   FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
@@ -510,13 +513,16 @@ checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
     -- | Need to check that all the destinations in a parallel assignment
     -- are distinct.  So we check plain variables, and array variables
     checkArgs :: (A.Process, (BK, UsageLabel)) -> m ()
+    checkArgs (A.ProcCall _ _ [_], _) = return ()
     checkArgs (p@(A.ProcCall m _ _), (bk, _))
-      = do vars <- getVarProcCall p
+      = do debug $ "Checking PROC call at " ++ show m
+           vars <- getVarProcCall p
            let mockedupParItems = fmap ((,) bk) $
                  ParItems [SeqItems [Usage Nothing Nothing Nothing v]
                           | v <- vars]
            checkPlainVarUsage NameAliasesPermitted (m, mockedupParItems)
            checkArrayUsage NameAliasesPermitted (m, mockedupParItems)
+           debug $ "Done checking PROC call"
 
 -- This isn't actually just unused variables, it's all unused names (except PROCs)
 checkUnusedVar :: CheckOptM ()
