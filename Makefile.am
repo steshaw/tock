@@ -225,6 +225,8 @@ TESTS = tocktest
 pkginclude_HEADERS = support/tock_support.h
 pkginclude_HEADERS += support/tock_support_cif.h
 pkginclude_HEADERS += support/tock_support_cppcsp.h
+pkginclude_HEADERS += support/tock_intrinsics_arith.h
+pkginclude_HEADERS += support/tock_intrinsics_float.h
 
 clean-local:
 	rm -f obj/*.o obj/*.hi

@@ -13,7 +13,7 @@ cCommand inp out extra = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " 
   ++ " " ++ extra
 
 cAsmCommand :: String -> String -> String -> String
-cAsmCommand inp out extra = "@CC@ @TOCK_CFLAGS@ -S -o " ++ out ++ " " ++ inp ++
+cAsmCommand inp out extra = "@CC@ @TOCK_CFLAGS@ -S " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++
   " " ++ extra
 
 cLinkCommand :: [String] -> String -> String -> String
