@@ -59,6 +59,13 @@ sameType (A.Chan _ ta) (A.Chan _ tb) = sameType ta tb
 sameType (A.ChanEnd dira _ ta) (A.ChanEnd dirb _ tb)
   = liftM (dira == dirb &&) (sameType ta tb)
 sameType (A.Mobile ta) (A.Mobile tb) = sameType ta tb
+-- Resolve user data types:
+sameType ta@(A.UserDataType {}) tb
+  = do ta' <- resolveUserType emptyMeta ta
+       sameType ta' tb
+sameType ta tb@(A.UserDataType {})
+  = do tb' <- resolveUserType emptyMeta tb
+       sameType ta tb'
 sameType a b = return $ a == b
 
 -- | Check that the second dimension can be used in a context where the first
