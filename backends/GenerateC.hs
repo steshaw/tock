@@ -1635,7 +1635,7 @@ cgenProcAlloc n fs as
                 | (f@(A.Formal am t _), a) <- zip fs as]
 
           ws <- csmLift $ makeNonce "workspace"
-          tell ["Workspace ", ws, " = ProcAlloc (wptr, ", show $ length ras, ", "]
+          tell ["Workspace ", ws, " = TockProcAlloc (wptr, ", show $ length ras, ", "]
           genName n
           tell ["_stack_size);\n"]
 
@@ -1902,30 +1902,35 @@ cgenPar pm s
 
           bar <- csmLift $ makeNonce "par_barrier"
           tell ["LightProcBarrier ", bar, ";\n"]
+          wss <- csmLift $ makeNonce "wss"
+          tell ["Workspace ", wss, "[1024];int ", wss, "_count = 0;"] -- Hack!
+
+          -- Dynamic parallel replicator counts are declared inside the parallel,
+          -- but we need to access it here.  This hack may do it, but need a better
+          -- solution in future!
+          tell ["{"]
+          call genStructured s (const return)
           tell ["LightProcBarrierInit (wptr, &", bar, ", "]
           call genExpression count
           tell [");\n"]
+          tell ["}"]
 
-          after <- call genStructured s (startP bar)
-          mapM_ (call genProcess) after
+          call genStructured s (startP bar wss)
 
           tell ["LightProcBarrierWait (wptr, &", bar, ");\n"]
+
+          tell ["{int i;for (i = 0;i < ", wss, "_count;i++)"
+               ,"{TockProcFree(wptr, ", wss, "[i]);}}"]
   where
-    startP :: String -> Meta -> A.Process -> CGen A.Process
-    startP bar _ (A.ProcCall _ n as)
+    startP :: String -> String -> Meta -> A.Process -> CGen ()
+    startP bar wss _ (A.ProcCall _ n as)
         =  do (A.Proc _ _ fs _) <- specTypeOfName n
               (ws, func) <- cgenProcAlloc n fs as
               tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
               func
               tell [");\n"]
-              return (A.Skip emptyMeta)
-    -- When we need to receive mobiles back from the processes, we need to perform
-    -- some actions after all the processes have started, but before we wait on
-    -- the barrier, so this hack collects up all such receive operations and returns
-    -- them:
-    startP bar _ (A.Seq m s)
-      = call genStructured s (startP bar) >>* (A.Seq m . A.Several m . map (A.Only m))
-    startP _ _ p = return p
+              tell [wss,"[",wss,"_count++]=", ws,";"]
+              return ()
 --}}}
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
