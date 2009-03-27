@@ -23,6 +23,7 @@ import Control.Monad.State
 import Data.Generics
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 
 import qualified AST as A
 import CompState
@@ -330,22 +331,22 @@ addSizesFormalParameters :: Pass
 addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
   (prereq ++ [Prop.arraySizesDeclared])
   []
-  (\t -> do t' <- applyDepthM doSpecification t
+  (\t -> do t' <- applyDepthM (doSpecification False) t
             cs <- getCompState
-            sequence_ [doSpecification $ A.Specification emptyMeta (A.Name emptyMeta n)
+            sequence_ [doSpecification True $ A.Specification emptyMeta (A.Name emptyMeta n)
                          (A.Proc emptyMeta (A.PlainSpec, A.PlainRec)
                            fs (A.Skip emptyMeta))
                       | (n, fs) <- csExternals cs]
             return t')
   where
-    doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification (A.Specification m n (A.Proc m' sm args body))
-      = do (args', newargs) <- transformFormals m args
+    doSpecification :: Bool -> A.Specification -> PassM A.Specification
+    doSpecification ext (A.Specification m n (A.Proc m' sm args body))
+      = do (args', newargs) <- transformFormals ext m args
            let newspec = A.Proc m' sm args' body
            modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec }) (A.nameName n) (csNames cs)})
            mapM_ (recordArg m') newargs
            return $ A.Specification m n newspec
-    doSpecification st = return st
+    doSpecification _ st = return st
     
     recordArg :: Meta -> A.Formal -> PassM ()
     recordArg m (A.Formal am t n)
@@ -358,15 +359,21 @@ addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
                         ,A.ndNameSource = A.NameNonce
                         ,A.ndPlacement = A.Unplaced}
     
-    transformFormals :: Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
-    transformFormals _ [] = return ([],[])
-    transformFormals m ((f@(A.Formal am t n)):fs)
-      = case t of
-          A.Array ds _ -> do let sizeType = A.Array [makeDimension m $ length ds] A.Int
+    transformFormals :: Bool -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals _ _ [] = return ([],[])
+    transformFormals ext m ((f@(A.Formal am t n)):fs)
+      = case (t, ext) of
+          (A.Array ds _, False) ->
+                          do let sizeType = A.Array [makeDimension m $ length ds] A.Int
                              let newf = A.Formal A.ValAbbrev sizeType (append_sizes n)
-                             (rest, moreNew) <- transformFormals m fs
+                             (rest, moreNew) <- transformFormals ext m fs
                              return (f : newf : rest, newf : moreNew)
-          _ -> do (rest, new) <- transformFormals m fs
+          (A.Array ds _, True) ->
+                          do params <- replicateM (length ds) $ makeNonce "ext_size"
+                             let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
+                             (rest, moreNew) <- transformFormals ext m fs
+                             return (f : newfs ++ rest, newfs ++ moreNew)
+          _ -> do (rest, new) <- transformFormals ext m fs
                   return (f : rest, new)
 
 -- | A pass for adding _sizes parameters to actuals in PROC calls
@@ -378,28 +385,38 @@ addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
   where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params)
-      = concatMapM transformActual params >>* A.ProcCall m n
+      = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n) >>* isJust
+           concatMapM (transformActual ext) params >>* A.ProcCall m n
     doProcess p = return p
 
-    transformActual :: A.Actual -> PassM [A.Actual]
-    transformActual a@(A.ActualVariable v)
-      = transformActualVariable a v
-    transformActual a@(A.ActualExpression (A.ExprVariable _ v))
-      = transformActualVariable a v
-    transformActual a = return [a]
+    transformActual :: Bool -> A.Actual -> PassM [A.Actual]
+    transformActual ext a@(A.ActualVariable v)
+      = transformActualVariable ext a v
+    transformActual ext a@(A.ActualExpression (A.ExprVariable _ v))
+      = transformActualVariable ext a v
+    transformActual _ a = return [a]
 
-    transformActualVariable :: A.Actual -> A.Variable -> PassM [A.Actual]
-    transformActualVariable a v
+    transformActualVariable :: Bool -> A.Actual -> A.Variable -> PassM [A.Actual]
+    transformActualVariable ext a v
       = do t <- astTypeOf v
-           case t of
-             A.Array ds _ ->
-               return [a, A.ActualExpression $ sizes v]
+           case (t, ext) of
+             (A.Array ds _, False) ->
+                return [a, A.ActualExpression $ sizes v]
+             (A.Array ds _, True) ->
+                let acts = map sub [0 .. (length ds - 1)]
+                in return $ a : acts
              _ -> return [a]
       where
         sizes v@(A.Variable m _) = A.AllSizesVariable m v
         sizes (A.DerefVariable _ v) = sizes v
         sizes (A.DirectedVariable _ _ v) = sizes v
         sizes (A.SubscriptedVariable _ _ v) = sizes v
+
+        m = findMeta v
+
+        sub n = A.ActualExpression $ A.SubscriptedExpr m
+          (A.Subscript m A.NoCheck $ makeConstant m n)
+          (sizes v)
 
 -- | Transforms all slices into the FromFor form.
 simplifySlices :: Pass
