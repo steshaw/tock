@@ -40,6 +40,31 @@
 
 #include <tock_support.h>
 
+//{{{ Process starting and stopping
+
+// This is a version of the CCSP function that uses malloc.  We should replace this eventually, preferably using LightProcAlloc.
+static inline Workspace TockProcAlloc (Workspace wptr, word args, word stack)
+{
+    Workspace ws;
+    word words = WORKSPACE_SIZE (args, stack);
+
+    ws = malloc(words*sizeof(word));
+
+    ws += CIF_PROCESS_WORDS;
+    ws[BarrierPtr] = (word) NULL;
+    ws[StackPtr] = words - CIF_PROCESS_WORDS;
+
+    return ws;
+}
+
+//The corresponding version that frees the workspace
+static inline void TockProcFree(Workspace wptr, Workspace ws)
+{
+	ws -= CIF_PROCESS_WORDS;
+	free(ws);
+}
+//}}}
+
 //{{{ channel array initialisation
 static inline void tock_init_chan_array (Channel *, Channel **, int) occam_unused;
 static inline void tock_init_chan_array (Channel *pointTo, Channel **pointFrom, int count) {
