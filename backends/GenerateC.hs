@@ -1550,7 +1550,7 @@ prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
 cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
-cgenActuals fs as = prefixComma [call genActual f a | (f, a) <- zip fs as]
+cgenActuals fs as = seqComma [call genActual f a | (f, a) <- zip fs as]
 
 cgenActual :: A.Formal -> A.Actual -> CGen ()
 cgenActual f a = seqComma $ realActuals f a id
@@ -1898,29 +1898,27 @@ cgenWhile e p
 -- the same as PAR.
 cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar pm s
-    =  do (count, _, _) <- constantFold $ countStructured s
-
-          bar <- csmLift $ makeNonce "par_barrier"
-          tell ["LightProcBarrier ", bar, ";\n"]
+    =  do bar <- csmLift $ makeNonce "par_barrier"
+          tell ["LightProcBarrier ", bar, ";"]
+          let count = countStructured s
           wss <- csmLift $ makeNonce "wss"
-          tell ["Workspace ", wss, "[1024];int ", wss, "_count = 0;"] -- Hack!
-
-          -- Dynamic parallel replicator counts are declared inside the parallel,
-          -- but we need to access it here.  This hack may do it, but need a better
-          -- solution in future!
-          tell ["{"]
-          call genStructured s (const return)
-          tell ["LightProcBarrierInit (wptr, &", bar, ", "]
+          tell ["Workspace* ",wss,"=(Workspace*)malloc(sizeof(int)*"]
           call genExpression count
-          tell [");\n"]
-          tell ["}"]
+          tell [");"]
+          tell ["int ",wss,"_count=0;"]
+
+          tell ["LightProcBarrierInit(wptr,&", bar, ","]
+          call genExpression count
+          tell [");"]
 
           call genStructured s (startP bar wss)
 
           tell ["LightProcBarrierWait (wptr, &", bar, ");\n"]
 
-          tell ["{int i;for (i = 0;i < ", wss, "_count;i++)"
-               ,"{TockProcFree(wptr, ", wss, "[i]);}}"]
+          tell ["{int i;for(i=0;i<"]
+          call genExpression count
+          tell [";i++){TockProcFree(wptr, ", wss, "[i]);}}"]
+          tell ["free(", wss, ");"]
   where
     startP :: String -> String -> Meta -> A.Process -> CGen ()
     startP bar wss _ (A.ProcCall _ n as)
@@ -1928,9 +1926,8 @@ cgenPar pm s
               (ws, func) <- cgenProcAlloc n fs as
               tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
               func
-              tell [");\n"]
+              tell [");"]
               tell [wss,"[",wss,"_count++]=", ws,";"]
-              return ()
 --}}}
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
@@ -2052,18 +2049,23 @@ cgenProcCall n as
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
             (_, Just _) ->
-                 do tell ["{int args_plus_blank[] = {0"]
-                    -- We don't use the formals in externals because they won't
+                 do let (c:cs) = A.nameName n
+                    tell ["{int ext_args[] = {"]
+                    -- We don't use the formals in csExternals because they won't
                     -- have had array sizes added:
                     (A.Proc _ _ fs _) <- specTypeOfName n
-                    liftIO $ putStrLn $ show (fs, as)
                     call genActuals fs as
                     tell ["};"]
-                    let (_:cs) = A.nameName n
-                    tell [[if c == '.' then '_' else c | c <- cs]]
-                    tell ["(&(args_plus_blank[1]));}"]
+                    
+                    case c of
+                      'B' -> tell ["ExternalCallN("]
+                      'C' -> tell ["BlockingCallN(wptr,"]
+                      _ -> dieP (A.nameMeta n) "Unknown external PROC format"
+                    tell [ [if c == '.' then '_' else c | c <- cs]
+                         , ",1,ext_args);}"]
+                    
             _ -> do genName n
-                    tell [" (wptr"]
+                    tell [" (wptr,"]
                     (A.Proc _ _ fs _) <- specTypeOfName n
                     call genActuals fs as
                     tell [");\n"]
