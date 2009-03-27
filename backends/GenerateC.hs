@@ -775,6 +775,7 @@ cgetCType m origT am
 
          (A.Chan (A.ChanAttributes A.Shared A.Shared) _, _, False, _)
            -> return $ Pointer $ Plain "mt_cb_t"
+         (A.ChanEnd _ A.Shared _, _, False, _) -> return $ Pointer $ Plain "mt_cb_t"
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
          (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
@@ -931,7 +932,11 @@ cgenExpression (A.True m) = tell ["true"]
 cgenExpression (A.False m) = tell ["false"]
 --cgenExpression (A.FunctionCall m n es)
 cgenExpression (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction m s es
---cgenExpression (A.SubscriptedExpr m s e)
+cgenExpression (A.SubscriptedExpr m (A.Subscript _ A.NoCheck sub) e)
+  = do call genExpression e
+       tell ["["]
+       call genExpression sub
+       tell ["]"]
 --cgenExpression (A.BytesInExpr m e)
 cgenExpression (A.BytesInExpr m (A.ExprVariable _ v))
   = do t <- astTypeOf v
@@ -1060,7 +1065,7 @@ cgenListConcat a b
 --{{{  input/output items
 
 genChan, genDest :: A.Variable -> CGen ()
-genDest v = call genVariable' v A.Original Pointer
+genDest v = call genVariable' v A.Original (Pointer . stripPointers)
 genChan c = call genVariable' c A.Original (const $ Pointer $ Plain "Channel")
  
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
@@ -2051,7 +2056,7 @@ cgenProcCall n as
                     tell ["};"]
                     let (_:cs) = A.nameName n
                     tell [[if c == '.' then '_' else c | c <- cs]]
-                    tell ["(args_plus_blank + 1);}"]
+                    tell ["(&(args_plus_blank[1]));}"]
             _ -> do genName n
                     tell [" (wptr"]
                     (A.Proc _ _ fs _) <- specTypeOfName n
