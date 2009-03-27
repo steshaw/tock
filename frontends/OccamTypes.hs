@@ -903,6 +903,14 @@ inferTypes = occamOnlyPass "Infer types"
                            A.Array ds _ | A.UnknownDimension `elem` ds -> astTypeOf e'
                            _ -> return t'
                   return $ A.Is m am' t'' (A.ActualExpression e')
+            A.Is m am t (A.ActualClaim v) -> lift $
+               do am' <- recurse am
+                  t' <- recurse t
+                  v' <- inTypeContext (Just t') $ recurse v
+                  t'' <- case t' of
+                           A.Infer -> astTypeOf (A.ActualClaim v')
+                           _ -> return t'
+                  return $ A.Is m am' t'' (A.ActualClaim v')
             A.Is m am t (A.ActualChannelArray vs) ->
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".
