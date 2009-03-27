@@ -137,6 +137,8 @@ conv :: Real a => a -> Rational
 conv = toRational
 
 occToRational :: OccValue -> Rational
+occToRational (OccBool False) = 0
+occToRational (OccBool True) = 1
 occToRational (OccByte x) = conv x
 occToRational (OccUInt16 x) = conv x
 occToRational (OccUInt32 x) = conv x
