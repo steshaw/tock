@@ -32,6 +32,7 @@ import Pass
 import qualified Properties as Prop
 import Traversal
 import Types
+import Utils
 
 simplifyTypes :: [Pass]
 simplifyTypes
@@ -45,17 +46,24 @@ resolveNamedTypes
            (Prop.agg_namesDone
             ++ [Prop.expressionTypesChecked, Prop.processTypesChecked])
            [Prop.typesResolvedInAST, Prop.typesResolvedInState]
-           (\t -> do get >>= resolve >>= resolve_csNames >>= put
-                     resolve t)
+           (\t -> do get >>= resolve >>= flatten >>= onCsNames (flatten <.< resolve) >>= put
+                     resolve t >>= flatten)
   where
     -- Work-around for data types not being resolved:
-    resolve_csNames :: Transform CompState
-    resolve_csNames cs = do csNames' <- T.mapM resolve $ csNames cs
-                            return $ cs { csNames = csNames' }
+    onCsNames :: Transform A.NameDef -> Transform CompState
+    onCsNames f cs = do csNames' <- T.mapM f $ csNames cs
+                        return $ cs { csNames = csNames' }
     
     resolve :: PassType
     resolve = applyDepthM doType
       where
         doType :: A.Type -> PassM A.Type
         doType t@(A.UserDataType _) = underlyingType emptyMeta t
+        doType t = return t
+
+    flatten :: PassType
+    flatten = applyDepthM doType
+      where
+        doType :: Transform A.Type
+        doType (A.Array dsA (A.Array dsB t)) = return $ A.Array (dsA++dsB) t
         doType t = return t
