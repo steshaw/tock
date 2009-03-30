@@ -25,7 +25,7 @@ module Types
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, makeDimension, addOne, subOne, addExprs, subExprs,
+    , makeAbbrevAM, makeConstant, makeDimension, specificDimSize, addOne, subOne, addExprs, subExprs,
       mulExprs, divExprs
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
@@ -269,6 +269,11 @@ typeOfVariable (A.DirectedVariable m dir v)
                else dieP m $ "Attempted to reverse direction of a channel-end"
            A.Infer -> return $ A.ChanEnd dir A.Unshared A.Infer
            _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
+typeOfVariable (A.VariableSizes m v)
+  = do t <- typeOfVariable v
+       case t of
+         A.Array ds _ -> return $ A.Array [A.Dimension $ makeConstant m $ length ds] A.Int
+         _ -> diePC m $ formatCode "Attempted to get size of non-array: % (type: %)" v t
 
 -- | Get the abbreviation mode of a variable.
 abbrevModeOfVariable :: (CSMR m, Die m) => A.Variable -> m A.AbbrevMode
@@ -276,6 +281,7 @@ abbrevModeOfVariable (A.Variable _ n) = abbrevModeOfName n
 abbrevModeOfVariable (A.SubscriptedVariable _ sub v) = abbrevModeOfVariable v
 abbrevModeOfVariable (A.DirectedVariable _ _ v) = abbrevModeOfVariable v
 abbrevModeOfVariable (A.DerefVariable _ v) = return A.Original
+abbrevModeOfVariable (A.VariableSizes {}) = return A.Original
 
 dyadicIsBoolean :: A.DyadicOp -> Bool
 dyadicIsBoolean A.Eq = True
@@ -724,6 +730,11 @@ computeStructured f (A.Several m ss)
     = case ss of
         [] -> makeConstant m 0
         _ -> foldl1 (A.Dyadic m A.Plus) (map (computeStructured f) ss)
+
+specificDimSize :: Int -> A.Variable -> A.Variable
+specificDimSize n v = A.SubscriptedVariable (findMeta v) (A.Subscript (findMeta v) A.NoCheck
+  $ makeConstant (findMeta v) n) $ A.VariableSizes (findMeta v) v
+
 
 -- | Add one to an expression.
 addOne :: A.Expression -> A.Expression
