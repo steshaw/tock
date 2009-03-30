@@ -250,6 +250,8 @@ data Variable =
   | DirectedVariable Meta Direction Variable
   -- | A dereferenced mobile variable (e.g. using MOBILE INT as INT)
   | DerefVariable Meta Variable
+  -- | The array sizes of the given variable.
+  | VariableSizes Meta Variable
   deriving (Show, Eq, Typeable, Data)
 
 -- | An expression.
