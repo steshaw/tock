@@ -123,6 +123,10 @@ data CompState = CompState {
     csNameCounter :: Int,
     csNameAttr :: Map String (Set.Set NameAttr),
     csExternals :: [(String, [A.Formal])],
+    -- Maps an array variable name to the name of its _sizes array:
+    csArraySizes :: Map String A.Name,
+    -- Stores a map of constant sizes arrays declared for that size:
+    csGlobalSizes :: Map [Int] String,
 
     -- Set by passes
     csTypeContext :: [Maybe A.Type],
@@ -169,6 +173,8 @@ emptyState = CompState {
     csNameCounter = 0,
     csNameAttr = Map.empty,
     csExternals = [],
+    csArraySizes = Map.empty,
+    csGlobalSizes = Map.empty,
 
     csTypeContext = [],
     csNonceCounter = 0,
