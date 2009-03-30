@@ -765,7 +765,7 @@ sizeExpr
             <|> do v <- operand
                    return $ A.SizeExpr m v
             <|> do v <- (directedChannel <|> timer <|> port)
-                   return $ A.SizeVariable m v
+                   return $ A.ExprVariable m $ specificDimSize 0 v
     <?> "SIZE expression"
 
 functionCall :: OccParser A.Expression
