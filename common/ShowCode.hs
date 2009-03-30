@@ -372,7 +372,8 @@ instance ShowOccam A.Variable where
   showOccamM (A.SubscriptedVariable _ s v) = showSubscriptOccamM v s
   showOccamM (A.DirectedVariable _ A.DirInput v) = showOccamM v >> tell ["?"]
   showOccamM (A.DirectedVariable _ A.DirOutput v) = showOccamM v >> tell ["!"]
-  showOccamM (A.DerefVariable _ v) = tell ["DEREF "] >> showOccamM v
+  showOccamM (A.DerefVariable _ v) = tell ["(DEREF "] >> showOccamM v >> tell [")"]
+  showOccamM (A.VariableSizes _ v) = tell ["(SIZES "] >> showOccamM v >> tell [")"]
   
 instance ShowRain A.Variable where
   showRainM (A.Variable _ n) = showName n
@@ -419,8 +420,6 @@ instance ShowOccam A.Expression where
   showOccamM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showOccamM t
   showOccamM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showOccamM t
   showOccamM (A.SizeExpr _ e) = bracket $ tell ["SIZE "] >> showOccamM e
-  showOccamM (A.SizeVariable _ v) = bracket $ tell ["SIZE "] >> showOccamM v
-  showOccamM (A.AllSizesVariable _ v) = bracket $ tell ["SIZES "] >> showOccamM v
   showOccamM (A.Conversion _ cm t e) = bracket $ showOccamM t >> convOrSpace cm >> showOccamM e
   showOccamM (A.ExprVariable _ v) = showOccamM v
   showOccamM (A.Literal _ _ lit) = showOccamM lit
