@@ -490,7 +490,12 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                   addPulled $ (m, Left spec)
                   return $ A.Variable m n
              _ -> descend v
-
+    doVariable v@(A.VariableSizes m _)
+      = do v' <- descend v
+           t <- astTypeOf v'
+           spec@(A.Specification _ n _) <- makeNonceIs "sizes_array" m t A.ValAbbrev v'
+           addPulled $ (m, Left spec)
+           return $ A.Variable m n
     doVariable v = descend v
 
     -- | Convert a FUNCTION call into some variables and a PROC call.
