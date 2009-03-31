@@ -35,6 +35,7 @@ import Pass
 import qualified Properties as Prop
 import Traversal
 import Types
+import Utils
 
 unnest :: [Pass]
 unnest =
@@ -76,13 +77,34 @@ freeNamesIn = doGeneric
     doSpecType st = doGeneric st
 
 -- | Replace names.
-replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
-replaceNames map v = runIdentity $ applyDepthM doName v
+--
+-- This has to have extra cleverness due to a really nasty bug.  Array types can
+-- have expressions as dimensions, and those expressions can contain free names
+-- which are being replaced.  This is fine, but when that happens we need to update
+-- CompState so that the type has the replaced name, not the old name.
+replaceNames :: Data t => [(A.Name, A.Name)] -> t -> PassM t
+replaceNames map v = recurse v
   where
     smap = Map.fromList [(A.nameName f, t) | (f, t) <- map]
 
-    doName :: A.Name -> Identity A.Name
+    ops :: Ops
+    ops = baseOp `extOp` doName `extOp` doSpecification
+    recurse :: Data a => Transform a
+    recurse = makeRecurse ops
+
+    doName :: Transform A.Name
     doName n = return $ Map.findWithDefault n (A.nameName n) smap
+
+    doSpecification :: Transform A.Specification
+    doSpecification (A.Specification m n sp)
+      = do prevT <- typeOfSpec sp
+           n' <- doName n
+           sp' <- recurse sp
+           afterT <- typeOfSpec sp'
+           -- The only way the type will change is if there was a name replace:
+           when (prevT /= afterT) $
+             modifyName n' $ \nd -> nd { A.ndSpecType = sp' }
+           return $ A.Specification m n' sp'
 
 -- | Turn free names in PROCs into arguments.
 removeFreeNames :: Pass
@@ -120,7 +142,7 @@ removeFreeNames = pass "Convert free names to arguments"
 
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             let st' = A.Proc mp sm (fs ++ newFs) $ replaceNames (zip freeNames newNames) p
+             st' <- replaceNames (zip freeNames newNames) p >>* A.Proc mp sm (fs ++ newFs)
              let spec' = A.Specification m n st'
 
              -- Update the definition of the proc
