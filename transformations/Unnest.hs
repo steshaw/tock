@@ -218,7 +218,7 @@ removeNesting = pass "Pull nested definitions to top level"
     doStructured s@(A.Spec m spec subS)
         = do spec'@(A.Specification _ n st) <- recurse spec
              isConst <- isConstantName n
-             if isConst || canPull st then
+             if (isConst && not (abbrevRecord st)) || canPull st then
                  do debug $ "removeNesting: pulling up " ++ show n
                     addPulled $ (m, Left spec')
                     doStructured subS
@@ -231,4 +231,10 @@ removeNesting = pass "Pull nested definitions to top level"
     canPull (A.Protocol _ _) = True
     canPull (A.ProtocolCase _ _) = True
     canPull _ = False
+
+    -- C doesn't allow us to pull up pointers to records to the top-level
+    abbrevRecord :: A.SpecType -> Bool
+    abbrevRecord (A.Is _ _ (A.Record {}) _) = True
+    abbrevRecord _ = False
+    
 
