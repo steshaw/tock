@@ -58,7 +58,8 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m prevT lit@(A.ArrayListLiteral _ expr))
-      = do t' <- doExpr [] (getDims prevT) expr
+      = do prevT' <- underlyingType m prevT
+           t' <- doExpr [] (getDims prevT') expr
            return $ A.Literal m t' lit
       where
         getDims :: A.Type -> [A.Dimension]
