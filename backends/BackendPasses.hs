@@ -17,7 +17,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | Passes associated with the backends
-module BackendPasses (backendPasses, transformWaitFor) where
+module BackendPasses (backendPasses, transformWaitFor, declareSizesArray) where
 
 import Control.Monad.State
 import Data.Generics

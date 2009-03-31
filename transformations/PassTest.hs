@@ -230,7 +230,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
     t = A.Array [dimension 10] A.Int
 
     orig = A.Spec m (A.Specification m (simpleName "arr") $
-      A.IsExpr m A.ValAbbrev t $ A.Literal m t $ A.ArrayListLiteral m $
+      A.Is m A.ValAbbrev t $ A.ActualExpression $ A.Literal m t $ A.ArrayListLiteral m $
         A.Spec m (A.Specification m (simpleName "x") (A.Rep m (A.For m (intLiteral 0) (intLiteral 10)
           (intLiteral 1))))
           $ (A.Only m $ exprVariable "x")) skipP
@@ -342,7 +342,9 @@ testOutExprs = TestList
    eXM n = buildExpr $ Dy (Var "x") A.Minus (Lit $ intLiteral n)
   
    abbr key t e = mSpecP
-     (tag3 A.Specification DontCare (Named key DontCare) $ tag4 A.IsExpr DontCare A.ValAbbrev t e)
+     (tag3 A.Specification DontCare (Named key DontCare)
+       $ mIs A.ValAbbrev t
+         $ mActualExpression' e)
  
    chan = variable "c"
    xName = simpleName "x"
@@ -537,7 +539,7 @@ testInputCase = TestList
       decl' (simpleName "prot")
         (A.ProtocolCase emptyMeta [(a0,[]),(b2,[A.Int,A.Int]),(c1,[A.Int])])
           A.Original A.NameUser
-          . singleton . decl (return $ A.Chan (A.ChanAttributes False False)
+          . singleton . decl (return $ A.Chan (A.ChanAttributes A.Unshared A.Unshared)
                                (A.UserProtocol $ simpleName "prot")) oC . singleton
     
 testTransformProtocolInput :: Test
@@ -597,7 +599,7 @@ testPullRepCounts = TestList
       `becomes`
        blockType
         [decl' (simpleName "A")
-          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
+          (A.Is emptyMeta A.ValAbbrev A.Int $ A.ActualExpression $ intLiteral 6) A.ValAbbrev A.NameNonce
           [decl' (simpleName "X")
             (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A") (intLiteral 1)))
               A.Original A.NameUser []
@@ -619,12 +621,12 @@ testPullRepCounts = TestList
        `becomes`
        blockType
          [decl' (simpleName "A")
-          (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 6) A.ValAbbrev A.NameNonce
+          (A.Is emptyMeta A.ValAbbrev A.Int $ A.ActualExpression $ intLiteral 6) A.ValAbbrev A.NameNonce
            [decl' (simpleName "X")
             (A.Rep emptyMeta (A.For emptyMeta (intLiteral 0) (exprVariable "A") (intLiteral 1)))
               A.Original A.NameUser
               [decl' (simpleName "B")
-                (A.IsExpr emptyMeta A.ValAbbrev A.Int $ intLiteral 8) A.ValAbbrev A.NameNonce
+                (A.Is emptyMeta A.ValAbbrev A.Int $ A.ActualExpression $ intLiteral 8) A.ValAbbrev A.NameNonce
                   [decl' (simpleName "Y")
                     (A.Rep emptyMeta (A.For emptyMeta (intLiteral 1) (exprVariable "B")
                       (intLiteral 2)))

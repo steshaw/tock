@@ -46,7 +46,7 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
             inner
 
     -- INITIAL abbreviation
-  , ok   10 (spec foo (A.IsExpr m A.InitialAbbrev A.Int exp)
+  , ok   10 (spec foo (A.Is m A.InitialAbbrev A.Int $ A.ActualExpression exp)
               inner)
             (mDeclareAssign foo A.Int exp inner)
 
@@ -136,8 +136,8 @@ testRemoveResult = TestLabel "testRemoveResult" $ TestList
             inner
 
     -- RESULT abbreviation
-  , ok   10 (spec foo (A.Is m A.ResultAbbrev A.Int barV) inner)
-            (spec foo (A.Is m A.Abbrev       A.Int barV) inner)
+  , ok   10 (spec foo (A.Is m A.ResultAbbrev A.Int $ A.ActualVariable barV) inner)
+            (spec foo (A.Is m A.Abbrev       A.Int $ A.ActualVariable barV) inner)
 
     -- RESULT retyping
   , ok   20 (spec foo (A.Retypes m A.ResultAbbrev A.Int barV) inner)

@@ -323,13 +323,13 @@ defineThing s st am ns = defineName (simpleName s) $
 -- | Define a @VAL IS@ constant.
 defineConst :: String -> A.Type -> A.Expression -> State CompState ()
 defineConst s t e
-    = defineThing s (A.IsExpr emptyMeta A.ValAbbrev t e)
+    = defineThing s (A.Is emptyMeta A.ValAbbrev t $ A.ActualExpression e)
                   A.ValAbbrev A.NameUser
 
 -- | Define an @IS@ abbreviation.
 defineIs :: String -> A.Type -> A.Variable -> State CompState ()
 defineIs s t v
-    = defineThing s (A.Is emptyMeta A.Abbrev t v) A.Abbrev A.NameUser
+    = defineThing s (A.Is emptyMeta A.Abbrev t $ A.ActualVariable v) A.Abbrev A.NameUser
 
 -- | Define something original.
 defineOriginal :: CSM m => String -> A.Type -> m ()

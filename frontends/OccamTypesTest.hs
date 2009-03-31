@@ -158,8 +158,8 @@ testOccamTypes = TestList
     , testOK   159 $ A.SizeExpr m (sub0E twoTwoIntsE)
     , testFail 160 $ A.SizeExpr m (sub0E (sub0E twoTwoIntsE))
     , testFail 161 $ A.SizeExpr m (sub0E intE)
-    , testOK   162 $ A.SizeVariable m intsV
-    , testFail 163 $ A.SizeVariable m byteV
+    , testOK   162 $ A.ExprVariable m $ A.VariableSizes m intsV
+    , testFail 163 $ A.ExprVariable m $ A.VariableSizes m byteV
     , testOK   164 $ A.ExprVariable m intV
     , testOK   165 $ intE
     , testOK   166 $ boolLiteral True
@@ -393,29 +393,29 @@ testOccamTypes = TestList
     , testOK   2011 $ A.Declaration m twoIntsT
 
     -- Is
-    , testOK   2020 $ A.Is m A.Abbrev A.Int intV
-    , testFail 2021 $ A.Is m A.ValAbbrev A.Int intV
-    , testFail 2022 $ A.Is m A.Original A.Int intV
-    , testFail 2023 $ A.Is m A.Abbrev A.Real32 intV
-    , testOK   2024 $ A.Is m A.Abbrev chanIntT intC
-    , testFail 2025 $ A.Is m A.ValAbbrev chanIntT intC
-    , testOK   2026 $ A.Is m A.Abbrev (A.Timer A.OccamTimer) tim
-    , testFail 2027 $ A.Is m A.ValAbbrev (A.Timer A.OccamTimer) tim
+    , testOK   2020 $ A.Is m A.Abbrev A.Int $ A.ActualVariable intV
+    , testFail 2021 $ A.Is m A.ValAbbrev A.Int $ A.ActualVariable intV
+    , testFail 2022 $ A.Is m A.Original A.Int $ A.ActualVariable intV
+    , testFail 2023 $ A.Is m A.Abbrev A.Real32 $ A.ActualVariable intV
+    , testOK   2024 $ A.Is m A.Abbrev chanIntT $ A.ActualVariable intC
+    , testFail 2025 $ A.Is m A.ValAbbrev chanIntT $ A.ActualVariable intC
+    , testOK   2026 $ A.Is m A.Abbrev (A.Timer A.OccamTimer) $ A.ActualVariable tim
+    , testFail 2027 $ A.Is m A.ValAbbrev (A.Timer A.OccamTimer) $ A.ActualVariable tim
 
     -- IsExpr
-    , testOK   2030 $ A.IsExpr m A.ValAbbrev A.Int intE
-    , testFail 2031 $ A.IsExpr m A.Abbrev A.Int intE
-    , testFail 2032 $ A.IsExpr m A.Original A.Int intE
-    , testFail 2033 $ A.IsExpr m A.ValAbbrev A.Real32 intE
+    , testOK   2030 $ A.Is m A.ValAbbrev A.Int $ A.ActualExpression intE
+    , testFail 2031 $ A.Is m A.Abbrev A.Int $ A.ActualExpression intE
+    , testFail 2032 $ A.Is m A.Original A.Int $ A.ActualExpression intE
+    , testFail 2033 $ A.Is m A.ValAbbrev A.Real32 $ A.ActualExpression intE
 
     -- IsChannelArray
-    , testOK   2040 $ A.IsChannelArray m chansIntT [intC, intC]
-    , testOK   2041 $ A.IsChannelArray m uchansIntT [intC, intC]
-    , testOK   2042 $ A.IsChannelArray m uchansIntT []
-    , testFail 2043 $ A.IsChannelArray m chansIntT [intC]
-    , testFail 2044 $ A.IsChannelArray m chansIntT [iirC, intC]
-    , testFail 2045 $ A.IsChannelArray m chansIntT [intC, intC, intC]
-    , testFail 2046 $ A.IsChannelArray m chansIntT [intV, intV]
+    , testOK   2040 $ A.Is m A.Abbrev chansIntT $ A.ActualChannelArray [intC, intC]
+    , testOK   2041 $ A.Is m A.Abbrev uchansIntT $ A.ActualChannelArray [intC, intC]
+    , testOK   2042 $ A.Is m A.Abbrev uchansIntT $ A.ActualChannelArray []
+    , testFail 2043 $ A.Is m A.Abbrev chansIntT $ A.ActualChannelArray [intC]
+    , testFail 2044 $ A.Is m A.Abbrev chansIntT $ A.ActualChannelArray [iirC, intC]
+    , testFail 2045 $ A.Is m A.Abbrev chansIntT $ A.ActualChannelArray [intC, intC, intC]
+    , testFail 2046 $ A.Is m A.Abbrev chansIntT $ A.ActualChannelArray [intV, intV]
 
     -- DataType
     , testOK   2050 $ A.DataType m A.Int
@@ -425,17 +425,17 @@ testOccamTypes = TestList
     , testFail 2054 $ A.DataType m $ A.Timer A.OccamTimer
 
     -- RecordType
-    , testOK   2060 $ A.RecordType m True []
-    , testOK   2061 $ A.RecordType m False []
-    , testOK   2062 $ A.RecordType m False [ (simpleName "x", A.Int)
-                                           , (simpleName "y", A.Int)
-                                           , (simpleName "z", A.Int)
-                                           ]
-    , testFail 2063 $ A.RecordType m False [(simpleName "c", chanIntT)]
-    , testOK   2064 $ A.RecordType m False [(simpleName "c", A.Mobile A.Int)]
-    , testFail 2065 $ A.RecordType m False [ (simpleName "x", A.Int)
-                                           , (simpleName "x", A.Real32)
-                                           ]
+    , testOK   2060 $ A.RecordType m packed []
+    , testOK   2061 $ A.RecordType m notPacked []
+    , testOK   2062 $ A.RecordType m notPacked [ (simpleName "x", A.Int)
+                                               , (simpleName "y", A.Int)
+                                               , (simpleName "z", A.Int)
+                                               ]
+    , testFail 2063 $ A.RecordType m notPacked [(simpleName "c", chanIntT)]
+    , testOK   2064 $ A.RecordType m notPacked [(simpleName "c", A.Mobile A.Int)]
+    , testFail 2065 $ A.RecordType m notPacked [ (simpleName "x", A.Int)
+                                               , (simpleName "x", A.Real32)
+                                               ]
 
     -- Protocol
     , testOK   2070 $ A.Protocol m [A.Int]
@@ -592,6 +592,9 @@ testOccamTypes = TestList
     caseC = variable "chanCaseProto"
     caseCin = A.DirectedVariable emptyMeta A.DirInput caseC
     caseCout  = A.DirectedVariable emptyMeta A.DirOutput caseC
+
+    packed = A.RecordAttr True False
+    notPacked = A.RecordAttr False False
 
     --}}}
     --{{{  process fragments

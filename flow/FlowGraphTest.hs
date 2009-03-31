@@ -678,7 +678,7 @@ genSpecification = nextIdT >>* makeMeta' >>= \m -> genElem3 A.Specification m (c
       [
         genElem2 A.Declaration m (comb0 A.Int)
        ,genElem2 A.Declaration m (comb0 A.Int)
-       ,genElem2 (\m e -> A.IsExpr m A.ValAbbrev A.Int e) m genExpression
+       ,genElem2 (\m e -> A.Is m A.ValAbbrev A.Int $ A.ActualExpression e) m genExpression
        --TODO proc and function declaration
       ]
 

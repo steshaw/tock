@@ -247,24 +247,26 @@ qcTestDeclareSizes =
         strFooSizes = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo_sizes") fooSizesSpec)
 
     isChanArrFoo :: Int -> (A.SpecType, A.SpecType, State CompState ())
-    isChanArrFoo n = (A.IsChannelArray emptyMeta (A.Array [dimension n] $ A.Chan (A.ChanAttributes False False) A.Byte) (replicate n $ variable "c")
+    isChanArrFoo n = (A.Is emptyMeta A.Abbrev (A.Array [dimension n] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Byte)
+      (A.ActualChannelArray $ replicate n $ variable "c")
                      ,valSize [makeConstant emptyMeta n], return ())
 
     isIsFoo :: ([A.Dimension], [A.Dimension], [A.Subscript]) -> (A.SpecType, A.SpecType, State CompState ())
     isIsFoo (srcDims, destDims, subs)
-      = (A.Is emptyMeta A.Abbrev (A.Array destDims A.Byte)
+      = (A.Is emptyMeta A.Abbrev (A.Array destDims A.Byte) $ A.ActualVariable
           (foldr (A.SubscriptedVariable emptyMeta) (variable "src") subs)
         ,specSizes, defSrc)
       where
-        specSizes = A.IsExpr emptyMeta A.ValAbbrev (A.Array [dimension $ length destDims] A.Int) $
-          A.ExprVariable m $
+        specSizes = A.Is emptyMeta A.ValAbbrev (A.Array [dimension $ length destDims] A.Int) $
+          A.ActualExpression $ A.ExprVariable m $
             A.SubscriptedVariable emptyMeta (A.SubscriptFromFor emptyMeta
               A.NoCheck
               (intLiteral $ toInteger $ length srcDims - length destDims)
               (intLiteral $ toInteger $ length destDims)
               ) (variable "src_sizes")
         defSrc = do defineTestName "src" (A.Declaration emptyMeta (A.Array srcDims A.Byte)) A.Original
-                    defineTestName "src_sizes" (A.IsExpr emptyMeta A.ValAbbrev (A.Array srcDims A.Byte) dummyExpr) A.ValAbbrev
+                    defineTestName "src_sizes" (A.Is emptyMeta A.ValAbbrev (A.Array srcDims A.Byte)
+                      $ A.ActualExpression dummyExpr) A.ValAbbrev
         dummyExpr = A.True emptyMeta
 
     testRecordFoo :: forall m r. TestMonad m r => Int -> [A.Type] -> m ()
@@ -279,7 +281,7 @@ qcTestDeclareSizes =
         declRecord :: Data a => [(String, A.Type)] -> A.Structured a -> A.Structured a
         declRecord fields = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo") fooSpec)
           where
-            fooSpec = A.RecordType emptyMeta False (map (\(n,t) -> (simpleName n, t)) fields)
+            fooSpec = A.RecordType emptyMeta (A.RecordAttr False False) (map (\(n,t) -> (simpleName n, t)) fields)
         
         declSizeItems :: Data a => (String, A.Type) -> A.Structured a -> A.Structured a
         declSizeItems (n, A.Array ds _) = A.Spec emptyMeta (A.Specification emptyMeta (simpleName $ "foo" ++ n) $
@@ -291,7 +293,7 @@ qcTestDeclareSizes =
         checkSizeItems _ = const (return ())
 
     isExprStaticFoo :: [Int] -> (A.SpecType, A.SpecType, State CompState ())
-    isExprStaticFoo ns = (A.IsExpr emptyMeta A.ValAbbrev t (A.True emptyMeta), valSize (map (makeConstant emptyMeta) ns), return ())
+    isExprStaticFoo ns = (A.Is emptyMeta A.ValAbbrev t $ A.ActualExpression (A.True emptyMeta), valSize (map (makeConstant emptyMeta) ns), return ())
       where
         t = A.Array (map dimension ns) A.Byte
 
@@ -301,7 +303,8 @@ qcTestDeclareSizes =
         t = A.Array (map dimension ns) A.Byte
 
     valSize :: [A.Expression] -> A.SpecType
-    valSize ds = A.IsExpr emptyMeta A.ValAbbrev (A.Array [dimension $ length ds] A.Int) $ makeSizesLiteral ds
+    valSize ds = A.Is emptyMeta A.ValAbbrev (A.Array [dimension $ length ds] A.Int)
+      $ A.ActualExpression $ makeSizesLiteral ds
 
     makeSizesLiteral :: [A.Expression] -> A.Expression
     makeSizesLiteral xs = A.Literal emptyMeta (A.Array [dimension $ length xs] A.Int) $
@@ -340,7 +343,7 @@ checkName n spec am cs
            testEqual "ndSpecType" spec (A.ndSpecType nd)
            testEqual "ndAbbrevMode" am (A.ndAbbrevMode nd)
 
-
+{-
 qcTestSizeParameters :: [LabelledQuickCheckTest]
 qcTestSizeParameters =
   [
@@ -404,7 +407,7 @@ qcTestSizeParameters =
         Left n -> A.ActualVariable (variable n)
         Right n -> A.ActualExpression $ A.AllSizesVariable emptyMeta $ variable n
       | (en, _, _) <- nts]
-
+-}
 ---Returns the list of tests:
 qcTests :: (Test, [LabelledQuickCheckTest])
 qcTests = (TestLabel "BackendPassesTest" $ TestList
@@ -416,6 +419,6 @@ qcTests = (TestLabel "BackendPassesTest" $ TestList
   ,testTransformWaitFor4
   ,testTransformWaitFor5
  ]
- ,qcTestDeclareSizes ++ qcTestSizeParameters)
+ ,qcTestDeclareSizes {- ++ qcTestSizeParameters -})
 
 

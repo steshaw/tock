@@ -55,6 +55,7 @@ newtype VariableMapping
         ([(Integer, InequalityConstraintEquation)]
           ,[(Integer, InequalityConstraintEquation)])
         EqualityConstraintEquation))
+  deriving (Eq, Show)
 
 -- | Given a maximum variable, produces a default mapping
 defaultMapping :: Int -> VariableMapping
