@@ -120,12 +120,15 @@ flattenAssign = pass "Flatten assignment"
           let srcV = A.Variable m' srcN
 
           body <- case t of
-                    A.Array _ _ ->
+                    A.Array (d:_) _ ->
                       -- Array assignments become a loop with an assignment
                       -- inside.
                       do counter <- makeNonceCounter "i" m
                          let zero = A.Literal m A.Int $ A.IntLiteral m "0"
-                         let rep = A.For m zero (A.SizeVariable m srcV) (makeConstant m 1)
+                             limit = case d of
+                               A.UnknownDimension -> A.ExprVariable m $ specificDimSize 0 srcV
+                               A.Dimension e -> e
+                             rep = A.For m zero limit (makeConstant m 1)
                          itemT <- trivialSubscriptType m t
                          -- Don't need to check bounds, as we'll always be within bounds
                          let sub = A.Subscript m A.NoCheck (A.ExprVariable m
