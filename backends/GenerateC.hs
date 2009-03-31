@@ -2017,7 +2017,7 @@ cgenProcCall n as
                          , ",1,ext_args);}"]
                     
             _ -> do genName n
-                    tell [" (wptr,"]
+                    tell [" (wptr", if null as then "" else ","]
                     (A.Proc _ _ fs _) <- specTypeOfName n
                     call genActuals fs as
                     tell [");\n"]
