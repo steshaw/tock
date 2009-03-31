@@ -287,6 +287,9 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                                 -- element of its _sizes array.
                                 A.UnknownDimension -> A.ExprVariable m $ specificDimSize i v
                               | (d, i) <- zip ds [0..]]
+                -- Must be an unpacked record if it's not BIJust:
+                (_, A.Record {}) ->
+                  return $ A.BytesInType m tSrc
                 _ -> dieP m "Cannot compute size of source type"
 
             -- Build the _sizes array for the destination.
