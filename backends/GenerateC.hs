@@ -1510,6 +1510,8 @@ cgenActual f a = seqComma $ realActuals f a id
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
 realActuals :: A.Formal -> A.Actual -> (CType -> CType) -> [CGen ()]
+realActuals (A.Formal am _ _) (A.ActualExpression (A.ExprVariable _ v)) fct
+    = [call genVariable' v am fct]
 realActuals _ (A.ActualExpression e) _
     = [call genExpression e]
 realActuals (A.Formal am _ _) (A.ActualVariable v) fct
