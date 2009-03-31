@@ -443,6 +443,10 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                   case e' of
                     A.Literal {} -> pull t e'
                     _ -> return e'
+                A.Record _ ->
+                  case e' of
+                    A.Literal {} -> pull t e'
+                    _ -> return e'
                 _ -> return e'
       where
         pull :: A.Type -> A.Expression -> PassM A.Expression
