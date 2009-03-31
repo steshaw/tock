@@ -26,6 +26,7 @@ module GenerateC
   , cPreReq
   , cremoveSpec
   , genCPasses
+  , genDynamicDim
   , generate
   , generateC
   , genLeftB
@@ -134,7 +135,6 @@ cgenOps = GenOps {
     genSeq = cgenSeq,
     genSimpleDyadic = cgenSimpleDyadic,
     genSimpleMonadic = cgenSimpleMonadic,
-    genSizeSuffix = cgenSizeSuffix,
     genSpec = cgenSpec,
     genSpecMode = cgenSpecMode,
     genStop = cgenStop,
@@ -278,15 +278,12 @@ cgenOverArray m var func
                                call genVariable i A.Original
                                tell ["<"]
                                case d of
-                                 A.UnknownDimension ->
-                                      do call genVariable var A.Original
-                                         t <- astTypeOf var
-                                         call genSizeSuffix m t (show v)
+                                 A.UnknownDimension -> genDynamicDim var v
                                  A.Dimension n -> call genExpression n
                                tell [";"]
                                call genVariable i A.Original
                                tell ["++){"]
-                            | (v :: Integer, i, d) <- zip3 [0..] indices ds]
+                            | (v :: Int, i, d) <- zip3 [0..] indices ds]
                  p
                  sequence_ [tell ["}"] | _ <- indices]
             Nothing -> return ()
@@ -396,9 +393,7 @@ cgenBytesIn m t v
     genBytesInArrayDim (A.UnknownDimension, i)
         = case v of
             Right rv ->
-              do call genVariable rv A.Original
-                 t <- astTypeOf rv
-                 call genSizeSuffix (findMeta rv) t (show i)
+              do genDynamicDim rv i
                  tell ["*"]
             _ -> return ()
 
@@ -955,13 +950,6 @@ cgenExpression (A.SubscriptedExpr m (A.SubscriptFromFor _ _ start _) e@(A.AllSiz
        call genExpression start
        tell ["]))"]
 cgenExpression t = call genMissing $ "genExpression " ++ show t
-
-cgenSizeSuffix :: Meta -> A.Type -> String -> CGen ()
-cgenSizeSuffix m t dim
-  =    case t of
-         A.Array {} -> tell ["_sizes[", dim, "]"]
-         A.Mobile (A.Array {}) -> tell ["->dimensions[", dim, "]"]
-         _ -> diePC emptyMeta $ formatCode "Cannot produce dimensions for type: %" t
 
 cgenTypeSymbol :: String -> A.Type -> CGen ()
 cgenTypeSymbol s t

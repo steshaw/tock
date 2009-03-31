@@ -40,7 +40,7 @@ import System.IO
 import qualified AST as A
 import CompState
 import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec,
-  generate, genLeftB, genMeta, genName, genRightB, justOnly, withIf)
+  genDynamicDim, generate, genLeftB, genMeta, genName, genRightB, justOnly, withIf)
 import GenerateCBased
 import Errors
 import Metadata
@@ -616,8 +616,7 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
        tell [","]
        genName n
        tell [","]
-       genName n
-       call genSizeSuffix m t' "0"
+       genDynamicDim (A.Variable m n) 0
        tell [");"]
 --For all other cases, use the C implementation:
 cppintroduceSpec n = cintroduceSpec n
