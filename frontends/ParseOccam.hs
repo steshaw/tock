@@ -1114,8 +1114,7 @@ definition
              <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol;
                   return (A.Specification m n rec, RecordName) }
     <|> do m <- md
-           rm <- recMode sCHAN >>* fst
-           sTYPE
+           rm <- tryVX (recMode sCHAN) sTYPE >>* fst
            n <- newChanBundleName
            eol
            indent
