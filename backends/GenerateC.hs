@@ -747,7 +747,8 @@ cgenVariableWithAM checkValid v am fct
                                           genComma
                                           call genExpression count
                                           genComma
-                                          call genExpression (A.SizeVariable m' v)
+                                          call genVariable (specificDimSize 0 v)
+                                            A.Original
                                           genComma
                                           genMeta m'
                                           tell [")"]
@@ -912,37 +913,8 @@ cgenExpression (A.Dyadic m op e f) = call genDyadic m op e f
 cgenExpression (A.MostPos m t) = call genTypeSymbol "mostpos" t
 cgenExpression (A.MostNeg m t) = call genTypeSymbol "mostneg" t
 --cgenExpression (A.SizeType m t)
-cgenExpression (A.SizeExpr m e)
-    =  do call genExpression e
-          t <- astTypeOf e
-          call genSizeSuffix m t "0"
-cgenExpression (A.SizeVariable m v)
-    =  do t <- astTypeOf v
-          case t of
-            A.Array (d:_) _  ->
-              case d of
-                A.Dimension n -> call genExpression n
-                A.UnknownDimension ->
-                  let (n, v') = countSubscripts v
-                  in do call genVariable v' A.Original
-                        v't <- astTypeOf v'
-                        call genSizeSuffix m v't (show n)
-            A.List _ ->
-              call genListSize v
-cgenExpression e@(A.AllSizesVariable m v)
-  = case v of
-      A.SubscriptedVariable {} -> call genMissing $ "genExpression" ++ show e
-      A.DirectedVariable _ _ v' -> call genExpression $ A.AllSizesVariable m v'
-      A.DerefVariable _ v' -> do call genVariable v' A.Original
-                                 tell ["->dimensions"]
-      A.Variable _ n -> do t <- astTypeOf v
-                           case t of
-                             A.Array {} -> do call genVariable v A.Original
-                                              tell ["_sizes"]
-                             A.Mobile (A.Array {})
-                               -> do call genVariable v A.Original
-                                     tell ["->dimensions"]
-                             _ -> call genMissing $ "genExpression" ++ show e
+cgenExpression (A.SizeExpr m (A.ExprVariable _ v))
+  = do call genVariable (specificDimSize 0 v) A.Original
 cgenExpression (A.Conversion m cm t e) = call genConversion m cm t e
 cgenExpression (A.ExprVariable m v) = call genVariable v A.Original
 cgenExpression (A.Literal _ t lr) = call genLiteral lr t
