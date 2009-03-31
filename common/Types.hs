@@ -316,7 +316,6 @@ typeOfExpression e
         A.MostNeg m t -> return t
         A.SizeType m t -> return A.Int
         A.SizeExpr m t -> return A.Int
-        A.SizeVariable m t -> return A.Int
         A.Conversion m cm t e -> return t
         A.ExprVariable m v -> typeOfVariable v
         A.Literal _ t _ -> return t

@@ -441,7 +441,6 @@ instance ShowRain A.Expression where
   showRainM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showRainM t
   showRainM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showRainM t
   showRainM (A.SizeExpr _ e) = bracket $ tell ["SIZE "] >> showRainM e
-  showRainM (A.SizeVariable _ v) = bracket $ tell ["SIZE "] >> showRainM v
   showRainM (A.Conversion _ cm t e) = bracket $ showRainM t >> convOrSpace cm >> showRainM e
   showRainM (A.ExprVariable _ v) = showRainM v
   showRainM (A.Literal _ _ lit) = showRainM lit

@@ -826,14 +826,6 @@ cgetCType m origT am
   where
     const = if am == A.ValAbbrev then Const else id
 
--- | Return whether a type is one that is declared as a structure, but
--- abbreviated as a pointer.
-indirectedType :: Meta -> A.Type -> CGen Bool
-indirectedType m t@(A.Record _)
-  = recordAttr m t >>* (not . A.mobileRecord)
-indirectedType _ (A.Chan _ _) = return True
-indirectedType _ _ = return False
-
 cgenDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen ()
 cgenDirectedVariable _ _ var _ = var
 
@@ -898,14 +890,6 @@ cgenArraySubscript check v es
         genChunks = map genDim subs
 --}}}
 
-countSubscripts :: A.Variable -> (Int, A.Variable)
-countSubscripts (A.SubscriptedVariable _ (A.Subscript {}) v)
-  = let (n, v') = countSubscripts v in (1+n, v')
-countSubscripts (A.SubscriptedVariable _ _ v) = countSubscripts v
-countSubscripts (A.DirectedVariable _ _ v) = countSubscripts v
-countSubscripts (A.DerefVariable _ v) = countSubscripts v
-countSubscripts v@(A.Variable _ _) = (0, v)
-
 --{{{  expressions
 cgenExpression :: A.Expression -> CGen ()
 cgenExpression (A.Monadic m op e) = call genMonadic m op e
@@ -922,11 +906,6 @@ cgenExpression (A.True m) = tell ["true"]
 cgenExpression (A.False m) = tell ["false"]
 --cgenExpression (A.FunctionCall m n es)
 cgenExpression (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction m s es
-cgenExpression (A.SubscriptedExpr m (A.Subscript _ A.NoCheck sub) e)
-  = do call genExpression e
-       tell ["["]
-       call genExpression sub
-       tell ["]"]
 --cgenExpression (A.BytesInExpr m e)
 cgenExpression (A.BytesInExpr m (A.ExprVariable _ v))
   = do t <- astTypeOf v
@@ -940,14 +919,6 @@ cgenExpression (A.IsDefined m (A.ExprVariable _ (A.DerefVariable _ v)))
   = tell ["("] >> call genVariable v A.Original >> tell ["!=NULL)"]
 cgenExpression (A.IsDefined m e)
   = tell ["("] >> call genExpression e >> tell ["!=NULL)"]
-cgenExpression (A.SubscriptedExpr m sub (A.ExprVariable _ v))
-  = call genVariable (A.SubscriptedVariable m sub v) A.Original
-cgenExpression (A.SubscriptedExpr m (A.SubscriptFromFor _ _ start _) e@(A.AllSizesVariable {}))
-  = do tell ["(&("]
-       call genExpression e
-       tell ["["]
-       call genExpression start
-       tell ["]))"]
 cgenExpression t = call genMissing $ "genExpression " ++ show t
 
 cgenTypeSymbol :: String -> A.Type -> CGen ()
@@ -1209,8 +1180,6 @@ abbrevExpression am t@(A.Array _ _) e
     = case e of
         A.ExprVariable _ v -> call genVariable v am
         A.Literal _ t@(A.Array _ _) r -> call genExpression e
-        A.AllSizesVariable {} -> call genExpression e
-        A.SubscriptedExpr {} -> call genExpression e
         _ -> call genMissingC $ formatCode "array expression abbreviation %" e
 abbrevExpression am t@(A.Record _) (A.ExprVariable _ v)
     = call genVariable v am

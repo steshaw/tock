@@ -224,19 +224,6 @@ mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
                   let newSpec = A.Is m'' A.Original (A.Mobile t) $
                         A.ActualExpression $ A.AllocMobile m'' (A.Mobile t) Nothing
                   modifyName n (\nd -> nd {A.ndSpecType = newSpec})
-                  let name_sizes = n {A.nameName = A.nameName n ++ "_sizes"}
-                      nd = A.NameDef {
-                             A.ndMeta = m,
-                             A.ndName = A.nameName name_sizes,
-                             A.ndOrigName = A.nameName name_sizes,
-                             A.ndSpecType = A.Declaration m $
-                               A.Array [A.Dimension $ makeConstant m (length ds)]
-                                 A.Int,
-                             A.ndAbbrevMode = A.Original,
-                             A.ndNameSource = A.NamePredefined,
-                             A.ndPlacement = A.Unplaced
-                             }
-                  defineName name_sizes nd
                   return $ A.Spec m (A.Specification m' n newSpec) scope'
 
     doStructured (A.Spec m (A.Specification m' n (A.Proc m'' sm fs body)) scope)

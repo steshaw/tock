@@ -258,11 +258,6 @@ evalExpression (A.SizeExpr m e)
                  case v of
                    OccArray vs -> return $ OccInt (fromIntegral $ length vs)
                    _ -> throwError (Just m, "size of non-constant expression " ++ show e ++ " used")
-evalExpression (A.SizeVariable m v)
-    =  do t <- astTypeOf v >>= underlyingType m
-          case t of
-            A.Array (A.Dimension n:_) _ -> evalExpression n
-            _ -> throwError (Just m, "size of non-fixed-size variable " ++ show v ++ " used")
 evalExpression e@(A.Literal _ _ _) = evalLiteral e
 evalExpression (A.ExprVariable _ v) = evalVariable v
 evalExpression (A.True _) = return $ OccBool True

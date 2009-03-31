@@ -1298,9 +1298,6 @@ checkExpressions = checkDepthM doExpression
     doExpression (A.SizeExpr m e)
         =  do t <- astTypeOf e
               checkSequence True m t
-    doExpression (A.SizeVariable m v)
-        =  do t <- astTypeOf v
-              checkSequence True m t
     doExpression (A.Conversion m _ t e)
         =  do et <- astTypeOf e
               checkScalar m t >> checkScalar (findMeta e) et

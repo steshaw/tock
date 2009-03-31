@@ -232,7 +232,6 @@ getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
     --Only need to deal with the two cases where we can see an A.Variable directly;
     --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
     getVarExp' :: A.Expression -> Vars
-    getVarExp' (A.SizeVariable _ v) = processVarR v
     getVarExp' (A.ExprVariable _ v) = processVarR v
     getVarExp' _ = emptyVars
 
