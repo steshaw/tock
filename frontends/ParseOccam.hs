@@ -1344,12 +1344,25 @@ structuredTypeField
 --}}}
 --{{{ pragmas
 pragma :: OccParser ()
-pragma = do Pragma p <- genToken isPragma
+pragma = do Pragma rawP <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
-            case map (flip matchRegex p . mkRegex)
-                   [ "^SHARED.*"
-                   , "^PERMITALIASES.*"
-                   , "^EXTERNAL.*"] of
+            pragToks <- case runPragmaLexer "<unknown(pragma)>" rawP of
+              Left _ -> return []
+              Right toks -> return toks
+            cs <- getCompState
+            maybeParse <- return $
+                        -- Maybe monad:
+              (\prod -> do otherToks <- safeTail pragToks
+                           eitherToMaybe $ runParser (prod >> getState) ([], cs) "" otherToks
+              ) $        -- Maybe monad again:
+               case
+                 [ do Token _ (Pragma firstTok) <- listToMaybe pragToks
+                      matchRegex (mkRegex pt) firstTok
+                 | pt <- [ "^SHARED.*"
+                        , "^PERMITALIASES.*"
+                        , "^EXTERNAL.*"
+                        ]
+                 ] of
               [Just _, _, _] -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
@@ -1386,11 +1399,18 @@ pragma = do Pragma p <- genToken isPragma
                   , csExternals = (on, fs) : csExternals st
                   }
               _ -> warnP m WarnUnknownPreprocessorDirective $
-                "Unknown PRAGMA: " ++ p
+                "Unknown PRAGMA: " ++ show (listToMaybe pragToks)
+            case maybeParse of
+              Just st -> setState st
+              Nothing -> return ()
             eol
   where
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
+
+    safeTail [] = Nothing
+    safeTail (_:xs) = Just xs
+
 --}}}
 --{{{ processes
 process :: OccParser A.Process
