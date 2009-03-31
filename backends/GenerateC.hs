@@ -643,7 +643,7 @@ cgenVariableWithAM checkValid v am fct
        t <- astTypeOf v
        ct <- call getCType m t am >>* fct
        -- Temporary, for debugging:
-       tell ["/* ", show (snd iv), " , trying to get: ", show ct, " */"]
+       -- tell ["/* ", show (snd iv), " , trying to get: ", show ct, " */"]
        dressUp m iv ct
   where
     m = findMeta v
