@@ -265,7 +265,9 @@ abbrevCheckPass
 
     isExempt :: A.Variable -> StateT [Map.Map Var Bool] PassM Bool
     isExempt (A.DirectedVariable _ _ v) = isExempt v
+    isExempt (A.DerefVariable _ v) = isExempt v
     isExempt (A.SubscriptedVariable _ _ v) = isExempt v
+    isExempt (A.VariableSizes {}) = return False -- They are read-only anyway
     isExempt (A.Variable _ n) = isNameExempt n
 
     isNameExempt :: A.Name -> StateT [Map.Map Var Bool] PassM Bool
