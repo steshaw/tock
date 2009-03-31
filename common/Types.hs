@@ -61,11 +61,6 @@ class ASTTypeable a where
 instance ASTTypeable A.Type where
   astTypeOf = return
 
--- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
-specTypeOfName :: (CSMR m, Die m) => A.Name -> m A.SpecType
-specTypeOfName n
-    = liftM A.ndSpecType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find type in specTypeOfName for: " ++ (show $ A.nameName n))
-
 -- | Gets the 'A.AbbrevMode' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 abbrevModeOfName :: (CSMR m, Die m) => A.Name -> m A.AbbrevMode
 abbrevModeOfName n
@@ -380,28 +375,6 @@ abbrevModeOfSpec s
         A.Retypes _ am _ _ -> am
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original
-
--- | Resolve a datatype into its underlying type -- i.e. if it's a named data
--- type, then return the underlying real type. This will recurse.
-underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-underlyingType m = applyDepthM doType
-  where
-    doType :: A.Type -> m A.Type
-    -- This is fairly subtle: after resolving a user type, we have to recurse
-    -- on the resulting type.
-    doType t@(A.UserDataType _) = resolveUserType m t >>= underlyingType m
-    doType t = return t
-
--- | Like underlyingType, but only do the "outer layer": if you give this a
--- user type that's an array of user types, then you'll get back an array of
--- user types.
-resolveUserType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-resolveUserType m (A.UserDataType n)
-    =  do st <- specTypeOfName n
-          case st of
-            A.DataType _ t -> resolveUserType m t
-            _ -> dieP m $ "Not a type name: " ++ show n
-resolveUserType _ t = return t
 
 -- | Add array dimensions to a type; if it's already an array it'll just add
 -- the new dimensions to the existing array.

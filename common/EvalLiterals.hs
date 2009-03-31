@@ -33,6 +33,7 @@ import qualified AST as A
 import CompState hiding (CSM) -- everything here is read-only
 import Errors
 import Metadata
+import Traversal
 import TypeSizes
 
 type EvalM = ErrorT ErrorReport (StateT CompState Identity)
@@ -107,8 +108,8 @@ fromRead m cons reader s
 
 -- | Evaluate a simple (non-array) literal.
 evalSimpleLiteral :: A.Expression -> EvalM OccValue
-evalSimpleLiteral (A.Literal _ t lr)
-    = case t of
+evalSimpleLiteral (A.Literal m t lr)
+    = underlyingType m t >>= \t' -> case t' of
         A.Infer  -> defaults
         A.Byte   -> into OccByte
         A.UInt16 -> into OccUInt16
@@ -172,3 +173,25 @@ evalByteLiteral _ cons ['*', ch]
 evalByteLiteral _ cons [ch]
     = return $ cons (fromIntegral $ ord ch)
 evalByteLiteral m _ _ = throwError (Just m, "Bad BYTE literal")
+
+-- | Resolve a datatype into its underlying type -- i.e. if it's a named data
+-- type, then return the underlying real type. This will recurse.
+underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
+underlyingType m = applyDepthM doType
+  where
+    doType :: A.Type -> m A.Type
+    -- This is fairly subtle: after resolving a user type, we have to recurse
+    -- on the resulting type.
+    doType t@(A.UserDataType _) = resolveUserType m t >>= underlyingType m
+    doType t = return t
+
+-- | Like underlyingType, but only do the "outer layer": if you give this a
+-- user type that's an array of user types, then you'll get back an array of
+-- user types.
+resolveUserType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
+resolveUserType m (A.UserDataType n)
+    =  do st <- specTypeOfName n
+          case st of
+            A.DataType _ t -> resolveUserType m t
+            _ -> dieP m $ "Not a type name: " ++ show n
+resolveUserType _ t = return t

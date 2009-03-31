@@ -241,13 +241,6 @@ modifyName n f
 lookupName :: (CSMR m, Die m) => A.Name -> m A.NameDef
 lookupName n = lookupNameOrError n (dieP (findMeta n) $ "cannot find name " ++ A.nameName n)
 
-lookupNameOrError :: CSMR m => A.Name -> m A.NameDef -> m A.NameDef
-lookupNameOrError n err
-    =  do ps <- getCompState
-          case Map.lookup (A.nameName n) (csNames ps) of
-            Just nd -> return nd
-            Nothing -> err
-
 nameSource :: (CSMR m, Die m) => A.Name -> m A.NameSource
 nameSource n = lookupName n >>* A.ndNameSource
 
@@ -421,3 +414,16 @@ getUniqueIdentifer = do st <- get
                         let n = csUnifyId st
                         put st {csUnifyId = n + 1}
                         return n
+
+lookupNameOrError :: CSMR m => A.Name -> m A.NameDef -> m A.NameDef
+lookupNameOrError n err
+    =  do ps <- getCompState
+          case Map.lookup (A.nameName n) (csNames ps) of
+            Just nd -> return nd
+            Nothing -> err
+
+-- | Gets the 'A.SpecType' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
+specTypeOfName :: (CSMR m, Die m) => A.Name -> m A.SpecType
+specTypeOfName n
+    = liftM A.ndSpecType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find type in specTypeOfName for: " ++ (show $ A.nameName n))
+
