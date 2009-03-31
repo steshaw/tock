@@ -675,6 +675,33 @@ cgenVariableWithAM checkValid v am fct
       = do (cg, ct) <- inner v
            t <- astTypeOf v
            return (call genDirectedVariable m t cg dir, ct)
+    inner (A.VariableSizes m (A.Variable _ n))
+      = do t <- astTypeOf n
+           f <- fget getScalarType
+           let Just intT = f A.Int
+           case t of
+             A.Mobile (A.Array {})
+               -> return (do call genVariable v A.Original
+                             tell ["->dimensions"]
+                         , Pointer $ Plain intT)
+             A.Array {}
+               -> do ss <- getCompState >>* csArraySizes
+                     case Map.lookup (A.nameName n) ss of
+                       Just n_sizes -> return (genName n_sizes
+                                              ,Pointer $ Plain intT)
+                       Nothing ->
+                         dieP m $ "No sizes for " ++ A.nameName n
+                           ++ " -- full list: " ++ show (Map.keys ss)
+    inner (A.VariableSizes m v@(A.SubscriptedVariable {}))
+      = do (es, innerV, _) <- collectSubs v
+           case innerV of
+             plainV@(A.Variable {}) ->
+               do (gen, ct) <- inner (A.VariableSizes m plainV)
+                  return (do tell ["("]
+                             gen
+                             tell ["+", show (length es),")"]
+                         ,ct)
+             _ -> diePC m $ formatCode "Cannot handle complex sizes expression %" v
     inner sv@(A.SubscriptedVariable m sub v)
       = case sub of
           A.Subscript _ subCheck _
