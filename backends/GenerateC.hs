@@ -814,6 +814,19 @@ indirectedType _ _ = return False
 cgenDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen ()
 cgenDirectedVariable _ _ var _ = var
 
+genDynamicDim :: A.Variable -> Int -> CGen ()
+genDynamicDim v i
+  = do A.Array ds _ <- astTypeOf v
+       case ds !! i of
+         A.Dimension e -> call genExpression e
+         A.UnknownDimension ->
+           call genVariable (A.SubscriptedVariable m
+             (A.Subscript m A.NoCheck $ makeConstant m i)
+               $ A.VariableSizes m v) A.Original
+      where
+        m = findMeta v
+
+
 cgenArraySubscript :: A.SubscriptCheck -> A.Variable -> [(Meta, CGen ())] -> CGen ()
 cgenArraySubscript check v es
     =  do t <- astTypeOf v
@@ -824,23 +837,6 @@ cgenArraySubscript check v es
           sequence_ $ intersperse (tell ["+"]) $ genPlainSub (genDynamicDim v) es [0..(numDims - 1)]
           tell ["]"]
   where
-    genDynamicDim :: A.Variable -> Int -> CGen ()
-    genDynamicDim v i
-      = do t <- astTypeOf v
-           case (t, v) of
-             (A.Mobile {}, _) -> do call genVariable v A.Original
-                                    tell ["->dimensions[", show i, "]"]
-             (_, A.DerefVariable _ v') -> do call genVariable v' A.Original
-                                             tell ["->dimensions[", show i, "]"]
-             (_, A.SubscriptedVariable _ (A.SubscriptField _ fn) v)
-               -> do A.Record n <- astTypeOf v
-                     genName n
-                     genName fn
-                     tell ["[", show i, "]"]
-             _ -> do call genVariable v A.Original
-                     t <- astTypeOf v
-                     call genSizeSuffix (findMeta v) t (show i)
-    
     -- | Generate the individual offsets that need adding together to find the
     -- right place in the array.
     -- FIXME This is obviously not the best way to factor this, but I figure a
