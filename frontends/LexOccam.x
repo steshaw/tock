@@ -110,7 +110,7 @@ occam :-
 <five>        "SHARED" { mkToken Pragma two }
 <five>        "PERMITALIASES" { mkToken Pragma two }
 <five>        "EXTERNAL" $horizSpace* \" { mkToken Pragma four }
-<four>        \" $horizSpace* $vertSpace+ { mkState 0 }
+<four>        \" $horizSpace* { mkState 0 }
 
 <one>         @preprocessor  { mkToken TokPreprocessor 0 }
 <one, two>    "--" [^\n]*    { mkState 0 }
