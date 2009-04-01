@@ -234,10 +234,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
             t' <- recurse t >>= applyPulled
             popPullContext
             exts <- getCompState >>* csExternals
-            exts' <- sequence [do fs' <- transformExternal (findMeta t) fs
-                                  return $ (n, fs')
-                              | (n, fs) <- exts]
-            modify $ \cs -> cs { csExternals = exts' }                                    
+            exts' <- sequence [do fs' <- transformExternal (findMeta t) extType fs
+                                  modifyName (A.Name emptyMeta n) $ \nd -> nd
+                                    {A.ndSpecType = A.Proc (findMeta t)
+                                      (A.PlainSpec, A.PlainRec) fs' (A.Skip (findMeta t))}
+                                  return $ (n, (extType, fs'))
+                              | (n, (extType, fs)) <- exts]
+            modify $ \cs -> cs { csExternals = exts' }
             return t'
             )
   where
@@ -354,7 +357,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                do -- We descend into the scope first, so that all the actuals get
                   -- fixed before the formals:
                   s' <- recurse s
-                  (args', newargs) <- transformFormals False m args
+                  (args', newargs) <- transformFormals Nothing m args
                   sequence_ [defineSizesName m' n (A.Declaration m' t)
                             | A.Formal _ t n <-  newargs]
                   -- We descend into the body after the formals have been
@@ -368,20 +371,27 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
              _ -> descend str
     doStructured s = descend s
 
-    transformExternal :: Meta -> [A.Formal] -> PassM [A.Formal]
-    transformExternal m args
-      = do (args', newargs) <- transformFormals True m args
+    transformExternal :: Meta -> ExternalType -> [A.Formal] -> PassM [A.Formal]
+    transformExternal m extType args
+      = do (args', newargs) <- transformFormals (Just extType) m args
            sequence_ [defineSizesName m n (A.Declaration m t)
                      | A.Formal _ t n <-  newargs]
            return args'
 
-    transformFormals :: Bool -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
     transformFormals _ _ [] = return ([],[])
     transformFormals ext m ((f@(A.Formal am t n)):fs)
       = case (t, ext) of
+          -- For externals, we always add extra formals (one per dimension!):
+          (A.Array ds _, Just ExternalOldStyle) ->
+                          do params <- replicateM (length ds) $ makeNonce "ext_size"
+                             let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
+                             (rest, moreNew) <- transformFormals ext m fs
+                             return (f : newfs ++ rest, newfs ++ moreNew)
+
           -- For occam PROCs, only bother adding the extra formal if the dimension
           -- is unknown:
-          (A.Array ds _, False)
+          (A.Array ds _, _)
             | A.UnknownDimension `elem` ds ->
                           do let sizeType = A.Array [makeDimension m $ length ds] A.Int
                              n_sizes <- makeNonce (A.nameName n ++ "_sizes") >>* A.Name m
@@ -396,40 +406,34 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                              addSizes (A.nameName n) n_sizes
                              (rest, moreNew) <- transformFormals ext m fs
                              return (f : rest, moreNew)
-          -- For externals, we always add extra formals:
-          (A.Array ds _, True) ->
-                          do params <- replicateM (length ds) $ makeNonce "ext_size"
-                             let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
-                             (rest, moreNew) <- transformFormals ext m fs
-                             return (f : newfs ++ rest, newfs ++ moreNew)
           _ -> do (rest, new) <- transformFormals ext m fs
                   return (f : rest, new)
 
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params)
-      = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n) >>* isJust
+      = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n) >>* fmap fst
            A.Proc _ _ fs _ <- specTypeOfName n
            concatMapM (transformActual ext) (zip fs params) >>* A.ProcCall m n
     doProcess p = descend p
 
-    transformActual :: Bool -> (A.Formal, A.Actual) -> PassM [A.Actual]
+    transformActual :: Maybe ExternalType -> (A.Formal, A.Actual) -> PassM [A.Actual]
     transformActual ext (A.Formal _ t _, a@(A.ActualVariable v))
       = transformActualVariable ext t a v
     transformActual ext (A.Formal _ t _, a@(A.ActualExpression (A.ExprVariable _ v)))
       = transformActualVariable ext t a v
     transformActual _ (_, a) = return [a]
 
-    transformActualVariable :: Bool -> A.Type -> A.Actual -> A.Variable -> PassM [A.Actual]
+    transformActualVariable :: Maybe ExternalType -> A.Type -> A.Actual -> A.Variable -> PassM [A.Actual]
     transformActualVariable ext t a v
       =    case (t, ext) of
-             -- Note that t is the formal type, not the type of the actual
-             (A.Array ds _, False) | A.UnknownDimension `elem` ds ->
-                do sizeV <- sizes v
-                   return [a, A.ActualVariable sizeV]
-             (A.Array ds _, True) ->
+             (A.Array ds _, Just ExternalOldStyle) ->
                 let acts = map (sub $ A.VariableSizes m v) [0 .. (length ds - 1)]
                 in return $ a : acts
+             -- Note that t is the formal type, not the type of the actual
+             (A.Array ds _, _) | A.UnknownDimension `elem` ds ->
+                do sizeV <- sizes v
+                   return [a, A.ActualVariable sizeV]
              _ -> return [a]
       where
         sizes v@(A.Variable m n)

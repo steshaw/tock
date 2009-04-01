@@ -172,7 +172,7 @@ cgenTopLevel headerName s
           sequence_ [tell ["#include \"", usedFile, ".h\"\n"]
                     | usedFile <- Set.toList $ csUsedFiles cs]
 
-          sequence_ [tell ["extern int ", nameString n, "_stack_size;\n"]
+          sequence_ [tell ["extern int "] >> genProcName n >> tell ["_stack_size;\n"]
                      | n <- (Set.toList $ csParProcs cs)
                            ++ [A.Name emptyMeta n | A.NameDef
                                     {A.ndName = n
@@ -182,7 +182,7 @@ cgenTopLevel headerName s
           when (csHasMain cs) $ do
             (tlpName, tlpChans) <- tlpInterface
             tell ["extern int "]
-            genName tlpName
+            genProcName tlpName
             tell ["_stack_size;\n"]
 
           -- Forward declarations of externals:
@@ -215,7 +215,7 @@ cgenTopLevel headerName s
 
             tell ["\n\
                    \    "]
-            genName tlpName
+            genProcName tlpName
             tell [" (wptr"]
             sequence_ [tell [", &", c] | c <- chans]
             tell [");\n\
@@ -233,7 +233,7 @@ cgenTopLevel headerName s
                   \    tock_init_ccsp (", uses_stdin, ");\n\
                   \\n\
                   \    Workspace p = ProcAllocInitial (0, "]
-            genName tlpName
+            genProcName tlpName
             tell ["_stack_size + 512);\n\
                   \    ProcStartInitial (p, tock_main);\n\
                   \\n\
@@ -1518,7 +1518,11 @@ prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
 cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
-cgenActuals fs as = seqComma [call genActual f a | (f, a) <- zip fs as]
+cgenActuals fs as
+  = do when (length fs /= length as) $
+         dieP (findMeta (fs, as)) $ "Mismatch in numbers of parameters in backend: "
+           ++ show (length fs) ++ " expected, but actually: " ++ show (length as)
+       seqComma [call genActual f a | (f, a) <- zip fs as]
 
 cgenActual :: A.Formal -> A.Actual -> CGen ()
 cgenActual f a = seqComma $ realActuals f a id
@@ -1539,9 +1543,20 @@ realFormals :: A.Formal -> [(CGen (), CGen ())]
 realFormals (A.Formal am t n)
     = [(genCType (A.nameMeta n) t am, genName n)]
 
+genProcName :: A.Name -> CGen ()
+genProcName n
+  = do cs <- getCompState
+       if A.nameName n `elem` csOriginalTopLevelProcs cs
+          || A.nameName n `elem` map fst (csExternals cs)
+         then do nd <- lookupName n
+                 genName $ n { A.nameName = "occam_" ++ A.ndOrigName nd }
+         else genName n
+
 -- | Generate a Proc specification, which maps to a C function.
 -- This will use ProcGetParam if the Proc is in csParProcs, or the normal C
--- calling convention otherwise.
+-- calling convention otherwise.  If will not munge the name if the process was
+-- one of the original top-level procs, other than to add an occam_ prefix (which
+-- avoids name collisions).
 genProcSpec :: A.Name -> A.SpecType -> Bool -> CGen ()
 genProcSpec n (A.Proc _ (sm, rm) fs p) forwardDecl
     =  do cs <- getCompState
@@ -1564,7 +1579,7 @@ genProcSpec n (A.Proc _ (sm, rm) fs p) forwardDecl
         =  do -- These can't be inlined, since they're only used as function
               -- pointers.
               tell ["void "]
-              genName n
+              genProcName n
               tell [" (Workspace wptr)"]
 
     genParParams :: CGen ()
@@ -1581,7 +1596,7 @@ genProcSpec n (A.Proc _ (sm, rm) fs p) forwardDecl
     genNormalHeader
         =  do call genSpecMode sm
               tell ["void "]
-              genName n
+              genProcName n
               tell [" (Workspace wptr"]
               sequence_ [do tell [", "]
                             t
@@ -1606,7 +1621,7 @@ cgenProcAlloc n fs as
 
           ws <- csmLift $ makeNonce "workspace"
           tell ["Workspace ", ws, " = TockProcAlloc (wptr, ", show $ length ras, ", "]
-          genName n
+          genProcName n
           tell ["_stack_size);\n"]
 
           sequence_ [do tell [pc, " (wptr, ", ws, ", ", show num, ", "]
@@ -1614,7 +1629,7 @@ cgenProcAlloc n fs as
                         tell [");\n"]
                      | (num, (pc, ra)) <- zip [(0 :: Int)..] ras]
 
-          return (ws, genName n)
+          return (ws, genProcName n)
 --}}}
 
 --{{{  processes
@@ -2018,7 +2033,7 @@ cgenProcCall n as
             (A.Recursive, _) ->
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
-            (_, Just _) | head (A.nameName n) `elem` ['B', 'C'] ->
+            (_, Just (ExternalOldStyle, _)) ->
                  do let (c:cs) = A.nameName n
                     tell ["{int ext_args[] = {"]
                     -- We don't use the formals in csExternals because they won't
@@ -2034,7 +2049,7 @@ cgenProcCall n as
                     tell [ [if c == '.' then '_' else c | c <- cs]
                          , ",1,ext_args);}"]
                     
-            _ -> do genName n
+            _ -> do genProcName n
                     tell [" (wptr", if null as then "" else ","]
                     (A.Proc _ _ fs _) <- specTypeOfName n
                     call genActuals fs as

@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Parse occam code into an AST.
 module ParseOccam (parseOccamProgram) where
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, when)
 import Control.Monad.State (MonadState, modify, get, put)
 import Data.List
 import qualified Data.Map as Map
@@ -1356,15 +1356,16 @@ pragma = do Pragma rawP <- genToken isPragma
             cs <- getCompState
             prod <- return $
                       -- Maybe monad:
-               case
+               case findIndex isJust
                  [ do Token _ (Pragma firstTok) <- listToMaybe pragToks
                       matchRegex (mkRegex pt) firstTok
                  | pt <- [ "^SHARED.*"
                         , "^PERMITALIASES.*"
                         , "^EXTERNAL.*"
+                        , "^OCCAMEXTERNAL.*"
                         ]
                  ] of
-              [Just _, _, _] -> do
+              Just 0 -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1374,7 +1375,7 @@ pragma = do Pragma rawP <- genToken isPragma
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
-              [Nothing, Just _, _] -> do
+              Just 1 -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1384,20 +1385,22 @@ pragma = do Pragma rawP <- genToken isPragma
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
-              [Nothing, Nothing, Just _] -> do
+              Just pragmaType | pragmaType == 2 || pragmaType == 3 -> do
                 m <- md
                 sPROC
                 n <- newProcName
                 fs <- formalList >>* map fst
-                sEq
-                integer
+                when (pragmaType == 2) $ do sEq
+                                            integer
+                                            return ()
                 let on = A.nameName n
                     sp = A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m)
                     nd = A.NameDef m on on sp A.Original A.NamePredefined A.Unplaced
+                    ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
                   { csNames = Map.insert on nd (csNames st)
                   , csLocalNames = (on, (n, ProcName)) : csLocalNames st
-                  , csExternals = (on, fs) : csExternals st
+                  , csExternals = (on, (ext, fs)) : csExternals st
                   }
               _ -> warnP m WarnUnknownPreprocessorDirective $
                 "Unknown PRAGMA type: " ++ show (listToMaybe pragToks)

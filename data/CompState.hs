@@ -87,6 +87,9 @@ type UnifyValue = TypeExp A.Type
 
 data NameAttr = NameShared | NameAliasesPermitted deriving (Typeable, Data, Eq, Show, Ord)
 
+data ExternalType = ExternalOldStyle | ExternalOccam
+  deriving (Typeable, Data, Eq, Show, Ord)
+
 -- | State necessary for compilation.
 data CompState = CompState {
     -- This structure needs to be printable with pshow.
@@ -125,7 +128,11 @@ data CompState = CompState {
     csUnscopedNames :: Map String String,
     csNameCounter :: Int,
     csNameAttr :: Map String (Set.Set NameAttr),
-    csExternals :: [(String, [A.Formal])],
+    -- A list of all the things that were at the top-level before we pull anything
+    -- up (and therefore the things that should be visible to other files during
+    -- separate compilation)
+    csOriginalTopLevelProcs :: [String],
+    csExternals :: [(String, (ExternalType, [A.Formal]))],
     -- Maps an array variable name to the name of its _sizes array:
     csArraySizes :: Map String A.Name,
     -- Stores a map of constant sizes arrays declared for that size:
@@ -178,6 +185,7 @@ emptyState = CompState {
     csUnscopedNames = Map.empty,
     csNameCounter = 0,
     csNameAttr = Map.empty,
+    csOriginalTopLevelProcs = [],
     csExternals = [],
     csArraySizes = Map.empty,
     csGlobalSizes = Map.empty,
