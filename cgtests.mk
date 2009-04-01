@@ -6,13 +6,16 @@ tests = $(patsubst %.occ,%,$(wildcard cgtests/cgtest??.occ))
 all: $(tests)
 
 clean:
-	rm -f $(tests)
+	rm -f $(tests) cgtests/cglib.inc
 
 checkout:
 	svn co http://projects.cs.kent.ac.uk/projects/kroc/svn/kroc/trunk/tests/cgtests
 
-%: %.occ
-	./tock -vk --backend=$(BACKEND) --run-indent -o $@ $<
+%: %.occ cgtests/cglib.inc
+	./tock -vk --backend=$(BACKEND) --usage-checking=off --run-indent -o $@ $<
+
+cgtests/cglib.inc: cgtests/cglib.occ
+	./tock -vk --backend=$(BACKEND) --usage-checking=off --run-indent --no-main $<
 
 run: $(tests)
 	cd cgtests && ./run-tests
