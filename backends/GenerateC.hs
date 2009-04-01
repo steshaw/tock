@@ -2015,7 +2015,7 @@ cgenProcCall n as
             (A.Recursive, _) ->
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
-            (_, Just _) ->
+            (_, Just _) | head (A.nameName n) `elem` ['B', 'C'] ->
                  do let (c:cs) = A.nameName n
                     tell ["{int ext_args[] = {"]
                     -- We don't use the formals in csExternals because they won't
