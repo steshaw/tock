@@ -163,10 +163,6 @@ cgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cIntSize,"\n"]
           tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
-          (tlpName, tlpChans) <- tlpInterface
-          chans <- sequence [csmLift $ makeNonce "tlp_channel" | _ <- tlpChans]
-          killChans <- sequence [csmLift $ makeNonce "tlp_channel_kill" | _ <- tlpChans]
-          workspaces <- sequence [csmLift $ makeNonce "tlp_channel_ws" | _ <- tlpChans]
 
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
                                        (listify (const True :: A.Specification -> Bool) s)
@@ -179,9 +175,12 @@ cgenTopLevel headerName s
                                     {A.ndName = n
                                     ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
                                     } <- Map.elems $ csNames cs]]
-          tell ["extern int "]
-          genName tlpName
-          tell ["_stack_size;\n"]
+
+          when (csHasMain cs) $ do
+            (tlpName, tlpChans) <- tlpInterface
+            tell ["extern int "]
+            genName tlpName
+            tell ["_stack_size;\n"]
 
           -- Forward declarations of externals:
           sequence_ [tell ["extern void ", mungeExternalName n, "(int*);"]
@@ -189,48 +188,55 @@ cgenTopLevel headerName s
 
           call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
-          tell ["void tock_main (Workspace wptr) {\n"]
-          sequence_ [do tell ["    Channel ", c, ";\n"]
-                        tell ["    ChanInit (wptr, &", c, ");\n"]
-                     | c <- chans ++ killChans]
-          tell ["\n"]
+          when (csHasMain cs) $ do
+            (tlpName, tlpChans) <- tlpInterface
+            chans <- sequence [csmLift $ makeNonce "tlp_channel" | _ <- tlpChans]
+            killChans <- sequence [csmLift $ makeNonce "tlp_channel_kill" | _ <- tlpChans]
+            workspaces <- sequence [csmLift $ makeNonce "tlp_channel_ws" | _ <- tlpChans]
 
-          funcs <- sequence [genTLPHandler tc c kc ws
+
+            tell ["void tock_main (Workspace wptr) {\n"]
+            sequence_ [do tell ["    Channel ", c, ";\n"]
+                          tell ["    ChanInit (wptr, &", c, ");\n"]
+                      | c <- chans ++ killChans]
+            tell ["\n"]
+
+            funcs <- sequence [genTLPHandler tc c kc ws
                              | (tc, c, kc, ws) <- zip4 tlpChans chans killChans workspaces]
 
-          tell ["    LightProcBarrier bar;\n\
-                \    LightProcBarrierInit (wptr, &bar, ", show $ length chans, ");\n"]
+            tell ["    LightProcBarrier bar;\n\
+                  \    LightProcBarrierInit (wptr, &bar, ", show $ length chans, ");\n"]
 
-          sequence_ [tell ["    LightProcStart (wptr, &bar, ", ws, ", (Process) ", func, ");\n"]
-                     | (ws, func) <- zip workspaces funcs]
+            sequence_ [tell ["    LightProcStart (wptr, &bar, ", ws, ", (Process) ", func, ");\n"]
+                       | (ws, func) <- zip workspaces funcs]
 
-          tell ["\n\
-                 \    "]
-          genName tlpName
-          tell [" (wptr"]
-          sequence_ [tell [", &", c] | c <- chans]
-          tell [");\n\
-                \\n"]
-          sequence_ [tell ["    ", func, "_kill (wptr, &", kc, ");\n"]
-                     | (func, kc) <- zip funcs killChans]
+            tell ["\n\
+                   \    "]
+            genName tlpName
+            tell [" (wptr"]
+            sequence_ [tell [", &", c] | c <- chans]
+            tell [");\n\
+                  \\n"]
+            sequence_ [tell ["    ", func, "_kill (wptr, &", kc, ");\n"]
+                       | (func, kc) <- zip funcs killChans]
 
-          let uses_stdin = if TLPIn `elem` (map snd tlpChans) then "true" else "false"
-          tell ["    LightProcBarrierWait (wptr, &bar);\n\
-                \\n\
-                \    Shutdown (wptr);\n\
-                \}\n\
-                \\n\
-                \int main (int argc, char *argv[]) {\n\
-                \    tock_init_ccsp (", uses_stdin, ");\n\
-                \\n\
-                \    Workspace p = ProcAllocInitial (0, "]
-          genName tlpName
-          tell ["_stack_size + 512);\n\
-                \    ProcStartInitial (p, tock_main);\n\
-                \\n\
-                \    // NOTREACHED\n\
-                \    return 0;\n\
-                \}\n"]
+            let uses_stdin = if TLPIn `elem` (map snd tlpChans) then "true" else "false"
+            tell ["    LightProcBarrierWait (wptr, &bar);\n\
+                  \\n\
+                  \    Shutdown (wptr);\n\
+                  \}\n\
+                  \\n\
+                  \int main (int argc, char *argv[]) {\n\
+                  \    tock_init_ccsp (", uses_stdin, ");\n\
+                  \\n\
+                  \    Workspace p = ProcAllocInitial (0, "]
+            genName tlpName
+            tell ["_stack_size + 512);\n\
+                  \    ProcStartInitial (p, tock_main);\n\
+                  \\n\
+                  \    // NOTREACHED\n\
+                  \    return 0;\n\
+                  \}\n"]
   where
     dropPath = reverse . takeWhile (/= '/') . reverse
     

@@ -69,6 +69,7 @@ optionsNoWarnings =
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
+  , Option [] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
@@ -131,6 +132,9 @@ optKeepTemporaries ps = return $ ps { csKeepTemporaries = True }
 
 optRunIndent :: OptFunc
 optRunIndent ps = return $ ps { csRunIndent = True }
+
+optNoMain :: OptFunc
+optNoMain ps = return $ ps { csHasMain = False }
 
 optStackSize :: String -> OptFunc
 optStackSize s ps = return $ ps { csUnknownStackSize = read s }
@@ -261,6 +265,8 @@ compileFull inputFile moutputFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
 
+          shouldLink <- lift getCompState >>* csHasMain
+
           case csBackend optsPS of
             BackendC ->
               let sFile = outputFile ++ ".s"
@@ -280,7 +286,8 @@ compileFull inputFile moutputFile
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
                  -- Link the object files into a binary
-                 exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerLinkFlags optsPS)
+                 when shouldLink $
+                   exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerLinkFlags optsPS)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->

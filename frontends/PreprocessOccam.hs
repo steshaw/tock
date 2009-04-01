@@ -191,14 +191,14 @@ handleUse m [modName]
           put $ cs { csUsedFiles = Set.insert incName (csUsedFiles cs) }
           if Set.member incName (csUsedFiles cs)
             then return return
-            else handleInclude m [incName]
+            else handleInclude m [incName ++ ".inc"]
   where
-    -- | If a module name doesn't already have a suffix, add one.
+    -- | If a module name has a suffix, strip it
     mangleModName :: String -> String
     mangleModName mod
         = if ".occ" `isSuffixOf` mod || ".inc" `isSuffixOf` mod
-            then mod
-            else mod ++ ".occ"
+            then (reverse . drop 4 . reverse) mod
+            else mod
 
 -- | Handle the @#DEFINE@ directive.
 handleDefine :: DirectiveFunc
