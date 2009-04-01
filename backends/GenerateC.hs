@@ -1408,9 +1408,8 @@ cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
 cintroduceSpec _ (A.Specification _ _ (A.RecordType _ _ _)) = return ()
 cintroduceSpec _ (A.Specification _ _ (A.ChanBundleType {})) = return ()
 cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
-cintroduceSpec lvl (A.Specification _ n (A.ProtocolCase _ ts))
-    =  do genStatic lvl n
-          tell ["typedef enum{"]
+cintroduceSpec _ (A.Specification _ n (A.ProtocolCase _ ts))
+    =  do tell ["typedef enum{"]
           seqComma [genName tag >> tell ["_"] >> genName n | (tag, _) <- ts]
           -- You aren't allowed to have an empty enum.
           when (ts == []) $
