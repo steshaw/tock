@@ -65,11 +65,19 @@ preprocessFile m filename
     =  do (handle, realFilename) <- searchFile m filename
           progress $ "Loading source file " ++ realFilename
           origCS <- get
-          modify (\cs -> cs { csCurrentFile = realFilename })
+          let modFunc = if drop4 filename `Set.member` csUsedFiles origCS
+                          then Set.insert (drop4 realFilename)
+                                 . Set.delete (drop4 filename)
+                          else id
+          modify (\cs -> cs { csCurrentFile = realFilename
+                            , csUsedFiles = modFunc $ csUsedFiles cs })
           s <- liftIO $ hGetContents handle
           toks <- preprocessSource m realFilename s
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
+  where
+    -- drops 4 from the end:
+    drop4 = reverse . drop 4 . reverse
 
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
 preprocessSource :: Meta -> String -> String -> PassM [Token]
