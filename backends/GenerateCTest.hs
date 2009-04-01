@@ -116,7 +116,8 @@ evalCGen act ops state = evalCGen' (runReaderT act ops) state
 evalCGen' :: CGen' () -> CompState -> IO (Either Errors.ErrorReport [String])
 evalCGen' act state = runPassM state pass >>* fst
   where
-    pass = execStateT act (Left []) >>* (\(Left x) -> x)
+    pass = execStateT act (CGenOutputs (Left []) (Left []))
+      >>* (\(CGenOutputs (Left x) _) -> x)
 
 -- | Checks that running the test for the C and C++ backends produces the right output for each.
 testBothS :: 
@@ -464,63 +465,63 @@ testDeclaration :: Test
 testDeclaration = TestList
  [
   --Simple: 
-  testBothSame "genDeclaration 0" "int32_t foo;" (tcall3 genDeclaration A.Int32 foo False)
+  testBothSame "genDeclaration 0" "int32_t foo;" (tcall3 genDeclaration NotTopLevel A.Int32 foo False)
   
   --Channels and channel-ends:
-  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
-  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Shared A.Unshared) A.Int32) foo False)
-  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Unshared A.Shared) A.Int32) foo False)
-  ,testBoth "genDeclaration 4" "mt_cb_t* foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) foo False)
-  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput A.Unshared A.Int32) foo False)
-  ,testBoth "genDeclaration 6" "mt_cb_t* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput A.Shared A.Int32) foo False)
-  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput A.Unshared A.Int32) foo False)
-  ,testBoth "genDeclaration 8" "mt_cb_t* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput A.Shared A.Int32) foo False)  
+  ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
+  ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.Chan (A.ChanAttributes A.Shared A.Unshared) A.Int32) foo False)
+  ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.Chan (A.ChanAttributes A.Unshared A.Shared) A.Int32) foo False)
+  ,testBoth "genDeclaration 4" "mt_cb_t* foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) foo False)
+  ,testBoth "genDeclaration 5" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.ChanEnd A.DirInput A.Unshared A.Int32) foo False)
+  ,testBoth "genDeclaration 6" "mt_cb_t* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.ChanEnd A.DirInput A.Shared A.Int32) foo False)
+  ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.ChanEnd A.DirOutput A.Unshared A.Int32) foo False)
+  ,testBoth "genDeclaration 8" "mt_cb_t* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration NotTopLevel (A.ChanEnd A.DirOutput A.Shared A.Int32) foo False)  
   
   --Arrays (of simple):
   ,testBothSame "genDeclaration 100" "int32_t foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8] A.Int32) foo False)
   ,testBothSame "genDeclaration 101" "int32_t foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9] A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8,dimension 9] A.Int32) foo False)
   ,testBothSame "genDeclaration 102" "int32_t foo[8*9*10];"
-    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9,dimension 10] A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8,dimension 9,dimension 10] A.Int32) foo False)
 
   --Arrays (of simple) inside records:
   ,testBothSame "genDeclaration 110" "int32_t foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] A.Int32) foo True)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8] A.Int32) foo True)
   ,testBothSame "genDeclaration 111" "int32_t foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9] A.Int32) foo True)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8,dimension 9] A.Int32) foo True)
   ,testBothSame "genDeclaration 112" "int32_t foo[8*9*10];"
-    (tcall3 genDeclaration (A.Array [dimension 8,dimension 9,dimension 10] A.Int32) foo True)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8,dimension 9,dimension 10] A.Int32) foo True)
   
   --Arrays of channels and channel-ends:
   ,testBoth "genDeclaration 200" "Channel foo_storage[8];Channel* foo[8];"
     "csp::One2OneChannel<int32_t> foo_storage[8];csp::One2OneChannel<int32_t>* foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
 
   ,testBoth "genDeclaration 201" "Channel foo_storage[8*9];Channel* foo[8*9];"
     "csp::One2OneChannel<int32_t> foo_storage[8*9];csp::One2OneChannel<int32_t>* foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8, dimension 9] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
     
   ,testBoth "genDeclaration 202" "Channel* foo[8];"
     "csp::AltChanin<int32_t> foo[8];"
-    (tcall3 genDeclaration (A.Array [dimension 8] $ A.ChanEnd A.DirInput A.Unshared A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8] $ A.ChanEnd A.DirInput A.Unshared A.Int32) foo False)
 
   ,testBoth "genDeclaration 203" "Channel* foo[8*9];"
     "csp::Chanout<int32_t> foo[8*9];"
-    (tcall3 genDeclaration (A.Array [dimension 8, dimension 9] $ A.ChanEnd A.DirOutput A.Unshared A.Int32) foo False)
+    (tcall3 genDeclaration NotTopLevel (A.Array [dimension 8, dimension 9] $ A.ChanEnd A.DirOutput A.Unshared A.Int32) foo False)
     
     
   --Records of simple:
-  ,testBothSameS "genDeclaration 300" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR A.Int32)
+  ,testBothSameS "genDeclaration 300" "REC foo;" (tcall3 genDeclaration NotTopLevel (A.Record $ simpleName "REC") foo False) (stateR A.Int32)
   
   --Records of arrays of int32_t (the sizes are set by declareInit):
-  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [dimension 8] A.Int32)
+  ,testBothSameS "genDeclaration 400" "REC foo;" (tcall3 genDeclaration NotTopLevel (A.Record $ simpleName "REC") foo False) (stateR $ A.Array [dimension 8] A.Int32)
 
   --Timers:
   ,testBoth "genDeclaration 500" "Time foo;" "csp::Time foo;"
-   (tcall3 genDeclaration (A.Timer A.OccamTimer) foo False)
+   (tcall3 genDeclaration NotTopLevel (A.Timer A.OccamTimer) foo False)
   ,testBoth "genDeclaration 501" "Time foo[20];" "csp::Time foo[20];"
-   (tcall3 genDeclaration (A.Array [dimension 20] (A.Timer A.OccamTimer)) foo False)
+   (tcall3 genDeclaration NotTopLevel (A.Array [dimension 20] (A.Timer A.OccamTimer)) foo False)
  ]
  where
    stateR t = defRecord "REC" "bar" t
@@ -573,7 +574,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
    testAll' :: Int -> (String,String) -> (String,String) -> A.Type -> State CompState () -> Test
    testAll' n (iC,fC) (iCPP,fCPP) t state = TestList
     [
-     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) (over (tcall introduceSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t))) state
+     testBothS ("testDeclareInitFree/a" ++ show n) ("@" ++ iC) ("@" ++ iCPP) (over (tcall introduceSpec NotTopLevel $ A.Specification emptyMeta foo (A.Declaration emptyMeta t))) state
      ,testBothS ("testDeclareInitFree/b" ++ show n) iC iCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareInit ops emptyMeta t (A.Variable emptyMeta foo))) state
      ,testBothS ("testDeclareInitFree/c" ++ show n) fC fCPP (over (tcall removeSpec $ A.Specification emptyMeta foo (A.Declaration emptyMeta t))) state
      ,testBothS ("testDeclareInitFree/d" ++ show n) fC fCPP (over $ ask >>= \ops -> (fromMaybe (return ())) (declareFree ops emptyMeta t (A.Variable emptyMeta foo))) state
@@ -583,7 +584,7 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
          Just p -> caret >> p >> caret
          Nothing -> return ()
        over :: Override
-       over = local $ \ops -> ops {genDeclaration = override3 at, genOverArray = overArray}
+       over = local $ \ops -> ops {genDeclaration = override4 at, genOverArray = overArray}
 
    testAllSame :: Int -> (String,String) -> A.Type -> Test
    testAllSame n e t = testAll n e e t
@@ -608,7 +609,7 @@ testRecord = TestList
     testAllS n (eCI,eCR) (eCPPI,eCPPR) rn rb rts st overFunc
       = testBothS ("testRecord " ++ show n) eCI eCPPI (local overFunc (tcall genRecordTypeSpec rn rb rts)) st
     testAllSame n e s0 s1 s2 = testAll n e e s0 s1 s2
-    over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
+    over ops = ops {genDeclaration = override3 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,getCType = (\_ x _ -> return $ Plain $ "$(" ++ show x ++ ")")
                    ,genVariable' = override3 at
@@ -627,8 +628,8 @@ testSpec = TestList
 
   --Empty/failure cases:
   ,testAllSame 100 ("","") $ A.DataType undefined undefined
-  ,testBothFail "testAllSame 200" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
-  ,testBothFail "testAllSame 300" (tcall introduceSpec $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
+  ,testBothFail "testAllSame 200" (tcall introduceSpec NotTopLevel $ A.Specification emptyMeta foo $ A.RetypesExpr emptyMeta A.Original A.Int (A.True emptyMeta))
+  ,testBothFail "testAllSame 300" (tcall introduceSpec NotTopLevel $ A.Specification emptyMeta foo $ A.Place emptyMeta (A.True emptyMeta))
   ,testAllSame 350 ("","") $ A.Protocol emptyMeta undefined
 
   --IsChannelArray:
@@ -730,12 +731,12 @@ testSpec = TestList
     testAllS :: Int -> (String,String) -> (String,String) -> A.SpecType -> State CompState () -> (GenOps -> GenOps) -> Test
     testAllS n (eCI,eCR) (eCPPI,eCPPR) spec st overFunc = TestList
      [
-      testBothS ("testSpec " ++ show n) eCI eCPPI (local overFunc (tcall introduceSpec $ A.Specification emptyMeta foo spec)) st
+      testBothS ("testSpec " ++ show n) eCI eCPPI (local overFunc (tcall introduceSpec NotTopLevel $ A.Specification emptyMeta foo spec)) st
       ,testBothS ("testSpec " ++ show n) eCR eCPPR (local overFunc (tcall removeSpec $ A.Specification emptyMeta foo spec)) st
      ]
     testAllSame n e s = testAll n e e s
     testAllSameS n e s st o = testAllS n e e s st o
-    over' ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
+    over' ops = ops {genDeclaration = override3 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,getScalarType = (\x -> Just $ "$(" ++ show x ++ ")")
                    }
@@ -935,7 +936,7 @@ testCase = TestList
     spec = A.Spec emptyMeta undefined
     over :: Override
     over = local $ \ops -> ops {genExpression = override1 dollar, genProcess = override1 at
-                               , genStop = override2 caret, genSpec = override2 (hash >> return undefined)}
+                               , genStop = override2 caret, genSpec = override3 (hash >> return undefined)}
 
 testIf :: Test
 testIf = TestList
@@ -957,7 +958,7 @@ testIf = TestList
    over = local $ \ops -> ops { genExpression = override1 dollar
                               , genProcess = override1 at
                               , genStop = override2 caret
-                              , introduceSpec = override1 backq
+                              , introduceSpec = override2 backq
                               , removeSpec = override1 hash}
 
 testWhile :: Test
