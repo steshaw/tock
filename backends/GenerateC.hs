@@ -155,7 +155,7 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generateC :: (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
+generateC :: (Handle, Handle) -> String -> A.AST -> PassM ()
 generateC = generate cgenOps
 
 cgenTopLevel :: String -> A.AST -> CGen ()

@@ -58,7 +58,6 @@ type CGenOutput = Either [String] Handle
 data CGenOutputs = CGenOutputs
   { cgenBody :: CGenOutput
   , cgenHeader :: CGenOutput
-  , cgenOccamInc :: CGenOutput
   }
 
 --{{{  monad definition
@@ -246,10 +245,10 @@ fget :: (GenOps -> a) -> CGen a
 fget = asks
 
 -- Handles are body, header, occam-inc
-generate :: GenOps -> (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
-generate ops (hb, hh, hi) hname ast
+generate :: GenOps -> (Handle, Handle) -> String -> A.AST -> PassM ()
+generate ops (hb, hh) hname ast
   = evalStateT (runReaderT (call genTopLevel hname ast) ops)
-      (CGenOutputs (Right hb) (Right hh) (Right hi))
+      (CGenOutputs (Right hb) (Right hh))
 
 genComma :: CGen ()
 genComma = tell [","]

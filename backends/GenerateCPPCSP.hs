@@ -122,7 +122,7 @@ chansToAny = cppOnlyPass "Transform channels to ANY"
 
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
-generateCPPCSP :: (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
+generateCPPCSP :: (Handle, Handle) -> String -> A.AST -> PassM ()
 generateCPPCSP = generate cppgenOps
 
 cppcspPrereq :: [Property]

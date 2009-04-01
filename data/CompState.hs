@@ -106,7 +106,7 @@ data CompState = CompState {
     csVerboseLevel :: Int,
     csOutputFile :: String,
     csOutputHeaderFile :: String,
-    csOutputIncFile :: String,
+    csOutputIncFile :: Maybe String,
     csKeepTemporaries :: Bool,
     csEnabledWarnings :: Set WarningType,
     csRunIndent :: Bool,
@@ -156,7 +156,7 @@ emptyState = CompState {
     csVerboseLevel = 0,
     csOutputFile = "-",
     csOutputHeaderFile = "-",
-    csOutputIncFile = "-",
+    csOutputIncFile = Nothing,
     csKeepTemporaries = False,
     csEnabledWarnings = Set.fromList
       [ WarnInternal

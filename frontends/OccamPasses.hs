@@ -21,6 +21,10 @@ module OccamPasses (occamPasses, foldConstants, checkConstants) where
 
 import Control.Monad.State
 import Data.Generics
+import Data.List
+import qualified Data.Sequence as Seq
+import qualified Data.Foldable as F
+import System.IO
 
 import qualified AST as A
 import CompState
@@ -46,8 +50,39 @@ occamPasses =
     , checkConstants
     , resolveAmbiguities
     , checkTypes
+    , writeIncFile
     , pushUpDirections
     ]
+
+writeIncFile :: Pass
+writeIncFile = occamOnlyPass "Write .inc file" [] []
+  (passOnlyOnAST "writeIncFile" (\t ->
+    do out <- getCompState >>* csOutputIncFile
+       case out of
+         Just fn -> do f <- liftIO $ openFile fn WriteMode
+                       contents <- emitProcsAsExternal t >>* (unlines . F.toList)
+                       liftIO $ hPutStr f contents
+                       liftIO $ hClose f
+         Nothing -> return ()
+       return t
+  ))
+  where
+    emitProcsAsExternal :: A.AST -> PassM (Seq.Seq String)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ _ fs _)) scope)
+      = do thisProc <- sequence (
+             [return "#PRAGMA EXTERNAL \"PROC "
+             ,showCode n
+             ,return "("
+             ] ++ intersperse (return ",") (map showCode fs) ++
+             [return ") = 42\""
+             ]) >>* concat
+           emitProcsAsExternal scope >>* (thisProc Seq.<|)
+    emitProcsAsExternal (A.Spec _ _ scope) = emitProcsAsExternal scope
+    emitProcsAsExternal (A.ProcThen _ _ scope) = emitProcsAsExternal scope
+    emitProcsAsExternal (A.Only {}) = return Seq.empty
+    emitProcsAsExternal (A.Several _ ss)
+      = foldl (liftM2 (Seq.><)) (return Seq.empty) (map emitProcsAsExternal ss)
+
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Pass

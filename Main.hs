@@ -257,10 +257,10 @@ compileFull inputFile moutputFile
           let cFile = outputFile ++ extension
               hFile = outputFile ++ ".h"
               iFile = outputFile ++ ".inc"
+          lift $ modify $ \cs -> cs { csOutputIncFile = Just iFile }
           lift $ withOutputFile cFile $ \hb ->
             withOutputFile hFile $ \hh ->
-              withOutputFile iFile $ \hi ->
-                compile ModeCompile inputFile ((hb, hh, hi), hFile)
+                compile ModeCompile inputFile ((hb, hh), hFile)
           noteFile cFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
@@ -282,7 +282,7 @@ compileFull inputFile moutputFile
                  exec $ cCommand sFile oFile (csCompilerFlags optsPS)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" C file
-                 lift $ withOutputFile postCFile $ \h -> postCAnalyse sFile ((h,intErr,intErr),intErr)
+                 lift $ withOutputFile postCFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
                  -- Link the object files into a binary
@@ -325,13 +325,12 @@ compileFull inputFile moutputFile
                     ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
 -- | Picks out the handle from the options and passes it to the function:
-useOutputOptions :: (((Handle, Handle, Handle), String) -> PassM ()) -> PassM ()
+useOutputOptions :: (((Handle, Handle), String) -> PassM ()) -> PassM ()
 useOutputOptions func
   =  do optsPS <- get
         withHandleFor (csOutputFile optsPS) $ \hb ->
           withHandleFor (csOutputHeaderFile optsPS) $ \hh ->
-            withHandleFor (csOutputIncFile optsPS) $ \hi ->
-              func ((hb, hh, hi), csOutputHeaderFile optsPS)
+              func ((hb, hh), csOutputHeaderFile optsPS)
   where
     withHandleFor "-" func = func stdout
     withHandleFor file func =
@@ -376,11 +375,12 @@ showTokens html ts = evalState (mapM showToken ts >>* spaceOut) 0
                             then ("&nbsp;", "<br/>\n", \s -> "<b>" ++ s ++ "</b>")
                             else (" ", "\n", id)
 
+
 -- | Compile a file.
 -- This is written in the PassM monad -- as are most of the things it calls --
 -- because then it's very easy to pass the state around.
-compile :: CompMode -> String -> ((Handle, Handle, Handle), String) -> PassM ()
-compile mode fn (outHandles@(outHandle, _, _), headerName)
+compile :: CompMode -> String -> ((Handle, Handle), String) -> PassM ()
+compile mode fn (outHandles@(outHandle, _), headerName)
   =  do optsPS <- get
 
         debug "{{{ Parse"
@@ -441,8 +441,8 @@ compile mode fn (outHandles@(outHandle, _, _), headerName)
         progress "Done"
 
 -- | Analyse an assembly file.
-postCAnalyse :: String -> ((Handle, Handle, Handle), String) -> PassM ()
-postCAnalyse fn ((outHandle, _, _), _)
+postCAnalyse :: String -> ((Handle, Handle), String) -> PassM ()
+postCAnalyse fn ((outHandle, _), _)
     =  do asm <- liftIO $ readFile fn
 
           progress "Analysing assembly"
