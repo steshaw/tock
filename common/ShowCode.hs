@@ -456,11 +456,27 @@ instance ShowRain A.Expression where
       showRainM r >> tell ["]"]
 -}
 instance ShowOccam A.Formal where
+  showOccamM (A.Formal am (A.ChanEnd dir sh t) n)
+    = do maybeVal am
+         showOccamM sh
+         tell ["CHAN "]
+         showOccamM t
+         space
+         showName n
+         showOccamM dir 
   showOccamM (A.Formal am t n) = (maybeVal am)
                                  >> (showOccamM t)
                                  >> space
                                  >> (showName n)
-                  
+
+instance ShowOccam A.Direction where
+  showOccamM A.DirInput = tell ["?"]
+  showOccamM A.DirOutput = tell ["!"]
+
+instance ShowOccam A.ShareMode where
+  showOccamM A.Unshared = return ()
+  showOccamM A.Shared = tell ["SHARED "]
+  
 space :: CodeWriter ()
 space = tell [" "]
 
