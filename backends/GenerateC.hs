@@ -33,6 +33,7 @@ module GenerateC
   , genMeta
   , genName
   , genRightB
+  , genStatic
   , justOnly
   , withIf
   ) where
@@ -189,7 +190,7 @@ cgenTopLevel headerName s
           sequence_ [tell ["extern void ", mungeExternalName n, "(int*);"]
                     | (n, fs) <- csExternals cs]
 
-          call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
+          call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
           when (csHasMain cs) $ do
             (tlpName, tlpChans) <- tlpInterface
@@ -301,12 +302,12 @@ cgenOverArray m var func
             Nothing -> return ()
 
 -- | Generate code for one of the Structured types.
-cgenStructured :: Data a => A.Structured a -> (Meta -> a -> CGen b) -> CGen [b]
-cgenStructured (A.Spec _ spec s) def = call genSpec spec (call genStructured s def)
-cgenStructured (A.ProcThen _ p s) def = call genProcess p >> call genStructured s def
-cgenStructured (A.Several _ ss) def
-  = sequence [call genStructured s def | s <- ss] >>* concat
-cgenStructured (A.Only m s) def = def m s >>* singleton
+cgenStructured :: Data a => Level -> A.Structured a -> (Meta -> a -> CGen b) -> CGen [b]
+cgenStructured lvl (A.Spec _ spec s) def = call genSpec lvl spec (call genStructured lvl s def)
+cgenStructured lvl (A.ProcThen _ p s) def = call genProcess p >> call genStructured lvl s def
+cgenStructured lvl (A.Several _ ss) def
+  = sequence [call genStructured lvl s def | s <- ss] >>* concat
+cgenStructured _ (A.Only m s) def = def m s >>* singleton
 
 --}}}
 
@@ -411,10 +412,18 @@ cgenBytesIn m t v
 
 --}}}
 
+genStatic :: Level -> A.Name -> CGen ()
+genStatic NotTopLevel _ = return ()
+genStatic TopLevel n
+  = do cs <- getCompState
+       when (A.nameName n `notElem` csOriginalTopLevelProcs cs) $
+         tell ["static "]
+
 --{{{  declarations
-cgenDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen ()
-cgenDecl am t n
-    =  do genCType (A.nameMeta n) t am
+cgenDecl :: Level -> A.AbbrevMode -> A.Type -> A.Name -> CGen ()
+cgenDecl lvl am t n
+    =  do genStatic lvl n
+          genCType (A.nameMeta n) t am
           tell [" "]
           genName n
 --}}}
@@ -1203,17 +1212,18 @@ abbrevExpression am _ e = call genExpression e
 --}}}
 
 --{{{  specifications
-cgenSpec :: A.Specification -> CGen b -> CGen b
-cgenSpec spec body
-    =  do call introduceSpec spec
+cgenSpec :: Level -> A.Specification -> CGen b -> CGen b
+cgenSpec lvl spec body
+    =  do call introduceSpec lvl spec
           x <- body
           call removeSpec spec
           return x
 
 -- | Generate a declaration of a new variable.
-cgenDeclaration :: A.Type -> A.Name -> Bool -> CGen ()
-cgenDeclaration at@(A.Array ds t) n False
-    =  do genType t
+cgenDeclaration :: Level -> A.Type -> A.Name -> Bool -> CGen ()
+cgenDeclaration lvl at@(A.Array ds t) n False
+    =  do genStatic lvl n
+          genType t
           tell [" "]
           case t of
             A.Chan _ _ ->
@@ -1227,14 +1237,16 @@ cgenDeclaration at@(A.Array ds t) n False
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
-cgenDeclaration (A.Array ds t) n True
-    =  do genType t
+cgenDeclaration lvl (A.Array ds t) n True
+    =  do genStatic lvl n
+          genType t
           tell [" "]
           call genArrayStoreName n
           call genFlatArraySize ds
           tell [";"]
-cgenDeclaration t n _
-    =  do genType t
+cgenDeclaration lvl t n _
+    =  do genStatic lvl n
+          genType t
           tell [" "]
           genName n
           tell [";"]
@@ -1318,26 +1330,27 @@ CHAN OF INT c IS d:       Channel *c = d;
 []CHAN OF INT ds IS cs:   Channel **ds = cs;
                           const int *ds_sizes = cs_sizes;
 -}
-cintroduceSpec :: A.Specification -> CGen ()
-cintroduceSpec (A.Specification m n (A.Declaration _ t))
-    = do call genDeclaration t n False
+cintroduceSpec :: Level -> A.Specification -> CGen ()
+cintroduceSpec lvl (A.Specification m n (A.Declaration _ t))
+    = do call genDeclaration lvl t n False
          fdeclareInit <- fget declareInit
          case fdeclareInit m t (A.Variable m n) of
            Just p -> p
            Nothing -> return ()
-cintroduceSpec (A.Specification _ n (A.Is _ am t (A.ActualVariable v)))
+cintroduceSpec lvl (A.Specification _ n (A.Is _ am t (A.ActualVariable v)))
     =  do let rhs = call genVariable v am
-          call genDecl am t n
+          call genDecl lvl am t n
           tell ["="]
           rhs
           tell [";"]
-cintroduceSpec (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
+cintroduceSpec lvl (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
     =  do let rhs = abbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
               -- For "VAL []T a IS [vs]:", we have to use [] rather than * in the
               -- declaration, since you can't say "int *foo = {vs};" in C.
-              do tell ["const "]
+              do genStatic lvl n
+                 tell ["const "]
                  genType ts
                  tell [" "]
                  genName n
@@ -1348,20 +1361,22 @@ cintroduceSpec (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
               -- Record literals are even trickier, because there's no way of
               -- directly writing a struct literal in C that you can use -> on.
               do tmp <- csmLift $ makeNonce "record_literal"
+                 genStatic lvl n
                  tell ["const "]
                  genType t
                  tell [" ", tmp, " = "]
                  rhs
                  tell [";\n"]
-                 call genDecl am t n
+                 call genDecl lvl am t n
                  tell [" = &", tmp, ";\n"]
             _ ->
-              do call genDecl am t n
+              do call genDecl lvl am t n
                  tell [" = "]
                  rhs
                  tell [";\n"]
-cintroduceSpec (A.Specification _ n (A.Is _ _ (A.Array _ c) (A.ActualChannelArray cs)))
-    =  do genType c
+cintroduceSpec lvl (A.Specification _ n (A.Is _ _ (A.Array _ c) (A.ActualChannelArray cs)))
+    =  do genStatic lvl n
+          genType c
           case c of
              A.Chan _ _ -> tell ["* "]
              -- Channel ends don't need an extra indirection; in C++ they are not
@@ -1371,14 +1386,14 @@ cintroduceSpec (A.Specification _ n (A.Is _ _ (A.Array _ c) (A.ActualChannelArra
           tell ["[]={"]
           seqComma (map (\v -> call genVariable v A.Abbrev) cs)
           tell ["};"]
-cintroduceSpec (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
+cintroduceSpec lvl (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
     =  do t <- astTypeOf n
           case t of
-            A.ChanEnd dir _ _ -> do call genDecl A.Original t n
+            A.ChanEnd dir _ _ -> do call genDecl lvl A.Original t n
                                     tell ["=(&(((mt_cb_t*)"]
                                     lock dir
                                     tell [")->channels[0]));"]
-            A.ChanDataType dir _ _ -> do call genDecl A.Original t n
+            A.ChanDataType dir _ _ -> do call genDecl lvl A.Original t n
                                          tell ["="]
                                          lock dir
                                          tell [";"]
@@ -1389,12 +1404,13 @@ cintroduceSpec (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
                               then "MT_CB_CLIENT"
                               else "MT_CB_SERVER"
                        ,")"]
-cintroduceSpec (A.Specification _ _ (A.DataType _ _)) = return ()
-cintroduceSpec (A.Specification _ _ (A.RecordType _ _ _)) = return ()
-cintroduceSpec (A.Specification _ _ (A.ChanBundleType {})) = return ()
-cintroduceSpec (A.Specification _ n (A.Protocol _ _)) = return ()
-cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
-    =  do tell ["typedef enum{"]
+cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
+cintroduceSpec _ (A.Specification _ _ (A.RecordType _ _ _)) = return ()
+cintroduceSpec _ (A.Specification _ _ (A.ChanBundleType {})) = return ()
+cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
+cintroduceSpec lvl (A.Specification _ n (A.ProtocolCase _ ts))
+    =  do genStatic lvl n
+          tell ["typedef enum{"]
           seqComma [genName tag >> tell ["_"] >> genName n | (tag, _) <- ts]
           -- You aren't allowed to have an empty enum.
           when (ts == []) $
@@ -1402,12 +1418,12 @@ cintroduceSpec (A.Specification _ n (A.ProtocolCase _ ts))
           tell ["}"]
           genName n
           tell [";"]
-cintroduceSpec (A.Specification _ n st@(A.Proc _ _ _ _))
-    = genProcSpec n st False
-cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
+cintroduceSpec lvl (A.Specification _ n st@(A.Proc _ _ _ _))
+    = genProcSpec lvl n st False
+cintroduceSpec lvl (A.Specification _ n (A.Retypes m am t v))
     =  do origT <- astTypeOf v
           let rhs = call genVariable v A.Abbrev
-          call genDecl am t n
+          call genDecl lvl am t n
           tell ["="]
           -- For scalar types that are VAL abbreviations (e.g. VAL INT64),
           -- we need to dereference the pointer that abbrevVariable gives us.
@@ -1426,15 +1442,15 @@ cintroduceSpec (A.Specification _ n (A.Retypes m am t v))
           rhs
           tell [";"]
           call genRetypeSizes m t n origT v
-cintroduceSpec (A.Specification _ n (A.Rep m rep))
+cintroduceSpec _ (A.Specification _ n (A.Rep m rep))
    = call genReplicatorStart n rep
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
-cintroduceSpec n = call genMissing $ "introduceSpec " ++ show n
+cintroduceSpec _ n = call genMissing $ "introduceSpec " ++ show n
 
 cgenRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
 cgenRecordTypeSpec n attr fs
     =  do tell ["typedef struct{"]
-          sequence_ [call genDeclaration t n True | (n, t) <- fs]
+          sequence_ [call genDeclaration NotTopLevel t n True | (n, t) <- fs]
           tell ["}"]
           when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
           genName n
@@ -1472,7 +1488,7 @@ cgenRecordTypeSpec n attr fs
 
 cgenForwardDeclaration :: A.Specification -> CGen ()
 cgenForwardDeclaration (A.Specification _ n st@(A.Proc _ _ _ _))
-    = genProcSpec n st True
+    = genProcSpec TopLevel n st True
 cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
     = call genRecordTypeSpec n b fs
 cgenForwardDeclaration _ = return ()
@@ -1557,13 +1573,14 @@ genProcName n
 -- calling convention otherwise.  If will not munge the name if the process was
 -- one of the original top-level procs, other than to add an occam_ prefix (which
 -- avoids name collisions).
-genProcSpec :: A.Name -> A.SpecType -> Bool -> CGen ()
-genProcSpec n (A.Proc _ (sm, rm) fs p) forwardDecl
+genProcSpec :: Level -> A.Name -> A.SpecType -> Bool -> CGen ()
+genProcSpec lvl n (A.Proc _ (sm, rm) fs p) forwardDecl
     =  do cs <- getCompState
           let (header, params) = if n `Set.member` csParProcs cs
                                     || rm == A.Recursive
                                    then (genParHeader, genParParams)
                                    else (genNormalHeader, return ())
+          genStatic lvl n
           header
           if forwardDecl
             then tell [";\n"]
@@ -1797,13 +1814,13 @@ cgenStop m s
 --}}}
 --{{{  seq
 cgenSeq :: A.Structured A.Process -> CGen ()
-cgenSeq s = call genStructured s doP >> return ()
+cgenSeq s = call genStructured NotTopLevel s doP >> return ()
   where
     doP _ p = call genProcess p
 --}}}
 --{{{  if
 cgenIf :: Meta -> A.Structured A.Choice -> CGen ()
-cgenIf m s | justOnly s = do call genStructured s doCplain
+cgenIf m s | justOnly s = do call genStructured NotTopLevel s doCplain
                              tell ["{"]
                              call genStop m "no choice matched in IF process"
                              tell ["}"]
@@ -1815,7 +1832,7 @@ cgenIf m s | justOnly s = do call genStructured s doCplain
           tell [label, ":;"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody label s = call genStructured s doC >> return ()
+    genIfBody label s = call genStructured NotTopLevel s doC >> return ()
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]
@@ -1850,7 +1867,7 @@ cgenCase m e s
   where
     genCaseBody :: CGen () -> A.Structured A.Option -> CGen Bool
     genCaseBody coll (A.Spec _ spec s)
-        = genCaseBody (call genSpec spec coll) s
+        = genCaseBody (call genSpec NotTopLevel spec coll) s
     genCaseBody coll (A.Only _ (A.Option _ es p))
         =  do sequence_ [tell ["case "] >> call genExpression e >> tell [":"] | e <- es]
               tell ["{"]
@@ -1896,7 +1913,7 @@ cgenPar pm s
           call genExpression count
           tell [");"]
 
-          call genStructured s (startP bar wss)
+          call genStructured NotTopLevel s (startP bar wss)
 
           tell ["LightProcBarrierWait (wptr, &", bar, ");\n"]
 
@@ -1953,7 +1970,7 @@ cgenAlt isPri s
     containsTimers (A.Several _ ss) = or $ map containsTimers ss
 
     genAltEnable :: String -> A.Structured A.Alternative -> CGen ()
-    genAltEnable id s = call genStructured s doA >> return ()
+    genAltEnable id s = call genStructured NotTopLevel s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -1973,7 +1990,7 @@ cgenAlt isPri s
                         tell [");\n"]
 
     genAltDisable :: String -> A.Structured A.Alternative -> CGen ()
-    genAltDisable id s = call genStructured s doA >> return ()
+    genAltDisable id s = call genStructured NotTopLevel s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -1993,7 +2010,7 @@ cgenAlt isPri s
                         tell [");\n"]
 
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured s doA >> return ()
+    genAltProcesses id fired label s = call genStructured NotTopLevel s doA >> return ()
       where
         doA _ alt
             = case alt of

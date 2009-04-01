@@ -96,6 +96,8 @@ csmLift = lift . lift
 -- | A function that applies a subscript to a variable.
 type SubscripterFunction = A.Variable -> A.Variable
 
+data Level = TopLevel | NotTopLevel
+
 --{{{  generator ops
 -- | Operations for turning various things into C.
 -- These are in a structure so that we can reuse operations in other
@@ -132,10 +134,10 @@ data GenOps = GenOps {
     genConversion :: Meta -> A.ConversionMode -> A.Type -> A.Expression -> CGen (),
     genConversionSymbol :: A.Type -> A.Type -> A.ConversionMode -> CGen (),
     getCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType,
-    genDecl :: A.AbbrevMode -> A.Type -> A.Name -> CGen (),
+    genDecl :: Level -> A.AbbrevMode -> A.Type -> A.Name -> CGen (),
     -- | Generates a declaration of a variable of the specified type and name.  
     -- The Bool indicates whether the declaration is inside a record (True) or not (False).
-    genDeclaration :: A.Type -> A.Name -> Bool -> CGen (),
+    genDeclaration :: Level -> A.Type -> A.Name -> Bool -> CGen (),
     genDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen (),
     genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: A.Expression -> CGen (),
@@ -182,11 +184,11 @@ data GenOps = GenOps {
     genSeq :: A.Structured A.Process -> CGen (),
     genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
     genSimpleMonadic :: String -> A.Expression -> CGen (),
-    genSpec :: forall b. A.Specification -> CGen b -> CGen b,
+    genSpec :: forall b. Level -> A.Specification -> CGen b -> CGen b,
     genSpecMode :: A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.
     genStop :: Meta -> String -> CGen (),
-    genStructured :: forall a b. Data a => A.Structured a -> (Meta -> a -> CGen b) -> CGen [b],
+    genStructured :: forall a b. Data a => Level -> A.Structured a -> (Meta -> a -> CGen b) -> CGen [b],
     genTimerRead :: A.Variable -> A.Variable -> CGen (),
     genTimerWait :: A.Expression -> CGen (),
     genTopLevel :: String -> A.AST -> CGen (),
@@ -200,7 +202,7 @@ data GenOps = GenOps {
     -- | Generates a while loop with the given condition and body.
     genWhile :: A.Expression -> A.Process -> CGen (),
     getScalarType :: A.Type -> Maybe String,
-    introduceSpec :: A.Specification -> CGen (),
+    introduceSpec :: Level -> A.Specification -> CGen (),
     removeSpec :: A.Specification -> CGen ()
   }
 

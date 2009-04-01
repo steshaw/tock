@@ -40,7 +40,7 @@ import System.IO
 import qualified AST as A
 import CompState
 import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec,
-  genDynamicDim, generate, genLeftB, genMeta, genName, genRightB, justOnly, withIf)
+  genDynamicDim, generate, genLeftB, genMeta, genName, genRightB, genStatic, justOnly, withIf)
 import GenerateCBased
 import Errors
 import Metadata
@@ -136,7 +136,7 @@ cppgenTopLevel headerName s
           tell ["#include <tock_support_cppcsp.h>\n"]
           --In future, these declarations could be moved to a header file:
           sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
-          call genStructured s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
+          call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
           (name, chans) <- tlpInterface
           tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
           (chanTypeRead, chanTypeWrite, writer, reader) <- 
@@ -385,7 +385,7 @@ cppgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cppgenPar _ s
   = do forking <- csmLift $ makeNonce "forking"
        tell ["{ csp::ScopedForking ",forking," ; "]
-       call genStructured s (genPar' forking)
+       call genStructured NotTopLevel s (genPar' forking)
        tell [" }"]
        where
          genPar' :: String -> Meta -> A.Process -> CGen ()
@@ -423,7 +423,7 @@ cppgenAlt _ s
   where
     --This function is like the enable function in GenerateC, but this one merely builds a list of guards.  It does not do anything other than add to the guard list
     initAltGuards :: String -> A.Structured A.Alternative -> CGen ()
-    initAltGuards guardList s = call genStructured s doA >> return ()
+    initAltGuards guardList s = call genStructured NotTopLevel s doA >> return ()
       where
         doA  _ alt
             = case alt of
@@ -444,7 +444,7 @@ cppgenAlt _ s
     -- This is the same as GenerateC for now -- but it's not really reusable
     -- because it's so closely tied to how ALT is implemented in the backend.
     genAltProcesses :: String -> String -> String -> A.Structured A.Alternative -> CGen ()
-    genAltProcesses id fired label s = call genStructured s doA >> return ()
+    genAltProcesses id fired label s = call genStructured NotTopLevel s doA >> return ()
       where
         doA _ alt
             = case alt of
@@ -516,7 +516,7 @@ cppgenFormals nameFunc list = seqComma (map (cppgenFormal nameFunc) list)
 
 --Changed as genFormals
 cppgenFormal :: (A.Name -> A.Name) -> A.Formal -> CGen ()
-cppgenFormal nameFunc (A.Formal am t n) = call genDecl am t (nameFunc n)
+cppgenFormal nameFunc (A.Formal am t n) = call genDecl NotTopLevel am t (nameFunc n)
 
 cppgenForwardDeclaration :: A.Specification -> CGen()
 cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
@@ -548,7 +548,7 @@ cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
     --A simple function for generating declarations of class variables
     genClassVar :: A.Formal -> CGen()
     genClassVar (A.Formal am t n) 
-        = do call genDecl am t n
+        = do call genDecl NotTopLevel am t n
              tell[";"]
 
     --Generates the given list of class variables
@@ -572,10 +572,11 @@ cppgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
     = call genRecordTypeSpec n b fs
 cppgenForwardDeclaration _ = return ()
 
-cppintroduceSpec :: A.Specification -> CGen ()
+cppintroduceSpec :: Level -> A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
-cppintroduceSpec (A.Specification _ n (A.Proc _ (sm, _) fs p))
+cppintroduceSpec lvl (A.Specification _ n (A.Proc _ (sm, _) fs p))
     =  do --Generate the "process" as a C++ function:
+          genStatic lvl n
           call genSpecMode sm
           tell ["void "]
           name 
@@ -603,7 +604,7 @@ cppintroduceSpec (A.Specification _ n (A.Proc _ (sm, _) fs p))
     --A helper function for calling the wrapped functions:
     genParamList :: [A.Formal] -> CGen()
     genParamList fs = seqComma $ map genParam fs
-cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
+cppintroduceSpec lvl (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
   (A.ActualVariable dirV@(A.DirectedVariable m dir v))))
   = do t' <- if A.UnknownDimension `elem` ds
                 then do dirVT <- astTypeOf dirV
@@ -611,7 +612,7 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
                           A.Array ds' _ -> return $ A.Array ds' c
                           _ -> diePC m $ formatCode "Expected variable to be an array type, instead: %" dirVT
                 else return t
-       call genDeclaration t' n False
+       call genDeclaration lvl t' n False
        tell [";"]
        tell ["tockInitChan",if dir == A.DirInput then "in" else "out","Array("]
        call genVariable v am
@@ -621,7 +622,7 @@ cppintroduceSpec (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd {}))
        genDynamicDim (A.Variable m n) 0
        tell [");"]
 --For all other cases, use the C implementation:
-cppintroduceSpec n = cintroduceSpec n
+cppintroduceSpec lvl n = cintroduceSpec lvl n
 
 --}}}
 
@@ -825,7 +826,7 @@ cppgenUnfoldedVariable m var
 -- | Changed to throw a nonce-exception class instead of the goto, because C++ doesn't allow gotos to cross class initialisations (such as arrays)
 
 cppgenIf :: Meta -> A.Structured A.Choice -> CGen ()
-cppgenIf m s | justOnly s = do call genStructured s doCplain
+cppgenIf m s | justOnly s = do call genStructured NotTopLevel s doCplain
                                tell ["{"]
                                call genStop m "no choice matched in IF process"
                                tell ["}"]
@@ -837,7 +838,7 @@ cppgenIf m s | justOnly s = do call genStructured s doCplain
           tell ["}catch(",ifExc,"){}"]
   where
     genIfBody :: String -> A.Structured A.Choice -> CGen ()
-    genIfBody ifExc s = call genStructured s doC >> return ()
+    genIfBody ifExc s = call genStructured NotTopLevel s doC >> return ()
       where
         doC m (A.Choice m' e p)
             = do tell ["if("]
