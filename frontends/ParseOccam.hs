@@ -1349,14 +1349,13 @@ pragma :: OccParser ()
 pragma = do Pragma rawP <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
             pragToks <- case runPragmaLexer "<unknown(pragma)>" rawP of
-              Left _ -> return []
+              Left _ -> do warnP m WarnUnknownPreprocessorDirective $
+                             "Unknown PRAGMA: " ++ rawP
+                           return []
               Right toks -> return toks
             cs <- getCompState
-            maybeParse <- return $
-                        -- Maybe monad:
-              (\prod -> do otherToks <- safeTail pragToks
-                           eitherToMaybe $ runParser (prod >> getState) ([], cs) "" otherToks
-              ) $        -- Maybe monad again:
+            prod <- return $
+                      -- Maybe monad:
                case
                  [ do Token _ (Pragma firstTok) <- listToMaybe pragToks
                       matchRegex (mkRegex pt) firstTok
@@ -1401,10 +1400,15 @@ pragma = do Pragma rawP <- genToken isPragma
                   , csExternals = (on, fs) : csExternals st
                   }
               _ -> warnP m WarnUnknownPreprocessorDirective $
-                "Unknown PRAGMA: " ++ show (listToMaybe pragToks)
-            case maybeParse of
-              Just st -> setState st
-              Nothing -> return ()
+                "Unknown PRAGMA type: " ++ show (listToMaybe pragToks)
+            let otherToks = safeTail pragToks
+            case otherToks of
+              Nothing -> warnP m WarnUnknownPreprocessorDirective $
+                           "Unknown PRAGMA (no tokens): " ++ rawP
+              Just toks -> case runParser (prod >> getState) cs "" toks of
+                             Left err -> warnP m WarnUnknownPreprocessorDirective $
+                                         "Unknown PRAGMA (parse failed): " ++ show err
+                             Right st -> setState st
             eol
   where
     isPragma (Token _ p@(Pragma {})) = Just p
