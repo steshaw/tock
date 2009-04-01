@@ -169,6 +169,9 @@ cgenTopLevel headerName s
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 
+          sequence_ [tell ["#include \"", usedFile, ".h\"\n"]
+                    | usedFile <- Set.toList $ csUsedFiles cs]
+
           sequence_ [tell ["extern int ", nameString n, "_stack_size;\n"]
                      | n <- (Set.toList $ csParProcs cs)
                            ++ [A.Name emptyMeta n | A.NameDef

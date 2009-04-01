@@ -285,9 +285,15 @@ compileFull inputFile moutputFile
                  lift $ withOutputFile postCFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
+
+                 cs <- lift getCompState
+                 let otherOFiles = [usedFile ++ ".o"
+                                   | usedFile <- Set.toList $ csUsedFiles cs]
+                   
+
                  -- Link the object files into a binary
                  when shouldLink $
-                   exec $ cLinkCommand [oFile, postOFile] outputFile (csCompilerLinkFlags optsPS)
+                   exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile (csCompilerLinkFlags optsPS)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->

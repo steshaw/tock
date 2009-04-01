@@ -6,7 +6,7 @@ import Data.List
 import Paths
 
 tockIncludeFlags :: String
-tockIncludeFlags = "-I" ++ pkgIncludeDir
+tockIncludeFlags = "-I. -I" ++ pkgIncludeDir
 
 cCommand :: String -> String -> String -> String
 cCommand inp out extra = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ inp
