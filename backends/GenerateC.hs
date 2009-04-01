@@ -188,7 +188,7 @@ cgenTopLevel headerName s
 
           -- Forward declarations of externals:
           sequence_ [tell ["extern void ", mungeExternalName n, "(int*);"]
-                    | (n, fs) <- csExternals cs]
+                    | (n, (ExternalOldStyle, _)) <- csExternals cs]
 
           call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
