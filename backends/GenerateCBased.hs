@@ -32,6 +32,7 @@ import Errors
 import Metadata
 import Pass
 import qualified Properties as Prop
+import Utils
 
 cCppCommonPreReq :: [Property]
 cCppCommonPreReq =
@@ -53,9 +54,15 @@ cCppCommonPreReq =
  ,Prop.typesResolvedInState
  ]
 
+type CGenOutput = Either [String] Handle
+data CGenOutputs = CGenOutputs
+  { cgenBody :: CGenOutput
+  , cgenHeader :: CGenOutput
+  , cgenOccamInc :: CGenOutput
+  }
 
 --{{{  monad definition
-type CGen' = StateT (Either [String] Handle) PassM
+type CGen' = StateT CGenOutputs PassM
 type CGen = ReaderT GenOps CGen'
 
 instance Die CGen where
@@ -67,11 +74,21 @@ instance CSMR CGen' where
 instance CSMR CGen where
   getCompState = lift getCompState
 
+-- Do not nest calls to this function!
+tellToHeader :: CGen a -> CGen a
+tellToHeader act
+  = do st <- get
+       put $ st { cgenBody = cgenHeader st }
+       x <- act
+       st' <- get
+       put $ st' { cgenBody = cgenBody st, cgenHeader = cgenBody st' }
+       return x
+
 tell :: [String] -> CGen ()
 tell x = do st <- get
-            case st of
-                Left prev -> put $ Left (prev ++ x)
-                Right h -> liftIO $ mapM_ (hPutStr h) x
+            case cgenBody st of
+              Left prev -> put $ st { cgenBody = Left (prev ++ x) }
+              Right h -> liftIO $ mapM_ (hPutStr h) x
 
 csmLift :: PassM a -> CGen a
 csmLift = lift . lift
@@ -173,7 +190,7 @@ data GenOps = GenOps {
     genStructured :: forall a b. Data a => A.Structured a -> (Meta -> a -> CGen b) -> CGen [b],
     genTimerRead :: A.Variable -> A.Variable -> CGen (),
     genTimerWait :: A.Expression -> CGen (),
-    genTopLevel :: A.AST -> CGen (),
+    genTopLevel :: String -> A.AST -> CGen (),
     genTypeSymbol :: String -> A.Type -> CGen (),
     genUnfoldedExpression :: A.Expression -> CGen (),
     genUnfoldedVariable :: Meta -> A.Variable -> CGen (),
@@ -228,8 +245,11 @@ instance CGenCall (a -> b -> c -> d -> e -> CGen z) where
 fget :: (GenOps -> a) -> CGen a
 fget = asks
 
-generate :: GenOps -> Handle -> A.AST -> PassM ()
-generate ops h ast = evalStateT (runReaderT (call genTopLevel ast) ops) (Right h)
+-- Handles are body, header, occam-inc
+generate :: GenOps -> (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
+generate ops (hb, hh, hi) hname ast
+  = evalStateT (runReaderT (call genTopLevel hname ast) ops)
+      (CGenOutputs (Right hb) (Right hh) (Right hi))
 
 genComma :: CGen ()
 genComma = tell [","]

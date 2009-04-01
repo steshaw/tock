@@ -122,7 +122,7 @@ chansToAny = cppOnlyPass "Transform channels to ANY"
 
 --{{{  top-level
 -- | Transforms the given AST into a pass that generates C++ code.
-generateCPPCSP :: Handle -> A.AST -> PassM ()
+generateCPPCSP :: (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
 generateCPPCSP = generate cppgenOps
 
 cppcspPrereq :: [Property]
@@ -130,8 +130,8 @@ cppcspPrereq = cCppCommonPreReq ++ [Prop.allChansToAnyOrProtocol]
  
 
 -- | Generates the top-level code for an AST.
-cppgenTopLevel :: A.AST -> CGen ()
-cppgenTopLevel s
+cppgenTopLevel :: String -> A.AST -> CGen ()
+cppgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cxxIntSize,"\n"]
           tell ["#include <tock_support_cppcsp.h>\n"]
           --In future, these declarations could be moved to a header file:

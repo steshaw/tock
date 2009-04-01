@@ -251,7 +251,12 @@ compileFull inputFile moutputFile
 
           -- Translate input file to C/C++
           let cFile = outputFile ++ extension
-          withOutputFile cFile $ compile ModeCompile inputFile
+              hFile = outputFile ++ ".h"
+              iFile = outputFile ++ ".inc"
+          lift $ withOutputFile cFile $ \hb ->
+            withOutputFile hFile $ \hh ->
+              withOutputFile iFile $ \hi ->
+                compile ModeCompile inputFile ((hb, hh, hi), hFile)
           noteFile cFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
@@ -271,7 +276,7 @@ compileFull inputFile moutputFile
                  exec $ cCommand sFile oFile (csCompilerFlags optsPS)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" C file
-                 withOutputFile postCFile $ postCAnalyse sFile
+                 lift $ withOutputFile postCFile $ \h -> postCAnalyse sFile ((h,intErr,intErr),intErr)
                  -- Compile this new "post" C file into an object file
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
                  -- Link the object files into a binary
@@ -292,13 +297,16 @@ compileFull inputFile moutputFile
             liftIO $ removeFiles tempFiles
 
   where
+    intErr :: a
+    intErr = error "Internal error involving handles"
+    
     noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
     noteFile fp = modify (\fps -> (fp:fps))
 
-    withOutputFile :: FilePath -> (Handle -> PassM ()) -> StateT [FilePath] PassM ()
+    withOutputFile :: FilePath -> (Handle -> PassM ()) -> PassM ()
     withOutputFile path func
         =  do handle <- liftIO $ openFile path WriteMode
-              lift $ func handle
+              func handle
               liftIO $ hClose handle
 
     exec :: String -> StateT [FilePath] PassM ()
@@ -310,16 +318,21 @@ compileFull inputFile moutputFile
                     ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
 -- | Picks out the handle from the options and passes it to the function:
-useOutputOptions :: (Handle -> PassM ()) -> PassM ()
+useOutputOptions :: (((Handle, Handle, Handle), String) -> PassM ()) -> PassM ()
 useOutputOptions func
   =  do optsPS <- get
-        case csOutputFile optsPS of
-          "-" -> func stdout
-          file ->
+        withHandleFor (csOutputFile optsPS) $ \hb ->
+          withHandleFor (csOutputHeaderFile optsPS) $ \hh ->
+            withHandleFor (csOutputIncFile optsPS) $ \hi ->
+              func ((hb, hh, hi), csOutputHeaderFile optsPS)
+  where
+    withHandleFor "-" func = func stdout
+    withHandleFor file func =
             do progress $ "Writing output file " ++ file
                f <- liftIO $ openFile file WriteMode
                func f
                liftIO $ hClose f
+
 
 showTokens :: Bool -> [Token] -> String
 showTokens html ts = evalState (mapM showToken ts >>* spaceOut) 0
@@ -359,8 +372,8 @@ showTokens html ts = evalState (mapM showToken ts >>* spaceOut) 0
 -- | Compile a file.
 -- This is written in the PassM monad -- as are most of the things it calls --
 -- because then it's very easy to pass the state around.
-compile :: CompMode -> String -> Handle -> PassM ()
-compile mode fn outHandle
+compile :: CompMode -> String -> ((Handle, Handle, Handle), String) -> PassM ()
+compile mode fn (outHandles@(outHandle, _, _), headerName)
   =  do optsPS <- get
 
         debug "{{{ Parse"
@@ -411,8 +424,8 @@ compile mode fn outHandle
                  let generator :: A.AST -> PassM ()
                      generator
                        = case csBackend optsPS of
-                           BackendC -> generateC outHandle
-                           BackendCPPCSP -> generateCPPCSP outHandle
+                           BackendC -> generateC outHandles headerName
+                           BackendCPPCSP -> generateCPPCSP outHandles headerName
                            BackendDumpAST -> liftIO . hPutStr outHandle . pshow
                            BackendSource -> (liftIO . hPutStr outHandle) <.< showCode
                  generator ast2
@@ -421,8 +434,8 @@ compile mode fn outHandle
         progress "Done"
 
 -- | Analyse an assembly file.
-postCAnalyse :: String -> Handle -> PassM ()
-postCAnalyse fn outHandle
+postCAnalyse :: String -> ((Handle, Handle, Handle), String) -> PassM ()
+postCAnalyse fn ((outHandle, _, _), _)
     =  do asm <- liftIO $ readFile fn
 
           progress "Analysing assembly"

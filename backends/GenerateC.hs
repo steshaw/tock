@@ -155,11 +155,11 @@ cgenOps = GenOps {
 --}}}
 
 --{{{  top-level
-generateC :: Handle -> A.AST -> PassM ()
+generateC :: (Handle, Handle, Handle) -> String -> A.AST -> PassM ()
 generateC = generate cgenOps
 
-cgenTopLevel :: A.AST -> CGen ()
-cgenTopLevel s
+cgenTopLevel :: String -> A.AST -> CGen ()
+cgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cIntSize,"\n"]
           tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
@@ -168,8 +168,10 @@ cgenTopLevel s
           killChans <- sequence [csmLift $ makeNonce "tlp_channel_kill" | _ <- tlpChans]
           workspaces <- sequence [csmLift $ makeNonce "tlp_channel_ws" | _ <- tlpChans]
 
-          sequence_ $ map (call genForwardDeclaration)
-                          (listify (const True :: A.Specification -> Bool) s)
+          tellToHeader $ sequence_ $ map (call genForwardDeclaration)
+                                       (listify (const True :: A.Specification -> Bool) s)
+
+          tell ["#include \"", dropPath headerName, "\"\n"]
 
           sequence_ [tell ["extern int ", nameString n, "_stack_size;\n"]
                      | n <- (Set.toList $ csParProcs cs)
@@ -230,6 +232,8 @@ cgenTopLevel s
                 \    return 0;\n\
                 \}\n"]
   where
+    dropPath = reverse . takeWhile (/= '/') . reverse
+    
     mungeExternalName (_:cs) = [if c == '.' then '_' else c | c <- cs]
 
     -- | Allocate a TLP channel handler process, and return the function that
