@@ -41,22 +41,25 @@ import Types
 import Utils
 
 --{{{ the parser monad
-type OccParser = GenParser Token ([WarningReport], CompState)
+type OccParser = GenParser Token CompState
 
-instance CSMR (GenParser tok (a,CompState)) where
-  getCompState = getState >>* snd
+instance CSMR (GenParser tok CompState) where
+  getCompState = getState
 
 -- We can expose only part of the state to make it look like we are only using
 -- CompState:
-instance MonadState CompState (GenParser tok (a,CompState)) where
-  get = getState >>* snd
-  put st = do (other, _) <- getState
-              setState (other, st)
+instance MonadState CompState (GenParser tok CompState) where
+  get = getState
+  put = setState
 
 -- The other part of the state is actually the built-up list of warnings:
-instance Warn (GenParser tok ([WarningReport], b)) where
-  warnReport w = do (ws, other) <- getState
-                    setState (ws ++ [w], other)
+instance Warn (GenParser tok CompState) where
+  warnReport w@(_,t,_) = modify $
+    \cs -> cs { csWarnings =
+      if t `Set.member` csEnabledWarnings cs
+        then csWarnings cs ++ [w]
+        else csWarnings cs }
+
 
 instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err
@@ -1851,11 +1854,11 @@ topLevelItem
 -- | A source file is a series of nested specifications.
 -- The later specifications must be in scope for the earlier ones.
 -- We represent this as an 'AST' -- a @Structured ()@.
-sourceFile :: OccParser (A.AST, [WarningReport], CompState)
+sourceFile :: OccParser (A.AST, CompState)
 sourceFile
     =   do p <- topLevelItem
-           (w, s) <- getState
-           return (p, w, s)
+           s <- getState
+           return (p, s)
 --}}}
 --}}}
 
@@ -1863,7 +1866,7 @@ sourceFile
 -- | Parse a token stream with the given production.
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
-    =  do case runParser prod ([], cs) "" toks of
+    =  do case runParser prod cs "" toks of
             Left err ->
               -- If a position was encoded into the message, use that;
               -- else use the parser position.
@@ -1877,9 +1880,8 @@ runTockParser toks prod cs
 parseOccamProgram :: [Token] -> PassM A.AST
 parseOccamProgram toks
     =  do cs <- get
-          (p, ws, cs') <- runTockParser toks sourceFile cs
+          (p, cs') <- runTockParser toks sourceFile cs
           put cs'
-          mapM_ warnReport ws
           return p
 --}}}
 
