@@ -38,6 +38,8 @@ public:
         throw StopException(buffer); \
     } while (0)
 
+#define occam_extra_param
+
 #include <tock_support.h>
 
 #include <cppcsp/cppcsp.h>

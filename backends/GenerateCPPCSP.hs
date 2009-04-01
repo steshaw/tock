@@ -650,20 +650,24 @@ cppgetScalarType _ = Nothing
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
 cppgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
+cppgetCType m (A.Array _ t@(A.ChanEnd {})) _ = call getCType m t A.Original >>* Pointer
 cppgetCType m t am | isChan t
-    = do let (chanType, innerT) = case t of
-                          A.ChanEnd A.DirInput _ innerT -> ("csp::AltChanin", innerT)
-                          A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT)
+    = do let (chanType, innerT, extra) = case t of
+                          A.ChanEnd A.DirInput _ innerT -> ("csp::AltChanin", innerT, extraEnd)
+                          A.ChanEnd A.DirOutput _ innerT -> ("csp::Chanout", innerT, extraEnd)
                           A.Chan attr innerT -> (
                             case (A.caWritingShared attr,A.caReadingShared attr) of
                               (A.Unshared,A.Unshared) -> "csp::One2OneChannel"
                               (A.Unshared,A.Shared)  -> "csp::One2AnyChannel"
                               (A.Shared,A.Unshared)  -> "csp::Any2OneChannel"
                               (A.Shared,A.Shared)   -> "csp::Any2AnyChannel"
-                            , innerT)
+                            , innerT, extraChan)
          innerCT <- cppTypeInsideChannel innerT
-         return $ Template chanType [innerCT]
+         return $ extra $ Template chanType [Left innerCT]
   where
+    extraEnd = id
+    extraChan = if am == A.Original then id else Pointer
+    
     isChan :: A.Type -> Bool
     isChan (A.Chan _ _) = True
     isChan (A.ChanEnd _ _ _) = True
@@ -674,18 +678,75 @@ cppgetCType m t am | isChan t
     cppTypeInsideChannel (A.Counted _ _) = return $ Plain "tockSendableArrayOfBytes"
     cppTypeInsideChannel (A.UserProtocol _) = return $ Plain "tockSendableArrayOfBytes"
     cppTypeInsideChannel (A.Array ds t)
-      = do tell ["tockSendableArray<"]
-           ct <- call getCType m t A.Original
+      = do ct <- call getCType m t A.Original
            return $ Template "tockSendableArray"
-             [ct
-             ,Plain $ error "cppTypeInsideChannel-TODO" -- intersperse "*" [call genExpression n | A.Dimension n <- ds]
+             [Left ct
+             ,Right $ foldl1 (A.Dyadic m A.Mul) [n | A.Dimension n <- ds]
              ]
     cppTypeInsideChannel t = call getCType m t A.Original
 cppgetCType m (A.List t) am
   = do ct <- call getCType m t am
-       return $ Template "tockList" [ct]
+       return $ Template "tockList" [Left ct]
+--cppgetCType m (A.Array _ t) am | isChan t
+--  = cal
 cppgetCType m t am = cgetCType m t am
+{-
+cgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
+cgetCType m origT am
+  = do (isMobile, t) <- unwrapMobileType origT
+       sc <- fget getScalarType >>* ($ t)
+       case (t, sc, isMobile, am) of
+         -- Channel arrays are a special case, because they are arrays of pointers
+         -- to channels (so that an abbreviated array of channels, and an array
+         -- of abbreviations of channels, both look the same)
+         (A.Array _ (A.Chan {}), _, False, _)
+           -> return $ Pointer $ Pointer $ Plain "Channel"
+         (A.Array _ (A.ChanEnd {}), _, False, _)
+           -> return $ Pointer $ Pointer $ Plain "Channel"
+       
+         -- All abbrev modes:
+         (A.Array _ t, _, False, _)
+           -> call getCType m t A.Original >>* (Pointer . const)
+         (A.Array {}, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain "mt_array_t"
+         (A.Array {}, _, True, _) -> return $ Pointer $ Plain "mt_array_t"
 
+         (A.Record n, _, False, A.Original) -> return $ Plain $ nameString n
+         -- Abbrev and ValAbbrev, and mobile:
+         (A.Record n, _, False, _) -> return $ Const . Pointer $ const $ Plain $ nameString n
+         (A.Record n, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain $ nameString n
+         (A.Record n, _, True, _) -> return $ Pointer $ const $ Plain $ nameString n
+
+         (A.Chan (A.ChanAttributes A.Shared A.Shared) _, _, False, _)
+           -> return $ Pointer $ Plain "mt_cb_t"
+         (A.ChanEnd _ A.Shared _, _, False, _) -> return $ Pointer $ Plain "mt_cb_t"
+
+         (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
+         (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+         (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+
+         (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
+
+         -- Scalar types:
+         (_, Just pl, False, A.Original) -> return $ Plain pl
+         (_, Just pl, False, A.Abbrev) -> return $ Const $ Pointer $ Plain pl
+         (_, Just pl, False, A.ValAbbrev) -> return $ Const $ Plain pl
+
+         -- Mobile scalar types:
+         (_, Just pl, True, A.Original) -> return $ Pointer $ Plain pl
+         (_, Just pl, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain pl
+         (_, Just pl, True, A.ValAbbrev) -> return $ Pointer $ Const $ Plain pl
+
+         -- This shouldn't happen, but no harm:
+         (A.UserDataType {}, _, _, _) -> do t' <- resolveUserType m t
+                                            cgetCType m t' am
+
+         -- Must have missed one:
+         (_,_,_,am) -> diePC m $ formatCode ("Cannot work out the C type for: % ("
+                           ++ show (origT, am) ++ ")") origT
+  where
+    const = if am == A.ValAbbrev then Const else id
+
+-}
 cppgenListAssign :: A.Variable -> A.Expression -> CGen ()
 cppgenListAssign v e
   = do call genVariable v A.Original

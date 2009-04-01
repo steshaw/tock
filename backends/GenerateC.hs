@@ -670,9 +670,11 @@ cgenVariableWithAM checkValid v am fct
                              tell [")->data))"]
                          , Pointer $ innerCT)
              _ -> inner v
-    inner (A.DirectedVariable _ dir v)
-      = do (cg, ct) <- inner v
+    inner wholeV@(A.DirectedVariable m dir v)
+      = do (cg, _) <- inner v
            t <- astTypeOf v
+           wholeT <- astTypeOf wholeV
+           ct <- call getCType m wholeT A.Original
            return (call genDirectedVariable m t cg dir, ct)
     inner (A.VariableSizes m (A.Variable _ n))
       = do t <- astTypeOf n
@@ -780,10 +782,10 @@ cgetCType m origT am
          -- Channel arrays are a special case, because they are arrays of pointers
          -- to channels (so that an abbreviated array of channels, and an array
          -- of abbreviations of channels, both look the same)
-         (A.Array _ (A.Chan {}), _, False, _)
-           -> return $ Pointer $ Pointer $ Plain "Channel"
-         (A.Array _ (A.ChanEnd {}), _, False, _)
-           -> return $ Pointer $ Pointer $ Plain "Channel"
+         (A.Array _ t@(A.Chan {}), _, False, _)
+           -> call getCType m t A.Original >>* (Pointer . Pointer)
+         (A.Array _ t@(A.ChanEnd {}), _, False, _)
+           -> call getCType m t A.Original >>* (Pointer . Pointer)
        
          -- All abbrev modes:
          (A.Array _ t, _, False, _)

@@ -242,7 +242,7 @@ data CType
   = Plain String
     | Pointer CType
     | Const CType
-    | Template String [CType]
+    | Template String [Either CType A.Expression]
 --    | Subscript CType
     deriving (Eq)
 
@@ -250,7 +250,7 @@ instance Show CType where
   show (Plain s) = s
   show (Pointer t) = show t ++ "*"
   show (Const t) = show t ++ " const"
-  show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map show cts) ++ ">/**/"
+  show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map (either show show) cts) ++ ">/**/"
 --  show (Subscript t) = "(" ++ show t ++ "[n])"
 
 stripPointers :: CType -> CType
@@ -265,7 +265,11 @@ closeEnough t (Const t') = closeEnough t t'
 closeEnough (Pointer t) (Pointer t') = closeEnough t t'
 closeEnough (Plain s) (Plain s') = s == s'
 closeEnough (Template wr cts) (Template wr' cts')
-  = wr == wr' && length cts == length cts' && and (zipWith closeEnough cts cts')
+  = wr == wr' && length cts == length cts' && and (zipWith closeEnough' cts cts')
+  where
+    closeEnough' (Left ct) (Left ct') = closeEnough ct ct'
+    closeEnough' (Right _) (Right _) = True -- can't really check
+    closeEnough' _ _ = False
 closeEnough _ _ = False
 
 -- Given some code to generate, and its type, and the type that you actually want,
@@ -279,9 +283,9 @@ dressUp m (gen, Const t) t'
   = dressUp m (gen, t) t'
 dressUp m (gen, t) (Const t')
   = dressUp m (gen, t) t'
-dressUp m (gen, t@(Plain {})) (Pointer t')
+dressUp m (gen, t) (Pointer t')
   = dressUp m (tell ["&"] >> gen, t) t'
-dressUp m (gen, Pointer t) t'@(Plain {})
+dressUp m (gen, Pointer t) t'
   = dressUp m (tell ["*"] >> gen, t) t'
 dressUp m (gen, t) t'
   = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'

@@ -38,6 +38,8 @@
 	} while (0)
 //}}}
 
+#define occam_extra_param Workspace wptr,
+
 #include <tock_support.h>
 
 //{{{ Process starting and stopping
