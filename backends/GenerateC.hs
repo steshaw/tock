@@ -798,7 +798,7 @@ cgetCType m origT am
          (A.Array _ t@(A.Chan {}), _, False, _)
            -> call getCType m t A.Original >>* (Pointer . Pointer)
          (A.Array _ t@(A.ChanEnd {}), _, False, _)
-           -> call getCType m t A.Original >>* (Pointer . Pointer)
+           -> call getCType m t A.Original >>* Pointer
        
          -- All abbrev modes:
          (A.Array _ t, _, False, _)

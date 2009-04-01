@@ -650,7 +650,6 @@ cppgetScalarType _ = Nothing
 -- | Changed from GenerateC to change the arrays and the channels
 --Also changed to add counted arrays and user protocols
 cppgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
-cppgetCType m (A.Array _ t@(A.ChanEnd {})) _ = call getCType m t A.Original >>* Pointer
 cppgetCType m t am | isChan t
     = do let (chanType, innerT, extra) = case t of
                           A.ChanEnd A.DirInput _ innerT -> ("csp::AltChanin", innerT, extraEnd)
