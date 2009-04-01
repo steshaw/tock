@@ -256,9 +256,9 @@ testGenType = TestList
   ,testBoth "GenType 253" "Time*" "csp::Time*" (gt $ A.Mobile A.Time)  
 
   ,testBoth "GenType 300" "Channel" "csp::One2OneChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) 
-  ,testBoth "GenType 301" "Channel" "csp::One2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Unshared A.Shared) A.Int32) 
-  ,testBoth "GenType 302" "Channel" "csp::Any2OneChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Shared A.Unshared) A.Int32) 
-  ,testBoth "GenType 303" "Channel" "csp::Any2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) 
+  ,testBoth "GenType 301" "mt_cb_t*" "csp::One2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Unshared A.Shared) A.Int32) 
+  ,testBoth "GenType 302" "mt_cb_t*" "csp::Any2OneChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Shared A.Unshared) A.Int32) 
+  ,testBoth "GenType 303" "mt_cb_t*" "csp::Any2AnyChannel<int32_t>" (gt $ A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) 
 
   ,testBoth "GenType 310" "Channel" "csp::One2OneChannel<int32_t*>" (gt $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) (A.Mobile A.Int32))
   
@@ -323,7 +323,7 @@ testActuals :: Test
 testActuals = TestList
  [
   -- C adds a prefix comma (to follow Process* me) but C++ does not:
-  testBoth "genActuals 0" ",@,@" "@,@" $ overActual (tcall genActuals [undefined, undefined] [undefined, undefined])
+  testBoth "genActuals 0" "@,@" "@,@" $ overActual (tcall genActuals [undefined, undefined] [undefined, undefined])
   ,testBothSame "genActuals 1" "" $ (tcall genActuals [] [])
   
   --For expressions, genExpression should be called:
@@ -351,32 +351,32 @@ testActuals = TestList
    overActual :: Override
    overActual = local (\ops -> ops {genActual = override2 at})
    over :: Override
-   over = local (\ops -> ops {genVariable = override2 at, genExpression = override1 dollar})
+   over = local (\ops -> ops {genVariable' = override3 at, genExpression = override1 dollar})
 
 -- TODO test the other two array checking methods   
 testArraySubscript :: Test
 testArraySubscript = TestList
  [
-  testBothSameS "genArraySubscript 0" "[5*foo_sizes[1]*foo_sizes[2]]"
+  testBothSameS "genArraySubscript 0" "[5*8*9]"
     (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5]) stateTrans
-  ,testBothSameS "genArraySubscript 1" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]]"
+  ,testBothSameS "genArraySubscript 1" "[5*8*9+6*9]"
     (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5, lit 6]) stateTrans
-  ,testBothSameS "genArraySubscript 2" "[5*foo_sizes[1]*foo_sizes[2]+6*foo_sizes[2]+7]"
+  ,testBothSameS "genArraySubscript 2" "[5*8*9+6*9+7]"
     (tcall3 genArraySubscript A.NoCheck (A.Variable emptyMeta foo) [lit 5, lit 6, lit 7]) stateTrans
   
-  ,testBothSameS "genArraySubscript 3" ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]]")
+  ,testBothSameS "genArraySubscript 3" ("[occam_check_index(5,7," ++ m ++ ")*8*9]")
     (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5]) stateTrans
   ,testBothSameS "genArraySubscript 4"
-    ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]]")
+    ("[occam_check_index(5,7," ++ m ++ ")*8*9+occam_check_index(6,8," ++ m ++ ")*9]")
     (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5, lit 6]) stateTrans
   ,testBothSameS "genArraySubscript 5"
-    ("[occam_check_index(5,foo_sizes[0]," ++ m ++ ")*foo_sizes[1]*foo_sizes[2]+occam_check_index(6,foo_sizes[1]," ++ m ++ ")*foo_sizes[2]+occam_check_index(7,foo_sizes[2]," ++ m ++ ")]")
+    ("[occam_check_index(5,7," ++ m ++ ")*8*9+occam_check_index(6,8," ++ m ++ ")*9+occam_check_index(7,9," ++ m ++ ")]")
     (tcall3 genArraySubscript A.CheckBoth (A.Variable emptyMeta foo) [lit 5, lit 6, lit 7]) stateTrans
     
  ]
  where
    stateTrans :: CSM m => m ()
-   stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [dimension 7,dimension 8,dimension 8] A.Int)
+   stateTrans = defineName (simpleName "foo") $ simpleDefDecl "foo" (A.Array [dimension 7,dimension 8,dimension 9] A.Int)
    m = "\"" ++ show emptyMeta ++ "\""
    
    lit :: Int -> (Meta, CGen ())
@@ -470,11 +470,11 @@ testDeclaration = TestList
   ,testBoth "genDeclaration 1" "Channel foo;" "csp::One2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int32) foo False)
   ,testBoth "genDeclaration 2" "Channel foo;" "csp::Any2OneChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Shared A.Unshared) A.Int32) foo False)
   ,testBoth "genDeclaration 3" "Channel foo;" "csp::One2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Unshared A.Shared) A.Int32) foo False)
-  ,testBoth "genDeclaration 4" "Channel foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) foo False)
+  ,testBoth "genDeclaration 4" "mt_cb_t* foo;" "csp::Any2AnyChannel<int32_t> foo;" (tcall3 genDeclaration (A.Chan (A.ChanAttributes A.Shared A.Shared) A.Int32) foo False)
   ,testBoth "genDeclaration 5" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput A.Unshared A.Int32) foo False)
-  ,testBoth "genDeclaration 6" "Channel* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput A.Shared A.Int32) foo False)
+  ,testBoth "genDeclaration 6" "mt_cb_t* foo;" "csp::AltChanin<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirInput A.Shared A.Int32) foo False)
   ,testBoth "genDeclaration 7" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput A.Unshared A.Int32) foo False)
-  ,testBoth "genDeclaration 8" "Channel* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput A.Shared A.Int32) foo False)  
+  ,testBoth "genDeclaration 8" "mt_cb_t* foo;" "csp::Chanout<int32_t> foo;" (tcall3 genDeclaration (A.ChanEnd A.DirOutput A.Shared A.Int32) foo False)  
   
   --Arrays (of simple):
   ,testBothSame "genDeclaration 100" "int32_t foo[8];"
@@ -532,14 +532,14 @@ testDeclareInitFree = TestLabel "testDeclareInitFree" $ TestList
   testAllSame 0 ("","") A.Int
   
   -- Channel types:
-  ,testAll 1 ("ChanInit(wptr,(&foo));","") ("","") $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int
+  ,testAll 1 ("ChanInit(wptr,&foo);","") ("","") $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int
   ,testAllSame 2 ("","") $ A.ChanEnd A.DirInput A.Unshared A.Int
   
   -- Plain arrays:
   ,testAllSame 3 ("","") $ A.Array [dimension 4] A.Int
   
   -- Channel arrays:
-  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,foo[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int
+  ,testAll 4 ("tock_init_chan_array(foo_storage,foo,4);^ChanInit(wptr,(foo)[0]);^","") ("tockInitChanArray(foo_storage,foo,4);","") $ A.Array [dimension 4] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int
   ,testAllSame 6 ("","") $ A.Array [dimension 4] $ A.ChanEnd A.DirInput A.Unshared A.Int
   
   -- Plain records:
@@ -611,7 +611,7 @@ testRecord = TestList
     over ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
                    ,getCType = (\_ x _ -> return $ Plain $ "$(" ++ show x ++ ")")
-                   ,genVariable = override2 at
+                   ,genVariable' = override3 at
                    }
  
 testSpec :: Test
@@ -640,18 +640,18 @@ testSpec = TestList
   --Is:
   
   -- Plain types require you to take an address to get the pointer:
-  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")*const foo=&bar;",""))
+  ,testAllSameForTypes 600 (\t -> ("$(" ++ show t ++ ")* const foo=&bar;",""))
     (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [A.Int,A.Time]
-  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")*const foo=(&bar);",""))
+  ,testAllSameForTypes 610 (\t -> ("$(" ++ show t ++ ")* const foo=(&bar);",""))
     (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanInt,A.Record foo]
   --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
   --C abbreviations will be of type Channel*, so they can just copy the channel address.
   ,testAllForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=bar;","")) (\t -> ("$(" ++ show t ++ ") foo=bar;",""))
     (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanIntIn,chanIntOut]
   
-  ,testAllSameForTypes 700 (\t -> ("const $(" ++ show t ++ ") foo=bar;",""))
+  ,testAllSameForTypes 700 (\t -> ("$(" ++ show t ++ ") const foo=bar;",""))
     (\t -> A.Is emptyMeta A.ValAbbrev t $ A.ActualVariable (variable "bar")) [A.Int,A.Time]
-  ,testAllSameForTypes 710 (\t -> ("const $(" ++ show t ++ ")*const foo=(&bar);",""))
+  ,testAllSameForTypes 710 (\t -> ("$(" ++ show t ++ ") const* const foo=(&bar);",""))
     (\t -> A.Is emptyMeta A.ValAbbrev t $ A.ActualVariable (variable "bar")) [A.Record foo]
   -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
   
@@ -664,20 +664,20 @@ testSpec = TestList
   
   --Retypes:
   -- Normal abbreviation:
-  ,testAllSameS 900 ("int32_t*const foo=(int32_t*const)&y;@","") (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
+  ,testAllSameS 900 ("int32_t* const foo=(int32_t* const)&y;@","") (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Real32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- Val abbreviation:
-  ,testAllSameS 901 ("const int32_t foo=*(const int32_t*)&y;@","") (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
+  ,testAllSameS 901 ("int32_t const foo=*(int32_t const*)&y;@","") (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Real32)) (\ops -> ops {genRetypeSizes = override5 at})
   --Abbreviations of records as records:
-  ,testAllSameS 910 ("bar*const foo=(bar*const)(&y);@","") (A.Retypes emptyMeta A.Abbrev (A.Record bar) (variable "y"))
+  ,testAllSameS 910 ("bar* const foo=(bar* const)(&y);@","") (A.Retypes emptyMeta A.Abbrev (A.Record bar) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override5 at})
   -- Val abbreviation of records as records:
-  ,testAllSameS 911 ("const bar*const foo=(const bar*const)(&y);@","") (A.Retypes emptyMeta A.ValAbbrev (A.Record bar) (variable "y"))
+  ,testAllSameS 911 ("const bar* const foo=(const bar* const)(&y);@","") (A.Retypes emptyMeta A.ValAbbrev (A.Record bar) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Record bar2))) (\ops -> ops {genRetypeSizes = override5 at})
      
   -- Channel retyping doesn't require size checking:
-  ,testAllS 1000 ("Channel*const foo=(Channel*const)(&y);","") ("csp::One2OneChannel<tockSendableArrayOfBytes>*const foo=(csp::One2OneChannel<tockSendableArrayOfBytes>*const)(&y);","")
+  ,testAllS 1000 ("Channel* const foo=(Channel* const)(&y);","") ("csp::One2OneChannel<tockSendableArrayOfBytes>* const foo=(csp::One2OneChannel<tockSendableArrayOfBytes>* const)(&y);","")
     (A.Retypes emptyMeta A.Abbrev (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Any) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Any))) id
       
@@ -691,20 +691,20 @@ testSpec = TestList
     (A.Retypes emptyMeta A.Abbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (unknown) dimension, VAL:
-  ,testAllSameS 1102 ("const uint8_t* foo=(const uint8_t*)&y;@","")
+  ,testAllSameS 1102 ("uint8_t const* foo=(uint8_t const*)&y;@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension, VAL:
-  ,testAllSameS 1103 ("const uint8_t* foo=(const uint8_t*)&y;@","")
+  ,testAllSameS 1103 ("uint8_t const* foo=(uint8_t const*)&y;@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- TODO test multiple dimensions plain-to-array (mainly for C++)
     
   -- Array-to-plain retyping:
-  ,testAllSameS 1200 ("int32_t*const foo=(int32_t*const)y;@","")
+  ,testAllSameS 1200 ("int32_t* const foo=(int32_t* const)y;@","")
     (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
-  ,testAllSameS 1201 ("const int32_t foo=*(const int32_t*)y;@","")
+  ,testAllSameS 1201 ("int32_t const foo=*(int32_t const*)y;@","")
     (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
   
@@ -737,9 +737,9 @@ testSpec = TestList
     testAllSameS n e s st o = testAllS n e e s st o
     over' ops = ops {genDeclaration = override2 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
-                   ,getCType = (\_ x _ -> return $ Plain $ "$(" ++ show x ++ ")")
+                   ,getScalarType = (\x -> Just $ "$(" ++ show x ++ ")")
                    }
-    over ops = (over' ops) { genVariable = override2 at }
+    over ops = (over' ops) { genVariable' = override3 at }
 testRetypeSizes :: Test
 testRetypeSizes = TestList
  [
@@ -790,16 +790,16 @@ testGenVariable :: Test
 testGenVariable = TestList
  [
   -- Various types, unsubscripted:
-  testSameA 0 ("foo","(*foo)","foo") id A.Int
-  ,testSameA 10 ("(&foo)","foo","foo") id (A.Record bar)
-  ,testSameA2 20 ("(&foo)","foo") id (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int)
+  testSameA 0 ("foo","*foo","foo") id A.Int
+  ,testSameA 10 ("foo","*foo","*foo") id (A.Record bar)
+  ,testSameA2 20 ("foo","*foo") id (A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int)
   ,testSameA2 30 ("foo","foo") id (A.ChanEnd A.DirInput A.Unshared A.Int)
   
   -- Mobile versions of the above:
-  ,testSameA2 40 ("foo","(*foo)") id (A.Mobile A.Int)
-  ,testSameA2 45 ("(*foo)","(**foo)") deref (A.Mobile A.Int)
-  ,testSameA2 50 ("foo","(*foo)") id (A.Mobile $ A.Record bar)
-  ,testSameA2 55 ("foo","(*foo)") deref (A.Mobile $ A.Record bar)
+  ,testSameA2 40 ("foo","*foo") id (A.Mobile A.Int)
+  ,testSameA2 45 ("*foo","**foo") deref (A.Mobile A.Int)
+  ,testSameA2 50 ("foo","*foo") id (A.Mobile $ A.Record bar)
+  ,testSameA2 55 ("*foo","**foo") deref (A.Mobile $ A.Record bar)
   
   -- Arrays of the previous types, unsubscripted:
   ,testSameA 100 ("foo","foo","foo") id (A.Array [dimension 8] A.Int)
@@ -808,30 +808,30 @@ testGenVariable = TestList
   ,testSameA2 130 ("foo","foo") id (A.Array [dimension 8] $ A.ChanEnd A.DirInput A.Unshared A.Int)
   
   -- Mobile arrays of the previous types:
-  ,testSameA2 140 ("foo","(*foo)") id (A.Mobile $ A.Array [dimension 8] A.Int)
-  ,testSameA2 145 ("foo","(*foo)") deref (A.Mobile $ A.Array [dimension 8] A.Int)
-  ,testSameA2 150 ("foo","(*foo)") id (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
-  ,testSameA2 155 ("foo","(*foo)") deref (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
+  ,testSameA2 140 ("foo","*foo") id (A.Mobile $ A.Array [dimension 8] A.Int)
+  ,testSameA2 145 ("((int32_t*)((foo)->data))","((int32_t*)((*foo)->data))") deref (A.Mobile $ A.Array [dimension 8] A.Int)
+  ,testSameA2 150 ("foo","*foo") id (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
+  ,testSameA2 155 ("((bar*)((foo)->data))","((bar*)((*foo)->data))") deref (A.Mobile $ A.Array [dimension 8] $ A.Record bar)  
   
   -- Subscripted record:
-  ,testSameA 200 ("(&foo)->x","foo->x","foo->x") fieldX (A.Record bar)
-  ,testSameA2 210 ("foo->x","(*foo)->x") (fieldX . deref) (A.Mobile $ A.Record bar)
+  ,testSameA 200 ("(foo).x","(*foo).x","(*foo).x") fieldX (A.Record bar)
+  ,testSameA2 210 ("(*foo).x","(**foo).x") (fieldX . deref) (A.Mobile $ A.Record bar)
   
-  ,testSameA 220 ("(&(&foo)->y)","(&foo->y)","(&foo->y)") fieldY (A.Record $ simpleName "barbar")
-  ,testSameA 230 ("(&(&foo)->y)->x","(&foo->y)->x","(&foo->y)->x") (fieldX . fieldY) (A.Record $ simpleName "barbar")
+  ,testSameA 220 ("(foo).y","(*foo).y","(*foo).y") fieldY (A.Record $ simpleName "barbar")
+  ,testSameA 230 ("((foo).y).x","((*foo).y).x","((*foo).y).x") (fieldX . fieldY) (A.Record $ simpleName "barbar")
   
   -- Fully subscripted array:
-  ,testAC 300 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] A.Int)
-  ,testAC 305 ("foo@C4,5,6","foo@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [dimension 8,dimension 9,dimension 10] A.Int)
-  ,testAC 310 ("(&foo@C4)","(&foo@U4)") (sub 4) (A.Array [dimension 8] $ A.Record bar)
+  ,testAC 300 ("(foo)@C4","(foo)@U4") (sub 4) (A.Array [dimension 8] A.Int)
+  ,testAC 305 ("(foo)@C4,5,6","(foo)@U4,5,6") ((sub 6) . (sub 5) . (sub 4)) (A.Array [dimension 8,dimension 9,dimension 10] A.Int)
+  ,testAC 310 ("(foo)@C4","(foo)@U4") (sub 4) (A.Array [dimension 8] $ A.Record bar)
   -- Original channel arrays are Channel*[], abbreviated channel arrays are Channel*[]:
-  ,testAC2 320 ("foo@C4","foo@U4") ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int)
-  ,testAC 330 ("foo@C4","foo@U4") (sub 4) (A.Array [dimension 8] $ A.ChanEnd A.DirInput A.Unshared A.Int)
+  ,testAC2 320 ("(foo)@C4","(foo)@U4") ("(foo)@C4","(foo)@U4") (sub 4) (A.Array [dimension 8] $ A.Chan (A.ChanAttributes A.Unshared A.Unshared) A.Int)
+  ,testAC 330 ("(foo)@C4","(foo)@U4") (sub 4) (A.Array [dimension 8] $ A.ChanEnd A.DirInput A.Unshared A.Int)
   
   -- Fully subscripted array, and record field reference:
-  ,testAC 400 ("(&foo@C4)->x","(&foo@U4)->x") (fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
+  ,testAC 400 ("((foo)@C4).x","((foo)@U4).x") (fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
   -- As above, but then with an index too:
-  ,testAC 410 ("(&foo@C4)->x@C4","(&foo@U4)->x@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
+  ,testAC 410 ("((foo)@C4).x@C4","((foo)@U4).x)@U4") ((sub 4) . fieldX . (sub 4)) (A.Array [dimension 8] $ A.Record bar)
   
   --TODO come back to slices later
   
@@ -910,7 +910,7 @@ testAssign = TestList
    e = A.True emptyMeta
    state t = defineName (simpleName "foo") $ simpleDefDecl "foo" t
    over :: Override
-   over = local $ \ops -> ops {genVariable = override2 at, genExpression = override1 dollar}
+   over = local $ \ops -> ops {genVariable' = override3 at, genExpression = override1 dollar}
 
 testCase :: Test
 testCase = TestList
@@ -1038,7 +1038,7 @@ testInput = TestList
    testInputItem' :: Int -> String -> String -> A.InputItem -> A.Type -> A.Type -> Test
    testInputItem' n eC eCPP ii t ct = TestList
      [
-       testBothS ("testInput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
+       testBothS ("testInput " ++ show n) (hashIs "&c" eC) (hashIs "(c).reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
          (state $ A.Chan (A.ChanAttributes A.Unshared A.Unshared))
        ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
          (state $ A.ChanEnd A.DirInput A.Unshared)
@@ -1126,7 +1126,7 @@ testOutput = TestList
   ,testOutputItemProt 302 "ChanOut(wptr,#,&x,^);"
     "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
     (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
-  ,testOutputItemProt 303 "ChanOut(wptr,#,(&x),^);"
+  ,testOutputItemProt 303 "ChanOut(wptr,#,&x,^);"
     "tockSendArrayOfBytes(#,tockSendableArrayOfBytes((&x)));"
     (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
   ,testOutputItemProt 304 "ChanOut(wptr,#,x,^);"
@@ -1158,7 +1158,7 @@ testOutput = TestList
    testOutputItem' :: Int -> String -> String -> A.OutputItem -> A.Type -> A.Type -> Test
    testOutputItem' n eC eCPP oi t ct = TestList
      [
-       testBothS ("testOutput " ++ show n) (hashIs "(&c)" eC) (hashIs "(&c)->writer()" eCPP)
+       testBothS ("testOutput " ++ show n) (hashIs "&c" eC) (hashIs "(c).writer()" eCPP)
          (over (tcall3 genOutputItem A.Int64 (A.Variable emptyMeta $ simpleName "c") oi))
          (state $ A.Chan (A.ChanAttributes A.Unshared A.Unshared))
        ,testBothS ("testOutput [out] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP)
@@ -1216,7 +1216,7 @@ testBytesIn = TestList
  ]
  where
    over :: Override
-   over = local $ \ops -> ops {genVariable = override2 dollar}
+   over = local $ \ops -> ops {genVariable' = override3 dollar}
 
 testMobile :: Test
 testMobile = TestList
@@ -1233,7 +1233,7 @@ testMobile = TestList
     over ops = ops { genBytesIn = showBytesInParams
                    , getCType = (\_ t _ -> return $ Plain $ show t)
                    , genExpression = override1 dollar
-                   , genVariable = override2 at
+                   , genVariable' = override3 at
                    }
 
 ---Returns the list of tests:

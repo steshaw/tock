@@ -193,8 +193,9 @@ genCPPCSPChannelInput var
        case t of
          (A.ChanEnd A.DirInput _ _) -> call genVariable var A.Original
          -- TODO remove the following line, eventually
-         (A.Chan _ _) -> do call genVariable var A.Original
-                            tell [".reader()"]
+         (A.Chan _ _) -> do tell ["("]
+                            call genVariable var A.Original
+                            tell [").reader()"]
          _ -> call genMissing $ "genCPPCSPChannelInput used on something which does not support input: " ++ show var
 
 -- | Generates code from a channel 'A.Variable' that will be of type Chanout\<\>
@@ -204,8 +205,9 @@ genCPPCSPChannelOutput var
        case t of
          (A.ChanEnd A.DirOutput _ _) -> call genVariable var A.Original
          -- TODO remove the following line, eventually
-         (A.Chan _ _) -> do call genVariable var A.Original
-                            tell [".writer()"]
+         (A.Chan _ _) -> do tell ["("]
+                            call genVariable var A.Original
+                            tell [").writer()"]
          _ -> call genMissing $ "genCPPCSPChannelOutput used on something which does not support output: " ++ show var
 
 cppgenPoison :: Meta -> A.Variable -> CGen ()

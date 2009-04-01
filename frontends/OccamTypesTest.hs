@@ -520,13 +520,13 @@ testOccamTypes = TestList
   where
     testOK :: (Show a, Data a) => Int -> a -> Test
     testOK n orig
-        = TestCase $ testPass ("testOccamTypes" ++ show n)
+        = TestCase $ testPass ("testOccamTypes " ++ show n)
                               orig OccamTypes.checkTypes orig
                               startState
 
     testFail :: (Show a, Data a) => Int -> a -> Test
     testFail n orig
-        = TestCase $ testPassShouldFail ("testOccamTypes" ++ show n)
+        = TestCase $ testPassShouldFail ("testOccamTypes " ++ show n)
                                         OccamTypes.checkTypes orig
                                         startState
 

@@ -145,7 +145,6 @@ cgenOps = GenOps {
     genTypeSymbol = cgenTypeSymbol,
     genUnfoldedExpression = cgenUnfoldedExpression,
     genUnfoldedVariable = cgenUnfoldedVariable,
-    genVariable = \v am -> cgenVariableWithAM True v am id,
     genVariable' = cgenVariableWithAM True,
     genVariableUnchecked = \v am -> cgenVariableWithAM False v am id,
     genWhile = cgenWhile,
@@ -709,7 +708,9 @@ cgenVariableWithAM checkValid v am fct
                   Pointer ct <- details iv
                   let check = if checkValid then subCheck else A.NoCheck
                   -- Arrays should be pointers to the inner element:
-                  return (do cgenVariableWithAM checkValid iv A.Original id
+                  return (do tell ["("]
+                             cgenVariableWithAM checkValid iv A.Original id
+                             tell [")"]
                              call genArraySubscript check iv (map (\e -> (findMeta e, call genExpression e)) es)
                          , ct)
           A.SubscriptField _ fieldName
@@ -808,7 +809,7 @@ cgetCType m origT am
 
          -- Scalar types:
          (_, Just pl, False, A.Original) -> return $ Plain pl
-         (_, Just pl, False, A.Abbrev) -> return $ Pointer $ Plain pl
+         (_, Just pl, False, A.Abbrev) -> return $ Const $ Pointer $ Plain pl
          (_, Just pl, False, A.ValAbbrev) -> return $ Const $ Plain pl
 
          -- Mobile scalar types:

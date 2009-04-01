@@ -639,8 +639,9 @@ testPullRepCounts = TestList
       ) pullRepCounts
   ]
   where
+    -- Not for PAR any more, that gets pulled up further
     forAllThree :: (forall a. Data a => ([Occ (A.Structured a)] -> Occ A.Process) -> Test) -> Test
-    forAllThree f = TestList [f oSEQ, f oPAR, f oALT]
+    forAllThree f = TestList [f oSEQ, f oALT]
     
     testUnchanged :: Data a => Int -> (A.Structured a -> A.Process) -> Test
     testUnchanged n f = TestCase $ testPass

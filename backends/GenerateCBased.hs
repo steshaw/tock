@@ -177,8 +177,6 @@ data GenOps = GenOps {
     genTypeSymbol :: String -> A.Type -> CGen (),
     genUnfoldedExpression :: A.Expression -> CGen (),
     genUnfoldedVariable :: Meta -> A.Variable -> CGen (),
-    -- | Generates a variable, with indexing checks if needed
-    genVariable :: A.Variable -> A.AbbrevMode -> CGen (),
     -- Like genVariable, but modifies the desired CType
     genVariable' :: A.Variable -> A.AbbrevMode -> (CType -> CType) -> CGen (),
     -- | Generates a variable, with no indexing checks anywhere
@@ -189,6 +187,10 @@ data GenOps = GenOps {
     introduceSpec :: A.Specification -> CGen (),
     removeSpec :: A.Specification -> CGen ()
   }
+
+-- | Generates a variable, with indexing checks if needed
+genVariable :: GenOps -> A.Variable -> A.AbbrevMode -> CGen ()
+genVariable ops v am = genVariable' ops v am id
 
 -- | Call an operation in GenOps.
 class CGenCall a where
@@ -247,7 +249,7 @@ data CType
 instance Show CType where
   show (Plain s) = s
   show (Pointer t) = show t ++ "*"
-  show (Const t) = show t ++ " const "
+  show (Const t) = show t ++ " const"
   show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map show cts) ++ ">/**/"
 --  show (Subscript t) = "(" ++ show t ++ "[n])"
 
@@ -278,9 +280,9 @@ dressUp m (gen, Const t) t'
 dressUp m (gen, t) (Const t')
   = dressUp m (gen, t) t'
 dressUp m (gen, t@(Plain {})) (Pointer t')
-  = dressUp m (tell ["(&("] >> gen >> tell ["))"], t) t'
+  = dressUp m (tell ["&"] >> gen, t) t'
 dressUp m (gen, Pointer t) t'@(Plain {})
-  = dressUp m (tell ["(*("] >> gen >> tell ["))"], t) t'
+  = dressUp m (tell ["*"] >> gen, t) t'
 dressUp m (gen, t) t'
   = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'
 
