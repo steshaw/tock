@@ -100,18 +100,8 @@ occam :-
 -- In state one, we're reading the first thing on a line.
 -- In state two, we're reading the rest of the line.
 -- In state three, we're in the middle of a multi-line string.
--- In state four, we're in the middle of a pragma-external string
--- In state five, we're lexing a pragma.  State five is only entered specifically,
---   when we re-lex and re-parse pragmas (but it makes it easiest to put it
---   in this file too, since it can lex occam).
 
 <0>           $horizSpace*   { mkState one }
-
-<five>        "SHARED" { mkToken Pragma two }
-<five>        "PERMITALIASES" { mkToken Pragma two }
-<five>        "EXTERNAL" $horizSpace* \" { mkToken Pragma four }
-<five>        "OCCAMEXTERNAL" $horizSpace* \" { mkToken Pragma four }
-<four>        \" $horizSpace* { mkState 0 }
 
 <one>         @preprocessor  { mkToken TokPreprocessor 0 }
 <one, two>    "--" [^\n]*    { mkState 0 }
@@ -119,9 +109,6 @@ occam :-
 
 <one, two>    @reserved      { mkToken TokReserved two }
 <one, two>    @identifier    { mkToken TokIdentifier two }
-
-<four>    @reserved      { mkToken TokReserved four }
-<four>    @identifier    { mkToken TokIdentifier four }
 
 <one, two>    @charLiteral   { mkToken TokCharLiteral two }
 <one, two>    @fullString    { mkToken TokStringLiteral two }
@@ -135,11 +122,7 @@ occam :-
 <one, two>    @hexLiteral    { mkToken TokHexLiteral two }
 <one, two>    @realLiteral   { mkToken TokRealLiteral two }
 
-<four>    @intLiteral    { mkToken TokIntLiteral four }
-<four>    @hexLiteral    { mkToken TokHexLiteral four }
-<four>    @realLiteral   { mkToken TokRealLiteral four }
-
-<two, four, five>         $horizSpace+   ;
+<two>         $horizSpace+   ;
 
 {
 -- | An occam source token and its position.
@@ -206,30 +189,6 @@ runLexer filename str = go (alexStartPos, '\n', str) 0
          case alexScan inp code of
            AlexEOF -> return []
            AlexError _ -> dieP meta "Unrecognised token"
-           AlexSkip inp' len -> go inp' code
-           AlexToken inp' len act ->
-             do let (t, code) = act pos (take len str)
-                ts <- go inp' code
-                return $ case t of
-                           Just (Token _ tt) -> Token meta tt : ts
-                           Nothing -> ts
-
-      where
-        meta = emptyMeta {
-                 metaFile = Just filename,
-                 metaLine = line,
-                 metaColumn = col
-               }
-
--- | Run the lexer, returning a list of tokens.
--- (This is based on the `alexScanTokens` function that Alex provides.)
-runPragmaLexer :: String -> String -> Either (Maybe Meta, String) [Token]
-runPragmaLexer filename str = go (alexStartPos, '\n', str) five
-  where
-    go inp@(pos@(AlexPn _ line col), _, str) code =
-         case alexScan inp code of
-           AlexEOF -> return []
-           AlexError _ -> throwError (Just meta, "Unrecognised token")
            AlexSkip inp' len -> go inp' code
            AlexToken inp' len act ->
              do let (t, code) = act pos (take len str)
