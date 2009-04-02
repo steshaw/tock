@@ -186,8 +186,8 @@ addCalls unknownSize
               return $ localStack + maximum (0 : calledStacks)
 
 -- | Analyse assembler and return C source defining sizes.
-analyseAsm :: String -> PassM String
-analyseAsm asm
+analyseAsm :: Maybe [String] -> String -> PassM String
+analyseAsm mprocs asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
         cs <- getCompState
@@ -196,7 +196,11 @@ analyseAsm asm
         debug $ concat [printf "  %-40s %5d %5d %s\n"
                           func (fiStack fi) (fiTotalStack fi)
                           (concat $ intersperse " " $ Set.toList $ fiCalls fi)
-                        | (func, fi) <- Map.toList info]
+                        | (func, fi) <- Map.toList $ filterNames info]
         let lines = ["const int " ++ func ++ "_stack_size = " ++ show (fiTotalStack fi) ++ ";\n"
-                     | (func, fi) <- Map.toList info]
+                     | (func, fi) <- Map.toList $ filterNames info]
         return $ concat lines
+  where
+    filterNames = case mprocs of
+      Nothing -> id
+      Just m -> (`Map.intersection` (Map.fromList (zip m (repeat ()))))

@@ -453,8 +453,10 @@ postCAnalyse :: String -> ((Handle, Handle), String) -> PassM ()
 postCAnalyse fn ((outHandle, _), _)
     =  do asm <- liftIO $ readFile fn
 
+          names <- needStackSizes
+
           progress "Analysing assembly"
-          output <- analyseAsm asm
+          output <- analyseAsm (Just $ map A.nameName names) asm
 
           liftIO $ hPutStr outHandle output
 

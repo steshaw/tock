@@ -34,6 +34,7 @@ module GenerateC
   , genName
   , genRightB
   , genStatic
+  , needStackSizes
   , justOnly
   , withIf
   ) where
@@ -159,6 +160,20 @@ cgenOps = GenOps {
 generateC :: (Handle, Handle) -> String -> A.AST -> PassM ()
 generateC = generate cgenOps
 
+needStackSizes :: (CSMR m, Die m) => m [A.Name]
+needStackSizes
+  = do cs <- getCompState
+       main <- if csHasMain cs
+                  then tlpInterface >>* fst >>* singleton
+                  else return []
+       return $ nub $ (Set.toList $ csParProcs cs `Set.difference`
+                                      Set.fromList (map (A.Name emptyMeta . fst) (csExternals cs)))
+                ++ [A.Name emptyMeta n
+                   | A.NameDef {A.ndName = n
+                               ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
+                               } <- Map.elems $ csNames cs]
+                ++ main
+
 cgenTopLevel :: String -> A.AST -> CGen ()
 cgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cIntSize,"\n"]
@@ -180,13 +195,9 @@ cgenTopLevel headerName s
           sequence_ [tell ["#include \"", usedFile, ".tock.h\"\n"]
                     | usedFile <- Set.toList $ csUsedFiles cs]
 
+          nss <- needStackSizes
           sequence_ [tell ["extern int "] >> genName n >> tell ["_stack_size;\n"]
-                     | n <- (Set.toList $ csParProcs cs `Set.difference`
-                                         Set.fromList (map (A.Name emptyMeta . fst) (csExternals cs)))
-                           ++ [A.Name emptyMeta n | A.NameDef
-                                    {A.ndName = n
-                                    ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
-                                    } <- Map.elems $ csNames cs]]
+                     | n <- nss]
 
           when (csHasMain cs) $ do
             (tlpName, tlpChans) <- tlpInterface
