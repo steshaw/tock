@@ -22,6 +22,7 @@ module Metadata where
 {-! global : Haskell2Xml !-}
 
 import Data.Generics
+import Data.List
 import Numeric
 import Text.Printf
 import Text.Regex
@@ -45,6 +46,20 @@ instance Show Meta where
       case metaFile m of
         Just s -> s ++ ":" ++ show (metaLine m) ++ ":" ++ show (metaColumn m)
         Nothing -> "no source position"
+
+dropSpaces :: String -> String
+dropSpaces = dropWhile (== ' ')
+
+instance Read Meta where
+  readsPrec n str
+    | show emptyMeta `isPrefixOf` dropSpaces str
+       = [(Meta Nothing 0 0, drop (length $ show emptyMeta) $ dropSpaces str)]
+    | otherwise
+       = [ (Meta (Just fn) (read l) (read n), r'') ]
+       where
+         (fn, ':':r) = span (/= ':') $ dropSpaces str
+         (l, ':':r') = span (/= ':') r
+         (n, r'') = span (`elem` ['0'..'9']) r'
 
 -- | Encode a Meta as the prefix of a string.
 packMeta :: Meta -> String -> String
