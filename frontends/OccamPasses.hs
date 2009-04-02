@@ -71,14 +71,27 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
     emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ _ fs _)) scope)
       = do origN <- lookupName n >>* A.ndOrigName
            thisProc <- sequence (
-             [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ A.nameName n ++ "("
+             [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ origN ++ "("
              ] ++ intersperse (return ",") (map showCode fs) ++
-             [return $ ") = " ++ origN ++ "\""
+             [return $ ") = " ++ A.nameName n ++ "\""
              ]) >>* concat
            modify $ \cs -> cs { csOriginalTopLevelProcs =
              A.nameName n : csOriginalTopLevelProcs cs }
            emitProcsAsExternal scope >>* (thisProc Seq.<|)
-    emitProcsAsExternal (A.Spec _ _ scope) = emitProcsAsExternal scope
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Function _ _ ts fs _)) scope)
+      = do origN <- lookupName n >>* A.ndOrigName
+           thisProc <- sequence (
+             [return $ "#PRAGMA TOCKEXTERNAL \""
+             ] ++ intersperse (return ",") (map showCode ts) ++
+             [return $ " FUNCTION " ++ origN ++ "("
+             ] ++ intersperse (return ",") (map showCode fs) ++
+             [return $ ") = " ++ A.nameName n ++ "\""
+             ]) >>* concat
+           modify $ \cs -> cs { csOriginalTopLevelProcs =
+             A.nameName n : csOriginalTopLevelProcs cs }
+           emitProcsAsExternal scope >>* (thisProc Seq.<|)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n _) scope)
+      = emitProcsAsExternal scope
     emitProcsAsExternal (A.ProcThen _ _ scope) = emitProcsAsExternal scope
     emitProcsAsExternal (A.Only {}) = return Seq.empty
     emitProcsAsExternal (A.Several _ ss)

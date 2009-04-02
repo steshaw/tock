@@ -1405,22 +1405,34 @@ pragma = do Pragma rawP <- genToken isPragma
                   vars
               pragmaType | pragmaType == 2 || pragmaType == 3 -> do
                 m <- md
-                sPROC
-                n <- newProcName
-                fs <- formalList >>* map fst
-                sEq
-                origN <- if pragmaType == 2
-                           then integer >> return (A.nameName n)
-                           else identifier
-                
-                let on = A.nameName n
-                    sp = A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m)
-                    nd = A.NameDef m on origN sp A.Original A.NamePredefined A.Unplaced
+                (n, nt, origN, fs, sp) <-
+                  if pragmaType == 2
+                    then do sPROC
+                            n <- newProcName
+                            fs <- formalList >>* map fst
+                            sEq
+                            integer
+                            return (n, ProcName, n, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
+                    else do sPROC
+                            origN <- anyName ProcName
+                            fs <- formalList >>* map fst
+                            sEq
+                            n <- newProcName
+                            return (n, ProcName, origN, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
+                         <|> do ts <- tryVX (sepBy1 dataType sComma) sFUNCTION
+                                origN <- anyName FunctionName
+                                fs <- formalList >>* map fst
+                                sEq
+                                n <- newFunctionName
+                                return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
+                                  $ Right (A.Skip m))
+                let nd = A.NameDef m (A.nameName n) (A.nameName origN)
+                           sp A.Original A.NamePredefined A.Unplaced
                     ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
-                  { csNames = Map.insert on nd (csNames st)
-                  , csLocalNames = (origN, (n, ProcName)) : csLocalNames st
-                  , csExternals = (on, (ext, fs)) : csExternals st
+                  { csNames = Map.insert (A.nameName n) nd (csNames st)
+                  , csLocalNames = (A.nameName origN, (n, nt)) : csLocalNames st
+                  , csExternals = (A.nameName n, (ext, fs)) : csExternals st
                   }
             case (prag, mprod) of
               (Just (_, pragStr), Just prod) -> do
