@@ -69,7 +69,7 @@ optionsNoWarnings =
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
-  , Option [] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"
+  , Option ['c'] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
