@@ -26,6 +26,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Error
 import Text.Regex
 
 import qualified AST as A
@@ -61,9 +62,31 @@ instance Warn (GenParser tok CompState) where
         else csWarnings cs }
 
 
-instance Die (GenParser tok st) where
-  dieReport (Just m, err) = fail $ packMeta m err
-  dieReport (Nothing, err) = fail err
+instance Die (GenParser tok CompState) where
+  dieReport (Just m, err) = do st <- getCompState
+                               fail $ packWarnings (csWarnings st) $ packMeta m $ err
+  dieReport (Nothing, err) = do st <- getCompState
+                                fail $ packWarnings (csWarnings st) err
+
+packWarnings :: [WarningReport] -> String -> String
+packWarnings ws = (("\0\1\2\3" ++ show ws ++ "\0") ++)
+
+unpackWarnings :: String -> ([WarningReport], String)
+unpackWarnings ws = if "\0\1\2\3" `isInfixOf` ws then (nub w, s) else ([], ws)
+  where
+    (w, s) = findAllWarnings ws
+    findAllWarnings :: String -> ([WarningReport], String)
+    findAllWarnings s
+      = case b of
+          [] -> ([], s)
+          '\0':'\1':'\2':'\3':rest ->
+            let (warningText, _:otherText) = span (/='\0') rest
+                (furtherWarnings, remainingText) = findAllWarnings otherText
+            in (read warningText ++ furtherWarnings, a ++ remainingText)
+          (_:bs) -> let (furtherWarnings, remainingText) = findAllWarnings bs
+                    in (furtherWarnings, a ++ "\0" ++ remainingText)
+      where
+        (a, b) = span (/= '\0') s
 --}}}
 
 --{{{ matching rules for raw tokens
@@ -1877,10 +1900,12 @@ runTockParser toks prod cs
             Left err ->
               -- If a position was encoded into the message, use that;
               -- else use the parser position.
-              let errMeta = sourcePosToMeta $ errorPos err
-                  (msgMeta, msg) = unpackMeta $ show err
-                  m = Just errMeta >> msgMeta
-                in dieReport (m, "Parse error: " ++ msg)
+                let errMeta = sourcePosToMeta $ errorPos err
+                    (msgWs, msg') = unpackWarnings $ show err
+                    (msgMeta, msg) = unpackMeta msg'
+                    m = fromMaybe errMeta msgMeta
+                in do mapM_ warnReport msgWs
+                      dieReport (Just m, "Parse error: " ++ msg)
             Right r -> return r
 
 -- | Parse an occam program.
