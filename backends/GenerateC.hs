@@ -181,7 +181,8 @@ cgenTopLevel headerName s
                     | usedFile <- Set.toList $ csUsedFiles cs]
 
           sequence_ [tell ["extern int "] >> genName n >> tell ["_stack_size;\n"]
-                     | n <- (Set.toList $ csParProcs cs)
+                     | n <- (Set.toList $ csParProcs cs `Set.difference`
+                                         Set.fromList (map (A.Name emptyMeta . fst) (csExternals cs)))
                            ++ [A.Name emptyMeta n | A.NameDef
                                     {A.ndName = n
                                     ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
@@ -1462,20 +1463,24 @@ cgenRecordTypeSpec n attr fs
           genName n
           tell [";"]
           if null [t | (_, A.Mobile t) <- fs]
-            then do tell ["const word "]
+            then do genStatic TopLevel n
+                    tell ["const word "]
                     genName n
                     tell ["_mttype = MT_SIMPLE | MT_MAKE_TYPE(MT_DATA);"]
+                    genStatic TopLevel n
                     tell ["const int "]
                     genName n
                     tell ["_mtsize = sizeof("]
                     genName n
                     tell [");"]
                     -- Not quite certain CCSP handles these descriptors:
-            else do tell ["const word "]
+            else do genStatic TopLevel n
+                    tell ["const word "]
                     genName n
                     tell ["_mttype[", show (length mtEntries), "] = {"]
                     seqComma mtEntries
                     tell ["};"]
+                    genStatic TopLevel n
                     tell ["const int "]
                     genName n
                     tell ["_mtsize = ", show (length mtEntries), ";"]
