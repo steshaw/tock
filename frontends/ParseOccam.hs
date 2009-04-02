@@ -403,7 +403,7 @@ findName thisN thisNT
 
 scopeIn :: A.Name -> NameType -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
 scopeIn n@(A.Name m s) nt specType am
-    =  do s' <- makeUniqueName s
+    =  do s' <- makeUniqueName m s
           let n' = n { A.nameName = s' }
           let nd = A.NameDef {
             A.ndMeta = m,

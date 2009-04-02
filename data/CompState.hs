@@ -259,11 +259,17 @@ nameSource :: (CSMR m, Die m) => A.Name -> m A.NameSource
 nameSource n = lookupName n >>* A.ndNameSource
 
 -- | Make a name unique by appending a suffix to it.
-makeUniqueName :: CSM m => String -> m String
-makeUniqueName s
+makeUniqueName :: CSM m => Meta -> String -> m String
+makeUniqueName m s
     =  do st <- get
+          let mungedFile = munge $ fromMaybe "" (metaFile m)
           put $ st { csNameCounter = csNameCounter st + 1 }
-          return $ s ++ "_u" ++ show (csNameCounter st)
+          return $ s ++ "_" ++ mungedFile ++ "_u" ++ show (csNameCounter st)
+  where
+    munge cs = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
+                  then c
+                  else '_'
+               | c <- cs]
 
 -- | Find an unscoped name -- or define a new one if it doesn't already exist.
 findUnscopedName :: CSM m => A.Name -> m A.Name
@@ -272,7 +278,7 @@ findUnscopedName n@(A.Name m s)
           case Map.lookup s (csUnscopedNames st) of
             Just s' -> return $ A.Name m s'
             Nothing ->
-              do s' <- makeUniqueName s
+              do s' <- makeUniqueName m s
                  modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
                  let n = A.Name m s'
                  let nd = A.NameDef { A.ndMeta = m
