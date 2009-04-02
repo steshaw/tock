@@ -165,8 +165,15 @@ cgenTopLevel headerName s
           tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
 
+          let isTopLevelSpec (A.Specification _ n _)
+                = A.nameName n `elem` (csOriginalTopLevelProcs cs)
+
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (listify (const True :: A.Specification -> Bool) s)
+                                       (listify isTopLevelSpec s)
+          -- Things like lifted wrapper_procs we still need to forward-declare,
+          -- but we do it in the C file, not in the header:
+          sequence_ $ map (call genForwardDeclaration)
+                            (listify (not . isTopLevelSpec) s)
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 
