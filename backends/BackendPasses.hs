@@ -194,6 +194,7 @@ findSizeForVar m skip v
                   [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant
                     m i) (A.VariableSizes m v)
                   | i <- [skip  .. (length ds - 1)]])
+         _ -> diePC m $ formatCode "findSizeForVar for type % (for variable %)" t v
 
 -- Gets the variable that holds the sizes of the given variable.  The first parameter
 -- is the number of dimensions to skip.  Assumes simplifySlices has already been
