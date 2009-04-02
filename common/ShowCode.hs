@@ -464,6 +464,15 @@ instance ShowOccam A.Formal where
          space
          showName n
          showOccamM dir 
+  showOccamM (A.Formal am (A.Array ds (A.ChanEnd dir sh t)) n)
+    = do maybeVal am
+         mapM_ showOccamM ds
+         showOccamM sh
+         tell ["CHAN "]
+         showOccamM t
+         space
+         showName n
+         showOccamM dir 
   showOccamM (A.Formal am t n) = (maybeVal am)
                                  >> (showOccamM t)
                                  >> space
