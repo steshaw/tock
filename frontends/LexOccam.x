@@ -182,8 +182,8 @@ mkState code _ s = (Nothing, code)
 
 -- | Run the lexer, returning a list of tokens.
 -- (This is based on the `alexScanTokens` function that Alex provides.)
-runLexer :: Die m => String -> String -> m [Token]
-runLexer filename str = go (alexStartPos, '\n', str) 0
+runLexer' :: Die m => (String, Int, Int) -> String -> m [Token]
+runLexer' (filename, startLine, startCol) str = go (AlexPn 0 startLine startCol, '\n', str) 0
   where
     go inp@(pos@(AlexPn _ line col), _, str) code =
          case alexScan inp code of
@@ -203,6 +203,9 @@ runLexer filename str = go (alexStartPos, '\n', str) 0
                  metaLine = line,
                  metaColumn = col
                }
+
+runLexer :: Die m => String -> String -> m [Token]
+runLexer fn = runLexer' (fn, 1, 1)
 
 }
 

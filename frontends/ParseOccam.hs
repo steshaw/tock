@@ -1370,8 +1370,8 @@ structuredTypeField
 --}}}
 --{{{ pragmas
 pragma :: OccParser ()
-pragma = do Pragma rawP <- genToken isPragma
-            m <- getPosition >>* sourcePosToMeta
+pragma = do m <- getPosition >>* sourcePosToMeta
+            Pragma rawP <- genToken isPragma
             let prag :: Maybe (Int, String)
                 prag = join $ find isJust
                  [ (matchRegex (mkRegex pt) rawP >>= listToMaybe) >>* (,) i
@@ -1409,7 +1409,7 @@ pragma = do Pragma rawP <- genToken isPragma
                   if pragmaType == 2
                     then do sPROC
                             n <- newProcName
-                            fs <- formalList >>* map fst
+                            fs <- formalList'
                             sEq
                             integer
                             return (n, ProcName, n, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
@@ -1436,7 +1436,9 @@ pragma = do Pragma rawP <- genToken isPragma
                   }
             case (prag, mprod) of
               (Just (_, pragStr), Just prod) -> do
-                toks <- runLexer "<unknown(pragma)>" pragStr
+                let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
+                toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
+                                  , metaLine m, column) pragStr
                 cs <- getCompState
                 case runParser (prod >> getState) cs "" toks of
                   Left err -> warnP m WarnUnknownPreprocessorDirective $

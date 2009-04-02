@@ -261,10 +261,7 @@ nameSource n = lookupName n >>* A.ndNameSource
 -- | Make a name unique by appending a suffix to it.
 makeUniqueName :: CSM m => Meta -> String -> m String
 makeUniqueName m s
-    =  do st <- get
-          let mungedFile = munge $ fromMaybe "" (metaFile m)
-          put $ st { csNameCounter = csNameCounter st + 1 }
-          return $ s ++ "_" ++ mungedFile ++ "_u" ++ show (csNameCounter st)
+    = let mungedFile = munge $ show m in return $ s ++ "_" ++ mungedFile
   where
     munge cs = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
                   then c
