@@ -199,7 +199,7 @@ mkState code _ s = (Nothing, code)
 
 -- | Run the lexer, returning a list of tokens.
 -- (This is based on the `alexScanTokens` function that Alex provides.)
-runLexer :: String -> String -> PassM [Token]
+runLexer :: Die m => String -> String -> m [Token]
 runLexer filename str = go (alexStartPos, '\n', str) 0
   where
     go inp@(pos@(AlexPn _ line col), _, str) code =

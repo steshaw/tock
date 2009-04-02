@@ -69,12 +69,11 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
   where
     emitProcsAsExternal :: A.AST -> PassM (Seq.Seq String)
     emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ _ fs _)) scope)
-      = do thisProc <- sequence (
-             [return "#PRAGMA OCCAMEXTERNAL \"PROC "
-             ,showCode n
-             ,return "("
+      = do origN <- lookupName n >>* A.ndOrigName
+           thisProc <- sequence (
+             [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ A.nameName n ++ "("
              ] ++ intersperse (return ",") (map showCode fs) ++
-             [return ")\""
+             [return $ ") = " ++ origN ++ "\""
              ]) >>* concat
            modify $ \cs -> cs { csOriginalTopLevelProcs =
              A.nameName n : csOriginalTopLevelProcs cs }

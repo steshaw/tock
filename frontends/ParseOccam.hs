@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Parse occam code into an AST.
 module ParseOccam (parseOccamProgram) where
 
-import Control.Monad (liftM, when)
+import Control.Monad (join, liftM)
 import Control.Monad.State (MonadState, modify, get, put)
 import Data.List
 import qualified Data.Map as Map
@@ -1371,24 +1371,18 @@ structuredTypeField
 pragma :: OccParser ()
 pragma = do Pragma rawP <- genToken isPragma
             m <- getPosition >>* sourcePosToMeta
-            pragToks <- case runPragmaLexer "<unknown(pragma)>" rawP of
-              Left _ -> do warnP m WarnUnknownPreprocessorDirective $
-                             "Unknown PRAGMA: " ++ rawP
-                           return []
-              Right toks -> return toks
-            cs <- getCompState
-            prod <- return $
-                      -- Maybe monad:
-               case findIndex isJust
-                 [ do Token _ (Pragma firstTok) <- listToMaybe pragToks
-                      matchRegex (mkRegex pt) firstTok
-                 | pt <- [ "^SHARED.*"
-                        , "^PERMITALIASES.*"
-                        , "^EXTERNAL.*"
-                        , "^OCCAMEXTERNAL.*"
+            let prag :: Maybe (Int, String)
+                prag = join $ find isJust
+                 [ (matchRegex (mkRegex pt) rawP >>= listToMaybe) >>* (,) i
+                 | (i, pt) <- zip [0..]
+                        [ "^SHARED +(.*)"
+                        , "^PERMITALIASES +(.*)"
+                        , "^EXTERNAL +\"(.*)\""
+                        , "^TOCKEXTERNAL +\"(.*)\""
                         ]
-                 ] of
-              Just 0 -> do
+                 ]
+            mprod <- return $ flip fmap prag $ \(pragType, _) -> case pragType of
+              0 -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1398,7 +1392,7 @@ pragma = do Pragma rawP <- genToken isPragma
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
-              Just 1 -> do
+              1 -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1408,40 +1402,39 @@ pragma = do Pragma rawP <- genToken isPragma
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
-              Just pragmaType | pragmaType == 2 || pragmaType == 3 -> do
+              pragmaType | pragmaType == 2 || pragmaType == 3 -> do
                 m <- md
                 sPROC
                 n <- newProcName
                 fs <- formalList >>* map fst
-                when (pragmaType == 2) $ do sEq
-                                            integer
-                                            return ()
+                sEq
+                origN <- if pragmaType == 2
+                           then integer >> return (A.nameName n)
+                           else identifier
+                
                 let on = A.nameName n
                     sp = A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m)
-                    nd = A.NameDef m on on sp A.Original A.NamePredefined A.Unplaced
+                    nd = A.NameDef m on origN sp A.Original A.NamePredefined A.Unplaced
                     ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
                   { csNames = Map.insert on nd (csNames st)
-                  , csLocalNames = (on, (n, ProcName)) : csLocalNames st
+                  , csLocalNames = (origN, (n, ProcName)) : csLocalNames st
                   , csExternals = (on, (ext, fs)) : csExternals st
                   }
+            case (prag, mprod) of
+              (Just (_, pragStr), Just prod) -> do
+                toks <- runLexer "<unknown(pragma)>" pragStr
+                cs <- getCompState
+                case runParser (prod >> getState) cs "" toks of
+                  Left err -> warnP m WarnUnknownPreprocessorDirective $
+                                "Unknown PRAGMA (parse failed): " ++ show err
+                  Right st -> setState st
               _ -> warnP m WarnUnknownPreprocessorDirective $
-                "Unknown PRAGMA type: " ++ show (listToMaybe pragToks)
-            let otherToks = safeTail pragToks
-            case otherToks of
-              Nothing -> warnP m WarnUnknownPreprocessorDirective $
-                           "Unknown PRAGMA (no tokens): " ++ rawP
-              Just toks -> case runParser (prod >> getState) cs "" toks of
-                             Left err -> warnP m WarnUnknownPreprocessorDirective $
-                                         "Unknown PRAGMA (parse failed): " ++ show err
-                             Right st -> setState st
+                     "Unknown PRAGMA type: " ++ show rawP
             eol
   where
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
-
-    safeTail [] = Nothing
-    safeTail (_:xs) = Just xs
 
 --}}}
 --{{{ processes
