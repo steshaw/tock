@@ -74,7 +74,7 @@ $vertSpace = [\r\n]
           | "VECSPACE"
           | ".STATIC" | ".VSPTR" | ".WSSIZE"
 
-@identifier = [a-z A-Z] [a-z A-Z 0-9 \.]*
+@identifier = [a-z A-Z] [a-z A-Z 0-9 \._]*
 
 @hexEscape = \# $hexDigit $hexDigit
 @escape = \* ( @hexEscape | [^\#\n] )
