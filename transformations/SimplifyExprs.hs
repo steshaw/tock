@@ -51,7 +51,15 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
         Prop.functionTypesChecked])
   [Prop.functionsRemoved]
-  (applyDepthM doSpecification)
+  (\t -> do exts <- getCompState >>* csExternals
+            exts' <- sequence [do st <- specTypeOfName $ A.Name emptyMeta n
+                                  A.Specification _ _ st'@(A.Proc _ _ fs' _) <-
+                                    doSpecification $ A.Specification
+                                      (findMeta st) (A.Name emptyMeta n) st
+                                  return $ (n, (extType, fs'))
+                              | (n, (extType, fs)) <- exts]
+            modify $ \cs -> cs { csExternals = exts' }
+            applyDepthM doSpecification t)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf smrm rts fs evp))

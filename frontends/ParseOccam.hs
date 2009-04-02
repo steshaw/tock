@@ -1415,13 +1415,13 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                             return (n, ProcName, n, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
                     else do sPROC
                             origN <- anyName ProcName
-                            fs <- formalList >>* map fst
+                            fs <- formalList'
                             sEq
                             n <- newProcName
                             return (n, ProcName, origN, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
                          <|> do ts <- tryVX (sepBy1 dataType sComma) sFUNCTION
                                 origN <- anyName FunctionName
-                                fs <- formalList >>* map fst
+                                fs <- formalList'
                                 sEq
                                 n <- newFunctionName
                                 return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
@@ -1450,6 +1450,10 @@ pragma = do m <- getPosition >>* sourcePosToMeta
   where
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
+
+    formalList' = do fs <- formalList >>= scopeInFormals
+                     scopeOutFormals fs
+                     return fs
 
 --}}}
 --{{{ processes
