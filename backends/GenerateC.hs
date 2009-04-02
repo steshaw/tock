@@ -163,8 +163,6 @@ cgenTopLevel :: String -> A.AST -> CGen ()
 cgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cIntSize,"\n"]
           tell ["#include <tock_support_cif.h>\n"]
-          tell ["#include \"", dropPath headerName, "\"\n"]
-
           cs <- getCompState
 
           let isTopLevelSpec (A.Specification _ n _)
@@ -176,6 +174,8 @@ cgenTopLevel headerName s
           -- but we do it in the C file, not in the header:
           sequence_ $ map (call genForwardDeclaration)
                             (listify (not . isTopLevelSpec) s)
+
+          tell ["#include \"", dropPath headerName, "\"\n"]
 
           sequence_ [tell ["#include \"", usedFile, ".tock.h\"\n"]
                     | usedFile <- Set.toList $ csUsedFiles cs]
