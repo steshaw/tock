@@ -170,7 +170,7 @@ cgenTopLevel headerName s
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 
-          sequence_ [tell ["#include \"", usedFile, ".h\"\n"]
+          sequence_ [tell ["#include \"", usedFile, ".tock.h\"\n"]
                     | usedFile <- Set.toList $ csUsedFiles cs]
 
           sequence_ [tell ["extern int "] >> genName n >> tell ["_stack_size;\n"]

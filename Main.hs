@@ -244,7 +244,7 @@ compileFull inputFile moutputFile
                           -- using a stem (input file minus known extension).
                           -- If the extension isn't known, the user must specify
                           -- the output file
-                          ("-", Just file) -> return file
+                          ("-", Just file) -> return $ file ++ ".tock"
                           ("-", Nothing) -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
                           (file, _) -> return file
 
@@ -287,7 +287,7 @@ compileFull inputFile moutputFile
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
 
                  cs <- lift getCompState
-                 let otherOFiles = [usedFile ++ ".o"
+                 let otherOFiles = [usedFile ++ ".tock.o"
                                    | usedFile <- Set.toList $ csUsedFiles cs]
                    
 

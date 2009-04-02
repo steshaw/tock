@@ -65,9 +65,9 @@ preprocessFile m filename
     =  do (handle, realFilename) <- searchFile m filename
           progress $ "Loading source file " ++ realFilename
           origCS <- get
-          let modFunc = if drop4 filename `Set.member` csUsedFiles origCS
-                          then Set.insert (drop4 realFilename)
-                                 . Set.delete (drop4 filename)
+          let modFunc = if drop9 filename `Set.member` csUsedFiles origCS
+                          then Set.insert (drop9 realFilename)
+                                 . Set.delete (drop9 filename)
                           else id
           modify (\cs -> cs { csCurrentFile = realFilename
                             , csUsedFiles = modFunc $ csUsedFiles cs })
@@ -76,8 +76,8 @@ preprocessFile m filename
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
   where
-    -- drops 4 from the end:
-    drop4 = reverse . drop 4 . reverse
+    -- drops 9 (i.e. length ".tock.inc") from the end:
+    drop9 = reverse . drop 9 . reverse
 
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
 preprocessSource :: Meta -> String -> String -> PassM [Token]
@@ -199,7 +199,7 @@ handleUse m [modName]
           put $ cs { csUsedFiles = Set.insert incName (csUsedFiles cs) }
           if Set.member incName (csUsedFiles cs)
             then return return
-            else handleInclude m [incName ++ ".inc"]
+            else handleInclude m [incName ++ ".tock.inc"]
   where
     -- | If a module name has a suffix, strip it
     mangleModName :: String -> String
