@@ -202,9 +202,9 @@ cgenTopLevel headerName s
 
           when (csHasMain cs) $ do
             (tlpName, tlpChans) <- tlpInterface
-            chans <- sequence [csmLift $ makeNonce "tlp_channel" | _ <- tlpChans]
-            killChans <- sequence [csmLift $ makeNonce "tlp_channel_kill" | _ <- tlpChans]
-            workspaces <- sequence [csmLift $ makeNonce "tlp_channel_ws" | _ <- tlpChans]
+            chans <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel" | _ <- tlpChans]
+            killChans <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel_kill" | _ <- tlpChans]
+            workspaces <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel_ws" | _ <- tlpChans]
 
 
             tell ["void tock_main (Workspace wptr) {\n"]
@@ -1167,7 +1167,7 @@ cgenReplicatorLoop index (A.For m base count step)
   -- simple loop (without an additional counter), because step may be
   -- negative (and that may be determined at run-time.  So we will generate the
   -- most general loop, and let the C compiler optimise if possibe:
-    =      do counter <- csmLift $ makeNonce "replicator_count"
+    =      do counter <- csmLift $ makeNonce m "replicator_count"
               tell ["int ", counter, "="]
               call genExpression count
               tell [","]
@@ -1351,7 +1351,7 @@ cintroduceSpec lvl (A.Specification _ n (A.Is _ am t (A.ActualVariable v)))
           tell ["="]
           rhs
           tell [";"]
-cintroduceSpec lvl (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
+cintroduceSpec lvl (A.Specification m n (A.Is _ am t (A.ActualExpression e)))
     =  do let rhs = abbrevExpression am t e
           case (am, t, e) of
             (A.ValAbbrev, A.Array _ ts, A.Literal _ _ _) ->
@@ -1368,7 +1368,7 @@ cintroduceSpec lvl (A.Specification _ n (A.Is _ am t (A.ActualExpression e)))
             (A.ValAbbrev, A.Record _, A.Literal _ _ _) ->
               -- Record literals are even trickier, because there's no way of
               -- directly writing a struct literal in C that you can use -> on.
-              do tmp <- csmLift $ makeNonce "record_literal"
+              do tmp <- csmLift $ makeNonce m "record_literal"
                  genStatic lvl n
                  tell ["const "]
                  genType t
@@ -1638,7 +1638,7 @@ cgenProcAlloc n fs as
                     return $ zip (repeat s) $ realActuals f a fct
                 | (f@(A.Formal am t _), a) <- zip fs as]
 
-          ws <- csmLift $ makeNonce "workspace"
+          ws <- csmLift $ makeNonce (A.nameMeta n) "workspace"
           tell ["Workspace ", ws, " = TockProcAlloc (wptr, ", show $ length ras, ", "]
           genName n
           tell ["_stack_size);\n"]
@@ -1827,7 +1827,7 @@ cgenIf m s | justOnly s = do call genStructured NotTopLevel s doCplain
                              call genStop m "no choice matched in IF process"
                              tell ["}"]
            | otherwise
-    =  do label <- csmLift $ makeNonce "if_end"
+    =  do label <- csmLift $ makeNonce m "if_end"
           tell ["/*",label,"*/"]
           genIfBody label s
           call genStop m "no choice matched in IF process"
@@ -1902,10 +1902,10 @@ cgenWhile e p
 -- the same as PAR.
 cgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cgenPar pm s
-    =  do bar <- csmLift $ makeNonce "par_barrier"
+    =  do bar <- csmLift $ makeNonce emptyMeta "par_barrier"
           tell ["LightProcBarrier ", bar, ";"]
           let count = countStructured s
-          wss <- csmLift $ makeNonce "wss"
+          wss <- csmLift $ makeNonce emptyMeta "wss"
           tell ["Workspace* ",wss,"=(Workspace*)malloc(sizeof(int)*"]
           call genExpression count
           tell [");"]
@@ -1936,7 +1936,7 @@ cgenPar pm s
 --{{{  alt
 cgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
 cgenAlt isPri s
-    =  do id <- csmLift $ makeNonce "alt_id"
+    =  do id <- csmLift $ makeNonce emptyMeta "alt_id"
           tell ["int ", id, " = 0;\n"]
 
           let isTimerAlt = containsTimers s
@@ -1952,10 +1952,10 @@ cgenAlt isPri s
           genAltDisable id s
           tell ["}\n"]
 
-          fired <- csmLift $ makeNonce "alt_fired"
+          fired <- csmLift $ makeNonce emptyMeta "alt_fired"
           tell ["int ", fired, " = AltEnd (wptr);\n"]
           tell [id, " = 0;\n"]
-          label <- csmLift $ makeNonce "alt_end"
+          label <- csmLift $ makeNonce emptyMeta "alt_end"
           tell ["{\n"]
           genAltProcesses id fired label s
           tell ["}\n"]

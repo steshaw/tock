@@ -140,7 +140,7 @@ transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
     doWaitFor :: Meta -> A.Alternative -> StateT ([A.Structured A.Process -> A.Structured A.Process], [A.Structured A.Process]) PassM (A.Structured A.Alternative)
     doWaitFor m'' a@(A.Alternative m cond tim (A.InputTimerFor m' e) p)
       = do (specs, init) <- get
-           id <- lift $ makeNonce "waitFor"
+           id <- lift $ makeNonce m "waitFor"
            let n = A.Name m id
            let var = A.Variable m n
            put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time))], 
@@ -338,7 +338,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
            case (spec, t) of
              (_, Just (A.Array ds elemT)) ->
                   -- nonce_sizes is a suggested name, may not actually be used:
-               do nonce_sizes <- makeNonce (A.nameName n ++ "_sizes") >>* A.Name m
+               do nonce_sizes <- makeNonce m (A.nameName n ++ "_sizes") >>* A.Name m
                   let varSize = varSizes m nonce_sizes 
                   (n_sizes, msizeSpec) <-
                       case spec of
@@ -385,7 +385,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
       = case (t, ext) of
           -- For externals, we always add extra formals (one per dimension!):
           (A.Array ds _, Just ExternalOldStyle) ->
-                          do params <- replicateM (length ds) $ makeNonce "ext_size"
+                          do params <- replicateM (length ds) $ makeNonce m "ext_size"
                              let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
                              (rest, moreNew) <- transformFormals ext m fs
                              return (f : newfs ++ rest, newfs ++ moreNew)
@@ -395,7 +395,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
           (A.Array ds _, _)
             | A.UnknownDimension `elem` ds ->
                           do let sizeType = A.Array [makeDimension m $ length ds] A.Int
-                             n_sizes <- makeNonce (A.nameName n ++ "_sizes") >>* A.Name m
+                             n_sizes <- makeNonce m (A.nameName n ++ "_sizes") >>* A.Name m
                              addSizes (A.nameName n) n_sizes
                              let newf = A.Formal A.ValAbbrev sizeType n_sizes
                              (rest, moreNew) <- transformFormals ext m fs

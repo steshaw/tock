@@ -106,7 +106,7 @@ uniquifyAndResolveVars = rainOnlyPass
 
     --Variable declarations and replicators:
     uniquifyAndResolveVars' (A.Spec m (A.Specification m' n decl) scope) 
-      = do n' <- makeNonce $ A.nameName n
+      = do n' <- makeNonce m $ A.nameName n
            defineName (n {A.nameName = n'}) A.NameDef {A.ndMeta = m', A.ndName = n', A.ndOrigName = A.nameName n, 
                                                        A.ndSpecType = decl, A.ndNameSource = A.NameUser,
                                                        A.ndAbbrevMode = A.Original, A.ndPlacement = A.Unplaced}
@@ -126,7 +126,7 @@ uniquifyAndResolveVars = rainOnlyPass
                             return ((f':fs'),s'')
     doFormals' :: Data t => A.Formal -> t -> PassM (A.Formal,t)
     doFormals' (A.Formal am t n) scope
-      = do n' <- makeNonce $ A.nameName n
+      = do n' <- makeNonce (A.nameMeta n) $ A.nameName n
            let newName = (n {A.nameName = n'})
            let m = A.nameMeta n
            defineName newName A.NameDef {A.ndMeta = m, A.ndName = n', A.ndOrigName = A.nameName n, 
@@ -150,7 +150,7 @@ findMain :: Pass
 --Therefore this pass doesn't actually need to walk the tree, it just has to look for a process named "main"
 --in the CompState, and pull it out into csMainLocals
 findMain = rainOnlyPass "Find and tag the main function" Prop.agg_namesDone [Prop.mainTagged]
-  (    \x -> do newMainName <- makeNonce "main_"
+  (    \x -> do newMainName <- makeNonce emptyMeta "main_"
                 modify (findMain' newMainName)
                 applyDepthM (return . (replaceNameName "main" newMainName)) x)
   where

@@ -276,14 +276,14 @@ Otherwise, it must not have.
 -}
 genCPPCSPTime :: A.Expression -> CGen String
 genCPPCSPTime e
-    = do  time <- csmLift $ makeNonce "time_exp"
+    = do  time <- csmLift $ makeNonce emptyMeta "time_exp"
           tell ["unsigned ",time," = (unsigned)"]
           call genExpression e
           tell [" ; "]
-          curTime <- csmLift $ makeNonce "time_exp"
-          curTimeLow <- csmLift $ makeNonce "time_exp"
-          curTimeHigh <- csmLift $ makeNonce "time_exp"
-          retTime <- csmLift $ makeNonce "time_exp"
+          curTime <- csmLift $ makeNonce emptyMeta "time_exp"
+          curTimeLow <- csmLift $ makeNonce emptyMeta "time_exp"
+          curTimeHigh <- csmLift $ makeNonce emptyMeta "time_exp"
+          retTime <- csmLift $ makeNonce emptyMeta "time_exp"
           tell ["double ",curTime," = csp::GetSeconds(csp::CurrentTime());"]
           tell ["unsigned ",curTimeLow," = (unsigned)remainder(1000000.0 * ",curTime,",4294967296.0);"]
           tell ["unsigned ",curTimeHigh," = (unsigned)((1000000.0 * ",curTime,") / 4294967296.0);"]
@@ -383,7 +383,7 @@ cppgenOutputCase c tag ois
 --We use forking instead of Run\/InParallelOneThread, because it is easier to use forking with replication.
 cppgenPar :: A.ParMode -> A.Structured A.Process -> CGen ()
 cppgenPar _ s
-  = do forking <- csmLift $ makeNonce "forking"
+  = do forking <- csmLift $ makeNonce emptyMeta "forking"
        tell ["{ csp::ScopedForking ",forking," ; "]
        call genStructured NotTopLevel s (genPar' forking)
        tell [" }"]
@@ -405,17 +405,17 @@ cppgenPar _ s
 -- | Changed to use C++CSP's Alternative class:
 cppgenAlt :: Bool -> A.Structured A.Alternative -> CGen ()
 cppgenAlt _ s 
-  = do guards <- csmLift $ makeNonce "alt_guards"
+  = do guards <- csmLift $ makeNonce emptyMeta "alt_guards"
        tell ["std::list< csp::Guard* > ", guards, " ; "]
        initAltGuards guards s
-       alt <- csmLift $ makeNonce "alt"
+       alt <- csmLift $ makeNonce emptyMeta "alt"
        tell ["csp::Alternative ",alt, " ( ", guards, " ); "]
 
-       id <- csmLift $ makeNonce "alt_id"
+       id <- csmLift $ makeNonce emptyMeta "alt_id"
        tell ["int ", id, " = 0;\n"]
-       fired <- csmLift $ makeNonce "alt_fired"
+       fired <- csmLift $ makeNonce emptyMeta "alt_fired"
        tell ["int ", fired, " = ", alt, " .priSelect();"]
-       label <- csmLift $ makeNonce "alt_end"
+       label <- csmLift $ makeNonce emptyMeta "alt_end"
        tell ["{\n"]
        genAltProcesses id fired label s
        tell ["}\n"]
@@ -831,7 +831,7 @@ cppgenIf m s | justOnly s = do call genStructured NotTopLevel s doCplain
                                call genStop m "no choice matched in IF process"
                                tell ["}"]
              | otherwise
-    =  do ifExc <- csmLift $ makeNonce "if_exc"
+    =  do ifExc <- csmLift $ makeNonce emptyMeta "if_exc"
           tell ["class ",ifExc, "{};try{"]
           genIfBody ifExc s
           call genStop m "no choice matched in IF process"

@@ -261,12 +261,13 @@ nameSource n = lookupName n >>* A.ndNameSource
 -- | Make a name unique by appending a suffix to it.
 makeUniqueName :: CSM m => Meta -> String -> m String
 makeUniqueName m s
-    = let mungedFile = munge $ show m in return $ s ++ "_" ++ mungedFile
-  where
-    munge cs = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
+    = let mungedFile = mungeMeta m in return $ s ++ "_" ++ mungedFile
+
+mungeMeta :: Meta -> String
+mungeMeta m  = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
                   then c
                   else '_'
-               | c <- cs]
+               | c <- show m]
 
 -- | Find an unscoped name -- or define a new one if it doesn't already exist.
 findUnscopedName :: CSM m => A.Name -> m A.Name
@@ -350,17 +351,17 @@ getTypeContext
 
 --{{{ nonces
 -- | Generate a throwaway unique name.
-makeNonce :: CSM m => String -> m String
-makeNonce s
+makeNonce :: CSM m => Meta -> String -> m String
+makeNonce m s
     =  do ps <- get
           let i = csNonceCounter ps
           put ps { csNonceCounter = i + 1 }
-          return $ s ++ "_n" ++ show i
+          return $ s ++ mungeMeta m ++ "_n" ++ show i
 
 -- | Generate and define a nonce specification.
 defineNonce :: CSM m => Meta -> String -> A.SpecType -> A.AbbrevMode -> m A.Specification
 defineNonce m s st am
-    =  do ns <- makeNonce s
+    =  do ns <- makeNonce m s
           let n = A.Name m ns
           let nd = A.NameDef {
                      A.ndMeta = m,
