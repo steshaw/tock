@@ -287,8 +287,10 @@ compileFull inputFile moutputFile
                  exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
 
                  cs <- lift getCompState
-                 let otherOFiles = [usedFile ++ ".tock.o"
-                                   | usedFile <- Set.toList $ csUsedFiles cs]
+                 let otherOFiles = concat [[usedFile ++ ".tock.o"
+                                           ,usedFile ++ ".tock_post.o"
+                                           ]
+                                          | usedFile <- Set.toList $ csUsedFiles cs]
                    
 
                  -- Link the object files into a binary
