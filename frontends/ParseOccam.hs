@@ -396,6 +396,7 @@ findName thisN thisNT
           (origN, origNT) <-
             case lookup (A.nameName thisN) (csLocalNames st) of
               Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
+                ++ "; possibilities were: " ++ show (map fst (csLocalNames st))
               Just def -> return def
           if thisNT /= origNT
             then dieP (A.nameMeta thisN) $ "expected " ++ show thisNT ++ " (" ++ A.nameName origN ++ " is " ++ show origNT ++ ")"
