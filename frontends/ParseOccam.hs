@@ -358,6 +358,7 @@ maybeIndentedList :: Meta -> String -> OccParser t -> OccParser [t]
 maybeIndentedList m msg inner
     =   do try indent
            vs <- many1 inner
+           optional $ many1 pragma
            outdent
            return vs
     <|> do warnP m WarnParserOddity msg
@@ -1475,7 +1476,7 @@ process
     <|> intrinsicProc
     <|> handleSpecs (allocation <|> specification <|> claimSpec) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
-    <|> (pragma >> process)
+    <|> (tryXV pragma process)
     <?> "process"
 
 claimSpec :: OccParser ([NameSpec], OccParser ())
