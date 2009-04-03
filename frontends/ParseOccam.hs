@@ -1584,8 +1584,7 @@ caseInput
 variant :: OccParser (A.Structured A.Variant)
 variant
     =   do m <- md
-           tl <- taggedList
-           eol
+           tl <- tryVX taggedList eol
            indent
            p <- process
            outdent
