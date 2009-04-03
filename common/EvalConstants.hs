@@ -31,6 +31,7 @@ import Data.Char
 import Data.Int
 import Data.Maybe
 import Foreign
+import Numeric
 import Text.Printf
 
 import qualified AST as A
@@ -443,8 +444,8 @@ renderLiteral m t v
     renderInt :: Show s => s -> m (A.Type, A.LiteralRepr)
     renderInt i = return (t, A.IntLiteral m $ show i)
 
-    renderReal :: Show s => s -> m (A.Type, A.LiteralRepr)
-    renderReal i = return (t, A.RealLiteral m $ show i)
+    renderReal :: (Show s, RealFloat s) => s -> m (A.Type, A.LiteralRepr)
+    renderReal i = return (t, A.RealLiteral m $ showFFloat Nothing i "")
 
     renderArray :: [OccValue] -> m (A.Type, A.LiteralRepr)
     renderArray vs

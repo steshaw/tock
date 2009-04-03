@@ -130,7 +130,7 @@ evalSimpleLiteral (A.Literal m t lr)
             A.ByteLiteral _ s -> evalByteLiteral m OccByte s
             A.IntLiteral _ s  -> fromRead m OccInt (readSigned readDec) s
             A.HexLiteral _ s  -> fromRead m OccInt readHex s
-            A.RealLiteral _ s -> fromRead m OccReal32 readFloat s
+            A.RealLiteral _ s -> fromRead m OccReal32 readFloat' s
             _                 -> bad
 
     into :: (Num t, Real t) => (t -> OccValue) -> EvalM OccValue
@@ -147,8 +147,15 @@ evalSimpleLiteral (A.Literal m t lr)
             A.ByteLiteral _ s -> evalByteLiteral m cons s
             A.IntLiteral _ s  -> fromRead m cons (readSigned readDec) s
             A.HexLiteral _ s  -> fromRead m cons readHex s
-            A.RealLiteral _ s -> fromRead m cons readFloat s
+            A.RealLiteral _ s -> fromRead m cons readFloat' s
             _                 -> bad
+
+    -- readFloat only handles unsigned values, so we need to look out for the negation
+    -- ourselves:
+    readFloat' :: RealFrac a => ReadS a
+    readFloat' [] = []
+    readFloat' ('-':rest) = [(negate x, s) | (x, s) <- readFloat rest]
+    readFloat' s = readFloat s
 
 
     bad :: EvalM OccValue
