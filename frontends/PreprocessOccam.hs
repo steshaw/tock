@@ -393,6 +393,8 @@ runPreprocParser m prod s
 preprocessOccamProgram :: String -> PassM [Token]
 preprocessOccamProgram filename
     =  do toks <- preprocessFile emptyMeta filename
+          -- Leave the main file name in the csCurrentFile slot:
+          modify $ \cs -> cs { csCurrentFile = filename }
           veryDebug $ "{{{ tokenised source"
           veryDebug $ pshow toks
           veryDebug $ "}}}"

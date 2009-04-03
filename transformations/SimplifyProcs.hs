@@ -107,6 +107,10 @@ flattenAssign = pass "Flatten assignment"
     assign m t@(A.Record _) v m' e = complexAssign m t v m' e
     assign m _ v m' e = return $ A.Assign m [v] (A.ExpressionList m' [e])
 
+    makeCopyProcName :: A.Name -> PassM A.Name
+    makeCopyProcName n = do file <- getCompState >>* csCurrentFile
+                            return $ n {A.nameName = "copy_" ++ file ++ A.nameName n}
+
     complexAssign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
     complexAssign m t v m' e
      = do -- Abbreviate the source and destination, to avoid doing the
@@ -138,8 +142,8 @@ flattenAssign = pass "Flatten assignment"
                                          (A.ExprVariable m'
                                            (A.SubscriptedVariable m' sub srcV))
                          return $ A.Spec m (A.Specification m counter (A.Rep m rep)) $ A.Only m inner
-                    A.Record n ->
-                      return $ A.Only m $ A.ProcCall m (n {A.nameName = "copy_" ++ A.nameName n})
+                    A.Record n -> makeCopyProcName n >>= \n' ->
+                      return $ A.Only m $ A.ProcCall m n'
                         [A.ActualVariable destV, A.ActualVariable srcV]
 
           return $ A.Seq m $ A.Spec m src $ A.Spec m dest body
@@ -161,8 +165,8 @@ flattenAssign = pass "Flatten assignment"
                                           (A.ExprVariable m
                                             (A.SubscriptedVariable m sub srcV))
                                      | (fName, fType) <- fs]
+                         n' <- makeCopyProcName n
                          let code = A.Seq m $ A.Several m $ map (A.Only m) assigns
-                             n' = n {A.nameName = "copy_" ++ A.nameName n}
                              proc = A.Proc m (A.InlineSpec, A.PlainRec)
                                       [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS]
                                       code

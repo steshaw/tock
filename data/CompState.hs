@@ -117,7 +117,7 @@ data CompState = CompState {
     csUnknownStackSize :: Int,
 
     -- Set by preprocessor
-    csCurrentFile :: String,
+    csCurrentFile :: String, -- Also used by some later passes!
     csUsedFiles :: Set String,
     csDefinitions :: Map String PreprocDef,
 
