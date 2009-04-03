@@ -161,8 +161,8 @@ handleDirective m s x
 -- that matches, then uses the corresponding function.
 directives :: [(Regex, DirectiveFunc)]
 directives =
-  [ (mkRegex "^INCLUDE +\"(.*)\"$", handleInclude)
-  , (mkRegex "^USE +\"(.*)\"$", handleUse)
+  [ (mkRegex' "^INCLUDE +\"(.*)\"", handleInclude)
+  , (mkRegex' "^USE +\"(.*)\"", handleUse)
   , (mkRegex "^COMMENT +.*$", handleIgnorable)
   , (mkRegex "^DEFINE +(.*)$", handleDefine)
   , (mkRegex "^UNDEF +([^ ]+)$", handleUndef)
@@ -171,6 +171,8 @@ directives =
   , (mkRegex "^ENDIF", handleUnmatched)
   , (mkRegex "^PRAGMA +(.*)$", handlePragma)
   ]
+  where
+    mkRegex' s = mkRegex (s ++ " *(--.*)?$")
 
 -- | Handle a directive that can be ignored.
 handleIgnorable :: DirectiveFunc
@@ -183,7 +185,7 @@ handleUnmatched m _ = dieP m "Unmatched #ELSE/#ENDIF"
 
 -- | Handle the @#INCLUDE@ directive.
 handleInclude :: DirectiveFunc
-handleInclude m [incName]
+handleInclude m (incName:_)
     = return (\ts -> return $ Token m (IncludeFile incName) : ts)
 
 handlePragma :: DirectiveFunc
@@ -193,7 +195,7 @@ handlePragma m [pragma] = return (\ts -> return $ Token m (Pragma pragma) : ts)
 -- This is a bit of a hack at the moment, since it just includes the file
 -- textually.
 handleUse :: DirectiveFunc
-handleUse m [modName]
+handleUse m (modName:_)
     =  do let incName  = mangleModName modName
           cs <- get
           put $ cs { csUsedFiles = Set.insert incName (csUsedFiles cs) }
