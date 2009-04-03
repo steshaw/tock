@@ -282,9 +282,11 @@ compileFull inputFile moutputFile
                   postHFile = outputFile ++ "_post.h"
                   postCFile = outputFile ++ "_post.c"
                   postOFile = outputFile ++ "_post.o"
-                  occFile = outputFile ++ "_wrapper.occ"
               in
-              do sequence_ $ map noteFile [sFile, oFile, postCFile, postOFile, occFile]
+              do sequence_ $ map noteFile $ [sFile, postCFile, postOFile]
+                               ++ if csHasMain optsPS then [oFile] else []
+                               -- The object file is a temporary to-be-removed
+                               -- iff we are also linking the end product
 
                  -- Compile the C into assembly, and assembly into an object file
                  exec $ cAsmCommand cFile sFile (csCompilerFlags optsPS)
