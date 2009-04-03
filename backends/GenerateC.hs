@@ -34,6 +34,7 @@ module GenerateC
   , genName
   , genRightB
   , genStatic
+  , nameString
   , needStackSizes
   , justOnly
   , withIf

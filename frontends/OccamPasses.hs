@@ -30,6 +30,7 @@ import qualified AST as A
 import CompState
 import EvalConstants
 import EvalLiterals
+import GenerateC -- For nameString
 import Metadata
 import OccamTypes
 import Pass
@@ -73,7 +74,7 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ origN ++ "("
              ] ++ intersperse (return ",") (map showCode fs) ++
-             [return $ ") = " ++ A.nameName n ++ "\""
+             [return $ ") = " ++ nameString n ++ "\""
              ]) >>* concat
            modify $ \cs -> cs { csOriginalTopLevelProcs =
              A.nameName n : csOriginalTopLevelProcs cs }
@@ -85,7 +86,7 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
              ] ++ intersperse (return ",") (map showCode ts) ++
              [return $ " FUNCTION " ++ origN ++ "("
              ] ++ intersperse (return ",") (map showCode fs) ++
-             [return $ ") = " ++ A.nameName n ++ "\""
+             [return $ ") = " ++ nameString n ++ "\""
              ]) >>* concat
            modify $ \cs -> cs { csOriginalTopLevelProcs =
              A.nameName n : csOriginalTopLevelProcs cs }
