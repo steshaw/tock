@@ -34,6 +34,7 @@ import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP, WarningReport)
 import Metadata
 import OrdAST ()
+import TypeSizes
 import UnifyType
 import Utils
 
@@ -179,7 +180,11 @@ emptyState = CompState {
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
-    csDefinitions = Map.insert "COMPILER.TOCK" PreprocNothing Map.empty,
+    csDefinitions = Map.fromList [("COMPILER.TOCK", PreprocNothing)
+                                 ,("TARGET.BITS.PER.WORD", PreprocInt $ show cIntSize)
+                                 ,("TARGET.BYTES.PER.WORD", PreprocInt $ show $ cIntSize `div` 8)
+--                                 ,("TARGET.HAS.FPU", PreprocNothing)
+                                 ],
 
     csLocalNames = [],
     csMainLocals = [],
