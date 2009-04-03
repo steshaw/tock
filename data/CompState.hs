@@ -181,8 +181,8 @@ emptyState = CompState {
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
     csDefinitions = Map.fromList [("COMPILER.TOCK", PreprocNothing)
-                                 ,("TARGET.BITS.PER.WORD", PreprocInt $ show cIntSize)
-                                 ,("TARGET.BYTES.PER.WORD", PreprocInt $ show $ cIntSize `div` 8)
+                                 ,("TARGET.BITS.PER.WORD", PreprocInt $ show $ cIntSize * 8)
+                                 ,("TARGET.BYTES.PER.WORD", PreprocInt $ show cIntSize)
 --                                 ,("TARGET.HAS.FPU", PreprocNothing)
                                  ],
 
