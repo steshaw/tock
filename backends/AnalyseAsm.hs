@@ -41,6 +41,7 @@ import CompState
 import Errors
 import Pass
 import PrettyShow
+import Utils
 
 -- | Interesting things that we might find in the assembly source.
 data AsmItem =
@@ -103,10 +104,24 @@ parseAsm :: String -> [AsmItem]
 parseAsm asm
   = catMaybes [parseAsmLine l | l <- lines asm]
 
+data StackInfo
+  = Fixed Int
+  | Remote String
+  | Max [StackInfo]
+  | Plus StackInfo StackInfo
+  deriving (Show, Data, Typeable)
+
+findAllDependencies :: StackInfo -> Set.Set String
+findAllDependencies (Remote s) = Set.singleton s
+findAllDependencies (Max as) = foldl Set.union Set.empty $  map findAllDependencies as
+findAllDependencies (Plus a b) = findAllDependencies a `Set.union` findAllDependencies b
+findAllDependencies _ = Set.empty
+
+
 -- | Information about defined functions.
 data FunctionInfo = FunctionInfo {
     fiStack :: Int
-  , fiTotalStack :: Int
+  , fiTotalStack :: Maybe StackInfo
   , fiCalls :: Set.Set String
   }
   deriving (Show, Data, Typeable)
@@ -114,12 +129,15 @@ data FunctionInfo = FunctionInfo {
 emptyFI :: FunctionInfo
 emptyFI = FunctionInfo {
     fiStack = 0
-  , fiTotalStack = -1
+  , fiTotalStack = Nothing
   , fiCalls = Set.empty
   }
 
 -- | Monad for `AnalyseAsm` operations.
 type AAM = StateT (Map.Map String FunctionInfo) PassM
+
+instance CSMR AAM where
+  getCompState = lift getCompState
 
 -- | Collect information about each function that's been defined.
 collectInfo :: [AsmItem] -> AAM ()
@@ -156,34 +174,67 @@ baseStackSize :: Int
 baseStackSize = 32
 
 -- | Add the stack sizes for called functions to their callers.
-addCalls :: Int -> AAM ()
-addCalls unknownSize
+addCalls :: [String] -> Int -> AAM ()
+addCalls knownProcs unknownSize
     =  do fmap <- get
-          sequence_ $ map computeStack (Map.keys fmap)
+          sequence_ $ map (computeStack True) (Map.keys fmap)
   where
-    computeStack :: String -> AAM Int
-    computeStack func
+    computeStack :: Bool -> String -> AAM StackInfo
+    computeStack processUser func
         =  do fmap <- get
               let fi = Map.findWithDefault emptyFI func fmap
               let tstack = fiTotalStack fi
-              tstack' <- if Map.member func fmap
-                           then (if tstack == -1
-                                   then userFunc fi
-                                   else return tstack)
+              tstack' <- if Map.member func fmap && processUser
+                           then (case tstack of
+                                   Nothing -> userFunc fi
+                                   Just x -> return x)
                            else systemFunc func
-              modify $ Map.insert func (fi { fiTotalStack = tstack' })
+              when processUser $ modify $ Map.insert func (fi { fiTotalStack = Just tstack' })
               return tstack'
 
-    systemFunc :: String -> AAM Int
+    systemFunc :: String -> AAM StackInfo
     systemFunc func
-        =  do lift $ warnPlainP WarnInternal $ "Unknown function " ++ func ++ "; allocating " ++ show unknownSize ++ " bytes stack"
-              return unknownSize
+        =  do cs <- getCompState
+              fmap <- get
+              if func `elem` (map fst (csExternals cs) ++ knownProcs)
+                then do return $ Remote $ func
+                else do lift $ warnPlainP WarnInternal $ "Unknown function " ++ func
+                          ++ "; allocating " ++ show unknownSize ++ " bytes stack"
+                        return $ Fixed unknownSize
 
-    userFunc :: FunctionInfo -> AAM Int
+    userFunc :: FunctionInfo -> AAM StackInfo
     userFunc fi
         =  do let localStack = fiStack fi + baseStackSize
-              calledStacks <- mapM computeStack $ Set.toList $ fiCalls fi
-              return $ localStack + maximum (0 : calledStacks)
+              calledStacks <- mapM (computeStack False) $ Set.toList $ fiCalls fi
+              return $ Fixed localStack `Plus` Max (Fixed 0 : calledStacks)
+
+-- I don't think we can use sortBy here because we only have a partial ordering,
+-- not a total ordering (transitivity, for one, isn't automatic).
+--
+-- So our plan is as follows.  We calculate all the dependencies for each item.
+-- We put all the items with no dependents first, and then we recurse, removing
+-- all the no-dependent items from the dependencies of the others. 
+dependenceSort :: Set.Set String -> [(String, FunctionInfo)] -> [(String, FunctionInfo)]
+dependenceSort ofInterest origItems = map fst $ dependenceSort' itemsWithDependents
+  where
+    itemsWithDependents = [(item, ofInterest `Set.intersection`
+      (maybe Set.empty findAllDependencies $ fiTotalStack $ snd item)) | item <- origItems]
+
+    dependenceSort' :: [((String, FunctionInfo), Set.Set String)]
+      -> [((String, FunctionInfo), Set.Set String)]
+    dependenceSort' [] = []
+    dependenceSort' items
+      | null firstItems -- Infinite loop if we don't stop it:
+         = error $ "Cyclic dependencies in stack sizes: "
+           ++ show [n ++ " depends on " ++ show deps | ((n, _), deps) <- rest]
+      | otherwise
+         = firstItems ++ dependenceSort' [(item, deps `Set.difference` ignore)
+                                         | (item, deps) <- rest]
+      where
+        (firstItems, rest) = partition (Set.null . snd) items
+
+        ignore = Set.fromList $ map (fst . fst) firstItems
+      
 
 -- | Analyse assembler and return C source defining sizes.
 analyseAsm :: Maybe [String] -> String -> PassM String
@@ -191,16 +242,54 @@ analyseAsm mprocs asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
         cs <- getCompState
-        info <- execStateT (collectInfo stream >> addCalls (csUnknownStackSize cs)) Map.empty
+        let unique = concat [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
+                               then [c]
+                               else '_' : show (ord c)
+                            | c <- csCurrentFile cs]
+        info <- execStateT (collectInfo stream >> addCalls (fromMaybe [] mprocs) (csUnknownStackSize cs)) Map.empty
         debug $ "Analysed function information:"
-        debug $ concat [printf "  %-40s %5d %5d %s\n"
-                          func (fiStack fi) (fiTotalStack fi)
-                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
-                        | (func, fi) <- Map.toList $ filterNames info]
-        let lines = ["const int " ++ func ++ "_stack_size = " ++ show (fiTotalStack fi) ++ ";\n"
-                     | (func, fi) <- Map.toList $ filterNames info]
-        return $ concat lines
+--        debug $ concat [printf "  %-40s %5d %5d %s\n"
+--                          func (fiStack fi) (fiTotalStack fi)
+--                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
+--                        | (func, fi) <- Map.toList $ filterNames info]
+
+        let lines =  -- Can't remember if max is a standard function so let's make our own:
+                     "#ifndef TOCK_MAX\n#define TOCK_MAX(x,y) ((x) > (y) ? (x) : (y))\n#endif\n" :
+                     ["#include \"" ++ f ++ ".tock_post.h\"\n"
+                     | f <- Set.toList $ csUsedFiles cs] ++
+                     ["#define " ++ func ++ "_stack_size_CPP "
+                         ++ maybe "#error Unknown!" toC (fiTotalStack fi) ++ "\n"
+                     ++ "const int " ++ func ++ "_stack_size = "  ++ func ++ "_stack_size_CPP;\n"
+                     | (func, fi) <- dependenceSort (maybe Set.empty Set.fromList mprocs) $ Map.toList $ filterNames info]
+        return $ "#ifndef INCLUDED_" ++ unique ++ "\n#define INCLUDED_" ++ unique
+          ++ "\n" ++ concat lines ++ "\n#endif\n"
   where
     filterNames = case mprocs of
       Nothing -> id
       Just m -> (`Map.intersection` (Map.fromList (zip m (repeat ()))))
+
+    findAllPlus :: StackInfo -> (Int, [StackInfo])
+    findAllPlus (Fixed n) = (n, [])
+    findAllPlus (Plus a b) = findAllPlus a `with` findAllPlus b
+      where
+        with (m, as) (n, bs) = (m + n, as ++ bs)
+    findAllPlus a = (0, [a])
+
+    -- Without  the simplifications in this function, the nesting of TOCK_MAX (and
+    -- its exponentially-sized expansion) was blowing the mind of the C compiler,
+    -- and the memory of my machine.
+    toC :: StackInfo -> String
+    toC (Fixed n) = show n
+    toC (Remote s) = s ++ "_stack_size_CPP"
+    toC x@(Plus {}) = let (m, as) = findAllPlus x in
+      (if m == 0 then id else \x -> "(" ++ show m ++ "+" ++ x ++ ")") $
+        concat (intersperse "+" $ map toC as) 
+    toC (Max as) = foldl makeMax (show fixed) (map toC other)
+      where
+        fixed = maximum [n | Fixed n <- as]
+        other = filter isNotFixed as
+
+        makeMax a b = "TOCK_MAX(" ++ a ++ "," ++ b ++ ")"
+
+        isNotFixed (Fixed {}) = False
+        isNotFixed _ = True

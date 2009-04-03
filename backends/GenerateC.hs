@@ -164,16 +164,12 @@ generateC = generate cgenOps
 needStackSizes :: (CSMR m, Die m) => m [A.Name]
 needStackSizes
   = do cs <- getCompState
-       main <- if csHasMain cs
-                  then tlpInterface >>* fst >>* singleton
-                  else return []
-       return $ nub $ (Set.toList $ csParProcs cs `Set.difference`
-                                      Set.fromList (map (A.Name emptyMeta . fst) (csExternals cs)))
-                ++ [A.Name emptyMeta n
-                   | A.NameDef {A.ndName = n
-                               ,A.ndSpecType=A.Proc _ (_,A.Recursive) _ _
-                               } <- Map.elems $ csNames cs]
-                ++ main
+       return $ nub $ ([A.Name emptyMeta $ nameString $ A.Name emptyMeta n
+                       | A.NameDef {A.ndName = n
+                                   ,A.ndSpecType=A.Proc {}
+                                   } <- Map.elems $ csNames cs]
+                      )
+                      \\ (map (A.Name emptyMeta . nameString . A.Name emptyMeta . fst) (csExternals cs))
 
 cgenTopLevel :: String -> A.AST -> CGen ()
 cgenTopLevel headerName s

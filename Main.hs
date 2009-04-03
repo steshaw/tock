@@ -265,12 +265,11 @@ compileFull inputFile moutputFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
 
-          shouldLink <- lift getCompState >>* csHasMain
-
           case csBackend optsPS of
             BackendC ->
               let sFile = outputFile ++ ".s"
                   oFile = outputFile ++ ".o"
+                  postHFile = outputFile ++ "_post.h"
                   postCFile = outputFile ++ "_post.c"
                   postOFile = outputFile ++ "_post.o"
                   occFile = outputFile ++ "_wrapper.occ"
@@ -281,20 +280,20 @@ compileFull inputFile moutputFile
                  exec $ cAsmCommand cFile sFile (csCompilerFlags optsPS)
                  exec $ cCommand sFile oFile (csCompilerFlags optsPS)
                  -- Analyse the assembly for stack sizes, and output a
-                 -- "post" C file
-                 lift $ withOutputFile postCFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
-                 -- Compile this new "post" C file into an object file
-                 exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
+                 -- "post" H file
+                 lift $ withOutputFile postHFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
 
                  cs <- lift getCompState
-                 let otherOFiles = concat [[usedFile ++ ".tock.o"
-                                           ,usedFile ++ ".tock_post.o"
-                                           ]
-                                          | usedFile <- Set.toList $ csUsedFiles cs]
-                   
+                 when (csHasMain optsPS) $ do
+                   lift $ withOutputFile postCFile $ \h -> liftIO $ hPutStr h $
+                     "#include \"" ++ postHFile ++ "\"\n"
+                   -- Compile this new "post" C file into an object file
+                   exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
 
-                 -- Link the object files into a binary
-                 when shouldLink $
+                   let otherOFiles = [usedFile ++ ".tock.o"
+                                     | usedFile <- Set.toList $ csUsedFiles cs]
+                   
+                   -- Link the object files into a binary
                    exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile (csCompilerLinkFlags optsPS)
 
             -- For C++, just compile the source file directly into a binary
