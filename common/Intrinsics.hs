@@ -128,6 +128,7 @@ simpleFloatIntrinsics = concatMap double $
 intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =
     [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
+    , ("CAUSEERROR", [])
     , ("RESCHEDULE", [])
     ] ++ concat [
       (zip ["INT" ++ suffix ++ "TOSTRING", "HEX" ++ suffix ++ "TOSTRING"] $ repeat

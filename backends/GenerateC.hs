@@ -2086,6 +2086,7 @@ cgenProcCall n as
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
+cgenIntrinsicProc m "CAUSEERROR" [] = call genStop m "CAUSEERROR"
 cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
   Just amtns -> do tell ["occam_", [if c == '.' then '_' else c | c <- s], "(wptr,"]
                    when (s == "RESIZE.MOBILE.ARRAY.1D") $
