@@ -370,7 +370,7 @@ handleSpecs specs inner specMarker
            (ss, after) <- specs
            ss' <- mapM scopeInSpec ss
            v <- inner
-           mapM scopeOutSpec ss'
+           mapM scopeOutSpec (reverse ss')
            after
            return $ foldl (\e s -> specMarker m s e) v ss'
 
@@ -425,7 +425,10 @@ scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m _)
     =  do st <- get
           case csLocalNames st of
-            (_:rest) -> put $ st { csLocalNames = rest }
+            ((_, (old, _)):rest)
+             | old == n -> put $ st { csLocalNames = rest }
+             | otherwise -> dieInternal (Just m, "scoping out not in order; "
+                 ++ " tried to scope out: " ++ A.nameName n ++ " but found: " ++ A.nameName old)
             _ -> dieInternal (Just m, "scoping out name when stack is empty")
 
 scopeInRep :: A.Name -> OccParser A.Name
@@ -468,7 +471,7 @@ scopeInFormals :: [NameFormal] -> OccParser [A.Formal]
 scopeInFormals fs = mapM scopeInFormal fs
 
 scopeOutFormals :: [A.Formal] -> OccParser ()
-scopeOutFormals fs = sequence_ [scopeOut n | (A.Formal am t n) <- fs]
+scopeOutFormals fs = sequence_ [scopeOut n | (A.Formal am t n) <- reverse fs]
 
 --}}}
 
