@@ -207,7 +207,7 @@ handleUse m (modName:_)
     -- | If a module name has a suffix, strip it
     mangleModName :: String -> String
     mangleModName mod
-        = if ".occ" `isSuffixOf` mod || ".inc" `isSuffixOf` mod
+        = if any (`isSuffixOf` mod) [".inc", ".lib", ".occ", ".tce"]
             then (reverse . drop 4 . reverse) mod
             else mod
 
