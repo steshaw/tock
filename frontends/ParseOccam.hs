@@ -358,7 +358,6 @@ maybeIndentedList :: Meta -> String -> OccParser t -> OccParser [t]
 maybeIndentedList m msg inner
     =   do try indent
            vs <- many1 inner
-           optional $ many1 pragma
            outdent
            return vs
     <|> do warnP m WarnParserOddity msg
@@ -372,7 +371,8 @@ handleSpecs specs inner specMarker
            v <- inner
            mapM scopeOutSpec (reverse ss')
            after
-           return $ foldl (\e s -> specMarker m s e) v ss'
+           return $ foldl (\e s -> specMarker m s e) v
+             [s | (s,(_,_,(_,A.NameUser))) <- zip ss' ss]
 
 -- | Run several different parsers with a separator between them.
 -- If you give it [a, b, c] and s, it'll parse [a, s, b, s, c] then
@@ -403,17 +403,16 @@ findName thisN thisNT
             then dieP (A.nameMeta thisN) $ "expected " ++ show thisNT ++ " (" ++ A.nameName origN ++ " is " ++ show origNT ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
 
-scopeIn :: A.Name -> NameType -> A.SpecType -> A.AbbrevMode -> OccParser A.Name
-scopeIn n@(A.Name m s) nt specType am
-    =  do s' <- makeUniqueName m s
-          let n' = n { A.nameName = s' }
+scopeIn :: A.Name -> NameType -> A.SpecType -> A.AbbrevMode -> (Maybe A.Name, A.NameSource) -> OccParser A.Name
+scopeIn n@(A.Name m s) nt specType am (munged, ns)
+    =  do n' <- maybe (makeUniqueName m s >>* A.Name m) return munged
           let nd = A.NameDef {
             A.ndMeta = m,
-            A.ndName = s',
+            A.ndName = A.nameName n',
             A.ndOrigName = s,
             A.ndSpecType = specType,
             A.ndAbbrevMode = am,
-            A.ndNameSource = A.NameUser,
+            A.ndNameSource = ns,
             A.ndPlacement = A.Unplaced
           }
           defineName n' nd
@@ -433,22 +432,25 @@ scopeOut n@(A.Name m _)
 
 scopeInRep :: A.Name -> OccParser A.Name
 scopeInRep n
-    = scopeIn n VariableName (A.Declaration (A.nameMeta n) A.Int) A.ValAbbrev
+    = scopeIn n VariableName (A.Declaration (A.nameMeta n) A.Int) A.ValAbbrev normalName
 
 scopeOutRep :: A.Name -> OccParser ()
 scopeOutRep n = scopeOut n
 
 -- | A specification, along with the 'NameType' of the name it defines.
-type NameSpec = (A.Specification, NameType)
+type NameSpec = (A.Specification, NameType, (Maybe A.Name, A.NameSource))
+
+normalName :: (Maybe A.Name, A.NameSource)
+normalName = (Nothing, A.NameUser)
 
 scopeInSpec :: NameSpec -> OccParser A.Specification
-scopeInSpec (spec@(A.Specification m n st), nt)
+scopeInSpec (spec@(A.Specification m n st), nt, ns)
    -- If it's recursive, the spec has already been defined:
  | isRecursive st
     = do modifyName n $ \nd -> nd {A.ndSpecType = st}
          return spec
  | otherwise
-    =  do n' <- scopeIn n nt st (abbrevModeOfSpec st)
+    =  do n' <- scopeIn n nt st (abbrevModeOfSpec st) ns
           return $ A.Specification m n' st
   where
     isRecursive (A.Function _ (_, A.Recursive) _ _ _) = True
@@ -464,7 +466,7 @@ type NameFormal = (A.Formal, NameType)
 
 scopeInFormal :: NameFormal -> OccParser A.Formal
 scopeInFormal (A.Formal am t n, nt)
-    =  do n' <- scopeIn n nt (A.Declaration (A.nameMeta n) t) am
+    =  do n' <- scopeIn n nt (A.Declaration (A.nameMeta n) t) am normalName
           return (A.Formal am t n')
 
 scopeInFormals :: [NameFormal] -> OccParser [A.Formal]
@@ -1032,9 +1034,10 @@ specification :: OccParser ([NameSpec], OccParser ())
 specification
     =   do m <- md
            (ns, d, nt) <- declaration
-           return ([(A.Specification m n d, nt) | n <- ns], return ())
+           return ([(A.Specification m n d, nt, normalName) | n <- ns], return ())
     <|> do { a <- abbreviation; return ([a], return ()) }
     <|> do { d <- definition; return ([d], return ()) }
+    <|> do { n <- pragma ; return (maybeToList n, return ()) }
     <?> "specification"
 
 declaration :: OccParser ([A.Name], A.SpecType, NameType)
@@ -1081,7 +1084,7 @@ valAbbrev
           e <- expression
           sColon
           eol
-          return (A.Specification m n $ A.Is m am t (A.ActualExpression e), VariableName)
+          return (A.Specification m n $ A.Is m am t (A.ActualExpression e), VariableName, normalName)
     <?> "abbreviation by value"
 
 refAbbrevMode :: OccParser A.AbbrevMode
@@ -1101,7 +1104,7 @@ refAbbrev oldVar nt
           sColon
           eol
           t' <- direct t
-          return (A.Specification m n $ A.Is m am t' $ A.ActualVariable v, nt)
+          return (A.Specification m n $ A.Is m am t' $ A.ActualVariable v, nt, normalName)
     <?> "abbreviation by reference"
 
 chanArrayAbbrev :: OccParser NameSpec
@@ -1116,7 +1119,7 @@ chanArrayAbbrev
           sColon
           eol
           t' <- direct t
-          return (A.Specification m n $ A.Is m A.Abbrev t' $ A.ActualChannelArray cs, ChannelName)
+          return (A.Specification m n $ A.Is m A.Abbrev t' $ A.ActualChannelArray cs, ChannelName, normalName)
     <?> "channel array abbreviation"
 
 specMode :: OccParser a -> OccParser (A.SpecMode, a)
@@ -1141,9 +1144,9 @@ definition
            sDATA
            sTYPE
            do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol;
-                  return (A.Specification m n (A.DataType m t), DataTypeName) }
+                  return (A.Specification m n (A.DataType m t), DataTypeName, normalName) }
              <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol;
-                  return (A.Specification m n rec, RecordName) }
+                  return (A.Specification m n rec, RecordName, normalName) }
     <|> do m <- md
            rm <- tryVX (recMode sCHAN) sTYPE >>* fst
            n <- newChanBundleName
@@ -1155,19 +1158,19 @@ definition
            indent
            n' <- if rm == A.Recursive
                    then scopeIn n ChanBundleName
-                          (A.ChanBundleType m rm []) A.Original
+                          (A.ChanBundleType m rm []) A.Original normalName
                    else return n
            fs <- many1 chanInBundle
            outdent
            outdent
            sColon
            eol
-           return (A.Specification m n' $ A.ChanBundleType m rm fs, ChanBundleName)
+           return (A.Specification m n' $ A.ChanBundleType m rm fs, ChanBundleName, normalName)
     <|> do m <- md
            sPROTOCOL
            n <- newProtocolName
-           do { sIS; p <- sequentialProtocol; sColon; eol; return (A.Specification m n $ A.Protocol m p, ProtocolName) }
-             <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return (A.Specification m n $ A.ProtocolCase m ps, ProtocolName) }
+           do { sIS; p <- sequentialProtocol; sColon; eol; return (A.Specification m n $ A.Protocol m p, ProtocolName, normalName) }
+             <|> do { eol; indent; sCASE; eol; ps <- maybeIndentedList m "empty CASE protocol" taggedProtocol; outdent; sColon; eol; return (A.Specification m n $ A.ProtocolCase m ps, ProtocolName, normalName) }
     <|> do m <- md
            (sm, (rm, _)) <- specMode $ recMode sPROC
            n <- newProcName
@@ -1176,7 +1179,7 @@ definition
            indent
            n' <- if rm == A.Recursive
                    then scopeIn n ProcName
-                          (A.Proc m (sm, rm) (map fst fs) (A.Skip m)) A.Original
+                          (A.Proc m (sm, rm) (map fst fs) (A.Skip m)) A.Original normalName
                    else return n
            fs' <- scopeInFormals fs
            p <- process
@@ -1184,7 +1187,7 @@ definition
            outdent
            sColon
            eol
-           return (A.Specification m n' $ A.Proc m (sm, rm) fs' p, ProcName)
+           return (A.Specification m n' $ A.Proc m (sm, rm) fs' p, ProcName, normalName)
     <|> do m <- md
            (rs, (sm, (rm, _))) <- tryVV (sepBy1 dataType sComma) (specMode $ recMode sFUNCTION)
            n <- newFunctionName
@@ -1193,16 +1196,16 @@ definition
                  = do n' <- if rm == A.Recursive
                               then scopeIn n FunctionName
                                      (A.Function m (sm, rm) rs (map fst fs) (Left $ A.Several m []))
-                                     A.Original
+                                     A.Original normalName
                               else return n
                       fs' <- scopeInFormals fs
                       x <- body
                       scopeOutFormals fs'
                       return (x, fs', n')
            do { sIS; (el, fs', n') <- addScope expressionList; sColon; eol;
-                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left $ A.Only m el), FunctionName) }
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left $ A.Only m el), FunctionName, normalName) }
              <|> do { eol; indent; (vp, fs', n') <- addScope valueProcess; outdent; sColon; eol;
-                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left vp), FunctionName) }
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left vp), FunctionName, normalName) }
     <|> retypesAbbrev
     <?> "definition"
   where
@@ -1222,19 +1225,19 @@ retypesAbbrev
            v <- variable
            sColon
            eol
-           return (A.Specification m n $ A.Retypes m am s v, VariableName)
+           return (A.Specification m n $ A.Retypes m am s v, VariableName, normalName)
     <|> do m <- md
            (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
            c <- directedChannel
            sColon
            eol
-           return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName)
+           return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName, normalName)
     <|> do m <- md
            (am, s, n) <- tryVVVX valAbbrevMode dataSpecifier newVariableName retypesReshapes
            e <- expression
            sColon
            eol
-           return (A.Specification m n $ A.RetypesExpr m am s e, VariableName)
+           return (A.Specification m n $ A.RetypesExpr m am s e, VariableName, normalName)
     <?> "RETYPES/RESHAPES abbreviation"
   where
     retypesReshapes :: OccParser ()
@@ -1373,7 +1376,7 @@ structuredTypeField
 --}}}
 --}}}
 --{{{ pragmas
-pragma :: OccParser ()
+pragma :: OccParser (Maybe NameSpec)
 pragma = do m <- getPosition >>* sourcePosToMeta
             Pragma rawP <- genToken isPragma
             let prag :: Maybe (Int, String)
@@ -1397,6 +1400,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
+                return Nothing
               1 -> do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
@@ -1407,6 +1411,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                      modify $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
+                return Nothing
               pragmaType | pragmaType == 2 || pragmaType == 3 -> do
                 m <- md
                 (n, nt, origN, fs, sp) <-
@@ -1430,27 +1435,28 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                                 n <- newFunctionName
                                 return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
                                   $ Right (A.Skip m))
-                let nd = A.NameDef m (A.nameName n) (A.nameName origN)
-                           sp A.Original A.NamePredefined A.Unplaced
-                    ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
+                let ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
-                  { csNames = Map.insert (A.nameName n) nd (csNames st)
-                  , csLocalNames = (A.nameName origN, (n, nt)) : csLocalNames st
-                  , csExternals = (A.nameName n, (ext, fs)) : csExternals st
+                  { csExternals = (A.nameName n, (ext, fs)) : csExternals st
                   }
-            case (prag, mprod) of
+                return $ Just (A.Specification m origN sp, nt, (Just n, A.NamePredefined))
+            ns <- case (prag, mprod) of
               (Just (_, pragStr), Just prod) -> do
                 let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
                 toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
                                   , metaLine m, column) pragStr
                 cs <- getCompState
-                case runParser (prod >> getState) cs "" toks of
-                  Left err -> warnP m WarnUnknownPreprocessorDirective $
-                                "Unknown PRAGMA (parse failed): " ++ show err
-                  Right st -> setState st
-              _ -> warnP m WarnUnknownPreprocessorDirective $
-                     "Unknown PRAGMA type: " ++ show rawP
+                case runParser (do {n <- prod; s <- getState; return (n, s)}) cs "" toks of
+                  Left err -> do warnP m WarnUnknownPreprocessorDirective $
+                                   "Unknown PRAGMA (parse failed): " ++ show err
+                                 return Nothing
+                  Right (n, st) -> do setState st
+                                      return n
+              _ -> do warnP m WarnUnknownPreprocessorDirective $
+                        "Unknown PRAGMA type: " ++ show rawP
+                      return Nothing
             eol
+            return ns
   where
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
@@ -1479,7 +1485,6 @@ process
     <|> intrinsicProc
     <|> handleSpecs (allocation <|> specification <|> claimSpec) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
-    <|> (tryXV pragma process)
     <?> "process"
 
 claimSpec :: OccParser ([NameSpec], OccParser ())
@@ -1489,7 +1494,7 @@ claimSpec
        n <- getName v >>= getOrigName
        eol
        indent
-       return ([(A.Specification m (A.Name m n) $ A.Is m A.Abbrev A.Infer $ A.ActualClaim v, ChannelName)], outdent)
+       return ([(A.Specification m (A.Name m n) $ A.Is m A.Abbrev A.Infer $ A.ActualClaim v, ChannelName, normalName)], outdent)
   where
     getName :: A.Variable -> OccParser A.Name
     getName (A.Variable _ n) = return n
@@ -1887,7 +1892,6 @@ topLevelItem :: OccParser A.AST
 topLevelItem
     =   handleSpecs (allocation <|> specification) topLevelItem
                     (\m s inner -> A.Spec m s inner)
-    <|> (pragma >> topLevelItem)
     <|> do m <- md
            eof
            -- Stash the current locals so that we can either restore them
