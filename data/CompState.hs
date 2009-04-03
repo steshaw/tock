@@ -263,7 +263,16 @@ nameSource n = lookupName n >>* A.ndNameSource
 -- | Make a name unique by appending a suffix to it.
 makeUniqueName :: CSM m => Meta -> String -> m String
 makeUniqueName m s
-    = let mungedFile = mungeMeta m in return $ s ++ "_" ++ mungedFile
+    = do cs <- getCompState
+         munged <- if maybe "" (++ ".tock.inc") (metaFile m)
+                        `Set.member` csUsedFiles cs
+                     -- For #USEd files, keep the filename stable:
+                     then return $ mungeMeta m
+                     -- For #INCLUDEd files, they might be included twice, so we
+                     -- still need the extra suffixes:
+                     else do put $ cs { csNameCounter = csNameCounter cs + 1 }
+                             return $ "u" ++ show (csNameCounter cs)
+         return $ s ++ "_" ++ munged
 
 mungeMeta :: Meta -> String
 mungeMeta m  = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
