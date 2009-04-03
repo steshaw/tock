@@ -83,7 +83,7 @@ preprocessFile m filename
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
 preprocessSource :: Meta -> String -> String -> PassM [Token]
 preprocessSource m realFilename s
-    =  do toks <- runLexer realFilename s
+    =  do toks <- runLexer realFilename $ removeASM s
           veryDebug $ "{{{ lexer tokens"
           veryDebug $ pshow toks
           veryDebug $ "}}}"
@@ -96,6 +96,43 @@ preprocessSource m realFilename s
           veryDebug $ pshow toks''
           veryDebug $ "}}}"
           expandIncludes toks''
+  where
+    --ASM blocks tend to screw up the lexer.  Tock is unlikely to support them
+    -- any time soon, but at the same time lots of occam code does have ASM blocks,
+    -- and even if they are inside a #IFDEF, it will still cause Tock to choke
+    -- on the file, because it's the *lexer* that screws up, not the parsing.
+    -- Lexing happens before the preprocessor...
+    --
+    -- To fix this, I have added this function that looks for ASM blocks, and masks
+    -- out their entire content.  It does this quite simply, by looking for ASM
+    -- blocks, and deleting everything following it with a (strictly) larger indent.
+    removeASM :: String -> String
+    removeASM = unlines . removeASM' . lines
+      where
+        isSpace = (== ' ')
+        numSpaces = length . takeWhile isSpace
+
+        replaceWhile :: (a -> Bool) -> a -> [a] -> [a]
+        replaceWhile _ _ [] = []
+        replaceWhile f repl (x:xs)
+          | f x = repl : replaceWhile f repl xs
+          | otherwise = x : xs
+        
+        removeASM' :: [String] -> [String]
+        removeASM' [] = []
+        removeASM' (curLine:moreLines)
+          | "ASM" `isPrefixOf` dropWhile isSpace curLine
+            = let curIndent = numSpaces curLine
+                  shouldReplace l = case span isSpace l of
+                    -- Nothing but spaces:
+                    (_,[]) -> True
+                    (spaces, _) -> length spaces > curIndent
+              -- We keep the ASM directive, so that Tock at least knows some ASM
+              -- used to be there (and can complain later on).  We also don't just
+              -- drop the lines, because that screws up the meta tags -- instead
+              -- we replace them with blanks (which should always be fine, I think):
+              in curLine : removeASM' (replaceWhile shouldReplace "" moreLines)
+          | otherwise = curLine : removeASM' moreLines
 
 -- | Expand 'IncludeFile' markers in a token stream.
 expandIncludes :: [Token] -> PassM [Token]
