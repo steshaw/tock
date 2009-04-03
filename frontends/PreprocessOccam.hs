@@ -48,7 +48,8 @@ searchFile :: Meta -> String -> PassM (Handle, String)
 searchFile m filename
     =  do cs <- get
           let currentFile = csCurrentFile cs
-          let possibilities = [joinPath currentFile filename]
+          let possibilities = joinPath currentFile filename
+                              : [dir ++ "/" ++ filename | dir <- csSearchPath cs]
           openOneOf possibilities
   where
     openOneOf :: [String] -> PassM (Handle, String)

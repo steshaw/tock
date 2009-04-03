@@ -72,6 +72,7 @@ optionsNoWarnings =
   , Option ['c'] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
+  , Option ['I'] ["search-path"] (ReqArg optSearchPath "PATHS") "paths to search for #INCLUDE, #USE"
   , Option [] ["occam2-mobility"] (ReqArg optClassicOccamMobility "SETTING") "occam2 implicit mobility (EXPERIMENTAL) (options: on, off)"
   , Option [] ["usage-checking"] (ReqArg optUsageChecking "SETTING") "usage checking (options: on, off)"
   , Option [] ["unknown-stack-size"] (ReqArg optStackSize "BYTES")
@@ -117,6 +118,15 @@ optFrontend s ps
             "rain" -> return FrontendRain
             _ -> dieIO (Nothing, "Unknown frontend: " ++ s)
           return $ ps { csFrontend = frontend }
+
+optSearchPath :: String -> OptFunc
+optSearchPath s ps = return $ ps { csSearchPath = csSearchPath ps ++ splitOnColons s }
+  where
+    splitOnColons :: String -> [String]
+    splitOnColons [] = []
+    splitOnColons s = case span (/= ':') s of
+      (p, _:more) -> p : splitOnColons more
+      (p, []) -> [p]
 
 optCompilerFlags :: String -> OptFunc
 optCompilerFlags flags ps = return $ ps { csCompilerFlags = flags ++ " " ++ csCompilerFlags ps}
