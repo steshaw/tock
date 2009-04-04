@@ -211,7 +211,7 @@ directives =
   , (mkRegex "^PRAGMA +(.*)$", handlePragma)
   ]
   where
-    mkRegex' s = mkRegex (s ++ " *(--.*)?$")
+    mkRegex' s = mkRegex (s ++ "\\s*(--.*)?$")
 
 -- | Handle a directive that can be ignored.
 handleIgnorable :: DirectiveFunc
