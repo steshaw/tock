@@ -54,7 +54,11 @@ import PrettyShow
 import ShowCode
 import Utils
 
-type OptFunc = CompState -> IO CompState
+-- Either gives back options, or an exact string to print out:
+type OptFunc = CompState -> ErrorT String IO CompState
+
+printString :: String -> ErrorT String IO a
+printString = throwError
 
 optionsNoWarnings :: [OptDescr OptFunc]
 optionsNoWarnings =
@@ -153,10 +157,10 @@ optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
 
 optPrintHelp :: OptFunc
-optPrintHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsNoWarnings)
+optPrintHelp _ = printString $ usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsNoWarnings
 
 optPrintWarningHelp :: OptFunc
-optPrintWarningHelp _ = dieIO (Nothing, usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsWarnings)
+optPrintWarningHelp _ = printString $ usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsWarnings
 
 optOnOff :: (String, Bool -> CompState -> CompState) -> String -> OptFunc
 optOnOff (n, f) s ps
@@ -210,19 +214,20 @@ main = do
                                 Just $ take (length fn - length ".rain") fn)
                           else (id, Nothing)
 
-  initState <- foldl (>>=) (return $ frontendGuess emptyState) opts
-
-  let operation
-        = case csMode initState of
+  res <- runErrorT $ foldl (>>=) (return $ frontendGuess emptyState) opts
+  case res of
+    Left str -> putStrLn str
+    Right initState -> do
+      let operation = case csMode initState of
             ModePostC -> useOutputOptions (postCAnalyse fn)
             ModeFull -> evalStateT (compileFull fn fileStem) []
             mode -> useOutputOptions (compile mode fn)
 
-  -- Run the compiler.
-  v <- runPassM initState operation
-  case v of
-    (Left e, cs) -> showWarnings (csWarnings cs) >> dieIO e
-    (Right r, cs) -> showWarnings (csWarnings cs)
+      -- Run the compiler.
+      v <- runPassM initState operation
+      case v of
+        (Left e, cs) -> showWarnings (csWarnings cs) >> dieIO e
+        (Right r, cs) -> showWarnings (csWarnings cs)
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)
