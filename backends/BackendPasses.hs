@@ -163,7 +163,7 @@ getSizes m es
          Nothing -> let base = "sizes" ++ concat (intersperse "_" $ map show ces)
                         t = A.Array [A.Dimension $ makeConstant m $ length es] A.Int
                         val = A.ArrayListLiteral m $ A.Several m $
-                          map (A.Only m) $ es
+                          map (A.Only m) $ map (makeConstant m) ces
                         e = A.Literal m t val
            in do spec@(A.Specification _ n _) <- makeNonceIsExpr base m t e
                  addPulled (m, Left spec)
