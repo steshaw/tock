@@ -401,8 +401,8 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                              (rest, moreNew) <- transformFormals ext m fs
                              return (f : newf : rest, newf : moreNew)
           -- But even if all the dimensions are known, we must still add the sizes
-          -- as a global thingy:
-            | otherwise ->
+          -- as a global thingy (provided it's not an external):
+            | isNothing ext ->
                           do (Just n_sizes, _, _) <- findVarSizes 0 (A.Variable m n)
                              addSizes (A.nameName n) n_sizes
                              (rest, moreNew) <- transformFormals ext m fs
