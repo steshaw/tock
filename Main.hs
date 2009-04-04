@@ -49,6 +49,7 @@ import ParseOccam
 import ParseRain
 import Pass
 import PassList
+import Paths
 import PreprocessOccam
 import PrettyShow
 import ShowCode
@@ -73,6 +74,7 @@ optionsNoWarnings =
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
+  , Option [] ["module-path"] (NoArg $ optPrintPath tockModuleDir) "print module path"
   , Option ['c'] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"
   , Option ['o'] ["output"] (ReqArg optOutput "FILE") "output file (default \"-\")"
   , Option [] ["sanity-check"] (ReqArg optSanityCheck "SETTING") "internal sanity check (options: on, off)"
@@ -155,6 +157,9 @@ optStackSize s ps = return $ ps { csUnknownStackSize = read s }
 
 optOutput :: String -> OptFunc
 optOutput s ps = return $ ps { csOutputFile = s }
+
+optPrintPath :: String -> OptFunc
+optPrintPath path _ = printString path
 
 optPrintHelp :: OptFunc
 optPrintHelp _ = printString $ usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsNoWarnings
