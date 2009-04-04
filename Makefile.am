@@ -93,9 +93,17 @@ else
 	mv frontends/LexRain.temphs frontends/LexRain.hs
 endif
 
+TOCKDIR=$(DATADIR)/tock
+TOCKMODDIR=$(TOCKDIR)/modules
+TOCKINCDIR=$(TOCKDIR)/include
+modulesdir=$(TOCKMODDIR)
+tockincdir=$(TOCKINCDIR)
+
 config/Paths.hs: config/Paths.hs.in
-	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' \
-		config/Paths.hs.in >config/Paths.hs
+	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' config/Paths.hs.in \
+	  | sed -e 's,@@tockdir@@,$(TOCKDIR),g' \
+	  | sed -e 's,@@tockmoddir@@,$(TOCKMODDIR),g' \
+	  | sed -e 's,@@tockincdir@@,$(TOCKINCDIR),g' >config/Paths.hs
 
 data/NavAST.hs: GenNavAST$(EXEEXT)
 	./GenNavAST$(EXEEXT) > data/NavAST.hs
@@ -115,6 +123,11 @@ BUILT_SOURCES += data/OrdAST.hs
 BUILT_SOURCES += data/TagAST.hs
 BUILT_SOURCES += frontends/LexOccam.hs
 BUILT_SOURCES += frontends/LexRain.hs
+
+# For dummy modules:
+modules_DATA = 
+# For dummy lib files:
+tockinc_DATA = occamutl.tock.inc occamutl.tock.h
 
 CLEANFILES = $(BUILT_SOURCES) $(config_sources)
 

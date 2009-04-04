@@ -6,3 +6,12 @@ module Paths where
 
 pkgIncludeDir :: String
 pkgIncludeDir = "@@pkgincludedir@@"
+
+tockDir :: String
+tockDir = "@@tockdir@@"
+
+tockModuleDir :: String
+tockModuleDir = "@@tockmoddir@@"
+
+tockIncludeDir :: String
+tockIncludeDir = "@@tockincdir@@"
