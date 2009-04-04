@@ -34,6 +34,7 @@ module ArrayUsageCheck (
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Array.IArray
+import qualified Data.Foldable as F
 import Data.Generics hiding (GT)
 import Data.Int
 import Data.List
@@ -98,8 +99,10 @@ findRepSolutions reps bks
 -- for any overlapping array indices.
 checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => NameAttr -> (Meta, ParItems (BK, UsageLabel)) -> m ()
 checkArrayUsage sharedAttr (m,p)
-  = do indexes <- groupArrayIndexes $ fmap (transformPair id nodeVars) p
-       mapM_ (checkIndexes m) $ Map.toList indexes
+  = do debug $ "checkArrayUsage: " ++ show m
+       indexes <- groupArrayIndexes $ fmap (transformPair id nodeVars) p
+       mapM_ (checkIndexes m) $ Map.toList $ Map.filter
+         ((<= 1) . length . map (\(_,w,r) -> w++r) . F.toList) indexes
   where
     getDecl :: UsageLabel -> Maybe String
     getDecl = join . fmap getScopeIn . nodeDecl
@@ -172,7 +175,7 @@ checkArrayUsage sharedAttr (m,p)
                Right [] -> return () -- No problems to work with
                Right problems -> do
                  probs <- formatProblems [(vm, prob) | (_,vm,prob) <- problems]
-                 debug $ "Problems in checkArrayUsage:\n" ++ probs
+                 debug $ "Problems in checkArrayUsage" ++ show m ++ ":\n" ++ probs
                  case mapMaybe solve problems of
                    -- No solutions; no worries!
                    [] -> return ()
@@ -544,7 +547,9 @@ makeEquations accesses bound
   where
     lookupBK :: [A.Name] -> (A.Expression, [ModuloCase], BK') -> Either String
       [(EqualityProblem, InequalityProblem)]
-    lookupBK reps (e,_,bk) = mapM (foldl (liftM2 accumProblem) (return ([],[])) . map snd .
+    lookupBK reps (e,_,bk) = liftM (filter (\x ->
+        (not $ null $ fst x) || (not $ null $ snd x))) $
+      mapM (foldl (liftM2 accumProblem) (return ([],[])) . map snd .
       filter (\(v,_) -> v `elem` vs || v `elem` reps') . Map.toList) bk
       where
         reps' :: [Var]
