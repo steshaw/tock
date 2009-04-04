@@ -1439,7 +1439,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                 modify $ \st -> st
                   { csExternals = (A.nameName n, (ext, fs)) : csExternals st
                   }
-                return $ Just (A.Specification m origN sp, nt, (Just n, A.NamePredefined))
+                return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
             ns <- case (prag, mprod) of
               (Just (_, pragStr), Just prod) -> do
                 let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)

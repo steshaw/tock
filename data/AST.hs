@@ -72,6 +72,7 @@ data NameSource
   = NameUser       -- ^ A name from the source program
   | NameNonce      -- ^ A name the compiler generated
   | NamePredefined -- ^ A magic name without definition (e.g. the Rain timer)
+  | NameExternal   -- ^ A name from an external PRAGMA
   deriving (Show, Eq, Typeable, Data)
 
 -- | The direction of a channel.
