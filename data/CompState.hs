@@ -34,6 +34,7 @@ import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP, WarningReport)
 import Metadata
 import OrdAST ()
+import Paths
 import TypeSizes
 import UnifyType
 import Utils
@@ -176,7 +177,7 @@ emptyState = CompState {
     csRunIndent = False,
     csClassicOccamMobility = False,
     csUnknownStackSize = 512,
-    csSearchPath = ["."],
+    csSearchPath = [".", tockIncludeDir],
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
