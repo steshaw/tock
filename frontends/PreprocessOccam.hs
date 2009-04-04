@@ -50,15 +50,15 @@ searchFile m filename
           let currentFile = csCurrentFile cs
           let possibilities = joinPath currentFile filename
                               : [dir ++ "/" ++ filename | dir <- csSearchPath cs]
-          openOneOf possibilities
+          openOneOf possibilities possibilities
   where
-    openOneOf :: [String] -> PassM (Handle, String)
-    openOneOf [] = dieP m $ "Unable to find " ++ filename
-    openOneOf (fn:fns)
+    openOneOf :: [String] -> [String] -> PassM (Handle, String)
+    openOneOf all [] = dieP m $ "Unable to find " ++ filename ++ " tried: " ++ show all
+    openOneOf all (fn:fns)
         =  do r <- liftIO $ maybeIO $ openFile fn ReadMode
               case r of
                 Just h -> return (h, fn)
-                Nothing -> openOneOf fns
+                Nothing -> openOneOf all fns
 
 -- | Preprocess a file and return its tokenised form ready for parsing.
 preprocessFile :: Meta -> String -> PassM [Token]
