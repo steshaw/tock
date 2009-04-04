@@ -15,3 +15,6 @@ tockModuleDir = "@@tockmoddir@@"
 
 tockIncludeDir :: String
 tockIncludeDir = "@@tockincdir@@"
+
+tockLibDir :: String
+tockLibDir = "@@tocklibdir@@"

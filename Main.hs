@@ -74,6 +74,7 @@ optionsNoWarnings =
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option [] ["include-path"] (NoArg $ optPrintPath tockIncludeDir) "print include path"
+  , Option [] ["lib-path"] (NoArg $ optPrintPath tockLibDir) "print lib path"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
   , Option [] ["module-path"] (NoArg $ optPrintPath tockModuleDir) "print module path"
   , Option ['c'] ["no-main"] (NoArg optNoMain) "file has no main process; do not link either"

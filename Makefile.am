@@ -96,14 +96,17 @@ endif
 TOCKDIR=$(DATADIR)/tock
 TOCKMODDIR=$(TOCKDIR)/modules
 TOCKINCDIR=$(TOCKDIR)/include
+TOCKLIBDIR=$(TOCKDIR)/lib
 modulesdir=$(TOCKMODDIR)
 tockincdir=$(TOCKINCDIR)
+tocklibdir=$(TOCKLIBDIR)
 
 config/Paths.hs: config/Paths.hs.in
 	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' config/Paths.hs.in \
 	  | sed -e 's,@@tockdir@@,$(TOCKDIR),g' \
 	  | sed -e 's,@@tockmoddir@@,$(TOCKMODDIR),g' \
-	  | sed -e 's,@@tockincdir@@,$(TOCKINCDIR),g' >config/Paths.hs
+	  | sed -e 's,@@tockincdir@@,$(TOCKINCDIR),g' \
+	  | sed -e 's,@@tocklibdir@@,$(TOCKLIBDIR),g' >config/Paths.hs
 
 data/NavAST.hs: GenNavAST$(EXEEXT)
 	./GenNavAST$(EXEEXT) > data/NavAST.hs
