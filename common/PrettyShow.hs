@@ -60,7 +60,7 @@ doGeneral anyFunc t =
     parens $ sep $ punctuate (text ",") l
   else case l of
     [] -> con
-    otherwise -> parens $ sep (con : l)
+    _ -> parens $ sep (con : l)
   where
     cn = showConstr (toConstr t)
     con = text $ cn
