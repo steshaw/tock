@@ -268,7 +268,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
     -- | Generate the @_sizes@ array for a 'Retypes' expression.
     retypesSizes :: Meta -> A.Name -> [A.Dimension] -> A.Type -> A.Variable
       -> PassM (A.Name, Maybe A.SpecType)
-    retypesSizes m n_sizes ds elemT v@(A.Variable _ nSrc)
+    retypesSizes m n_sizes ds elemT v
       =  do biDest <- bytesInType (A.Array ds elemT)
             tSrc <- astTypeOf v
             biSrc <- bytesInType tSrc
