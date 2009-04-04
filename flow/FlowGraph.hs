@@ -69,16 +69,16 @@ addSpecNodes spec route
 -- Descends into process or function specifications, but doesn't join them up.  Any other specifications are ignored
 buildProcessOrFunctionSpec :: (Monad mAlter, Monad mLabel) => A.Specification -> ASTModifier mAlter (A.Specification) structType ->
   GraphMaker mLabel mAlter label structType ()
-buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args p)) route
+buildProcessOrFunctionSpec (A.Specification _ _ (A.Proc m _ args (Just p))) route
  = let procRoute = (route33 route A.Specification) in
-   addNewSubProcFunc m args (Left (p, route44 procRoute A.Proc)) (route34 procRoute A.Proc)
-buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args es)) route
+   addNewSubProcFunc m args (Left (p, route11 (route44 procRoute A.Proc) Just)) (route34 procRoute A.Proc)
+buildProcessOrFunctionSpec (A.Specification _ _ (A.Function m _ _ args (Just es))) route
   = let funcRoute = (route33 route A.Specification) in
     case es of
       Left sel -> addNewSubProcFunc m args (Right (sel, route55 funcRoute A.Function @-> (Route
-        [0] $ \f (Left e) -> f e >>* Left))) (route45 funcRoute A.Function)
+        [0,0] $ \f (Just (Left e)) -> f e >>* (Just . Left)))) (route45 funcRoute A.Function)
       Right p -> addNewSubProcFunc m args (Left (p, route55 funcRoute A.Function @-> (Route
-        [0] $ \f (Right p) -> f p >>* Right))) (route45 funcRoute A.Function)
+        [0,0] $ \f (Just (Right p)) -> f p >>* (Just . Right)))) (route45 funcRoute A.Function)
 buildProcessOrFunctionSpec _ _ = return ()
 
 -- All the various types of Structured (SEQ, PAR, ALT, IF, CASE, input-CASE, VALOF) deal with their nodes so differently

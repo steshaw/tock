@@ -88,11 +88,9 @@ nullStateBodies = Pass
   where
     nullProcFuncDefs :: A.NameDef -> A.NameDef
     nullProcFuncDefs (A.NameDef m n on (A.Proc m' sm fs _) am ns pl)
-      = (A.NameDef m n on (A.Proc m' sm fs (A.Skip m')) am ns pl)
-    nullProcFuncDefs (A.NameDef m n on (A.Function m' sm ts fs (Left _)) am ns pl)
-      = (A.NameDef m n on (A.Function m' sm ts fs (Left $ A.Several m' [])) am ns pl)
-    nullProcFuncDefs (A.NameDef m n on (A.Function m' sm ts fs (Right _)) am ns pl)
-      = (A.NameDef m n on (A.Function m' sm ts fs (Right $ A.Skip m')) am ns pl)
+      = (A.NameDef m n on (A.Proc m' sm fs Nothing) am ns pl)
+    nullProcFuncDefs (A.NameDef m n on (A.Function m' sm ts fs _) am ns pl)
+      = (A.NameDef m n on (A.Function m' sm ts fs Nothing) am ns pl)
     nullProcFuncDefs x = x
     
 

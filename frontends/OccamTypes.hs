@@ -937,12 +937,12 @@ inferTypes = occamOnlyPass "Infer types"
                         _ -> return (t'', id)
                     _ -> return (t'', id)
                   return $ A.Is m am t''' $ A.ActualChannelArray $ map f vs'
-            A.Function m sm ts fs (Left sel) -> lift $
+            A.Function m sm ts fs (Just (Left sel)) -> lift $
                do sm' <- recurse sm
                   ts' <- recurse ts
                   fs' <- recurse fs
                   sel' <- doFuncDef ts sel
-                  return $ A.Function m sm' ts' fs' (Left sel')
+                  return $ A.Function m sm' ts' fs' $ Just (Left sel')
             A.RetypesExpr _ _ _ _ -> lift $ noTypeContext $ descend st
             -- For PROCs that take any channels without direction,
             -- we must determine if we can infer a specific direction
@@ -1404,7 +1404,7 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType (A.Proc m _ fs _)
         = sequence_ [when (am == A.Original) $ unexpectedAM m
                      | A.Formal am _ n <- fs]
-    doSpecType (A.Function m _ rs fs body)
+    doSpecType (A.Function m _ rs fs (Just body))
         =  do when (length rs == 0) $
                 dieP m "A function must have at least one return type"
               sequence_ [do when (am /= A.ValAbbrev) $
@@ -1420,6 +1420,7 @@ checkSpecTypes = checkDepthM doSpecType
         doFunctionBody rs (Left s) = checkStructured (checkExpressionList rs) s
         -- FIXME: Need to know the name of the function to do this
         doFunctionBody rs (Right p) = dieP m "Cannot check function process body"
+    doSpecType (A.Function _ _ _ _ Nothing) = return ()
     doSpecType (A.Retypes m am t v)
         =  do fromT <- astTypeOf v
               checkRetypes m fromT t

@@ -204,7 +204,7 @@ cgenTopLevel headerName s
 
           -- Forward declarations of externals:
           sequence_ [tell ["extern void ", mungeExternalName n, "(int*);"]
-                    | (n, (ExternalOldStyle, _)) <- csExternals cs]
+                    | (n, ExternalOldStyle) <- csExternals cs]
 
           call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
@@ -1584,7 +1584,7 @@ realFormals (A.Formal am t n)
 -- one of the original top-level procs, other than to add an occam_ prefix (which
 -- avoids name collisions).
 genProcSpec :: Level -> A.Name -> A.SpecType -> Bool -> CGen ()
-genProcSpec lvl n (A.Proc _ (sm, rm) fs p) forwardDecl
+genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
     =  do cs <- getCompState
           let (header, params) = if n `Set.member` csParProcs cs
                                     || rm == A.Recursive
@@ -1631,6 +1631,8 @@ genProcSpec lvl n (A.Proc _ (sm, rm) fs p) forwardDecl
                             n
                          | (t, n) <- rfs]
               tell [")"]
+-- For externals, do nothing here:
+genProcSpec _ _ (A.Proc _ _ _ Nothing) _ = return ()
 
 -- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
 -- workspace pointer and the name of the function to call.
@@ -2060,7 +2062,7 @@ cgenProcCall n as
             (A.Recursive, _) ->
               let m = A.nameMeta n
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
-            (_, Just (ExternalOldStyle, _)) ->
+            (_, Just ExternalOldStyle) ->
                  do let (c:cs) = A.nameName n
                     tell ["{int ext_args[] = {"]
                     -- We don't use the formals in csExternals because they won't

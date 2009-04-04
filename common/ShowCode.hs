@@ -508,7 +508,7 @@ instance ShowOccam A.RecordAttr where
 
 instance ShowOccam A.Specification where
   -- TODO add specmode to the output
-  showOccamM (A.Specification _ n (A.Proc _ sm params body))
+  showOccamM (A.Specification _ n (A.Proc _ sm params (Just body)))
     = do let params' = intersperse (tell [","]) $ map showOccamM params
          showOccamLine $ do tell ["PROC "]
                             showName n
@@ -535,11 +535,11 @@ instance ShowOccam A.Specification where
          occamOutdent
          (showOccamLine colon)
   --TODO use the specmode
-  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left el@(A.Only {}))))
+  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Just (Left el@(A.Only {})))))
     = showOccamLine $
         showWithCommas retTypes >> (tell [" FUNCTION "]) >> showName n >> tell ["("] >> showWithCommas params >> tell [")"]
         >> tell [" IS "] >> showOccamM el >> colon
-  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Left body)))
+  showOccamM (A.Specification _ n (A.Function _ sm retTypes params (Just (Left body))))
     = (showOccamLine $ showWithCommas retTypes >> (tell [" FUNCTION "]) >> showName n >> tell ["("] >> showWithCommas params >> tell [")"])
       >> occamIndent
       >> showOccamM body

@@ -111,7 +111,7 @@ testCheck config property =
 -- | Wraps a structured process into a complete AST fragment.
 wrapProcSeq :: A.Structured A.Process -> A.AST
 wrapProcSeq x = A.Spec emptyMeta (A.Specification emptyMeta (simpleName "foo")
-  $ A.Proc emptyMeta (A.PlainSpec, A.PlainRec) [] $ A.Seq emptyMeta x) (A.Several emptyMeta [])
+  $ A.Proc emptyMeta (A.PlainSpec, A.PlainRec) [] $ Just $ A.Seq emptyMeta x) (A.Several emptyMeta [])
 
 
 -- | Helper function to generate an array dimension.
@@ -367,7 +367,7 @@ defineFunction :: String -> [A.Type] -> [(String, A.Type)]
 defineFunction s rs as
     = defineThing s st A.Original A.NameUser
   where
-    st = A.Function emptyMeta (A.PlainSpec, A.PlainRec) rs fs (Right $ A.Skip emptyMeta)
+    st = A.Function emptyMeta (A.PlainSpec, A.PlainRec) rs fs (Just $ Right $ A.Skip emptyMeta)
     fs = [A.Formal A.ValAbbrev t (simpleName s) | (s, t) <- as]
 
 -- | Define a proc.
@@ -375,7 +375,7 @@ defineProc :: CSM m => String -> [(String, A.AbbrevMode, A.Type)] -> m ()
 defineProc s as
     = defineThing s st A.Original A.NameUser
   where
-    st = A.Proc emptyMeta (A.PlainSpec, A.PlainRec) fs $ A.Skip emptyMeta
+    st = A.Proc emptyMeta (A.PlainSpec, A.PlainRec) fs $ Just $ A.Skip emptyMeta
     fs = [A.Formal am t (simpleName s) | (s, am, t) <- as]
 
 -- | Define a protocol.

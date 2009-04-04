@@ -169,7 +169,7 @@ flattenAssign = pass "Flatten assignment"
                          let code = A.Seq m $ A.Several m $ map (A.Only m) assigns
                              proc = A.Proc m (A.InlineSpec, A.PlainRec)
                                       [A.Formal A.Abbrev t nonceLHS, A.Formal A.ValAbbrev t nonceRHS]
-                                      code
+                                      (Just code)
                          defineName n' $ A.NameDef {
                            A.ndMeta = m,
                            A.ndName = A.nameName n',

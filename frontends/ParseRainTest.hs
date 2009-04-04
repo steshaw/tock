@@ -487,21 +487,22 @@ testTopLevelDecl :: [ParseTest A.AST]
 testTopLevelDecl =
  [
   passTop (0, "process noargs() {}", 
-    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] jemptyBlock) emptySeveral])
   
   ,passTop (1, "process onearg(int: x) {x = 0;}",
     [A.Spec m (A.Specification m (simpleName "onearg") $ A.Proc m (A.PlainSpec, A.Recursive)
-      [A.Formal A.ValAbbrev A.Int (simpleName "x")] $
+      [A.Formal A.ValAbbrev A.Int (simpleName "x")] $ Just $
       makeSeq [makeAssign (variable "x") (intLiteral 0)])
       emptySeveral
     ])
     
   ,passTop (2, "process noargs0() {} process noargs1 () {}",
-    [A.Spec m (A.Specification m (simpleName "noargs0") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral 
-    ,A.Spec m (A.Specification m (simpleName "noargs1") $ A.Proc m (A.PlainSpec, A.Recursive) [] emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs0") $ A.Proc m (A.PlainSpec, A.Recursive) [] jemptyBlock) emptySeveral 
+    ,A.Spec m (A.Specification m (simpleName "noargs1") $ A.Proc m (A.PlainSpec, A.Recursive) [] jemptyBlock) emptySeveral])
 
   ,passTop (4, "process noargs() par {}",
-    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] $ A.Par m A.PlainPar emptySeveral) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "noargs") $ A.Proc m (A.PlainSpec, A.Recursive) [] $
+      Just $ A.Par m A.PlainPar emptySeveral) emptySeveral])
 
   , fail ("process", RP.topLevelDecl)
   , fail ("process () {}", RP.topLevelDecl)
@@ -513,22 +514,25 @@ testTopLevelDecl =
   , fail ("process foo (int x) {}", RP.topLevelDecl)
     
   ,passTop (100, "function uint8: cons() {}",
-    [A.Spec m (A.Specification m (simpleName "cons") $ A.Function m (A.PlainSpec,A.Recursive) [A.Byte] [] $ Right emptyBlock) emptySeveral])
+    [A.Spec m (A.Specification m (simpleName "cons") $ A.Function m (A.PlainSpec,A.Recursive) [A.Byte] []
+      $ Just $ Right emptyBlock) emptySeveral])
 
   ,passTop (101, "function uint8: f(uint8: x) {}",
     [A.Spec m (A.Specification m (simpleName "f") $
-      A.Function m (A.PlainSpec, A.Recursive) [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Right emptyBlock)
+      A.Function m (A.PlainSpec, A.Recursive) [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")]
+        $ Just $ Right emptyBlock)
       emptySeveral])
 
   ,passTop (102, "function uint8: id(uint8: x) {return x;}",
     [A.Spec m (A.Specification m (simpleName "id") $
-      A.Function m (A.PlainSpec, A.Recursive) [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Right $
+      A.Function m (A.PlainSpec, A.Recursive) [A.Byte] [A.Formal A.ValAbbrev A.Byte (simpleName "x")] $ Just $ Right $
         A.Seq m $ A.Several m [A.Only m $ A.Assign m [variable "id"] (A.ExpressionList m [exprVariable "x"])])
       emptySeveral])
  ]
  where
    passTop :: (Int, String, [A.AST]) -> ParseTest A.AST
    passTop (ind, input, exp) = pass (input, RP.topLevelDecl, assertPatternMatch ("testTopLevelDecl " ++ show ind) $ pat $ A.Several m exp)
+   jemptyBlock = Just emptyBlock
 
 nonShared :: A.ChanAttributes
 nonShared = A.ChanAttributes { A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared}

@@ -496,11 +496,11 @@ data SpecType =
   -- | Declare a variant protocol.
   -- The list pairs tag names with item types.
   | ProtocolCase Meta [(Name, [Type])]
-  -- | Declare a @PROC@.
-  | Proc Meta (SpecMode, RecMode) [Formal] Process
-  -- | Declare a @FUNCTION@.
+  -- | Declare a @PROC@.  Body is Nothing if it's external
+  | Proc Meta (SpecMode, RecMode) [Formal] (Maybe Process)
+  -- | Declare a @FUNCTION@.  Body is Nothing if it's external
   | Function Meta (SpecMode, RecMode) [Type] [Formal]
-             (Either (Structured ExpressionList) Process)
+             (Maybe (Either (Structured ExpressionList) Process))
   -- | Declare a retyping abbreviation of a variable.
   | Retypes Meta AbbrevMode Type Variable
   -- | Declare a retyping abbreviation of an expression.

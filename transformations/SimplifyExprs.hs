@@ -51,15 +51,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
         Prop.functionTypesChecked])
   [Prop.functionsRemoved]
-  (\t -> do exts <- getCompState >>* csExternals
-            exts' <- sequence [do st <- specTypeOfName $ A.Name emptyMeta n
-                                  A.Specification _ _ st'@(A.Proc _ _ fs' _) <-
-                                    doSpecification $ A.Specification
-                                      (findMeta st) (A.Name emptyMeta n) st
-                                  return $ (n, (extType, fs'))
-                              | (n, (extType, fs)) <- exts]
-            modify $ \cs -> cs { csExternals = exts' }
-            applyDepthM doSpecification t)
+  (applyDepthM doSpecification)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf smrm rts fs evp))
@@ -69,7 +61,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
              -- Note the return types so we can fix calls later.
              modify $ (\ps -> ps { csFunctionReturns = Map.insert (A.nameName n) rts (csFunctionReturns ps) })
              -- Turn the value process into an assignment process.
-             let p = vpToSeq m n evp [A.Variable mf n | n <- names]
+             let p = fmap (vpToSeq m n [A.Variable mf n | n <- names]) evp
              let st = A.Proc mf smrm (fs ++ [A.Formal A.Abbrev t n | (t, n) <- zip rts names]) p
              -- Build a new specification and redefine the function.
              let spec = A.Specification m n st
@@ -86,9 +78,9 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
              return spec
     doSpecification s = return s
 
-    vpToSeq :: Meta -> A.Name -> Either (A.Structured A.ExpressionList) A.Process -> [A.Variable] -> A.Process
-    vpToSeq m n (Left el) vs = A.Seq m $ vpToSeq' el vs
-    vpToSeq _ n (Right p) vs = subst p
+    vpToSeq :: Meta -> A.Name -> [A.Variable] -> Either (A.Structured A.ExpressionList) A.Process -> A.Process
+    vpToSeq m n vs (Left el) = A.Seq m $ vpToSeq' el vs
+    vpToSeq _ n vs (Right p) = subst p
       where
         subst :: Data t => t -> t
         subst = doGenericSubst `extT` doAssignSubst

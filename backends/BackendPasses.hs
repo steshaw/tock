@@ -234,14 +234,6 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
    \t -> do pushPullContext
             t' <- recurse t >>= applyPulled
             popPullContext
-            exts <- getCompState >>* csExternals
-            exts' <- sequence [do fs' <- transformExternal (findMeta t) extType fs
-                                  modifyName (A.Name emptyMeta n) $ \nd -> nd
-                                    {A.ndSpecType = A.Proc (findMeta t)
-                                      (A.PlainSpec, A.PlainRec) fs' (A.Skip (findMeta t))}
-                                  return $ (n, (extType, fs'))
-                              | (n, (extType, fs)) <- exts]
-            modify $ \cs -> cs { csExternals = exts' }
             return t'
             )
   where
@@ -358,7 +350,8 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                do -- We descend into the scope first, so that all the actuals get
                   -- fixed before the formals:
                   s' <- recurse s
-                  (args', newargs) <- transformFormals Nothing m args
+                  ext <- getCompState >>* csExternals >>* lookup (A.nameName n)
+                  (args', newargs) <- transformFormals ext m args
                   sequence_ [defineSizesName m' n (A.Declaration m' t)
                             | A.Formal _ t n <-  newargs]
                   -- We descend into the body after the formals have been
@@ -371,13 +364,6 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                   return $ A.Spec m (A.Specification m n newspec) s'
              _ -> descend str
     doStructured s = descend s
-
-    transformExternal :: Meta -> ExternalType -> [A.Formal] -> PassM [A.Formal]
-    transformExternal m extType args
-      = do (args', newargs) <- transformFormals (Just extType) m args
-           sequence_ [defineSizesName m n (A.Declaration m t)
-                     | A.Formal _ t n <-  newargs]
-           return args'
 
     transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
     transformFormals _ _ [] = return ([],[])
@@ -413,7 +399,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params)
-      = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n) >>* fmap fst
+      = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n)
            A.Proc _ _ fs _ <- specTypeOfName n
            concatMapM (transformActual ext) (zip fs params) >>* A.ProcCall m n
     doProcess p = descend p
@@ -536,16 +522,16 @@ mobileReturn = cOnlyPass "Add MOBILE returns" [] [] recurse
              _ -> return (ps, f : fs')
 
     doStructured :: Data a => Transform (A.Structured a)
-    doStructured s@(A.Spec msp (A.Specification m n (A.Proc m' sm fs pr)) scope)
+    doStructured s@(A.Spec msp (A.Specification m n (A.Proc m' sm fs (Just pr))) scope)
       = do pr' <- recurse pr
            -- We do the scope first, so that all the callers are updated before
            -- we fix our state:
            scope' <- recurse scope
            ig <- ignoreProc n
            if ig
-             then return $ A.Spec msp (A.Specification m n (A.Proc m' sm fs pr')) scope'
+             then return $ A.Spec msp (A.Specification m n (A.Proc m' sm fs $ Just pr')) scope'
              else do (ps, fs') <- addChansForm m fs
-                     let newSpec = A.Proc m' sm fs' (A.Seq m' $ A.Several m' $
+                     let newSpec = A.Proc m' sm fs' $ Just (A.Seq m' $ A.Several m' $
                                             map (A.Only m') $ pr' : ps)
                      modifyName n (\nd -> nd {A.ndSpecType = newSpec})
                      return $ A.Spec msp (A.Specification m n newSpec) scope'

@@ -60,11 +60,11 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
   , ok   30 (spec foo (A.Proc m
                               (A.PlainSpec, A.PlainRec)
                               [A.Formal A.InitialAbbrev A.Int bar]
-                              skip)
+                              $ Just skip)
               inner)
             (mSpec foo (mProc (A.PlainSpec, A.PlainRec)
                               [mFormal' A.ValAbbrev A.Int mTemp]
-                              (mSeq
+                              (Just $ mSeq
                                 (mDeclareAssign bar A.Int mTempE
                                   (A.Only m skip))))
               inner)
@@ -76,14 +76,14 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
                               , A.Formal A.ValAbbrev     A.Int baz
                               , A.Formal A.InitialAbbrev A.Int quux
                               ]
-                              skip)
+                              (Just skip))
               inner)
             (mSpec foo (mProc (A.PlainSpec, A.PlainRec)
                               [ mFormal' A.ValAbbrev A.Int mTemp
                               , mFormal' A.ValAbbrev A.Int baz
                               , mFormal' A.ValAbbrev A.Int mTemp2
                               ]
-                              (mSeq
+                              (Just $ mSeq
                                 (mDeclareAssign bar A.Int mTempE
                                   (mOnlyP
                                     (mSeq

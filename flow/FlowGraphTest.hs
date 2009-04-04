@@ -386,27 +386,27 @@ testProcFuncSpec = TestLabel "testProcFuncSpec" $ TestList
   [
    -- Single spec of process (with SKIP body) in AST (not connected up):
     testGraph' "testProcFuncSpec 0" [(0, m0), (5,m5)] [5] [(5,0,ESeq Nothing)]
-      (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several mU [])
+      (A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined $ Just sm0) $ A.Several mU [])
       
    -- Single spec of process (with body with SEQ SKIP SKIP):
    ,testGraph' "testProcFuncSpec 1" [(0, m3), (4,m5), (9,m9)] [9] ([(9,0,ESeq Nothing), (0,4,ESeq Nothing)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m9 undefined undefined $
-        A.Seq m0 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5]
+        Just $ A.Seq m0 $ A.Several m1 [A.Only m2 sm3,A.Only m4 sm5]
       ) $ A.Several mU [])
    -- Nested spec of process (with bodies with SEQ SKIP SKIP):
    ,testGraph' "testProcFuncSpec 2" [(3,m2),(4,m3),(5,m4),(6,m5), (10,m10), (11, m11)] [10,11]
       ([(10,3,ESeq Nothing), (3,4,ESeq Nothing)] ++ [(11,5,ESeq Nothing), (5,6,ESeq Nothing)])
       (A.Spec mU (A.Specification m6 undefined $ A.Proc m10 undefined undefined $
-        A.Seq mU $ A.Several mU [A.Only mU sm2,A.Only mU sm3]
+        Just $ A.Seq mU $ A.Several mU [A.Only mU sm2,A.Only mU sm3]
       ) $ 
        A.Spec mU (A.Specification m7 undefined $ A.Proc m11 undefined undefined $
-        A.Seq mU $ A.Several mU [A.Only mU sm4,A.Only mU sm5]
+        Just $ A.Seq mU $ A.Several mU [A.Only mU sm4,A.Only mU sm5]
       )  
       $ A.Several mU [])
       
    -- Single spec of process (with SKIP body) in a SEQ (connected up):
    ,testGraph "testProcFuncSpec 10" [(0, m0),(1,m1),(2,sub m1 100), (3, m3), (5,m5)] [1,5] [(5,0,ESeq Nothing), (1,3,ESeq Nothing), (3,2,ESeq Nothing)]
-      (A.Seq mU $ A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined sm0) $ A.Several m3 [])
+      (A.Seq mU $ A.Spec mU (A.Specification m1 undefined $ A.Proc m5 undefined undefined $ Just sm0) $ A.Several m3 [])
       
   ]
 

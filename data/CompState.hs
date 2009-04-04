@@ -135,7 +135,7 @@ data CompState = CompState {
     -- up (and therefore the things that should be visible to other files during
     -- separate compilation)
     csOriginalTopLevelProcs :: [String],
-    csExternals :: [(String, (ExternalType, [A.Formal]))],
+    csExternals :: [(String, ExternalType)],
     -- Maps an array variable name to the name of its _sizes array:
     csArraySizes :: Map String A.Name,
     -- Stores a map of constant sizes arrays declared for that size:
@@ -396,7 +396,7 @@ defineNonce m s st am
 -- | Generate and define a no-arg wrapper PROC around a process.
 makeNonceProc :: CSM m => Meta -> A.Process -> m A.Specification
 makeNonceProc m p
-    = defineNonce m "wrapper_proc" (A.Proc m (A.PlainSpec, A.PlainRec) [] p) A.Abbrev
+    = defineNonce m "wrapper_proc" (A.Proc m (A.PlainSpec, A.PlainRec) [] (Just p)) A.Abbrev
 
 -- | Generate and define a counter for a replicator.
 makeNonceCounter :: CSM m => String -> Meta -> m A.Name
@@ -440,7 +440,7 @@ findAllProcesses
     findAllProcesses' :: (String, A.NameDef) -> Maybe (String, A.Process)
     findAllProcesses' (n, nd)
       = case A.ndSpecType nd of
-          A.Proc _ _ _ p -> Just (n, p)
+          A.Proc _ _ _ (Just p) -> Just (n, p)
           _ -> Nothing
 
 -- | A new identifer for the unify types in the tree

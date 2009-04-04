@@ -29,7 +29,7 @@ module GenericUtils (
   , gmapMFor
   , gmapMForRoute
   , routeModify, routeGet, routeSet, Route(..), (@->), routeIdentity, routeId, routeList
-  , route22, route23, route33, route34, route44, route45, route55
+  , route11, route22, route23, route33, route34, route44, route45, route55
   ) where
 
 import Control.Monad.Identity
@@ -286,6 +286,9 @@ gmapMWithRoute f = gmapFuncs [GM {unGM = f' n} | n <- [0..]]
 makeRoute :: (Data s, Data t) => Int -> Route s t
 makeRoute target = Route [target] (\f -> gmapFuncs [mkM' (if n == target then f else return) | n <- [0..]])
 
+decomp11 :: (Monad m, Data a, Typeable a0) => (a0 -> a) -> (a0 -> m a0) -> (a -> m a)
+decomp11 con f1 = decomp1 con f1
+
 decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
 decomp22 con f1 = decomp2 con return f1
 
@@ -310,6 +313,9 @@ decomp45 con f3 = decomp5 con return return return f3 return
 decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
 decomp55 con f4 = decomp5 con return return return return f4
+
+route11 :: (Data a, Typeable a0) => Route a b -> (a0 -> a) -> Route a0 b
+route11 route con = route @-> Route [0] (decomp11 con)
 
 route22 :: (Data a, Typeable a0, Typeable a1) => Route a b -> (a0 -> a1 -> a) -> Route a1 b
 route22 route con = route @-> Route [1] (decomp22 con)

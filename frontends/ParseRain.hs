@@ -495,13 +495,13 @@ terminator = A.Several emptyMeta []
 processDecl :: RainParser A.AST
 processDecl = do {m <- sProcess ; procName <- name ; params <- tupleDef ; body <- block ;
   return $ A.Spec m
-    (A.Specification m procName (A.Proc m (A.PlainSpec, A.Recursive) (formaliseTuple params) body))
+    (A.Specification m procName (A.Proc m (A.PlainSpec, A.Recursive) (formaliseTuple params) $ Just body))
   terminator}
 
 functionDecl :: RainParser A.AST
 functionDecl = do {m <- sFunction ; retType <- dataType ; sColon ; funcName <- name ; params <- tupleDef ; body <- innerBlock False (Just funcName) ;
   return $ A.Spec m
-    (A.Specification m funcName (A.Function m (A.PlainSpec, A.Recursive) [retType] (formaliseTuple params) (Right $ A.Seq m body)))
+    (A.Specification m funcName (A.Function m (A.PlainSpec, A.Recursive) [retType] (formaliseTuple params) (Just $ Right $ A.Seq m body)))
     terminator}
 
 topLevelDecl :: RainParser A.AST

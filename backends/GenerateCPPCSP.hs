@@ -574,7 +574,7 @@ cppgenForwardDeclaration _ = return ()
 
 cppintroduceSpec :: Level -> A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
-cppintroduceSpec lvl (A.Specification _ n (A.Proc _ (sm, _) fs p))
+cppintroduceSpec lvl (A.Specification _ n (A.Proc _ (sm, _) fs (Just p)))
     =  do --Generate the "process" as a C++ function:
           genStatic lvl n
           call genSpecMode sm

@@ -111,7 +111,7 @@ removeInitial
             --         process
             --   :
             --   inner
-            A.Proc m'' sm fs p ->
+            A.Proc m'' sm fs (Just p) ->
                do -- Find the INITIAL formals, and note their positions.
                   let (positions, fromFS)
                         = unzip [(i, f)
@@ -144,7 +144,7 @@ removeInitial
                                                 A.Only m' p))
                                  p (reverse $ zip temps fromFS)
 
-                  let spec' = A.Specification m' n (A.Proc m'' sm fs' p')
+                  let spec' = A.Specification m' n (A.Proc m'' sm fs' (Just p'))
                   return $ A.Spec m spec' inner
 
             _ -> leave

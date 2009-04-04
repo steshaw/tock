@@ -371,8 +371,7 @@ handleSpecs specs inner specMarker
            v <- inner
            mapM scopeOutSpec (reverse ss')
            after
-           return $ foldl (\e s -> specMarker m s e) v
-             [s | (s,(_,_,(_,A.NameUser))) <- zip ss' ss]
+           return $ foldl (\e s -> specMarker m s e) v ss'
 
 -- | Run several different parsers with a separator between them.
 -- If you give it [a, b, c] and s, it'll parse [a, s, b, s, c] then
@@ -1179,7 +1178,7 @@ definition
            indent
            n' <- if rm == A.Recursive
                    then scopeIn n ProcName
-                          (A.Proc m (sm, rm) (map fst fs) (A.Skip m)) A.Original normalName
+                          (A.Proc m (sm, rm) (map fst fs) Nothing) A.Original normalName
                    else return n
            fs' <- scopeInFormals fs
            p <- process
@@ -1187,7 +1186,7 @@ definition
            outdent
            sColon
            eol
-           return (A.Specification m n' $ A.Proc m (sm, rm) fs' p, ProcName, normalName)
+           return (A.Specification m n' $ A.Proc m (sm, rm) fs' (Just p), ProcName, normalName)
     <|> do m <- md
            (rs, (sm, (rm, _))) <- tryVV (sepBy1 dataType sComma) (specMode $ recMode sFUNCTION)
            n <- newFunctionName
@@ -1195,7 +1194,7 @@ definition
            let addScope body
                  = do n' <- if rm == A.Recursive
                               then scopeIn n FunctionName
-                                     (A.Function m (sm, rm) rs (map fst fs) (Left $ A.Several m []))
+                                     (A.Function m (sm, rm) rs (map fst fs) Nothing)
                                      A.Original normalName
                               else return n
                       fs' <- scopeInFormals fs
@@ -1203,9 +1202,11 @@ definition
                       scopeOutFormals fs'
                       return (x, fs', n')
            do { sIS; (el, fs', n') <- addScope expressionList; sColon; eol;
-                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left $ A.Only m el), FunctionName, normalName) }
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs'
+                  (Just $ Left $ A.Only m el), FunctionName, normalName) }
              <|> do { eol; indent; (vp, fs', n') <- addScope valueProcess; outdent; sColon; eol;
-                return (A.Specification m n' $ A.Function m (sm, rm) rs fs' (Left vp), FunctionName, normalName) }
+                return (A.Specification m n' $ A.Function m (sm, rm) rs fs'
+                  (Just $ Left vp), FunctionName, normalName) }
     <|> retypesAbbrev
     <?> "definition"
   where
@@ -1421,23 +1422,23 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                             fs <- formalList'
                             sEq
                             integer
-                            return (n, ProcName, n, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
+                            return (n, ProcName, n, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs Nothing)
                     else do sPROC
                             origN <- anyName ProcName
                             fs <- formalList'
                             sEq
                             n <- newProcName
-                            return (n, ProcName, origN, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs (A.Skip m))
+                            return (n, ProcName, origN, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs Nothing)
                          <|> do ts <- tryVX (sepBy1 dataType sComma) sFUNCTION
                                 origN <- anyName FunctionName
                                 fs <- formalList'
                                 sEq
                                 n <- newFunctionName
                                 return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
-                                  $ Right (A.Skip m))
+                                  Nothing)
                 let ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
-                  { csExternals = (A.nameName n, (ext, fs)) : csExternals st
+                  { csExternals = (A.nameName n, ext) : csExternals st
                   }
                 return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
             ns <- case (prag, mprod) of

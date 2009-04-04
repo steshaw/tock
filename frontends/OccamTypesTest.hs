@@ -457,18 +457,18 @@ testOccamTypes = TestList
                                        ]
 
     -- Proc
-    , testOK   2090 $ A.Proc m (A.PlainSpec, A.PlainRec) [] skip
-    , testOK   2091 $ A.Proc m (A.InlineSpec, A.PlainRec) [] skip
+    , testOK   2090 $ A.Proc m (A.PlainSpec, A.PlainRec) [] jskip
+    , testOK   2091 $ A.Proc m (A.InlineSpec, A.PlainRec) [] jskip
     , testOK   2092 $ A.Proc m (A.PlainSpec, A.PlainRec)
                              [ A.Formal A.Abbrev A.Int (simpleName "x")
                              , A.Formal A.ValAbbrev A.Int (simpleName "y")
                              , A.Formal A.Abbrev chanIntT (simpleName "c")
                              ]
-                             skip
+                             jskip
     , testFail 2093 $ A.Proc m (A.PlainSpec, A.PlainRec)
                              [ A.Formal A.Original A.Int (simpleName "x")
                              ]
-                             skip
+                             jskip
 
     -- Function
     , testOK   2100 $ A.Function m (A.PlainSpec, A.PlainRec) [A.Int] [] returnOne
@@ -600,6 +600,7 @@ testOccamTypes = TestList
     --{{{  process fragments
 
     skip = A.Skip m
+    jskip = Just skip
     sskip = A.Only m skip
     insim iis = A.InputSimple m iis
     inputSimple c iis = A.Input m c $ insim iis
@@ -620,9 +621,9 @@ testOccamTypes = TestList
     --}}}
     --{{{  specification fragments
 
-    returnNone = Left $ A.Only m $ A.ExpressionList m []
-    returnOne = Left $ A.Only m $ A.ExpressionList m [intE]
-    returnTwo = Left $ A.Only m $ A.ExpressionList m [intE, intE]
+    returnNone = Just $ Left $ A.Only m $ A.ExpressionList m []
+    returnOne = Just $ Left $ A.Only m $ A.ExpressionList m [intE]
+    returnTwo = Just $ Left $ A.Only m $ A.ExpressionList m [intE, intE]
 
     retypesV = A.Retypes m A.Abbrev
     retypesE = A.RetypesExpr m A.ValAbbrev

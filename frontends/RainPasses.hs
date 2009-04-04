@@ -223,7 +223,7 @@ checkFunction :: PassType
 checkFunction = return -- applyDepthM checkFunction'
   where
     checkFunction' :: A.Specification -> PassM A.Specification
-    checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Right body)))
+    checkFunction' spec@(A.Specification _ n (A.Function m _ _ _ (Just (Right body))))
       = case body of 
           (A.Seq m' seqBody) ->
             let A.Several _ statements = skipSpecs seqBody in
