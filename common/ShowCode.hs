@@ -318,55 +318,6 @@ instance ShowRain A.Type where
     = tell ["(inferred numeric type: ",show m," ",show n,")"]
   showRainM x = tell ["<invalid Rain type: ", show x, ">"]
 
-instance ShowOccam A.DyadicOp where
-  showOccamM A.Add = tell ["+"]
-  showOccamM A.Subtr = tell ["-"]
-  showOccamM A.Mul = tell ["*"]
-  showOccamM A.Div = tell ["/"]
-  showOccamM A.Rem = tell ["REM"]
-  showOccamM A.Plus = tell ["PLUS"]
-  showOccamM A.Minus = tell ["MINUS"]
-  showOccamM A.Times = tell ["TIMES"]
-  showOccamM A.BitAnd = tell ["/\\"]
-  showOccamM A.BitOr = tell ["\\/"]
-  showOccamM A.BitXor = tell ["><"]
-  showOccamM A.LeftShift = tell ["<<"]
-  showOccamM A.RightShift = tell [">>"]
-  showOccamM A.And = tell ["AND"]
-  showOccamM A.Or = tell ["OR"]
-  showOccamM A.Eq = tell ["="]
-  showOccamM A.NotEq = tell ["<>"]
-  showOccamM A.Less = tell ["<"]
-  showOccamM A.More = tell [">"]
-  showOccamM A.LessEq = tell ["<="]
-  showOccamM A.MoreEq = tell [">="]
-  showOccamM A.After = tell ["AFTER"]
-  showOccamM A.Concat = tell ["CONCAT"]
-
-
-instance ShowRain A.DyadicOp where
-  showRainM A.Div = tell ["/"]
-  showRainM A.Rem = tell ["%"]
-  showRainM A.Plus = tell ["+"]
-  showRainM A.Minus = tell ["-"]
-  showRainM A.Times = tell ["*"]
-  showRainM A.And = tell ["and"]
-  showRainM A.Or = tell ["or"]
-  showRainM A.Eq = tell ["=="]
-  showRainM A.NotEq = tell ["<>"]
-  showRainM A.Less = tell ["<"]
-  showRainM A.More = tell [">"]
-  showRainM A.LessEq = tell ["<="]
-  showRainM A.MoreEq = tell [">="]
-  showRainM A.Concat = tell ["++"]
-  showRainM x = tell ["<invalid Rain operator: ", show x, ">"]
-
-instance ShowOccam A.MonadicOp where
-  showOccamM A.MonadicSubtr = tell ["-"]
-  showOccamM A.MonadicMinus = tell ["MINUS"]
-  showOccamM A.MonadicBitNot = tell ["~"]
-  showOccamM A.MonadicNot = tell ["NOT"]
-
 instance ShowOccam A.Variable where
   showOccamM (A.Variable _ n) = showName n
   showOccamM (A.SubscriptedVariable _ s v) = showSubscriptOccamM v s
@@ -414,8 +365,6 @@ convOrSpace A.Round = tell [" ROUND "]
 convOrSpace A.Trunc = tell [" TRUNC "]
 
 instance ShowOccam A.Expression where
-  showOccamM (A.Monadic _ op e) = bracket $ showOccamM op >> space >> showOccamM e
-  showOccamM (A.Dyadic _ op lhs rhs) = bracket $ showOccamM lhs >> space >> showOccamM op >> space >> showOccamM rhs
   showOccamM (A.MostPos _ t) = bracket $ tell ["MOSTPOS "] >> showOccamM t
   showOccamM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showOccamM t
   showOccamM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showOccamM t
@@ -435,8 +384,6 @@ instance ShowOccam A.Expression where
   showOccamM (A.CloneMobile _ e) = tell["CLONE "] >> showOccamM e
 
 instance ShowRain A.Expression where
-  showRainM (A.Monadic _ op e) = bracket $ showRainM op >> space >> showRainM e
-  showRainM (A.Dyadic _ op lhs rhs) = bracket $ showRainM lhs >> space >> showRainM op >> space >> showRainM rhs
   showRainM (A.MostPos _ t) = bracket $ tell ["MOSTPOS "] >> showRainM t
   showRainM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showRainM t
   showRainM (A.SizeType _ t) = bracket $ tell ["SIZE "] >> showRainM t
@@ -763,11 +710,9 @@ instance ShowRain a => ShowRain [a] where
 -- one more line while you're at it is too bad.
 extCode :: (Data b, Typeable b) => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
 extCode q f = q 
-                `extQ` (text . (f :: A.DyadicOp -> String))
                 `extQ` (text . (f :: A.Expression -> String))
                 `extQ` (text . (f :: A.ExpressionList -> String))
                 `extQ` (text . (f :: A.Formal -> String))
-                `extQ` (text . (f :: A.MonadicOp -> String))
                 `extQ` (text . (f :: A.Process -> String))
                 `extQ` (text . (f :: A.Replicator -> String))
                 `extQ` (text . (f :: A.Specification -> String))
