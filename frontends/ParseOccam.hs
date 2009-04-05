@@ -21,6 +21,7 @@ module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (join, liftM)
 import Control.Monad.State (MonadState, modify, get, put)
+import Data.Char
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -518,7 +519,7 @@ timerName = name TimerName
 variableName = name VariableName
 
 newChannelName, newChanBundleName, newDataTypeName, newFunctionName, newPortName,
-  newProcName, newProtocolName, newRecordName, newTimerName,
+  newProcName, newProtocolName, newRecordName, newTimerName, newUDOName,
   newVariableName
     :: OccParser A.Name
 
@@ -532,6 +533,14 @@ newProtocolName = newName ProtocolName
 newRecordName = newName RecordName
 newTimerName = newName TimerName
 newVariableName = newName VariableName
+
+newUDOName = do m <- md
+                s <- genToken test
+                let chs = splitStringLiteral m s
+                return $ A.Name m $ concat [cs | A.ByteLiteral _ cs <- chs]
+  where
+    test (Token _ (TokStringLiteral s)) = Just (chop 1 1 s)
+    test _ = Nothing
 
 -- | A name that isn't scoped.
 -- This is for things like record fields: we don't need to track their scope
@@ -751,9 +760,9 @@ expressionList
 expression :: OccParser A.Expression
 expression
     =   do m <- md
-           o <- monadicOperator
+           o <- udOperator ((`elem` [JustMonadic, EitherDyadicMonadic]) . operatorArity)
            v <- operand
-           return $ A.Monadic m o v
+           return $ A.FunctionCall m o [v]
     <|> do { m <- md; sMOSTPOS; t <- dataType; return $ A.MostPos m t }
     <|> do { m <- md; sMOSTNEG; t <- dataType; return $ A.MostNeg m t }
     <|> do { m <- md; sCLONE; e <- expression; return $ A.CloneMobile m e }
@@ -761,9 +770,9 @@ expression
     <|> do { m <- md; sDEFINED; e <- expression; return $ A.IsDefined m e }
     <|> sizeExpr
     <|> do m <- md
-           (l, o) <- tryVV operand dyadicOperator
+           (l, o) <- tryVV operand $ udOperator ((`elem` [JustDyadic, EitherDyadicMonadic]) . operatorArity)
            r <- operand
-           return $ A.Dyadic m o l r
+           return $ A.FunctionCall m o [l, r]
     <|> associativeOpExpression
     <|> conversion
     <|> operand
@@ -786,9 +795,11 @@ arrayConstructor
 associativeOpExpression :: OccParser A.Expression
 associativeOpExpression
     =  do m <- md
-          (l, o) <- tryVV operand associativeOperator
+          (l, o) <- tryVV operand $ udOperator
+            (\op -> (operatorArity op `elem` [JustDyadic, EitherDyadicMonadic])
+                    && isAssocOperator op)
           r <- associativeOpExpression <|> operand
-          return $ A.Dyadic m o l r
+          return $ A.FunctionCall m o [l, r]
     <?> "associative operator expression"
 
 sizeExpr :: OccParser A.Expression
@@ -823,44 +834,71 @@ functionCall
                 Just _ -> return s
                 Nothing -> pzero
 
-monadicOperator :: OccParser A.MonadicOp
-monadicOperator
-    =   do { reserved "-"; return A.MonadicSubtr }
-    <|> do { sMINUS; return A.MonadicMinus }
-    <|> do { reserved "~" <|> sBITNOT; return A.MonadicBitNot }
-    <|> do { sNOT; return A.MonadicNot }
-    <?> "monadic operator"
+data OperatorArity = JustDyadic | JustMonadic | EitherDyadicMonadic | NotOperator
+  deriving (Eq)
 
-dyadicOperator :: OccParser A.DyadicOp
-dyadicOperator
-    =   do { reserved "+"; return A.Add }
-    <|> do { reserved "-"; return A.Subtr }
-    <|> do { reserved "*"; return A.Mul }
-    <|> do { reserved "/"; return A.Div }
-    <|> do { reserved "\\"; return A.Rem }
-    <|> do { sREM; return A.Rem }
-    <|> do { sMINUS; return A.Minus }
-    <|> do { reserved "/\\" <|> sBITAND; return A.BitAnd }
-    <|> do { reserved "\\/" <|> sBITOR; return A.BitOr }
-    <|> do { reserved "><"; return A.BitXor }
-    <|> do { reserved "<<"; return A.LeftShift }
-    <|> do { reserved ">>"; return A.RightShift }
-    <|> do { reserved "="; return A.Eq }
-    <|> do { reserved "<>"; return A.NotEq }
-    <|> do { reserved "<"; return A.Less }
-    <|> do { reserved ">"; return A.More }
-    <|> do { reserved "<="; return A.LessEq }
-    <|> do { reserved ">="; return A.MoreEq }
-    <|> do { sAFTER; return A.After }
-    <?> "dyadic operator"
+-- Returns the most operands it can take.
+operatorArity :: String -> OperatorArity
+operatorArity "??" = EitherDyadicMonadic
+operatorArity "@@" = EitherDyadicMonadic
+operatorArity "$$" = EitherDyadicMonadic
+operatorArity "%" = EitherDyadicMonadic
+operatorArity "%%" = EitherDyadicMonadic
+operatorArity "&&" = EitherDyadicMonadic
+operatorArity "<%" = EitherDyadicMonadic
+operatorArity "%>" = EitherDyadicMonadic
+operatorArity "<&" = EitherDyadicMonadic
+operatorArity "&>" = EitherDyadicMonadic
+operatorArity "<]" = EitherDyadicMonadic
+operatorArity "[>" = EitherDyadicMonadic
+operatorArity "<@" = EitherDyadicMonadic
+operatorArity "@>" = EitherDyadicMonadic
+operatorArity "@" = EitherDyadicMonadic
+operatorArity "++" = EitherDyadicMonadic
+operatorArity "!!" = EitherDyadicMonadic
+operatorArity "==" = EitherDyadicMonadic
+operatorArity "^" = EitherDyadicMonadic
+operatorArity "-" = EitherDyadicMonadic
+operatorArity "MINUS" = EitherDyadicMonadic
+operatorArity "~" = JustMonadic
+operatorArity "NOT" = JustMonadic
+operatorArity "+" = JustDyadic
+operatorArity "*" = JustDyadic
+operatorArity "/" = JustDyadic
+operatorArity "\\" = JustDyadic
+operatorArity "REM" = JustDyadic
+operatorArity "PLUS" = JustDyadic
+operatorArity "TIMES" = JustDyadic
+operatorArity "AFTER" = JustDyadic
+operatorArity "/\\" = JustDyadic
+operatorArity "\\/" = JustDyadic
+operatorArity "><" = JustDyadic
+operatorArity "<<" = JustDyadic
+operatorArity ">>" = JustDyadic
+operatorArity "AND" = JustDyadic
+operatorArity "OR" = JustDyadic
+operatorArity "=" = JustDyadic
+operatorArity "<>" = JustDyadic
+operatorArity "<" = JustDyadic
+operatorArity "<=" = JustDyadic
+operatorArity ">" = JustDyadic
+operatorArity ">=" = JustDyadic
+operatorArity _ = NotOperator
 
-associativeOperator :: OccParser A.DyadicOp
-associativeOperator
-    =   do { sAND; return A.And }
-    <|> do { sOR; return A.Or }
-    <|> do { sPLUS; return A.Plus }
-    <|> do { sTIMES; return A.Times }
-    <?> "associative operator"
+isAssocOperator :: String -> Bool
+isAssocOperator "AND" = True
+isAssocOperator "OR" = True
+isAssocOperator "PLUS" = True
+isAssocOperator "TIMES" = True
+
+udOperator :: (String -> Bool) -> OccParser A.Name
+udOperator isOp = do m <- md
+                     n <- genToken test
+                     return $ A.Name m n
+ where
+    test (Token _ (TokReserved name))
+      = if isOp name then Just name else Nothing
+    test _ = Nothing
 
 conversion :: OccParser A.Expression
 conversion
@@ -1191,7 +1229,7 @@ definition
            return (A.Specification m n' $ A.Proc m (sm, rm) fs' (Just p), ProcName, normalName)
     <|> do m <- md
            (rs, (sm, (rm, _))) <- tryVV (sepBy1 dataType sComma) (specMode $ recMode sFUNCTION)
-           n <- newFunctionName
+           n <- newFunctionName <|> newUDOName
            fs <- formalList
            let addScope body
                  = do n' <- if rm == A.Recursive
@@ -1432,7 +1470,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                             n <- newProcName
                             return (n, ProcName, origN, fs, A.Proc m (A.PlainSpec, A.PlainRec) fs Nothing)
                          <|> do ts <- tryVX (sepBy1 dataType sComma) sFUNCTION
-                                origN <- anyName FunctionName
+                                origN <- anyName FunctionName <|> newUDOName
                                 fs <- formalList'
                                 sEq
                                 n <- newFunctionName
@@ -1934,8 +1972,30 @@ runTockParser toks prod cs
 parseOccamProgram :: [Token] -> PassM A.AST
 parseOccamProgram toks
     =  do cs <- get
-          (p, cs') <- runTockParser toks sourceFile cs
+          (p, cs') <- runTockParser (defaultDecl ++ toks) sourceFile cs
           put cs'
           return p
+
+defaultDecl :: [Token]
+defaultDecl = concat
+    [let params = [showOccam $ A.Formal A.ValAbbrev t (A.Name emptyMeta $ "x" ++
+                     show i)
+                  | (t, i :: Integer) <- zip ts [0..]]
+     in
+     [Token emptyMeta $ Pragma $ "TOCKEXTERNAL \""
+      ++ showOccam rt
+      ++ " FUNCTION \"" ++ concatMap doubleStar op ++ "\"("
+      ++ concat (intersperse "," params)
+      ++ ") = "
+      ++ occamDefaultOperator op ts
+      ++ "\""
+    ,Token emptyMeta EndOfLine
+    ]
+    | (op, rt, ts) <- occamIntrinsicOperators
+    ]
+  where
+    doubleStar '*' = "**"
+    doubleStar c = [c]
+
 --}}}
 

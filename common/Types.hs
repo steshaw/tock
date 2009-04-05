@@ -22,11 +22,13 @@ module Types
     specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
+    , isOperator, functionOperator, occamDefaultOperator
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, makeDimension, specificDimSize, addOne, subOne, addExprs, subExprs,
-      mulExprs, divExprs
+    , makeAbbrevAM, makeConstant, makeDimension, specificDimSize
+    , addOne, subOne, addExprs, subExprs, mulExprs, divExprs
+    , addOneInt, subOneInt, addExprsInt, subExprsInt, mulExprsInt, divExprsInt
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
     , recordFields, recordAttr, protocolItems, dirAttr
@@ -37,6 +39,7 @@ module Types
   ) where
 
 import Control.Monad.State
+import Data.Char
 import Data.Generics
 import qualified Data.Map as Map
 import Data.Maybe
@@ -198,7 +201,7 @@ subscriptType (A.SubscriptFrom m _ base) (A.Array (d:ds) t)
     = return $ A.Array (dim : ds) t
   where
     dim = case d of
-            A.Dimension size -> dimensionFromExpr $ A.Dyadic m A.Subtr size base
+            A.Dimension size -> dimensionFromExpr $ subExprsInt size base
             _ -> A.UnknownDimension
 subscriptType (A.SubscriptFor m _ count) (A.Array (_:ds) t)
     = return $ A.Array (dimensionFromExpr count : ds) t
@@ -278,16 +281,6 @@ abbrevModeOfVariable (A.DirectedVariable _ _ v) = abbrevModeOfVariable v
 abbrevModeOfVariable (A.DerefVariable _ v) = return A.Original
 abbrevModeOfVariable (A.VariableSizes {}) = return A.Original
 
-dyadicIsBoolean :: A.DyadicOp -> Bool
-dyadicIsBoolean A.Eq = True
-dyadicIsBoolean A.NotEq = True
-dyadicIsBoolean A.Less = True
-dyadicIsBoolean A.More = True
-dyadicIsBoolean A.LessEq = True
-dyadicIsBoolean A.MoreEq = True
-dyadicIsBoolean A.After = True
-dyadicIsBoolean _ = False
-
 instance ASTTypeable A.Expression where
   astTypeOf = typeOfExpression
 
@@ -295,18 +288,6 @@ instance ASTTypeable A.Expression where
 typeOfExpression :: (CSMR m, Die m) => A.Expression -> m A.Type
 typeOfExpression e
     = case e of
-        A.Monadic m op e -> typeOfExpression e
-        A.Dyadic m op e f ->
-          if dyadicIsBoolean op then return A.Bool 
-          else
-            --Need to handle multiplying Time types specially, due to the asymmetry:           
-            if (op == A.Times)
-              then do tlhs <- typeOfExpression e
-                      trhs <- typeOfExpression f
-                      if (tlhs == A.Time || trhs == A.Time)
-                        then return A.Time
-                        else return tlhs
-              else typeOfExpression e
         A.MostPos m t -> return t
         A.MostNeg m t -> return t
         A.SizeType m t -> return A.Int
@@ -659,8 +640,8 @@ bytesInType a@(A.Array _ _) = bytesInArray 0 a
     bytesInArray num (A.Array (d:ds) t)
         =  do ts <- bytesInArray (num + 1) (A.Array ds t)
               case (d, ts) of
-                (A.Dimension n, BIJust m) -> return $ BIJust (mulExprs n m)
-                (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (mulExprs n m) x
+                (A.Dimension n, BIJust m) -> return $ BIJust (mulExprsInt n m)
+                (A.Dimension n, BIOneFree m x) -> return $ BIOneFree (mulExprsInt n m) x
                 (A.UnknownDimension, BIJust m) -> return $ BIOneFree m num
                 (A.UnknownDimension, BIOneFree _ _) -> return BIManyFree
                 (_, _) -> return ts
@@ -678,7 +659,7 @@ bytesInType (A.Record n)
         =  do bi <- bytesInType t
               br <- bytesInList rest
               case (bi, br) of
-                (BIJust a, BIJust b) -> return $ BIJust (addExprs a b)
+                (BIJust a, BIJust b) -> return $ BIJust (addExprsInt a b)
                 (_, _) -> return BIUnknown
 bytesInType _ = return $ BIUnknown
 --}}}
@@ -694,46 +675,150 @@ countStructured = computeStructured (\m _ -> makeConstant m 1)
 -- | Compute an expression over a Structured.
 computeStructured :: Data a => (Meta -> a -> A.Expression) -> A.Structured a -> A.Expression
 computeStructured f (A.Spec _ (A.Specification _ _ (A.Rep m rep)) s)
-    = A.Dyadic m A.Times (countReplicator rep) (computeStructured f s)
+    = mulExprsInt (countReplicator rep) (computeStructured f s)
 computeStructured f (A.Spec _ _ s) = computeStructured f s
 computeStructured f (A.ProcThen _ _ s) = computeStructured f s
 computeStructured f (A.Only m x) = f m x
 computeStructured f (A.Several m ss)
     = case ss of
         [] -> makeConstant m 0
-        _ -> foldl1 (A.Dyadic m A.Plus) (map (computeStructured f) ss)
+        _ -> foldl1 addExprsInt (map (computeStructured f) ss)
 
 specificDimSize :: Int -> A.Variable -> A.Variable
 specificDimSize n v = A.SubscriptedVariable (findMeta v) (A.Subscript (findMeta v) A.NoCheck
   $ makeConstant (findMeta v) n) $ A.VariableSizes (findMeta v) v
 
 
+functionOperator :: (CSMR m, Die m) => A.Name -> m (Maybe String)
+functionOperator n
+  = lookupNameOrError n (dieP (A.nameMeta n) $ "Can't find operator definition for " ++ A.nameName n)
+      >>* A.ndOrigName
+      >>* (\op -> if isOperator op then Just op else Nothing)
+
+isOperator :: String -> Bool
+isOperator op = any (== op) operatorNames
+
+operatorNames :: [String]
+operatorNames =
+  ["??"
+  ,"@@"
+  ,"$$"
+  ,"%"
+  ,"%%"
+  ,"&&"
+  ,"<%"
+  ,"%>"
+  ,"<&"
+  ,"&>"
+  ,"<]"
+  ,"[>"
+  ,"<@"
+  ,"@>"
+  ,"@"
+  ,"++"
+  ,"!!"
+  ,"=="
+  ,"^"
+  ,"-"
+  ,"MINUS"
+  ,"~"
+  ,"NOT"
+  ,"+"
+  ,"*"
+  ,"/"
+  ,"\\"
+  ,"REM"
+  ,"PLUS"
+  ,"TIMES"
+  ,"AFTER"
+  ,"/\\"
+  ,"\\/"
+  ,"><"
+  ,"<<"
+  ,">>"
+  ,"AND"
+  ,"OR"
+  ,"="
+  ,"<>"
+  ,"<="
+  ,"<"
+  ,">="
+  ,">"
+  ]
+
+-- | This gives a default mapping from operator (such as "+") to a valid name string
+-- to be used in the backend (i.e. the Tock support headers), such as "add", which
+-- will later be suffixed by the types in question.
+occamOperatorTranslateDefault :: String -> String
+occamOperatorTranslateDefault "+" = "add"
+occamOperatorTranslateDefault cs = '_' : concatMap (show . ord) cs
+
+occamDefaultOperator :: String -> [A.Type] -> String
+occamDefaultOperator op ts = "occam_" ++ occamOperatorTranslateDefault op
+  ++ concatMap (('_':) . showOccam) ts
+
 -- | Add one to an expression.
-addOne :: A.Expression -> A.Expression
-addOne e = A.Dyadic m A.Add (makeConstant m 1) e
+addOne :: (CSMR m, Die m) => A.Expression -> m A.Expression
+addOne e = addExprs (makeConstant m 1) e
   where m = findMeta e
 
 -- | Subtrace one from an expression.
-subOne :: A.Expression -> A.Expression
-subOne e = A.Dyadic m A.Subtr e (makeConstant m 1)
+subOne :: (CSMR m, Die m) => A.Expression -> m A.Expression
+subOne e = subExprs e (makeConstant m 1)
   where m = findMeta e
 
--- | Add two expressions.
-addExprs :: A.Expression -> A.Expression -> A.Expression
-addExprs a b = A.Dyadic m A.Add a b
-  where m = findMeta a
+-- | Add one to an expression.
+addOneInt :: A.Expression -> A.Expression
+addOneInt e = addExprsInt (makeConstant m 1) e
+  where m = findMeta e
+
+-- | Subtrace one from an expression.
+subOneInt :: A.Expression -> A.Expression
+subOneInt e = subExprsInt e (makeConstant m 1)
+  where m = findMeta e
+
+type DyadicExpr = A.Expression -> A.Expression -> A.Expression
+type DyadicExprM = (CSMR m, Die m) => A.Expression -> A.Expression -> m A.Expression
+
+dyadicExpr' :: (A.Type, A.Type) -> String -> DyadicExpr
+dyadicExpr' (t0, t1) op a b
+  = A.FunctionCall m (A.Name m $ occamDefaultOperator op [t0,t1]) [a, b]
+  where
+    m = findMeta a
+
+dyadicExpr :: String -> DyadicExprM
+dyadicExpr op a b = do ta <- astTypeOf a
+                       tb <- astTypeOf b
+                       return $ dyadicExpr' (ta, tb) op a b
 
 -- | Add two expressions.
-subExprs :: A.Expression -> A.Expression -> A.Expression
-subExprs a b = A.Dyadic m A.Subtr a b
-  where m = findMeta a
+addExprs :: DyadicExprM
+addExprs = dyadicExpr "+"
+
+-- | Add two expressions.
+subExprs :: DyadicExprM
+subExprs = dyadicExpr "-"
 
 -- | Multiply two expressions.
-mulExprs :: A.Expression -> A.Expression -> A.Expression
-mulExprs a b = A.Dyadic m A.Mul a b
-  where m = findMeta a
+mulExprs :: DyadicExprM
+mulExprs = dyadicExpr "*"
 
 -- | Divide two expressions.
-divExprs :: A.Expression -> A.Expression -> A.Expression
-divExprs a b = A.Dyadic m A.Div a b
-  where m = findMeta a
+divExprs :: DyadicExprM
+divExprs = dyadicExpr "/"
+
+-- | Add two expressions.
+addExprsInt :: DyadicExpr
+addExprsInt = dyadicExpr' (A.Int,A.Int) "+"
+
+-- | Add two expressions.
+subExprsInt :: DyadicExpr
+subExprsInt = dyadicExpr' (A.Int,A.Int) "-"
+
+-- | Multiply two expressions.
+mulExprsInt :: DyadicExpr
+mulExprsInt = dyadicExpr' (A.Int,A.Int) "*"
+
+-- | Divide two expressions.
+divExprsInt :: DyadicExpr
+divExprsInt = dyadicExpr' (A.Int,A.Int) "/"
