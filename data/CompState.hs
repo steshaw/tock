@@ -149,6 +149,8 @@ data CompState = CompState {
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Set A.Name,
     csUnifyId :: Int,
+    -- The string is the operator, the name is the munged function name
+    csOperators :: [(String, A.Name, [A.Type])],
     csWarnings :: [WarningReport]
   }
   deriving (Data, Typeable, Show)
@@ -205,6 +207,7 @@ emptyState = CompState {
     csAdditionalArgs = Map.empty,
     csParProcs = Set.empty,
     csUnifyId = 0,
+    csOperators = [],
     csWarnings = []
   }
 
