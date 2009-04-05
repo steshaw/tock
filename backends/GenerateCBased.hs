@@ -139,7 +139,6 @@ data GenOps = GenOps {
     -- The Bool indicates whether the declaration is inside a record (True) or not (False).
     genDeclaration :: Level -> A.Type -> A.Name -> Bool -> CGen (),
     genDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen (),
-    genDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen (),
     genExpression :: A.Expression -> CGen (),
     genFlatArraySize :: [A.Dimension] -> CGen (),
     genForwardDeclaration :: A.Specification -> CGen(),
@@ -161,7 +160,6 @@ data GenOps = GenOps {
     genLiteralRepr :: A.LiteralRepr -> A.Type -> CGen (),
     genMissing :: String -> CGen (),
     genMissingC :: CGen String -> CGen (),
-    genMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen (),
     -- | Generates an output statement.
     genOutput :: A.Variable -> [(A.Type, A.OutputItem)] -> CGen (),
     -- | Generates an output statement for a tagged protocol.

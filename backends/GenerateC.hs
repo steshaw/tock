@@ -101,7 +101,6 @@ cgenOps = GenOps {
     genDecl = cgenDecl,
     genDeclaration = cgenDeclaration,
     genDirectedVariable = cgenDirectedVariable,
-    genDyadic = cgenDyadic,
     genExpression = cgenExpression,
     genFlatArraySize = cgenFlatArraySize,
     genForwardDeclaration = cgenForwardDeclaration,
@@ -121,7 +120,6 @@ cgenOps = GenOps {
     genLiteralRepr = cgenLiteralRepr,
     genMissing = cgenMissing,
     genMissingC = (\x -> x >>= cgenMissing),
-    genMonadic = cgenMonadic,
     genOutput = cgenOutput,
     genOutputCase = cgenOutputCase,
     genOutputItem = cgenOutputItem,
@@ -933,8 +931,6 @@ cgenArraySubscript check v es
 
 --{{{  expressions
 cgenExpression :: A.Expression -> CGen ()
-cgenExpression (A.Monadic m op e) = call genMonadic m op e
-cgenExpression (A.Dyadic m op e f) = call genDyadic m op e f
 cgenExpression (A.MostPos m t) = call genTypeSymbol "mostpos" t
 cgenExpression (A.MostNeg m t) = call genTypeSymbol "mostneg" t
 --cgenExpression (A.SizeType m t)
@@ -998,12 +994,6 @@ cgenFuncMonadic m s e
           genMeta m
           tell [")"]
 
-cgenMonadic :: Meta -> A.MonadicOp -> A.Expression -> CGen ()
-cgenMonadic m A.MonadicSubtr e = call genFuncMonadic m "negate" e
-cgenMonadic _ A.MonadicMinus e = call genSimpleMonadic "-" e
-cgenMonadic _ A.MonadicBitNot e = call genSimpleMonadic "~" e
-cgenMonadic _ A.MonadicNot e = call genSimpleMonadic "!" e
-
 cgenSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
 cgenSimpleDyadic s e f
     =  do tell ["("]
@@ -1023,30 +1013,6 @@ cgenFuncDyadic m s e f
           tell [", "]
           genMeta m
           tell [")"]
-
-cgenDyadic :: Meta -> A.DyadicOp -> A.Expression -> A.Expression -> CGen ()
-cgenDyadic m A.Add e f = call genFuncDyadic m "add" e f
-cgenDyadic m A.Subtr e f = call genFuncDyadic m "subtr" e f
-cgenDyadic m A.Mul e f = call genFuncDyadic m "mul" e f
-cgenDyadic m A.Div e f = call genFuncDyadic m "div" e f
-cgenDyadic m A.Rem e f = call genFuncDyadic m "rem" e f
-cgenDyadic m A.Plus e f = call genFuncDyadic m "plus" e f
-cgenDyadic m A.Minus e f = call genFuncDyadic m "minus" e f
-cgenDyadic m A.Times e f = call genFuncDyadic m "times" e f
-cgenDyadic m A.LeftShift e f = call genFuncDyadic m "lshift" e f
-cgenDyadic m A.RightShift e f = call genFuncDyadic m "rshift" e f
-cgenDyadic _ A.BitAnd e f = call genSimpleDyadic "&" e f
-cgenDyadic _ A.BitOr e f = call genSimpleDyadic "|" e f
-cgenDyadic _ A.BitXor e f = call genSimpleDyadic "^" e f
-cgenDyadic _ A.And e f = call genSimpleDyadic "&&" e f
-cgenDyadic _ A.Or e f = call genSimpleDyadic "||" e f
-cgenDyadic _ A.Eq e f = call genSimpleDyadic "==" e f
-cgenDyadic _ A.NotEq e f = call genSimpleDyadic "!=" e f
-cgenDyadic _ A.Less e f = call genSimpleDyadic "<" e f
-cgenDyadic _ A.More e f = call genSimpleDyadic ">" e f
-cgenDyadic _ A.LessEq e f = call genSimpleDyadic "<=" e f
-cgenDyadic _ A.MoreEq e f = call genSimpleDyadic ">=" e f
-cgenDyadic _ A.Concat e f = call genListConcat e f
 --}}}
 
 cgenListConcat :: A.Expression -> A.Expression -> CGen ()

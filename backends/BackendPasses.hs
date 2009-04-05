@@ -146,7 +146,8 @@ transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
            put (specs ++ [A.Spec m (A.Specification m n (A.Declaration m A.Time))], 
                 init ++ [A.Only m $ A.Input m tim
                            (A.InputTimerRead m (A.InVariable m var)),
-                         A.Only m $ A.Assign m [var] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m var) e]])
+                         A.Only m $ A.Assign m [var] $ A.ExpressionList m
+                           [addExprsInt (A.ExprVariable m var) e]])
            return $ A.Only m'' $ A.Alternative m cond tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
                
     doWaitFor m a = return $ A.Only m a
@@ -274,7 +275,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                 -- together the dimensions.
                 (_, A.Array ds t) ->
                     do BIJust elementSize <- bytesInType t
-                       return $ foldl mulExprs elementSize dSizes
+                       return $ foldl mulExprsInt elementSize dSizes
                   where
                     dSizes = [case d of
                                 -- Fixed dimension.
@@ -296,7 +297,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                 -- Destination has one free dimension, so we need to compute
                 -- it.
                 BIOneFree destSize n ->
-                  let newDim = A.Dimension $ divExprs srcSize destSize
+                  let newDim = A.Dimension $ divExprsInt srcSize destSize
                       ds' = replaceAt n newDim ds in
                   makeSizeSpec m [e | A.Dimension e <- ds']
 
@@ -451,7 +452,7 @@ simplifySlices = occamOnlyPass "Simplify array slices"
            limit <- case d of
              A.Dimension n -> return n
              A.UnknownDimension -> return $ A.ExprVariable m $ specificDimSize 0 v
-           return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (A.Dyadic m A.Subtr limit from)) v)
+           return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (subExprsInt limit from)) v)
     doVariable v = return v
 
 -- | Finds all processes that have a MOBILE parameter passed in Abbrev mode, and

@@ -681,7 +681,7 @@ cppgetCType m t am | isChan t
       = do ct <- call getCType m t A.Original
            return $ Template "tockSendableArray"
              [Left ct
-             ,Right $ foldl1 (A.Dyadic m A.Mul) [n | A.Dimension n <- ds]
+             ,Right $ foldl1 mulExprsInt [n | A.Dimension n <- ds]
              ]
     cppTypeInsideChannel t = call getCType m t A.Original
 cppgetCType m (A.List t) am
