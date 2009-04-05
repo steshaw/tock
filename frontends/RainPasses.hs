@@ -197,8 +197,9 @@ transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges int
         )
       ) =   do -- Need to change the stored abbreviation mode to original:
                modifyName loopVar $ \nd -> nd { A.ndAbbrevMode = A.Original }
+               newCount <- subExprs end begin >>= addOne
                return $ A.Specification mspec loopVar $ A.Rep repMeta $
-                 A.For eachMeta begin (addOne $ subExprs end begin) (makeConstant eachMeta 1)
+                 A.For eachMeta begin newCount (makeConstant eachMeta 1)
     doSpec s = return s
 
 transformRangeRep :: Pass
@@ -209,8 +210,8 @@ transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into mo
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m t (A.RangeLiteral m' begin end))
-          = do let count = addOne $ subExprs end begin
-                   rep = A.Rep m' $ A.For m' begin count $ makeConstant m 1
+          = do count <- subExprs end begin >>= addOne
+               let rep = A.Rep m' $ A.For m' begin count $ makeConstant m 1
                spec@(A.Specification _ repN _) <- defineNonce m' "rep_constr"
                  rep A.ValAbbrev
                return $ A.Literal m t $ A.ArrayListLiteral m' $
@@ -302,7 +303,6 @@ excludeNonRainFeatures = rainOnlyPass "AST Validity check, Rain #1" [] []
    ,con2 A.BytesInExpr
    ,con2 A.BytesInType
    ,con3 A.OffsetOf
-   ,con0 A.After
    ,con3 A.InCounted
    ,con3 A.OutCounted
    ,con2 A.Place

@@ -97,28 +97,28 @@ sPoison = reserved "poison"
 
 --{{{Operators
 
-dyadicArithOp :: RainParser (Meta,A.DyadicOp)
+dyadicArithOp :: RainParser (Meta,A.Name)
 dyadicArithOp
-  = do {m <- reserved "+" ; return (m,A.Plus) }
-    <|> do {m <- reserved "-" ; return (m,A.Minus) }
-    <|> do {m <- reserved "*" ; return (m,A.Times) }
-    <|> do {m <- reserved "/" ; return (m,A.Div) }
-    <|> do {m <- reserved "%" ; return (m,A.Rem) }
-    <|> do {m <- reserved "++" ; return (m,A.Concat) }
+  = do {m <- reserved "+" ; return (m, A.Name m "+") }
+    <|> do {m <- reserved "-" ; return (m, A.Name m "-") }
+    <|> do {m <- reserved "*" ; return (m, A.Name m "*") }
+    <|> do {m <- reserved "/" ; return (m, A.Name m "/") }
+    <|> do {m <- reserved "%" ; return (m, A.Name m "%") }
+    <|> do {m <- reserved "++" ; return (m, A.Name m "++") }
 
-dyadicCompOp :: RainParser (Meta,A.DyadicOp)
+dyadicCompOp :: RainParser (Meta,A.Name)
 dyadicCompOp
-  = do {m <- reserved "<" ; return (m,A.Less) }
-    <|> do {m <- reserved ">" ; return (m,A.More) }
-    <|> do {m <- reserved "<=" ; return (m,A.LessEq) }
-    <|> do {m <- reserved ">=" ; return (m,A.MoreEq) }
-    <|> do {m <- reserved "==" ; return (m,A.Eq) }
-    <|> do {m <- reserved "<>" ; return (m,A.NotEq) }
+  = do {m <- reserved "<" ; return (m, A.Name m "<") }
+    <|> do {m <- reserved ">" ; return (m, A.Name m ">") }
+    <|> do {m <- reserved "<=" ; return (m, A.Name m "<=") }
+    <|> do {m <- reserved ">=" ; return (m, A.Name m ">=") }
+    <|> do {m <- reserved "==" ; return (m, A.Name m "=") }
+    <|> do {m <- reserved "<>" ; return (m, A.Name m "<>") }
 
 -- TODO remove this in future, I think
-monadicArithOp :: RainParser (Meta,A.MonadicOp)
+monadicArithOp :: RainParser (Meta,A.Name)
 monadicArithOp
-  = do {m <- reserved "-" ; return (m,A.MonadicMinus) }
+  = do {m <- reserved "-" ; return (m, A.Name m "-") }
 
 
 
@@ -287,7 +287,7 @@ expression
     castExpression = (try $ do {ty <- dataType ; m <- sColon ; e <- expression ; return $ A.Conversion m A.DefaultConversion ty e})
 
     compExpression :: RainParser A.Expression
-    compExpression = do {lhs <- subExpression ; (m,op) <- dyadicCompOp ; rhs <- subExpression ; return $ A.Dyadic m op lhs rhs }
+    compExpression = do {lhs <- subExpression ; (m,op) <- dyadicCompOp ; rhs <- subExpression ; return $ A.FunctionCall m op [lhs, rhs] }
 
     subExpression :: RainParser A.Expression
     subExpression
@@ -296,15 +296,15 @@ expression
            --further :: [(Meta,A.DyadicOp,A.Expression)]
            return $ foldl foldOps se further
 
-    foldOps :: A.Expression -> (Meta,A.DyadicOp,A.Expression) -> A.Expression
-    foldOps lhs (m,op,rhs) = A.Dyadic m op lhs rhs
+    foldOps :: A.Expression -> (Meta,A.Name,A.Expression) -> A.Expression
+    foldOps lhs (m,op,rhs) = A.FunctionCall m op [lhs, rhs]
 
     subExpr' :: RainParser A.Expression
     subExpr' = try functionCall
                <|> do {id <- variable ; return $ A.ExprVariable (findMeta id) id}
                <|> literal
                <|> range
-               <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.Monadic m op rhs}
+               <|> do {(m,op) <- monadicArithOp ; rhs <- subExpr' ; return $ A.FunctionCall m op [rhs]}
                <|> do {sLeftR ; e <- expression ; sRightR ; return e}
 
 functionCall :: RainParser A.Expression
@@ -370,14 +370,14 @@ block = do { optionalSeq ; b <- innerBlock False Nothing ; return $ A.Seq (findM
 optionalSeq :: RainParser ()
 optionalSeq = option () (sSeq >> return ())
 
-assignOp :: RainParser (Meta, Maybe A.DyadicOp)
+assignOp :: RainParser (Meta, Maybe A.Name)
 --consume an optional operator, then an equals sign (so we can handle = += /= etc)  This should not handle !=, nor crazy things like ===, <== (nor <=)
 assignOp
-  = do {m <- reserved "+=" ; return (m,Just A.Plus)}
-    <|> do {m <- reserved "-=" ; return (m,Just A.Minus)}
-    <|> do {m <- reserved "*=" ; return (m,Just A.Times)}
-    <|> do {m <- reserved "/=" ; return (m,Just A.Div)}
-    <|> do {m <- reserved "%=" ; return (m,Just A.Rem)}
+  = do {m <- reserved "+=" ; return (m,Just $ A.Name m  "+")}
+    <|> do {m <- reserved "-=" ; return (m,Just $ A.Name m  "-")}
+    <|> do {m <- reserved "*=" ; return (m,Just $ A.Name m  "*")}
+    <|> do {m <- reserved "/=" ; return (m,Just $ A.Name m  "/")}
+    <|> do {m <- reserved "%=" ; return (m,Just $ A.Name m  "%")}
     <|> do {m <- reserved "=" ; return (m,Nothing)}
 
 
@@ -468,7 +468,7 @@ statement
     <|> do {m <- sPoison ; ch <- lvalue; sSemiColon ; return $ A.InjectPoison m ch}
     <|> try (do { lv <- lvalue ; op <- assignOp ; exp <- expression ; sSemiColon ; 
              case op of 
-               (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.Dyadic m' dyOp (A.ExprVariable (findMeta lv) lv) exp)]))
+               (m', Just dyOp) -> return (A.Assign m' [lv] (A.ExpressionList m' [(A.FunctionCall m' dyOp [A.ExprVariable (findMeta lv) lv, exp])]))
                (m', Nothing) -> return (A.Assign m' [lv] (A.ExpressionList (findMeta exp) [exp]))
            })   
     <?> "statement"

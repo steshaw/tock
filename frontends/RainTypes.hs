@@ -220,8 +220,8 @@ markExpressionTypes = checkDepthM checkExpression
   where
     -- TODO also check in a later pass that the op is valid
     checkExpression :: RainTypeCheck A.Expression
-    checkExpression (A.Dyadic _ _ lhs rhs)
-      = markUnify lhs rhs
+--    checkExpression (A.Dyadic _ _ lhs rhs)
+--      = markUnify lhs rhs
     checkExpression (A.Literal _ t (A.ArrayListLiteral _ es))
       = checkListElems (markUnify t) es
     checkExpression _ = return ()
