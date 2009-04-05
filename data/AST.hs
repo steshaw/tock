@@ -257,12 +257,8 @@ data Variable =
 
 -- | An expression.
 data Expression =
-  -- | A monadic (unary) operator.
-  Monadic Meta MonadicOp Expression
-  -- | A dyadic (binary) operator.
-  | Dyadic Meta DyadicOp Expression Expression
   -- | The most positive value of a given type.
-  | MostPos Meta Type
+    MostPos Meta Type
   -- | The most negative value of a given type.
   | MostNeg Meta Type
   -- | The size of the outermost dimension of an array type (see 'SizeExpr').
@@ -302,27 +298,6 @@ data ExpressionList =
   | ExpressionList Meta [Expression]
   -- | A pair of expressions resulting from allocating a mobile channel bundle.
   | AllocChannelBundle Meta Name
-  deriving (Show, Eq, Typeable, Data)
-
--- | A monadic (unary) operator.
--- Nothing to do with Haskell monads.
-data MonadicOp =
-  MonadicSubtr
-  | MonadicMinus
-  | MonadicBitNot
-  | MonadicNot
-  deriving (Show, Eq, Typeable, Data)
-
--- | A dyadic (binary) operator.
-data DyadicOp =
-  Add | Subtr | Mul | Div | Rem
-  | Plus | Minus | Times
-  | BitAnd | BitOr | BitXor
-  | LeftShift | RightShift
-  | And | Or
-  | Eq | NotEq | Less | More | LessEq | MoreEq
-  | After
-  | Concat
   deriving (Show, Eq, Typeable, Data)
 
 -- | An item in an input.
