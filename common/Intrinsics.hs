@@ -19,9 +19,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Definitions of intrinsic FUNCTIONs and PROCs.
 module Intrinsics where
 
-import qualified AST as A
-
 import Data.Char
+
+import qualified AST as A
 
 intrinsicFunctions :: [(String, ([A.Type], [(A.Type, String)]))]
 intrinsicFunctions =
@@ -170,3 +170,69 @@ rainIntrinsicFunctions =
     , ("fromMicros", ([A.Time], [(A.Int64, "value")]))
     , ("fromNanos", ([A.Time], [(A.Int64, "value")]))
     ]
+
+occamIntrinsicOperators :: [(String, A.Type, [A.Type])]
+occamIntrinsicOperators = concat
+  [comparison ">"
+  ,comparison ">="
+  ,comparison "<"
+  ,comparison "<="
+  ,arithmetic "+"
+  ,arithmetic "-"
+  ,arithmetic "*"
+  ,arithmetic "/"
+  ,arithmetic "\\"
+  ,arithmetic "REM"
+  ,equalityOp "="
+  ,equalityOp "<>"
+  ,unaryArith "-"
+  ,bitwiseOpr "/\\"
+  ,bitwiseOpr "\\/"
+  ,bitwiseOpr "><"
+  ,shiftingOp ">>"
+  ,shiftingOp "<<"
+  ]
+  where
+    comparison :: String -> [(String, A.Type, [A.Type])]
+    comparison op = [(op, A.Bool, [t, t])
+                    | t <- allNumericTypes]
+
+    equalityOp :: String -> [(String, A.Type, [A.Type])]
+    equalityOp op = [(op, A.Bool, [t, t])
+                    | t <- allTypes]
+
+    arithmetic :: String -> [(String, A.Type, [A.Type])]
+    arithmetic op = [(op, t, [t, t])
+                    | t <- allNumericTypes]
+
+    bitwiseOpr :: String -> [(String, A.Type, [A.Type])]
+    bitwiseOpr op = [(op, t, [t, t])
+                    | t <- allIntegerTypes]
+
+    shiftingOp :: String -> [(String, A.Type, [A.Type])]
+    shiftingOp op = [(op, t, [t, A.Int])
+                    | t <- allIntegerTypes]
+
+    unaryArith :: String -> [(String, A.Type, [A.Type])]
+    unaryArith op = [(op, t, [t])
+                    | t <- allNumericTypes]
+
+    allNumericTypes :: [A.Type]
+    allNumericTypes = allIntegerTypes ++ [A.Real32, A.Real64]
+
+    allIntegerTypes :: [A.Type]
+    allIntegerTypes
+      = [A.Byte
+--        ,A.UInt16
+--        ,A.UInt32
+--        ,A.UInt64
+--        ,A.Int8
+        ,A.Int16
+        ,A.Int32
+        ,A.Int64
+        ,A.Int
+        ]
+
+    allTypes :: [A.Type]
+    allTypes = A.Bool : allNumericTypes
+
