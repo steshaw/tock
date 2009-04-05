@@ -728,6 +728,8 @@ splitStringLiteral m cs = ssl cs
         = (A.ByteLiteral m ['*', '#', a, b]) : ssl cs
     ssl ('*':'\n':cs)
         = (A.ByteLiteral m $ tail $ dropWhile (/= '*') cs) : ssl cs
+    ssl ('*':'*':cs)
+        = A.ByteLiteral m ['*'] : ssl cs
     ssl ('*':c:cs)
         = (A.ByteLiteral m ['*', c]) : ssl cs
     ssl (c:cs)
