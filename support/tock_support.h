@@ -64,15 +64,6 @@
 #endif
 //}}}
 
-#ifdef INT
-#define tock_old_INT INT
-#endif
-#ifdef UINT
-#define tock_old_UINT UINT
-#endif
-#ifdef OCCAM_BOOL
-#define tock_old_OCCAM_BOOL OCCAM_BOOL
-#endif
 #ifdef REAL
 #define tock_old_REAL REAL
 #endif
@@ -82,11 +73,11 @@
 
 //We use #define so we can #undef afterwards
 #if occam_INT_size == 4
-	#define INT int32_t
-	#define UINT uint32_t
+	#define OCCAM_INT int32_t
+	#define OCCAM_UINT uint32_t
 #elif occam_INT_size == 8
-	#define INT int64_t
-	#define UINT uint64_t
+	#define OCCAM_INT int64_t
+	#define OCCAM_UINT uint64_t
 #else
 	#error You must define occam_INT_size when using this header
 #endif
@@ -312,14 +303,21 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	static inline type occam_##name##_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		return a op b; \
 	}
+#define MAKE_SIMPLE_UNARY(name, op, type, otype) \
+	static inline type occam_##name##_##otype (occam_extra_param type, const char *) occam_unused; \
+	static inline type occam_##name##_##otype (occam_extra_param type a, const char *pos) { \
+		return op a; \
+	}
 
-#define MAKE_ALL_BITWISE(type, otypes) \
-	MAKE_SIMPLE(and,&,type,otypes) \
-	MAKE_SIMPLE(or,|,type,otypes) \
+#define MAKE_ALL_BITWISE(type, otype) \
+	MAKE_SIMPLE(and,&,type,otype##_##otype) \
+	MAKE_SIMPLE(or,|,type,otype##_##otype) \
+	MAKE_SIMPLE(xor,^,type,otype##_##otype) \
+	MAKE_SIMPLE_UNARY(not,~,type,otype)
 
 #define MAKE_TOSTRING(type, occname, flag) \
-	static inline void occam_##occname##TOSTRING(INT*, unsigned char*, const type) occam_unused; \
-	static inline void occam_##occname##TOSTRING(INT* len, unsigned char* string, const type n) { \
+	static inline void occam_##occname##TOSTRING(OCCAM_INT*, unsigned char*, const type) occam_unused; \
+	static inline void occam_##occname##TOSTRING(OCCAM_INT* len, unsigned char* string, const type n) { \
 		/* Must use buffer to avoid writing trailing zero: */ char buf[32]; \
 		int chars_written = snprintf(buf, 32, flag, n); \
 		memcpy(string, buf, chars_written * sizeof(char)); \
@@ -346,8 +344,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_STRINGTO_32 MAKE_STRINGTO
 #define MAKE_STRINGTO_64 MAKE_STRINGTO
 
-static inline void occam_BOOLTOSTRING(occam_extra_param INT*, unsigned char*, const OCCAM_BOOL) occam_unused;
-static inline void occam_BOOLTOSTRING(occam_extra_param INT* len, unsigned char* str, const OCCAM_BOOL b) {
+static inline void occam_BOOLTOSTRING(occam_extra_param OCCAM_INT*, unsigned char*, const OCCAM_BOOL) occam_unused;
+static inline void occam_BOOLTOSTRING(occam_extra_param OCCAM_INT* len, unsigned char* str, const OCCAM_BOOL b) {
 	if (b) {
 		memcpy(str,"TRUE",4*sizeof(char));
 		*len = 4;
@@ -391,6 +389,9 @@ static inline void occam_STRINGTOBOOL(occam_extra_param OCCAM_BOOL* error, OCCAM
 	MAKE_STRINGTO_##bits(type, HEX##bits, hflag)
 
 MAKE_ALL_COMP(OCCAM_BOOL,BOOL_BOOL)
+MAKE_SIMPLE(and,&&,OCCAM_BOOL,BOOL_BOOL)
+MAKE_SIMPLE(or,||,OCCAM_BOOL,BOOL_BOOL)
+MAKE_SIMPLE_UNARY(not,!,OCCAM_BOOL,BOOL)
 
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
@@ -402,6 +403,8 @@ MAKE_SHIFT(uint8_t,uint8_t,BYTE_BYTE)
 MAKE_PLUS(uint8_t,BYTE_BYTE)
 MAKE_MINUS(uint8_t,BYTE_BYTE)
 MAKE_TIMES(uint8_t,BYTE_BYTE)
+MAKE_ALL_COMP(uint8_t,BYTE_BYTE)
+MAKE_ALL_BITWISE(uint8_t,BYTE_BYTE)
 
 // occam's only unsigned type, so we can use % directly.
 static inline uint8_t occam_rem_BYTE_BYTE (uint8_t, uint8_t, const char *) occam_unused;
@@ -425,37 +428,31 @@ MAKE_ALL_SIGNED(int16_t, 16, "%d", "%x", uint16_t, INT16)
 //{{{ int
 //MAKE_ALL_SIGNED(int, "%d", unsigned int)
 
-MAKE_TOSTRING(INT, INT, "%d")
-MAKE_TOSTRING(INT, HEX, "%x")
-MAKE_STRINGTO(INT, INT, "%d")
-MAKE_STRINGTO(INT, HEX, "%x")
+MAKE_TOSTRING(OCCAM_INT, INT, "%d")
+MAKE_TOSTRING(OCCAM_INT, HEX, "%x")
+MAKE_STRINGTO(OCCAM_INT, INT, "%d")
+MAKE_STRINGTO(OCCAM_INT, HEX, "%x")
 
 #if occam_INT_size == 4
-#define TOCK_TMP_INT int32_t
 #define TOCK_TMP_INT_FLAG "%d"
-#define TOCK_TMP_UINT uint32_t
 #elif occam_INT_size == 8
-#define TOCK_TMP_INT int64_t
 #define TOCK_TMP_INT_FLAG "%lld"
-#define TOCK_TMP_UINT uint64_t
 #endif
 
-	MAKE_ADD(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
-	MAKE_SUBTR(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
-	MAKE_MUL(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
-	MAKE_DIV(TOCK_TMP_INT,INT_INT)
-	MAKE_REM(TOCK_TMP_INT,INT_INT)
-	MAKE_NEGATE(TOCK_TMP_INT,INT)
-	MAKE_SHIFT(TOCK_TMP_UINT, TOCK_TMP_INT,INT_INT)
-	MAKE_PLUS(TOCK_TMP_INT,INT_INT)
-	MAKE_MINUS(TOCK_TMP_INT,INT_INT)
-	MAKE_TIMES(TOCK_TMP_INT,INT_INT)
-	MAKE_ALL_COMP(TOCK_TMP_INT,INT_INT)
-	MAKE_ALL_BITWISE(TOCK_TMP_INT,INT_INT)
+	MAKE_ADD(OCCAM_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_SUBTR(OCCAM_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_MUL(OCCAM_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_DIV(OCCAM_INT,INT_INT)
+	MAKE_REM(OCCAM_INT,INT_INT)
+	MAKE_NEGATE(OCCAM_INT,INT)
+	MAKE_SHIFT(OCCAM_UINT, OCCAM_INT,INT_INT)
+	MAKE_PLUS(OCCAM_INT,INT_INT)
+	MAKE_MINUS(OCCAM_INT,INT_INT)
+	MAKE_TIMES(OCCAM_INT,INT_INT)
+	MAKE_ALL_COMP(OCCAM_INT,INT_INT)
+	MAKE_ALL_BITWISE(OCCAM_INT,INT)
 
-#undef TOCK_TMP_INT
 #undef TOCK_TMP_INT_FLAG
-#undef TOCK_TMP_UINT
 
 //}}}
 //{{{ int32_t
@@ -578,23 +575,12 @@ static int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 #define F(func) func
 #include "tock_intrinsics_float.h"
 
-#undef INT
-#undef UINT
 #undef REAL
 #undef RINT
 #undef ADD_PREFIX
 #undef SPLICE_SIZE
 #undef F
 
-#ifdef tock_old_INT
-#define INT tock_old_INT
-#endif
-#ifdef tock_old_UINT
-#define UINT tock_old_UINT
-#endif
-#ifdef tock_old_OCCAM_BOOL
-#define OCCAM_BOOL tock_old_OCCAM_BOOL
-#endif
 #ifdef tock_old_REAL
 #define REAL tock_old_REAL
 #endif

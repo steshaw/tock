@@ -1,5 +1,5 @@
-static inline INT ADD_PREFIX(IEEECOMPARE) (REAL, REAL, const char*) occam_unused;
-static inline INT ADD_PREFIX(IEEECOMPARE) (REAL X, REAL Y, const char* pos) {
+static inline OCCAM_INT ADD_PREFIX(IEEECOMPARE) (REAL, REAL, const char*) occam_unused;
+static inline OCCAM_INT ADD_PREFIX(IEEECOMPARE) (REAL X, REAL Y, const char* pos) {
 	if (isunordered(X,Y)) {
 		return 2;
 	} else if (isgreater(X,Y)) {
@@ -10,8 +10,8 @@ static inline INT ADD_PREFIX(IEEECOMPARE) (REAL X, REAL Y, const char* pos) {
 		return 0;
 	}
 }
-static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL, INT, INT, REAL, REAL*, const char*) occam_unused;
-static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, INT Rm, INT Op, REAL Y, REAL* result1, const char* pos) {
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL, OCCAM_INT, OCCAM_INT, REAL, REAL*, const char*) occam_unused;
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, OCCAM_INT Rm, OCCAM_INT Op, REAL Y, REAL* result1, const char* pos) {
 	REAL R;
 	int prevRm = fegetround();
 	switch (Rm) {
@@ -43,8 +43,8 @@ static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,GT) (REAL, REAL, const char*) oc
 static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,GT) (REAL X, REAL Y, const char* pos) {
 	return isgreater(X,Y);
 }
-static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL, INT, REAL, const char*) occam_unused;
-static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL X, INT Op, REAL Y, const char* pos) {
+static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL, OCCAM_INT, REAL, const char*) occam_unused;
+static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL X, OCCAM_INT Op, REAL Y, const char* pos) {
 	switch (Op) {
 		case 0: return X+Y;
 		case 1: return X-Y;
@@ -60,11 +60,11 @@ static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL X, REAL Y, const char* pos)
 #if SPLICE_SIZE(4,1) == 4321
 static inline OCCAM_BOOL occam_ARGUMENT_REDUCE (float, float, float, int32_t*, float*, const char*) occam_unused;
 static inline OCCAM_BOOL occam_ARGUMENT_REDUCE (float X, float Y, float Y_err, int32_t* result1, float* result2, const char* pos) {
-	const INT maxexpdiff = 20;
+	const OCCAM_INT maxexpdiff = 20;
 #else
 static inline OCCAM_BOOL occam_DARGUMENT_REDUCE (double, double, double, int32_t*, double*, const char*) occam_unused;
 static inline OCCAM_BOOL occam_DARGUMENT_REDUCE (double X, double Y, double Y_err, int32_t* result1, double* result2, const char* pos) {
-	const INT maxexpdiff = 30;
+	const OCCAM_INT maxexpdiff = 30;
 #endif
 	int EX;
 	int EY;
@@ -101,8 +101,8 @@ static inline REAL ADD_PREFIX(DIVBY2) (REAL X, const char* pos) {
 		occam_stop(pos,2,"Called (D)DIVBY2 on non-finite value: %f", X);
 	}
 }
-static inline INT ADD_PREFIX(FLOATING_UNPACK) (REAL, REAL*, const char*) occam_unused;
-static inline INT ADD_PREFIX(FLOATING_UNPACK) (REAL X, REAL* result1, const char* pos) {
+static inline OCCAM_INT ADD_PREFIX(FLOATING_UNPACK) (REAL, REAL*, const char*) occam_unused;
+static inline OCCAM_INT ADD_PREFIX(FLOATING_UNPACK) (REAL X, REAL* result1, const char* pos) {
 	if (isnan(X) || X == 0) {
 		//Finding the max exponent is a hack,
 		//but frexp doesn't set the exponent when you pass
@@ -173,8 +173,8 @@ static inline OCCAM_BOOL ADD_PREFIX(ORDERED) (REAL, REAL, const char*) occam_unu
 static inline OCCAM_BOOL ADD_PREFIX(ORDERED) (REAL X, REAL Y, const char* pos) {
 	return !(isunordered(X,Y));
 }
-static inline REAL ADD_PREFIX(SCALEB) (REAL, INT, const char*) occam_unused;
-static inline REAL ADD_PREFIX(SCALEB) (REAL X, INT n, const char* pos) {
+static inline REAL ADD_PREFIX(SCALEB) (REAL, OCCAM_INT, const char*) occam_unused;
+static inline REAL ADD_PREFIX(SCALEB) (REAL X, OCCAM_INT n, const char* pos) {
 	if (isfinite(X)) {
 		return F(scalbln)(X,n);
 	} else {
