@@ -70,8 +70,8 @@
 #ifdef UINT
 #define tock_old_UINT UINT
 #endif
-#ifdef BOOL
-#define tock_old_BOOL BOOL
+#ifdef OCCAM_BOOL
+#define tock_old_OCCAM_BOOL OCCAM_BOOL
 #endif
 #ifdef REAL
 #define tock_old_REAL REAL
@@ -92,9 +92,9 @@
 #endif
 
 #ifdef __cplusplus
-#define BOOL bool
+#define OCCAM_BOOL bool
 #else
-#define BOOL _Bool
+#define OCCAM_BOOL _Bool
 #endif
 
 
@@ -157,28 +157,28 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define __MIN(type) ((type)-1 < 1?__MIN_SIGNED(type):(type)0)
 #define __MAX(type) ((type)~__MIN(type))
 
-#define MAKE_ADD(type, format) \
-	static inline type occam_add_##type (type, type, const char *) occam_unused; \
-	static inline type occam_add_##type (type a, type b, const char *pos) { \
+#define MAKE_ADD(type, otypes, format) \
+	static inline type occam_add_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_add_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		if (((b<1)&&(__MIN(type)-b<=a)) || ((b>=1)&&(__MAX(type)-b>=a))) {return a + b;} \
 		else { occam_stop(pos, 3, "integer overflow when doing " format " + " format, a, b); return 0; } \
 	}
-#define MAKE_ADDF(type) \
-	static inline type occam_add_##type (type, type, const char *) occam_unused; \
-	static inline type occam_add_##type (type a, type b, const char *pos) { return a + b;}
-#define MAKE_SUBTR(type,format) \
-	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
-	static inline type occam_subtr_##type (type a, type b, const char *pos) { \
+#define MAKE_ADDF(type, otypes) \
+	static inline type occam_add_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_add_##otypes (occam_extra_param type a, type b, const char *pos) { return a + b;}
+#define MAKE_SUBTR(type, otypes, format) \
+	static inline type occam_subtr_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_subtr_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		if (((b<1)&&(__MAX(type)+b>=a)) || ((b>=1)&&(__MIN(type)+b<=a))) {return a - b;} \
 		else { occam_stop(pos, 3, "integer overflow when doing " format " - " format, a, b); } \
 	}
-#define MAKE_SUBTRF(type) \
-	static inline type occam_subtr_##type (type, type, const char *) occam_unused; \
-	static inline type occam_subtr_##type (type a, type b, const char *pos) { return a - b;}
+#define MAKE_SUBTRF(type, otypes) \
+	static inline type occam_subtr_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_subtr_##otypes (occam_extra_param type a, type b, const char *pos) { return a - b;}
 
-#define MAKE_MUL(type,format) \
-	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
-	static inline type occam_mul_##type (const type a, const type b, const char *pos) { \
+#define MAKE_MUL(type, otypes, format) \
+	static inline type occam_mul_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_mul_##otypes (occam_extra_param const type a, const type b, const char *pos) { \
 		if (sizeof(type) < sizeof(long)) /*should be statically known*/ { \
 			const long r = (long)a * (long) b; \
 			if (r < (long)__MIN(type) || r > (long)__MAX(type)) { \
@@ -197,12 +197,12 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
         } \
 	}
 
-#define MAKE_MULF(type) \
-	static inline type occam_mul_##type (type, type, const char *) occam_unused; \
-	static inline type occam_mul_##type (type a, type b, const char *pos) { return a * b;}
-#define MAKE_DIV(type) \
-	static inline type occam_div_##type (type, type, const char *) occam_unused; \
-	static inline type occam_div_##type (type a, type b, const char *pos) { \
+#define MAKE_MULF(type, otypes) \
+	static inline type occam_mul_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_mul_##otypes (occam_extra_param type a, type b, const char *pos) { return a * b;}
+#define MAKE_DIV(type, otypes) \
+	static inline type occam_div_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_div_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, 1, "divide by zero"); \
 		} \
@@ -210,26 +210,26 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 			occam_stop (pos, 1, "overflow in division"); \
 		} else { return a / b; } \
 	}
-#define MAKE_DIVF(type) \
-	static inline type occam_div_##type (type, type, const char *) occam_unused; \
-	static inline type occam_div_##type (type a, type b, const char *pos) { return a / b;}
-#define MAKE_NEGATE(type) \
-	static inline type occam_negate_##type (type, const char *) occam_unused; \
-	static inline type occam_negate_##type (type a, const char *pos) { \
+#define MAKE_DIVF(type, otypes) \
+	static inline type occam_div_##type (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_div_##type (occam_extra_param type a, type b, const char *pos) { return a / b;}
+#define MAKE_NEGATE(type, otype) \
+	static inline type occam_subtr_##otype (occam_extra_param type, const char *) occam_unused; \
+	static inline type occam_subtr_##otype (occam_extra_param type a, const char *pos) { \
 		if (a == __MIN(type)) { \
 			occam_stop (pos, 1, "overflow in negation"); \
 		} else {return - a;} \
 	}
-#define MAKE_NEGATEF(type) \
-	static inline type occam_negate_##type (type, const char *) occam_unused; \
-	static inline type occam_negate_##type (type a, const char *pos) { return - a; }
+#define MAKE_NEGATEF(type, otype) \
+	static inline type occam_negate_##otype (occam_extra_param type, const char *) occam_unused; \
+	static inline type occam_negate_##otype (occam_extra_param type a, const char *pos) { return - a; }
 
 // occam's \ doesn't behave like C's %; it handles negative arguments.
 // (Effectively it ignores signs coming in, and the output sign is the sign of
 // the first argument.)
-#define MAKE_REM(type) \
-	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
-	static inline type occam_rem_##type (type a, type b, const char *pos) { \
+#define MAKE_REM(type, otypes) \
+	static inline type occam_rem_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_rem_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, 1, "modulo by zero"); \
 		} else if (a == __MIN(type)) { \
@@ -243,9 +243,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 // This is for types that C doesn't implement % for -- i.e. reals.
 // (The cgtests want to do \ with REAL32 and REAL64, although I've never seen it
 // in a real program.)
-#define MAKE_DUMB_REM(type) \
-	static inline type occam_rem_##type (type, type, const char *) occam_unused; \
-	static inline type occam_rem_##type (type a, type b, const char *pos) { \
+#define MAKE_DUMB_REM(type, otypes) \
+	static inline type occam_rem_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_rem_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		if (b == 0) { \
 			occam_stop (pos, 1, "modulo by zero"); \
 		} \
@@ -253,9 +253,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a - (i * b); \
 	}
 
-#define MAKE_SHIFT(utype, type) \
-	static inline type occam_lshift_##type (type, int, const char*) occam_unused; \
-	static inline type occam_lshift_##type (type a, int b, const char* pos) { \
+#define MAKE_SHIFT(utype, type, otypes) \
+	static inline type occam_lshift_##otypes (occam_extra_param type, int, const char*) occam_unused; \
+	static inline type occam_lshift_##otypes (occam_extra_param type a, int b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, 1, "left shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
@@ -264,8 +264,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 			return (a << b); \
 		} \
 	} \
-	static inline type occam_rshift_##type (type, int, const char*) occam_unused; \
-	static inline type occam_rshift_##type (type a, int b, const char* pos) { \
+	static inline type occam_rshift_##otypes (occam_extra_param type, int, const char*) occam_unused; \
+	static inline type occam_rshift_##otypes (occam_extra_param type a, int b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, 1, "right shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
@@ -277,21 +277,45 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 
 // The main purpose of these three - since they don't need to check for overflow -
 // is to constrain the types of the results to prevent unexpected integer promotions
-#define MAKE_PLUS(type) \
-	static inline type occam_plus_##type (type, type, const char *) occam_unused; \
-	static inline type occam_plus_##type (type a, type b, const char *pos) { \
+#define MAKE_PLUS(type, otypes) \
+	static inline type occam_plus_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_plus_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		return a + b; \
 	}
-#define MAKE_MINUS(type) \
-	static inline type occam_minus_##type (type, type, const char *) occam_unused; \
-	static inline type occam_minus_##type (type a, type b, const char *pos) { \
+#define MAKE_MINUS(type, otypes) \
+	static inline type occam_minus_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_minus_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		return a - b; \
 	}
-#define MAKE_TIMES(type) \
-	static inline type occam_times_##type (type, type, const char *) occam_unused; \
-	static inline type occam_times_##type (type a, type b, const char *pos) { \
+#define MAKE_TIMES(type, otypes) \
+	static inline type occam_times_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_times_##otypes (occam_extra_param type a, type b, const char *pos) { \
 		return a * b; \
 	}
+
+#define MAKE_SIMPLE_COMP(name, op, type, otypes) \
+	static inline OCCAM_BOOL occam_##name##_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline OCCAM_BOOL occam_##name##_##otypes (occam_extra_param type a, type b, const char *pos) { \
+		return a op b; \
+	}
+
+#define MAKE_ALL_COMP(type, otypes) \
+	MAKE_SIMPLE_COMP(less,<,type,otypes) \
+	MAKE_SIMPLE_COMP(more,>,type,otypes) \
+	MAKE_SIMPLE_COMP(lessEq,<=,type,otypes) \
+	MAKE_SIMPLE_COMP(moreEq,>=,type,otypes) \
+	MAKE_SIMPLE_COMP(eq,==,type,otypes) \
+	MAKE_SIMPLE_COMP(notEq,!=,type,otypes)
+
+#define MAKE_SIMPLE(name, op, type, otypes) \
+	static inline type occam_##name##_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_##name##_##otypes (occam_extra_param type a, type b, const char *pos) { \
+		return a op b; \
+	}
+
+#define MAKE_ALL_BITWISE(type, otypes) \
+	MAKE_SIMPLE(and,&,type,otypes) \
+	MAKE_SIMPLE(or,|,type,otypes) \
 
 #define MAKE_TOSTRING(type, occname, flag) \
 	static inline void occam_##occname##TOSTRING(INT*, unsigned char*, const type) occam_unused; \
@@ -303,14 +327,14 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	}
 
 #define MAKE_STRINGTO(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(occam_extra_param BOOL*, type*, const unsigned char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(occam_extra_param BOOL* error, type* n, const unsigned char* string) { \
+	static inline void occam_STRINGTO##occname(occam_extra_param OCCAM_BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(occam_extra_param OCCAM_BOOL* error, type* n, const unsigned char* string) { \
 	  *error = 1 != sscanf((const char*)string, flag, n);			\
 	}
 
 #define MAKE_STRINGTO_SMALL(type, occname, flag) \
-	static inline void occam_STRINGTO##occname(occam_extra_param BOOL*, type*, const unsigned char*) occam_unused; \
-	static inline void occam_STRINGTO##occname(occam_extra_param BOOL* error, type* n, const unsigned char* string) { \
+	static inline void occam_STRINGTO##occname(occam_extra_param OCCAM_BOOL*, type*, const unsigned char*) occam_unused; \
+	static inline void occam_STRINGTO##occname(occam_extra_param OCCAM_BOOL* error, type* n, const unsigned char* string) { \
 			int t; \
 			*error = 1 != sscanf((const char*)string, flag, &t) || (int)(type)t != t; \
 			*n = (type)t; \
@@ -322,8 +346,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 #define MAKE_STRINGTO_32 MAKE_STRINGTO
 #define MAKE_STRINGTO_64 MAKE_STRINGTO
 
-static inline void occam_BOOLTOSTRING(occam_extra_param INT*, unsigned char*, const BOOL) occam_unused;
-static inline void occam_BOOLTOSTRING(occam_extra_param INT* len, unsigned char* str, const BOOL b) {
+static inline void occam_BOOLTOSTRING(occam_extra_param INT*, unsigned char*, const OCCAM_BOOL) occam_unused;
+static inline void occam_BOOLTOSTRING(occam_extra_param INT* len, unsigned char* str, const OCCAM_BOOL b) {
 	if (b) {
 		memcpy(str,"TRUE",4*sizeof(char));
 		*len = 4;
@@ -333,8 +357,8 @@ static inline void occam_BOOLTOSTRING(occam_extra_param INT* len, unsigned char*
 	}
 }
 
-static inline void occam_STRINGTOBOOL(occam_extra_param BOOL*, BOOL*, const unsigned char*) occam_unused;
-static inline void occam_STRINGTOBOOL(occam_extra_param BOOL* error, BOOL* b, const unsigned char* str) {
+static inline void occam_STRINGTOBOOL(occam_extra_param OCCAM_BOOL*, OCCAM_BOOL*, const unsigned char*) occam_unused;
+static inline void occam_STRINGTOBOOL(occam_extra_param OCCAM_BOOL* error, OCCAM_BOOL* b, const unsigned char* str) {
 	if (memcmp("TRUE", str, 4*sizeof(char)) == 0) {
 		*b = true;
 		*error = false;
@@ -347,37 +371,41 @@ static inline void occam_STRINGTOBOOL(occam_extra_param BOOL* error, BOOL* b, co
 }
 
 
-#define MAKE_ALL_SIGNED(type,bits,flag,hflag,utype) \
+#define MAKE_ALL_SIGNED(type,bits,flag,hflag,utype,otype) \
 	MAKE_RANGE_CHECK(type,flag) \
-	MAKE_ADD(type,flag) \
-	MAKE_SUBTR(type,flag) \
-	MAKE_MUL(type,flag) \
-	MAKE_DIV(type) \
-	MAKE_REM(type) \
-	MAKE_NEGATE(type) \
-	MAKE_SHIFT(utype, type) \
-	MAKE_PLUS(type) \
-	MAKE_MINUS(type) \
-	MAKE_TIMES(type) \
+	MAKE_ADD(type,otype##_##otype,flag) \
+	MAKE_SUBTR(type,otype##_##otype,flag) \
+	MAKE_MUL(type,otype##_##otype,flag) \
+	MAKE_DIV(type,otype##_##otype) \
+	MAKE_REM(type,otype##_##otype) \
+	MAKE_NEGATE(type,otype) \
+	MAKE_SHIFT(utype, type,otype##_##otype) \
+	MAKE_PLUS(type,otype##_##otype) \
+	MAKE_MINUS(type,otype##_##otype) \
+	MAKE_TIMES(type,otype##_##otype) \
+	MAKE_ALL_BITWISE(type,otype##_##otype) \
+	MAKE_ALL_COMP(type,otype##_##otype) \
 	MAKE_TOSTRING(type, INT##bits, flag) \
 	MAKE_TOSTRING(type, HEX##bits, hflag) \
 	MAKE_STRINGTO_##bits(type, INT##bits, flag) \
 	MAKE_STRINGTO_##bits(type, HEX##bits, hflag)
 
+MAKE_ALL_COMP(OCCAM_BOOL,BOOL_BOOL)
+
 //{{{ uint8_t
 MAKE_RANGE_CHECK(uint8_t, "%d")
-MAKE_ADD(uint8_t,"%d")
-MAKE_SUBTR(uint8_t,"%d")
-MAKE_MUL(uint8_t,"%d")
-MAKE_DIV(uint8_t)
-MAKE_SHIFT(uint8_t,uint8_t)
-MAKE_PLUS(uint8_t)
-MAKE_MINUS(uint8_t)
-MAKE_TIMES(uint8_t)
+MAKE_ADD(uint8_t,BYTE_BYTE,"%d")
+MAKE_SUBTR(uint8_t,BYTE_BYTE,"%d")
+MAKE_MUL(uint8_t,BYTE_BYTE,"%d")
+MAKE_DIV(uint8_t,BYTE_BYTE)
+MAKE_SHIFT(uint8_t,uint8_t,BYTE_BYTE)
+MAKE_PLUS(uint8_t,BYTE_BYTE)
+MAKE_MINUS(uint8_t,BYTE_BYTE)
+MAKE_TIMES(uint8_t,BYTE_BYTE)
 
 // occam's only unsigned type, so we can use % directly.
-static inline uint8_t occam_rem_uint8_t (uint8_t, uint8_t, const char *) occam_unused;
-static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) {
+static inline uint8_t occam_rem_BYTE_BYTE (uint8_t, uint8_t, const char *) occam_unused;
+static inline uint8_t occam_rem_BYTE_BYTE (uint8_t a, uint8_t b, const char *pos) {
 	if (b == 0) {
 		occam_stop (pos, 1, "modulo by zero");
 	}
@@ -389,43 +417,72 @@ static inline uint8_t occam_rem_uint8_t (uint8_t a, uint8_t b, const char *pos) 
 //}}}
 
 //{{{ int8_t
-MAKE_ALL_SIGNED(int8_t, 8, "%d", "%x", uint8_t)
+MAKE_ALL_SIGNED(int8_t, 8, "%d", "%x", uint8_t, INT8)
 //}}}
 //{{{ int16_t
-MAKE_ALL_SIGNED(int16_t, 16, "%d", "%x", uint16_t)
+MAKE_ALL_SIGNED(int16_t, 16, "%d", "%x", uint16_t, INT16)
 //}}}
 //{{{ int
 //MAKE_ALL_SIGNED(int, "%d", unsigned int)
+
 MAKE_TOSTRING(INT, INT, "%d")
 MAKE_TOSTRING(INT, HEX, "%x")
 MAKE_STRINGTO(INT, INT, "%d")
 MAKE_STRINGTO(INT, HEX, "%x")
 
+#if occam_INT_size == 4
+#define TOCK_TMP_INT int32_t
+#define TOCK_TMP_INT_FLAG "%d"
+#define TOCK_TMP_UINT uint32_t
+#elif occam_INT_size == 8
+#define TOCK_TMP_INT int64_t
+#define TOCK_TMP_INT_FLAG "%lld"
+#define TOCK_TMP_UINT uint64_t
+#endif
+
+	MAKE_ADD(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_SUBTR(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_MUL(TOCK_TMP_INT,INT_INT,TOCK_TMP_INT_FLAG)
+	MAKE_DIV(TOCK_TMP_INT,INT_INT)
+	MAKE_REM(TOCK_TMP_INT,INT_INT)
+	MAKE_NEGATE(TOCK_TMP_INT,INT)
+	MAKE_SHIFT(TOCK_TMP_UINT, TOCK_TMP_INT,INT_INT)
+	MAKE_PLUS(TOCK_TMP_INT,INT_INT)
+	MAKE_MINUS(TOCK_TMP_INT,INT_INT)
+	MAKE_TIMES(TOCK_TMP_INT,INT_INT)
+	MAKE_ALL_COMP(TOCK_TMP_INT,INT_INT)
+	MAKE_ALL_BITWISE(TOCK_TMP_INT,INT_INT)
+
+#undef TOCK_TMP_INT
+#undef TOCK_TMP_INT_FLAG
+#undef TOCK_TMP_UINT
+
 //}}}
 //{{{ int32_t
-MAKE_ALL_SIGNED(int32_t, 32, "%d", "%x", uint32_t)
+MAKE_ALL_SIGNED(int32_t,32, "%d", "%x", uint32_t, INT32)
 //}}}
 //{{{ int64_t
-MAKE_ALL_SIGNED(int64_t, 64, "%lld", "%llx", uint64_t)
+MAKE_ALL_SIGNED(int64_t,64, "%lld", "%llx", uint64_t, INT64)
 //}}}
+
 // FIXME range checks for float and double shouldn't work this way
 //{{{ float
 MAKE_RANGE_CHECK(float, "%f")
-MAKE_ADDF(float)
-MAKE_SUBTRF(float)
-MAKE_MULF(float)
-MAKE_DIVF(float)
-MAKE_NEGATEF(float)
-MAKE_DUMB_REM(float)
+MAKE_ADDF(float,REAL32_REAL32)
+MAKE_SUBTRF(float,REAL32_REAL32)
+MAKE_MULF(float,REAL32_REAL32)
+MAKE_DIVF(float,REAL32_REAL32)
+MAKE_NEGATEF(float,REAL32)
+MAKE_DUMB_REM(float,REAL32_REAL32)
 //}}}
 //{{{ double
 MAKE_RANGE_CHECK(double, "%f")
-MAKE_ADDF(double)
-MAKE_SUBTRF(double)
-MAKE_MULF(double)
-MAKE_DIVF(double)
-MAKE_NEGATEF(double)
-MAKE_DUMB_REM(double)
+MAKE_ADDF(double,REAL64_REAL64)
+MAKE_SUBTRF(double,REAL64_REAL64)
+MAKE_MULF(double,REAL64_REAL64)
+MAKE_DIVF(double,REAL64_REAL64)
+MAKE_NEGATEF(double,REAL64)
+MAKE_DUMB_REM(double,REAL64_REAL64)
 //}}}
 
 #undef MAKE_RANGE_CHECK
@@ -535,8 +592,8 @@ static int64_t occam_convert_double_int64_t_trunc (double v, const char *pos) {
 #ifdef tock_old_UINT
 #define UINT tock_old_UINT
 #endif
-#ifdef tock_old_BOOL
-#define BOOL tock_old_BOOL
+#ifdef tock_old_OCCAM_BOOL
+#define OCCAM_BOOL tock_old_OCCAM_BOOL
 #endif
 #ifdef tock_old_REAL
 #define REAL tock_old_REAL

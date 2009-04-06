@@ -10,8 +10,8 @@ static inline INT ADD_PREFIX(IEEECOMPARE) (REAL X, REAL Y, const char* pos) {
 		return 0;
 	}
 }
-static inline BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL, INT, INT, REAL, REAL*, const char*) occam_unused;
-static inline BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, INT Rm, INT Op, REAL Y, REAL* result1, const char* pos) {
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL, INT, INT, REAL, REAL*, const char*) occam_unused;
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, INT Rm, INT Op, REAL Y, REAL* result1, const char* pos) {
 	REAL R;
 	int prevRm = fegetround();
 	switch (Rm) {
@@ -30,17 +30,17 @@ static inline BOOL SPLICE_SIZE(occam_IEEE,OP) (REAL X, INT Rm, INT Op, REAL Y, R
 	*result1 = R;
 	return (isnan(R));
 }
-static inline BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL, REAL, REAL*, const char*) occam_unused;
-static inline BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL X, REAL Y, REAL* result1, const char* pos) {
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL, REAL, REAL*, const char*) occam_unused;
+static inline OCCAM_BOOL SPLICE_SIZE(occam_IEEE,REM) (REAL X, REAL Y, REAL* result1, const char* pos) {
 	*result1 = F(remainder)(X,Y);
 	return isnan((*result1));
 }
-static inline BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL, REAL, const char*) occam_unused;
-static inline BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL X, REAL Y, const char* pos) {
+static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL, REAL, const char*) occam_unused;
+static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,EQ) (REAL X, REAL Y, const char* pos) {
 	return X==Y;
 }
-static inline BOOL SPLICE_SIZE(occam_REAL,GT) (REAL, REAL, const char*) occam_unused;
-static inline BOOL SPLICE_SIZE(occam_REAL,GT) (REAL X, REAL Y, const char* pos) {
+static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,GT) (REAL, REAL, const char*) occam_unused;
+static inline OCCAM_BOOL SPLICE_SIZE(occam_REAL,GT) (REAL X, REAL Y, const char* pos) {
 	return isgreater(X,Y);
 }
 static inline REAL SPLICE_SIZE(occam_REAL,OP) (REAL, INT, REAL, const char*) occam_unused;
@@ -58,12 +58,12 @@ static inline REAL SPLICE_SIZE(occam_REAL,REM) (REAL X, REAL Y, const char* pos)
 	return F(remainder)(X,Y);
 }
 #if SPLICE_SIZE(4,1) == 4321
-static inline BOOL occam_ARGUMENT_REDUCE (float, float, float, int32_t*, float*, const char*) occam_unused;
-static inline BOOL occam_ARGUMENT_REDUCE (float X, float Y, float Y_err, int32_t* result1, float* result2, const char* pos) {
+static inline OCCAM_BOOL occam_ARGUMENT_REDUCE (float, float, float, int32_t*, float*, const char*) occam_unused;
+static inline OCCAM_BOOL occam_ARGUMENT_REDUCE (float X, float Y, float Y_err, int32_t* result1, float* result2, const char* pos) {
 	const INT maxexpdiff = 20;
 #else
-static inline BOOL occam_DARGUMENT_REDUCE (double, double, double, int32_t*, double*, const char*) occam_unused;
-static inline BOOL occam_DARGUMENT_REDUCE (double X, double Y, double Y_err, int32_t* result1, double* result2, const char* pos) {
+static inline OCCAM_BOOL occam_DARGUMENT_REDUCE (double, double, double, int32_t*, double*, const char*) occam_unused;
+static inline OCCAM_BOOL occam_DARGUMENT_REDUCE (double X, double Y, double Y_err, int32_t* result1, double* result2, const char* pos) {
 	const INT maxexpdiff = 30;
 #endif
 	int EX;
@@ -126,8 +126,8 @@ static inline REAL ADD_PREFIX(FPINT) (REAL X, const char* pos) {
 		return F(nearbyint)(X);
 	}
 }
-static inline BOOL ADD_PREFIX(ISNAN) (REAL, const char*) occam_unused;
-static inline BOOL ADD_PREFIX(ISNAN) (REAL X, const char* pos) {
+static inline OCCAM_BOOL ADD_PREFIX(ISNAN) (REAL, const char*) occam_unused;
+static inline OCCAM_BOOL ADD_PREFIX(ISNAN) (REAL X, const char* pos) {
 	return isnan(X);
 }
 static inline REAL ADD_PREFIX(LOGB) (REAL, const char*) occam_unused;
@@ -165,12 +165,12 @@ static inline REAL ADD_PREFIX(NEXTAFTER) (REAL, REAL, const char*) occam_unused;
 static inline REAL ADD_PREFIX(NEXTAFTER) (REAL X, REAL Y, const char* pos) {
 	return F(nextafter)(X,Y);
 }
-static inline BOOL ADD_PREFIX(NOTFINITE) (REAL, const char*) occam_unused;
-static inline BOOL ADD_PREFIX(NOTFINITE) (REAL X, const char* pos) {
+static inline OCCAM_BOOL ADD_PREFIX(NOTFINITE) (REAL, const char*) occam_unused;
+static inline OCCAM_BOOL ADD_PREFIX(NOTFINITE) (REAL X, const char* pos) {
 	return !(isfinite(X));
 }
-static inline BOOL ADD_PREFIX(ORDERED) (REAL, REAL, const char*) occam_unused;
-static inline BOOL ADD_PREFIX(ORDERED) (REAL X, REAL Y, const char* pos) {
+static inline OCCAM_BOOL ADD_PREFIX(ORDERED) (REAL, REAL, const char*) occam_unused;
+static inline OCCAM_BOOL ADD_PREFIX(ORDERED) (REAL X, REAL Y, const char* pos) {
 	return !(isunordered(X,Y));
 }
 static inline REAL ADD_PREFIX(SCALEB) (REAL, INT, const char*) occam_unused;
