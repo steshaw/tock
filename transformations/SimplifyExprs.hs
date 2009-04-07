@@ -259,9 +259,11 @@ transformConstr = pass "Transform array constructors into initialisation code"
                   -- to it:
                   modifyName n $ \nd -> nd {A.ndAbbrevMode = A.Original}
 
+                  incIndex <- incrementIndex indexVar
+
                   let body = specs $ A.Several m''
                             [ assignItem tInner indexVar repExp'
-                            , incrementIndex indexVar ]
+                            , incIndex ]
                   body' <- applyDepthSM doStructured body
 
                   return $ declDest $ A.ProcThen m''
@@ -294,9 +296,10 @@ transformConstr = pass "Transform array constructors into initialisation code"
         assignIndex0 indexVar = A.Only m'' $ A.Assign m'' [indexVar] $
           A.ExpressionList m'' [A.Literal m'' A.Int $ A.IntLiteral m'' "0"]
 
-        incrementIndex :: A.Variable -> A.Structured A.Process
-        incrementIndex indexVar = A.Only m'' $ A.Assign m'' [indexVar] $
-          A.ExpressionList m'' [addOne $ A.ExprVariable m'' indexVar]
+        incrementIndex :: A.Variable -> PassM (A.Structured A.Process)
+        incrementIndex indexVar
+          = do indexVar_plus1 <- addOne $ A.ExprVariable m'' indexVar
+               return $ A.Only m'' $ A.Assign m'' [indexVar] $ A.ExpressionList m'' [indexVar_plus1]
 
         assignItem :: A.Type -> A.Variable -> A.Structured A.Expression -> A.Structured A.Process
         assignItem t' indexVar repExp' = A.Only m'' $ A.Assign m'' [A.SubscriptedVariable m''
@@ -309,9 +312,11 @@ transformConstr = pass "Transform array constructors into initialisation code"
 
         appendItem :: A.Structured A.Process
         appendItem = A.Only m'' $ A.Assign m'' [A.Variable m'' n] $
-          A.ExpressionList m'' [A.Dyadic m'' A.Concat
-            (A.ExprVariable m'' $ A.Variable m'' n)
-            (A.Literal m'' (let A.List tInner = t in tInner) $ A.ArrayListLiteral m'' repExp)]
+          A.ExpressionList m'' [A.FunctionCall m'' (A.Name m'' "++")
+            [A.ExprVariable m'' $ A.Variable m'' n
+            ,A.Literal m'' (let A.List tInner = t in tInner) $ A.ArrayListLiteral m'' repExp
+            ]]
+            
 
         replicateCode :: Data a => A.Structured a -> A.Structured a
         replicateCode = A.Spec m'' (A.Specification m'' repn (A.Rep m'' rep))
