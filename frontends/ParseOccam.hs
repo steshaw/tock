@@ -897,7 +897,11 @@ isAssocOperator _ = False
 udOperator :: (String -> Bool) -> OccParser A.Name
 udOperator isOp = do m <- md
                      n <- genToken test
-                     return $ A.Name m n
+                     return $ A.Name m $
+                       -- Turn REM into \ now, to save effort later:
+                       if (n == "REM")
+                         then "\\"
+                         else n
  where
     test (Token _ (TokReserved name))
       = if isOp name then Just name else Nothing
