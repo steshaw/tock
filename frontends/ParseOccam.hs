@@ -770,7 +770,9 @@ expression
     <|> do { m <- md; sDEFINED; e <- expression; return $ A.IsDefined m e }
     <|> sizeExpr
     <|> do m <- md
-           (l, o) <- tryVV operand $ udOperator ((`elem` [JustDyadic, EitherDyadicMonadic]) . operatorArity)
+           (l, o) <- tryVV operand $ udOperator
+             (\op -> (operatorArity op `elem` [JustDyadic, EitherDyadicMonadic])
+                        && not (isAssocOperator op))
            r <- operand
            return $ A.FunctionCall m o [l, r]
     <|> associativeOpExpression
@@ -890,6 +892,7 @@ isAssocOperator "AND" = True
 isAssocOperator "OR" = True
 isAssocOperator "PLUS" = True
 isAssocOperator "TIMES" = True
+isAssocOperator _ = False
 
 udOperator :: (String -> Bool) -> OccParser A.Name
 udOperator isOp = do m <- md
