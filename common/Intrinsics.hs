@@ -20,6 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Intrinsics where
 
 import Data.Char
+import Data.List
 
 import qualified AST as A
 
@@ -171,28 +172,41 @@ rainIntrinsicFunctions =
     , ("fromNanos", ([A.Time], [(A.Int64, "value")]))
     ]
 
+-- I think several of these operators are defined where they shouldn't be..
 occamIntrinsicOperators :: [(String, A.Type, [A.Type])]
 occamIntrinsicOperators = concat
   [comparison ">"
   ,comparison ">="
   ,comparison "<"
   ,comparison "<="
+  ,comparison "AFTER"
   ,arithmetic "+"
   ,arithmetic "-"
   ,arithmetic "*"
   ,arithmetic "/"
   ,arithmetic "\\"
   ,arithmetic "REM"
+  ,arithmetic "PLUS"
+  ,arithmetic "TIMES"
+  ,arithmetic "MINUS"
   ,equalityOp "="
   ,equalityOp "<>"
-  ,unaryArith "-"
+  ,unaryArith "-" -- \\ [("-",A.Byte,[A.Byte])]
   ,bitwiseOpr "/\\"
   ,bitwiseOpr "\\/"
   ,bitwiseOpr "><"
   ,shiftingOp ">>"
   ,shiftingOp "<<"
+  ,booleanOpr "AND"
+  ,booleanOpr "OR"
+  ,[("NOT", A.Bool, [A.Bool])]
+  ,[("~", t, [t]) | t <- allIntegerTypes]
+  ,[("MINUS", t, [t]) | t <- allNumericTypes]
   ]
   where
+    booleanOpr :: String -> [(String, A.Type, [A.Type])]
+    booleanOpr op = [(op, A.Bool, [A.Bool, A.Bool])]
+
     comparison :: String -> [(String, A.Type, [A.Type])]
     comparison op = [(op, A.Bool, [t, t])
                     | t <- allNumericTypes]
