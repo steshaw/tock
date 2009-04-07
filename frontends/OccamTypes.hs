@@ -719,36 +719,29 @@ inferTypes = occamOnlyPass "Infer types"
                          1 -> "unary"
                          2 -> "binary"
                          n -> show n ++ "-ary"
-                         
+
+              es' <- noTypeContext $ mapM recurse es
+              tes <- sequence [astTypeOf e `catchError` (const $ return A.Infer) | e <- es']
+           
               cs <- getCompState
               
               -- The nubBy will ensure that only one definition remains for each
               -- set of type-arguments, and will keep the first definition in the
               -- list (which will be the most recent)
-              possibles <- sequence
-                [ (do es' <- sequence
-                        [do e' <- doActual m direct t e
-                            checkActual (A.Formal A.ValAbbrev t (A.Name m "x"))
-                              (A.ActualExpression e')
-                            return e'
-                        | (t, e) <- zip ts es]
-                      return $ Right ((opFuncName, es'), ts)
-                  ) `catchError` (return . Left)
+              possibles <- return
+                [ ((opFuncName, es'), ts)
                 | (raw, opFuncName, ts) <- nubBy ((==) `on` (\(op,_,ts) -> (op,ts))) $ csOperators cs
                 -- Must be right operator:
                 , raw == A.nameName n
                 -- Must be right arity:
-                , length ts == length es]
-              case splitEither possibles of
-                                -- We want to be helpful and give the user an idea
-                                -- of what we thought the types were, but we must
-                                -- also be careful not to die while getting the
-                                -- types (and thus missing the real error!)
-                (errs,[]) -> do tes <- sequence [astTypeOf e `catchError` (const $ return A.Infer) | e <- es]
-                                diePC m $ formatCode ("No matching " ++ opDescrip ++ " operator definition found for types: %"
-                                  ++ " errors were: " ++ show errs) tes
-                (_, [poss]) -> return $ fst poss
-                (_, posss) -> dieP m $ "Ambigious " ++ opDescrip ++ " operator, matches definitions: "
+                , length ts == length es
+                -- Must have right types:
+                , ts == tes
+                ]
+              case possibles of
+                [] -> diePC m $ formatCode ("No matching " ++ opDescrip ++ " operator definition found for types: %") tes
+                [poss] -> return $ fst poss
+                posss -> dieP m $ "Ambigious " ++ opDescrip ++ " operator, matches definitions: "
                                 ++ show (map (transformPair (A.nameMeta . fst) showOccam) posss)
         else
            do (_, fs) <- checkFunction m n
