@@ -104,18 +104,38 @@ removeAfter :: Pass
 removeAfter = pass "Convert AFTER to MINUS"
   [Prop.expressionTypesChecked]
   [Prop.afterRemoved]
-  (applyDepthM doExpression)
+  (applyDepthM2 doExpression doExpressionList)
   where
+    doFunctionCall :: (Meta -> A.Name -> [A.Expression] -> a)
+      -> Meta -> A.Name -> [A.Expression] -> PassM a
+    doFunctionCall f m n args
+        =  do mOp <- functionOperator n
+              ts <- mapM astTypeOf args
+              let op s = A.Name (A.nameMeta n) $ occamDefaultOperator s ts
+              case mOp of
+                Just "AFTER"
+                  | A.nameName n == occamDefaultOperator "AFTER" [A.Byte, A.Byte] ->
+                   let one = A.Literal m A.Byte $ A.IntLiteral m "1"
+                       oneTwoSeven = A.Literal m A.Byte $ A.IntLiteral m "127"
+                   in        return $ f m (op "<")
+                               [A.FunctionCall m (op "MINUS")
+                                 [A.FunctionCall m (op "MINUS") args
+                                 , one]
+                               ,oneTwoSeven]
+                  | n == op "AFTER" -- It hasn't been over-ridden
+                   -> let zero = A.Literal m (head ts) $ A.IntLiteral m "0"
+                      in return $ f m (op ">") [A.FunctionCall m (op "MINUS") args, zero]
+                _ -> return $ f m n args
+
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.Dyadic m A.After a b)
-        =  do t <- astTypeOf a
-              case t of
-                A.Byte -> do let one = A.Literal m t $ A.IntLiteral m "1"
-                                 oneTwoSeven = A.Literal m t $ A.IntLiteral m "127"
-                             return $ A.Dyadic m A.Less (A.Dyadic m A.Minus (A.Dyadic m A.Minus a b) one) oneTwoSeven
-                _ -> do let zero = A.Literal m t $ A.IntLiteral m "0"
-                        return $ A.Dyadic m A.More (A.Dyadic m A.Minus a b) zero
+    doExpression e@(A.FunctionCall m n args)
+        = doFunctionCall A.FunctionCall m n args    
     doExpression e = return e
+
+    doExpressionList :: A.ExpressionList -> PassM A.ExpressionList
+    doExpressionList e@(A.FunctionCallList m n args)
+        = doFunctionCall A.FunctionCallList m n args    
+    doExpressionList e = return e   
 
 -- | For array literals that include other arrays, burst them into their
 -- elements.
