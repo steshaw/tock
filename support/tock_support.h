@@ -202,8 +202,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} else { return a / b; } \
 	}
 #define MAKE_DIVF(type, otypes) \
-	static inline type occam_div_##type (occam_extra_param type, type, const char *) occam_unused; \
-	static inline type occam_div_##type (occam_extra_param type a, type b, const char *pos) { return a / b;}
+	static inline type occam_div_##otypes (occam_extra_param type, type, const char *) occam_unused; \
+	static inline type occam_div_##otypes (occam_extra_param type a, type b, const char *pos) { return a / b;}
 #define MAKE_NEGATE(type, otype) \
 	static inline type occam_subtr_##otype (occam_extra_param type, const char *) occam_unused; \
 	static inline type occam_subtr_##otype (occam_extra_param type a, const char *pos) { \
@@ -212,8 +212,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		} else {return - a;} \
 	}
 #define MAKE_NEGATEF(type, otype) \
-	static inline type occam_negate_##otype (occam_extra_param type, const char *) occam_unused; \
-	static inline type occam_negate_##otype (occam_extra_param type a, const char *pos) { return - a; }
+	static inline type occam_subtr_##otype (occam_extra_param type, const char *) occam_unused; \
+	static inline type occam_subtr_##otype (occam_extra_param type a, const char *pos) { return - a; }
 
 // occam's \ doesn't behave like C's %; it handles negative arguments.
 // (Effectively it ignores signs coming in, and the output sign is the sign of
@@ -231,6 +231,7 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 			return a % (b < 0 ? -b : b); \
 		} \
 	}
+
 // This is for types that C doesn't implement % for -- i.e. reals.
 // (The cgtests want to do \ with REAL32 and REAL64, although I've never seen it
 // in a real program.)
@@ -244,9 +245,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 		return a - (i * b); \
 	}
 
-#define MAKE_SHIFT(utype, type, otypes) \
-	static inline type occam_lshift_##otypes (occam_extra_param type, int, const char*) occam_unused; \
-	static inline type occam_lshift_##otypes (occam_extra_param type a, int b, const char* pos) { \
+#define MAKE_SHIFT(utype, type, otype) \
+	static inline type occam_lshift_##otype##_INT (occam_extra_param type, OCCAM_INT, const char*) occam_unused; \
+	static inline type occam_lshift_##otype##_INT (occam_extra_param type a, OCCAM_INT b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, 1, "left shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
@@ -255,8 +256,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 			return (a << b); \
 		} \
 	} \
-	static inline type occam_rshift_##otypes (occam_extra_param type, int, const char*) occam_unused; \
-	static inline type occam_rshift_##otypes (occam_extra_param type a, int b, const char* pos) { \
+	static inline type occam_rshift_##otype##_INT (occam_extra_param type, OCCAM_INT, const char*) occam_unused; \
+	static inline type occam_rshift_##otype##_INT (occam_extra_param type a, OCCAM_INT b, const char* pos) { \
 		if (b < 0 || b > (int)(sizeof(type) * CHAR_BIT)) { \
 			occam_stop (pos, 1, "right shift by negative value or value (strictly) greater than number of bits in type"); \
 		} else if (b == (int)(sizeof(type) * CHAR_BIT)) { \
@@ -314,6 +315,9 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_SIMPLE(or,|,type,otype##_##otype) \
 	MAKE_SIMPLE(xor,^,type,otype##_##otype) \
 	MAKE_SIMPLE_UNARY(not,~,type,otype)
+
+#define MAKE_MINUS_UNARY(type, otype) \
+	MAKE_SIMPLE_UNARY(minus,-,type,otype)
 
 #define MAKE_TOSTRING(type, occname, flag) \
 	static inline void occam_##occname##TOSTRING(OCCAM_INT*, unsigned char*, const type) occam_unused; \
@@ -377,11 +381,12 @@ static inline void occam_STRINGTOBOOL(occam_extra_param OCCAM_BOOL* error, OCCAM
 	MAKE_DIV(type,otype##_##otype) \
 	MAKE_REM(type,otype##_##otype) \
 	MAKE_NEGATE(type,otype) \
-	MAKE_SHIFT(utype, type,otype##_##otype) \
+	MAKE_SHIFT(utype, type,otype) \
 	MAKE_PLUS(type,otype##_##otype) \
 	MAKE_MINUS(type,otype##_##otype) \
+	MAKE_MINUS_UNARY(type,otype) \
 	MAKE_TIMES(type,otype##_##otype) \
-	MAKE_ALL_BITWISE(type,otype##_##otype) \
+	MAKE_ALL_BITWISE(type,otype) \
 	MAKE_ALL_COMP(type,otype##_##otype) \
 	MAKE_TOSTRING(type, INT##bits, flag) \
 	MAKE_TOSTRING(type, HEX##bits, hflag) \
@@ -399,7 +404,7 @@ MAKE_ADD(uint8_t,BYTE_BYTE,"%d")
 MAKE_SUBTR(uint8_t,BYTE_BYTE,"%d")
 MAKE_MUL(uint8_t,BYTE_BYTE,"%d")
 MAKE_DIV(uint8_t,BYTE_BYTE)
-MAKE_SHIFT(uint8_t,uint8_t,BYTE_BYTE)
+MAKE_SHIFT(uint8_t,uint8_t,BYTE)
 MAKE_PLUS(uint8_t,BYTE_BYTE)
 MAKE_MINUS(uint8_t,BYTE_BYTE)
 MAKE_TIMES(uint8_t,BYTE_BYTE)
@@ -445,9 +450,10 @@ MAKE_STRINGTO(OCCAM_INT, HEX, "%x")
 	MAKE_DIV(OCCAM_INT,INT_INT)
 	MAKE_REM(OCCAM_INT,INT_INT)
 	MAKE_NEGATE(OCCAM_INT,INT)
-	MAKE_SHIFT(OCCAM_UINT, OCCAM_INT,INT_INT)
+	MAKE_SHIFT(OCCAM_UINT, OCCAM_INT,INT)
 	MAKE_PLUS(OCCAM_INT,INT_INT)
 	MAKE_MINUS(OCCAM_INT,INT_INT)
+	MAKE_MINUS_UNARY(OCCAM_INT,INT)
 	MAKE_TIMES(OCCAM_INT,INT_INT)
 	MAKE_ALL_COMP(OCCAM_INT,INT_INT)
 	MAKE_ALL_BITWISE(OCCAM_INT,INT)
@@ -471,6 +477,7 @@ MAKE_MULF(float,REAL32_REAL32)
 MAKE_DIVF(float,REAL32_REAL32)
 MAKE_NEGATEF(float,REAL32)
 MAKE_DUMB_REM(float,REAL32_REAL32)
+MAKE_ALL_COMP(float,REAL32_REAL32)
 //}}}
 //{{{ double
 MAKE_RANGE_CHECK(double, "%f")
@@ -480,6 +487,7 @@ MAKE_MULF(double,REAL64_REAL64)
 MAKE_DIVF(double,REAL64_REAL64)
 MAKE_NEGATEF(double,REAL64)
 MAKE_DUMB_REM(double,REAL64_REAL64)
+MAKE_ALL_COMP(double,REAL64_REAL64)
 //}}}
 
 #undef MAKE_RANGE_CHECK
