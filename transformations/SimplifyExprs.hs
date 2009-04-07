@@ -45,6 +45,11 @@ simplifyExprs =
       , transformConstr
       ]
 
+-- These are a special case, and do not get pulled up, nor turned into PROCs:
+builtInOperatorFunction :: A.Name -> Bool
+builtInOperatorFunction = (`elem` occamBuiltInOperatorFunctions) . A.nameName
+
+
 -- | Convert FUNCTION declarations to PROCs.
 functionsToProcs :: Pass
 functionsToProcs = pass "Convert FUNCTIONs to PROCs"
@@ -55,6 +60,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf smrm rts fs evp))
+      | not (builtInOperatorFunction n)
         = do -- Create new names for the return values.
              specs <- sequence [makeNonceVariable "return_formal" mf t A.Abbrev | t <- rts]
              let names = [n | A.Specification mf n _ <- specs]
