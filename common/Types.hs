@@ -22,7 +22,7 @@ module Types
     specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
-    , isOperator, functionOperator, occamDefaultOperator
+    , isOperator, functionOperator, occamDefaultOperator, occamBuiltInOperatorFunctions
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
@@ -751,11 +751,40 @@ operatorNames =
 -- will later be suffixed by the types in question.
 occamOperatorTranslateDefault :: String -> String
 occamOperatorTranslateDefault "+" = "add"
+occamOperatorTranslateDefault "-" = "subtr"
+occamOperatorTranslateDefault "*" = "mul"
+occamOperatorTranslateDefault "/" = "div"
+occamOperatorTranslateDefault "TIMES" = "times"
+occamOperatorTranslateDefault "PLUS" = "plus"
+occamOperatorTranslateDefault "MINUS" = "minus"
+occamOperatorTranslateDefault "AFTER" = "after"
+occamOperatorTranslateDefault ">" = "more"
+occamOperatorTranslateDefault "<" = "less"
+occamOperatorTranslateDefault ">=" = "moreEq"
+occamOperatorTranslateDefault "<=" = "lessEq"
+occamOperatorTranslateDefault "=" = "eq"
+occamOperatorTranslateDefault "<>" = "notEq"
+occamOperatorTranslateDefault "\\" = "rem"
+occamOperatorTranslateDefault "REM" = "REM"
+occamOperatorTranslateDefault "/\\" = "and"
+occamOperatorTranslateDefault "\\/" = "or"
+occamOperatorTranslateDefault "><" = "xor"
+occamOperatorTranslateDefault "<<" = "lshift"
+occamOperatorTranslateDefault ">>" = "rshift"
+occamOperatorTranslateDefault "AND" = "and"
+occamOperatorTranslateDefault "OR" = "or"
+occamOperatorTranslateDefault "NOT" = "not"
+occamOperatorTranslateDefault "~" = "not"
 occamOperatorTranslateDefault cs = '_' : concatMap (show . ord) cs
 
 occamDefaultOperator :: String -> [A.Type] -> String
 occamDefaultOperator op ts = "occam_" ++ occamOperatorTranslateDefault op
   ++ concatMap (('_':) . showOccam) ts
+
+occamBuiltInOperatorFunctions :: [String]
+occamBuiltInOperatorFunctions
+  = [occamDefaultOperator n ts
+    | (n, _, ts) <- occamIntrinsicOperators]
 
 -- | Add one to an expression.
 addOne :: (CSMR m, Die m) => A.Expression -> m A.Expression
