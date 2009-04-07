@@ -173,7 +173,7 @@ removeFreeNames = pass "Convert free names to arguments"
         =  do st <- specTypeOfName n
               isConst <- isConstantName n
               src <- nameSource n
-              return $ isFreeST st && not (isConst || src == A.NamePredefined)
+              return $ isFreeST st && not (isConst || src == A.NamePredefined || src == A.NameExternal)
       where
         isFreeST :: A.SpecType -> Bool
         isFreeST st
