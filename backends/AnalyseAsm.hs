@@ -24,9 +24,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module AnalyseAsm (
     AsmItem(..),
-    parseAsmLine, analyseAsm
+    parseAsmLine, analyseAsm, computeFinalStackSizes
   ) where
 
+import Control.Arrow
 import Control.Monad.State
 import Data.Char
 import Data.Generics
@@ -46,7 +47,7 @@ import Utils
 -- | Interesting things that we might find in the assembly source.
 data AsmItem =
   AsmLabel String
-  | AsmStackInc Int
+  | AsmStackInc Integer
   | AsmCall String
   deriving (Show, Eq, Data, Typeable)
 
@@ -104,23 +105,56 @@ parseAsm :: String -> [AsmItem]
 parseAsm asm
   = catMaybes [parseAsmLine l | l <- lines asm]
 
+data Depends
+  = DependsOnModule String
+  deriving (Show, Read)
+
+-- The stack is the fixed amount, plus the maximum of all other dependencies
 data StackInfo
-  = Fixed Int
-  | Remote String
-  | Max [StackInfo]
-  | Plus StackInfo StackInfo
-  deriving (Show, Data, Typeable)
+  = StackInfo
+    { fixed :: Integer
+    , occamExt :: Set.Set (Either Integer String)
+    , otherExt :: Set.Set String
+    }
+    deriving (Data, Typeable)
+
+instance Show StackInfo where
+  show (StackInfo f occ ext)
+    = "(StackInfo " ++ show f ++ " " ++ show (Set.toList occ)
+        ++ " " ++ show (Set.toList ext) ++ ")"
+
+instance Read StackInfo where
+  readsPrec _
+    = readParen True $ \whole -> do
+        -- Let's see if I can figure out the list monad.  Each binding will bind
+        -- one item from a list (of possibles), and then the subsequent part of
+        -- the do will be carried out for that possibility.
+        args123 <- readExact "StackInfo" whole >>* dropSpaces
+        (n, args23) <- reads args123
+        (occ, arg3) <- reads $ dropSpaces args23
+        (ext, rest) <- reads $ dropSpaces arg3
+        return (StackInfo n (Set.fromList occ) (Set.fromList ext), rest)
+   where
+    readExact :: String -> String -> [String]
+    readExact ex str
+      | ex `isPrefixOf` str = [drop (length ex) str]
+      | otherwise = []
+
+    dropSpaces :: String -> String
+    dropSpaces = dropWhile isSpace
 
 findAllDependencies :: StackInfo -> Set.Set String
-findAllDependencies (Remote s) = Set.singleton s
-findAllDependencies (Max as) = foldl Set.union Set.empty $  map findAllDependencies as
-findAllDependencies (Plus a b) = findAllDependencies a `Set.union` findAllDependencies b
-findAllDependencies _ = Set.empty
+findAllDependencies (StackInfo _ a b)
+  = Set.union (Set.mapMonotonic (\(Right x) -> x) $ Set.filter isRight a) b
+  where
 
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight (Left _) = False
 
 -- | Information about defined functions.
 data FunctionInfo = FunctionInfo {
-    fiStack :: Int
+    fiStack :: Integer
   , fiTotalStack :: Maybe StackInfo
   , fiCalls :: Set.Set String
   }
@@ -170,11 +204,11 @@ collectInfo ais = collectInfo' ais ""
 -- | Additional stack size to give to all functions.
 -- This is necessary because CCSP does odd things with the provided stack
 -- size; it doesn't calculate the space that it needs for the arguments.
-baseStackSize :: Int
+baseStackSize :: Integer
 baseStackSize = 32
 
 -- | Add the stack sizes for called functions to their callers.
-addCalls :: [String] -> Int -> AAM ()
+addCalls :: [String] -> Integer -> AAM ()
 addCalls knownProcs unknownSize
     =  do fmap <- get
           sequence_ $ map (computeStack True) (Map.keys fmap)
@@ -197,99 +231,108 @@ addCalls knownProcs unknownSize
         =  do cs <- getCompState
               fmap <- get
               if func `elem` (map fst (csExternals cs) ++ knownProcs)
-                then do return $ Remote $ func
+                then do return $ StackInfo
+                          { fixed = 0
+                          , occamExt = Set.singleton (Right func)
+                          , otherExt = Set.empty
+                          }
                 else do lift $ warnPlainP WarnInternal $ "Unknown function " ++ func
                           ++ "; allocating " ++ show unknownSize ++ " bytes stack"
-                        return $ Fixed unknownSize
+                        return $ StackInfo
+                          { fixed = 0
+                          , occamExt = Set.empty
+                          , otherExt = Set.singleton func
+                          }
 
     userFunc :: FunctionInfo -> AAM StackInfo
     userFunc fi
         =  do let localStack = fiStack fi + baseStackSize
               calledStacks <- mapM (computeStack False) $ Set.toList $ fiCalls fi
-              return $ Fixed localStack `Plus` Max (Fixed 0 : calledStacks)
+              return $ foldl mergeStackInfo (StackInfo localStack Set.empty Set.empty) calledStacks
+     where
+       mergeStackInfo (StackInfo n as bs) (StackInfo n' as' bs')
+         = StackInfo (n + n') (as `Set.union` as') (bs `Set.union` bs')
 
--- I don't think we can use sortBy here because we only have a partial ordering,
--- not a total ordering (transitivity, for one, isn't automatic).
---
--- So our plan is as follows.  We calculate all the dependencies for each item.
--- We put all the items with no dependents first, and then we recurse, removing
--- all the no-dependent items from the dependencies of the others. 
-dependenceSort :: Set.Set String -> [(String, FunctionInfo)] -> [(String, FunctionInfo)]
-dependenceSort ofInterest origItems = map fst $ dependenceSort' itemsWithDependents
+substitute :: Integer -> [(String, StackInfo)] -> [(String, Integer)]
+substitute unknownSize origItems = substitute' [] origItems
   where
-    itemsWithDependents = [(item, ofInterest `Set.intersection`
-      (maybe Set.empty findAllDependencies $ fiTotalStack $ snd item)) | item <- origItems]
-
-    dependenceSort' :: [((String, FunctionInfo), Set.Set String)]
-      -> [((String, FunctionInfo), Set.Set String)]
-    dependenceSort' [] = []
-    dependenceSort' items
+    substitute' :: [(String, Integer)] -> [(String, StackInfo)] -> [(String, Integer)]
+    substitute' acc [] = acc
+    substitute' acc items
       | null firstItems -- Infinite loop if we don't stop it:
          = error $ "Cyclic dependencies in stack sizes: "
-           ++ show [n ++ " depends on " ++ show deps | ((n, _), deps) <- rest]
+           ++ show [n ++ " depends on " ++ show (occamExt s) | (n, s) <- rest]
+           ++ " done processes are: " ++ show (map fst origItems \\ map fst rest)
       | otherwise
-         = firstItems ++ dependenceSort' [(item, deps `Set.difference` ignore)
-                                         | (item, deps) <- rest]
+         = substitute' (acc++newAcc)
+             [(item, s { occamExt = Set.map subAll $ occamExt s })
+             | (item, s) <- rest]
       where
-        (firstItems, rest) = partition (Set.null . snd) items
+        (firstItems, rest) = partition (Set.null . Set.filter isRight . occamExt
+          . snd) items
 
-        ignore = Set.fromList $ map (fst . fst) firstItems
+        newAcc = map (second getFixed) firstItems
+
+        -- We know occamExt must be all Lefts:
+        getFixed (StackInfo {fixed = fix, occamExt = occ, otherExt = ext})
+          = fix + maximum ((if Set.null ext then 0 else unknownSize)
+                           : [n | Left n <- Set.toList occ])
+
+        subAll (Left n) = Left n
+        subAll (Right n) = case lookup n newAcc of
+                             Nothing -> Right n
+                             Just s -> Left s
       
 
 -- | Analyse assembler and return C source defining sizes.
-analyseAsm :: Maybe [String] -> String -> PassM String
-analyseAsm mprocs asm
+--
+-- The first parameter is a possible list of occam PROCs, so we know which stuff
+-- to mark as occam and which to mark as unknown external.
+--
+-- The return value is a string to be written to a file, that can later be read
+-- in and understood by computeFinalStackSizes
+analyseAsm :: Maybe [String] -> [String] -> String -> PassM String
+analyseAsm mprocs deps asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
         cs <- getCompState
-        let unique = concat [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
-                               then [c]
-                               else '_' : show (ord c)
-                            | c <- csCurrentFile cs]
         info <- execStateT (collectInfo stream >> addCalls (fromMaybe [] mprocs) (csUnknownStackSize cs)) Map.empty
-        debug $ "Analysed function information:"
+--        debug $ "Analysed function information:"
 --        debug $ concat [printf "  %-40s %5d %5d %s\n"
 --                          func (fiStack fi) (fiTotalStack fi)
 --                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
 --                        | (func, fi) <- Map.toList $ filterNames info]
-
-        let lines =  -- Can't remember if max is a standard function so let's make our own:
-                     "#ifndef TOCK_MAX\n#define TOCK_MAX(x,y) ((x) > (y) ? (x) : (y))\n#endif\n" :
-                     ["#include \"" ++ f ++ ".tock_post.h\"\n"
-                     | f <- Set.toList $ csUsedFiles cs] ++
-                     ["#define " ++ func ++ "_stack_size_CPP "
-                         ++ maybe "#error Unknown!" toC (fiTotalStack fi) ++ "\n"
-                     ++ "const int " ++ func ++ "_stack_size = "  ++ func ++ "_stack_size_CPP;\n"
-                     | (func, fi) <- dependenceSort (maybe Set.empty Set.fromList mprocs) $ Map.toList $ filterNames info]
-        return $ "#ifndef INCLUDED_" ++ unique ++ "\n#define INCLUDED_" ++ unique
-          ++ "\n" ++ concat lines ++ "\n#endif\n"
+        return $ unlines $ map (show . DependsOnModule) deps ++
+          [show (s, st) | (s, (FunctionInfo {fiTotalStack=Just st}))
+                                           <- Map.toList $ filterNames info]
   where
     filterNames = case mprocs of
       Nothing -> id
       Just m -> (`Map.intersection` (Map.fromList (zip m (repeat ()))))
 
-    findAllPlus :: StackInfo -> (Int, [StackInfo])
-    findAllPlus (Fixed n) = (n, [])
-    findAllPlus (Plus a b) = findAllPlus a `with` findAllPlus b
-      where
-        with (m, as) (n, bs) = (m + n, as ++ bs)
-    findAllPlus a = (0, [a])
+-- The String is the contents of the stack sizes file for the last one in the chain,
+-- straight from analyseAsm.  The function is used to read in files when needed,
+-- by looking in the search path.  The Int is the unknown-stack-size.
+--
+-- The output is the contents of a C file with all the stack sizes.
+computeFinalStackSizes :: forall m. Monad m => (String -> m String) -> Integer -> String -> m String
+computeFinalStackSizes readSizesFor unknownSize beginSizes
+  = do infos <- readInAll beginSizes
+       let finalised = substitute unknownSize infos
+       return $ toC finalised
+  where
+    readInAll :: String -> m [(String, StackInfo)]
+    readInAll contents
+      = let (deps, info) = split (lines contents)
+        in concatMapM (readInAll <.< readSizesFor) deps >>* (++ info)
 
-    -- Without  the simplifications in this function, the nesting of TOCK_MAX (and
-    -- its exponentially-sized expansion) was blowing the mind of the C compiler,
-    -- and the memory of my machine.
-    toC :: StackInfo -> String
-    toC (Fixed n) = show n
-    toC (Remote s) = s ++ "_stack_size_CPP"
-    toC x@(Plus {}) = let (m, as) = findAllPlus x in
-      (if m == 0 then id else \x -> "(" ++ show m ++ "+" ++ x ++ ")") $
-        concat (intersperse "+" $ map toC as) 
-    toC (Max as) = foldl makeMax (show fixed) (map toC other)
-      where
-        fixed = maximum [n | Fixed n <- as]
-        other = filter isNotFixed as
+    split :: [String] -> ([String], [(String, StackInfo)])
+    split [] = ([], [])
+    split (l:ls) = case (reads l, reads l) of
+      ([(DependsOnModule dep, rest)], []) | all isSpace rest -> transformPair (dep:) id $ split ls
+      ([], [(s, rest)]) | all isSpace rest -> transformPair id (s:) $ split ls
+      _ -> error $ "Cannot parse line: " ++ l
 
-        makeMax a b = "TOCK_MAX(" ++ a ++ "," ++ b ++ ")"
-
-        isNotFixed (Fixed {}) = False
-        isNotFixed _ = True
+    toC :: [(String, Integer)] -> String
+    toC info = unlines [ "const int " ++ nm ++ "_stack_size = " ++ show s ++ ";\n"
+                       | (nm, s) <- info]

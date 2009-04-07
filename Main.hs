@@ -226,7 +226,7 @@ main = do
     Left str -> putStrLn str
     Right initState -> do
       let operation = case csMode initState of
-            ModePostC -> useOutputOptions (postCAnalyse fn)
+            ModePostC -> useOutputOptions (postCAnalyse fn) >> return ()
             ModeFull -> evalStateT (compileFull fn fileStem) []
             mode -> useOutputOptions (compile mode fn)
 
@@ -266,19 +266,19 @@ compileFull inputFile moutputFile
                           -- using a stem (input file minus known extension).
                           -- If the extension isn't known, the user must specify
                           -- the output file
-                          ("-", Just file) -> return $ file ++ ".tock"
+                          ("-", Just file) -> return $ file
                           ("-", Nothing) -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
                           (file, _) -> return file
 
           let extension = case csBackend optsPS of
-                            BackendC -> ".c"
-                            BackendCPPCSP -> ".cpp"
+                            BackendC -> ".tock.c"
+                            BackendCPPCSP -> ".tock.cpp"
                             _ -> ""
 
           -- Translate input file to C/C++
           let cFile = outputFile ++ extension
-              hFile = outputFile ++ ".h"
-              iFile = outputFile ++ ".inc"
+              hFile = outputFile ++ ".tock.h"
+              iFile = outputFile ++ ".tock.inc"
           lift $ modify $ \cs -> cs { csOutputIncFile = Just iFile }
           lift $ withOutputFile cFile $ \hb ->
             withOutputFile hFile $ \hh ->
@@ -289,11 +289,11 @@ compileFull inputFile moutputFile
 
           case csBackend optsPS of
             BackendC ->
-              let sFile = outputFile ++ ".s"
-                  oFile = outputFile ++ ".o"
-                  postHFile = outputFile ++ "_post.h"
-                  postCFile = outputFile ++ "_post.c"
-                  postOFile = outputFile ++ "_post.o"
+              let sFile = outputFile ++ ".tock.s"
+                  oFile = outputFile ++ ".tock.o"
+                  sizesFile = outputFile ++ ".tock.sizes"
+                  postCFile = outputFile ++ ".tock_post.c"
+                  postOFile = outputFile ++ ".tock_post.o"
               in
               do sequence_ $ map noteFile $ [sFile, postCFile, postOFile]
                                ++ if csHasMain optsPS then [oFile] else []
@@ -305,12 +305,14 @@ compileFull inputFile moutputFile
                  exec $ cCommand sFile oFile (csCompilerFlags optsPS)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" H file
-                 lift $ withOutputFile postHFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
+                 sizes <- lift $ withOutputFile sizesFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
 
                  cs <- lift getCompState
                  when (csHasMain optsPS) $ do
-                   lift $ withOutputFile postCFile $ \h -> liftIO $ hPutStr h $
-                     "#include \"" ++ postHFile ++ "\"\n"
+                   withOutputFile postCFile $ \h ->
+                     computeFinalStackSizes searchReadFile (csUnknownStackSize cs)
+                       sizes >>= (liftIO . hPutStr h)
+                     
                    -- Compile this new "post" C file into an object file
                    exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
 
@@ -341,11 +343,12 @@ compileFull inputFile moutputFile
     noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
     noteFile fp = modify (\fps -> (fp:fps))
 
-    withOutputFile :: FilePath -> (Handle -> PassM ()) -> PassM ()
+    withOutputFile :: MonadIO m => FilePath -> (Handle -> m a) -> m a
     withOutputFile path func
         =  do handle <- liftIO $ openFile path WriteMode
-              func handle
+              x <- func handle
               liftIO $ hClose handle
+              return x
 
     exec :: String -> StateT [FilePath] PassM ()
     exec cmd = do lift $ progress $ "Executing command: " ++ cmd
@@ -355,8 +358,13 @@ compileFull inputFile moutputFile
                     ExitSuccess -> return ()
                     ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
+    searchReadFile :: String -> StateT [FilePath] PassM String
+    searchReadFile fn = do (h, _) <- lift $ searchFile emptyMeta (fn++".tock.sizes")
+                           liftIO $ hGetContents h
+                           -- Don't use hClose because hGetContents is lazy
+
 -- | Picks out the handle from the options and passes it to the function:
-useOutputOptions :: (((Handle, Handle), String) -> PassM ()) -> PassM ()
+useOutputOptions :: (((Handle, Handle), String) -> PassM a) -> PassM a
 useOutputOptions func
   =  do optsPS <- get
         withHandleFor (csOutputFile optsPS) $ \hb ->
@@ -367,8 +375,9 @@ useOutputOptions func
     withHandleFor file func =
             do progress $ "Writing output file " ++ file
                f <- liftIO $ openFile file WriteMode
-               func f
+               x <- func f
                liftIO $ hClose f
+               return x
 
 
 showTokens :: Bool -> [Token] -> String
@@ -472,14 +481,17 @@ compile mode fn (outHandles@(outHandle, _), headerName)
         progress "Done"
 
 -- | Analyse an assembly file.
-postCAnalyse :: String -> ((Handle, Handle), String) -> PassM ()
+postCAnalyse :: String -> ((Handle, Handle), String) -> PassM String
 postCAnalyse fn ((outHandle, _), _)
     =  do asm <- liftIO $ readFile fn
 
           names <- needStackSizes
+          cs <- getCompState
 
           progress "Analysing assembly"
-          output <- analyseAsm (Just $ map A.nameName names) asm
+          output <- analyseAsm (Just $ map A.nameName names) (Set.toList $ csUsedFiles cs) asm
 
           liftIO $ hPutStr outHandle output
+
+          return output
 

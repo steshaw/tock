@@ -29,6 +29,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as Set
+import System.IO
 
 import qualified AST as A
 import Errors (Die, dieP, ErrorReport, Warn, WarningType(..), warnP, WarningReport)
@@ -116,7 +117,7 @@ data CompState = CompState {
     csEnabledWarnings :: Set WarningType,
     csRunIndent :: Bool,
     csClassicOccamMobility :: Bool,
-    csUnknownStackSize :: Int,
+    csUnknownStackSize :: Integer,
     csSearchPath :: [String],
 
     -- Set by preprocessor
@@ -465,3 +466,20 @@ specTypeOfName :: (CSMR m, Die m) => A.Name -> m A.SpecType
 specTypeOfName n
     = liftM A.ndSpecType (lookupNameOrError n $ dieP (A.nameMeta n) $ "Could not find type in specTypeOfName for: " ++ (show $ A.nameName n))
 
+-- | Open an included file, looking for it in the search path.
+-- Return the open filehandle and the location of the file.
+searchFile :: forall m. (Die m, CSMR m, MonadIO m) => Meta -> String -> m (Handle, String)
+searchFile m filename
+    =  do cs <- getCompState
+          let currentFile = csCurrentFile cs
+          let possibilities = joinPath currentFile filename
+                              : [dir ++ "/" ++ filename | dir <- csSearchPath cs]
+          openOneOf possibilities possibilities
+  where
+    openOneOf :: [String] -> [String] -> m (Handle, String)
+    openOneOf all [] = dieP m $ "Unable to find " ++ filename ++ " tried: " ++ show all
+    openOneOf all (fn:fns)
+        =  do r <- liftIO $ maybeIO $ openFile fn ReadMode
+              case r of
+                Just h -> return (h, fn)
+                Nothing -> openOneOf all fns

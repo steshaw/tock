@@ -41,25 +41,6 @@ import PrettyShow
 import StructureOccam
 import Utils
 
--- | Open an included file, looking for it in the search path.
--- Return the open filehandle and the location of the file.
--- FIXME: This doesn't actually look at the search path yet.
-searchFile :: Meta -> String -> PassM (Handle, String)
-searchFile m filename
-    =  do cs <- get
-          let currentFile = csCurrentFile cs
-          let possibilities = joinPath currentFile filename
-                              : [dir ++ "/" ++ filename | dir <- csSearchPath cs]
-          openOneOf possibilities possibilities
-  where
-    openOneOf :: [String] -> [String] -> PassM (Handle, String)
-    openOneOf all [] = dieP m $ "Unable to find " ++ filename ++ " tried: " ++ show all
-    openOneOf all (fn:fns)
-        =  do r <- liftIO $ maybeIO $ openFile fn ReadMode
-              case r of
-                Just h -> return (h, fn)
-                Nothing -> openOneOf all fns
-
 -- | Preprocess a file and return its tokenised form ready for parsing.
 preprocessFile :: Meta -> String -> PassM [Token]
 preprocessFile m filename
