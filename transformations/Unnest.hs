@@ -227,6 +227,7 @@ removeNesting = pass "Pull nested definitions to top level"
 
     canPull :: A.SpecType -> Bool
     canPull (A.Proc _ _ _ _) = True
+    canPull (A.Function {}) = True
     canPull (A.RecordType _ _ _) = True
     canPull (A.Protocol _ _) = True
     canPull (A.ProtocolCase _ _) = True
