@@ -555,7 +555,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
 
     doExpression' :: A.Expression -> PassM A.Expression
     -- Convert single-valued function calls.
-    doExpression' (A.FunctionCall m n es)
+    doExpression' (A.FunctionCall m n es) | not $ builtInOperatorFunction n
         = do [v] <- convertFuncCall m n es
              return $ A.ExprVariable m v
     -- Convert SubscriptedExprs into SubscriptedVariables.
@@ -571,6 +571,7 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
     doExpressionList :: A.ExpressionList -> PassM A.ExpressionList
     -- Convert multi-valued function calls.
     doExpressionList (A.FunctionCallList m n es)
+      | not (builtInOperatorFunction n)
         = do vs <- convertFuncCall m n es
              return $ A.ExpressionList m [A.ExprVariable m v | v <- vs]
     doExpressionList el = descend el
