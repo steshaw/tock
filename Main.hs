@@ -270,14 +270,15 @@ compileFull inputFile moutputFile
                           ("-", Nothing) -> dieReport (Nothing, "Must specify an output file when using full-compile mode")
                           (file, _) -> return file
 
-          let extension = case csBackend optsPS of
-                            BackendC -> ".tock.c"
-                            BackendCPPCSP -> ".tock.cpp"
-                            _ -> ""
+          let (cExtension, hExtension)
+                        = case csBackend optsPS of
+                            BackendC -> (".tock.c", ".tock.h")
+                            BackendCPPCSP -> (".tock.cpp", ".tock.hpp")
+                            _ -> ("", "")
 
           -- Translate input file to C/C++
-          let cFile = outputFile ++ extension
-              hFile = outputFile ++ ".tock.h"
+          let cFile = outputFile ++ cExtension
+              hFile = outputFile ++ hExtension
               iFile = outputFile ++ ".tock.inc"
           lift $ modify $ \cs -> cs { csOutputIncFile = Just iFile }
           lift $ withOutputFile cFile $ \hb ->
@@ -324,9 +325,14 @@ compileFull inputFile moutputFile
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
-              exec $ cxxCommand cFile outputFile
-                (csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
-
+              do cs <- lift getCompState
+                 if csHasMain optsPS
+                   then let otherOFiles = [usedFile ++ ".tock.o"
+                                          | usedFile <- Set.toList $ csUsedFiles cs]
+                     in exec $ cxxCommand cFile outputFile
+                          (concat (intersperse " " otherOFiles) ++ " " ++ csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
+                   else exec $ cxxCommand cFile (outputFile ++ ".tock.o")
+                          ("-c " ++ csCompilerFlags optsPS)
             _ -> dieReport (Nothing, "Cannot use specified backend: "
                                      ++ show (csBackend optsPS)
                                      ++ " with full-compile mode")
