@@ -686,10 +686,7 @@ inferTypes = occamOnlyPass "Infer types"
             A.IntrinsicFunctionCall _ _ _ -> noTypeContext $ descend outer
             A.SubscriptedExpr m s e ->
                do ctx <- getTypeContext
-                  ctx' <- case ctx of
-                            Just t -> unsubscriptType s t >>* Just
-                            Nothing -> return Nothing
-                  e' <- inTypeContext ctx' $ recurse e
+                  e' <- inTypeContext (ctx >>= unsubscriptType s) $ recurse e
                   t <- astTypeOf e'
                   s' <- recurse s >>= fixSubscript t
                   return $ A.SubscriptedExpr m s' e'

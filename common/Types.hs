@@ -215,19 +215,19 @@ subscriptType sub t = diePC (findMeta sub) $ formatCode "Unsubscriptable type: %
 
 -- | The inverse of 'subscriptType': given a type that we know is the result of
 -- a subscript, return what the type being subscripted is.
-unsubscriptType :: (CSMR m, Die m) => A.Subscript -> A.Type -> m A.Type
+unsubscriptType :: A.Subscript -> A.Type -> Maybe A.Type
 unsubscriptType _ A.Infer
-    = return $ A.Infer
+    = Just $ A.Infer
 unsubscriptType (A.SubscriptFromFor _ _ _ _) t
-    = return $ removeFixedDimension t
+    = Just $ removeFixedDimension t
 unsubscriptType (A.SubscriptFrom _ _ _) t
-    = return $ removeFixedDimension t
+    = Just $ removeFixedDimension t
 unsubscriptType (A.SubscriptFor _ _ _) t
-    = return $ removeFixedDimension t
+    = Just $ removeFixedDimension t
 unsubscriptType (A.SubscriptField m _) t
-    = dieP m $ "unsubscript of record type (but we can't tell which one)"
+    = Nothing
 unsubscriptType (A.Subscript _ _ sub) t
-    = return $ addDimensions [A.UnknownDimension] t
+    = Just $ addDimensions [A.UnknownDimension] t
 
 -- | Just remove the first dimension from an array type -- like doing
 -- subscriptType with constant 0 as a subscript, but without the checking.
