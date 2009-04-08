@@ -446,7 +446,7 @@ showCodeExSet :: (CSMR m, Ord a, ShowOccam a, ShowRain a) => ExSet a -> m String
 showCodeExSet Everything = return "<all-vars>"
 showCodeExSet (NormalSet s)
     = do ss <- mapM showCode (Set.toList s)
-         return $ "{" ++ concat (intersperse ", " ss) ++ "}"
+         return $ "{" ++ joinWith ", " ss ++ "}"
 
 checkInitVarPass :: Pass
 checkInitVarPass = pass "checkInitVar" [] []

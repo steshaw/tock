@@ -80,7 +80,7 @@ genItem' suffix typeName (num, name, paramTypes)
   where
     typeSuffix = ""
 
-    params = concat $ intersperse " -> " $ paramTypes ++ [typeName]
+    params = joinWith " -> " $ paramTypes ++ [typeName]
 
     n = show num
     mname = "m" ++ name ++ suffix

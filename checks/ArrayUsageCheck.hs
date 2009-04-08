@@ -232,7 +232,7 @@ formatProblem varToIndex (eq, ineq)
                                        ++ " " ++ op ++ " " ++ show (negate $ item ! 0)
 
         showEq :: Array CoeffIndex Integer -> m String
-        showEq = liftM (concat . intersperse " + ") . mapM showItem . filter ((/= 0) . snd) . tail . assocs
+        showEq = liftM (joinWith " + ") . mapM showItem . filter ((/= 0) . snd) . tail . assocs
 
         showItem :: (CoeffIndex, Integer) -> m String
         showItem (n, a) = case find ((== n) . snd) $ Map.assocs varToIndex of
@@ -255,7 +255,7 @@ solve (ls,vm,(eq,ineq)) = case solveProblem eq ineq of
 formatSolution :: (CSMR m, Monad m) => VarMap -> VariableMapping -> m String
 formatSolution varToIndex vm
  = do names <- mapM valOfVar $ Map.assocs varToIndex
-      return $ concat $ intersperse " , " $ catMaybes names
+      return $ joinWith " , " $ catMaybes names
       where
         indexToVar = flip lookup $ map revPair $ Map.assocs varToIndex
 
@@ -275,7 +275,7 @@ formatSolution varToIndex vm
               -1 -> "-"
               n -> show n ++ "*"
 
-        showWithCoeff xs = liftM (concat . intersperse " + ") $ mapM showWithCoeff' xs
+        showWithCoeff xs = liftM (joinWith " + ") $ mapM showWithCoeff' xs
 
         valOfVar (varExp,k) = case Map.lookup k indexToConst of 
           Nothing -> return Nothing
@@ -290,7 +290,7 @@ formatSolution varToIndex vm
 
         formatBounds _ [] = ""
         formatBounds f [b] = f b
-        formatBounds f bs = f $ "(" ++ concat (intersperse "," bs) ++ ")"
+        formatBounds f bs = f $ "(" ++ joinWith "," bs ++ ")"
 
 showFlattenedExpSet :: Monad m => (A.Expression -> m String) -> Set.Set FlattenedExp -> m String
 showFlattenedExpSet showExp s = liftM concat $ sequence $ intersperse (return " + ") $ map (showFlattenedExp showExp) $ Set.toList s

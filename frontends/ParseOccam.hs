@@ -2004,7 +2004,7 @@ defaultDecl = concat
      [Token emptyMeta $ Pragma $ "TOCKEXTERNAL \""
       ++ showOccam rt
       ++ " FUNCTION \"" ++ concatMap doubleStar op ++ "\"("
-      ++ concat (intersperse "," params)
+      ++ joinWith "," params
       ++ ") = "
       ++ occamDefaultOperator op ts
       ++ "\""

@@ -74,7 +74,7 @@ instancesFrom w
     -- left to apply.
     baseInst :: [String]
     baseInst
-        = [ "instance (" ++ concat (intersperse ", " context) ++ ") =>"
+        = [ "instance (" ++ joinWith ", " context ++ ") =>"
           , "         Polyplate m () o0 (" ++ wName ++ ") where"
           ] ++
           (if isAlgType wDType
@@ -116,7 +116,7 @@ instancesFrom w
         ctrName = modPrefix ++ ctrS
         makeCtr vs
             = if isTuple
-                then "(" ++ (concat $ intersperse ", " vs) ++ ")"
+                then "(" ++ joinWith ", " vs ++ ")"
                 else ctrName ++ concatMap (" " ++) vs
         ctrInput = makeCtr ["a" ++ show i | i <- argNums]
         ctrResult = makeCtr ["r" ++ show i | i <- argNums]

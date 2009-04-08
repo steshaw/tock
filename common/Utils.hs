@@ -328,7 +328,7 @@ showMaybe showFunc (Just x) = "Just " ++ showFunc x
 showMaybe _ Nothing = "Nothing"
 
 showListCustom :: (a -> String) -> [a] -> String
-showListCustom showFunc list = "[" ++ concat (intersperse "," (map showFunc list)) ++ "]"
+showListCustom showFunc list = "[" ++ joinWith "," (map showFunc list) ++ "]"
 
 showPairCustom :: (a -> String) -> (b -> String) -> (a,b) -> String
 showPairCustom showA showB (a,b) = "(" ++ showA a ++ "," ++ showB b ++ ")"
@@ -398,3 +398,9 @@ liftWrapStateT wrap m
 foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
 foldM1 f (x:xs) = foldM f x xs
 foldM1 _ [] = fail "Empty list in foldM1"
+
+-- | A shortcut for concat and intersperse.
+-- For example, @joinWith " " names@ is the same as @concat (intersperse " "
+-- names)@
+joinWith :: [a] -> [[a]] -> [a]
+joinWith x = concat . intersperse x
