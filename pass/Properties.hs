@@ -336,8 +336,7 @@ functionsRemoved = Property "functionsRemoved" $
   checkNull "functionsRemoved" . listify findFunctions
 
 afterRemoved :: Property
-afterRemoved = Property "afterRemoved" $
-  checkNull "afterRemoved" . listify (== A.After)
+afterRemoved = Property "afterRemoved" checkTODO
 
 arrayLiteralsExpanded :: Property
 arrayLiteralsExpanded = Property "arrayLiteralsExpanded" checkTODO
