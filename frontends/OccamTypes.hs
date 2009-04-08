@@ -730,13 +730,13 @@ inferTypes = occamOnlyPass "Infer types"
               -- list (which will be the most recent)
               possibles <- return
                 [ ((opFuncName, es'), ts)
-                | (raw, opFuncName, ts) <- nubBy ((==) `on` (\(op,_,ts) -> (op,ts))) $ csOperators cs
+                | (raw, opFuncName, ts) <- nubBy opsMatch $ csOperators cs
                 -- Must be right operator:
                 , raw == A.nameName n
                 -- Must be right arity:
                 , length ts == length es
                 -- Must have right types:
-                , ts == tes
+                , ts `typesEqForOp` tes
                 ]
               case possibles of
                 [] -> diePC m $ formatCode ("No matching " ++ opDescrip ++ " operator definition found for types: %") tes
@@ -748,6 +748,16 @@ inferTypes = occamOnlyPass "Infer types"
               doActuals m n fs direct es >>* (,) n
       where
         direct = error "Cannot direct channels passed to FUNCTIONs"
+
+        opsMatch (opA, _, tsA) (opB, _, tsB) = (opA == opB) && (tsA `typesEqForOp` tsB)
+
+        typesEqForOp :: [A.Type] -> [A.Type] -> Bool
+        typesEqForOp tsA tsB = (length tsA == length tsB) && (and $ zipWith typeEqForOp tsA tsB)
+
+        typeEqForOp :: A.Type -> A.Type -> Bool
+        typeEqForOp (A.Array ds t) (A.Array ds' t')
+          = (length ds == length ds') && typeEqForOp t t'
+        typeEqForOp t t' = t == t'
 
     doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> (Meta -> A.Direction -> Transform a)
       -> Transform [a]
