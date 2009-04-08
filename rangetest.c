@@ -233,26 +233,26 @@ int g_stopped;
 		testf(f(max,bits+1,"")); \
 	} while (0)
 
-#define check_all_b(max,bits,type) \
-	check_addition(max,occam_add_##type); \
-	check_subtraction(max,occam_subtr_##type); \
-	check_multiplication(max,occam_mul_##type); \
-	check_negation(max,occam_negate_##type); \
-	check_division(max,occam_div_##type); \
-	check_rem(max,occam_rem_##type); \
-	check_shift(max,bits,occam_lshift_##type); \
-	check_shift(max,bits,occam_rshift_##type);
+#define check_all_b(max,bits,type,otype) \
+	check_addition(max,occam_add_##otype##_##otype); \
+	check_subtraction(max,occam_subtr_##otype##_##otype); \
+	check_multiplication(max,occam_mul_##otype##_##otype); \
+	check_negation(max,occam_subtr_##otype); \
+	check_division(max,occam_div_##otype##_##otype); \
+	check_rem(max,occam_rem_##otype##_##otype); \
+	check_shift(max,bits,occam_lshift_##otype##_INT);\
+	check_shift(max,bits,occam_rshift_##otype##_INT);
 
-#define check_all(max,bits) check_all_b(max,bits,int##bits##_t)
+#define check_all(max,bits) check_all_b(max,bits,int##bits##_t,INT##bits)
 
-#define check_all_b_u(max,bits,type) \
-	check_subtraction_u(max,occam_subtr_##type); \
-	check_division_u(max,occam_div_##type); \
-	check_rem_u(max,occam_rem_##type); \
-	check_shift_u(max,bits,occam_lshift_##type); \
-	check_shift_u(max,bits,occam_rshift_##type);
+#define check_all_b_u(max,bits,type,otype) \
+	check_subtraction_u(max,occam_subtr_##otype##_##otype); \
+	check_division_u(max,occam_div_##otype##_##otype); \
+	check_rem_u(max,occam_rem_##otype##_##otype); \
+	check_shift_u(max,bits,occam_lshift_##otype##_INT); \
+	check_shift_u(max,bits,occam_rshift_##otype##_INT);
 
-#define check_all_u(max,bits) check_all_b_u(max,bits,uint##bits##_t)
+#define check_all_u(max,bits) check_all_b_u(max,bits,uint##bits##_t,UINT##bits)
 
 
 
@@ -273,15 +273,15 @@ int main(int argc, char** argv)
 	check_all(32767,16);
 	check_all(2147483647,32);
 	check_all(9223372036854775807,64);
-	check_all_u(255,8);
+	check_all_b_u(255,8,uint8_t,BYTE);
 	
-	test_commutative(int8_t,occam_add_int8_t,add);
-	test_commutative(int8_t,occam_mul_int8_t,mult);
-	test_commutative(uint8_t,occam_add_uint8_t,add);
-	test_commutative(uint8_t,occam_mul_uint8_t,mult);
+	test_commutative(int8_t,occam_add_INT8_INT8,add);
+	test_commutative(int8_t,occam_mul_INT8_INT8,mult);
+	test_commutative(uint8_t,occam_add_BYTE_BYTE,add);
+	test_commutative(uint8_t,occam_mul_BYTE_BYTE,mult);
 
-	test_commutative(int16_t,occam_add_int16_t,add);
-	test_commutative(int16_t,occam_mul_int16_t,mult);
+	test_commutative(int16_t,occam_add_INT16_INT16,add);
+	test_commutative(int16_t,occam_mul_INT16_INT16,mult);
 
 	//TODO add tests for the index-checking functions too
 
