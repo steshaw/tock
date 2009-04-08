@@ -320,8 +320,8 @@ static inline int occam_check_retype (int src, int dest, const char *pos) {
 	MAKE_SIMPLE_UNARY(minus,-,type,otype)
 
 #define MAKE_TOSTRING(type, occname, flag) \
-	static inline void occam_##occname##TOSTRING(OCCAM_INT*, unsigned char*, const type) occam_unused; \
-	static inline void occam_##occname##TOSTRING(OCCAM_INT* len, unsigned char* string, const type n) { \
+	static inline void occam_##occname##TOSTRING(occam_extra_param OCCAM_INT*, unsigned char*, const type) occam_unused; \
+	static inline void occam_##occname##TOSTRING(occam_extra_param OCCAM_INT* len, unsigned char* string, const type n) { \
 		/* Must use buffer to avoid writing trailing zero: */ char buf[32]; \
 		int chars_written = snprintf(buf, 32, flag, n); \
 		memcpy(string, buf, chars_written * sizeof(char)); \
