@@ -35,6 +35,7 @@ import Data.Char
 import Data.Generics
 import Data.List
 import Data.Maybe
+import qualified Data.Set as Set
 import System.IO
 
 import qualified AST as A
@@ -135,12 +136,33 @@ cppgenTopLevel :: String -> A.AST -> CGen ()
 cppgenTopLevel headerName s
     =  do tell ["#define occam_INT_size ", show cxxIntSize,"\n"]
           tell ["#include <tock_support_cppcsp.h>\n"]
-          --In future, these declarations could be moved to a header file:
-          sequence_ $ map (call genForwardDeclaration) (listify (const True :: A.Specification -> Bool) s)
+
+
+          cs <- getCompState
+
+          let isTopLevelSpec (A.Specification _ n _)
+                = A.nameName n `elem` (csOriginalTopLevelProcs cs)
+
+          tellToHeader $ sequence_ $ map (call genForwardDeclaration)
+                                       (listify isTopLevelSpec s)
+          -- Things like lifted wrapper_procs we still need to forward-declare,
+          -- but we do it in the C file, not in the header:
+          sequence_ $ map (call genForwardDeclaration)
+                            (listify (\sp@(A.Specification _ n _)
+                              -> not (isTopLevelSpec sp)
+                                 && A.nameName n `notElem` map fst (csExternals cs)) s)
+
+          tell ["#include \"", dropPath headerName, "\"\n"]
+
+          sequence_ [tell ["#include \"", usedFile, ".tock.hpp\"\n"]
+                    | usedFile <- Set.toList $ csUsedFiles cs]
+
           call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
-          (name, chans) <- tlpInterface
-          tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
-          (chanTypeRead, chanTypeWrite, writer, reader) <- 
+
+          when (csHasMain cs) $ do
+            (name, chans) <- tlpInterface
+            tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
+            (chanTypeRead, chanTypeWrite, writer, reader) <- 
                       do st <- getCompState
                          case csFrontend st of
                            FrontendOccam -> return ("tockSendableArrayOfBytes",
@@ -149,19 +171,21 @@ cppgenTopLevel headerName s
                                                     "StreamReaderByteArray")
                            _ -> return ("uint8_t", "tockList<uint8_t>/**/","StreamWriterList", "StreamReader")
           
-          tell ["csp::One2OneChannel<",chanTypeRead,"> in;"]
-          tell ["csp::One2OneChannel<",chanTypeWrite,"> out,err;"]
-          tell [" csp::Run( csp::InParallel ",
-                "(new ",writer,"(std::cout,out.reader())) ",
-                "(new ",writer,"(std::cerr,err.reader())) ",
-                "(new ",reader,"(std::cin,in.writer())) ",
-                "(csp::InSequenceOneThread ( new proc_"]
-          genName name 
-          tell ["("]
-          seqComma $ map tlpChannel chans
-          tell [")) (new LethalProcess()) ) );",
-                "csp::End_CPPCSP(); return 0;}\n"]
+            tell ["csp::One2OneChannel<",chanTypeRead,"> in;"]
+            tell ["csp::One2OneChannel<",chanTypeWrite,"> out,err;"]
+            tell [" csp::Run( csp::InParallel ",
+                  "(new ",writer,"(std::cout,out.reader())) ",
+                  "(new ",writer,"(std::cerr,err.reader())) ",
+                  "(new ",reader,"(std::cin,in.writer())) ",
+                  "(csp::InSequenceOneThread ( new proc_"]
+            genName name 
+            tell ["("]
+            seqComma $ map tlpChannel chans
+            tell [")) (new LethalProcess()) ) );",
+                  "csp::End_CPPCSP(); return 0;}\n"]
   where
+    dropPath = reverse . takeWhile (/= '/') . reverse
+
     tlpChannel :: (Maybe A.Direction,TLPChannel) -> CGen()
     tlpChannel (dir,c) = case dir of
                                Nothing -> tell ["&", chanName]
