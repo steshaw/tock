@@ -115,7 +115,7 @@ removeAfter = pass "Convert AFTER to MINUS"
     doFunctionCall :: (Meta -> A.Name -> [A.Expression] -> a)
       -> Meta -> A.Name -> [A.Expression] -> PassM a
     doFunctionCall f m n args
-        =  do mOp <- functionOperator n
+        =  do mOp <- builtInOperator n
               ts <- mapM astTypeOf args
               let op s = A.Name (A.nameMeta n) $ occamDefaultOperator s ts
               case mOp of
@@ -128,7 +128,7 @@ removeAfter = pass "Convert AFTER to MINUS"
                                  [A.FunctionCall m (op "MINUS") args
                                  , one]
                                ,oneTwoSeven]
-                  | n == op "AFTER" -- It hasn't been over-ridden
+                  | otherwise
                    -> let zero = A.Literal m (head ts) $ A.IntLiteral m "0"
                       in return $ f m (op ">") [A.FunctionCall m (op "MINUS") args, zero]
                 _ -> return $ f m n args

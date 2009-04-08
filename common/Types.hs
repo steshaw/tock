@@ -22,7 +22,7 @@ module Types
     specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, underlyingTypeOf, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
-    , isOperator, functionOperator, occamDefaultOperator, occamBuiltInOperatorFunctions, occamOperatorTranslateDefault
+    , isOperator, functionOperator, builtInOperator, occamDefaultOperator, occamBuiltInOperatorFunctions, occamOperatorTranslateDefault
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
@@ -45,6 +45,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.List
 import Data.Ord
+import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState hiding (CSM) -- all these functions are read-only!
@@ -698,6 +699,18 @@ functionOperator n
       >>* A.ndOrigName
       >>* (\op -> if isOperator op then Just op else Nothing)
 
+-- Only gives back a Just result if it's a non-overridden operator
+builtInOperator :: (CSMR m, Die m) => A.Name -> m (Maybe String)
+builtInOperator n
+  = do mOp <- functionOperator n
+       return $ case mOp of
+         Nothing -> Nothing
+         Just op
+           | A.nameName n `Set.member` occamBuiltInOperatorFunctionsSet
+             -> Just op
+           | otherwise
+             -> Nothing
+
 isOperator :: String -> Bool
 isOperator op = any (== op) operatorNames
 
@@ -791,6 +804,9 @@ occamBuiltInOperatorFunctions :: [String]
 occamBuiltInOperatorFunctions
   = [occamDefaultOperator n ts
     | (n, _, ts) <- occamIntrinsicOperators]
+
+occamBuiltInOperatorFunctionsSet :: Set.Set String
+occamBuiltInOperatorFunctionsSet = Set.fromList occamBuiltInOperatorFunctions
 
 -- | Add one to an expression.
 addOne :: (CSMR m, Die m) => A.Expression -> m A.Expression

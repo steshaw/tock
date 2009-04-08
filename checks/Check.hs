@@ -175,14 +175,13 @@ addBK mp mp2 g nid n
                  rhs' <- g rhs >>* deAnd
                  return $ And $ map (\(x,y) -> x `mappend` y) $ product2 (lhs', rhs')
           | otherwise
-             = do mOp <- functionOperator fn
-                  ts <- mapM astTypeOf [lhs, rhs]
+             = do mOp <- builtInOperator fn
                   case mOp of
                     Nothing -> return mempty
                     Just op ->
-                      if A.nameName fn == occamDefaultOperator op ts
-                        then let noAndOr :: PassM a -> PassM (And (Or a))
-                                 noAndOr = liftM (noAnd . noOr) in case op of
+                      let noAndOr :: PassM a -> PassM (And (Or a))
+                          noAndOr = liftM (noAnd . noOr)
+                      in case op of
                           "=" -> noAndOr $ return $ Equal lhs rhs
                           "<=" -> noAndOr $ return $ LessThanOrEqual lhs rhs
                           ">=" -> noAndOr $ return $ LessThanOrEqual rhs lhs
@@ -196,7 +195,6 @@ addBK mp mp2 g nid n
                              return $ Or [LessThanOrEqual lhs_p1 rhs
                                          ,LessThanOrEqual rhs_p1 lhs]
                           _ -> return mempty
-                        else return mempty
           where
             bop n = A.Name emptyMeta $ occamDefaultOperator n [A.Bool, A.Bool]
         g (A.FunctionCall _ fn [rhs])
