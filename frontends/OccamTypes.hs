@@ -724,13 +724,18 @@ inferTypes = occamOnlyPass "Infer types"
               tes <- sequence [underlyingTypeOf m e `catchError` (const $ return A.Infer) | e <- es']
            
               cs <- getCompState
+
+              resolvedOps <- sequence [ do ts' <- mapM (underlyingType m) ts
+                                           return (op, n, ts')
+                                      | (op, n, ts) <- csOperators cs
+                                      ]
               
               -- The nubBy will ensure that only one definition remains for each
               -- set of type-arguments, and will keep the first definition in the
               -- list (which will be the most recent)
               possibles <- return
                 [ ((opFuncName, es'), ts)
-                | (raw, opFuncName, ts) <- nubBy opsMatch $ csOperators cs
+                | (raw, opFuncName, ts) <- nubBy opsMatch resolvedOps
                 -- Must be right operator:
                 , raw == A.nameName n
                 -- Must be right arity:
