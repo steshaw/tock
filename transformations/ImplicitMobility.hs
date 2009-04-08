@@ -62,10 +62,12 @@ effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper a
                  then return $ A.CloneMobile m' $ A.ExprVariable m' v
                  else return e
              -- TODO handle concat expressions with repeated vars
+             {-
              A.Dyadic m A.Concat lhs rhs ->
                do lhs' <- derefExp lhs
                   rhs' <- derefExp rhs
                   return $ A.Dyadic m A.Concat lhs' rhs'
+             -}
              _ -> return e
     alterProc :: A.Process -> PassM A.Process
     alterProc (A.Assign m lhs (A.ExpressionList m' [e]))
