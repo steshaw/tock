@@ -58,7 +58,7 @@ ordFor' typeName x = process $ map processConstr $ dataTypeConstrs $ dataTypeOf 
       ++ concat [ [ "  compare (" ++ name ++ headL ++ ") (" ++ name ++ headR ++ ") = " ++
                     --Shortcut:
                     if null comparisons then "EQ" else
-                      "combineCompare [" ++ joinWith "," comparisons) ++ "]"
+                      "combineCompare [" ++ joinWith "," comparisons ++ "]"
                   ] ++ if isLast then [] else
                   [ "  compare (" ++ name ++ " {}) _ = LT"
                   , "  compare _ (" ++ name ++ " {}) = GT"]
