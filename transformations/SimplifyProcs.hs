@@ -109,7 +109,8 @@ flattenAssign = pass "Flatten assignment"
 
     makeCopyProcName :: A.Name -> PassM A.Name
     makeCopyProcName n = do file <- getCompState >>* csCurrentFile
-                            return $ n {A.nameName = "copy_" ++ file ++ A.nameName n}
+                            let m = Meta (Just file) 0 0 
+                            return $ n {A.nameName = "copy_" ++ mungeMeta m ++ A.nameName n}
 
     complexAssign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
     complexAssign m t v m' e
