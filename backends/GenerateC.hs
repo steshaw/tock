@@ -709,11 +709,12 @@ cgenVariableWithAM checkValid v am fct
                          , Pointer $ innerCT)
              _ -> inner v
     inner wholeV@(A.DirectedVariable m dir v)
-      = do (cg, _) <- inner v
+      = do (cg, ctInner) <- inner v
+           let cg' = dressUp m (cg, ctInner) (stripPointers ctInner)
            t <- astTypeOf v
            wholeT <- astTypeOf wholeV
            ct <- call getCType m wholeT A.Original
-           return (call genDirectedVariable m t cg dir, ct)
+           return (call genDirectedVariable m t cg' dir, ct)
     inner (A.VariableSizes m (A.Variable _ n))
       = do t <- astTypeOf n
            f <- fget getScalarType

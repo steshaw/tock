@@ -886,7 +886,7 @@ cppgenDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen ()
 cppgenDirectedVariable m t v dir
   = case t of
          A.ChanEnd {} -> v
-         A.Chan {} -> tell ["(("] >> v >> tell [")->",if dir == A.DirInput
+         A.Chan {} -> tell ["(("] >> v >> tell [").",if dir == A.DirInput
            then "reader" else "writer","())"]
          A.Array _ (A.ChanEnd {}) -> v
          A.Array _ (A.Chan {}) -> dieP m "Should have pulled up directed arrays"
