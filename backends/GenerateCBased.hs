@@ -142,8 +142,8 @@ data GenOps = GenOps {
     genExpression :: A.Expression -> CGen (),
     genFlatArraySize :: [A.Dimension] -> CGen (),
     genForwardDeclaration :: A.Specification -> CGen(),
-    genFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen (),
-    genFuncMonadic :: Meta -> String -> A.Expression -> CGen (),
+    -- | Only used for built-in operators at the moment:
+    genFunctionCall :: Meta -> A.Name -> [A.Expression] -> CGen (),
     -- | Gets the current time into the given variable
     genGetTime :: A.Variable -> CGen (),
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
@@ -180,8 +180,6 @@ data GenOps = GenOps {
     genReschedule :: CGen(),
     genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
     genSeq :: A.Structured A.Process -> CGen (),
-    genSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen (),
-    genSimpleMonadic :: String -> A.Expression -> CGen (),
     genSpec :: forall b. Level -> A.Specification -> CGen b -> CGen b,
     genSpecMode :: A.SpecMode -> CGen (),
     -- | Generates a STOP process that uses the given Meta tag and message as its printed message.

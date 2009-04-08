@@ -104,8 +104,7 @@ cgenOps = GenOps {
     genExpression = cgenExpression,
     genFlatArraySize = cgenFlatArraySize,
     genForwardDeclaration = cgenForwardDeclaration,
-    genFuncDyadic = cgenFuncDyadic,
-    genFuncMonadic = cgenFuncMonadic,
+    genFunctionCall = cgenFunctionCall,
     genGetTime = cgenGetTime,
     genIf = cgenIf,
     genInput = cgenInput,
@@ -134,8 +133,6 @@ cgenOps = GenOps {
     genReschedule = cgenReschedule,
     genRetypeSizes = cgenRetypeSizes,
     genSeq = cgenSeq,
-    genSimpleDyadic = cgenSimpleDyadic,
-    genSimpleMonadic = cgenSimpleMonadic,
     genSpec = cgenSpec,
     genSpecMode = cgenSpecMode,
     genStop = cgenStop,
@@ -947,14 +944,7 @@ cgenExpression (A.Literal _ t lr) = call genLiteral lr t
 cgenExpression (A.True m) = tell ["true"]
 cgenExpression (A.False m) = tell ["false"]
 -- Any function calls remaining must be to the built-in operator functions:
-cgenExpression (A.FunctionCall m n es)
-  = do A.Function _ _ _ fs _ <- specTypeOfName n
-       genName n
-       tell ["(wptr,"]
-       call genActuals fs (map A.ActualExpression es)
-       tell [","]
-       genMeta m
-       tell [")"]
+cgenExpression (A.FunctionCall m n es) = call genFunctionCall m n es
 cgenExpression (A.IntrinsicFunctionCall m s es) = call genIntrinsicFunction m s es
 --cgenExpression (A.BytesInExpr m e)
 cgenExpression (A.BytesInExpr m (A.ExprVariable _ v))
@@ -970,6 +960,17 @@ cgenExpression (A.IsDefined m (A.ExprVariable _ (A.DerefVariable _ v)))
 cgenExpression (A.IsDefined m e)
   = tell ["("] >> call genExpression e >> tell ["!=NULL)"]
 cgenExpression t = call genMissing $ "genExpression " ++ show t
+
+cgenFunctionCall :: Meta -> A.Name -> [A.Expression] -> CGen ()
+cgenFunctionCall m n es
+  = do A.Function _ _ _ fs _ <- specTypeOfName n
+       genName n
+       tell ["(wptr,"]
+       call genActuals fs (map A.ActualExpression es)
+       tell [","]
+       genMeta m
+       tell [")"]
+
 
 cgenTypeSymbol :: String -> A.Type -> CGen ()
 cgenTypeSymbol s t
@@ -991,41 +992,6 @@ cgenIntrinsicFunction m s es
 --}}}
 
 --{{{  operators
-cgenSimpleMonadic :: String -> A.Expression -> CGen ()
-cgenSimpleMonadic s e
-    =  do tell ["(", s]
-          call genExpression e
-          tell [")"]
-
-cgenFuncMonadic :: Meta -> String -> A.Expression -> CGen ()
-cgenFuncMonadic m s e
-    =  do t <- astTypeOf e
-          call genTypeSymbol s t
-          tell [" ("]
-          call genExpression e
-          tell [", "]
-          genMeta m
-          tell [")"]
-
-cgenSimpleDyadic :: String -> A.Expression -> A.Expression -> CGen ()
-cgenSimpleDyadic s e f
-    =  do tell ["("]
-          call genExpression e
-          tell [" ", s, " "]
-          call genExpression f
-          tell [")"]
-
-cgenFuncDyadic :: Meta -> String -> A.Expression -> A.Expression -> CGen ()
-cgenFuncDyadic m s e f
-    =  do t <- astTypeOf e
-          call genTypeSymbol s t
-          tell [" ("]
-          call genExpression e
-          tell [", "]
-          call genExpression f
-          tell [", "]
-          genMeta m
-          tell [")"]
 --}}}
 
 cgenListConcat :: A.Expression -> A.Expression -> CGen ()
@@ -1723,13 +1689,8 @@ cgenAssign m [v] (A.ExpressionList _ [e])
 cgenAssign m [v] (A.FunctionCallList _ n es)
     = do call genVariable v A.Original
          tell ["="]
-         genName n
-         tell ["(wptr,"]
-         A.Function _ _ _ fs _ <- specTypeOfName n
-         call genActuals fs (map A.ActualExpression es)
-         tell [","]
-         genMeta m
-         tell [");"]
+         call genFunctionCall m n es
+         tell [";"]
 cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
     = do call genVariable v A.Original
          let (funcName, giveMeta) = case lookup n simpleFloatIntrinsics of

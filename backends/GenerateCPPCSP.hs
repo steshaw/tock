@@ -65,6 +65,7 @@ cppgenOps = cgenOps {
     getCType = cppgetCType,
     genDirectedVariable = cppgenDirectedVariable,
     genForwardDeclaration = cppgenForwardDeclaration,
+    genFunctionCall = cppgenFunctionCall,
     genGetTime = cppgenGetTime,
     genIf = cppgenIf,
     genInputItem = cppgenInputItem,
@@ -521,6 +522,7 @@ cppgenFormal nameFunc (A.Formal am t n) = call genDecl NotTopLevel am t (nameFun
 cppgenForwardDeclaration :: A.Specification -> CGen()
 cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
     =  do --Generate the "process" as a C++ function:
+          genStatic TopLevel n
           call genSpecMode sm
           tell ["void "]
           name 
@@ -868,3 +870,14 @@ cppgenDirectedVariable m t v dir
 
 cppgenReschedule :: CGen ()
 cppgenReschedule = tell ["csp::CPPCSP_Yield();"]
+
+-- Changed because we don't need to pass the workspace in:
+cppgenFunctionCall :: Meta -> A.Name -> [A.Expression] -> CGen ()
+cppgenFunctionCall m n es
+  = do A.Function _ _ _ fs _ <- specTypeOfName n
+       genName n
+       tell ["("]
+       call genActuals fs (map A.ActualExpression es)
+       tell [","]
+       genMeta m
+       tell [")"]
