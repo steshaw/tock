@@ -68,7 +68,7 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                 Left err -> dieP emptyMeta $ "findConstraints:"
                                   ++ err
                                 Right c -> return c
-                      let g' = labelMapWithNodeId (addBK reach cons g) g
+                      g' <- labelMapWithNodeIdM (addBK reach cons g) g
                       debug "Checking flow graph for problems"
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
@@ -138,8 +138,10 @@ noAnd = And . singleton
 
 addBK :: Map.Map Node (Map.Map Var (Set.Set (Maybe A.Expression))) ->
   Map.Map Node [A.Expression] -> FlowGraph PassM UsageLabel ->
-  Node -> FNode PassM UsageLabel -> FNode PassM (BK, UsageLabel)
-addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
+  Node -> FNode PassM UsageLabel -> PassM (FNode PassM (BK, UsageLabel))
+addBK mp mp2 g nid n
+  = do im <- conInterMed
+       return $ fmap ((,) $ followBK (map keepDefined (joined' im))) n
   where
     keepDefined :: Map.Map Var a -> Map.Map Var a
     keepDefined m = Map.intersection m $ Map.fromList
@@ -151,14 +153,14 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
     consInQuestion :: And A.Expression
     consInQuestion = And $ fromMaybe [] $ Map.lookup nid mp2
 
-    conInterMed :: And (Or BackgroundKnowledge)
-    conInterMed = mconcat $ map g $ deAnd consInQuestion
+    conInterMed :: PassM (And (Or BackgroundKnowledge))
+    conInterMed = liftM mconcat $ mapM g $ deAnd consInQuestion
       where
-        g :: A.Expression -> And (Or BackgroundKnowledge)
-        g (A.Dyadic _ op lhs rhs)
+        g :: A.Expression -> PassM (And (Or BackgroundKnowledge))
+        g (A.FunctionCall m fn [lhs, rhs])
           -- If one of the components of an AND is unrecognised, we still keep
           -- the other part:
-          | op == A.And = g lhs `mappend` g rhs
+          | fn == bop "AND" = liftM2 mappend (g lhs) (g rhs)
           -- (A and B) or (C and D) = ((A and B) or C) and ((A and B) or D)
           -- = (A or C) and (B or C) and (A or D) and (B or D)
           --
@@ -168,38 +170,62 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
           -- no information about A even if the branch is taken).  We do know that
           -- if the branch is not taken, A cannot be true, but that's dealt with
           -- because a negated OR ends up as an AND, see above.
-          | op == A.Or = let f = deAnd . g in And $ map (\(x,y) -> x `mappend` y) $ product2 (f lhs, f rhs)
-          | op == A.Eq = noAnd $ noOr $ Equal lhs rhs
-          | op == A.LessEq = noAnd $ noOr $ LessThanOrEqual lhs rhs
-          | op == A.MoreEq = noAnd $ noOr $ LessThanOrEqual rhs lhs
-          | op == A.Less = noAnd $ noOr $ LessThanOrEqual (addOne lhs) rhs
-          | op == A.More = noAnd $ noOr $ LessThanOrEqual (addOne rhs) lhs
-          | op == A.NotEq = noAnd (Or [LessThanOrEqual (addOne lhs) rhs
-                                      ,LessThanOrEqual (addOne rhs) lhs])
-        g (A.Monadic _ A.MonadicNot rhs)
+          | fn == bop "OR" = let f = liftM deAnd . g in
+              do lhs' <- g lhs >>* deAnd
+                 rhs' <- g rhs >>* deAnd
+                 return $ And $ map (\(x,y) -> x `mappend` y) $ product2 (lhs', rhs')
+          | otherwise
+             = do mOp <- functionOperator fn
+                  ts <- mapM astTypeOf [lhs, rhs]
+                  case mOp of
+                    Nothing -> return mempty
+                    Just op ->
+                      if A.nameName fn == occamDefaultOperator op ts
+                        then let noAndOr :: PassM a -> PassM (And (Or a))
+                                 noAndOr = liftM (noAnd . noOr) in case op of
+                          "=" -> noAndOr $ return $ Equal lhs rhs
+                          "<=" -> noAndOr $ return $ LessThanOrEqual lhs rhs
+                          ">=" -> noAndOr $ return $ LessThanOrEqual rhs lhs
+                          "<" -> noAndOr $ do lhs_p1 <- addOne lhs
+                                              return $ LessThanOrEqual lhs_p1 rhs
+                          ">" -> noAndOr $ do rhs_p1 <- addOne rhs
+                                              return $ LessThanOrEqual rhs_p1 lhs
+                          "<>" -> liftM noAnd $ do
+                             lhs_p1 <- addOne lhs
+                             rhs_p1 <- addOne rhs
+                             return $ Or [LessThanOrEqual lhs_p1 rhs
+                                         ,LessThanOrEqual rhs_p1 lhs]
+                          _ -> return mempty
+                        else return mempty
+          where
+            bop n = A.Name emptyMeta $ occamDefaultOperator n [A.Bool, A.Bool]
+        g (A.FunctionCall _ fn [rhs])
+          | A.nameName fn == occamDefaultOperator "NOT" [A.Bool]
           = g $ negateExpr rhs
           where
             -- It is much easier (and clearer) to do the negation in the AST rather
             -- than play around with De Morgan's laws and so on to figure out how
             -- to invert the conjunction of disjunctions
-            negateExpr (A.Monadic _ A.MonadicNot rhs) = rhs
-            negateExpr (A.Dyadic m op lhs rhs)
-              | op == A.And = A.Dyadic m A.Or (negateExpr lhs) (negateExpr rhs)
-              | op == A.Or  = A.Dyadic m A.And (negateExpr lhs) (negateExpr rhs)
-              | otherwise = case revOp op of
-                 Just op' -> A.Dyadic m op' lhs rhs
-                 Nothing -> -- Leave as is, because it won't be used anyway:
-                   A.Dyadic m op lhs rhs
+            negateExpr (A.FunctionCall _ fn [rhs])
+              | A.nameName fn == occamDefaultOperator "NOT" [A.Bool]
+              = rhs
+            negateExpr e@(A.FunctionCall m fn [lhs, rhs])
+              | fn == bop "AND" = A.FunctionCall m (bop "OR") [negateExpr lhs, negateExpr rhs]
+              | fn == bop "OR"  = A.FunctionCall m (bop "AND") [negateExpr lhs, negateExpr rhs]
+              | otherwise =
+                let pairs = [("<>", "=")
+                            ,("<=", ">")
+                            ,(">=", "<")]
+                    rev (a, b) = [(bop a, bop b), (bop b, bop a)]
+                    revOp = concatMap rev pairs
+                in case lookup fn revOp of
+                     Just op' -> A.FunctionCall m op' [lhs, rhs]
+                     Nothing -> e -- Leave as is, because it won't be used anyway
+              where
+                bop n = A.Name emptyMeta $ occamDefaultOperator n [A.Bool, A.Bool]
             negateExpr e = e -- As above, leave as is
 
-            revOp A.NotEq = Just A.Eq
-            revOp A.Eq = Just A.NotEq
-            revOp A.LessEq = Just A.More
-            revOp A.MoreEq = Just A.Less
-            revOp A.Less = Just A.MoreEq
-            revOp A.More = Just A.LessEq
-            revOp _ = Nothing
-        g _ =  mempty
+        g _ =  return mempty
 
     values :: And (Var, Or BackgroundKnowledge)
     values = And [
@@ -221,14 +247,14 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
           where
             m = A.nameMeta n
             v = A.Variable m n
-            bk = RepBoundsIncl v low (subOne $ A.Dyadic m A.Add low count)
+            bk = RepBoundsIncl v low (subOneInt $ addExprsInt low count)
 
     -- How to join:
     -- repBK is just anded stuff, so we join that on to every conjunction in that
     -- variable.  values and constraints are And/Or, so we need to do some work to turn it into
     -- Or/And, and combine the two in a cartesian-product-like operation.
-    joined :: Or (Map.Map Var (And BackgroundKnowledge))
-    joined = Or
+    joined :: And (Or BackgroundKnowledge) -> Or (Map.Map Var (And BackgroundKnowledge))
+    joined interMed = Or
        [ possVal `union` makeMap possCon `union` (Map.map noAnd $ Map.fromList (deAnd repBK))
        | possVal <- makeNonEmpty Map.empty $ deOr convValues
        , possCon <- makeNonEmpty (And []) $ deOr convCon
@@ -252,10 +278,10 @@ addBK mp mp2 g nid n = fmap ((,) $ followBK (map keepDefined joined')) n
           productN $ map (\(x, y) -> zip (repeat x) (deOr y)) $ deAnd values
 
         convCon :: Or (And BackgroundKnowledge)
-        convCon = Or $ map And $ productN $ map deOr $ deAnd conInterMed
+        convCon = Or $ map And $ productN $ map deOr $ deAnd interMed
 
-    joined' :: BK
-    joined' = map (Map.map deAnd) $ deOr joined
+    joined' :: And (Or BackgroundKnowledge) -> BK
+    joined' interMed = map (Map.map deAnd) $ deOr (joined interMed)
 
 -- filter out array accesses, leave everything else in:
 filterPlain :: CSMR m => m (Var -> Bool)

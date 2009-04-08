@@ -29,6 +29,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 import Data.Ord
 import qualified Data.Set as Set
+import qualified Data.Traversable as T
 import System.IO
 import System.IO.Error
 import Text.Regex
@@ -373,6 +374,13 @@ eitherToMaybe = either (const Nothing) Just
 
 labelMapWithNodeId :: DynGraph gr => (Node -> a -> b) -> gr a c -> gr b c
 labelMapWithNodeId f = gmap (\(x,n,l,y) -> (x,n,f n l,y))
+
+-- This is quite inefficient, but I can't see an easier way:
+labelMapWithNodeIdM :: (DynGraph gr, Monad m) => (Node -> a -> m b) -> gr a c -> m (gr b c)
+labelMapWithNodeIdM f gr
+  = let unsequencedMap = ufold (\(x, n, l, y) -> Map.insert n (f n l)) Map.empty gr
+    in do mp <- T.sequence unsequencedMap
+          return $ gmap (\(x,n,l,y) -> (x,n,fromJust $ Map.lookup n mp,y)) gr
 
 reverseLookup :: (Ord k, Eq v) => v -> Map.Map k v -> Maybe k
 reverseLookup x m = lookup x $ map revPair $ Map.toList m
