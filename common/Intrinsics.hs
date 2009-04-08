@@ -135,14 +135,14 @@ intrinsicProcs =
       (zip ["INT" ++ suffix ++ "TOSTRING", "HEX" ++ suffix ++ "TOSTRING"] $ repeat
         [ (A.Abbrev, A.Int, "len")
         , (A.Abbrev, A.Array [A.UnknownDimension] A.Byte, "string")
-        , (A.ValAbbrev, A.Int, "n")
+        , (A.ValAbbrev, t, "n")
         ])
       ++ (zip ["STRINGTOINT" ++ suffix, "STRINGTOHEX" ++ suffix] $ repeat
         [ (A.Abbrev, A.Bool, "error")
-        , (A.Abbrev, A.Int, "n")
+        , (A.Abbrev, t, "n")
         , (A.ValAbbrev, A.Array [A.UnknownDimension] A.Byte, "string")
         ])
-      | suffix <- ["","16","32","64"]
+      | (t, suffix) <- [(A.Int, ""),(A.Int16, "16"),(A.Int32, "32"),(A.Int64, "64")]
     ] ++ [
       ("BOOLTOSTRING",
         [ (A.Abbrev, A.Int, "len")
