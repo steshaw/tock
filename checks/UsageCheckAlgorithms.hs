@@ -30,6 +30,7 @@ import qualified AST as A
 import FlowAlgorithms
 import FlowGraph
 import Metadata
+import Types
 import UsageCheckUtils
 import Utils
 
@@ -208,7 +209,8 @@ findConstraints graph startNode
                 nub $ nodeVal ++ (case e of
                   ESeq (Just (n, Just True)) -> maybeToList (fmap ((,) n) $ nodeCond u)
                   ESeq (Just (n, Just False)) -> maybeToList
-                    (fmap ((,) n . A.Monadic emptyMeta A.MonadicNot) (nodeCond u))
+                    (fmap ((,) n . A.FunctionCall emptyMeta (A.Name emptyMeta $
+                      occamDefaultOperator "NOT" [A.Bool]) . singleton) (nodeCond u))
                   _ -> [])
             removeOld = case e of
               ESeq (Just (n, Nothing)) -> filter ((/= n) . fst)
