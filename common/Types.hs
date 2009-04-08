@@ -26,8 +26,8 @@ module Types
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
-    , makeAbbrevAM, makeConstant, makeDimension, specificDimSize
-    , addOne, subOne, addExprs, subExprs, mulExprs, divExprs
+    , makeAbbrevAM, makeConstant, makeConstant', makeDimension, specificDimSize
+    , addOne, subOne, addExprs, subExprs, mulExprs, divExprs, remExprs
     , addOneInt, subOneInt, addExprsInt, subExprsInt, mulExprsInt, divExprsInt
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
@@ -397,7 +397,10 @@ makeAbbrevAM am = am
 -- | Generate a constant expression from an integer -- for array sizes and the
 -- like.
 makeConstant :: Meta -> Int -> A.Expression
-makeConstant m n = A.Literal m A.Int $ A.IntLiteral m (show n)
+makeConstant m = makeConstant' m A.Int . toInteger
+
+makeConstant' :: Meta -> A.Type -> Integer -> A.Expression
+makeConstant' m t n = A.Literal m t $ A.IntLiteral m (show n)
 
 -- | Generate a constant dimension from an integer.
 makeDimension :: Meta -> Int -> A.Dimension
@@ -857,6 +860,10 @@ mulExprs = dyadicExpr "*"
 -- | Divide two expressions.
 divExprs :: DyadicExprM
 divExprs = dyadicExpr "/"
+
+-- | Divide two expressions.
+remExprs :: DyadicExprM
+remExprs = dyadicExpr "\\"
 
 -- | Add two expressions.
 addExprsInt :: DyadicExpr
