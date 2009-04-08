@@ -875,6 +875,9 @@ operatorArity "AFTER" = JustDyadic
 operatorArity "/\\" = JustDyadic
 operatorArity "\\/" = JustDyadic
 operatorArity "><" = JustDyadic
+operatorArity "BITNOT" = JustMonadic
+operatorArity "BITAND" = JustDyadic
+operatorArity "BITOR" = JustDyadic
 operatorArity "<<" = JustDyadic
 operatorArity ">>" = JustDyadic
 operatorArity "AND" = JustDyadic
@@ -897,15 +900,21 @@ isAssocOperator _ = False
 udOperator :: (String -> Bool) -> OccParser A.Name
 udOperator isOp = do m <- md
                      n <- genToken test
-                     return $ A.Name m $
-                       -- Turn REM into \ now, to save effort later:
-                       if (n == "REM")
-                         then "\\"
-                         else n
+                     return $ A.Name m $ translate n
  where
     test (Token _ (TokReserved name))
       = if isOp name then Just name else Nothing
     test _ = Nothing
+
+    -- Turn REM into \ now, to save effort later (and similar for some of the other
+    -- operators that are synonyms of each other).  This does prevent overloading
+    -- REM different to \ (for example), but we think this is ok:
+    translate :: String -> String
+    translate "REM" = "\\"
+    translate "BITNOT" = "~"
+    translate "BITAND" = "/\\"
+    translate "BITOR" = "\\/"
+    translate op = op
 
 conversion :: OccParser A.Expression
 conversion
