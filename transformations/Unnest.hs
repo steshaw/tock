@@ -236,6 +236,7 @@ removeNesting = pass "Pull nested definitions to top level"
     -- C doesn't allow us to pull up pointers to records to the top-level
     abbrevRecord :: A.SpecType -> Bool
     abbrevRecord (A.Is _ _ (A.Record {}) _) = True
+    abbrevRecord (A.Is _ _ (A.Array _ (A.Record {})) _) = True
     abbrevRecord _ = False
     
 
