@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Type inference and checking.
 module Types
   (
-    specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
+    specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, underlyingTypeOf, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
     , isOperator, functionOperator, occamDefaultOperator, occamBuiltInOperatorFunctions
@@ -63,6 +63,9 @@ class ASTTypeable a where
 
 instance ASTTypeable A.Type where
   astTypeOf = return
+
+underlyingTypeOf :: (ASTTypeable a, CSMR m, Die m) => Meta -> a -> m A.Type
+underlyingTypeOf m = underlyingType m <.< astTypeOf
 
 -- | Gets the 'A.AbbrevMode' for a given 'A.Name' from the recorded types in the 'CompState'.  Dies with an error if the name is unknown.
 abbrevModeOfName :: (CSMR m, Die m) => A.Name -> m A.AbbrevMode

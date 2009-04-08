@@ -721,7 +721,7 @@ inferTypes = occamOnlyPass "Infer types"
                          n -> show n ++ "-ary"
 
               es' <- noTypeContext $ mapM recurse es
-              tes <- sequence [astTypeOf e `catchError` (const $ return A.Infer) | e <- es']
+              tes <- sequence [underlyingTypeOf m e `catchError` (const $ return A.Infer) | e <- es']
            
               cs <- getCompState
               
