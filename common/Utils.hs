@@ -393,3 +393,8 @@ liftWrapStateT wrap m
        (x, st') <- lift $ wrap (runStateT m st)
        put st'
        return x
+
+-- The foldM equivalent of foldl1:
+foldM1 :: Monad m => (a -> a -> m a) -> [a] -> m a
+foldM1 f (x:xs) = foldM f x xs
+foldM1 _ [] = fail "Empty list in foldM1"
