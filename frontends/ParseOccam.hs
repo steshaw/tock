@@ -405,7 +405,10 @@ findName thisN thisNT
 
 scopeIn :: A.Name -> NameType -> A.SpecType -> A.AbbrevMode -> (Maybe A.Name, A.NameSource) -> OccParser A.Name
 scopeIn n@(A.Name m s) nt specType am (munged, ns)
-    =  do n' <- maybe (makeUniqueName m s >>* A.Name m) return munged
+    =  do let s' = if isOperator s
+                     then occamOperatorTranslateDefault s
+                     else s
+          n' <- maybe (makeUniqueName m s' >>* A.Name m) return munged
           let nd = A.NameDef {
             A.ndMeta = m,
             A.ndName = A.nameName n',

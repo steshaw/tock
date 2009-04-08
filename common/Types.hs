@@ -22,7 +22,7 @@ module Types
     specTypeOfName, typeOfSpec, typeOfSpec', abbrevModeOfName, underlyingType, underlyingTypeOf, stripArrayType, abbrevModeOfVariable, abbrevModeOfSpec
     , isRealType, isIntegerType, isNumericType, isCaseableType, isScalarType, isDataType, isCommunicableType, isSequenceType, isMobileType
     , resolveUserType, isSafeConversion, isPreciseConversion, isImplicitConversionRain
-    , isOperator, functionOperator, occamDefaultOperator, occamBuiltInOperatorFunctions
+    , isOperator, functionOperator, occamDefaultOperator, occamBuiltInOperatorFunctions, occamOperatorTranslateDefault
     , returnTypesOfFunction
     , BytesInResult(..), bytesInType, countReplicator, countStructured, computeStructured
 
