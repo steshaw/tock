@@ -20,7 +20,7 @@ module ImplicitMobility (implicitMobility, mobiliseArrays, inferDeref) where
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive
 import Data.Graph.Inductive.Query.DFS
 import qualified Data.Map as Map

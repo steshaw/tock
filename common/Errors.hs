@@ -23,7 +23,7 @@ module Errors (checkJust, Die(..),
 
 import Control.Monad.Error
 import Control.Monad.Trans
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.List
 import System.IO
 import System.IO.Error

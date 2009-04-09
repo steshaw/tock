@@ -33,11 +33,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- My plan for testing was to take each of the cgtests, and parse it in to AST_A.  Then print AST_A using this
 -- module, and feed it back in to the parser to get AST_B.  Then check if AST_A and AST_B are equal.
 
-module ShowCode (showCode, ShowOccam(..), showOccam, ShowRain(..), showRain, formatCode, extCode) where 
+module ShowCode (showCode, ShowOccam(..), showOccam, ShowRain(..), showRain, formatCode) where 
 
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics (Data, gshow)
 import Data.List
 import qualified Data.Map as Map
 import Text.PrettyPrint.HughesPJ hiding (space, colon, semi)
@@ -711,6 +711,7 @@ instance ShowRain a => ShowRain [a] where
 -- ShowOccam\/ShowRain implementation.  But since to add a type to the ShowOccam\/ShowRain 
 -- classes you have to provide a specific instance above anyway, I don't think that adding 
 -- one more line while you're at it is too bad.
+{-
 extCode :: (Data b, Typeable b) => (b -> Doc) -> (forall a. (ShowOccam a, ShowRain a) => a -> String) -> (b -> Doc)
 extCode q f = q 
                 `extQ` (text . (f :: A.Expression -> String))
@@ -723,4 +724,4 @@ extCode q f = q
                 `extQ` (text . (f :: A.Variable -> String))
 --TODO
 --                `ext1Q` (text . (f :: (Data c, ShowOccam c) => A.Structured c -> String))
-
+-}

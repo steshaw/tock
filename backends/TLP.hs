@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TLP where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.List
 import Data.Maybe
 

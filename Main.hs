@@ -24,7 +24,7 @@ import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Either
-import Data.Generics
+import Data.Generics (Data)
 import Data.Maybe
 import qualified Data.Set as Set
 import List
@@ -459,6 +459,7 @@ compile mode fn (outHandles@(outHandle, _), headerName)
             ModeLex -> liftIO $ hPutStr outHandle $ pshow lexed
             ModeHTML -> liftIO $ hPutStr outHandle $ showTokens True lexed
             ModeParse -> liftIO $ hPutStr outHandle $ pshow ast1
+{-
             ModeFlowGraph ->
               do procs <- findAllProcesses
                  let fs :: Data t => t -> PassM String
@@ -476,6 +477,7 @@ compile mode fn (outHandles@(outHandle, _), headerName)
                        = map (transformMaybe $ \(x,_,_) -> x) graphs
                  -- TODO: output each process to a separate file, rather than just taking the first:
                  liftIO $ hPutStr outHandle $ head $ map makeFlowGraphInstr (catMaybes graphsTyped)
+-}
             ModeCompile ->
               do progress "Passes:"
 

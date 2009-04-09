@@ -21,7 +21,7 @@ module FlowUtils where
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.Graph.Inductive hiding (run)
 
 import qualified AST as A

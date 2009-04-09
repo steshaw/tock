@@ -21,7 +21,7 @@ module ParseRain where
 
 import Control.Monad (liftM)
 import Control.Monad.State (MonadState, liftIO, get, put)
-import Data.Generics
+import Data.Generics (Data)
 import Data.List
 import Data.Maybe
 import qualified IO

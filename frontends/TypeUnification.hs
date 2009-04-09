@@ -21,7 +21,7 @@ module TypeUnification where
 import Control.Monad
 import Control.Monad.State
 import Control.Monad.Trans
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.IORef

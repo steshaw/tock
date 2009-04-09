@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module RainPasses where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics -- TODO change this module to use Polyplate
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe

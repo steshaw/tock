@@ -23,7 +23,7 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe

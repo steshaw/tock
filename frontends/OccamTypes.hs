@@ -23,7 +23,7 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Function (on)
-import Data.Generics
+import Data.Generics (Data)
 import Data.IORef
 import Data.List
 import qualified Data.Map as Map

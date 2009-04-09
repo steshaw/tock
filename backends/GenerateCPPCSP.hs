@@ -32,7 +32,7 @@ module GenerateCPPCSP (cppcspPrereq, cppgenOps, generateCPPCSP, genCPPCSPPasses)
 
 import Control.Monad.State
 import Data.Char
-import Data.Generics
+import Data.Generics (Data)
 import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
@@ -144,11 +144,11 @@ cppgenTopLevel headerName s
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
 
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (listify isTopLevelSpec s)
+                                       (listifyDepth isTopLevelSpec s)
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
           sequence_ $ map (call genForwardDeclaration)
-                            (listify (\sp@(A.Specification _ n _)
+                            (listifyDepth (\sp@(A.Specification _ n _)
                               -> not (isTopLevelSpec sp)
                                  && A.nameName n `notElem` map fst (csExternals cs)) s)
 

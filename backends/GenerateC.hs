@@ -41,7 +41,7 @@ module GenerateC
   ) where
 
 import Data.Char
-import Data.Generics
+import Data.Generics (Data)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -63,6 +63,7 @@ import Pass
 import qualified Properties as Prop
 import ShowCode
 import TLP
+import Traversal
 import Types
 import TypeSizes
 import Utils
@@ -181,11 +182,11 @@ cgenTopLevel headerName s
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
 
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (listify isTopLevelSpec s)
+                                       (listifyDepth isTopLevelSpec s)
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
           sequence_ $ map (call genForwardDeclaration)
-                            (listify (not . isTopLevelSpec) s)
+                            (listifyDepth (not . isTopLevelSpec) s)
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 

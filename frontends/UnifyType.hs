@@ -18,7 +18,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module UnifyType where
 
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.IORef
 
 import qualified AST as A

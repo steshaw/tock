@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module OccamPasses (occamPasses, foldConstants, checkConstants) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Data.List
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as F

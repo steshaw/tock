@@ -42,7 +42,7 @@ module GenerateCHP where
 import Control.Monad.State
 import Control.Monad.Trans
 import Data.Char
-import Data.Generics
+import Data.Generics (Data, showConstr, toConstr)
 import Data.List
 import Data.Maybe
 import System.IO

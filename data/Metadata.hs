@@ -21,7 +21,7 @@ module Metadata where
 
 {-! global : Haskell2Xml !-}
 
-import Data.Generics
+import Data.Generics (Data, Typeable, listify)
 import Data.List
 import Numeric
 import Text.Printf

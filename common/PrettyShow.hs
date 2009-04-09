@@ -29,7 +29,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- (via the 'extCode' function) to print out data, otherwise it acts
 -- like pshow.  Note that because pshowCode chooses the appropriate
 -- language based on the 'csFrontend' in 'CompState', it is inside the CSM monad.
-module PrettyShow (pshow, pshowCode) where
+module PrettyShow (pshow) where
 
 import Control.Monad.State
 import Data.Generics
@@ -154,6 +154,7 @@ doAny extFunc = extFunc (
 pshow :: Data a => a -> String
 pshow x = render $ doAny id x
 
+{-
 pshowCode :: (Data a, CSMR m) => a -> m String
 pshowCode c = do st <- getCompState
                  case csFrontend st of
@@ -164,3 +165,4 @@ pshowCode c = do st <- getCompState
     extOccam f = extCode f showOccam
     extRain :: forall a. (Data a, Typeable a) => (a -> Doc) -> (a -> Doc)
     extRain f = extCode f showRain
+-}

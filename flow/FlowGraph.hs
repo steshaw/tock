@@ -46,7 +46,7 @@ module FlowGraph (AlterAST(..), EdgeLabel(..), FNode, FlowGraph, FlowGraph', Gra
 import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive hiding (run)
 import Data.Maybe
 

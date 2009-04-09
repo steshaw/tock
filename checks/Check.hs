@@ -25,7 +25,7 @@ module Check (checkInitVarPass, usageCheckPass, checkUnusedVar) where
 import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Trans
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive hiding (mapSnd)
 import Data.List hiding (union)
 import qualified Data.Map as Map
@@ -104,8 +104,15 @@ followBK = map followBK'
                           (concat $ mapMaybe (flip Map.lookup m) (Set.toList $
                             next `Set.difference` prev))
           where
-            next = Set.fromList $ map Var $ listify (const True :: A.Variable -> Bool) bk
+            next = Set.fromList $ map Var $ concatMap allVarsInBK bk
 
+allVarsInBK :: BackgroundKnowledge -> [A.Variable]
+allVarsInBK (Equal a b) = listifyDepth (const True) a
+                            ++ listifyDepth (const True) b
+allVarsInBK (LessThanOrEqual a b) = listifyDepth (const True) a
+                                      ++ listifyDepth (const True) b
+allVarsInBK (RepBoundsIncl v a b) = v : (listifyDepth (const True) a
+                                           ++ listifyDepth (const True) b)
 
 data And a = And [a]
 data Or a = Or [a]
@@ -268,7 +275,7 @@ addBK mp mp2 g nid n
         
         makeMap :: And BackgroundKnowledge -> Map.Map Var (And BackgroundKnowledge)
         makeMap (And bks) = Map.fromListWith mappend $ concat
-          [zip (map Var $ listify (const True) bk) (repeat $ noAnd bk) | bk <- bks]
+          [zip (map Var $ allVarsInBK bk) (repeat $ noAnd bk) | bk <- bks]
         
         convValues :: Or (Map.Map Var (And BackgroundKnowledge))
         convValues = Or $ map (Map.fromListWith mappend) $

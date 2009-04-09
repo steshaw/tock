@@ -25,7 +25,7 @@ module SimplifyAbbrevs (
   ) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 

@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module UsageCheckAlgorithms (checkPar, findConstraints, findReachDef, joinCheckParFunctions) where
 
 import Control.Monad
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map
@@ -30,6 +30,7 @@ import qualified AST as A
 import FlowAlgorithms
 import FlowGraph
 import Metadata
+import Traversal
 import Types
 import UsageCheckUtils
 import Utils
@@ -203,7 +204,7 @@ findConstraints graph startNode
     processNode (n, e) nodeVal curAgg = case fmap getNodeData $ lab graph n of
       Just u ->
         let overlapsWithWritten e = not $ null $ intersect
-              (listify (const True) e)
+              (listifyDepth (const True) $ snd e)
               [v | Var v <- Map.keys $ writtenVars $ nodeVars u]
             valFilt = filter (not . overlapsWithWritten) $
                 nub $ nodeVal ++ (case e of

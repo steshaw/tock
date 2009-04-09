@@ -41,7 +41,7 @@ module Types
 
 import Control.Monad.State
 import Data.Char
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.List

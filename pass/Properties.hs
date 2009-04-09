@@ -69,7 +69,7 @@ module Properties
   where
 
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics -- TODO stop this module using SYB
 import Data.Int
 import Data.List
 import qualified Data.Map as Map

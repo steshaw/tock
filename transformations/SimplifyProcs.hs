@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyProcs (simplifyProcs, fixLowReplicators) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Set as Set
 
 import qualified AST as A

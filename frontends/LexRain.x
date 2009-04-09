@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Lexically analyse Rain code.
 module LexRain where
 
-import Data.Generics
+import Data.Generics (Data, Typeable)
 
 import Metadata
 }

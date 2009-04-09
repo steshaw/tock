@@ -26,7 +26,7 @@ module CheckFramework (CheckOptM, CheckOptASTM, forAnyASTTopDown, forAnyASTStruc
 
 import Control.Monad.Reader
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive hiding (apply)
 import Data.List
 import qualified Data.Map as Map
@@ -486,7 +486,7 @@ runChecks (CheckOptM m) x = execStateT m (CheckOptData {ast = x, parItems = Noth
   nextVarsTouched = Map.empty, flowGraphRootsTerms = Nothing, lastValidMeta = emptyMeta}) >>* ast
 
 runChecksPass :: CheckOptM () -> Pass A.AST
-runChecksPass c = pass "<Check>" [] [] (mkM (runChecks c))
+runChecksPass c = pass "<Check>" [] [] (runChecks c)
 
 --getParItems :: CheckOptM (ParItems ())
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))

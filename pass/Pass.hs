@@ -22,7 +22,7 @@ module Pass where
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics (Constr, Data)
 import Data.Generics.Polyplate
 import Data.List
 import Data.Ord

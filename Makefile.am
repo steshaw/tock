@@ -1,5 +1,5 @@
 GHC_OPTS = \
-	-fcontext-stack=200 \
+	-fcontext-stack=400 \
 	-fwarn-deprecations \
 	-fwarn-duplicate-exports \
 	-fwarn-incomplete-record-updates \

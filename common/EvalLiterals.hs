@@ -23,7 +23,7 @@ import Control.Monad.Error
 import Control.Monad.Identity
 import Control.Monad.State
 import Data.Char
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.Int
 import Data.Maybe
 import Data.Word

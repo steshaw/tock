@@ -30,7 +30,7 @@ module AnalyseAsm (
 import Control.Arrow
 import Control.Monad.State
 import Data.Char
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe

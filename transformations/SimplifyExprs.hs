@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyExprs where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 
 import qualified AST as A
@@ -86,17 +86,11 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
 
     vpToSeq :: Meta -> A.Name -> [A.Variable] -> Either (A.Structured A.ExpressionList) A.Process -> A.Process
     vpToSeq m n vs (Left el) = A.Seq m $ vpToSeq' el vs
-    vpToSeq _ n vs (Right p) = subst p
+    vpToSeq _ n vs (Right p) = applyBottomUp doAssignSubst p
       where
-        subst :: Data t => t -> t
-        subst = doGenericSubst `extT` doAssignSubst
-        
-        doGenericSubst :: Data t => t -> t
-        doGenericSubst = gmapT subst `extT` (id :: String -> String) `extT` (id :: Meta -> Meta)
-        
         doAssignSubst :: A.Process -> A.Process
         doAssignSubst ass@(A.Assign m [A.Variable _ dest] el) = if (A.nameName dest == A.nameName n) then (A.Assign m vs el) else ass
-        doAssignSubst p = doGenericSubst p
+        doAssignSubst p = p
         
 
     vpToSeq' :: A.Structured A.ExpressionList -> [A.Variable] -> A.Structured A.Process

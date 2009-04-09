@@ -21,10 +21,11 @@ module Unnest (unnest, removeNesting) where
 
 import Control.Monad.Identity
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import Data.Tree
 
 import qualified AST as A
 import CompState
@@ -44,28 +45,37 @@ unnest =
       ]
 
 type NameMap = Map.Map String A.Name
+type FreeNameOps = ExtOpQ NameMap (ExtOpQ NameMap (ExtOpQS NameMap BaseOp) A.Name) A.SpecType
 
 -- | Get the set of free names within a block of code.
-freeNamesIn :: Data t => t -> NameMap
-freeNamesIn = doGeneric
-                `extQ` (ignore :: String -> NameMap)
-                `extQ` (ignore :: Meta -> NameMap)
-                `extQ` doName `ext1Q` doStructured `extQ` doSpecType
+freeNamesIn :: PolyplateSpine t FreeNameOps () NameMap  => t -> NameMap
+freeNamesIn = flattenTree . recurse
   where
-    doGeneric :: Data t => t -> NameMap
-    doGeneric n = Map.unions $ gmapQ freeNamesIn n
+    flattenTree :: Tree (Maybe NameMap) -> NameMap
+    flattenTree = foldl Map.union Map.empty . catMaybes . flatten
+    
+    ops :: FreeNameOps
+    ops = baseOp `extOpQS` (ops, doStructured) `extOpQ` doName `extOpQ` doSpecType
 
+    recurse :: PolyplateSpine t FreeNameOps () NameMap => t -> Tree (Maybe NameMap)
+    recurse = transformSpine ops ()
+    descend :: PolyplateSpine t () FreeNameOps NameMap => t -> Tree (Maybe NameMap)
+    descend = transformSpine () ops
+    
     ignore :: t -> NameMap
     ignore s = Map.empty
 
     doName :: A.Name -> NameMap
     doName n = Map.singleton (A.nameName n) n
 
-    doStructured :: Data a => A.Structured a -> NameMap
+    doStructured :: (Data a, PolyplateSpine (A.Structured a) () FreeNameOps NameMap
+                           , PolyplateSpine (A.Structured a) FreeNameOps () NameMap)
+      => A.Structured a -> NameMap
     doStructured (A.Spec _ spec s) = doSpec spec s
-    doStructured s = doGeneric s
+    doStructured s = flattenTree $ descend s
 
-    doSpec :: Data t => A.Specification -> t -> NameMap
+    doSpec :: (PolyplateSpine t () FreeNameOps NameMap
+              ,PolyplateSpine t FreeNameOps () NameMap) => A.Specification -> t -> NameMap
     doSpec (A.Specification _ n st) child
         = Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child
       where
@@ -74,7 +84,7 @@ freeNamesIn = doGeneric
     doSpecType :: A.SpecType -> NameMap
     doSpecType (A.Proc _ _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
     doSpecType (A.Function _ _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
-    doSpecType st = doGeneric st
+    doSpecType st = flattenTree $ descend st
 
 -- | Replace names.
 --
