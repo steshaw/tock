@@ -525,6 +525,20 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
                   addPulled $ (m, Left spec)
                   return $ A.Variable m n
              _ -> descend v
+    doVariable v@(A.DerefVariable m innerV)
+      = do t <- astTypeOf v
+           case t of
+             A.Array ds innerT ->
+               do let ds' = [case d of
+                        A.Dimension {} -> d
+                        A.UnknownDimension -> A.Dimension $ A.ExprVariable m $
+                          specificDimSize i innerV
+                        | (d, i) <- zip ds [0..]]
+                  spec@(A.Specification _ n _) <- makeNonceIs "mob_array" m
+                    (A.Array ds' innerT) A.Abbrev v
+                  addPulled $ (m, Left spec)
+                  return $ A.Variable m n
+             _ -> descend v
     doVariable v@(A.VariableSizes m _)
       = do v' <- descend v
            t <- astTypeOf v'
