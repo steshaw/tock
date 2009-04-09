@@ -124,6 +124,13 @@ evalVariable (A.VariableSizes m v)
                             A.UnknownDimension ->
                               throwError (Just m, "Unknown dimension")
                          | d <- ds] >>* OccArray
+         A.Mobile (A.Array ds _)
+                      -> sequence [case d of
+                            A.Dimension e -> evalExpression e
+                            A.UnknownDimension ->
+                              throwError (Just m, "Unknown dimension")
+                         | d <- ds] >>* OccArray
+
          _ -> throwError (Just m, " variable not array")
        
 

@@ -275,6 +275,7 @@ typeOfVariable (A.VariableSizes m v)
   = do t <- typeOfVariable v
        case t of
          A.Array ds _ -> return $ A.Array [A.Dimension $ makeConstant m $ length ds] A.Int
+         A.Mobile (A.Array ds _) -> return $ A.Array [A.Dimension $ makeConstant m $ length ds] A.Int
          _ -> diePC m $ formatCode "Attempted to get size of non-array: % (type: %)" v t
 
 -- | Get the abbreviation mode of a variable.

@@ -1007,7 +1007,7 @@ inferTypes = occamOnlyPass "Infer types"
     doProcess p
         = case p of
             A.Assign m vs el ->
-               do vs' <- recurse vs
+               do vs' <- noTypeContext $ recurse vs
                   ts <- mapM astTypeOf vs'
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
