@@ -56,7 +56,7 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
   (Prop.agg_namesDone ++ [Prop.expressionTypesChecked, Prop.parUsageChecked,
         Prop.functionTypesChecked])
   [Prop.functionsRemoved]
-  (applyDepthM doSpecification)
+  (applyBottomUpM doSpecification)
   where
     doSpecification :: A.Specification -> PassM A.Specification
     doSpecification (A.Specification m n (A.Function mf smrm rts fs evp))
@@ -106,11 +106,11 @@ functionsToProcs = pass "Convert FUNCTIONs to PROCs"
 
 -- | Convert AFTER expressions to the equivalent using MINUS (which is how the
 -- occam 3 manual defines AFTER).
-removeAfter :: PassOn A.Expression
+removeAfter :: PassOn2 A.Expression A.ExpressionList
 removeAfter = pass "Convert AFTER to MINUS"
   [Prop.expressionTypesChecked]
   [Prop.afterRemoved]
-  (applyDepthM doExpression)
+  (applyBottomUpM2 doExpression doExpressionList)
   where
     doFunctionCall :: (Meta -> A.Name -> [A.Expression] -> a)
       -> Meta -> A.Name -> [A.Expression] -> PassM a
@@ -191,14 +191,11 @@ expandArrayLiterals = pass "Expand array literals"
 -- TODO for simplification, we could avoid pulling up replication counts that are known to be constants
 --
 -- TODO we should also pull up the step counts
-pullRepCounts :: PassOn2 (A.Structured A.Process) (A.Structured A.Alternative)
+pullRepCounts :: PassOn A.Process
 pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
   (Prop.agg_namesDone ++ Prop.agg_typesDone)
   []
-  (applyDepthM2
-    (pullRepCount :: A.Structured A.Process -> PassM (A.Structured A.Process))
-    (pullRepCount :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative))
-  )
+  (applyBottomUpM pullRepCountProc)
   where
     pullRepCountStr :: Data a => Bool -> A.Structured a
       -> StateT (A.Structured A.Process -> A.Structured A.Process)

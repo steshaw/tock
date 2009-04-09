@@ -912,6 +912,7 @@ cgenArraySubscript check v es
     -- smart C compiler should be able to work it out...
     genPlainSub :: (Int -> CGen ()) -> [(Meta, CGen ())] -> [Int] -> [CGen ()]
     genPlainSub _ [] _ = []
+    genPlainSub _ (_:_) [] = [dieP (findMeta v) "Fewer subscripts than dimensions in genPlainSub"]
     genPlainSub genDim ((m,e):es) (sub:subs)
         = gen : genPlainSub genDim es subs
       where

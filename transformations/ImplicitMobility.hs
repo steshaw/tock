@@ -29,11 +29,13 @@ import qualified Data.Set as Set
 import qualified Data.Traversable as T
 
 import qualified AST as A
+import CompState
+import Data.Generics.Polyplate.Route
 import Errors
 import FlowAlgorithms
 import FlowGraph
 import FlowUtils
-import GenericUtils
+import Intrinsics
 import Metadata
 import Pass
 import ShowCode
@@ -198,15 +200,18 @@ implicitMobility
               printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
-mobiliseArrays :: Pass
+mobiliseArrays :: PassASTOnStruct
 mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
   where
-    ops = baseOp `extOpS` doStructured
-    recurse, descend :: Data t => Transform t
-    recurse = makeRecurse ops
-    descend = makeDescend ops
+    ops :: ExtOpMSP BaseOp
+    ops = baseOp `extOpMS` (ops, doStructured)
 
-    doStructured :: Data t => Transform (A.Structured t)
+    recurse :: RecurseM PassM (ExtOpMSP BaseOp)
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM (ExtOpMSP BaseOp)
+    descend = makeDescendM ops
+
+    doStructured :: TransformStructured' (ExtOpMSP BaseOp)
     doStructured s@(A.Spec m (A.Specification m' n (A.Declaration m'' t@(A.Array ds
       innerT))) scope)
       = case innerT of
@@ -301,13 +306,15 @@ instance Dereferenceable A.Actual where
   deref m (A.ActualVariable v) = fmap A.ActualVariable $ deref m v
   deref m (A.ActualExpression e) = fmap A.ActualExpression $ deref m e
 
-inferDeref :: Pass
+inferDeref :: PassOn2 A.Process A.Variable
 inferDeref = pass "Infer mobile dereferences" [] [] recurse
   where
-    ops = baseOp `extOp` doProcess `extOp` doVariable
-    recurse, descend :: Data t => Transform t
-    recurse = makeRecurse ops
-    descend = makeDescend ops
+    ops = baseOp `extOpM` doProcess `extOpM` doVariable
+
+    recurse :: RecurseM PassM (TwoOpM PassM A.Process A.Variable)
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM (TwoOpM PassM A.Process A.Variable)
+    descend = makeDescendM ops
 
     unify :: (Dereferenceable a, ASTTypeable a, ShowOccam a, ShowRain a) => Meta
       -> A.Type -> a -> PassM a

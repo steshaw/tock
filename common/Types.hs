@@ -363,28 +363,6 @@ abbrevModeOfSpec s
         A.RetypesExpr _ am _ _ -> am
         _ -> A.Original
 
--- | Resolve a datatype into its underlying type -- i.e. if it's a named data
--- type, then return the underlying real type. This will recurse.
-underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-underlyingType m = applyDepthM doType
-  where
-    doType :: A.Type -> m A.Type
-    -- This is fairly subtle: after resolving a user type, we have to recurse
-    -- on the resulting type.
-    doType t@(A.UserDataType _) = resolveUserType m t >>= underlyingType m
-    doType t = return t
-
--- | Like underlyingType, but only do the "outer layer": if you give this a
--- user type that's an array of user types, then you'll get back an array of
--- user types.
-resolveUserType :: (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-resolveUserType m (A.UserDataType n)
-    =  do st <- specTypeOfName n
-          case st of
-            A.DataType _ t -> resolveUserType m t
-            _ -> dieP m $ "Not a type name: " ++ show n
-resolveUserType _ t = return t
-
 -- | Add array dimensions to a type; if it's already an array it'll just add
 -- the new dimensions to the existing array.
 addDimensions :: [A.Dimension] -> A.Type -> A.Type

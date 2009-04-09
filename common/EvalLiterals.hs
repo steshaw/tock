@@ -184,13 +184,9 @@ evalByteLiteral m _ _ = throwError (Just m, "Bad BYTE literal")
 -- | Resolve a datatype into its underlying type -- i.e. if it's a named data
 -- type, then return the underlying real type. This will recurse.
 underlyingType :: forall m. (CSMR m, Die m) => Meta -> A.Type -> m A.Type
-underlyingType m = applyDepthM doType
-  where
-    doType :: A.Type -> m A.Type
-    -- This is fairly subtle: after resolving a user type, we have to recurse
-    -- on the resulting type.
-    doType t@(A.UserDataType _) = resolveUserType m t >>= underlyingType m
-    doType t = return t
+underlyingType m = applyTopDownM (resolveUserType m)
+    -- After resolving a user type, we have to recurse
+    -- on the resulting type, so we must use a top-down transformation.
 
 -- | Like underlyingType, but only do the "outer layer": if you give this a
 -- user type that's an array of user types, then you'll get back an array of
@@ -202,3 +198,4 @@ resolveUserType m (A.UserDataType n)
             A.DataType _ t -> resolveUserType m t
             _ -> dieP m $ "Not a type name: " ++ show n
 resolveUserType _ t = return t
+

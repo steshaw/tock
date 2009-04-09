@@ -28,6 +28,7 @@ import System.IO
 
 import qualified AST as A
 import CompState
+import Errors
 import EvalConstants
 import EvalLiterals
 import GenerateC -- For nameString
@@ -55,7 +56,7 @@ occamPasses =
     , pushUpDirections
     ]
 
-writeIncFile :: Pass
+writeIncFile :: Pass A.AST
 writeIncFile = occamOnlyPass "Write .inc file" [] []
   (passOnlyOnAST "writeIncFile" (\t ->
     do out <- getCompState >>* csOutputIncFile
@@ -113,20 +114,22 @@ fixConstructorTypes = occamOnlyPass "Fix the types of array constructors"
   where
     doExpression :: A.Expression -> PassM A.Expression
     doExpression (A.Literal m prevT lit@(A.ArrayListLiteral _ expr))
-      = do prevT' <- underlyingType m prevT
-           t' <- doExpr [] (getDims prevT') expr
+      = do dims <- getDims prevT
+           t' <- doExpr [] dims expr
            return $ A.Literal m t' lit
       where
-        getDims :: A.Type -> [A.Dimension]
-        getDims (A.Array ds _) = ds
-        getDims t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
+        getDims :: A.Type -> PassM [A.Dimension]
+        getDims (A.Array ds _) = return ds
+        getDims t@(A.UserDataType {}) = resolveUserType m t >>= getDims
+        getDims t = dieP m $ "Cannot deduce dimensions of array constructor: " ++ show t
 
-        innerType :: A.Type -> A.Type
-        innerType (A.Array _ t) = t
-        innerType t = error $ "Cannot deduce dimensions of array constructor: " ++ show t
+        innerType :: A.Type -> PassM A.Type
+        innerType (A.Array _ t) = return t
+        innerType t@(A.UserDataType {}) = resolveUserType m t >>= innerType
+        innerType t = dieP m $ "Cannot deduce dimensions of array constructor: " ++ show t
 
         doExpr :: [A.Dimension] -> [A.Dimension] -> A.Structured A.Expression -> PassM A.Type
-        doExpr prev (d:_) (A.Several m []) = return $ A.Array (prev ++ [d]) $ innerType prevT
+        doExpr prev (d:_) (A.Several m []) = innerType prevT >>* A.Array (prev ++ [d])
         doExpr prev (d:dims) (A.Several m ss@(s:_))
           = doExpr (prev ++ [d]) dims s
         doExpr prev _ (A.Only _ e)
@@ -191,17 +194,18 @@ foldConstants = occamOnlyPass "Fold constants"
               return s
 
 -- | Check that things that must be constant are.
-checkConstants :: PassOn2 A.Dimension A.Option
+checkConstants :: PassOn2 A.Type A.Option
 checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
   [Prop.constantsChecked]
-  (applyDepthM2 doDimension doOption)
+  recurse
   where
-    ops = baseOp `extOp` doType `extOp` doOption
+    ops = baseOp `extOpM` doType `extOpM` doOption
 
-    descend, recurse :: Data a => a -> PassM a
-    descend = makeDescend ops
-    recurse = makeRecurse ops
+    descend :: DescendM PassM (BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option)
+    descend = makeDescendM ops
+    recurse :: RecurseM PassM (BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option)
+    recurse = makeRecurseM ops
     
     doType :: A.Type -> PassM A.Type
     -- Avoid checking that mobile dimensions are constant:

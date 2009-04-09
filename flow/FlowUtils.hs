@@ -303,6 +303,8 @@ joinPairs m mod nodes
   = do sequence_ $ mapPairs (\(_,s) (e,_) -> addEdge (ESeq Nothing) s e) nodes
        return (fst (head nodes), snd (last nodes))
 
+decomp11 :: (Monad m, Data a, Typeable a0) => (a0 -> a) -> (a0 -> m a0) -> (a -> m a)
+decomp11 con f1 = decomp1 con f1
 
 decomp22 :: (Monad m, Data a, Typeable a0, Typeable a1) => (a0 -> a1 -> a) -> (a1 -> m a1) -> (a -> m a)
 decomp22 con f1 = decomp2 con return f1
@@ -328,6 +330,9 @@ decomp45 con f3 = decomp5 con return return return f3 return
 decomp55 :: (Monad m, Data a, Typeable a0, Typeable a1, Typeable a2, Typeable a3, Typeable a4) =>
   (a0 -> a1 -> a2 -> a3 -> a4 -> a) -> (a4 -> m a4) -> (a -> m a)
 decomp55 con f4 = decomp5 con return return return return f4
+
+route11 :: (Data a, Typeable a0) => Route a b -> (a0 -> a) -> Route a0 b
+route11 route con = route @-> makeRoute [0] (decomp11 con)
 
 route22 :: (Data a, Typeable a0, Typeable a1) => Route a b -> (a0 -> a1 -> a) -> Route a1 b
 route22 route con = route @-> makeRoute [1] (decomp22 con)

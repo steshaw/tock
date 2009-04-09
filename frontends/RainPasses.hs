@@ -202,23 +202,21 @@ transformEachRange = rainOnlyPass "Convert seqeach/pareach loops over ranges int
                  A.For eachMeta begin newCount (makeConstant eachMeta 1)
     doSpec s = return s
 
--- | A pass that changes all the Rain range constructor expressions into the more general array constructor expressions
---
--- TODO make sure when the range has a bad order that an empty list is
--- returned
-transformRangeRep :: Pass
+transformRangeRep :: PassOn A.Expression
 transformRangeRep = rainOnlyPass "Convert simple Rain range constructors into more general array constructors"
   (Prop.agg_typesDone ++ [Prop.eachRangeTransformed])
   [Prop.rangeTransformed]
-  (applyDepthM doExpression)
+  (applyBottomUpM doExpression)
   where
     doExpression :: A.Expression -> PassM A.Expression
-    doExpression (A.ExprConstr _ (A.RangeConstr m t begin end))
-          =        do A.Specification _ rep _ <- makeNonceVariable "rep_constr" m A.Int A.ValAbbrev
-                      let count = addOne $ subExprs end begin
-                      return $ A.ExprConstr m $ A.RepConstr m t rep
-                        (A.For m begin count $ makeConstant m 1)
-                          (A.ExprVariable m $ A.Variable m rep)
+    doExpression (A.Literal m t (A.RangeLiteral m' begin end))
+          = do count <- subExprs end begin >>= addOne
+               let rep = A.Rep m' $ A.For m' begin count $ makeConstant m 1
+               spec@(A.Specification _ repN _) <- defineNonce m' "rep_constr"
+                 rep A.ValAbbrev
+               return $ A.Literal m t $ A.ArrayListLiteral m' $
+                 A.Spec m' spec $ A.Only m' $
+                   (A.ExprVariable m' $ A.Variable m' repN)
     doExpression e = return e
 
 -- TODO this is almost certainly better figured out from the CFG

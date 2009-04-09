@@ -46,12 +46,9 @@ resolveNamedTypes
            (Prop.agg_namesDone
             ++ [Prop.expressionTypesChecked, Prop.processTypesChecked])
            [Prop.typesResolvedInAST, Prop.typesResolvedInState]
-           (\t -> do get >>= resolve >>= flatten >>= onCsNames (flatten <.< resolve) >>= put
-                     resolve t >>= flatten)
+           (\t -> do get >>= resolve >>= put
+                     resolve t)
   where
-    resolve :: PassType
-    resolve = applyDepthM doType
-      where
-        doType :: A.Type -> PassM A.Type
-        doType t@(A.UserDataType _) = underlyingType emptyMeta t
-        doType t = return t
+    resolve :: PassTypeOn A.Type
+    resolve = applyTopDownM (underlyingType emptyMeta)
+

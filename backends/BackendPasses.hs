@@ -21,7 +21,8 @@ module BackendPasses (backendPasses, transformWaitFor, declareSizesArray) where
 
 import Control.Monad.Error
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
+import Data.Generics.Polyplate
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -39,8 +40,8 @@ import Traversal
 import Types
 import Utils
 
-squashArrays :: [Pass]
-squashArrays =
+backendPasses :: [Pass A.AST]
+backendPasses =
     -- Note that removeDirections is only for C, whereas removeUnneededDirections
     -- is for all backends
   [ removeDirectionsForC
@@ -59,8 +60,8 @@ prereq = Prop.agg_namesDone ++ Prop.agg_typesDone ++ Prop.agg_functionsGone ++ [
 -- | Remove all variable directions for the C backend.
 -- They're unimportant in occam code once the directions have been checked,
 -- and this somewhat simplifies the work of the later passes.
-removeDirections :: Pass
-removeDirections
+removeDirectionsForC :: PassOn A.Variable
+removeDirectionsForC
     = occamAndCOnlyPass "Remove variable directions"
                     prereq
                     [Prop.directionsRemoved]
@@ -193,20 +194,28 @@ findVarSizes skip (A.VariableSizes m v)
        mn <- getSizes m (A.VariableSizes m v) es
        return (mn, fmap (A.Variable m) mn, es)
 
+type DeclSizeOps = (ExtOpMSP BaseOp) `ExtOpMP` A.Process
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-declareSizesArray :: PassOnStruct
+declareSizesArray :: PassASTOnOps DeclSizeOps
 declareSizesArray = occamOnlyPass "Declare array-size arrays"
   (prereq ++ [Prop.slicesSimplified, Prop.arrayConstructorsRemoved])
   [Prop.arraySizesDeclared]
-  (applyDepthSM doStructured)
+  (passOnlyOnAST "declareSizesArray"
+  (\t -> do pushPullContext
+            t' <- recurse t >>= applyPulled
+            popPullContext
+            return t'
+            ))
   where
-    ops :: OpsM PassM
-    ops = baseOp `extOpS` doStructured `extOp` doProcess
-    recurse, descend :: Data a => Transform a
-    recurse = makeRecurse ops
-    descend = makeDescend ops
+    ops :: DeclSizeOps
+    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doProcess
+
+    recurse :: RecurseM PassM DeclSizeOps
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM DeclSizeOps
+    descend = makeDescendM ops
     
     defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
     defineSizesName m n spec
@@ -289,7 +298,9 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
         lit = A.ArrayListLiteral m $ A.Several m $ map (A.Only m) es
         t = A.Array [A.Dimension $ makeConstant m (length es)] A.Int
 
-    doStructured :: Data a => A.Structured a -> PassM (A.Structured a)
+    doStructured :: (Data a, PolyplateM (A.Structured a) DeclSizeOps () PassM
+                           , PolyplateM (A.Structured a) () DeclSizeOps PassM)
+                    => Transform (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
            case (spec, t) of
@@ -329,43 +340,8 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                   return $ A.Spec m (A.Specification m n newspec) s'
              _ -> descend str
     doStructured s = descend s
-
-    transformExternal :: Meta -> ExternalType -> [A.Formal] -> PassM [A.Formal]
-    transformExternal m extType args
-      = do (args', newargs) <- transformFormals (Just extType) m args
-           sequence_ [defineSizesName m n (A.Declaration m t)
-                     | A.Formal _ t n <-  newargs]
-           return args'
-
--- | A pass for adding _sizes parameters to PROC arguments
--- TODO in future, only add _sizes for variable-sized parameters
-addSizesFormalParameters :: Pass
-addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
-  (prereq ++ [Prop.arraySizesDeclared])
-  []
-  (applyDepthM doSpecification)
-  where
-    doSpecification :: Bool -> A.Specification -> PassM A.Specification
-    doSpecification ext (A.Specification m n (A.Proc m' sm args body))
-      = do (args', newargs) <- transformFormals ext m args
-           let newspec = A.Proc m' sm args' body
-           modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec }) (A.nameName n) (csNames cs)})
-           mapM_ (recordArg m') newargs
-           return $ A.Specification m n newspec
-    doSpecification _ st = return st
     
-    recordArg :: Meta -> A.Formal -> PassM ()
-    recordArg m (A.Formal am t n)
-      =  defineName n $ A.NameDef {
-                         A.ndMeta = m
-                        ,A.ndName = A.nameName n
-                        ,A.ndOrigName = A.nameName n
-                        ,A.ndSpecType = A.Declaration m t
-                        ,A.ndAbbrevMode = A.ValAbbrev
-                        ,A.ndNameSource = A.NameNonce
-                        ,A.ndPlacement = A.Unplaced}
-    
-    transformFormals :: Bool -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
     transformFormals _ _ [] = return ([],[])
     transformFormals ext m ((f@(A.Formal am t n)):fs)
       = case (t, ext) of
@@ -396,13 +372,6 @@ addSizesFormalParameters = occamOnlyPass "Add array-size arrays to PROC headers"
           _ -> do (rest, new) <- transformFormals ext m fs
                   return (f : rest, new)
 
--- | A pass for adding _sizes parameters to actuals in PROC calls
-addSizesActualParameters :: Pass
-addSizesActualParameters = occamOnlyPass "Add array-size arrays to PROC calls"
-  (prereq ++ [Prop.arraySizesDeclared])
-  []
-  (applyDepthM doProcess)
-  where
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.ProcCall m n params)
       = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n)
@@ -462,12 +431,12 @@ simplifySlices = occamOnlyPass "Simplify array slices"
 
 -- | Finds all processes that have a MOBILE parameter passed in Abbrev mode, and
 -- add the communication back at the end of the process.
-mobileReturn :: Pass
+{-
+mobileReturn :: PassOnOps (ExtOpMSP BaseOp `ExtOpMP` A.Process)
 mobileReturn = cOnlyPass "Add MOBILE returns" [] [] recurse
   where
-    ops = baseOp `extOpS` doStructured `extOp` doProcess
+    ops = baseOp `extOpMS` doStructured `extOpM` doProcess
 
-    descend, recurse :: Data a => Transform a
     descend = makeDescend ops
     recurse = makeRecurse ops
 
@@ -542,3 +511,4 @@ mobileReturn = cOnlyPass "Add MOBILE returns" [] [] recurse
                      modifyName n (\nd -> nd {A.ndSpecType = newSpec})
                      return $ A.Spec msp (A.Specification m n newSpec) scope'
     doStructured s = descend s
+-}

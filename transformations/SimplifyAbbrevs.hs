@@ -183,14 +183,22 @@ updateAbbrevsInState
     = pass "Update INITIAL and RESULT abbreviations in state"
            [Prop.initialRemoved, Prop.resultRemoved]
            []
-           (\v -> get >>= applyDepthM (return . doAbbrevMode) >>= put >> return v)
+           (\v -> modify (applyBottomUp doAbbrevMode) >> return v)
   where
     doAbbrevMode :: A.AbbrevMode -> A.AbbrevMode
     doAbbrevMode A.InitialAbbrev = A.Original
     doAbbrevMode A.ResultAbbrev = A.Abbrev
     doAbbrevMode s = s
 
-abbrevCheckPass :: Pass
+type AbbrevCheckM = StateT [Map.Map Var Bool] PassM
+type ExtAbbM a b = ExtOpM AbbrevCheckM a b
+type AbbrevCheckOps
+  = ExtOpMS AbbrevCheckM BaseOp
+      `ExtAbbM` A.Variable
+      `ExtAbbM` A.Process
+      `ExtAbbM` A.InputItem
+
+abbrevCheckPass :: (PolyplateM t AbbrevCheckOps () AbbrevCheckM, PolyplateM t () AbbrevCheckOps AbbrevCheckM) => Pass t
 abbrevCheckPass
     = pass "Abbreviation checking" [] []
            ({-passOnlyOnAST "abbrevCheck" $ -} flip evalStateT [Map.empty] . recurse)

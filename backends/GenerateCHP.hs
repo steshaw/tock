@@ -44,6 +44,7 @@ import Control.Monad.Trans
 import Data.Char
 import Data.Generics
 import Data.List
+import Data.Maybe
 import System.IO
 import Text.Printf
 
@@ -143,7 +144,7 @@ genSpec (A.Specification _ n (A.Proc _ _ params body))
        genName n
        sequence [genName pn >> tell [" "] | A.Formal _ _ pn <- params]
        tell ["= "]
-       withIndent $ genProcess body
+       withIndent $ genProcess (fromJust body)
   where
     doFormalAndArrow :: A.Formal -> CGen ()
     doFormalAndArrow (A.Formal _ t _)
@@ -155,6 +156,7 @@ genSpec (A.Specification _ n (A.Declaration _ t))
        tell ["\n"]
        genName n
        tell [" = error \"Variable ", A.nameName n, " used uninitialised\"\n"]
+{-
 genSpec (A.Specification _ n (A.IsExpr _ _ t e))
   = do genName n
        tell [" :: "]
@@ -164,6 +166,7 @@ genSpec (A.Specification _ n (A.IsExpr _ _ t e))
        tell [" = "]
        genExpression e
        tell ["\n"]
+-}
 genSpec _ = genMissing "genSpec" >> tell ["\n"]
 
 genProcess :: A.Process -> CGen ()

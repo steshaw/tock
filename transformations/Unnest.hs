@@ -77,12 +77,23 @@ freeNamesIn = doGeneric
     doSpecType st = doGeneric st
 
 -- | Replace names.
-replaceNames :: Data t => [(A.Name, A.Name)] -> t -> t
-replaceNames map v = runIdentity $ applyDepthM doName v
+--
+-- This has to have extra cleverness due to a really nasty bug.  Array types can
+-- have expressions as dimensions, and those expressions can contain free names
+-- which are being replaced.  This is fine, but when that happens we need to update
+-- CompState so that the type has the replaced name, not the old name.
+replaceNames :: PolyplateM t (TwoOpM PassM A.Name A.Specification) () PassM => [(A.Name, A.Name)] -> t -> PassM t
+replaceNames map = recurse
   where
     smap = Map.fromList [(A.nameName f, t) | (f, t) <- map]
 
-    doName :: A.Name -> Identity A.Name
+    ops :: TwoOpM PassM A.Name A.Specification
+    ops = baseOp `extOpM` doName `extOpM` doSpecification
+
+    recurse :: RecurseM PassM (TwoOpM PassM A.Name A.Specification)
+    recurse = makeRecurseM ops
+
+    doName :: Transform A.Name
     doName n = return $ Map.findWithDefault n (A.nameName n) smap
 
     doSpecification :: Transform A.Specification
@@ -192,7 +203,7 @@ removeNesting = pass "Pull nested definitions to top level"
   [Prop.nestedPulled]
   (passOnlyOnAST "removeNesting" $ \s ->
        do pushPullContext
-          s' <- (makeRecurse ops) s >>= applyPulled
+          s' <- recurse s >>= applyPulled
           popPullContext
           return s')
   where

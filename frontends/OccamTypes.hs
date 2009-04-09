@@ -646,7 +646,6 @@ type InferTypeOps
     `ExtOpMP` A.Subscript
     `ExtOpMP` A.Replicator
     `ExtOpMP` A.Alternative
-    `ExtOpMP` A.InputMode
     `ExtOpMP` A.Process
     `ExtOpMP` A.Variable
 
@@ -766,12 +765,23 @@ inferTypes = occamOnlyPass "Infer types"
       where
         direct = error "Cannot direct channels passed to FUNCTIONs"
 
-    doActuals :: Data a => Meta -> A.Name -> [A.Formal] -> Transform [a]
-    doActuals m n fs as
+        opsMatch (opA, _, tsA) (opB, _, tsB) = (opA == opB) && (tsA `typesEqForOp` tsB)
+
+        typesEqForOp :: [A.Type] -> [A.Type] -> Bool
+        typesEqForOp tsA tsB = (length tsA == length tsB) && (and $ zipWith typeEqForOp tsA tsB)
+
+        typeEqForOp :: A.Type -> A.Type -> Bool
+        typeEqForOp (A.Array ds t) (A.Array ds' t')
+          = (length ds == length ds') && typeEqForOp t t'
+        typeEqForOp t t' = t == t'
+
+    doActuals :: (PolyplateM a InferTypeOps () PassM, Data a) => Meta -> A.Name -> [A.Formal] ->
+      (Meta -> A.Direction -> Transform a) -> Transform [a]
+    doActuals m n fs applyDir as
         =  do checkActualCount m n fs as
               sequence [doActual m applyDir t a | (A.Formal _ t _, a) <- zip fs as]
 
-    doActual :: Data a => Meta -> (Meta -> A.Direction -> Transform a) -> A.Type -> Transform a
+    doActual :: (PolyplateM a InferTypeOps () PassM, Data a) => Meta -> (Meta -> A.Direction -> Transform a) -> A.Type -> Transform a
     doActual m applyDir (A.ChanEnd dir _ _) a = recurse a >>= applyDir m dir
     doActual m _ t a = inTypeContext (Just t) $ recurse a
                         
@@ -1008,7 +1018,6 @@ inferTypes = occamOnlyPass "Infer types"
                 ops :: InferTypeOps
                 ops = baseOp
                     `extOpMS` (ops, descend)
-                    `extOpM` descend
                     `extOpM` descend
                     `extOpM` descend
                     `extOpM` descend
