@@ -1504,9 +1504,13 @@ prefixComma cs = sequence_ [genComma >> c | c <- cs]
 cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
 cgenActuals fs as
   = do when (length fs /= length as) $
-         dieP (findMeta (fs, as)) $ "Mismatch in numbers of parameters in backend: "
+         dieP m $ "Mismatch in numbers of parameters in backend: "
            ++ show (length fs) ++ " expected, but actually: " ++ show (length as)
        seqComma [call genActual f a | (f, a) <- zip fs as]
+  where
+    m | null fs && null as = emptyMeta
+      | null fs = findMeta $ head as
+      | otherwise = findMeta $ head fs
 
 cgenActual :: A.Formal -> A.Actual -> CGen ()
 cgenActual f a = seqComma $ realActuals f a id
@@ -1616,7 +1620,7 @@ cgenProcess p = case p of
   A.Assign m vs es -> call genAssign m vs es
   A.Input m c im -> call genInput c im
   A.Output m c ois ->
-    do Left ts <- protocolItems c
+    do Left ts <- protocolItems m c
        call genOutput c $ zip ts ois
   A.OutputCase m c t ois -> call genOutputCase c t ois
   A.Skip m -> tell ["/* skip */\n"]
@@ -1767,7 +1771,7 @@ cgenOutputCase c tag ois
           tell ["_"]
           genName proto
           tell [");"]
-          Right ps <- protocolItems c
+          Right ps <- protocolItems (findMeta c) c
           let ts = fromMaybe (error "genOutputCase unknown tag")
                      $ lookup tag ps
           call genOutput c $ zip ts ois

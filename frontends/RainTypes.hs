@@ -39,6 +39,13 @@ import TypeUnification
 import UnifyType
 import Utils
 
+-- This is a bit of a hack for this file:
+data M = M Meta A.Type deriving (Typeable, Data)
+instance ASTTypeable M where
+  astTypeOf (M m t) = return t
+instance FindMeta M where
+  findMeta (M m t) = m
+
 data RainTypeState = RainTypeState {
     csUnifyLookup :: Map.Map UnifyIndex UnifyValue,
     csUnifyPairs :: [(UnifyValue, UnifyValue)]
@@ -102,7 +109,7 @@ typeToTypeExp _ (A.UnknownNumLitType m id n)
        return v
 typeToTypeExp m t = return $ OperType m (show t) (const t) []
 
-markUnify :: (ASTTypeable a, ASTTypeable b, Data a, Data b) => a -> b -> RainTypeM ()
+markUnify :: (ASTTypeable a, ASTTypeable b, FindMeta a, FindMeta b, Data a, Data b) => a -> b -> RainTypeM ()
 markUnify x y
   = do tx <- astTypeOf x
        ty <- astTypeOf y
@@ -167,8 +174,8 @@ markReplicators :: RainTypePassType
 markReplicators = checkDepthM mark
   where
     mark :: RainTypeCheck A.Specification
-    mark (A.Specification _ n (A.Rep _ (A.ForEach _m e)))
-      = astTypeOf n >>= \t -> markUnify (A.List t) e
+    mark (A.Specification m n (A.Rep _ (A.ForEach _m e)))
+      = astTypeOf n >>= \t -> markUnify (M m $ A.List t) e
     mark _ = return ()
 
 -- | Folds all constants.
@@ -222,8 +229,8 @@ markExpressionTypes = checkDepthM checkExpression
     checkExpression :: RainTypeCheck A.Expression
 --    checkExpression (A.Dyadic _ _ lhs rhs)
 --      = markUnify lhs rhs
-    checkExpression (A.Literal _ t (A.ArrayListLiteral _ es))
-      = checkListElems (markUnify t) es
+    checkExpression (A.Literal m t (A.ArrayListLiteral m' es))
+      = checkListElems (markUnify (M m t) . M m') es
     checkExpression _ = return ()
 
     checkListElems :: RainTypeCheck A.Type -> RainTypeCheck (A.Structured A.Expression)
@@ -247,7 +254,7 @@ markAssignmentTypes = checkDepthM checkAssignment
              A.Variable _ n ->
                do st <- specTypeOfName n
                   case st of
-                    A.Function _ _ [t] _ _ -> markUnify t e
+                    A.Function m _ [t] _ _ -> markUnify (M m t) e
                     _ -> markUnify v e
              _ -> markUnify v e
     checkAssignment (A.Assign m _ _) = dieInternal (Just m,"Rain checker found occam-style assignment")
@@ -259,12 +266,12 @@ markConditionalTypes = checkDepthM2 checkWhile checkIf
   where
     checkWhile :: RainTypeCheck A.Process
     checkWhile w@(A.While m exp _)
-      = markUnify exp A.Bool
+      = markUnify exp (M m A.Bool)
     checkWhile _ = return ()
     
     checkIf :: RainTypeCheck A.Choice
     checkIf c@(A.Choice m exp _)
-      = markUnify exp A.Bool
+      = markUnify exp (M m A.Bool)
 
 -- | Marks types in poison statements
 markPoisonTypes :: RainTypePassType
@@ -273,7 +280,7 @@ markPoisonTypes = checkDepthM checkPoison
     checkPoison :: RainTypeCheck A.Process
     checkPoison (A.InjectPoison m ch)
       = do u <- lift getUniqueIdentifer
-           markUnify ch $ A.UnknownVarType (A.TypeRequirements True) $ Right (m, u)
+           markUnify ch (M m $ A.UnknownVarType (A.TypeRequirements True) $ Right (m, u))
     checkPoison _ = return ()
 
 -- | Checks the types in inputs and outputs, including inputs in alts
@@ -282,12 +289,12 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
   where
     checkInput :: A.Variable -> A.Variable -> Meta -> a -> RainTypeM ()
     checkInput chanVar destVar m p
-      = astTypeOf destVar >>= markUnify chanVar . A.ChanEnd A.DirInput A.Unshared
+      = astTypeOf destVar >>= markUnify chanVar . M (findMeta destVar) . A.ChanEnd A.DirInput A.Unshared
 
     checkWait :: RainTypeCheck A.InputMode
-    checkWait (A.InputTimerFor m exp) = markUnify A.Time exp
-    checkWait (A.InputTimerAfter m exp) = markUnify A.Time exp
-    checkWait (A.InputTimerRead m (A.InVariable _ v)) = markUnify A.Time v
+    checkWait (A.InputTimerFor m exp) = markUnify (M m A.Time) exp
+    checkWait (A.InputTimerAfter m exp) = markUnify (M m A.Time) exp
+    checkWait (A.InputTimerRead m (A.InVariable m' v)) = markUnify (M m A.Time) v
     checkWait _ = return ()
 
     checkInputOutput :: RainTypeCheck A.Process
@@ -297,7 +304,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
     checkInputOutput (A.Input _ _ im@(A.InputTimerAfter {})) = checkWait im
     checkInputOutput (A.Input _ _ im@(A.InputTimerRead {})) = checkWait im
     checkInputOutput p@(A.Output m chanVar [A.OutExpression m' srcExp])
-      = astTypeOf srcExp >>= markUnify chanVar . A.ChanEnd A.DirOutput A.Unshared
+      = astTypeOf srcExp >>= markUnify chanVar . M m' . A.ChanEnd A.DirOutput A.Unshared
     checkInputOutput _ = return ()
 
     checkAltInput :: RainTypeCheck A.Alternative

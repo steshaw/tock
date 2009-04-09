@@ -33,3 +33,4 @@ data Typeable a => TypeExp a
  | NumLit Meta (IORef (Either [(Meta, Integer)] A.Type))
  | OperType Meta String ([A.Type] -> A.Type) [ TypeExp a ]
  deriving (Typeable, Data)
+

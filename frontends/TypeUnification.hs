@@ -27,12 +27,20 @@ import Data.Maybe
 import Data.IORef
 
 import qualified AST as A
+import CompState
 import Errors
 import Metadata
 import Pass
 import ShowCode
 import UnifyType
 import Utils
+
+instance Typeable a => FindMeta (TypeExp a) where
+  findMeta (MutVar m _) = m
+  findMeta (GenVar m _) = m
+  findMeta (NumLit m _) = m
+  findMeta (OperType m  _ _ _) = m
+
 
 foldCon :: ([A.Type] -> A.Type) -> [Either String A.Type] -> Either String A.Type
 foldCon con es = case splitEither es of
@@ -210,7 +218,7 @@ unifyType te1 te2
   where
     unifyArgs (x:xs) (y:ys) = unifyType x y >> unifyArgs xs ys
     unifyArgs [] [] = return ()
-    unifyArgs xs ys = dieP (findMeta (xs,ys)) "different lengths"
+    unifyArgs xs ys = dieP (findMeta $ head (xs ++ ys)) "different lengths"
 
 instantiate :: Typeable a => [TypeExp a] -> TypeExp a -> TypeExp a
 instantiate ts x = case x of

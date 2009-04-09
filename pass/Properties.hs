@@ -128,9 +128,14 @@ getDeclaredNames = everything (++) ([] `mkQ` find)
     find (A.Specification _ n (A.Declaration {})) = [n]
     find _ = []
 
-checkNull :: (Data a, Die m) => String -> [a] -> m ()
+checkNull :: (Data a, FindMeta a, Die m) => String -> [a] -> m ()
 checkNull _ [] = return ()
-checkNull s xs = dieP (findMeta xs) $ "Property check " ++ show s ++ " failed: " ++ pshow xs
+checkNull s xs = dieP (findMeta $ head xs) $ "Property check " ++ show s ++ " failed: " ++ pshow xs
+
+checkNull' :: (Data a, Die m) => String -> [a] -> m ()
+checkNull' _ [] = return ()
+checkNull' s xs = dieP emptyMeta $ "Property check " ++ show s ++ " failed: " ++ pshow xs
+
 
 isNonceOrUnique :: String -> Bool
 isNonceOrUnique nm = isJust $ matchRegex (mkRegex ".*_[a-z][0-9]+$") nm
@@ -141,7 +146,7 @@ declaredNamesResolved = Property "declaredNamesResolved" $
 
 noInt :: Property
 noInt = Property "noInt" $
-  checkNull "noInt" . listify (== A.Int)
+  checkNull' "noInt" . listify (== A.Int)
 
 declarationTypesRecorded :: Property
 declarationTypesRecorded = Property "declarationTypesRecorded" $ \t ->
@@ -232,7 +237,7 @@ rainParDeclarationsPulledUp = Property "rainParDeclarationsPulledUp" checkTODO
 
 inferredTypesRecorded :: Property
 inferredTypesRecorded = Property "inferredTypesRecorded" $
-                          checkNull "inferredTypesRecorded" . listify findInfer
+                          checkNull' "inferredTypesRecorded" . listify findInfer
   where
     findInfer :: A.Type -> Bool
     findInfer A.Infer = True
@@ -247,11 +252,11 @@ findUDT _ = False
 
 typesResolvedInAST :: Property
 typesResolvedInAST = Property "typesResolvedInAST" $
-  checkNull "typesResolvedInAST" . listify findUDT
+  checkNull' "typesResolvedInAST" . listify findUDT
 
 typesResolvedInState :: Property
 typesResolvedInState = Property "typesResolvedInState" $
-  \t -> checkNull "typesResolvedInState" . listify findUDT =<< getCompState
+  \t -> checkNull' "typesResolvedInState" . listify findUDT =<< getCompState
 
 checkAllExprVariable :: Die m => [A.Expression] -> m ()
 checkAllExprVariable = mapM_ check
@@ -407,12 +412,12 @@ listsGivenType = Property "listsGivenType" checkTODO
 initialRemoved :: Property
 initialRemoved
     = Property "initialRemoved" $
-        checkNull "initialRemoved" . listify (== A.InitialAbbrev)
+        checkNull' "initialRemoved" . listify (== A.InitialAbbrev)
 
 resultRemoved :: Property
 resultRemoved
     = Property "resultRemoved" $
-        checkNull "resultRemoved" . listify (== A.ResultAbbrev)
+        checkNull' "resultRemoved" . listify (== A.ResultAbbrev)
 
 directionsRemoved :: Property
 directionsRemoved

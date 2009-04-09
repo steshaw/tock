@@ -158,7 +158,7 @@ transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
     doStructuredV chanVar = transformOnly transform
       where
         transform m (A.Variant m' n iis p)
-            =  do (Right items) <- protocolItems chanVar
+            =  do (Right items) <- protocolItems m' chanVar
                   let (Just idx) = elemIndex n (fst $ unzip items)
                   return $ A.Only m $ A.Option m' [makeConstant m' idx] $
                     if length iis == 0

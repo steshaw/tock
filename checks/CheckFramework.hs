@@ -408,7 +408,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
     applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
            (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
     applyAccum' f (x, route)
-      = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
+      = do when (findMeta_Data x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta_Data x}
            (x', acc) <- lift $ flip runStateT accEmpty (gmapMForRoute typeSet (extF wrap) x)
            r <- f' (x', route, acc)
            modify (`accJoinF` acc)
@@ -427,7 +427,7 @@ applyAccum (accEmpty, accOneF, accJoinF) typeKeysGiven = applyAccum'
 applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
              (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
 applyTopDown typeSet f (x, route)
-      = do when (findMeta x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
+      = do when (findMeta_Data x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta_Data x}
            z <- f' (x, route)
            gmapMForRoute typeSet (\(y, route') -> applyTopDown typeSet f (y, route @-> route')) z
   where

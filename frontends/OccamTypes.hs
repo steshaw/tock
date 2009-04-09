@@ -812,7 +812,7 @@ inferTypes = occamOnlyPass "Infer types"
 
     doInputMode :: A.Variable -> Transform A.InputMode
     doInputMode v (A.InputSimple m iis)
-      = do ts <- protocolItems v >>* either id (const [])
+      = do ts <- protocolItems m v >>* either id (const [])
            iis' <- sequence [inTypeContext (Just t) $ recurse ii
                             | (t, ii) <- zip ts iis]
            return $ A.InputSimple m iis'
@@ -825,7 +825,7 @@ inferTypes = occamOnlyPass "Infer types"
     doVariant (A.Variant m n iis p)
       = do ctx <- getTypeContext
            ets <- case ctx of
-             Just x -> protocolItems x
+             Just x -> protocolItems m x
              Nothing -> dieP m "Could not deduce protocol"
            case ets of
              Left {} -> dieP m "Simple protocol expected during input CASE"

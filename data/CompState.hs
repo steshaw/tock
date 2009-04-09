@@ -265,7 +265,7 @@ modifyName n f
 
 -- | Find the definition of a name.
 lookupName :: (CSMR m, Die m) => A.Name -> m A.NameDef
-lookupName n = lookupNameOrError n (dieP (findMeta n) $ "cannot find name " ++ A.nameName n)
+lookupName n = lookupNameOrError n (dieP (A.nameMeta n) $ "cannot find name " ++ A.nameName n)
 
 nameSource :: (CSMR m, Die m) => A.Name -> m A.NameSource
 nameSource n = lookupName n >>* A.ndNameSource
@@ -483,3 +483,70 @@ searchFile m filename
               case r of
                 Just h -> return (h, fn)
                 Nothing -> openOneOf all fns
+
+class FindMeta a where
+  findMeta :: a -> Meta
+
+instance FindMeta Meta where
+  findMeta = id
+
+instance FindMeta A.Name where
+  findMeta = A.nameMeta
+
+-- Should stop being lazy, and put these as pattern matches:
+findMeta_Data :: Data a => a -> Meta
+findMeta_Data = head . listify (const True)
+
+instance FindMeta A.Expression where
+  findMeta = findMeta_Data
+
+instance FindMeta A.LiteralRepr where
+  findMeta = findMeta_Data
+
+instance FindMeta A.Subscript where
+  findMeta = findMeta_Data
+
+instance FindMeta A.Process where
+  findMeta = findMeta_Data
+
+instance FindMeta A.Variable where
+  findMeta (A.Variable m _) = m
+  findMeta (A.SubscriptedVariable m _ _) = m
+  findMeta (A.DirectedVariable m _ _) = m
+  findMeta (A.DerefVariable m _) = m
+  findMeta (A.VariableSizes m _) = m
+
+instance FindMeta A.SpecType where
+  findMeta = findMeta_Data
+
+instance FindMeta A.ExpressionList where
+  findMeta = findMeta_Data
+
+instance FindMeta A.Alternative where
+  findMeta = findMeta_Data
+
+instance FindMeta A.InputMode where
+  findMeta = findMeta_Data
+
+instance Data a => FindMeta (A.Structured a) where
+  findMeta = findMeta_Data
+
+instance FindMeta A.Actual where
+  findMeta (A.ActualVariable v) = findMeta v
+  findMeta (A.ActualExpression e) = findMeta e
+  findMeta (A.ActualClaim v) = findMeta v
+  findMeta (A.ActualChannelArray []) = emptyMeta
+  findMeta (A.ActualChannelArray (v:_)) = findMeta v
+
+instance FindMeta A.Replicator where
+  findMeta (A.For m _ _ _) = m
+  findMeta (A.ForEach m _) = m
+
+instance FindMeta A.Specification where
+  findMeta (A.Specification m _ _) = m
+
+instance FindMeta A.Formal where
+  findMeta (A.Formal _ _ n) = findMeta n
+
+instance FindMeta A.NameDef where
+  findMeta = A.ndMeta

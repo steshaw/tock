@@ -84,10 +84,3 @@ unpackMeta s
     metaRE = mkRegex "^(.*)//pos:([0-9]*):([0-9]*):(.*)//(.*)$"
     getInt s = case readDec s of [(v, "")] -> v
 
--- | Find the first Meta value in some part of the AST.
--- Return 'emptyMeta' if it couldn't find one.
-findMeta :: Data t => t -> Meta
-findMeta e
-    = case listify (const True :: Meta -> Bool) e of
-        (m:_) -> m
-        [] -> emptyMeta

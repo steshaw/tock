@@ -35,7 +35,7 @@ module Types
 
     , leastGeneralSharedTypeRain
     
-    , ASTTypeable(..)
+    , ASTTypeable(..), findMeta
   ) where
 
 import Control.Monad.State
@@ -337,13 +337,13 @@ returnTypesOfIntrinsic m s
 
 -- | Get the items in a channel's protocol (for typechecking).
 -- Returns Left if it's a simple protocol, Right if it's tagged.
-protocolItems :: (ASTTypeable a, Data a, CSMR m, Die m) => a -> m (Either [A.Type] [(A.Name, [A.Type])])
-protocolItems v
+protocolItems :: (ASTTypeable a, Data a, CSMR m, Die m) => Meta -> a -> m (Either [A.Type] [(A.Name, [A.Type])])
+protocolItems m v
     =  do chanT <- astTypeOf v
           t <- case chanT of
                  A.Chan _ t -> return t
                  A.ChanEnd _ _ t -> return t
-                 _ -> dieP (findMeta v) $ "Expected a channel variable, but this is of type: " ++ show chanT
+                 _ -> dieP m $ "Expected a channel variable, but this is of type: " ++ show chanT
           case t of
             A.UserProtocol proto ->
               do st <- specTypeOfName proto
@@ -479,8 +479,6 @@ isSafeConversion src dest = (src' == dest') || ((src' == A.Bool || isIntegerType
           ,(A.UInt32, A.UInt16)
           ,(A.UInt64, A.UInt32)
         ]
-
-
 
 
 -- | Works out the least-general type that all given types can be upcast to.  Does not work with A.Int (as this function is expected only to be used by Rain)

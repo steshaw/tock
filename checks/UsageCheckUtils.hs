@@ -39,7 +39,7 @@ import Types
 import Utils
 
 newtype Var = Var A.Variable
-  deriving (ASTTypeable, Data, Ord, Show, ShowOccam, ShowRain, Typeable)
+  deriving (ASTTypeable, Data, FindMeta, Ord, Show, ShowOccam, ShowRain, Typeable)
 
 instance Eq Var where
   a == b = EQ == compare a b
