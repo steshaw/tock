@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Passes associated with the backends
 module BackendPasses (backendPasses, transformWaitFor, declareSizesArray) where
 
+import Control.Monad.Error
 import Control.Monad.State
 import Data.Generics
 import Data.List
@@ -188,22 +189,28 @@ transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
 
 -- | Declares an array filled with constant sizes
 -- If any extra sizes are declared, will add them to the current context
-getSizes :: Meta -> [A.Expression] -> PassM A.Name
-getSizes m [] = dieP m "Empty list of dimensions in getSizes"
-getSizes m es
-  = do ces <- mapM evalIntExpression es
-       ss <- getCompState >>* csGlobalSizes
-       case Map.lookup ces ss of
-         Just n -> return $ A.Name m n
-         Nothing -> let base = "sizes" ++ concat (intersperse "_" $ map show ces)
+getSizes :: Meta -> A.Variable -> [A.Expression] -> PassM (Maybe A.Name)
+getSizes m v [] = diePC m $ formatCode "Empty list of dimensions in getSizes for %" v
+getSizes m _ es
+  = do eces <- sequence [(evalIntExpression e >>* Right)
+                           `catchError` (return . Left)
+                        | e <- es]
+       case splitEither eces of
+         (_:_, _) -> return Nothing
+         ([], ces) -> do
+           ss <- getCompState >>* csGlobalSizes
+           case Map.lookup ces ss of
+             Just n -> return $ Just $ A.Name m n
+             Nothing ->
+                    let base = "sizes" ++ concat (intersperse "_" $ map show ces)
                         t = A.Array [A.Dimension $ makeConstant m $ length es] A.Int
                         val = A.ArrayListLiteral m $ A.Several m $
                           map (A.Only m) $ map (makeConstant m) ces
-                        e = A.Literal m t val
-           in do spec@(A.Specification _ n _) <- makeNonceIsExpr base m t e
+                        e = A.Literal m t val in do
+                 spec@(A.Specification _ n _) <- makeNonceIsExpr base m t e
                  addPulled (m, Left spec)
                  modify $ \cs -> cs { csGlobalSizes = Map.insert ces (A.nameName n) ss }
-                 return n
+                 return $ Just n
 
 -- Forms a slice that drops a certain amount of elements:
 sliceDrop :: Meta -> Int -> Int -> A.Variable -> A.Variable
@@ -218,19 +225,28 @@ findSizeForVar :: Meta -> Int -> A.Variable ->
   PassM (Maybe A.Name, Maybe A.Variable, [A.Expression])
 findSizeForVar m skip v
   = do t <- astTypeOf v
-       case t of
+       case stripMobile t of
          A.Array ds _
-           | A.UnknownDimension `notElem` ds
-             -> do let es = drop skip [e | A.Dimension e <- ds]
-                   n <- getSizes m es
-                   return (Just n, Just $ A.Variable m n, es)
-           | otherwise
-             -> return (Nothing, Just $ sliceDrop m skip (length ds) $ A.VariableSizes m v,
-                  [A.ExprVariable m $ A.SubscriptedVariable m (A.Subscript m A.NoCheck $ makeConstant
-                    m i) (A.VariableSizes m v)
-                  | i <- [skip  .. (length ds - 1)]])
+           -> do debug $ show (m, skip, ds)
+                 let es = drop skip [e | A.Dimension e <- ds]
+                 mn <- case partition (== A.UnknownDimension) ds of
+                         ([], ds) -> getSizes m v es
+                         _ -> return Nothing
+                 case mn of
+                   Just n -> return (Just n, Just $ A.Variable m n, es)
+                   _ -> return (Nothing,
+                          Just $ sliceDrop m skip (length ds) $ A.VariableSizes m v,
+                          [A.ExprVariable m $ A.SubscriptedVariable m
+                             (A.Subscript m A.NoCheck $ makeConstant m i)
+                               (A.VariableSizes m v)
+                          | i <- [skip  .. (length ds - 1)]])
          _ -> diePC m $ formatCode "findSizeForVar for type % (for variable %)" t v
-
+  where
+    stripMobile (A.Mobile t) = stripMobile t
+    stripMobile (A.Array ds t) = case stripMobile t of
+      A.Array ds' innerT -> A.Array (ds ++ ds') innerT
+      t' -> A.Array ds t'
+    stripMobile t = t
 -- Gets the variable that holds the sizes of the given variable.  The first parameter
 -- is the number of dimensions to skip.  Assumes simplifySlices has already been
 -- run
@@ -247,16 +263,20 @@ findVarSizes skip (A.SubscriptedVariable _ (A.Subscript {}) v)
 findVarSizes skip v@(A.SubscriptedVariable m (A.SubscriptFromFor _ _ from for) innerV)
 -- If we are skipping at least one dimension, we can ignore slicing:
   | skip > 0 = findVarSizes skip innerV
-  | otherwise = do (_, _, _:es) <- findVarSizes 0 innerV
-                   return (Nothing, Nothing, for : es)
+  | otherwise = do sizes <- findVarSizes 0 innerV
+                   case sizes of
+                     (_, _, _:es) -> return (Nothing, Nothing, for : es)
+                     (_, _, []) -> diePC m $ formatCode "Empty sizes for sliced array: %" innerV
 -- the size of a dereference is the size of the mobile array:
 findVarSizes skip (A.DerefVariable _ v) = findVarSizes skip v
 -- Not sure this should ever happen, but no harm:
 findVarSizes skip (A.VariableSizes m v)
   = do A.Array ds _ <- astTypeOf v
+       when (skip > 0) $
+         dieP m "Told to drop (at least) one from size of VariableSizes!"
        let es = drop skip [makeConstant m (length ds)]
-       n <- getSizes m es
-       return (Just n, Just $ A.Variable m n, es)
+       mn <- getSizes m (A.VariableSizes m v) es
+       return (mn, fmap (A.Variable m) mn, es)
 
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
