@@ -344,7 +344,7 @@ checkAllocMobile m rawT me
           case t of
             A.Mobile innerT ->
                do case innerT of
-                    A.Array ds _ -> mapM_ (checkFullDimension m) ds
+                    A.Array ds _ -> ok --mapM_ (checkFullDimension m) ds
                     _ -> ok
                   case me of
                     Just e ->
@@ -652,6 +652,7 @@ inferTypes = occamOnlyPass "Infer types"
           `extOpS` doStructured
           `extOp` doProcess
           `extOp` doVariable
+          `extOp` doVariant
 
     recurse :: Recurse
     recurse = makeRecurse ops
@@ -815,7 +816,27 @@ inferTypes = occamOnlyPass "Infer types"
            iis' <- sequence [inTypeContext (Just t) $ recurse ii
                             | (t, ii) <- zip ts iis]
            return $ A.InputSimple m iis'
+    doInputMode v (A.InputCase m sv)
+      = do ct <- astTypeOf v
+           inTypeContext (Just ct) (recurse sv) >>* A.InputCase m
     doInputMode _ im = inTypeContext (Just A.Int) $ descend im
+
+    doVariant :: Transform A.Variant
+    doVariant (A.Variant m n iis p)
+      = do ctx <- getTypeContext
+           ets <- case ctx of
+             Just x -> protocolItems x
+             Nothing -> dieP m "Could not deduce protocol"
+           case ets of
+             Left {} -> dieP m "Simple protocol expected during input CASE"
+             Right ps -> case lookup n ps of
+               Nothing -> diePC m $ formatCode "Name % is not part of protocol %"
+                 n (fromJust ctx)
+               Just ts -> do iis' <- sequence [inTypeContext (Just t) $ recurse ii
+                                              | (t, ii) <- zip ts iis]
+                             p' <- recurse p
+                             return $ A.Variant m n iis' p'
+
 
     doStructured :: Data a => Transform (A.Structured a)
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
@@ -1030,8 +1051,8 @@ inferTypes = occamOnlyPass "Infer types"
                     im' <- doInputMode v' im
                     return $ A.Input m v' im'
             A.Input m v im@(A.InputCase {})
-              -> do im' <- recurse im
-                    v' <- recurse v
+              -> do v' <- recurse v
+                    im' <- doInputMode v' im
                     return $ A.Input m v' im'
             _ -> descend p
       where
@@ -1060,7 +1081,9 @@ inferTypes = occamOnlyPass "Infer types"
                   ae' <- inTypeContext (Just at) $ recurse ae
                   return $ A.OutCounted m ce' ae'
         doOutputItem A.Any o = noTypeContext $ recurse o
-        doOutputItem t o = inTypeContext (Just t) $ recurse o
+        doOutputItem t (A.OutExpression m e)
+          = inTypeContext (Just t) (recurse e >>= inferAllocMobile m t)
+              >>* A.OutExpression m
 
     doVariable :: Transform A.Variable
     doVariable (A.SubscriptedVariable m s v)

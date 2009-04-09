@@ -337,9 +337,9 @@ returnTypesOfIntrinsic m s
 
 -- | Get the items in a channel's protocol (for typechecking).
 -- Returns Left if it's a simple protocol, Right if it's tagged.
-protocolItems :: (CSMR m, Die m) => A.Variable -> m (Either [A.Type] [(A.Name, [A.Type])])
+protocolItems :: (ASTTypeable a, Data a, CSMR m, Die m) => a -> m (Either [A.Type] [(A.Name, [A.Type])])
 protocolItems v
-    =  do chanT <- typeOfVariable v
+    =  do chanT <- astTypeOf v
           t <- case chanT of
                  A.Chan _ t -> return t
                  A.ChanEnd _ _ t -> return t
