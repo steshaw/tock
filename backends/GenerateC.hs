@@ -1678,24 +1678,28 @@ cgenAssign m [v] (A.ExpressionList _ [e])
                             call genVariable vrhs A.Original
                             tell ["=NULL;"]
                        _ -> call genMissing $ "Mobile assignment from " ++ show e
-             (A.Array ds innerT, _, _) | isPOD innerT && A.UnknownDimension `notElem` ds
+             (A.Array ds innerT, _, A.Array dsrhs _) | isPOD innerT
                -> do tell ["memcpy("]
                      call genVariable v A.Abbrev
                      tell [","]
                      call genExpression e
                      tell [","]
-                     call genBytesIn m t (Left False)
+                     let f i = A.ExprVariable m $
+                                 A.SubscriptedVariable m
+                                   (A.Subscript m A.NoCheck $ makeConstant m i)
+                                   (A.VariableSizes m v)
+                         ds' = map (workOutDim f) $ zip3 [0..] ds dsrhs
+                     call genBytesIn m (A.Array ds' innerT) (Left False)
                      tell [");"]
-             (_, _, A.Array ds innerT) | isPOD innerT && A.UnknownDimension `notElem` ds
-               -> do tell ["memcpy("]
-                     call genVariable v A.Abbrev
-                     tell [","]
-                     call genExpression e
-                     tell [","]
-                     call genBytesIn m trhs (Left False)
-                     tell [");"]
-             _ -> call genMissingC $ formatCode "assignment of type %" t
+             _ -> call genMissingC $ formatCode "assignment of type % (% := %)" t v e
   where
+    workOutDim :: (Int -> A.Expression) -> (Int, A.Dimension, A.Dimension) ->
+      A.Dimension
+    workOutDim _ (_, A.Dimension e, _) = A.Dimension e
+    workOutDim _ (_, _, A.Dimension e) = A.Dimension e
+    workOutDim func (i, A.UnknownDimension, A.UnknownDimension)
+      = A.Dimension $ func i
+    
     doAssign :: A.Variable -> A.Expression -> CGen ()
     doAssign v e
         = do call genVariable v A.Original
