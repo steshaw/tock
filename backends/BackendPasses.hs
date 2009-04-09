@@ -47,6 +47,7 @@ backendPasses =
   , simplifySlices
   , declareSizesArray
   , fixMinInt
+  , pullAllocMobile
 -- This is not needed unless forking:
 --  , mobileReturn
   ]
@@ -93,6 +94,39 @@ removeUnneededDirections
               A.Array _ (A.ChanEnd chanDir _ _) | dir == chanDir -> return v
               _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
     doVariable v = return v
+
+-- | Pulls up any initialisers for mobile allocations.  I think, after all the
+-- other passes have run, the only place these initialisers should be left is in
+-- assignments (and maybe not even those?) and A.Is items.
+pullAllocMobile :: Pass
+pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] []
+  recurse
+  where
+    ops = baseOp `extOpS` doStructured `extOp` doProcess
+
+    recurse, descend :: Data a => Transform a
+    recurse = makeRecurse ops
+    descend = makeDescend ops
+    
+    doProcess :: Transform A.Process
+    doProcess (A.Assign m [v] (A.ExpressionList me [A.AllocMobile ma t (Just e)]))
+      = return $ A.Seq m $ A.Several m $ map (A.Only m) $
+          [A.Assign m [v] $ A.ExpressionList me [A.AllocMobile ma t Nothing]
+          ,A.Assign m [A.DerefVariable m v] $ A.ExpressionList me [e]
+          ]
+    doProcess p = descend p
+
+    doStructured :: Data a => Transform (A.Structured a)
+    doStructured (A.Spec mspec (A.Specification mif n
+      (A.Is mis am t (A.ActualExpression (A.AllocMobile ma tm (Just e)))))
+        body)
+      = do body' <- recurse body
+           return $ A.Spec mspec (A.Specification mif n $
+             A.Is mis am t $ A.ActualExpression $ A.AllocMobile ma tm Nothing)
+             $ A.ProcThen ma
+                 (A.Assign ma [A.DerefVariable mif $ A.Variable mif n] $ A.ExpressionList ma [e])
+                 body'
+    doStructured s = descend s
 
 -- | Turns any literals equivalent to a MOSTNEG back into a MOSTNEG
 -- The reason for doing this is that C (and presumably C++) don't technically (according
