@@ -84,7 +84,7 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \""
              ] ++ intersperse (return ",") (map showCode ts) ++
-             [return $ " FUNCTION " ++ origN ++ "("
+             [return $ " FUNCTION " ++ showFuncName origN ++ "("
              ] ++ intersperse (return ",") (map showCode fs) ++
              [return $ ") = " ++ nameString n ++ "\""
              ]) >>* concat
@@ -98,6 +98,11 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
     emitProcsAsExternal (A.Several _ ss)
       = foldl (liftM2 (Seq.><)) (return Seq.empty) (map emitProcsAsExternal ss)
 
+    showFuncName :: String -> String
+    showFuncName s | isOperator s = "\"" ++ doubleStars s ++ "\""
+                   | otherwise = s
+      where
+        doubleStars cs = concat [if c == '*' then "**" else [c] | c <- cs]
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: Pass
