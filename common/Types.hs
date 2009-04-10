@@ -29,6 +29,7 @@ module Types
     , makeAbbrevAM, makeConstant, makeConstant', makeDimension, specificDimSize
     , addOne, subOne, addExprs, subExprs, mulExprs, divExprs, remExprs
     , addOneInt, subOneInt, addExprsInt, subExprsInt, mulExprsInt, divExprsInt
+    , dyadicExpr, dyadicExprInt
     , addDimensions, applyDimension, removeFixedDimensions, trivialSubscriptType, subscriptType, unsubscriptType
     , applyDirection
     , recordFields, recordAttr, protocolItems, dirAttr
@@ -796,7 +797,7 @@ occamOperatorTranslateDefault "AND" = "and"
 occamOperatorTranslateDefault "OR" = "or"
 occamOperatorTranslateDefault "NOT" = "not"
 occamOperatorTranslateDefault "~" = "not"
-occamOperatorTranslateDefault cs = '_' : concatMap (show . ord) cs
+occamOperatorTranslateDefault cs = "op_" ++ concatMap (show . ord) cs
 
 occamDefaultOperator :: String -> [A.Type] -> String
 occamDefaultOperator op ts = "occam_" ++ occamOperatorTranslateDefault op
@@ -843,6 +844,9 @@ dyadicExpr :: String -> DyadicExprM
 dyadicExpr op a b = do ta <- astTypeOf a
                        tb <- astTypeOf b
                        return $ dyadicExpr' (ta, tb) op a b
+
+dyadicExprInt :: String -> DyadicExpr
+dyadicExprInt op = dyadicExpr' (A.Int, A.Int) op
 
 -- | Add two expressions.
 addExprs :: DyadicExprM

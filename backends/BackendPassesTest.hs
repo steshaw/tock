@@ -74,7 +74,8 @@ testTransformWaitFor1 = TestCase $ testPass "testTransformWaitFor1" exp transfor
             mSeveralP
               [
                 mOnlyP $ mGetTime var
-                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
+                ,mOnlyP $ mAssign [var] $ mExpressionList
+                  [mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int]) [evar, exprVariablePattern "t"]]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ mWaitUntil evar (A.Skip m)
               ]
     varName = (tag2 A.Name DontCare $ Named "nowt" DontCare)
@@ -92,9 +93,11 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp transfor
             mSeveralP
               [
                 mOnlyP $ mGetTime var0
-                ,mOnlyP $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t0")]
+                ,mOnlyP $ mAssign [var0] $ mExpressionList [mFunctionCall (occamDefaultOperator
+                  "PLUS" [A.Int, A.Int]) [evar0, exprVariablePattern "t0"]]
                 ,mOnlyP $ mGetTime var1
-                ,mOnlyP $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t1")]
+                ,mOnlyP $ mAssign [var1] $ mExpressionList [mFunctionCall (occamDefaultOperator
+                  "PLUS" [A.Int, A.Int]) [evar1, exprVariablePattern "t1"]]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
                   [mOnlyA $ mWaitUntil evar0 (A.Skip m)
                   ,mOnlyA $ mWaitUntil evar1 (A.Skip m)]
@@ -110,13 +113,17 @@ testTransformWaitFor2 = TestCase $ testPass "testTransformWaitFor2" exp transfor
 testTransformWaitFor3 :: Test
 testTransformWaitFor3 = TestCase $ testPass "testTransformWaitFor3" exp transformWaitFor orig (return ())
   where
-    orig = A.Alt m True $ A.Only m $ waitFor (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1")) (A.Skip m)
+    orig = A.Alt m True $ A.Only m $ waitFor (A.FunctionCall m (A.Name emptyMeta
+      $ occamDefaultOperator "PLUS" [A.Int, A.Int]) [exprVariable "t0", exprVariable "t1"]) (A.Skip m)
     exp = tag2 A.Seq DontCare $ mSpecP (tag3 A.Specification DontCare varName $ A.Declaration m A.Time) $
             mSeveralP
               [
                 mOnlyP $ mGetTime var
-                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar 
-                  (A.Dyadic m A.Plus (exprVariable "t0") (exprVariable "t1"))]
+                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare
+                   [mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int])
+                     [evar
+                     ,mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int])
+                       [exprVariable "t0", exprVariable "t1"]]]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mOnlyA $ mWaitUntil evar (A.Skip m)
               ]
     varName = (tag2 A.Name DontCare $ Named "nowt" DontCare)
@@ -132,7 +139,8 @@ testTransformWaitFor4 = TestCase $ testPass "testTransformWaitFor4" exp transfor
             mSeveralP
               [
                 mOnlyP $ mGetTime var
-                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Assign DontCare [var] $ tag2 A.ExpressionList DontCare
+                  [mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int]) [evar, exprVariablePattern "t"]]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
                   [mOnlyA $ mWaitUntil evar (A.Skip m)]
               ]
@@ -151,9 +159,11 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp transfor
             mSeveralP
               [
                 mOnlyP $ mGetTime var0
-                ,mOnlyP $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar0 (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Assign DontCare [var0] $ tag2 A.ExpressionList DontCare
+                  [mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int]) [evar0, exprVariablePattern "t"]]
                 ,mOnlyP $ mGetTime var1
-                ,mOnlyP $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare [tag4 A.Dyadic DontCare A.Plus evar1 (exprVariablePattern "t")]
+                ,mOnlyP $ tag3 A.Assign DontCare [var1] $ tag2 A.ExpressionList DontCare
+                  [mFunctionCall (occamDefaultOperator "PLUS" [A.Int, A.Int]) [evar1, exprVariablePattern "t"]]
                 ,mOnlyP $ tag3 A.Alt DontCare True $ mSeveralA
                   [mOnlyA $ mWaitUntil evar0 (A.Skip m)
                   ,mOnlyA $ mWaitUntil evar1 (A.Skip m)]

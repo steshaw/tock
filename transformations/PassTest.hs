@@ -34,6 +34,7 @@ import SimplifyExprs
 import TagAST
 import TestUtils
 import TreeUtils
+import Types
 import Unnest
 import Utils
 
@@ -248,7 +249,7 @@ testTransformConstr0 = TestCase $ testPass "transformConstr0" exp transformConst
                   exprVariable "i") (variable "arr")] $
                     A.ExpressionList m [exprVariable "x"],
                A.Only m $ A.Assign m [variable "i"] $ A.ExpressionList m
-                 [A.Dyadic m A.Add (intLiteral 1) (exprVariable "i")]]
+                 [addExprsInt (intLiteral 1) (exprVariable "i")]]
           ]
       )
       skipP
@@ -339,7 +340,7 @@ testOutExprs = TestList
  where
    outX = A.OutExpression emptyMeta $ exprVariable "x"
    outXM n = A.OutExpression emptyMeta $ eXM n
-   eXM n = buildExpr $ Dy (Var "x") A.Minus (Lit $ intLiteral n)
+   eXM n = buildExpr $ Dy (Var "x") "-" (Lit $ intLiteral n)
   
    abbr key t e = mSpecP
      (tag3 A.Specification DontCare (Named key DontCare)

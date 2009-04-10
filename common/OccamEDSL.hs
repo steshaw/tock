@@ -43,6 +43,7 @@ import Pass
 import Pattern
 import TestUtils
 import TreeUtils
+import Types
 import Utils
 
 -- The rough rules for converting occam to pseudo-occam are:
@@ -290,7 +291,7 @@ infix 8 *:=
 (*+) :: (CanBeExpression e, CanBeExpression e') => e -> e' -> ExpInp (A.Expression)
 (*+) x y = do x' <- expr x
               y' <- expr y
-              return (A.Dyadic emptyMeta A.Add x' y')
+              return $ addExprsInt x' y'
 
 
 sub :: ExpInp A.Variable -> Int -> ExpInp A.Variable

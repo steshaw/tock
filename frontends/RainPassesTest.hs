@@ -46,6 +46,7 @@ import RainTypes
 import TagAST
 import TestUtils
 import TreeUtils
+import Types
 import Utils
 
 m :: Meta
@@ -63,8 +64,8 @@ castAssertADI x = case (castADI x) of
   Nothing -> dieInternal (Nothing, "Pattern successfully matched but did not find item afterwards")
 
 makeRange :: Integer -> Integer -> A.Expression
-makeRange b e = A.Dyadic emptyMeta A.Add (intLiteral 1)
-  (A.Dyadic emptyMeta A.Subtr (intLiteral e) (intLiteral b))
+makeRange b e = addExprsInt (intLiteral 1)
+  (subExprsInt (intLiteral e) (intLiteral b))
 
 testEachRangePass0 :: Test
 testEachRangePass0 = TestCase $ testPass "testEachRangePass0" exp transformEachRange orig (return ())

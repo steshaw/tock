@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module ArrayUsageCheckTest (vioqcTests) where
 
 import Control.Monad.Identity
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer (tell)
 import Data.Array.IArray
@@ -48,6 +49,11 @@ import Utils
 
 instance Show FlattenedExp where
   show fexp = runIdentity $ showFlattenedExp (return . showOccam) fexp
+
+testCompState :: CompState
+testCompState = emptyState
+rr :: ReaderT CompState m a -> m a
+rr = flip runReaderT testCompState
 
 testArrayCheck :: Test
 testArrayCheck = TestList
@@ -270,10 +276,10 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
       [exprVariable "i",exprVariable "j"],intLiteral 8)
 
    ,test (3,[(ij_mapping,[i ++ con 3 === j],leq [con 0,i ++ con 3,con 7] &&& leq [con 0,j,con 7])],
-      [buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 3),exprVariable "j"],intLiteral 8)
+      [buildExpr $ Dy (Var "i") "+" (Lit $ intLiteral 3),exprVariable "j"],intLiteral 8)
      
    ,test (4,[(ij_mapping,[2 ** i === j],leq [con 0,2 ** i,con 7] &&& leq [con 0,j,con 7])],
-      [buildExpr $ Dy (Var "i") A.Mul (Lit $ intLiteral 2),exprVariable "j"],intLiteral 8)
+      [buildExpr $ Dy (Var "i") "*" (Lit $ intLiteral 2),exprVariable "j"],intLiteral 8)
 
    ,test' (5, [(((0,[]),(1,[])), ijk_mapping, [j === k], leq [con 0, j, i ++ con (-1)] &&& leq [con 0, k, i ++ con (-1)])],
      [exprVariable "j", exprVariable "k"], exprVariable "i")
@@ -286,7 +292,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
          [i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i >== con 1] &&& [j <== con 0] &&& leq [con 0, i ++ 3 ** j, con 2])
        ,(( (0,[XNeg]), (1,[]) ), i_mod_mapping 3,
          [i ++ 3 ** j === con 4], leq [con 0,con 4,con 7] &&& leq [con 0,i ++ 3 ** j,con 7] &&& [i <== con (-1)] &&& [j >== con 0] &&& leq [con (-2), i ++ 3 ** j, con 0])
-      ],[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3),intLiteral 4],intLiteral 8)
+      ],[buildExpr $ Dy (Var "i") "\\" (Lit $ intLiteral 3),intLiteral 4],intLiteral 8)
       
    -- Testing ((3*i - 2*j REM 11) - 5) vs (i + j)
    -- Expressed as ((2 * (i - j)) + i) REM 11 - 5, and i + j
@@ -303,14 +309,14 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
           &&& [3**i ++ (-2)**j <== con (-1)] &&& [k >== con 0] &&& leq [con (-10), 3**i ++ (-2)**j ++ 11 ** k, con 0])
       ],[buildExpr $
            Dy (Dy (Dy (Dy (Lit $ intLiteral 2)
-                       A.Mul (Dy (Var "i") A.Subtr (Var "j"))
+                       "*" (Dy (Var "i") "-" (Var "j"))
                       )
-                   A.Add (Var "i")
+                   "+" (Var "i")
                   )
-               A.Rem (Lit $ intLiteral 11)
+               "\\" (Lit $ intLiteral 11)
               )
-           A.Subtr (Lit $ intLiteral 5)
-        ,buildExpr $ Dy (Var "i") A.Add (Var "j")],intLiteral 8)
+           "-" (Lit $ intLiteral 5)
+        ,buildExpr $ Dy (Var "i") "+" (Var "j")],intLiteral 8)
    
    -- Testing i REM 2 vs (i + 1) REM 4
    ,test' (12,combine (0,1) (i_ip1_mod_mapping 2 4)
@@ -323,8 +329,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
       ,([XNeg],[XZero],[([i ++ 2**j === con 0],[]),rr_i_neg,rr_ip1_zero])
       ,([XNeg],[XPos],[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_neg,rr_ip1_pos])
       ,([XNeg],[XNeg],[([i ++ 2**j === i ++ con 1 ++ 4**k],[]),rr_i_neg,rr_ip1_neg])
-     ], [buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 2)
-        ,buildExpr $ Dy (Dy (Var "i") A.Add (Lit $ intLiteral 1)) A.Rem (Lit $ intLiteral 4)
+     ], [buildExpr $ Dy (Var "i") "\\" (Lit $ intLiteral 2)
+        ,buildExpr $ Dy (Dy (Var "i") "+" (Lit $ intLiteral 1)) "\\" (Lit $ intLiteral 4)
         ], intLiteral 8)
       
    -- Testing i REM j vs 3
@@ -361,7 +367,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     ,(((0,[XNegYNegANonZero]),(1,[])),i_mod_j_mapping,
       [i ++ k === con 3], [i <== con (-1), k >== (-1)**j] &&& 
         leq [j ++ con 1, i ++ k, con 0] &&& leq [con 0, i ++ k, con 7] &&& leq [con 0, con 3, con 7])
-   ], [buildExpr $ Dy (Var "i") A.Rem (Var "j"), intLiteral 3], intLiteral 8)
+   ], [buildExpr $ Dy (Var "i") "\\" (Var "j"), intLiteral 3], intLiteral 8)
 
 
    -- i vs. i'
@@ -393,7 +399,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
        ,(((1,[]),(1,[])),rep_i_mapping,[i === j],common &&& leq [con 0, i ++ con 1, con 7] &&& leq [con 0, j ++ con 1, con 7])]
        ++ [(((0,[]),(1,[])),rep_i_mapping, [i === i ++ con 1], common &&&
              leq [con 0, i, con 7] &&& leq [con 0,i ++ con 1, con 7])]
-     ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", buildExpr $ Dy (Var "i") A.Add (Lit $ intLiteral 1)],intLiteral 8)
+     ,("i", intLiteral 1, intLiteral 6),[exprVariable "i", buildExpr $ Dy (Var "i") "+" (Lit $ intLiteral 1)],intLiteral 8)
 
    -- Only a constant:
    ,testRep' (210,[(((0,[]),(0,[])),rep_i_mapping,[con 4 === con 4],ij_16 &&& [i <== j ++ con (-1)] &&& (concat $ replicate 2 $ leq [con 0, con 4, con 7]))]
@@ -436,7 +442,7 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
        &&& leq [con 0, i ++ 3**k, con 7] &&& leq [con 0, j ++ 3**m, con 7]
        &&& [m >== con 0, k >== con 0, i <== con (-1), j <== con (-1)]
        &&& leq [con (-2), i ++ 3**k, con 0] &&& leq [con (-2), j ++ 3**m, con 0])
-     ],("i", intLiteral 1, intLiteral 6),[buildExpr $ Dy (Var "i") A.Rem (Lit $ intLiteral 3)], intLiteral 8)
+     ],("i", intLiteral 1, intLiteral 6),[buildExpr $ Dy (Var "i") "\\" (Lit $ intLiteral 3)], intLiteral 8)
 
 
    -- TODO test reads and writes are paired properly
@@ -466,15 +472,15 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
     test' (ind, problems, exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations (makeParItems [] exprs) upperBound)
+          =<< (checkRight $ rr $ makeEquations (makeParItems [] exprs) upperBound)
   
     testRep' :: (Integer,[(((Int,[ModuloCase]), (Int,[ModuloCase])), VarMap,[HandyEq],[HandyIneq])],(String, A.Expression, A.Expression),[A.Expression],A.Expression) -> Test
     testRep' (ind, problems, (repName, repFrom, repFor), exprs, upperBound) = 
       TestCase $ assertEquivalentProblems ("testMakeEquations " ++ show ind)
         (map (\((a0,a1),b,c,d) -> ((lookup exprs a0, lookup exprs a1), b, makeConsistent c d)) problems)
-          =<< (checkRight $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor (makeConstant emptyMeta 1)) $
+          =<< (checkRight $ rr $ makeEquations (RepParItem (simpleName "i", A.For emptyMeta repFrom repFor (makeConstant emptyMeta 1)) $
             makeParItems [Map.fromList [(UsageCheckUtils.Var $ variable "i",
-              [RepBoundsIncl (variable "i") repFrom (subOne $ addExprs repFrom repFor)])]] exprs) upperBound)
+              [RepBoundsIncl (variable "i") repFrom (subOneInt $ addExprsInt repFrom repFor)])]] exprs) upperBound)
   
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
 
@@ -530,7 +536,8 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
 testMakeEquation :: TestMonad m r => ([(((A.Expression, [ModuloCase]), (A.Expression, [ModuloCase])), VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression) -> m ()
 testMakeEquation (problems, exprs, upperBound) =
  assertEquivalentProblems ""
-   (map (\(x,y,z) -> (x, y, uncurry makeConsistent z)) $ map pairLatterTwo problems) =<< (checkRight $ makeEquations (transformParItems pairWithEmpty exprs) upperBound)
+   (map (\(x,y,z) -> (x, y, uncurry makeConsistent z)) $ map pairLatterTwo problems)
+     =<< (checkRight $ rr $ makeEquations (transformParItems pairWithEmpty exprs) upperBound)
   where
     pairWithEmpty a = ([],a,[])
     pairLatterTwo (l,a,b,c) = (l,a,(b,c))
@@ -572,7 +579,7 @@ genNewItem exprDepth specialAllowed
                           then
                             do m <- get
                                let nextId = 1 + maximum (0 : Map.elems m)
-                               let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
+                               let exp = mulExprsInt (exprVariable $ "y" ++ show nextId) (exprVariable $ "y" ++ show nextId)
                                return (exp,Scale 1 (exp, 0), nextId)
                           else
                             do m <- get
@@ -582,7 +589,7 @@ genNewItem exprDepth specialAllowed
                                -- inserting them, only the multiplied item
                                put m
                                let nextId = 1 + maximum (0 : Map.elems m)
-                               let exp = A.Dyadic emptyMeta A.Mul (exprVariable $ "y" ++ show nextId) expToMult
+                               let exp = mulExprsInt (exprVariable $ "y" ++ show nextId) expToMult
                                return (exp, Scale 1 (exp, 0), nextId)
                    )
                   ] ++ if not specialAllowed then []
@@ -590,12 +597,12 @@ genNewItem exprDepth specialAllowed
                                        ((eB,iB),fB) <- genNewExp (exprDepth - 1) False True
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
-                                       return (A.Dyadic emptyMeta A.Rem eT eB, Modulo 1 (errorOrRight $ makeExpSet fT) (errorOrRight $ makeExpSet fB), nextId)
+                                       return (dyadicExprInt "\\" eT eB, Modulo 1 (errorOrRight $ makeExpSet fT) (errorOrRight $ makeExpSet fB), nextId)
                               ),(10,do ((eT,iT),fT) <- genNewExp (exprDepth - 1) False True
                                        ((eB,iB),fB) <- genConst
                                        m <- get
                                        let nextId = 1 + maximum (0 : Map.elems m)
-                                       return (A.Dyadic emptyMeta A.Div eT eB, Divide 1 (errorOrRight $ makeExpSet fT) (Set.singleton fB), nextId)
+                                       return (divExprsInt eT eB, Divide 1 (errorOrRight $ makeExpSet fT) (Set.singleton fB), nextId)
                               )]
                 modify (Map.insert fexp nextId)
                 return ((exp, [(nextId,1)]), fexp)
@@ -624,7 +631,7 @@ genNewExp exprDepth specialAllowed constAllowed
                        sign -> do mult' <- lift $ choose (1 :: Integer,10)
                                   let mult = sign * mult'
                                   return $ transformPair
-                                    (transformPair (A.Dyadic emptyMeta A.Mul (intLiteral mult)) (map (transformPair id (* mult))))
+                                    (transformPair (mulExprsInt (intLiteral mult)) (map (transformPair id (* mult))))
                                     (scaleEq mult) unmult
     scaleEq :: Integer -> FlattenedExp -> FlattenedExp
     scaleEq k (Const n) = Const (k * n)
@@ -634,7 +641,7 @@ genNewExp exprDepth specialAllowed constAllowed
   
     join :: Maybe (GenEqItems, [FlattenedExp]) -> (GenEqItems,FlattenedExp) -> Maybe (GenEqItems, [FlattenedExp])
     join Nothing (e,f) = Just (e,[f])
-    join (Just ((ex,ix),fxs)) ((ey,iy),fy) = Just ((A.Dyadic emptyMeta A.Add ex ey, ix ++ iy),fxs ++ [fy])
+    join (Just ((ex,ix),fxs)) ((ey,iy),fy) = Just ((addExprsInt ex ey, ix ++ iy),fxs ++ [fy])
 
 generateEquationInput :: Gen ([(((A.Expression,[ModuloCase]), (A.Expression,[ModuloCase])),VarMap,[HandyEq],[HandyIneq])],ParItems [A.Expression],A.Expression)
 generateEquationInput
@@ -873,8 +880,12 @@ generateMapping msg m0 m1
   = do testEqual ("Keys in variable mapping " ++ msg) (Map.keys m0') (Map.keys m1')
        return $ Map.elems $ zipMap mergeMaybe m0' m1'
   where
-    m0' = Map.mapKeys (fmapFlattenedExp canonicalise) m0
-    m1' = Map.mapKeys (fmapFlattenedExp canonicalise) m1
+    m0' = Map.mapKeys (fmapFlattenedExp (fromRight . rr . canonicalise)) m0
+    m1' = Map.mapKeys (fmapFlattenedExp (fromRight . rr . canonicalise)) m1
+
+    fromRight :: Either String a -> a
+    fromRight (Right s) = s
+    fromRight (Left _) = error "fromRight found Left"
 
 -- | Given a forward mapping list, translates equations across
 translateEquations :: forall m r. TestMonad m r =>

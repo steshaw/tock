@@ -35,6 +35,7 @@ import Metadata
 import OccamEDSL
 import TestFramework
 import TestUtils hiding (Var)
+import Types
 import UsageCheckAlgorithms
 import UsageCheckUtils
 import Utils
@@ -68,8 +69,9 @@ ab_eq_cd = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vC,A.ExprVa
 ab_eq_ba = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vA,A.ExprVariable m vB]
 ab_eq_b0 = A.Assign m [vA,vB] $ A.ExpressionList m [A.ExprVariable m vB,l0]
    
-a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [A.Dyadic m A.Plus (A.ExprVariable m vC) (A.ExprVariable m vD)]
-a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m [A.Monadic m A.MonadicNot (A.ExprVariable m vB)]
+a_eq_c_plus_d = A.Assign m [vA] $ A.ExpressionList m [dyadicExprInt "PLUS" (A.ExprVariable m vC) (A.ExprVariable m vD)]
+a_eq_not_b = A.Assign m [vA] $ A.ExpressionList m
+  [A.FunctionCall m (A.Name m $ occamDefaultOperator "NOT" [A.Bool]) [A.ExprVariable m vB]]
 
 testGetVarProc :: Test
 testGetVarProc = TestList (map doTest tests)
@@ -127,8 +129,6 @@ testGetVarProc = TestList (map doTest tests)
 --TODO test declarations being recorded, when I've decided how to record them
 
 type TestM = ReaderT CompState (Either String)
-instance Die TestM where
-  dieReport (_,s) = throwError s
 instance Warn TestM where
   warnReport (_,_,s) = throwError s
 

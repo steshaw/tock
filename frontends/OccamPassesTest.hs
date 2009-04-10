@@ -31,6 +31,7 @@ import CompState
 import Metadata
 import qualified OccamPasses
 import TestUtils
+import Types
 
 m :: Meta
 m = emptyMeta
@@ -96,7 +97,7 @@ testFoldConstants = TestList
     testSame :: Int -> A.Expression -> Test
     testSame n orig = test n orig orig
 
-    add e f = A.Dyadic m A.Add e f
+    add e f = addExprsInt e f
     var = exprVariable "var"
     const = exprVariable "const"
     one = intLiteral 1

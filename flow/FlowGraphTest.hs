@@ -34,6 +34,7 @@ import Test.HUnit hiding (Node, State, Testable)
 import Test.QuickCheck
 
 import qualified AST as A
+import CompState
 import FlowGraph
 import GenericUtils
 import Metadata
@@ -105,7 +106,7 @@ nextId' inc t
                       return n
          Nothing -> do put $ Map.insert m inc mp
                        return 0
-       where m = findMeta t
+       where m = findMeta_Data t
 
 -- | Given a test name, a list of nodes, a list of root nodes, a list of edges and an AST fragment, tests that the
 -- CFG produced from the given AST matches the nodes and edges.  The nodes do not have to have

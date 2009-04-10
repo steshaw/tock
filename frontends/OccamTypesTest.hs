@@ -127,24 +127,6 @@ testOccamTypes = TestList
     , testOK    54 $ A.DerefVariable m mobileIntV
     , testFail  55 $ A.DerefVariable m intC
 
-    -- Operators in expressions
-    , testOK   100 $ A.Monadic m A.MonadicSubtr intE
-    , testFail 101 $ A.Monadic m A.MonadicSubtr twoIntsE
-    , testFail 102 $ A.Monadic m A.MonadicSubtr boolE
-    , testFail 103 $ A.Monadic m A.MonadicNot intE
-    , testOK   104 $ A.Monadic m A.MonadicNot boolE
-    , testOK   105 $ A.Dyadic m A.Add intE intE
-    , testFail 106 $ A.Dyadic m A.Add intE byteE
-    , testFail 107 $ A.Dyadic m A.Add byteE intE
-    , testFail 108 $ A.Dyadic m A.Add byteE boolE
-    , testOK   109 $ A.Dyadic m A.LeftShift intE intE
-    , testOK   110 $ A.Dyadic m A.LeftShift byteE intE
-    , testFail 111 $ A.Dyadic m A.LeftShift intE byteE
-    , testOK   112 $ A.Dyadic m A.And boolE boolE
-    , testFail 113 $ A.Dyadic m A.And boolE intE
-    , testFail 114 $ A.Dyadic m A.And intE boolE
-    , testFail 115 $ A.Dyadic m A.Add twoIntsE twoIntsE
-
     -- Miscellaneous expressions
     , testOK   150 $ A.MostPos m A.Int
     , testFail 151 $ A.MostPos m twoIntsT

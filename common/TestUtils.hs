@@ -268,8 +268,8 @@ makeLiteralCharPattern :: Char -> Pattern
 makeLiteralCharPattern c = tag3 A.Literal DontCare A.Byte (tag2 A.ByteLiteral DontCare [c])
 
 data ExprHelper = 
-  Dy ExprHelper A.DyadicOp ExprHelper
-  | Mon A.MonadicOp ExprHelper
+  Dy ExprHelper String ExprHelper
+  | Mon (String, A.Type) ExprHelper
   | Cast A.Type ExprHelper
   | Var String
   | DirVar A.Direction String
@@ -281,8 +281,9 @@ buildExprPattern :: ExprHelper -> Pattern
 buildExprPattern = (stopCaringPattern emptyMeta) . mkPattern . buildExpr
 
 buildExpr :: ExprHelper -> A.Expression
-buildExpr (Dy lhs op rhs) = A.Dyadic emptyMeta op (buildExpr lhs) (buildExpr rhs)
-buildExpr (Mon op rhs) = A.Monadic emptyMeta op (buildExpr rhs)
+buildExpr (Dy lhs op rhs) = A.FunctionCall emptyMeta (A.Name emptyMeta
+  $ occamDefaultOperator op [A.Int, A.Int]) [buildExpr lhs, buildExpr rhs]
+buildExpr (Mon (op, t) rhs) = A.FunctionCall emptyMeta (A.Name emptyMeta $ occamDefaultOperator op [t]) [buildExpr rhs]
 buildExpr (Cast ty rhs) = A.Conversion emptyMeta A.DefaultConversion ty (buildExpr rhs)
 buildExpr (Var n) = A.ExprVariable emptyMeta $ variable n
 buildExpr (DirVar dir n) = A.ExprVariable emptyMeta $ (A.DirectedVariable emptyMeta dir $ variable n)
