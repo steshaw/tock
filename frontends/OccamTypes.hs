@@ -742,7 +742,7 @@ inferTypes = occamOnlyPass "Infer types"
                 , ts `typesEqForOp` tes
                 ]
               case possibles of
-                [] -> diePC m $ formatCode ("No matching " ++ opDescrip ++ " operator definition found for types: %") tes
+                [] -> diePC m $ formatCode "No matching % operator definition found for types: %" opDescrip tes
                 [poss] -> return $ fst poss
                 posss -> dieP m $ "Ambigious " ++ opDescrip ++ " operator, matches definitions: "
                                 ++ show (map (transformPair (A.nameMeta . fst) showOccam) posss)

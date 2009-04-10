@@ -693,6 +693,9 @@ instance ShowRain A.Replicator where
 instance Data a => ShowRain a where
   showRainM = tell . singleton . gshow
 
+instance ShowOccam String where
+  showOccamM s = tell [s]
+
 instance ShowOccam a => ShowOccam [a] where
   showOccamM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
     showOccamM xs) >> tell ["]"]
