@@ -283,7 +283,7 @@ makeUniqueName m s
                      -- For #INCLUDEd files, they might be included twice, so we
                      -- still need the extra suffixes:
                      else do put $ cs { csNameCounter = csNameCounter cs + 1 }
-                             return $ "u" ++ show (csNameCounter cs)
+                             return $ mungeMeta m ++ "u" ++ show (csNameCounter cs)
          return $ s ++ "_" ++ munged
 
 mungeMeta :: Meta -> String
