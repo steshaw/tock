@@ -22,7 +22,7 @@ module RainTypesTest (vioTests) where
 import Control.Monad.State
 import Control.Monad.Error
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 

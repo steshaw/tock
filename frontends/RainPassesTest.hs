@@ -31,7 +31,7 @@ module RainPassesTest (tests) where
 
 import Control.Monad.State
 import Control.Monad.Identity
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 

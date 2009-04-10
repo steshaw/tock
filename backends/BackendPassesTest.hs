@@ -22,7 +22,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module BackendPassesTest (qcTests) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 import Test.QuickCheck

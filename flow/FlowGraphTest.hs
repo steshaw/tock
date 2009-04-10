@@ -24,7 +24,7 @@ module FlowGraphTest (qcTests) where
 import Control.Monad.Identity
 import Control.Monad.State
 
-import Data.Generics
+import Data.Generics (Data)
 import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map
@@ -34,11 +34,14 @@ import Test.HUnit hiding (Node, State, Testable)
 import Test.QuickCheck
 
 import qualified AST as A
+import CompState
+import Data.Generics.Polyplate.Route
 import FlowGraph
 import Metadata
 import PrettyShow
 import TestFramework
 import TestUtils
+import Traversal
 import Utils
 
 -- | Makes a distinctive metatag for testing.  The function is one-to-one.
@@ -789,7 +792,7 @@ pickFuncRep gr = Map.fromList $ filter ((/= emptyMeta) . fst) $ map (helpApplyFu
     applyFunc (m,AlterSpec f) = routeModify f (g m)
     applyFunc (m,AlterNothing _) = return
     
-    g m = gmapM (mkM $ replaceM m (replaceMeta m))
+    g m = applyBottomUpM $ replaceM m (replaceMeta m)
 
 
 -- | It is important to have these functions in the right ratio.  The number of possible trees is

@@ -648,6 +648,7 @@ type InferTypeOps
     `ExtOpMP` A.Alternative
     `ExtOpMP` A.Process
     `ExtOpMP` A.Variable
+    `ExtOpMP` A.Variant
 
 -- | Infer types.
 inferTypes :: Pass A.AST
@@ -658,16 +659,18 @@ inferTypes = occamOnlyPass "Infer types"
   where
     ops :: InferTypeOps
     ops = baseOp
-          `extOp` doExpression
-          `extOp` doDimension
-          `extOp` doSubscript
-          `extOp` doArrayConstr
-          `extOp` doReplicator
-          `extOp` doAlternative
-          `extOp` doInputMode
-          `extOp` doSpecification
-          `extOp` doProcess
-          `extOp` doVariable
+          `extOpMS` (ops, doStructured)
+          `extOpM` doExpression
+          `extOpM` doDimension
+          `extOpM` doSubscript
+          `extOpM` doReplicator
+          `extOpM` doAlternative
+          `extOpM` doProcess
+          `extOpM` doVariable
+          `extOpM` doVariant
+
+    recurse :: RecurseM PassM InferTypeOps
+    recurse = makeRecurseM ops
 
     descend :: DescendM PassM InferTypeOps
     descend = makeDescendM ops
@@ -834,7 +837,26 @@ inferTypes = occamOnlyPass "Infer types"
            inTypeContext (Just ct) (recurse sv) >>* A.InputCase m
     doInputMode _ im = inTypeContext (Just A.Int) $ descend im
 
-    doStructured :: Data a => Transform (A.Structured a)
+    doVariant :: Transform A.Variant
+    doVariant (A.Variant m n iis p)
+      = do ctx <- getTypeContext
+           ets <- case ctx of
+             Just x -> protocolItems m x
+             Nothing -> dieP m "Could not deduce protocol"
+           case ets of
+             Left {} -> dieP m "Simple protocol expected during input CASE"
+             Right ps -> case lookup n ps of
+               Nothing -> diePC m $ formatCode "Name % is not part of protocol %"
+                 n (fromJust ctx)
+               Just ts -> do iis' <- sequence [inTypeContext (Just t) $ recurse ii
+                                              | (t, ii) <- zip ts iis]
+                             p' <- recurse p
+                             return $ A.Variant m n iis' p'
+
+    doStructured :: ( PolyplateM (A.Structured t) InferTypeOps () PassM
+                    , PolyplateM (A.Structured t) () InferTypeOps PassM
+                    , Data t) => Transform (A.Structured t)
+
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
         =  do (st', wrap) <- runReaderT (doSpecType n st) body
               -- Update the definition of each name after we handle it.
@@ -842,7 +864,11 @@ inferTypes = occamOnlyPass "Infer types"
               wrap (recurse body) >>* A.Spec mspec (A.Specification m n st')
     doStructured s = descend s
 
-    doSpecType :: Data a => A.Name -> A.SpecType -> ReaderT (A.Structured a) PassM A.SpecType
+    -- The second parameter is a modifier (wrapper) for the descent into the body
+    doSpecType :: ( PolyplateM (A.Structured t) InferTypeOps () PassM
+                  , PolyplateM (A.Structured t) () InferTypeOps PassM
+                  , Data t) => A.Name -> A.SpecType -> ReaderT (A.Structured t) PassM
+      (A.SpecType, PassM (A.Structured a) -> PassM (A.Structured a))
     doSpecType n st
         = case st of
             A.Place _ _ -> lift $ inTypeContext (Just A.Int) $ descend st >>* addId
@@ -1025,6 +1051,7 @@ inferTypes = occamOnlyPass "Infer types"
                     `extOpM` descend
                     `extOpM` descend
                     `extOpM` (doVariable r)
+                    `extOpM` descend
                 descend :: DescendM PassM InferTypeOps
                 descend = makeDescendM ops
 

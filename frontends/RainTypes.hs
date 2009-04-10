@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module RainTypes (constantFoldPass, performTypeUnification) where
 
 import Control.Monad.State
-import Data.Generics (Data, showConstr, toConstr)
+import Data.Generics (Data, showConstr, toConstr, Typeable)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe

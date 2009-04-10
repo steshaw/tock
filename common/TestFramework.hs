@@ -21,7 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module TestFramework where
 
 import Control.Monad.Error
-import Data.Generics
+import Data.Generics (Data)
 import System.IO.Unsafe
 import Test.HUnit hiding (Testable)
 import Test.QuickCheck hiding (check)

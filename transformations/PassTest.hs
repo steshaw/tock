@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module PassTest (tests) where
 
 import Control.Monad.State hiding (guard)
-import Data.Generics
+import Data.Generics (cast, Data, Typeable)
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 

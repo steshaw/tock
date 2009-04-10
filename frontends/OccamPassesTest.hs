@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module OccamPassesTest (tests) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Test.HUnit hiding (State)
 
 import qualified AST as A
@@ -32,6 +32,8 @@ import Metadata
 import qualified OccamPasses
 import Pass
 import TestUtils
+import Traversal
+import Types
 
 m :: Meta
 m = emptyMeta
@@ -138,15 +140,15 @@ testCheckConstants = TestList
     , testFail 33 (A.Option m [lit10, lit10, lit10, var] skip)
     ]
   where
-    testOK :: (PolyplateM a (TwoOpM PassM A.Dimension A.Option) () PassM
-              ,PolyplateM a () (TwoOpM PassM A.Dimension A.Option) PassM
+    testOK :: (PolyplateM a (TwoOpM PassM A.Type A.Option) () PassM
+              ,PolyplateM a () (TwoOpM PassM A.Type A.Option) PassM
               ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testCheckConstants" ++ show n)
                               orig OccamPasses.checkConstants orig
                               (return ())
-    testFail :: (PolyplateM a (TwoOpM PassM A.Dimension A.Option) () PassM
-                ,PolyplateM a () (TwoOpM PassM A.Dimension A.Option) PassM
+    testFail :: (PolyplateM a (TwoOpM PassM A.Type A.Option) () PassM
+                ,PolyplateM a () (TwoOpM PassM A.Type A.Option) PassM
                 ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)

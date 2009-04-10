@@ -233,7 +233,7 @@ tocktest_SOURCES += transformations/PassTest.hs
 tocktest_SOURCES += transformations/SimplifyAbbrevsTest.hs
 tocktest_SOURCES += transformations/SimplifyTypesTest.hs
 
-pregen_sources = data/AST.hs
+pregen_sources = data/AST.hs data/CompState.hs
 pregen_sources += pregen/PregenUtils.hs
 pregen_sources += polyplate/Data/Generics/Polyplate/GenInstances.hs
 

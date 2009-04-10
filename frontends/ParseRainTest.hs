@@ -35,7 +35,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- and then turn these into Patterns where any Meta tag that is "m" is ignored during the comparison.
 module ParseRainTest (tests) where
 
-import Data.Generics
+import Data.Generics (Data)
 import Prelude hiding (fail)
 import Test.HUnit
 import Text.ParserCombinators.Parsec (runParser,eof)

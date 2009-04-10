@@ -35,7 +35,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Writer hiding (tell)
-import Data.Generics
+import Data.Generics (Data)
 import Data.List (isInfixOf, intersperse)
 import Data.Maybe (fromMaybe)
 import Test.HUnit hiding (State)

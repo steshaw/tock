@@ -71,7 +71,96 @@ removeDirectionsForC
     doVariable (A.DirectedVariable _ _ v) = v
     doVariable v = v
 
-transformWaitFor :: Pass
+
+-- | Remove variable directions that are superfluous.  This prevents confusing
+-- later passes, where the user has written something like:
+-- []CHAN INT da! IS ...:
+-- foo(da!)
+--
+-- The second direction specifier is unneeded, and will confuse passes such as
+-- those adding sizes parameters (which looks for plain variables, since directed
+-- arrays should already have been pulled up).
+removeUnneededDirections :: PassOn A.Variable
+removeUnneededDirections
+  = occamOnlyPass "Remove unneeded variable directions"
+                  prereq
+                  []
+                  (applyBottomUpM doVariable)
+  where
+    doVariable :: Transform (A.Variable)
+    doVariable whole@(A.DirectedVariable m dir v)
+       = do t <- astTypeOf v
+            case t of
+              A.Chan {} -> return whole
+              A.Array _ (A.Chan {}) -> return whole
+              A.ChanEnd chanDir _ _ | dir == chanDir -> return v
+              A.Array _ (A.ChanEnd chanDir _ _) | dir == chanDir -> return v
+              _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
+    doVariable v = return v
+
+type AllocMobileOps = ExtOpMSP BaseOp `ExtOpMP` A.Process
+
+-- | Pulls up any initialisers for mobile allocations.  I think, after all the
+-- other passes have run, the only place these initialisers should be left is in
+-- assignments (and maybe not even those?) and A.Is items.
+pullAllocMobile :: PassOnOps AllocMobileOps
+pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] [] recurse
+  where
+    ops :: AllocMobileOps
+    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doProcess
+
+    recurse :: RecurseM PassM AllocMobileOps
+    recurse = makeRecurseM ops
+    descend :: DescendM PassM AllocMobileOps
+    descend = makeDescendM ops
+    
+    doProcess :: Transform A.Process
+    doProcess (A.Assign m [v] (A.ExpressionList me [A.AllocMobile ma t (Just e)]))
+      = return $ A.Seq m $ A.Several m $ map (A.Only m) $
+          [A.Assign m [v] $ A.ExpressionList me [A.AllocMobile ma t Nothing]
+          ,A.Assign m [A.DerefVariable m v] $ A.ExpressionList me [e]
+          ]
+    doProcess p = descend p
+
+    doStructured :: TransformStructured' AllocMobileOps
+    doStructured (A.Spec mspec (A.Specification mif n
+      (A.Is mis am t (A.ActualExpression (A.AllocMobile ma tm (Just e)))))
+        body)
+      = do body' <- recurse body
+           return $ A.Spec mspec (A.Specification mif n $
+             A.Is mis am t $ A.ActualExpression $ A.AllocMobile ma tm Nothing)
+             $ A.ProcThen ma
+                 (A.Assign ma [A.DerefVariable mif $ A.Variable mif n] $ A.ExpressionList ma [e])
+                 body'
+    doStructured s = descend s
+
+-- | Turns any literals equivalent to a MOSTNEG back into a MOSTNEG
+-- The reason for doing this is that C (and presumably C++) don't technically (according
+-- to the standard) allow you to write INT_MIN directly as a constant.  GCC certainly
+-- warns about it.  So this pass takes any MOSTNEG-equivalent values (that will have been
+-- converted to constants in the constant folding earlier) and turns them back
+-- into MOSTNEG, for which the C backend uses INT_MIN and similar, which avoid
+-- this problem.
+fixMinInt :: PassOn A.Expression
+fixMinInt
+  = cOrCppOnlyPass "Turn any literals that are equal to MOSTNEG INT back into MOSTNEG INT"
+                   prereq
+                   []
+                   (applyBottomUpM doExpression)
+  where
+    doExpression :: Transform (A.Expression)
+    doExpression l@(A.Literal m t (A.IntLiteral m' s))
+      = do folded <- constantFold (A.MostNeg m t)
+           case folded of
+             (A.Literal _ _ (A.IntLiteral _ s'), _, _)
+               -> if (s == s')
+                    then return $ A.MostNeg m t
+                    else return l
+             _ -> return l -- This can happen as some literals retain the Infer
+                           -- type which fails the constant folding
+    doExpression e = return e
+
+transformWaitFor :: PassOn A.Process
 transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
   []
   [Prop.waitForRemoved]

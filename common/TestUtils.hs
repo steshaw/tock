@@ -40,7 +40,7 @@ module TestUtils where
 
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Generics
+import Data.Generics (Data, Typeable)
 import qualified Data.Map as Map
 import System.Random
 import Test.HUnit hiding (State,Testable)

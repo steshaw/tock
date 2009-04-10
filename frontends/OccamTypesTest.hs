@@ -22,7 +22,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module OccamTypesTest (vioTests) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
 import Test.HUnit hiding (State)
 
 import qualified AST as A

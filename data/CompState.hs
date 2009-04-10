@@ -23,7 +23,7 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
-import Data.Generics (Data, Typeable)
+import Data.Generics (Data, Typeable, listify)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe
@@ -496,6 +496,8 @@ instance FindMeta A.Name where
   findMeta = A.nameMeta
 
 -- Should stop being lazy, and put these as pattern matches:
+--
+-- TODO also, at least use Polyplate!
 findMeta_Data :: Data a => a -> Meta
 findMeta_Data = head . listify (const True)
 

@@ -51,7 +51,8 @@ import Data.Graph.Inductive hiding (run)
 import Data.Maybe
 
 import qualified AST as A
-import GenericUtils
+import CompState
+import Data.Generics.Polyplate.Route
 import Metadata
 import FlowUtils
 import Utils

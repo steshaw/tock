@@ -30,7 +30,7 @@ module OccamEDSL (ExpInp, ExpInpT,
     becomes) where
 
 import Control.Monad.State hiding (guard)
-import Data.Generics
+import Data.Generics (Data)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Test.HUnit hiding (State)

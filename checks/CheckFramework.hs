@@ -420,40 +420,14 @@ applyAccum _ ops = ops'
     ops' :: ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
     ops' = (accum, ops)
 
-    extF ::
-       (forall a. Data a => TransFuncS acc z a) ->
-       (forall c. Data c => TransFuncS acc z c)
-    extF = (`extMRAccS` (\(x,_) -> modify (accOneF x) >> return x))
-    
-    applyAccum' :: (forall a. Data a => TransFuncAcc acc a) ->
-           (forall b. Data b => (b, Route b A.AST) -> StateT acc (RestartT CheckOptM) b)
-    applyAccum' f (x, route)
-      = do when (findMeta x /= emptyMeta) $ lift . lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
-           (x', acc) <- lift $ flip runStateT accEmpty (gmapMForRoute typeSet (extF wrap) x)
-           r <- f' (x', route, acc)
-           modify (`accJoinF` acc)
-           return r
-      where
-        wrap (y, route') = applyAccum' f (y, route @-> route')
-        
-        -- Keep applying the function while there is a Left return (which indicates
-        -- the value was replaced) until there is a Right return
-        f' (x, route, acc) = do
-          x' <- f (x, route, acc)
-          case x' of
-            Left y -> f' (y, route, foldl (flip accOneF) accEmpty (listify {-TODO-} (const True) y))
-            Right y -> return y
+    accum xr = do x' <- transformMRoute () ops' xr
+                  modify $ Map.insert (routeId $ snd xr) x'
+                  return x'
 
-applyTopDown :: TypeSet -> (forall a. Data a => TransFunc a) ->
-             (forall b. Data b => (b, Route b A.AST) -> RestartT CheckOptM b)
-applyTopDown typeSet f (x, route)
-      = do when (findMeta x /= emptyMeta) $ lift . CheckOptM $ modify $ \d -> d {lastValidMeta = findMeta x}
-           z <- f' (x, route)
-           gmapMForRoute typeSet (\(y, route') -> applyTopDown typeSet f (y, route @-> route')) z
-  where
-    -- Keep applying the function while there is a Left return (which indicates
-    -- the value was replaced) until there is a Right return
-    f' (x, route) = do
+-- Keep applying the function while there is a Left return (which indicates
+-- the value was replaced) until there is a Right return
+keepApplying :: Monad m => ((t, Route t outer) -> m (Either t t)) -> ((t, Route t outer) -> m t)
+keepApplying f (x, route) = do
       x' <- f (x, route)
       case x' of
         Left y -> keepApplying f (y, route)
