@@ -73,6 +73,7 @@ optionsNoWarnings =
   , Option [] ["external-link"] (ReqArg optCompilerLinkFlags "FLAGS") "link flags for C/C++ compiler"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
+  , Option ['u'] ["implicit-module"] (ReqArg optImplicitModule "MODULE") "implicitly use this module"
   , Option [] ["include-path"] (NoArg $ optPrintPath tockIncludeDir) "print include path"
   , Option [] ["lib-path"] (NoArg $ optPrintPath tockLibDir) "print lib path"
   , Option [] ["mode"] (ReqArg optMode "MODE") "select mode (options: flowgraph, lex, html, parse, compile, post-c, full)"
@@ -135,6 +136,9 @@ optSearchPath s ps = return $ ps { csSearchPath = csSearchPath ps ++ splitOnColo
     splitOnColons s = case span (/= ':') s of
       (p, _:more) -> p : splitOnColons more
       (p, []) -> [p]
+
+optImplicitModule :: String -> OptFunc
+optImplicitModule s ps = return $ ps { csImplicitModules = csImplicitModules ps ++ [s] }
 
 optCompilerFlags :: String -> OptFunc
 optCompilerFlags flags ps = return $ ps { csCompilerFlags = flags ++ " " ++ csCompilerFlags ps}

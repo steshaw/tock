@@ -119,6 +119,7 @@ data CompState = CompState {
     csClassicOccamMobility :: Bool,
     csUnknownStackSize :: Integer,
     csSearchPath :: [String],
+    csImplicitModules :: [String],
 
     -- Set by preprocessor
     csCurrentFile :: String, -- Also used by some later passes!
@@ -181,6 +182,7 @@ emptyState = CompState {
     csClassicOccamMobility = False,
     csUnknownStackSize = 512,
     csSearchPath = [".", tockIncludeDir],
+    csImplicitModules = [],
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,

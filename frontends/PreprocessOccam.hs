@@ -42,8 +42,8 @@ import StructureOccam
 import Utils
 
 -- | Preprocess a file and return its tokenised form ready for parsing.
-preprocessFile :: Meta -> String -> PassM [Token]
-preprocessFile m filename
+preprocessFile :: Meta -> [String] -> String -> PassM [Token]
+preprocessFile m implicitMods filename
     =  do (handle, realFilename) <- searchFile m filename
           progress $ "Loading source file " ++ realFilename
           origCS <- get
@@ -54,7 +54,7 @@ preprocessFile m filename
           modify (\cs -> cs { csCurrentFile = realFilename
                             , csUsedFiles = modFunc $ csUsedFiles cs })
           s <- liftIO $ hGetContents handle
-          toks <- preprocessSource m realFilename s
+          toks <- preprocessSource m implicitMods realFilename s
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
   where
@@ -62,13 +62,13 @@ preprocessFile m filename
     drop9 = reverse . drop 9 . reverse
 
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
-preprocessSource :: Meta -> String -> String -> PassM [Token]
-preprocessSource m realFilename s
+preprocessSource :: Meta -> [String] -> String -> String -> PassM [Token]
+preprocessSource m implicitMods realFilename s
     =  do toks <- runLexer realFilename $ removeASM s
           veryDebug $ "{{{ lexer tokens"
           veryDebug $ pshow toks
           veryDebug $ "}}}"
-          toks' <- preprocessOccam toks
+          toks' <- preprocessOccam $ incImplicit ++ toks
           veryDebug $ "{{{ preprocessed tokens"
           veryDebug $ pshow toks'
           veryDebug $ "}}}"
@@ -78,6 +78,11 @@ preprocessSource m realFilename s
           veryDebug $ "}}}"
           expandIncludes toks''
   where
+    incImplicit = concat [[Token emptyMeta $ TokPreprocessor $ "#USE \"" ++ f ++ "\""
+--                          ,Token emptyMeta EndOfLine
+                          ]
+                         | f <- implicitMods]
+    
     --ASM blocks tend to screw up the lexer.  Tock is unlikely to support them
     -- any time soon, but at the same time lots of occam code does have ASM blocks,
     -- and even if they are inside a #IFDEF, it will still cause Tock to choke
@@ -119,7 +124,7 @@ preprocessSource m realFilename s
 expandIncludes :: [Token] -> PassM [Token]
 expandIncludes [] = return []
 expandIncludes (Token m (IncludeFile filename) : Token _ EndOfLine : ts)
-    =  do contents <- preprocessFile m filename
+    =  do contents <- preprocessFile m [] filename
           rest <- expandIncludes ts
           return $ contents ++ rest
 expandIncludes (Token m (IncludeFile _) : _)
@@ -414,7 +419,8 @@ runPreprocParser m prod s
 -- | Load and preprocess an occam program.
 preprocessOccamProgram :: String -> PassM [Token]
 preprocessOccamProgram filename
-    =  do toks <- preprocessFile emptyMeta filename
+    =  do mods <- getCompState >>* csImplicitModules
+          toks <- preprocessFile emptyMeta mods filename
           -- Leave the main file name in the csCurrentFile slot:
           modify $ \cs -> cs { csCurrentFile = filename }
           veryDebug $ "{{{ tokenised source"
@@ -424,4 +430,4 @@ preprocessOccamProgram filename
 
 -- | Preprocesses occam source direct from the given String
 preprocessOccamSource :: String -> PassM [Token]
-preprocessOccamSource source = preprocessSource emptyMeta "<unknown>" source
+preprocessOccamSource source = preprocessSource emptyMeta [] "<unknown>" source
