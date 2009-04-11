@@ -45,46 +45,52 @@ unnest =
       ]
 
 type NameMap = Map.Map String A.Name
-type FreeNameOps = ExtOpQ NameMap (ExtOpQ NameMap (ExtOpQS NameMap BaseOp) A.Name) A.SpecType
+
+type FreeNameM = State (Map.Map String A.Name)
+
+type FreeNameOps = ExtOpM FreeNameM (ExtOpMS FreeNameM (ExtOpM FreeNameM BaseOp A.Name)) A.SpecType
 
 -- | Get the set of free names within a block of code.
-freeNamesIn :: PolyplateSpine t FreeNameOps () NameMap  => t -> NameMap
-freeNamesIn = flattenTree . recurse
+freeNamesIn :: PolyplateM t FreeNameOps () FreeNameM  => t -> NameMap
+freeNamesIn = flip execState Map.empty . recurse
   where
     flattenTree :: Tree (Maybe NameMap) -> NameMap
     flattenTree = foldl Map.union Map.empty . catMaybes . flatten
     
     ops :: FreeNameOps
-    ops = baseOp `extOpQS` (ops, doStructured) `extOpQ` doName `extOpQ` doSpecType
+    ops = baseOp `extOpM` doName `extOpMS` (ops, doStructured) `extOpM` doSpecType
 
-    recurse :: PolyplateSpine t FreeNameOps () NameMap => t -> Tree (Maybe NameMap)
-    recurse = transformSpine ops ()
-    descend :: PolyplateSpine t () FreeNameOps NameMap => t -> Tree (Maybe NameMap)
-    descend = transformSpine () ops
+    recurse :: PolyplateM t FreeNameOps () FreeNameM => t -> FreeNameM t
+    recurse = transformM ops ()
+    descend :: PolyplateM t () FreeNameOps FreeNameM => t -> FreeNameM t
+    descend = transformM () ops
     
     ignore :: t -> NameMap
     ignore s = Map.empty
 
-    doName :: A.Name -> NameMap
-    doName n = Map.singleton (A.nameName n) n
+    doName :: A.Name -> FreeNameM A.Name
+    doName n = modify (Map.insert (A.nameName n) n) >> return n
 
-    doStructured :: (Data a, PolyplateSpine (A.Structured a) () FreeNameOps NameMap
-                           , PolyplateSpine (A.Structured a) FreeNameOps () NameMap)
-      => A.Structured a -> NameMap
-    doStructured (A.Spec _ spec s) = doSpec spec s
-    doStructured s = flattenTree $ descend s
+    doStructured :: (Data a, PolyplateM (A.Structured a) () FreeNameOps FreeNameM
+                           , PolyplateM (A.Structured a) FreeNameOps () FreeNameM
+                    )
+      => A.Structured a -> FreeNameM (A.Structured a)
+    doStructured x@(A.Spec _ spec s) = doSpec spec s >> return x
+    doStructured s = descend s
 
-    doSpec :: (PolyplateSpine t () FreeNameOps NameMap
-              ,PolyplateSpine t FreeNameOps () NameMap) => A.Specification -> t -> NameMap
+    doSpec :: (PolyplateM t () FreeNameOps FreeNameM
+              ,PolyplateM t FreeNameOps () FreeNameM) => A.Specification -> t -> FreeNameM ()
     doSpec (A.Specification _ n st) child
-        = Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child
+        = modify (Map.union $ Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child)
       where
         fns = freeNamesIn st
 
-    doSpecType :: A.SpecType -> NameMap
-    doSpecType (A.Proc _ _ fs p) = Map.difference (freeNamesIn p) (freeNamesIn fs)
-    doSpecType (A.Function _ _ _ fs vp) = Map.difference (freeNamesIn vp) (freeNamesIn fs)
-    doSpecType st = flattenTree $ descend st
+    doSpecType :: A.SpecType -> FreeNameM A.SpecType
+    doSpecType x@(A.Proc _ _ fs p) = modify (Map.union $ Map.difference (freeNamesIn p) (freeNamesIn fs))
+      >> return x
+    doSpecType x@(A.Function _ _ _ fs vp) = modify (Map.union $ Map.difference (freeNamesIn vp) (freeNamesIn fs))
+      >> return x
+    doSpecType st = descend st
 
 -- | Replace names.
 --
@@ -125,8 +131,7 @@ removeFreeNames = pass "Convert free names to arguments"
   (applyBottomUpM2 doSpecification doProcess)
   where
     doSpecification :: A.Specification -> PassM A.Specification
-    doSpecification spec = case spec of
-        A.Specification m n st@(A.Proc mp sm fs p) ->
+    doSpecification (A.Specification m n st@(A.Proc mp sm fs (Just p))) =
           do -- If this is the top-level process, we shouldn't add new args --
              -- we know it's not going to be moved by removeNesting, so anything
              -- that it had in scope originally will still be in scope.
@@ -153,7 +158,7 @@ removeFreeNames = pass "Convert free names to arguments"
 
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             st' <- replaceNames (zip freeNames newNames) p >>* A.Proc mp sm (fs ++ newFs)
+             st' <- replaceNames (zip freeNames newNames) p >>* (A.Proc mp sm (fs ++ newFs) . Just)
              let spec' = A.Specification m n st'
 
              -- Update the definition of the proc
@@ -171,7 +176,7 @@ removeFreeNames = pass "Convert free names to arguments"
                modify $ (\ps -> ps { csAdditionalArgs = Map.insert (A.nameName n) newAs (csAdditionalArgs ps) })
 
              return spec'
-        _ -> return spec
+    doSpecification spec = return spec
 
     -- | Return whether a 'Name' could be considered a free name.
     --
