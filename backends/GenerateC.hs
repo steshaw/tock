@@ -1431,6 +1431,10 @@ cgenRecordTypeSpec n attr fs
           when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
+          tell ["typedef "]
+          genName n
+          origN <- lookupName n >>* A.ndOrigName
+          tell [" ", nameString $ A.Name emptyMeta origN, ";"]
           if null [t | (_, A.Mobile t) <- fs]
             then do genStatic TopLevel n
                     tell ["const word "]
@@ -1593,10 +1597,18 @@ genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
               genName n
               tell [" (Workspace wptr"]
               sequence_ [do tell [", "]
-                            t
+                            case origT of
+                              A.Record rn | forwardDecl
+                                -> do origN <- lookupName rn >>* A.ndOrigName
+                                      ct <- call getCType (A.nameMeta rn)
+                                        (A.Record rn) am
+                                      tell [show $ replacePlainType (nameString rn)
+                                        (nameString $ A.Name emptyMeta origN) ct
+                                        ]
+                              _ -> t
                             tell [" "]
                             n
-                         | (t, n) <- rfs]
+                         | (A.Formal am origT _, (t, n)) <- zip fs rfs]
               tell [")"]
 -- For externals, do nothing here:
 genProcSpec _ _ (A.Proc _ _ _ Nothing) _ = return ()

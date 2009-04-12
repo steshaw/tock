@@ -270,6 +270,15 @@ instance Show CType where
   show (Template wr cts) = wr ++ "<" ++ concat (intersperse "," $ map (either show show) cts) ++ ">/**/"
 --  show (Subscript t) = "(" ++ show t ++ "[n])"
 
+replacePlainType :: String -> String -> CType -> CType
+replacePlainType old new (Const ct) = Const $ replacePlainType old new ct
+replacePlainType old new (Pointer ct) = Pointer $ replacePlainType old new ct
+replacePlainType old new (Template t xs)
+  = Template t $ [transformEither (replacePlainType old new) id x | x <- xs]
+replacePlainType old new (Plain t)
+  | old == t  = Plain new
+  | otherwise = Plain t
+
 stripPointers :: CType -> CType
 stripPointers (Pointer t) = t
 stripPointers (Const (Pointer t)) = t
