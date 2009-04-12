@@ -412,8 +412,8 @@ MAKE_ALL_COMP(uint8_t,BYTE_BYTE)
 MAKE_ALL_BITWISE(uint8_t,BYTE_BYTE)
 
 // occam's only unsigned type, so we can use % directly.
-static inline uint8_t occam_rem_BYTE_BYTE (uint8_t, uint8_t, const char *) occam_unused;
-static inline uint8_t occam_rem_BYTE_BYTE (uint8_t a, uint8_t b, const char *pos) {
+static inline uint8_t occam_rem_BYTE_BYTE (occam_extra_param uint8_t, uint8_t, const char *) occam_unused;
+static inline uint8_t occam_rem_BYTE_BYTE (occam_extra_param uint8_t a, uint8_t b, const char *pos) {
 	if (b == 0) {
 		occam_stop (pos, 1, "modulo by zero");
 	}
