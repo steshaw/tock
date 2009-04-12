@@ -27,6 +27,7 @@ import Data.Generics
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
+import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
@@ -696,7 +697,7 @@ inferTypes = occamOnlyPass "Infer types"
             -- FIXME: AllocMobile
 
             A.ExprVariable m v ->
-              do ctx <- getTypeContext
+              do ctx <- getTypeContext >>= (T.sequence . fmap (underlyingType m))
                  v' <- recurse v
                  t <- astTypeOf v' >>= underlyingType m
                  case (ctx, t) of
@@ -1106,7 +1107,7 @@ inferTypes = occamOnlyPass "Infer types"
               return $ A.SubscriptedVariable m s' v''
     doVariable v
         =  do v' <- descend v
-              ctx <- getTypeContext
+              ctx <- getTypeContext  >>= (T.sequence . fmap (underlyingType (findMeta v)))
               underT <- astTypeOf v' >>= resolveUserType (findMeta v)
               case (ctx, underT) of
                 (Just (A.Mobile {}), A.Mobile {}) -> return v'
@@ -1290,7 +1291,7 @@ checkVariables = checkDepthM doVariable
         =  do t <- astTypeOf v >>= resolveUserType m
               case t of
                 A.Mobile _ -> ok
-                _ -> dieP m $ "Dereference applied to non-mobile variable"
+                _ -> diePC m $ formatCode "Dereference applied to non-mobile variable of type %" t
     doVariable _ = ok
 
 --}}}

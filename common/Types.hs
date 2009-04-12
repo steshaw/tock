@@ -252,10 +252,10 @@ typeOfVariable (A.Variable m n) = typeOfName n
 typeOfVariable (A.SubscriptedVariable m s v)
     = typeOfVariable v >>= subscriptType s
 typeOfVariable (A.DerefVariable m v)
-    = do t <- typeOfVariable v
+    = do t <- typeOfVariable v >>= resolveUserType m
          case t of
            A.Mobile innerT -> return innerT
-           _ -> dieP m $ "Dereference applied to non-mobile variable"
+           _ -> diePC m $ formatCode "Dereference applied to non-mobile variable of type %" t
 typeOfVariable (A.DirectedVariable m dir v)
     = do t <- typeOfVariable v
          case t of
