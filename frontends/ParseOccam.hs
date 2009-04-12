@@ -1741,8 +1741,7 @@ ifChoice
 guardedChoice :: OccParser (A.Structured A.Choice)
 guardedChoice
     =   do m <- md
-           b <- expression
-           eol
+           b <- tryVX expression eol
            indent
            p <- process
            outdent
