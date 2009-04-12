@@ -574,7 +574,7 @@ arrayType element
 specArrayType :: OccParser A.Type -> OccParser A.Type
 specArrayType element
     =   arrayType element
-    <|> do t <- tryXXV sLeft sRight element
+    <|> do t <- tryXXV sLeft sRight (specArrayType element <|> element)
            return $ addDimensions [A.UnknownDimension] t
 
 dataType :: OccParser A.Type
