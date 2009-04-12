@@ -1555,7 +1555,9 @@ genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
                                     || rm == A.Recursive
                                    then (genParHeader, genParParams)
                                    else (genNormalHeader, return ())
-          genStatic lvl n
+          if sm == A.InlineSpec
+            then tell ["static "] -- definitely static
+            else genStatic lvl n
           header
           if forwardDecl
             then tell [";\n"]
