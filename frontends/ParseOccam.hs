@@ -1914,6 +1914,7 @@ actual (A.Formal am t n)
               case stripArrayType t of
                 A.Chan {} -> var directedChannel <|> chanArray
                 A.ChanEnd {} -> var directedChannel <|> chanArray
+                A.ChanDataType {} -> var directedChannel
                 A.Timer {} -> var timer
                 A.Port _ -> var port
                 _ -> var variable
