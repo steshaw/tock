@@ -861,6 +861,9 @@ cgetCType m origT am
 
          (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
 
+         (A.Barrier, _, False, A.Original) -> return $ Pointer $ Plain "mt_barrier_t"
+         (A.Barrier, _, False, A.Abbrev) -> return $ Pointer $ Plain "mt_barrier_t"
+
          -- Scalar types:
          (_, Just pl, False, A.Original) -> return $ Plain pl
          (_, Just pl, False, A.Abbrev) -> return $ Const $ Pointer $ Plain pl
@@ -1422,6 +1425,10 @@ cintroduceSpec lvl (A.Specification _ n (A.Retypes m am t v))
           call genRetypeSizes m t n origT v
 cintroduceSpec _ (A.Specification _ n (A.Rep m rep))
    = call genReplicatorStart n rep
+cintroduceSpec _ (A.Specification _ n (A.Forking _))
+   = do tell ["mt_barrier_t* "]
+        genName n
+        tell [" = (mt_barrier_t*)MTAlloc(wptr, MT_MAKE_BARRIER (MT_BARRIER_FORKING), 0);"]
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec _ n = call genMissing $ "introduceSpec " ++ show n
 
@@ -1507,7 +1514,10 @@ cremoveSpec (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
                       then "MT_CB_CLIENT"
                       else "MT_CB_SERVER"
                ,");"]
-
+cremoveSpec (A.Specification _ n (A.Forking _))
+  = do tell ["MTSync(wptr,"]
+       genName n
+       tell [");"]
 cremoveSpec _ = return ()
 
 cgenSpecMode :: A.SpecMode -> CGen ()
@@ -1617,20 +1627,24 @@ genProcSpec _ _ (A.Proc _ _ _ Nothing) _ = return ()
 
 -- | Generate a ProcAlloc for a PAR subprocess, returning a nonce for the
 -- workspace pointer and the name of the function to call.
-cgenProcAlloc :: A.Name -> [A.Formal] -> [A.Actual] -> CGen (String, CGen ())
-cgenProcAlloc n fs as
+cgenProcAlloc :: Bool -> A.Name -> [A.Formal] -> [A.Actual] -> CGen (String, CGen ())
+cgenProcAlloc forking n fs as
     =  do ras <- liftM concat $ sequence
                 [do isMobile <- isMobileType t
                     let (s, fct) = case (am, isMobile) of
                               (A.ValAbbrev, _) -> ("ProcParam", id)
                               -- This is not needed unless forking:
-                              --(_, True) -> ("ProcMTMove", Pointer)
+                              (_, True) | forking -> ("ProcMTMove", Pointer)
+                              -- This will screw things up with barriers proper
+                              -- being passed to forking processes,
+                              -- but will work for other forking:
+                              _ | forking && t == A.Barrier -> ("ProcMTCopy", id)
                               _ -> ("ProcParam", id)
                     return $ zip (repeat s) $ realActuals f a fct
                 | (f@(A.Formal am t _), a) <- zip fs as]
 
           ws <- csmLift $ makeNonce (A.nameMeta n) "workspace"
-          tell ["Workspace ", ws, " = TockProcAlloc (wptr, ", show $ length ras, ", "]
+          tell ["Workspace ", ws, " = ", if forking then "ProcAlloc" else "TockProcAlloc"," (wptr, ", show $ length ras, ", "]
           genName n
           tell ["_stack_size);\n"]
 
@@ -1664,6 +1678,17 @@ cgenProcess p = case p of
   A.InjectPoison m ch -> call genPoison m ch
   A.ProcCall m n as -> call genProcCall n as
   A.IntrinsicProcCall m s as -> call genIntrinsicProc m s as
+  A.Fork m (Just n) p
+    -> do (n, as) <- case p of
+            A.ProcCall _ n as -> return (n, as)
+            A.Seq _ (A.Only _ (A.ProcCall _ n as)) -> return (n, as)
+            _ -> diePC m $ formatCode "Cannot FORK off: %" p
+          A.Proc _ _ fs _ <- specTypeOfName n
+          (ws, func) <- cgenProcAlloc True n fs as
+          tell ["ProcStart(wptr,", ws, ","]
+          func
+          tell [");"]
+  A.ClearMobile m v -> call genClearMobile m v
 
 --{{{  assignment
 cgenAssign :: Meta -> [A.Variable] -> A.ExpressionList -> CGen ()
@@ -1928,7 +1953,7 @@ cgenPar pm s
     startP :: String -> String -> Meta -> A.Process -> CGen ()
     startP bar wss _ (A.ProcCall _ n as)
         =  do (A.Proc _ _ fs _) <- specTypeOfName n
-              (ws, func) <- cgenProcAlloc n fs as
+              (ws, func) <- cgenProcAlloc False n fs as
               tell ["LightProcStart (wptr, &", bar, ", ", ws, ", "]
               func
               tell [");"]
