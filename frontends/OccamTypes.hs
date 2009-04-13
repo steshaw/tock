@@ -99,7 +99,9 @@ areValidDimensions _ _ = return False
 -- | Check that a type we've inferred matches the type we expected.
 checkType :: Meta -> A.Type -> A.Type -> PassM ()
 checkType m et rt
-    = case (et, rt) of
+ = do et' <- resolveUserType m et
+      rt' <- resolveUserType m rt
+      case (et', rt') of
         (A.Infer, _) -> ok
         (A.Array ds t, A.Array ds' t') ->
           do valid <- areValidDimensions ds ds'
@@ -108,7 +110,7 @@ checkType m et rt
                else bad
         (A.Mobile t, A.Mobile t') -> checkType m t t'
         _ ->
-          do same <- sameType rt et
+          do same <- sameType rt' et'
              when (not same) $ bad
   where
     bad :: PassM ()
