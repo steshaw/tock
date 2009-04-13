@@ -142,6 +142,7 @@ data Type =
   | Any
   | Timer TimerType
   | Time
+  | Barrier
   | Port Type
   | Mobile Type
   -- | A type that will be inferred automatically by a pass.
@@ -486,6 +487,8 @@ data SpecType =
   -- | A replicator (as in SEQ i = 0 FOR 6).  The scope of the replicator is
   -- the code that is replicated according to this replicator.
   | Rep Meta Replicator
+  -- | A forking block.
+  | Forking Meta
   deriving (Show, Eq, Typeable, Data)
 
 -- | Specification mode for @PROC@s and @FUNCTION@s.
@@ -553,6 +556,7 @@ data Process =
   | Case Meta Expression (Structured Option)
   | While Meta Expression Process
   | Par Meta ParMode (Structured Process)
+  | Fork Meta (Maybe Name) Process
   -- | A @PROCESSOR@ process.
   -- The occam2.1 syntax says this is just a process, although it shouldn't be
   -- legal outside a @PLACED PAR@.
