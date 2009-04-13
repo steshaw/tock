@@ -263,7 +263,7 @@ abbrevCheckPass
                      checkNotWritten (A.Variable m n) "VAL-abbreviated variable % written-to inside the scope of the abbreviation"
                      sequence_ [checkNotWritten v
                        "Abbreviated variable % used inside the scope of the abbreviation"
-                       | A.ExprVariable _ v <- listifyTopDown (const True) e]
+                       | A.ExprVariable _ v <- listifyDepth (const True) e]
                      pop
            return s
     doStructured s = descend s
@@ -288,7 +288,7 @@ abbrevCheckPass
     checkAbbreved v@(A.Variable {}) msg = checkNone v msg
     checkAbbreved v@(A.DirectedVariable {}) msg = checkNone v msg
     checkAbbreved (A.SubscriptedVariable _ sub v) msg
-      = sequence_ [checkNotWritten subV msg | subV <- listifyTopDown (const True) sub]
+      = sequence_ [checkNotWritten subV msg | subV <- listifyDepth (const True) sub]
 
     checkNone :: A.Variable -> String -> StateT [Map.Map Var Bool] PassM ()
     checkNone v msg

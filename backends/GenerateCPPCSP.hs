@@ -144,11 +144,11 @@ cppgenTopLevel headerName s
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
 
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (listifyTopDown isTopLevelSpec s)
+                                       (reverse $ listifyDepth isTopLevelSpec s)
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
           sequence_ $ map (call genForwardDeclaration)
-                            (listifyTopDown (\sp@(A.Specification _ n _)
+                            (reverse $ listifyDepth (\sp@(A.Specification _ n _)
                               -> not (isTopLevelSpec sp)
                                  && A.nameName n `notElem` map fst (csExternals cs)) s)
 

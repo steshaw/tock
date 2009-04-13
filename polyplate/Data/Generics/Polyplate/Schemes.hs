@@ -86,9 +86,12 @@ makeCheckM ops f v
 -- the item in the list, False to drop it), finds all items of type \"s\" in some
 -- larger item (of type \"t\") that satisfy this function, listed in depth-first
 -- order.
-listifyTopDown :: (PolyplateM t (OneOpM (State [s]) s) () (State [s])
-                  ,PolyplateM s () (OneOpM (State [s]) s) (State [s])) => (s -> Bool) -> t -> [s]
-listifyTopDown qf = flip execState [] . applyBottomUpM qf'
+listifyDepth :: (PolyplateM t (OneOpM (State [s]) s) () (State [s])
+                ,PolyplateM s () (OneOpM (State [s]) s) (State [s])) => (s -> Bool) -> t -> [s]
+-- We use applyBottomUp because we are prepending to the list.  If we prepend from
+-- the bottom up, that's the same as appending from the top down, which is what
+-- this function is meant to be doing.
+listifyDepth qf = flip execState [] . applyBottomUpM qf'
   where
     qf' x = if qf x then modify (x:) >> return x else return x
 
