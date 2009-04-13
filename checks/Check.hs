@@ -107,12 +107,12 @@ followBK = map followBK'
             next = Set.fromList $ map Var $ concatMap allVarsInBK bk
 
 allVarsInBK :: BackgroundKnowledge -> [A.Variable]
-allVarsInBK (Equal a b) = listifyDepth (const True) a
-                            ++ listifyDepth (const True) b
-allVarsInBK (LessThanOrEqual a b) = listifyDepth (const True) a
-                                      ++ listifyDepth (const True) b
-allVarsInBK (RepBoundsIncl v a b) = v : (listifyDepth (const True) a
-                                           ++ listifyDepth (const True) b)
+allVarsInBK (Equal a b) = listifyTopDown (const True) a
+                            ++ listifyTopDown (const True) b
+allVarsInBK (LessThanOrEqual a b) = listifyTopDown (const True) a
+                                      ++ listifyTopDown (const True) b
+allVarsInBK (RepBoundsIncl v a b) = v : (listifyTopDown (const True) a
+                                           ++ listifyTopDown (const True) b)
 
 data And a = And [a]
 data Or a = Or [a]

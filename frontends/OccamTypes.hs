@@ -1307,10 +1307,14 @@ inferTypes = occamOnlyPass "Infer types"
 -- This is actually a series of smaller passes that check particular types
 -- inside the AST, but it doesn't really make sense to split it up.
 checkTypes ::
- (PolyplateSpine t (OneOpQ (PassM ()) A.Variable) () (PassM ())
- ,PolyplateSpine t (OneOpQ (PassM ()) A.Expression) () (PassM ())
- ,PolyplateSpine t (OneOpQ (PassM ()) A.SpecType) () (PassM ())
- ,PolyplateSpine t (OneOpQ (PassM ()) A.Process) () (PassM ())
+ (PolyplateM t (OneOpM PassM A.Variable) () PassM
+ ,PolyplateM t (OneOpM PassM A.Expression) () PassM
+ ,PolyplateM t (OneOpM PassM A.SpecType) () PassM
+ ,PolyplateM t (OneOpM PassM A.Process) () PassM
+ ,PolyplateM t () (OneOpM PassM A.Variable) PassM
+ ,PolyplateM t () (OneOpM PassM A.Expression) PassM
+ ,PolyplateM t () (OneOpM PassM A.SpecType) PassM
+ ,PolyplateM t () (OneOpM PassM A.Process) PassM
  ) => Pass t
 checkTypes = occamOnlyPass "Check types"
   [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved]
@@ -1326,8 +1330,8 @@ checkTypes = occamOnlyPass "Check types"
 
 --{{{  checkVariables
 
-checkVariables :: PlainCheckOn A.Variable
-checkVariables = checkDepthM doVariable
+checkVariables :: PassTypeOn A.Variable
+checkVariables x = checkDepthM doVariable x >> return x
   where
     doVariable :: Check A.Variable
     doVariable (A.SubscriptedVariable m s v)
@@ -1357,8 +1361,8 @@ checkVariables = checkDepthM doVariable
 --}}}
 --{{{  checkExpressions
 
-checkExpressions :: PlainCheckOn A.Expression
-checkExpressions = checkDepthM doExpression
+checkExpressions :: PassTypeOn A.Expression
+checkExpressions x = checkDepthM doExpression x >> return x
   where
     doExpression :: Check A.Expression
     doExpression (A.MostPos m t) = checkNumeric m t
@@ -1409,8 +1413,8 @@ checkExpressions = checkDepthM doExpression
 --}}}
 --{{{  checkSpecTypes
 
-checkSpecTypes :: PlainCheckOn A.SpecType
-checkSpecTypes = checkDepthM doSpecType
+checkSpecTypes :: PassTypeOn A.SpecType
+checkSpecTypes x = checkDepthM doSpecType x >> return x
   where
     doSpecType :: Check A.SpecType
     doSpecType (A.Place _ e) = checkExpressionInt e
@@ -1532,8 +1536,8 @@ checkSpecTypes = checkDepthM doSpecType
 --}}}
 --{{{  checkProcesses
 
-checkProcesses :: PlainCheckOn A.Process
-checkProcesses = checkDepthM doProcess
+checkProcesses :: PassTypeOn A.Process
+checkProcesses x = checkDepthM doProcess x >> return x
   where
     doProcess :: Check A.Process
     doProcess (A.Assign m vs el)

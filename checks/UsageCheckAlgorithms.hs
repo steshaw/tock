@@ -204,7 +204,7 @@ findConstraints graph startNode
     processNode (n, e) nodeVal curAgg = case fmap getNodeData $ lab graph n of
       Just u ->
         let overlapsWithWritten e = not $ null $ intersect
-              (listifyDepth (const True) $ snd e)
+              (listifyTopDown (const True) $ snd e)
               [v | Var v <- Map.keys $ writtenVars $ nodeVars u]
             valFilt = filter (not . overlapsWithWritten) $
                 nub $ nodeVal ++ (case e of

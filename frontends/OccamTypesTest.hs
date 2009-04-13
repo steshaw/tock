@@ -502,20 +502,28 @@ testOccamTypes = TestList
     --}}}
     ]
   where
-    testOK :: (PolyplateSpine a (OneOpQ (PassM ()) A.Variable) () (PassM ())
-              ,PolyplateSpine a (OneOpQ (PassM ()) A.Expression) () (PassM ())
-              ,PolyplateSpine a (OneOpQ (PassM ()) A.SpecType) () (PassM ())
-              ,PolyplateSpine a (OneOpQ (PassM ()) A.Process) () (PassM ())
+    testOK :: (PolyplateM a (OneOpM PassM A.Variable) () PassM
+              ,PolyplateM a (OneOpM PassM A.Expression) () PassM
+              ,PolyplateM a (OneOpM PassM A.SpecType) () PassM
+              ,PolyplateM a (OneOpM PassM A.Process) () PassM
+              ,PolyplateM a () (OneOpM PassM A.Variable) PassM
+              ,PolyplateM a () (OneOpM PassM A.Expression) PassM
+              ,PolyplateM a () (OneOpM PassM A.SpecType) PassM
+              ,PolyplateM a () (OneOpM PassM A.Process) PassM
               ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testOccamTypes " ++ show n)
                               orig OccamTypes.checkTypes orig
                               startState
 
-    testFail :: (PolyplateSpine a (OneOpQ (PassM ()) A.Variable) () (PassM ())
-                ,PolyplateSpine a (OneOpQ (PassM ()) A.Expression) () (PassM ())
-                ,PolyplateSpine a (OneOpQ (PassM ()) A.SpecType) () (PassM ())
-                ,PolyplateSpine a (OneOpQ (PassM ()) A.Process) () (PassM ())
+    testFail :: (PolyplateM a (OneOpM PassM A.Variable) () PassM
+                ,PolyplateM a (OneOpM PassM A.Expression) () PassM
+                ,PolyplateM a (OneOpM PassM A.SpecType) () PassM
+                ,PolyplateM a (OneOpM PassM A.Process) () PassM
+                ,PolyplateM a () (OneOpM PassM A.Variable) PassM
+                ,PolyplateM a () (OneOpM PassM A.Expression) PassM
+                ,PolyplateM a () (OneOpM PassM A.SpecType) PassM
+                ,PolyplateM a () (OneOpM PassM A.Process) PassM
                 ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testOccamTypes " ++ show n)

@@ -31,8 +31,8 @@ import qualified Errors
 
 main :: IO ()
 main = do
-  [instFileName, spineInstFileName] <- getArgs
-  writeInstancesToSep GenWithOverlapped GenClassPerType
+  [instFileName] <- getArgs
+  writeInstancesTo GenWithOverlapped GenOneClass
       [ genInstance (undefined :: AST.AST)
       , genInstance (undefined :: CompState.CompState)
       -- All the maps that are in CompState:
@@ -48,8 +48,8 @@ main = do
       , genSetInstance (undefined :: AST.Name)
       , genSetInstance (undefined :: CompState.NameAttr)
       ]
-      (header False (findModuleName instFileName), header True (findModuleName spineInstFileName))
-      (instFileName, spineInstFileName)
+      (header False (findModuleName instFileName))
+      instFileName
   where
     findModuleName moduleFileName
       | not (".hs" `isSuffixOf` moduleFileName)

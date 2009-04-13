@@ -19,8 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module Data.Generics.Polyplate.Schemes where
 
-import Data.Maybe
-import Data.Tree
+import Control.Monad.State
 
 import Data.Generics.Polyplate
 import Data.Generics.Polyplate.Route
@@ -81,52 +80,17 @@ makeCheckM ops f v
     descend = makeDescend ops
 -}
 
--- * Query functions that return rose-trees of results
-
--- | Given a query function that turns all items of type \"s\" into results of
--- type \"a\", applies the function to every instance of \"s\" inside a larger
--- structure of type \"t\", and gives the resulting values of type \"a\" back in
--- a rose-tree.  A node in the tree will be generated for every constructor in
--- the larger item (of type \"t\").  If the constructor was of type \"s\", the
--- corresponding tree node will contain Just (the result of the query function).
---  If the constructor was any other type, the corresponding tree node will contain
--- Nothing.
---
--- Also note that the result is trimmed.  If a particular sub-tree has no items
--- of the target type, instead of getting a whole sub-tree with Nothing values,
--- you will get one node (at the top of the sub-tree) with a Nothing value.  This
--- is to make the traversal more efficient, in terms of time and space.
-applyQuery :: PolyplateSpine t (OneOpQ a s) () a => (s -> a) -> t -> Tree (Maybe a)
-applyQuery qf = transformSpine ops ()
-  where
-    ops = baseOp `extOpQ` qf
-
--- | As 'applyQuery', but takes two query functions that act on different types
--- (\"sA\" and \"sB\") but return the same result type (\"a\").
-applyQuery2 :: PolyplateSpine t (TwoOpQ a sA sB) () a => (sA -> a) -> (sB -> a) -> t -> Tree (Maybe a)
-applyQuery2 qfA qfB = transformSpine ops ()
-  where
-    ops = baseOp `extOpQ` qfA `extOpQ` qfB 
-
 -- * Listify functions that return lists of items that satisfy given criteria
 
 -- | Given a function that examines a type \"s\" and gives an answer (True to include
 -- the item in the list, False to drop it), finds all items of type \"s\" in some
 -- larger item (of type \"t\") that satisfy this function, listed in depth-first
 -- order.
-listifyDepth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-listifyDepth qf = catMaybes . flatten . fmap (fromMaybe Nothing) . transformSpine ops ()
+listifyTopDown :: (PolyplateM t (OneOpM (State [s]) s) () (State [s])
+                  ,PolyplateM s () (OneOpM (State [s]) s) (State [s])) => (s -> Bool) -> t -> [s]
+listifyTopDown qf = flip execState [] . applyBottomUpM qf'
   where
-    qf' x = if qf x then Just x else Nothing
-    ops = baseOp `extOpQ` qf'
-
--- | As 'listifyDepth', but the returned list is in breadth-first order.
-listifyBreadth :: PolyplateSpine t (OneOpQ (Maybe s) s) () (Maybe s) => (s -> Bool) -> t -> [s]
-listifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . transformSpine ops ()
-  where
-    qf' x = if qf x then Just x else Nothing
-    ops = baseOp `extOpQ` qf'
-
+    qf' x = if qf x then modify (x:) >> return x else return x
 
 -- * Check functions to apply monadic checks throughout a data structure
 
@@ -136,23 +100,19 @@ listifyBreadth qf = catMaybes . (concat . levels) . fmap (fromMaybe Nothing) . t
 --
 -- This can be used, for example, to perform checks on items in an error monad,
 -- or to accumulate information in a state monad.
-checkDepthM :: (Monad m, PolyplateSpine t (OneOpQ (m ()) s) () (m ())) => (s -> m ()) -> t -> m ()
-checkDepthM f = sequence_ . catMaybes . flatten . applyQuery f
+checkDepthM :: (Monad m, PolyplateM t (OneOpM m s) () m
+                       , PolyplateM s () (OneOpM m s) m) => (s -> m ()) -> t -> m ()
+checkDepthM f x = applyBottomUpM (\x -> f x >> return x) x >> return ()
 
 -- | As 'checkDepthM', but takes two functions (one operating on type \"r\", the
 -- other on type \"s\").
-checkDepthM2 :: (Monad m, PolyplateSpine t (TwoOpQ (m ()) r s) () (m ())) =>
+checkDepthM2 :: (Monad m, PolyplateM t (TwoOpM m r s) () m
+                        , PolyplateM r () (TwoOpM m r s) m
+                        , PolyplateM s () (TwoOpM m r s) m
+                        ) =>
   (r -> m ()) -> (s -> m ()) -> t -> m ()
-checkDepthM2 f g = sequence_ . catMaybes . flatten . applyQuery2 f g
-
--- | As 'checkDepthM', but applies the checks in breadth-first order.
-checkBreadthM :: (Monad m, PolyplateSpine t (OneOpQ (m ()) s) () (m ())) => (s -> m ()) -> t -> m ()
-checkBreadthM f = sequence_ . catMaybes . concat . levels . applyQuery f
-
--- | As 'checkDepthM2', but applies the checks in breadth-first order.
-checkBreadthM2 :: (Monad m, PolyplateSpine t (TwoOpQ (m ()) r s) () (m ())) =>
-  (r -> m ()) -> (s -> m ()) -> t -> m ()
-checkBreadthM2 f g = sequence_ . catMaybes . concat . levels . applyQuery2 f g
+checkDepthM2 f g x = applyBottomUpM2 (\x -> f x >> return x)
+                                     (\y -> g y >> return y) x >> return ()
 
 -- * Functions to easily apply transformations throughout a data structure
 

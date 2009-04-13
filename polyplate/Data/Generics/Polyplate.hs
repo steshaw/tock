@@ -124,14 +124,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- 
 -- TODO include an example with routes
 module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(..),
-  PolyplateSpine(..), {-FullSpine(..),-} transformSpine, {-transformSpineFull,-} trimTree,
   makeRecurseM, RecurseM, makeRecurse, Recurse,
   makeDescendM, DescendM, makeDescend, Descend,
 --  makeRecurseQ, RecurseQ,
 --  makeDescendQ, DescendQ,
   BaseOp, baseOp,
-  ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp,
-  ExtOpQ, extOpQ, OneOpQ, TwoOpQ) where
+  ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp
+  ) where
 
 import Control.Monad.Identity
 import Data.Maybe
@@ -232,77 +231,6 @@ instance (Monad m
       fakeRoute :: t -> Route t ()
       fakeRoute = const $ error "transformM"
 
-  -- List of use cases for the Polyplate type-class, to try to decide best on its
-  -- necessary functions:
-  --
-  -- 1. To perform a monadic modification on specific types in the ops across a
-  -- whole structure.
-  -- 2. As #1, but non-monadic (use Identity monad to adapt the above)
-  -- 3. To perform a query across the whole tree that returns a rose-tree that reflects
-  -- the (spine-view) structure of the data.
-  -- 4. As #3, but to return a flattened list (use flatten to adapt the above)
-  -- 5. To perform a monadic modification that also uses modification wrappers,
-  -- (a more general case of #1)
-  --
-  -- So I think there are two classes needed:
-  --
-  -- 1. One to apply monadic transformations that takes routes (covers #5, #2, #1)
-  -- 
-  -- 2. One to apply tree-based queries that transform a whole data structure into
-  -- its tree spine-view, with optional methods for flattening into a depth-first
-  -- or breadth-first order.
-
--- | A class for transforming a data structure into its spine-view rose tree based
--- on query functions.
--- 
--- The first parameter is the item being processed.  The fourth parameter is the
--- return type of the query functions, which is used in the returned tree.
---
--- The second and third parameters are the usual ops sets, but of the form:
---
--- > (s -> a, (t -> a, ()))
-class PolyplateSpine t o o' a where
-  -- | You are unlikely to need to use this function directly at all.  See 'transformSpine'
-  -- or 'applyQuery' and 'listifyDepth' (and friends).
-  --
-  -- The third parameter, which transformSpine passes as Nothing, is the value
-  -- to be used for the current node.  Because this value is set somewhere in the
-  -- middle of the ops set, not necessarily at the end, this must be passed along
-  -- the sideways calls (while processing the first ops set).
-  transformSpineSparse :: o -> o' -> Maybe a -> t -> Tree (Maybe a)
-
-transformSpine :: PolyplateSpine t o o' a => o -> o' -> t -> Tree (Maybe a)
-transformSpine o o' = transformSpineSparse o o' Nothing
-
-{-
--- | Used at the type-level by this library to force a full traversal of a data
--- structure.  You are unlikely to need to use this directly.
-data FullSpine a = FullSpine a
--- TODO make this work
-
-transformSpineFull :: (ConvertSpineOpsToFull a o co, ConvertSpineOpsToFull a o' co',
-  PolyplateSpine t co co' a) =>
-  a -> o -> o' -> t -> Tree a
-transformSpineFull def o o' x
-  = fmap fromJust' $
-      transformSpineSparse
-      (convertSpineOpsToFull def o)
-      (convertSpineOpsToFull def o')
-      Nothing x
-  where
-    fromJust' (Just x) = x
-    fromJust' _ = error "transformSpineFull: internal error"
--}
-
--- | A function for pruning rose trees of maybe values.  All trees where the node
--- value (and the node value of all its children) is Nothing are discarded (Nothing
--- is returned).
-trimTree :: Tree (Maybe a) -> Maybe (Tree (Maybe a))
-trimTree tr | isNothing (rootLabel tr) && null trimmedChildren = Nothing
-            | otherwise = Just (Node (rootLabel tr) trimmedChildren)
-    where
-      trimmedChildren = mapMaybe trimTree (subForest tr)
-
 -- | A non-monadic equivalent of PolyplateM.  All ops sets are of the form:
 --
 -- > (a -> a, (b -> b, ()))
@@ -383,11 +311,6 @@ type ExtOpMRoute m opT t outer = ((t, Route t outer) -> m t, opT)
 -- for use with the 'Polyplate' class.
 type ExtOp opT t = (t -> t, opT)
 
--- | The type that extends a query-ops set to be applied to the given type (t).
--- Not to be mixed with modification operations.  This is for use with the 'PolyplateSpine'
--- class.
-type ExtOpQ a opQ t = (t -> a, opQ)
-
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
 -- same list.  This is for use with the 'PolyplateM' class.
@@ -406,26 +329,15 @@ extOpMRoute ops f = (f, ops)
 extOp :: opT -> (t -> t) -> ExtOp opT t
 extOp ops f = (f, ops)
 
--- | The function that extends a query-ops set to be applied to the given type (t).
--- Not to be mixed with modification operations.  This is for use with the 'PolyplateSpine'
--- class.
-extOpQ :: opQ -> (t -> a) -> ExtOpQ a opQ t
-extOpQ ops f = (f, ops)
-
-
 -- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateM'.
 type OneOpM m t = ExtOpM m BaseOp t
 -- | A handy synonym for an ops set with only one item, to use with 'Polyplate'.
 type OneOp t = ExtOp BaseOp t
--- | A handy synonym for a query ops set with only one item, to use with 'PolyplateSpine'.
-type OneOpQ a t = ExtOpQ a BaseOp t
 
 -- | A handy synonym for a monadic ops set with only two items, to use with 'PolyplateM'.
 type TwoOpM m s t = ExtOpM m (ExtOpM m BaseOp s) t
 -- | A handy synonym for an ops set with only two items, to use with 'Polyplate'.
 type TwoOp s t = ExtOp (ExtOp BaseOp s) t
--- | A handy synonym for a monadic ops set with only two items, to use with 'PolyplateSpine'.
-type TwoOpQ a s t = ExtOpQ a (ExtOpQ a BaseOp s) t
 
 
 -- {{{ Various type-level programming ops conversions:

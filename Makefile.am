@@ -106,7 +106,7 @@ modulesdir=$(TOCKMODDIR)
 tockincdir=$(TOCKINCDIR)
 tocklibdir=$(TOCKLIBDIR)
 
-config/Paths.hs: config/Paths.hs.in
+config/Paths.hs: config/Paths.hs.in Makefile
 	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' config/Paths.hs.in \
 	  | sed -e 's,@@tockdir@@,$(TOCKDIR),g' \
 	  | sed -e 's,@@tockmoddir@@,$(TOCKMODDIR),g' \
@@ -114,10 +114,7 @@ config/Paths.hs: config/Paths.hs.in
 	  | sed -e 's,@@tocklibdir@@,$(TOCKLIBDIR),g' >config/Paths.hs
 
 data/NavAST.hs: GenNavAST$(EXEEXT)
-	./GenNavAST$(EXEEXT) data/NavAST.hs data/NavASTSpine.hs
-
-data/NavASTSpine.hs: GenNavAST$(EXEEXT)
-	./GenNavAST$(EXEEXT) data/NavAST.hs data/NavASTSpine.hs
+	./GenNavAST$(EXEEXT) data/NavAST.hs
 
 data/OrdAST.hs: GenOrdAST$(EXEEXT)
 	./GenOrdAST$(EXEEXT) > data/OrdAST.hs
@@ -130,7 +127,6 @@ config_sources += config/Paths.hs
 config_sources += config/TypeSizes.hs
 
 BUILT_SOURCES = data/NavAST.hs
-BUILT_SOURCES += data/NavASTSpine.hs
 BUILT_SOURCES += data/OrdAST.hs
 BUILT_SOURCES += data/TagAST.hs
 BUILT_SOURCES += frontends/LexOccam.hs
@@ -233,7 +229,7 @@ tocktest_SOURCES += transformations/PassTest.hs
 tocktest_SOURCES += transformations/SimplifyAbbrevsTest.hs
 tocktest_SOURCES += transformations/SimplifyTypesTest.hs
 
-pregen_sources = data/AST.hs data/CompState.hs
+pregen_sources = data/AST.hs data/CompState.hs config/Paths.hs
 pregen_sources += pregen/PregenUtils.hs
 pregen_sources += polyplate/Data/Generics/Polyplate/GenInstances.hs
 

@@ -182,11 +182,11 @@ cgenTopLevel headerName s
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
 
           tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (listifyDepth isTopLevelSpec s)
+                                       (listifyTopDown isTopLevelSpec s)
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
           sequence_ $ map (call genForwardDeclaration)
-                            (listifyDepth (not . isTopLevelSpec) s)
+                            (listifyTopDown (not . isTopLevelSpec) s)
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 
