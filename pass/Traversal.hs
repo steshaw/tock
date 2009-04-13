@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Traversal strategies over the AST and other data types.  This is now mainly
 -- a collection of extra Tock-specific utilities that go on top of Polyplate
 module Traversal (
-    TransformM, Transform, TransformStructured, TransformStructured'
+    TransformM, Transform, TransformStructured, TransformStructured', TransformStructuredM'
   , CheckM, Check
   , ExtOpMP, ExtOpMS, ExtOpMSP, extOpMS, PassOnStruct, PassASTOnStruct
   , ExtOpQS, extOpQS
@@ -205,3 +205,7 @@ type TransformStructured ops
 type TransformStructured' ops
   = (PolyplateM (A.Structured t) () ops PassM
     ,PolyplateM (A.Structured t) ops () PassM , Data t) => Transform (A.Structured t)
+
+type TransformStructuredM' m ops
+  = (PolyplateM (A.Structured t) () ops m
+    ,PolyplateM (A.Structured t) ops () m , Data t) => A.Structured t -> m (A.Structured t)

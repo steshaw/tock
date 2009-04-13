@@ -56,8 +56,10 @@ instance Warn PassM where
 -- against AST fragments of other types as well.
 type PassType t = t -> PassM t
 
-type PassOnOps ops
-  = (PolyplateM t ops () PassM, PolyplateM t () ops PassM) => Pass t
+type PassOnOpsM m ops
+  = (PolyplateM t ops () m, PolyplateM t () ops m) => Pass t
+
+type PassOnOps ops = PassOnOpsM PassM ops
 
 type CheckOnOps ops
   = (PolyplateSpine t ops () (PassM ())) => Pass t

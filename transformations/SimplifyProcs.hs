@@ -20,7 +20,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyProcs (simplifyProcs, fixLowReplicators) where
 
 import Control.Monad.State
-import Data.Generics
+import Data.Generics (Data)
+import Data.Maybe
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -42,18 +43,23 @@ simplifyProcs =
       , flattenAssign
       ]
 
+type ForkM = StateT [A.Name] PassM
+type ForkOps = ExtOpM ForkM (ExtOpMS ForkM BaseOp) A.Process
+
 -- | Add an extra barrier parameter to every PROC for FORKING
-addForkNames :: Pass
+addForkNames :: PassOnOpsM ForkM ForkOps
 addForkNames = occamOnlyPass "Add FORK labels" [] []
   (flip evalStateT [] . recurse)
   where
-    ops = baseOp `extOpS` doStructured `extOp` doProcess
+    ops :: ForkOps
+    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doProcess
 
-    recurse, descend :: Data a => a -> StateT [A.Name] PassM a
-    recurse = makeRecurse ops
-    descend = makeDescend ops
+    recurse :: RecurseM ForkM ForkOps
+    recurse = makeRecurseM ops
+    descend :: DescendM ForkM ForkOps
+    descend = makeDescendM ops
 
-    doProcess :: A.Process -> StateT [A.Name] PassM A.Process
+    doProcess :: A.Process -> ForkM A.Process
     doProcess (A.Fork m Nothing p)
       = do (f:_) <- get
            p' <- recurse p
@@ -67,7 +73,7 @@ addForkNames = occamOnlyPass "Add FORK labels" [] []
              _ -> return $ A.ProcCall m n (A.ActualVariable (A.Variable m f) : as)
     doProcess p = descend p
 
-    doStructured :: Data a => A.Structured a -> StateT [A.Name] PassM (A.Structured a)
+    doStructured :: TransformStructuredM' ForkM ForkOps
     doStructured (A.Spec m spec@(A.Specification _ n (A.Forking _)) scope)
       = do modify (n:)
            scope' <- recurse scope

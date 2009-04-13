@@ -241,6 +241,8 @@ instance ShowOccam A.Type where
   showOccamM A.Any = tell ["ANY"]
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
+  showOccamM A.Infer = tell ["inferred type"]
+  showOccamM A.Barrier = tell ["BARRIER"]
   showOccamM (A.UnknownVarType _ en)
     = do tell ["(inferred type for: "]
          either showName (tell . (:[]) . show) en

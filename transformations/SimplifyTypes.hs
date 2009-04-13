@@ -46,9 +46,15 @@ resolveNamedTypes
            (Prop.agg_namesDone
             ++ [Prop.expressionTypesChecked, Prop.processTypesChecked])
            [Prop.typesResolvedInAST, Prop.typesResolvedInState]
-           (\t -> do get >>= resolve >>= put
-                     resolve t)
+           (\t -> do get >>= resolve >>= flatten >>= put
+                     resolve t >>= flatten)
   where
     resolve :: PassTypeOn A.Type
-    resolve = applyTopDownM (underlyingType emptyMeta)
+    resolve = applyTopDownM (resolveUserType emptyMeta)
 
+    flatten :: PassTypeOn A.Type
+    flatten = applyBottomUpM doType
+      where
+        doType :: Transform A.Type
+        doType (A.Array dsA (A.Array dsB t)) = return $ A.Array (dsA++dsB) t
+        doType t = return t
