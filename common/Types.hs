@@ -127,6 +127,7 @@ typeOfSpec' st
                    A.List t' -> return $ Just (t', error "typeOfSpec'")
                    A.Array _ t' -> return $ Just (t', error "typeOfSpec'")
                    _ -> return Nothing
+            A.Forking m -> return $ Just (A.Barrier, const $ A.Forking m)
             _ -> return Nothing
 
 typeOfSpec :: (CSMR m, Die m) => A.SpecType -> m (Maybe A.Type)

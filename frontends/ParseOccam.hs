@@ -140,14 +140,13 @@ sSemi = reserved ";"
 
 sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
   sBYTESIN, sCASE, sCHAN, sCLAIM, sCLONE, sDATA, sDEFINED, sELSE, sFALSE,
-  sFOR, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32,
-  sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF, sOFFSETOF, sOR,
-  sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC, sPROCESSOR,
-  sPROTOCOL, sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM, sRESHAPES,
-  sRESULT, sRETYPES, sROUND, sSEQ, sSHARED, sSIZE, sSKIP, sSTEP, sSTOP,
-  sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE, sWORKSPACE,
-  sVECSPACE
-    :: OccParser ()
+  sFOR, sFORK, sFORKING, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT,
+  sINT16, sINT32, sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF,
+  sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC,
+  sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM,
+  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSHARED, sSIZE, sSKIP, sSTEP,
+  sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE,
+  sWORKSPACE, sVECSPACE :: OccParser ()
 
 sAFTER = reserved "AFTER"
 sALT = reserved "ALT"
@@ -169,6 +168,8 @@ sDEFINED = reserved "DEFINED"
 sELSE = reserved "ELSE"
 sFALSE = reserved "FALSE"
 sFOR = reserved "FOR"
+sFORK = reserved "FORK"
+sFORKING = reserved "FORKING"
 sFROM = reserved "FROM"
 sFUNCTION = reserved "FUNCTION"
 sIF = reserved "IF"
@@ -1545,6 +1546,29 @@ process
     <|> intrinsicProc
     <|> handleSpecs (allocation <|> specification <|> claimSpec) process
                     (\m s p -> A.Seq m (A.Spec m s (A.Only m p)))
+    <|> do m <- md
+           sFORKING
+           eol
+           indent
+           p <- process
+           outdent
+           n <- makeNonce m "fork" >>* A.Name m
+           let spec = A.Specification m n $ A.Forking m
+           let nd = A.NameDef {
+            A.ndMeta = m,
+            A.ndName = A.nameName n,
+            A.ndOrigName = "FORKING",
+            A.ndSpecType = A.Forking m,
+            A.ndAbbrevMode = A.Original,
+            A.ndNameSource = A.NameNonce,
+            A.ndPlacement = A.Unplaced
+            }
+           defineName n nd
+           return $ A.Seq m $ A.Spec m spec $ A.Only m p
+    <|> do m <- md
+           sFORK
+           p <- procInstance
+           return $ A.Fork m Nothing p
     <?> "process"
 
 claimSpec :: OccParser ([NameSpec], OccParser ())

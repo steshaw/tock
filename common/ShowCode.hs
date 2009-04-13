@@ -241,7 +241,6 @@ instance ShowOccam A.Type where
   showOccamM A.Any = tell ["ANY"]
   showOccamM (A.Timer _) = tell ["TIMER"]
   showOccamM A.Time = tell ["TIME"]
-  showOccamM A.Infer = tell ["inferred-type"]
   showOccamM (A.UnknownVarType _ en)
     = do tell ["(inferred type for: "]
          either showName (tell . (:[]) . show) en
@@ -472,6 +471,8 @@ instance ShowOccam A.Specification where
     = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM v >> colon
   showOccamM (A.Specification _ n (A.DataType _ t))
     = showOccamLine $ tell ["DATA TYPE "] >> showName n >> tell [" IS "] >> showOccamM t >> colon
+  showOccamM (A.Specification _ n (A.Forking _))
+    = showOccamLine $ tell ["FORKING --"] >> showName n
   showOccamM (A.Specification _ n (A.RecordType _ attr fields))
     = do (showOccamLine $ tell ["DATA TYPE "] >> showName n)
          occamIndent
@@ -624,6 +625,9 @@ instance ShowOccam A.Process where
   --TODO gettime and wait ?
   
   showOccamM (A.ProcCall _ n params) = showOccamLine $ showName n >> tell [" ( "] >> showWithCommas params >> tell [" ) "]
+  showOccamM (A.Fork _ Nothing p) = showOccamLine $ tell ["FORK "] >> showOccamM p
+  showOccamM (A.Fork _ (Just n) p) = showOccamLine $ tell ["FORK "] >> showOccamM p
+    >> tell [" --"] >> showName n
   showOccamM (A.IntrinsicProcCall _ n params) = showOccamLine $ tell [n, " ( "] >> showWithCommas params >> tell [" ) "]
   showOccamM (A.While _ e p) = (showOccamLine $ tell ["WHILE "] >> showOccamM e) >> occamIndent >> showOccamM p >> occamOutdent
   showOccamM (A.Case _ e s) = (showOccamLine $ tell ["CASE "] >> showOccamM e) >> occamBlock (showOccamM s)

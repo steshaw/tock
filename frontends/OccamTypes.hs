@@ -1414,6 +1414,7 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType :: Check A.SpecType
     doSpecType (A.Place _ e) = checkExpressionInt e
     doSpecType (A.Declaration _ _) = ok
+    doSpecType (A.Forking _) = ok
     doSpecType (A.Is m am t (A.ActualVariable v))
         =  do tv <- astTypeOf v
               checkType (findMeta v) t tv
@@ -1564,6 +1565,7 @@ checkProcesses = checkDepthM doProcess
     doProcess (A.ProcCall m n as)
         =  do fs <- checkProc m n
               checkActuals m n fs as
+    doProcess (A.Fork _ _ p) = doProcess p
     doProcess (A.IntrinsicProcCall m n as)
         = case lookup n intrinsicProcs of
             Just args ->

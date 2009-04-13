@@ -60,7 +60,7 @@ $vertSpace = [\r\n]
           | "CASE" | "CHAN" | "CLAIM" | "CLONE"
           | "DATA" | "DEFINED"
           | "ELSE"
-          | "FALSE" | "FOR" | "FROM" | "FUNCTION"
+          | "FALSE" | "FOR" | "FORK" | "FORKING" | "FROM" | "FUNCTION"
           | "IF" | "IN" | "INITIAL" | "INLINE" | "INT" | "INT16" | "INT32" | "INT64"
           | "IS"
           | "MINUS" | "MOBILE" | "MOSTNEG" | "MOSTPOS"
