@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module SimplifyProcs (simplifyProcs, fixLowReplicators) where
 
 import Control.Monad.State
-import Data.Generics (Data)
+import Data.Generics
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -36,10 +36,73 @@ import Utils
 
 simplifyProcs :: [Pass A.AST]
 simplifyProcs =
-      [ parsToProcs
+      [ addForkNames
+      , parsToProcs
       , removeParAssign
       , flattenAssign
       ]
+
+-- | Add an extra barrier parameter to every PROC for FORKING
+addForkNames :: Pass
+addForkNames = occamOnlyPass "Add FORK labels" [] []
+  (flip evalStateT [] . recurse)
+  where
+    ops = baseOp `extOpS` doStructured `extOp` doProcess
+
+    recurse, descend :: Data a => a -> StateT [A.Name] PassM a
+    recurse = makeRecurse ops
+    descend = makeDescend ops
+
+    doProcess :: A.Process -> StateT [A.Name] PassM A.Process
+    doProcess (A.Fork m Nothing p)
+      = do (f:_) <- get
+           p' <- recurse p
+           return $ A.Fork m (Just f) $ A.Seq m $ A.Several m
+             $ map (A.Only m) [p', A.ClearMobile m (A.Variable m f)]
+    doProcess p@(A.ProcCall m n as)
+      = do (f:_) <- get
+           exts <- lift getCompState >>* csExternals
+           case lookup (A.nameName n) exts of
+             Just ExternalOldStyle -> return p
+             _ -> return $ A.ProcCall m n (A.ActualVariable (A.Variable m f) : as)
+    doProcess p = descend p
+
+    doStructured :: Data a => A.Structured a -> StateT [A.Name] PassM (A.Structured a)
+    doStructured (A.Spec m spec@(A.Specification _ n (A.Forking _)) scope)
+      = do modify (n:)
+           scope' <- recurse scope
+           modify tail
+           return $ A.Spec m spec scope'
+    doStructured (A.Spec m (A.Specification m' n spec@(A.Proc m'' smrm fs mbody)) scope)
+      = do cs <- lift getCompState
+           if csHasMain cs && Just n == listToMaybe (map (fst . snd) (csMainLocals cs))
+             then do scope' <- recurse scope
+                     mbody' <- case mbody of
+                       Nothing -> return Nothing
+                       Just body -> do fspec@(A.Specification _ fn _) <- lift $
+                                         defineNonce m'' "tlp_forking" (A.Forking m'') A.Original
+                                       modify (fn:)
+                                       body' <- recurse body
+                                       modify tail
+                                       return $ Just (A.Seq m'' $ A.Spec m'' fspec
+                                         $ A.Only m'' body')
+                     return $ A.Spec m (A.Specification m' n (A.Proc m'' smrm fs
+                       mbody')) scope'
+             else do A.Specification _ fn _ <- lift $ defineNonce m'' "fork_param" (A.Declaration m'' A.Barrier) A.Abbrev
+                     modify (fn:)
+                     mbody' <- recurse mbody
+                     modify tail
+                     let fs' = A.Formal A.Abbrev A.Barrier fn : fs
+                         alteredSpec = A.Proc m'' smrm fs' mbody'
+                     exts <- lift getCompState >>* csExternals
+                     spec' <- case lookup (A.nameName n) exts of
+                       Just ExternalOldStyle -> return spec
+                       _ -> do lift $ modifyName n $ \nd -> nd {A.ndSpecType = alteredSpec}
+                               return alteredSpec
+                     scope' <- recurse scope
+                     return $ A.Spec m (A.Specification m' n spec') scope'
+    doStructured s = descend s
+
 
 -- | Wrap the subprocesses of PARs in no-arg PROCs.
 parsToProcs :: PassOn A.Process
@@ -52,16 +115,18 @@ parsToProcs = pass "Wrap PAR subprocesses in PROCs"
     doProcess (A.Par m pm s)
         =  do s' <- doStructured s
               return $ A.Par m pm s'
+    doProcess (A.Fork m n p)
+        =  wrapProcess (A.Fork m n) m p >>* A.Seq m
     doProcess p = return p
 
     -- FIXME This should be generic and in Pass.
     doStructured :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    doStructured = transformOnly wrapProcess
-      where
-        wrapProcess m p
+    doStructured = transformOnly (wrapProcess id)
+
+    wrapProcess wrap m p
           =  do s@(A.Specification _ n _) <- makeNonceProc m p
                 modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
-                return $ A.Spec m s (A.Only m (A.ProcCall m n []))
+                return $ A.Spec m s (A.Only m (wrap $ A.ProcCall m n []))
 
 -- | Turn parallel assignment into multiple single assignments through temporaries.
 removeParAssign :: PassOn A.Process

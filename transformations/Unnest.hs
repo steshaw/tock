@@ -200,6 +200,7 @@ removeFreeNames = pass "Convert free names to arguments"
                 A.Retypes {} -> True
                 A.RetypesExpr {} -> True
                 A.Rep {} -> True
+                A.Forking {} -> True
                 _ -> False
 
     -- | Add the extra arguments we recorded when we saw the definition.
