@@ -271,6 +271,7 @@ typeOfVariable (A.DirectedVariable m dir v)
              if dir == dir'
                then return t
                else dieP m $ "Attempted to reverse direction of a channel-end"
+           A.ChanDataType _ a b -> return $ A.ChanDataType dir a b
            A.Infer -> return $ A.ChanEnd dir A.Unshared A.Infer
            _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
 typeOfVariable (A.VariableSizes m v)
@@ -588,6 +589,7 @@ isCommunicableType (A.Array _ t) = isCommunicableType t
 isCommunicableType (A.List t) = isCommunicableType t
 isCommunicableType (A.Record _) = True
 isCommunicableType (A.Mobile _) = True
+isCommunicableType (A.ChanDataType {}) = True
 isCommunicableType t = isScalarType t
 
 -- | Types that support 'Size' and subscripting.

@@ -1340,6 +1340,7 @@ checkVariables = checkDepthM doVariable
                 A.Chan _ _ -> ok
                 A.Array _ (A.ChanEnd oldDir _ _) -> checkDir oldDir
                 A.Array _ (A.Chan _ _) -> ok
+                A.ChanDataType oldDir _ _ -> checkDir oldDir
                 _ -> diePC m $ formatCode "Direction specified on non-channel variable of type: %" t
       where
         checkDir oldDir
@@ -1429,10 +1430,11 @@ checkSpecTypes = checkDepthM doSpecType
     doSpecType (A.Is m am t (A.ActualClaim v))
         =  do tv <- astTypeOf v
               checkAbbrev m A.Abbrev am
-              checkType (findMeta v) t tv
               case tv of
-                A.ChanEnd _ A.Shared _ -> return ()
-                A.ChanDataType _ A.Shared _ -> return ()
+                A.ChanEnd a A.Shared b ->
+                  checkType (findMeta v) t (A.ChanEnd a A.Unshared b)
+                A.ChanDataType a A.Shared b ->
+                  checkType (findMeta v) t (A.ChanDataType a A.Unshared b)
                 _ -> dieP m "Expected shared channel end in claim"
     doSpecType (A.Is m am rawT (A.ActualChannelArray cs))
         =  do t <- resolveUserType m rawT
