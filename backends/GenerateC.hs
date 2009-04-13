@@ -402,6 +402,8 @@ cgenBytesIn m t v
       = do tell ["sizeof("]
            genType t
            tell [")"]
+    genBytesIn' t@(A.ChanDataType {})
+      = tell ["sizeof(mt_cb_t*)"]
     genBytesIn' (A.Mobile t@(A.Array {})) = genBytesIn' t
     genBytesIn' (A.Mobile _)
       = tell ["sizeof(void*)"]
@@ -746,10 +748,10 @@ cgenVariableWithAM checkValid v am fct
                          , ct)
                     A.ChanDataType {} ->
                       return
-                         (do tell ["(&("]
+                         (do tell ["(&(("]
                              call genVariable' v A.Original (const $ Plain "mt_cb_t")
                              let ind = findIndex ((== fieldName) . fst) fs
-                             tell [".channels[", maybe "" show ind, "]))"]
+                             tell [").channels[", maybe "" show ind, "]))"]
                          , ct)
           A.SubscriptFromFor m' subCheck start count
             -> do ct <- details v
