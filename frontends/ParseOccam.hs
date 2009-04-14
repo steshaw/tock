@@ -1454,10 +1454,13 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                         , "^PERMITALIASES +(.*)"
                         , "^EXTERNAL +\"(.*)\""
                         , "^TOCKEXTERNAL +\"(.*)\""
+                        , "^TOCKSIZES +\"(.*)\""
                         ]
+                        -- Warning: as things stand, a regex must return a capture,
+                        -- or else the code won't work.  FIXME!
                  ]
-            mprod <- return $ flip fmap prag $ \(pragType, _) -> case pragType of
-              0 -> do
+            mprod <- return $ flip fmap prag $ \(pragType, pragStr) -> (case pragType of
+              0 -> Right $ do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1468,7 +1471,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
                 return Nothing
-              1 -> do
+              1 -> Right $ do
                 vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
@@ -1479,7 +1482,13 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
                 return Nothing
-              pragmaType | pragmaType == 2 || pragmaType == 3 -> do
+              4 -> Left $ do
+                case metaFile m of
+                  Nothing -> dieP m "PRAGMA TOCKSIZES in undeterminable file"
+                  Just f -> let (f', _) = splitExtension f in
+                    modify $ \cs -> cs { csExtraSizes = (f' ++ pragStr) : csExtraSizes cs }
+                return Nothing
+              pragmaType | pragmaType == 2 || pragmaType == 3 -> Right $ do
                 m <- md
                 (n, nt, origN, fs, sp) <-
                   if pragmaType == 2
@@ -1507,8 +1516,11 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                   { csExternals = (A.nameName n, ext) : csExternals st
                   }
                 return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
-            ns <- case (prag, mprod) of
-              (Just (_, pragStr), Just prod) -> do
+                
+              , pragStr) -- from way back up there
+
+            ns <- case mprod of
+              Just (Right prod, pragStr) -> do
                 let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
                 toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
                                   , metaLine m, column) pragStr
@@ -1519,6 +1531,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                                  return Nothing
                   Right (n, st) -> do setState st
                                       return n
+              Just (Left norm, _) -> norm
               _ -> do warnP m WarnUnknownPreprocessorDirective $
                         "Unknown PRAGMA type: " ++ show rawP
                       return Nothing
