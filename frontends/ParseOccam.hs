@@ -1288,11 +1288,12 @@ retypesAbbrev
            eol
            return (A.Specification m n $ A.Retypes m am s v, VariableName, normalName)
     <|> do m <- md
-           (s, n) <- tryVVX channelSpecifier newChannelName retypesReshapes
+           (s, (d,n)) <- tryVVX channelSpecifier (maybeDirected newChannelName) retypesReshapes
            c <- directedChannel
            sColon
            eol
-           return (A.Specification m n $ A.Retypes m A.Abbrev s c, ChannelName, normalName)
+           s' <- d s
+           return (A.Specification m n $ A.Retypes m A.Abbrev s' c, ChannelName, normalName)
     <|> do m <- md
            (am, s, n) <- tryVVVX valAbbrevMode dataSpecifier newVariableName retypesReshapes
            e <- expression
