@@ -25,6 +25,7 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Either
 import Data.Generics (Data)
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import List
@@ -69,6 +70,7 @@ optionsNoWarnings =
   , Option ['h'] ["help"] (NoArg optPrintHelp) "print this help"
   , Option [] ["help-warnings"] (NoArg optPrintWarningHelp)
       "print help about warning options"
+  , Option ['D'] [] (ReqArg optDefine "DEFINE") "define preprocessor variable"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option ['f'] ["compiler-flags"] (ReqArg optCompilerFlags "FLAGS") "flags for C/C++ compiler"
   , Option [] ["external-link"] (ReqArg optCompilerLinkFlags "FLAGS") "link flags for C/C++ compiler"
@@ -138,6 +140,17 @@ optSearchPath s ps = return $ ps { csSearchPath = csSearchPath ps ++ splitOnColo
     splitOnColons s = case span (/= ':') s of
       (p, _:more) -> p : splitOnColons more
       (p, []) -> [p]
+
+optDefine :: String -> OptFunc
+optDefine s ps = return $ ps { csDefinitions = Map.insert name
+  ( case filter (null . snd) $ reads val of
+      ((n, _) : _)  -> PreprocInt n
+      _ | null val  -> PreprocNothing
+        | otherwise -> PreprocString val
+  )
+  (csDefinitions ps) }  
+  where
+    (name, val) = span (/= '=') s
 
 optImplicitModule :: String -> OptFunc
 optImplicitModule s ps = return $ ps { csImplicitModules = csImplicitModules ps ++ [s] }
