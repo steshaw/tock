@@ -28,6 +28,7 @@ module AnalyseAsm (
   ) where
 
 import Control.Arrow
+import Control.Monad.Error
 import Control.Monad.State
 import Data.Char
 import Data.Generics (Data, Typeable)
@@ -40,6 +41,7 @@ import Text.Printf
 
 import CompState
 import Errors
+import Metadata
 import Pass
 import PrettyShow
 import Utils
@@ -106,7 +108,7 @@ parseAsm asm
   = catMaybes [parseAsmLine l | l <- lines asm]
 
 data Depends
-  = DependsOnModule String
+  = DependsOnSizes String
   deriving (Show, Read)
 
 -- The stack is the fixed amount, plus the maximum of all other dependencies
@@ -143,10 +145,9 @@ instance Read StackInfo where
     dropSpaces :: String -> String
     dropSpaces = dropWhile isSpace
 
-findAllDependencies :: StackInfo -> Set.Set String
-findAllDependencies (StackInfo _ a b)
-  = Set.union (Set.mapMonotonic (\(Right x) -> x) $ Set.filter isRight a) b
-  where
+findAllOccamDependencies :: StackInfo -> Set.Set String
+findAllOccamDependencies (StackInfo _ a _)
+  = Set.mapMonotonic (\(Right x) -> x) $ Set.filter isRight a
 
 isRight :: Either a b -> Bool
 isRight (Right _) = True
@@ -253,15 +254,19 @@ addCalls knownProcs unknownSize
        mergeStackInfo (StackInfo n as bs) (StackInfo n' as' bs')
          = StackInfo (n + n') (as `Set.union` as') (bs `Set.union` bs')
 
-substitute :: Integer -> [(String, StackInfo)] -> [(String, Integer)]
-substitute unknownSize origItems = substitute' [] origItems
+substitute :: Integer -> [(String, StackInfo)] -> Either String [(String, Integer)]
+substitute unknownSize origItems
+  = case foldl Set.union Set.empty (map (findAllOccamDependencies . snd) origItems)
+           `Set.difference` Set.fromList (map fst origItems) of
+      s | Set.null s -> substitute' [] origItems
+        | otherwise -> throwError $ "Missing stack sizes for: " ++ show s
   where
-    substitute' :: [(String, Integer)] -> [(String, StackInfo)] -> [(String, Integer)]
-    substitute' acc [] = acc
+    substitute' :: [(String, Integer)] -> [(String, StackInfo)] -> Either String [(String, Integer)]
+    substitute' acc [] = return acc
     substitute' acc items
       | null firstItems -- Infinite loop if we don't stop it:
-         = error $ "Cyclic dependencies in stack sizes: "
-           ++ show [n ++ " depends on " ++ show (occamExt s) | (n, s) <- rest]
+         = throwError $ "Cyclic dependencies in stack sizes: "
+           ++ unlines [n ++ " depends on " ++ show (occamExt s) | (n, s) <- rest]
            ++ " done processes are: " ++ show (map fst origItems \\ map fst rest)
       | otherwise
          = substitute' (acc++newAcc)
@@ -302,7 +307,7 @@ analyseAsm mprocs deps asm
 --                          func (fiStack fi) (fiTotalStack fi)
 --                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
 --                        | (func, fi) <- Map.toList $ filterNames info]
-        return $ unlines $ map (show . DependsOnModule) deps ++
+        return $ unlines $ map (show . DependsOnSizes) deps ++
           [show (s, st) | (s, (FunctionInfo {fiTotalStack=Just st}))
                                            <- Map.toList $ filterNames info]
   where
@@ -315,23 +320,29 @@ analyseAsm mprocs deps asm
 -- by looking in the search path.  The Int is the unknown-stack-size.
 --
 -- The output is the contents of a C file with all the stack sizes.
-computeFinalStackSizes :: forall m. Monad m => (String -> m String) -> Integer -> String -> m String
-computeFinalStackSizes readSizesFor unknownSize beginSizes
-  = do infos <- readInAll beginSizes
+computeFinalStackSizes :: forall m. (Monad m, Die m) => (Meta -> String -> m String) -> Integer -> Meta
+  -> String -> m String
+computeFinalStackSizes readSizesFor unknownSize m beginSizes
+  = do infos <- readInAll m beginSizes
        let finalised = substitute unknownSize infos
-       return $ toC finalised
+       case finalised of
+         Left err -> dieP emptyMeta err
+         Right x -> return $ toC x
   where
-    readInAll :: String -> m [(String, StackInfo)]
-    readInAll contents
-      = let (deps, info) = split (lines contents)
-        in concatMapM (readInAll <.< readSizesFor) deps >>* (++ info)
+    readInAll :: Meta -> String -> m [(String, StackInfo)]
+    readInAll curFile contents
+      = do (deps, info) <- split curFile (zip [1..] $ lines contents)
+           concatMapM (\(askedMeta, newFile) -> readSizesFor askedMeta newFile
+                          >>= readInAll (Meta (Just newFile) 1 1))
+             deps >>* (++ info)
 
-    split :: [String] -> ([String], [(String, StackInfo)])
-    split [] = ([], [])
-    split (l:ls) = case (reads l, reads l) of
-      ([(DependsOnModule dep, rest)], []) | all isSpace rest -> transformPair (dep:) id $ split ls
-      ([], [(s, rest)]) | all isSpace rest -> transformPair id (s:) $ split ls
-      _ -> error $ "Cannot parse line: " ++ l
+    split :: Meta -> [(Int, String)] -> m ([(Meta, String)], [(String, StackInfo)])
+    split _ [] = return ([], [])
+    split m ((n,l):ls) = case (reads l, reads l) of
+      ([(DependsOnSizes dep, rest)], []) | all isSpace rest ->
+        liftM (transformPair ((m { metaLine = n}, dep):) id) $ split m ls
+      ([], [(s, rest)]) | all isSpace rest -> liftM (transformPair id (s:)) $ split m ls
+      _ -> dieP (m {metaLine = n}) $ "Cannot parse line: " ++ l
 
     toC :: [(String, Integer)] -> String
     toC info = unlines [ "const int " ++ nm ++ "_stack_size = " ++ show s ++ ";\n"
