@@ -58,6 +58,14 @@ joinPath base new
         "." -> new
         dir -> dir ++ new
 
+-- | Splits a file into its stem (whole path minus extension) and its extension
+-- (without the dot):
+splitExtension :: String -> (String, String)
+splitExtension s
+  = case span (/= '.') (reverse s) of
+      (whole, []) -> (s, []) -- no extension
+      (revExt, _ : revRest) -> (reverse revRest, reverse revExt)
+
 -- | Given a monadic action wrapped in a `Maybe`, run it if there's one there;
 -- if it's `Nothing`, then do nothing.
 doMaybe :: Monad m => Maybe (m ()) -> m ()
