@@ -1908,6 +1908,10 @@ guard
            (c, im) <- input
            return $ A.Alternative m (A.True m) c im
     <|> do m <- md
+           sSKIP
+           eol
+           return $ A.AlternativeSkip m (A.True m)
+    <|> do m <- md
            b <- tryVX expression sAmp
            do { (c, im) <- input; return $ A.Alternative m b c im }
              <|> do { sSKIP; eol; return $ A.AlternativeSkip m b }
