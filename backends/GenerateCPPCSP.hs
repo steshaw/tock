@@ -40,8 +40,8 @@ import System.IO
 
 import qualified AST as A
 import CompState
-import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec,
-  genDynamicDim, generate, genLeftB, genMeta, genName, genRightB, genStatic, justOnly, withIf)
+import GenerateC (cgenOps, cgenReplicatorLoop, cgetCType, cintroduceSpec, cremoveSpec,
+  genDynamicDim, generate, genLeftB, genMeta, genName, genRightB, genStatic, justOnly, nameString, withIf)
 import GenerateCBased
 import Errors
 import Metadata
@@ -78,6 +78,7 @@ cppgenOps = cgenOps {
     genPar = cppgenPar,
     genPoison = cppgenPoison,
     genProcCall = cppgenProcCall,
+    genRecordTypeSpec = cppgenRecordTypeSpec,
     genReplicatorLoop = cppgenReplicatorLoop,
     genReschedule = cppgenReschedule,
     genStop = cppgenStop,
@@ -87,7 +88,8 @@ cppgenOps = cgenOps {
     genUnfoldedExpression = cppgenUnfoldedExpression,
     genUnfoldedVariable = cppgenUnfoldedVariable,
     getScalarType = cppgetScalarType,
-    introduceSpec = cppintroduceSpec
+    introduceSpec = cppintroduceSpec,
+    removeSpec = cppremoveSpec
   }
 --}}}
 
@@ -642,8 +644,25 @@ cppintroduceSpec lvl (A.Specification _ n (A.Is _ am t@(A.Array ds c@(A.ChanEnd 
        tell [","]
        genDynamicDim (A.Variable m n) 0
        tell [");"]
+cppintroduceSpec _ (A.Specification _ n (A.Forking _))
+   = do tell ["{csp::Barrier "]
+        genName n
+        tell ["__;csp::Mobile<csp::BarrierEnd> "]
+        genName n
+        tell ["="]
+        genName n
+        tell ["__.enrolledEnd();"]
+
 --For all other cases, use the C implementation:
 cppintroduceSpec lvl n = cintroduceSpec lvl n
+
+cppremoveSpec :: A.Specification -> CGen ()
+cppremoveSpec (A.Specification _ n (A.Forking _))
+  = do genName n
+       tell ["->sync();"]
+       genName n
+       tell ["->resign();}"]
+cppremoveSpec spec = cremoveSpec spec
 
 --}}}
 
@@ -710,6 +729,8 @@ cppgetCType m (A.List t) am
        return $ Template "tockList" [Left ct]
 --cppgetCType m (A.Array _ t) am | isChan t
 --  = cal
+cppgetCType m A.Barrier am
+  = return $ (if am == A.Original then id else Pointer) $ Template "csp::Mobile" [Left $ Plain "csp::BarrierEnd"]
 cppgetCType m t am = cgetCType m t am
 {-
 cgetCType :: Meta -> A.Type -> A.AbbrevMode -> CGen CType
@@ -900,3 +921,17 @@ cppgenFunctionCall m n es
        tell [","]
        genMeta m
        tell [")"]
+
+-- Changed because we don't need the mobile descriptor stuff:
+cppgenRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
+cppgenRecordTypeSpec n attr fs
+    =  do tell ["typedef struct{"]
+          sequence_ [call genDeclaration NotTopLevel t n True | (n, t) <- fs]
+          tell ["}"]
+          when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
+          genName n
+          tell [";"]
+          tell ["typedef "]
+          genName n
+          origN <- lookupName n >>* A.ndOrigName
+          tell [" ", nameString $ A.Name emptyMeta origN, ";"]
