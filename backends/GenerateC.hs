@@ -854,8 +854,9 @@ cgetCType m origT am
          (A.Record n, _, True, A.Abbrev) -> return $ Pointer $ Pointer $ Plain $ nameString n
          (A.Record n, _, True, _) -> return $ Pointer $ const $ Plain $ nameString n
 
-         (A.Chan (A.ChanAttributes A.Shared A.Shared) _, _, False, _)
-           -> return $ Pointer $ Plain "mt_cb_t"
+         (A.Chan (A.ChanAttributes shW shR) _, _, False, _)
+           | shW == A.Shared || shR == A.Shared
+             -> return $ Pointer $ Plain "mt_cb_t"
          (A.ChanEnd _ A.Shared _, _, False, _) -> return $ Pointer $ Plain "mt_cb_t"
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
@@ -1249,7 +1250,8 @@ cdeclareInit _ (A.Chan (A.ChanAttributes A.Unshared A.Unshared) _) var
     = Just $ do tell ["ChanInit(wptr,"]
                 call genVariableUnchecked var A.Abbrev
                 tell [");"]
-cdeclareInit _ (A.Chan (A.ChanAttributes A.Shared A.Shared) _) var
+cdeclareInit _ (A.Chan (A.ChanAttributes shW shR) _) var
+  | shW == A.Shared || shR == A.Shared
     = Just $ do call genVariable' var A.Original (const $ Pointer $ Plain "mt_cb_t")
                 tell [" = MTAllocChanType(wptr, 1, true);"]
 cdeclareInit m t@(A.Array ds t') var
