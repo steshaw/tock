@@ -47,9 +47,9 @@ preprocessFile m implicitMods filename
     =  do (handle, realFilename) <- searchFile m filename
           progress $ "Loading source file " ++ realFilename
           origCS <- get
-          let modFunc = if drop9 filename `Set.member` csUsedFiles origCS
-                          then Set.insert (drop9 realFilename)
-                                 . Set.delete (drop9 filename)
+          let modFunc = if dropTockInc filename `Set.member` csUsedFiles origCS
+                          then Set.insert (dropTockInc realFilename)
+                                 . Set.delete (dropTockInc filename)
                           else id
           modify (\cs -> cs { csCurrentFile = realFilename
                             , csUsedFiles = modFunc $ csUsedFiles cs })
@@ -58,8 +58,10 @@ preprocessFile m implicitMods filename
           modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
   where
-    -- drops 9 (i.e. length ".tock.inc") from the end:
-    drop9 = reverse . drop 9 . reverse
+    -- drops ".tock.inc" from the end if it's there:
+    dropTockInc s
+      | ".tock.inc" `isSuffixOf` s = reverse . drop (length ".tock.inc") . reverse $ s
+      | otherwise = s
 
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
 preprocessSource :: Meta -> [String] -> String -> String -> PassM [Token]
@@ -231,9 +233,11 @@ handleUse m (modName:_)
     -- | If a module name has a suffix, strip it
     mangleModName :: String -> String
     mangleModName mod
-        = if any (`isSuffixOf` mod) [".inc", ".lib", ".occ", ".tce"]
-            then (reverse . drop 4 . reverse) mod
-            else mod
+        = case splitExtension mod of
+            (base, ext) | ext `elem` ["inc", "lib", "occ", "tce"]
+              -> base
+            (_, "") -> mod
+            _ -> mod -- Not sure what the extension might be...
 
 -- | Handle the @#DEFINE@ directive.
 handleDefine :: DirectiveFunc
