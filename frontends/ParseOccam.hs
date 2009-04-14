@@ -601,7 +601,12 @@ dataType
 channelType :: OccParser A.Type
 channelType
     =   do { sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = A.Unshared, A.caReadingShared = A.Unshared} p }
-    <|> do { sSHARED; sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes {A.caWritingShared = A.Shared, A.caReadingShared = A.Shared} p }
+    <|> do { tryXX sSHARED sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes
+               {A.caWritingShared = A.Shared, A.caReadingShared = A.Shared} p }
+    <|> do { tryXXX sSHARED sBang sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes
+               {A.caWritingShared = A.Shared, A.caReadingShared = A.Unshared} p }
+    <|> do { tryXXX sSHARED sQuest sCHAN; optional sOF; p <- protocol; return $ A.Chan A.ChanAttributes
+               {A.caWritingShared = A.Unshared, A.caReadingShared = A.Shared} p }
     <|> arrayType channelType
     <?> "channel type"
 
