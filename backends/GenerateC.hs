@@ -191,7 +191,10 @@ cgenTopLevel headerName s
 
           tell ["#include \"", dropPath headerName, "\"\n"]
 
-          sequence_ [tell ["#include \"", usedFile, ".tock.h\"\n"]
+          sequence_ [let usedFile' = if ".tock.inc" `isSuffixOf` usedFile
+                           then take (length usedFile - length ".tock.inc") usedFile
+                           else usedFile
+                     in tell ["#include \"", usedFile', ".tock.h\"\n"]
                     | usedFile <- Set.toList $ csUsedFiles cs]
 
           nss <- needStackSizes
