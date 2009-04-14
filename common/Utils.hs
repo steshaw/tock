@@ -359,13 +359,18 @@ mapMapM f m = mapMapWithKeyM (const f) m
 
 -- A version of mapM that acts on the values in maps.
 mapMapWithKeyM :: (Ord a, Monad m) => (a -> b -> m c) -> Map.Map a b -> m (Map.Map a c)
-mapMapWithKeyM f m = liftM Map.fromAscList $ mapM f' $ Map.toAscList m
-  where
-    f' (x,y) = do y' <- f x y
-                  return (x, y')
+mapMapWithKeyM f = T.mapM (uncurry f) . Map.mapWithKey (,)
 
 filterMapByKey :: Ord k => (k -> Bool) -> Map.Map k v -> Map.Map k v
 filterMapByKey f = Map.filterWithKey (\k _ -> f k)
+
+filterMapByKeyM :: (Ord k, Monad m) => (k -> m Bool) -> Map.Map k v -> m (Map.Map k v)
+-- There are several ways we could implement this, but this seems okay:
+filterMapByKeyM f m = do mDecision <- mapMapWithKeyM addDecision m
+                         return $ Map.map snd $ Map.filter fst mDecision
+  where
+    addDecision k v = do d <- f k
+                         return (d, v)
 
 -- | Transforms an Either into a Maybe.  If it's a Left value, it is transformed
 -- into Nothing.  If it is a Right value, it is transformed into Just.
