@@ -415,10 +415,18 @@ checkPlainVarUsage sharedAttr (m, p) = check p
            let examineVars =
                  map (filterMapByKey filt . (`difference` (Set.fromList decl `Set.union` allSharedNames)))
                    vars
-           checkCREW examineVars
+           examineVars' <- mapM (filterMapByKeyM (liftM not . isSharedType)) examineVars
+           checkCREW examineVars'
       where
         difference m s = m `Map.difference` (Map.fromAscList $ zip (Set.toAscList
           s) (repeat ()))
+
+        isSharedType :: Var -> m Bool
+        isSharedType v = do t <- astTypeOf v
+                            case t of
+                              A.ChanDataType _ sh _ -> return $ sh == A.Shared
+                              A.ChanEnd _ sh _ -> return $ sh == A.Shared
+                              _ -> return False
 
     -- We must compare each read against all writes after us in the list,
     -- and each write against all reads and writes after us in the list:
