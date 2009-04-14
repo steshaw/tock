@@ -332,7 +332,7 @@ compileFull inputFile moutputFile
                  when (csHasMain optsPS) $ do
                    withOutputFile postCFile $ \h ->
                      computeFinalStackSizes searchReadFile (csUnknownStackSize cs)
-                       sizes >>= (liftIO . hPutStr h)
+                       (Meta (Just sizesFile) 1 1) sizes >>= (liftIO . hPutStr h)
                      
                    -- Compile this new "post" C file into an object file
                    exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
@@ -387,10 +387,11 @@ compileFull inputFile moutputFile
                     ExitSuccess -> return ()
                     ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
-    searchReadFile :: String -> StateT [FilePath] PassM String
-    searchReadFile fn = do (h, _) <- lift $ searchFile emptyMeta (fn++".tock.sizes")
-                           liftIO $ hGetContents h
-                           -- Don't use hClose because hGetContents is lazy
+    searchReadFile :: Meta -> String -> StateT [FilePath] PassM String
+    searchReadFile m fn
+      = do (h, _) <- lift $ searchFile m fn
+           liftIO $ hGetContents h
+           -- Don't use hClose because hGetContents is lazy
 
 -- | Picks out the handle from the options and passes it to the function:
 useOutputOptions :: (((Handle, Handle), String) -> PassM a) -> PassM a
@@ -522,7 +523,8 @@ postCAnalyse fn ((outHandle, _), _)
           cs <- getCompState
 
           progress "Analysing assembly"
-          output <- analyseAsm (Just $ map A.nameName names) (Set.toList $ csUsedFiles cs) asm
+          output <- analyseAsm (Just $ map A.nameName names)
+            (map (++ ".tock.sizes") $ csExtraSizes cs ++ Set.toList (csUsedFiles cs)) asm
 
           liftIO $ hPutStr outHandle output
 

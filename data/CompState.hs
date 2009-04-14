@@ -120,9 +120,12 @@ data CompState = CompState {
     csUnknownStackSize :: Integer,
     csSearchPath :: [String],
     csImplicitModules :: [String],
+    -- Extra sizes files to look up.  These are stored without the tock suffix
+    csExtraSizes :: [String],
 
     -- Set by preprocessor
     csCurrentFile :: String, -- Also used by some later passes!
+    -- #USEd files.  These are stored with any (known) extensions removed:
     csUsedFiles :: Set String,
     csDefinitions :: Map String PreprocDef,
 
@@ -183,6 +186,7 @@ emptyState = CompState {
     csUnknownStackSize = 512,
     csSearchPath = [".", tockIncludeDir],
     csImplicitModules = [],
+    csExtraSizes = [],
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
