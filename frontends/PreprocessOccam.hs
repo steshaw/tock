@@ -80,7 +80,7 @@ preprocessSource m implicitMods realFilename s
           veryDebug $ "}}}"
           expandIncludes toks''
   where
-    incImplicit = concat [[Token emptyMeta $ TokPreprocessor $ "#USE \"" ++ f ++ "\""
+    incImplicit = concat [[Token emptyMeta $ TokPreprocessor $ "#INCLUDE \"" ++ f ++ "\""
 --                          ,Token emptyMeta EndOfLine
                           ]
                          | f <- implicitMods]
