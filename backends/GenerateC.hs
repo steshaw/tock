@@ -790,10 +790,12 @@ cgenVariableWithAM checkValid v am fct
                -> sizes m innerV
              -- For mobile arrays, we just need to use the dimensions member:
              (A.Mobile (A.Array {}), _)
-               -> return (do tell ["("]
+               -> return (do tell ["(("]
+                             genType A.Int
+                             tell ["*)("]
                              cgenVariableWithAM checkValid v A.Original
                                (const $ Plain "mt_array_t")
-                             tell [").dimensions"]
+                             tell [").dimensions)"]
                          , Pointer $ Plain intT)
              (A.Array {}, A.Variable _ n)
                -> do ss <- getCompState >>* csArraySizes
@@ -991,7 +993,7 @@ cgenFunctionCall m n es
   = do A.Function _ _ _ fs _ <- specTypeOfName n
        genName n
        tell ["(wptr,"]
-       call genActuals fs (map A.ActualExpression es)
+       call genActuals genComma fs (map A.ActualExpression es)
        tell [","]
        genMeta m
        tell [")"]
@@ -1537,19 +1539,20 @@ cgenSpecMode A.InlineSpec = tell ["inline "]
 prefixComma :: [CGen ()] -> CGen ()
 prefixComma cs = sequence_ [genComma >> c | c <- cs]
 
-cgenActuals :: [A.Formal] -> [A.Actual] -> CGen ()
-cgenActuals fs as
+cgenActuals :: CGen () -> [A.Formal] -> [A.Actual] -> CGen ()
+cgenActuals inbetween fs as
   = do when (length fs /= length as) $
          dieP m $ "Mismatch in numbers of parameters in backend: "
            ++ show (length fs) ++ " expected, but actually: " ++ show (length as)
-       seqComma [call genActual f a | (f, a) <- zip fs as]
+       sequence_ $ intersperse inbetween [call genActual inbetween f a | (f, a) <- zip fs as]
   where
     m | null fs && null as = emptyMeta
       | null fs = findMeta $ head as
       | otherwise = findMeta $ head fs
 
-cgenActual :: A.Formal -> A.Actual -> CGen ()
-cgenActual f a = seqComma $ realActuals f a id
+cgenActual :: CGen () -> A.Formal -> A.Actual -> CGen ()
+cgenActual inbetween f a
+  = sequence_ $ intersperse inbetween $ realActuals f a id
 
 -- | Return generators for all the real actuals corresponding to a single
 -- actual.
@@ -1768,7 +1771,7 @@ cgenAssign m (v:vs) (A.IntrinsicFunctionCallList _ n es)
                 Nothing -> ("occam_" ++ [if c == '.' then '_' else c | c <- n], True)
          tell ["=",funcName,"("]
          seqComma $ map (call genExpression) es
-         mapM (\v -> tell [","] >> call genActual (A.Formal A.Abbrev A.Int (A.Name
+         mapM (\v -> tell [","] >> call genActual genComma (A.Formal A.Abbrev A.Int (A.Name
            emptyMeta "dummy_intrinsic_param")) (A.ActualVariable v)) vs
          when giveMeta $ genComma >> genMeta m
          tell [");"]
@@ -2088,13 +2091,14 @@ cgenProcCall n as
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
             (_, Just ExternalOldStyle) ->
                  do let (c:cs) = A.nameName n
-                    tell ["{int ext_args[] = {"]
-                    -- We don't use the formals in csExternals because they won't
-                    -- have had array sizes added:
-                    (A.Proc _ _ fs _) <- specTypeOfName n
-                    call genActuals fs as
-                    tell ["};"]
-                    
+                    if null as
+                      then tell ["{int ext_args[] = {};"]
+                      else do tell ["{int ext_args[] = {(int)("]
+                              -- We don't use the formals in csExternals because they won't
+                              -- have had array sizes added:
+                              (A.Proc _ _ fs _) <- specTypeOfName n
+                              call genActuals (tell ["),(int)("]) fs as
+                              tell [")};"]
                     case c of
                       'B' -> tell ["ExternalCallN("]
                       'C' -> tell ["BlockingCallN(wptr,"]
@@ -2105,7 +2109,7 @@ cgenProcCall n as
             _ -> do genName n
                     tell [" (wptr", if null as then "" else ","]
                     (A.Proc _ _ fs _) <- specTypeOfName n
-                    call genActuals fs as
+                    call genActuals genComma fs as
                     tell [");\n"]
 --}}}
 --{{{  intrinsic procs
@@ -2121,7 +2125,7 @@ cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
                         A.Mobile (A.Array _ t) <- astTypeOf mob
                         call genBytesIn m t (Left False)
                         tell [","]
-                   seqComma [call genActual (A.Formal am t (A.Name emptyMeta n)) a
+                   seqComma [call genActual genComma (A.Formal am t (A.Name emptyMeta n)) a
                             | ((am, t, n), a) <- zip amtns as]
                    tell [");"]
   Nothing -> call genMissing $ "intrinsic PROC " ++ s

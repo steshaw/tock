@@ -108,9 +108,9 @@ data GenOps = GenOps {
     -- | Generates code when a variable comes into scope (e.g. allocating memory, initialising variables).
     declareInit :: Meta -> A.Type -> A.Variable -> Maybe (CGen ()),
     -- | Generates an individual parameter to a function\/proc.
-    genActual :: A.Formal -> A.Actual -> CGen (),
+    genActual :: CGen () -> A.Formal -> A.Actual -> CGen (),
     -- | Generates the list of actual parameters to a function\/proc.
-    genActuals :: [A.Formal] -> [A.Actual] -> CGen (),
+    genActuals :: CGen () -> [A.Formal] -> [A.Actual] -> CGen (),
     genAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen(),
     genAlt :: Bool -> A.Structured A.Alternative -> CGen (),
     -- | Generates the given array element expressions as a flattened (one-dimensional) list of literals
