@@ -308,7 +308,8 @@ compileFull inputFile moutputFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
 
-          case csBackend optsPS of
+          cs <- lift getCompState
+          case csBackend cs of
             BackendC ->
               let sFile = outputFile ++ ".tock.s"
                   oFile = outputFile ++ ".tock.o"
@@ -317,52 +318,51 @@ compileFull inputFile moutputFile
                   postOFile = outputFile ++ ".tock_post.o"
               in
               do sequence_ $ map noteFile $ [sFile, postCFile, postOFile]
-                               ++ if csHasMain optsPS then [oFile] else []
+                               ++ if csHasMain cs then [oFile] else []
                                -- The object file is a temporary to-be-removed
                                -- iff we are also linking the end product
 
                  -- Compile the C into assembly, and assembly into an object file
-                 exec $ cAsmCommand cFile sFile (csCompilerFlags optsPS)
-                 exec $ cCommand sFile oFile (csCompilerFlags optsPS)
+                 exec $ cAsmCommand cFile sFile (csCompilerFlags cs)
+                 exec $ cCommand sFile oFile (csCompilerFlags cs)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" H file
                  sizes <- lift $ withOutputFile sizesFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
 
-                 cs <- lift getCompState
-                 when (csHasMain optsPS) $ do
+                 when (csHasMain cs) $ do
                    withOutputFile postCFile $ \h ->
                      computeFinalStackSizes searchReadFile (csUnknownStackSize cs)
                        (Meta (Just sizesFile) 1 1) sizes >>= (liftIO . hPutStr h)
                      
                    -- Compile this new "post" C file into an object file
-                   exec $ cCommand postCFile postOFile (csCompilerFlags optsPS)
+                   exec $ cCommand postCFile postOFile (csCompilerFlags cs)
 
                    let otherOFiles = [usedFile ++ ".tock.o"
                                      | usedFile <- Set.toList $ csUsedFiles cs]
                    
                    -- Link the object files into a binary
-                   exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile (csCompilerLinkFlags optsPS)
+                   exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile (csCompilerLinkFlags cs)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
               do cs <- lift getCompState
-                 if csHasMain optsPS
+                 if csHasMain cs
                    then let otherOFiles = [usedFile ++ ".tock.o"
                                           | usedFile <- Set.toList $ csUsedFiles cs]
                      in exec $ cxxCommand cFile outputFile
-                          (concat (intersperse " " otherOFiles) ++ " " ++ csCompilerFlags optsPS ++ " " ++ csCompilerLinkFlags optsPS)
+                          (concat (intersperse " " otherOFiles) ++ " " ++ csCompilerFlags cs ++ " " ++ csCompilerLinkFlags cs)
                    else exec $ cxxCommand cFile (outputFile ++ ".tock.o")
-                          ("-c " ++ csCompilerFlags optsPS)
+                          ("-c " ++ csCompilerFlags cs)
 
             BackendCHP ->
               exec $ hCommand cFile outputFile
             _ -> dieReport (Nothing, "Cannot use specified backend: "
-                                     ++ show (csBackend optsPS)
+                                     ++ show (csBackend cs)
                                      ++ " with full-compile mode")
 
           -- Finally, remove the temporary files:
           tempFiles <- get
-          when (not $ csKeepTemporaries optsPS) $
+          when (not $ csKeepTemporaries cs) $
             liftIO $ removeFiles tempFiles
 
   where
