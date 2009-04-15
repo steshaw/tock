@@ -73,7 +73,7 @@ optionsNoWarnings =
   , Option ['D'] [] (ReqArg optDefine "DEFINE") "define preprocessor variable"
   , Option ['k'] ["keep-temporaries"] (NoArg $ optKeepTemporaries) "keep temporary files"
   , Option ['f'] ["compiler-flags"] (ReqArg optCompilerFlags "FLAGS") "flags for C/C++ compiler"
-  , Option [] ["external-link"] (ReqArg optCompilerLinkFlags "FLAGS") "link flags for C/C++ compiler"
+  , Option [] ["linker-flags"] (ReqArg optCompilerLinkFlags "FLAGS") "link flags for C/C++ compiler"
   , Option [] ["run-indent"] (NoArg $ optRunIndent) "run indent on source before compilation (will full mode)"
   , Option [] ["frontend"] (ReqArg optFrontend "FRONTEND") "language frontend (options: occam, rain)"
   , Option ['u'] ["implicit-module"] (ReqArg optImplicitModule "MODULE") "implicitly use this module"
