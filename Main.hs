@@ -524,7 +524,7 @@ postCAnalyse fn ((outHandle, _), _)
 
           progress "Analysing assembly"
           output <- analyseAsm (Just $ map A.nameName names)
-            (map (++ ".tock.sizes") $ csExtraSizes cs ++ Set.toList (csUsedFiles cs)) asm
+            (map (basenamePath . (++ ".tock.sizes")) $ csExtraSizes cs ++ Set.toList (csUsedFiles cs)) asm
 
           liftIO $ hPutStr outHandle output
 

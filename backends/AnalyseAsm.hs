@@ -323,18 +323,25 @@ analyseAsm mprocs deps asm
 computeFinalStackSizes :: forall m. (Monad m, Die m) => (Meta -> String -> m String) -> Integer -> Meta
   -> String -> m String
 computeFinalStackSizes readSizesFor unknownSize m beginSizes
-  = do infos <- readInAll m beginSizes
-       let finalised = substitute unknownSize infos
+  = do infos <- evalStateT (readInAll m beginSizes) Set.empty
+       let finalised = substituteFull unknownSize infos
        case finalised of
          Left err -> dieP emptyMeta err
          Right x -> return $ toC x
   where
-    readInAll :: Meta -> String -> m [(String, StackInfo)]
+    readInAll :: Meta -> String -> StateT (Set.Set String) m [(String, StackInfo)]
     readInAll curFile contents
-      = do (deps, info) <- split curFile (zip [1..] $ lines contents)
-           concatMapM (\(askedMeta, newFile) -> readSizesFor askedMeta newFile
+      = do (deps, info) <- lift $ split curFile (zip [1..] $ lines contents)
+           concatMapM (\(askedMeta, newFile) -> readSizesFor' askedMeta newFile
                           >>= readInAll (Meta (Just newFile) 1 1))
              deps >>* (++ info)
+
+    readSizesFor' :: Meta -> String ->  StateT (Set.Set String) m String
+    readSizesFor' m fn = do prevFiles <- get
+                            if Set.member fn prevFiles
+                              then return ""
+                              else do modify (Set.insert fn)
+                                      lift $ readSizesFor m fn
 
     split :: Meta -> [(Int, String)] -> m ([(Meta, String)], [(String, StackInfo)])
     split _ [] = return ([], [])
