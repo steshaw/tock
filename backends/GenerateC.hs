@@ -2154,7 +2154,9 @@ cgenSetPri _ e = do tell ["SetPriority(wptr,"]
 --{{{ mobiles
 cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
 cgenAllocMobile m (A.Mobile t@(A.Array ds innerT)) Nothing
-  = do tell ["MTAllocDataArray(wptr,"]
+  | A.UnknownDimension `elem` ds = dieP m "Cannot allocate mobile array with unknown dimension"
+  | otherwise =
+    do tell ["MTAllocDataArray(wptr,"]
        call genBytesIn m innerT (Left False)
        tell [",", show $ length ds]
        prefixComma $ [call genExpression e | A.Dimension e <- ds]
