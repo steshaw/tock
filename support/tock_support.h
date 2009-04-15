@@ -409,7 +409,7 @@ MAKE_PLUS(uint8_t,BYTE_BYTE)
 MAKE_MINUS(uint8_t,BYTE_BYTE)
 MAKE_TIMES(uint8_t,BYTE_BYTE)
 MAKE_ALL_COMP(uint8_t,BYTE_BYTE)
-MAKE_ALL_BITWISE(uint8_t,BYTE_BYTE)
+MAKE_ALL_BITWISE(uint8_t,BYTE)
 
 // occam's only unsigned type, so we can use % directly.
 static inline uint8_t occam_rem_BYTE_BYTE (occam_extra_param uint8_t, uint8_t, const char *) occam_unused;
