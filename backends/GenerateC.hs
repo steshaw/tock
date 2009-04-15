@@ -252,8 +252,9 @@ cgenTopLevel headerName s
                   \\n\
                   \    Shutdown (wptr);\n\
                   \}\n\
-                  \\n\
+                  \int kroc_argc;char** kroc_argv;\n\
                   \int main (int argc, char *argv[]) {\n\
+                  \    kroc_argc=argc;kroc_argv=argv;\n\
                   \    tock_init_ccsp (", uses_stdin, ");\n\
                   \\n\
                   \    Workspace p = ProcAllocInitial (0, "]
