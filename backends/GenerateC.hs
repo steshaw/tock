@@ -161,17 +161,18 @@ generateC = generate cgenOps
 needStackSizes :: (CSMR m, Die m) => m [A.Name]
 needStackSizes
   = do cs <- getCompState
-       return $ nub $(([A.Name emptyMeta $ nameString $ A.Name emptyMeta n
+       return $ nub $ ([A.Name emptyMeta $ nameString $ A.Name emptyMeta n
                        | A.NameDef {A.ndName = n
                                    ,A.ndSpecType=A.Proc {}
                                    } <- Map.elems $ csNames cs]
-                      )
-                      \\ (map (A.Name emptyMeta . nameString . A.Name emptyMeta . fst) (csExternals cs)))
                        ++
                        [A.Name emptyMeta $ nameString $ A.Name emptyMeta n
                        | A.NameDef {A.ndName = n
                                    ,A.ndSpecType=A.Function {}
                                    } <- Map.elems $ csNames cs]
+                      )
+                      \\ (map (A.Name emptyMeta . nameString . A.Name emptyMeta . fst) (csExternals cs))
+
 
 cgenTopLevel :: String -> A.AST -> CGen ()
 cgenTopLevel headerName s
