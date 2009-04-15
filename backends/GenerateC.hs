@@ -195,7 +195,8 @@ cgenTopLevel headerName s
                            then take (length usedFile - length ".tock.inc") usedFile
                            else usedFile
                      in tell ["#include \"", usedFile', ".tock.h\"\n"]
-                    | usedFile <- Set.toList $ csUsedFiles cs]
+                    | usedFile <- (Set.toList $ csUsedFiles cs)
+                                 ++ csExtraIncludes cs]
 
           nss <- needStackSizes
           sequence_ [tell ["extern int "] >> genName n >> tell ["_stack_size;\n"]

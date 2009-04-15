@@ -122,6 +122,8 @@ data CompState = CompState {
     csImplicitModules :: [String],
     -- Extra sizes files to look up.  These are stored without the tock suffix
     csExtraSizes :: [String],
+    -- Extra include files, stored without the .tock.h suffix.
+    csExtraIncludes :: [String],
 
     -- Set by preprocessor
     csCurrentFile :: String, -- Also used by some later passes!
@@ -187,6 +189,7 @@ emptyState = CompState {
     csSearchPath = [".", tockIncludeDir],
     csImplicitModules = [],
     csExtraSizes = [],
+    csExtraIncludes = [],
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,

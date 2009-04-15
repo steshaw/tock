@@ -1455,6 +1455,8 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                         , "^EXTERNAL +\"(.*)\""
                         , "^TOCKEXTERNAL +\"(.*)\""
                         , "^TOCKSIZES +\"(.*)\""
+                        , "^TOCKINCLUDE +\"(.*)\""
+                        , "^TOCKNATIVELINK +\"(.*)\""
                         ]
                         -- Warning: as things stand, a regex must return a capture,
                         -- or else the code won't work.  FIXME!
@@ -1487,6 +1489,15 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                   Nothing -> dieP m "PRAGMA TOCKSIZES in undeterminable file"
                   Just f -> let (f', _) = splitExtension f in
                     modify $ \cs -> cs { csExtraSizes = (f' ++ pragStr) : csExtraSizes cs }
+                return Nothing
+              5 -> Left $ do
+                case metaFile m of
+                  Nothing -> dieP m "PRAGMA TOCKINCLUDE in undeterminable file"
+                  Just f -> let (f', _) = splitExtension f in
+                    modify $ \cs -> cs { csExtraIncludes = (f' ++ pragStr) : csExtraIncludes cs }
+                return Nothing
+              6 -> Left $ do
+                modify $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
                 return Nothing
               pragmaType | pragmaType == 2 || pragmaType == 3 -> Right $ do
                 m <- md
