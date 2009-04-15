@@ -70,7 +70,7 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
   ))
   where
     emitProcsAsExternal :: A.AST -> PassM (Seq.Seq String)
-    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ _ fs (Just _))) scope)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ (A.PlainSpec,_) fs (Just _))) scope)
       = do origN <- lookupName n >>* A.ndOrigName
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ origN ++ "("
@@ -80,7 +80,7 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
            modify $ \cs -> cs { csOriginalTopLevelProcs =
              A.nameName n : csOriginalTopLevelProcs cs }
            emitProcsAsExternal scope >>* (thisProc Seq.<|)
-    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Function _ _ ts fs (Just _))) scope)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Function _ (A.PlainSpec,_) ts fs (Just _))) scope)
       = do origN <- lookupName n >>* A.ndOrigName
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \""
