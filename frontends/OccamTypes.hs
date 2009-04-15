@@ -347,8 +347,11 @@ checkAllocMobile m rawT me
     =  do t <- resolveUserType m rawT
           case t of
             A.Mobile innerT ->
-               do case innerT of
-                    A.Array ds _ -> ok --mapM_ (checkFullDimension m) ds
+               do case (innerT, me) of
+                    -- Array dimensions must be known if there's no initialiser.
+                    -- If there is an initialiser, we'll get the dimensions from
+                    -- that.
+                    (A.Array ds _, Nothing) -> mapM_ (checkFullDimension m) ds
                     _ -> ok
                   case me of
                     Just e ->
