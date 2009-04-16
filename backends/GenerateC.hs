@@ -2097,22 +2097,27 @@ cgenProcCall n as
               in call genPar A.PlainPar $ A.Only m $ A.ProcCall m n as
             (_, Just ExternalOldStyle) ->
                  do let (c:cs) = A.nameName n
-                    if null as
-                      then tell ["{int ext_args[] = {};"]
+                    afters <- if null as
+                      then tell ["{int ext_args[] = {};"] >> return (return ())
                       else do tell ["{int ext_args[] = {(int)("]
                               (A.Proc _ _ fs _) <- specTypeOfName n
                               when (length fs /= length as) $
                                 dieP (A.nameMeta n) "Mismatched number of arguments to external call"
-                              let inbetween = tell ["),(int)("]
-                              sequence_ $ intersperse inbetween $ map
-                                (uncurry $ genExternalActual inbetween) $ zip fs as
+                              let inbetween = tell ["),(int)("] >> return (return ())
+                              afters <- flip evalStateT 0 $ sequence
+                                $ intersperse (lift inbetween)
+                                $ map (uncurry $ genExternalActual (inbetween >> return ()))
+                                  $ zip fs as
                               tell [")};"]
+                              return $ sequence_ afters
                     case c of
                       'B' -> tell ["ExternalCallN("]
                       'C' -> tell ["BlockingCallN(wptr,"]
                       _ -> dieP (A.nameMeta n) "Unknown external PROC format"
                     tell [ [if c == '.' then '_' else c | c <- cs]
-                         , ",1,ext_args);}"]
+                         , ",1,ext_args);"]
+                    afters
+                    tell ["}"]
                     
             _ -> do genName n
                     tell [" (wptr", if null as then "" else ","]
@@ -2120,20 +2125,27 @@ cgenProcCall n as
                     call genActuals genComma fs as
                     tell [");\n"]
   where
-    -- The sizes will be 
-    genExternalActual :: CGen () -> A.Formal -> A.Actual -> CGen ()
+    -- This returns any actions that need to take place after the external call
+    genExternalActual :: CGen () -> A.Formal -> A.Actual -> StateT Int CGen (CGen ())
     genExternalActual inbetween f@(A.Formal am t n) a
       = case (t, a) of
           (A.Mobile arrT@(A.Array {}), A.ActualVariable v) ->
             -- The extra dimensions parameters have already been added, but KRoC
             -- passes both the array data and the address of the mobile, so we
             -- had better do the same:
-            do call genActual inbetween (A.Formal A.Abbrev arrT n)
+            do lift $ call genActual inbetween (A.Formal A.Abbrev arrT n)
                  (A.ActualVariable $ A.DerefVariable (findMeta v) v)
-               inbetween
-               call genActual inbetween f a
+               modify (+1)
+               lift inbetween
+               -- We need to pass mobiles as the plain pointers (not abbreviated):
+               lift $ call genActual inbetween (A.Formal A.Original arrT n) a
 
-          _ -> call genActual inbetween f a
+               i <- modify' (+1) -- i is the value before the second modification
+
+               return $ do call genVariable' v A.Original
+                             (const $ Pointer $ Plain "mt_array_t")
+                           tell ["=ext_args[", show i, "];"]
+          _ -> lift (call genActual inbetween f a) >> modify (+1) >> return (return ())
            
 
 --}}}
