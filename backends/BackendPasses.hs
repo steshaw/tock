@@ -245,51 +245,65 @@ sliceDrop m skip total
 -- The Variable returned will always be Just, but it makes use from findVarSizes
 -- easier
 findSizeForVar :: Meta -> Int -> A.Variable ->
-  PassM (Maybe A.Name, Maybe A.Variable, [A.Expression])
+  PassM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
 findSizeForVar m skip v
   = do t <- astTypeOf v
        case stripMobile t of
          A.Array ds _
-           -> do debug $ show (m, skip, ds)
+           | skip >= length ds ->
+              -- This can happen, for example, with a mobile array of mobile arrays.
+              --  In this case, we need to indicate to our caller that they must
+              -- the specific subscript (that they probably skipped over) to find
+              -- the size of that mobile array
+              return Nothing
+           | otherwise ->
+              do debug $ show (m, skip, ds)
                  let es = drop skip [e | A.Dimension e <- ds]
                  mn <- case partition (== A.UnknownDimension) ds of
                          ([], ds) -> getSizes m v es
                          _ -> return Nothing
                  case mn of
-                   Just n -> return (Just n, Just $ A.Variable m n, es)
-                   _ -> return (Nothing,
+                   Just n -> return $ Just (Just n, Just $ A.Variable m n, es)
+                   _ -> return $ Just (Nothing,
                           Just $ sliceDrop m skip (length ds) $ A.VariableSizes m v,
                           [A.ExprVariable m $ A.SubscriptedVariable m
                              (A.Subscript m A.NoCheck $ makeConstant m i)
                                (A.VariableSizes m v)
                           | i <- [skip  .. (length ds - 1)]])
-         _ -> diePC m $ formatCode "findSizeForVar for type % (for variable %)" t v
+         _ -> return Nothing
   where
     stripMobile (A.Mobile t) = stripMobile t
+{-
     stripMobile (A.Array ds t) = case stripMobile t of
       A.Array ds' innerT -> A.Array (ds ++ ds') innerT
       t' -> A.Array ds t'
+-}
     stripMobile t = t
 -- Gets the variable that holds the sizes of the given variable.  The first parameter
 -- is the number of dimensions to skip.  Assumes simplifySlices has already been
 -- run
-findVarSizes :: Int -> A.Variable -> PassM (Maybe A.Name, Maybe A.Variable, [A.Expression])
+findVarSizes :: Int -> A.Variable -> PassM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
 findVarSizes skip v@(A.Variable m _) = findSizeForVar m skip v
 findVarSizes skip (A.DirectedVariable _ _ v) = findVarSizes skip v
 -- Fields are either constant or need a VariableSizes:
 findVarSizes skip v@(A.SubscriptedVariable m (A.SubscriptField {}) _)
   = findSizeForVar m skip v
 -- For a specific subscript, drop one extra dimension off the inner dimensions:
-findVarSizes skip (A.SubscriptedVariable _ (A.Subscript {}) v)
-  = findVarSizes (skip + 1) v
+findVarSizes skip wholeV@(A.SubscriptedVariable m (A.Subscript {}) v)
+  = do sizes <- findVarSizes (skip + 1) v
+       if isJust sizes
+         then return sizes
+         -- We went too far, and we may be an array of arrays, so try a different
+         -- approach:
+         else findSizeForVar m skip wholeV
 -- This covers all slicing:
 findVarSizes skip v@(A.SubscriptedVariable m (A.SubscriptFromFor _ _ from for) innerV)
 -- If we are skipping at least one dimension, we can ignore slicing:
   | skip > 0 = findVarSizes skip innerV
   | otherwise = do sizes <- findVarSizes 0 innerV
                    case sizes of
-                     (_, _, _:es) -> return (Nothing, Nothing, for : es)
-                     (_, _, []) -> diePC m $ formatCode "Empty sizes for sliced array: %" innerV
+                     Just (_, _, _:es) -> return $ Just (Nothing, Nothing, for : es)
+                     _ -> diePC m $ formatCode "Empty sizes for sliced array: %" innerV
 -- the size of a dereference is the size of the mobile array:
 findVarSizes skip (A.DerefVariable _ v) = findVarSizes skip v
 -- Not sure this should ever happen, but no harm:
@@ -299,7 +313,7 @@ findVarSizes skip (A.VariableSizes m v)
          dieP m "Told to drop (at least) one from size of VariableSizes!"
        let es = drop skip [makeConstant m (length ds)]
        mn <- getSizes m (A.VariableSizes m v) es
-       return (mn, fmap (A.Variable m) mn, es)
+       return $ Just (mn, fmap (A.Variable m) mn, es)
 
 type DeclSizeOps = (ExtOpMSP BaseOp) `ExtOpMP` A.Process
 
@@ -389,14 +403,16 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
            case sizeExpr of
              -- It was constant, and a new global declaration made, so we just
              -- need to return the name, and no specification
-             (Just sizeN, _, _) -> return (sizeN, Nothing)
+             Just (Just sizeN, _, _) -> return (sizeN, Nothing)
              -- We can use/slice a previous sizes item, so our abbreviation is
              -- quite simple:
-             (Nothing, Just sizeV, _) ->
+             Just (Nothing, Just sizeV, _) ->
                do t <- astTypeOf sizeV
                   return (n_sizes, Just $ A.Is m A.ValAbbrev t (A.ActualVariable sizeV))
              -- We have to declare a full array of sizes:
-             (Nothing, Nothing, es) -> return (n_sizes, Just $ makeSizeSpec m es)
+             Just (Nothing, Nothing, es) -> return (n_sizes, Just $ makeSizeSpec m es)
+             -- Error:
+             Nothing -> diePC m $ formatCode "Cannot work out sizes for %" abbrevV
 
     makeSizeSpec :: Meta -> [A.Expression] -> A.SpecType
     makeSizeSpec m es = A.Is m A.ValAbbrev t (A.ActualExpression e)
@@ -479,7 +495,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
           -- But even if all the dimensions are known, we must still add the sizes
           -- as a global thingy (provided it's not an external):
             | isNothing ext ->
-                          do (Just n_sizes, _, _) <- findVarSizes 0 (A.Variable m n)
+                          do Just (Just n_sizes, _, _) <- findVarSizes 0 (A.Variable m n)
                              addSizes (A.nameName n) n_sizes
                              (rest, moreNew) <- transformFormals ext m fs
                              return (f : rest, moreNew)
