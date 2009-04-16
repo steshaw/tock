@@ -2178,11 +2178,20 @@ cgenAllocMobile :: Meta -> A.Type -> Maybe A.Expression -> CGen()
 cgenAllocMobile m (A.Mobile t@(A.Array ds innerT)) Nothing
   | A.UnknownDimension `elem` ds = dieP m "Cannot allocate mobile array with unknown dimension"
   | otherwise =
-    do tell ["MTAllocDataArray(wptr,"]
-       call genBytesIn m innerT (Left False)
-       tell [",", show $ length ds]
-       prefixComma $ [call genExpression e | A.Dimension e <- ds]
-       tell [")"]
+    do let elemSize = call genBytesIn m innerT (Left False)
+           numDims = show $ length ds
+           wrap alloc = do tell ["TockZeroMobileArray("]
+                           alloc
+                           tell [","]
+                           elemSize
+                           tell [",", numDims, ")"]
+       mobInner <- isMobileType innerT
+       (if mobInner then wrap else id) $ do                        
+         tell ["MTAllocDataArray(wptr,"]
+         elemSize
+         tell [",", numDims]
+         prefixComma $ [call genExpression e | A.Dimension e <- ds]
+         tell [")"]
 cgenAllocMobile m (A.Mobile t) Nothing
   = do tell ["MTAlloc(wptr,"]
        mobileElemType False t

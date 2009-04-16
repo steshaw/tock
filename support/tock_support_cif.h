@@ -86,9 +86,20 @@ static inline void occam_RESIZE_MOBILE_ARRAY_1D (Workspace wptr, const int eleme
 //}}}
 
 //{{{ other mobile stuff
+static inline void* TockMTLock(Workspace wptr, void* ptr, int lock) occam_unused;
 static inline void* TockMTLock(Workspace wptr, void* ptr, int lock) {
 	MTLock(wptr, ptr, lock);
 	return ptr;
+}
+
+static inline mt_array_t* TockZeroMobileArray(mt_array_t* arr, int elem_size, int num_dims) occam_unused;
+static inline mt_array_t* TockZeroMobileArray(mt_array_t* arr, int elem_size, int num_dims) {
+  int total_size = elem_size;
+  for (int i = 0; i < num_dims; i++) {
+    total_size *= arr->dimensions[i];
+  }
+  memset(arr->data, 0, total_size);
+  return arr;
 }
 //}}}
 
