@@ -71,6 +71,10 @@ data NameType =
 -- | An item that has been pulled up.
 type PulledItem = (Meta, Either A.Specification A.Process) -- Either Spec or ProcThen
 
+-- | Whether a wrapper is for a FORK or a PAR
+data ParOrFork = ParWrapper | ForkWrapper
+  deriving (Show, Eq, Typeable, Data)
+
 -- | An index to identify an item involved in the type unification.
 newtype UnifyIndex = UnifyIndex (Meta, Either Int A.Name)
   deriving (Typeable, Data)
@@ -154,7 +158,7 @@ data CompState = CompState {
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[PulledItem]],
     csAdditionalArgs :: Map String [A.Actual],
-    csParProcs :: Set A.Name,
+    csParProcs :: Map A.Name ParOrFork,
     csUnifyId :: Int,
     -- The string is the operator, the name is the munged function name
     csOperators :: [(String, A.Name, [A.Type])],
@@ -215,7 +219,7 @@ emptyState = CompState {
     csFunctionReturns = Map.empty,
     csPulledItems = [],
     csAdditionalArgs = Map.empty,
-    csParProcs = Set.empty,
+    csParProcs = Map.empty,
     csUnifyId = 0,
     csOperators = [],
     csWarnings = []

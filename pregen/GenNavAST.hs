@@ -42,6 +42,7 @@ main = do
       , genMapInstance (undefined :: String) (undefined :: [AST.Type])
       , genMapInstance (undefined :: String) (undefined :: [AST.Actual])
       , genMapInstance (undefined :: String) (undefined :: Set.Set CompState.NameAttr)
+      , genMapInstance (undefined :: AST.Name) (undefined :: CompState.ParOrFork)
       -- All the sets that are in CompState:
       , genSetInstance (undefined :: Errors.WarningType)
       , genSetInstance (undefined :: String)

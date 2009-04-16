@@ -21,6 +21,7 @@ module SimplifyProcs (simplifyProcs, fixLowReplicators) where
 
 import Control.Monad.State
 import Data.Generics (Data)
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 
@@ -122,16 +123,16 @@ parsToProcs = pass "Wrap PAR subprocesses in PROCs"
         =  do s' <- doStructured s
               return $ A.Par m pm s'
     doProcess (A.Fork m n p)
-        =  wrapProcess (A.Fork m n) m p >>* A.Seq m
+        =  wrapProcess (A.Fork m n, ForkWrapper) m p >>* A.Seq m
     doProcess p = return p
 
     -- FIXME This should be generic and in Pass.
     doStructured :: A.Structured A.Process -> PassM (A.Structured A.Process)
-    doStructured = transformOnly (wrapProcess id)
+    doStructured = transformOnly (wrapProcess (id, ParWrapper))
 
-    wrapProcess wrap m p
+    wrapProcess (wrap, ty) m p
           =  do s@(A.Specification _ n _) <- makeNonceProc m p
-                modify (\cs -> cs { csParProcs = Set.insert n (csParProcs cs) })
+                modify (\cs -> cs { csParProcs = Map.insert n ty (csParProcs cs) })
                 return $ A.Spec m s (A.Only m (wrap $ A.ProcCall m n []))
 
 -- | Turn parallel assignment into multiple single assignments through temporaries.

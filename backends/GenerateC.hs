@@ -1581,7 +1581,7 @@ realFormals (A.Formal am t n)
 genProcSpec :: Level -> A.Name -> A.SpecType -> Bool -> CGen ()
 genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
     =  do cs <- getCompState
-          let (header, params) = if n `Set.member` csParProcs cs
+          let (header, params) = if n `Map.member` csParProcs cs
                                     || rm == A.Recursive
                                    then (genParHeader, genParParams)
                                    else (genNormalHeader, return ())
