@@ -926,7 +926,15 @@ inferTypes = occamOnlyPass "Infer types"
                   t'' <- case t' of
                            A.Infer -> astTypeOf (A.ActualClaim v')
                            _ -> return t'
-                  return $ addId $ A.Is m am' t'' (A.ActualClaim v')
+                  am'' <- case t'' of
+                            -- CLAIMed channel bundles are ValAbbrev, as they may
+                            -- not be altered:
+                            A.ChanDataType {} ->
+                              do modifyName n $ \nd -> nd { A.ndAbbrevMode = A.ValAbbrev }
+                                 return A.ValAbbrev
+                            -- CLAIMed normal channels are as before:
+                            _ -> return am'
+                  return $ addId $ A.Is m am'' t'' (A.ActualClaim v')
             A.Is m am t (A.ActualChannelArray vs) ->
                -- No expressions in this -- but we may need to infer the type
                -- of the variable if it's something like "cs IS [c]:".

@@ -1608,7 +1608,7 @@ claimSpec
        n <- getName v >>= getOrigName
        eol
        indent
-       return ([(A.Specification m (A.Name m n) $ A.Is m A.ValAbbrev A.Infer $ A.ActualClaim v, ChannelName, normalName)], outdent)
+       return ([(A.Specification m (A.Name m n) $ A.Is m A.Abbrev A.Infer $ A.ActualClaim v, ChannelName, normalName)], outdent)
   where
     getName :: A.Variable -> OccParser A.Name
     getName (A.Variable _ n) = return n
