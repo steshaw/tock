@@ -514,17 +514,29 @@ checkInitVar = forAnyFlowNode
                 m <- getFlowMeta
                 warnP m WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
-findAllProcess :: forall t m a. (Data t, Monad m) =>
-  (A.Process -> Bool) -> FlowGraph' m a t -> A.Structured t -> [(A.Process, a)]
-findAllProcess f g t = filter (f . fst) $ mapMaybe getProcess $ map snd $ labNodes g
+findAllProcess :: forall t m a. (Data t, Monad m,
+  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
+                                      (A.Structured t))
+                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t))
+   => (A.Process -> Bool) -> FlowGraph' m a t -> A.Structured t -> [(A.Process, a)]
+findAllProcess f g t = Map.elems $ Map.intersectionWith (,) astMap nodeMap
   where
-    getProcess :: FNode' t m a -> Maybe (A.Process, a)
+    nodeMap :: Map.Map [Int] a
+    nodeMap = Map.fromList $ mapMaybe getProcess $ map snd $ labNodes g
+
+    astMap :: Map.Map [Int] A.Process
+    astMap = Map.fromList $ map (revPair . transformPair id routeId) $ listifyDepthRoute (f . fst) t
+    
+    getProcess :: FNode' t m a -> Maybe ([Int], a)
     getProcess n = case getNodeFunc n of
-      AlterProcess f -> Just (routeGet f t, getNodeData n)
+      AlterProcess f -> Just (routeId f, getNodeData n)
       _ -> Nothing
 
-checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
-  FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
+checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t,
+  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
+                                      (A.Structured t))
+                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t)
+  ) => FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
   where
     isParAssign :: A.Process -> Bool
@@ -543,7 +555,11 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
         mockedupParItems = fmap ((,) bk) $ ParItems [SeqItems [Usage Nothing Nothing Nothing
           $ processVarW v Nothing] | v <- vs]
 
-checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t) =>
+checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t,
+  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
+                                      (A.Structured t))
+                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t)
+  ) =>
   FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g
   where
