@@ -221,7 +221,6 @@ cgenTopLevel headerName s
             killChans <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel_kill" | _ <- tlpChans]
             workspaces <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel_ws" | _ <- tlpChans]
 
-
             tell ["void tock_main (Workspace wptr) {\n"]
             sequence_ [do tell ["    Channel ", c, ";\n"]
                           tell ["    ChanInit (wptr, &", c, ");\n"]
@@ -871,6 +870,7 @@ cgetCType m origT am
          (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
          (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
 
+         (A.ChanDataType {}, _, _, A.Abbrev) -> return $ Pointer $ Pointer $ Plain "mt_cb_t"
          (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
 
          (A.Barrier, _, False, A.Original) -> return $ Pointer $ Plain "mt_barrier_t"
@@ -1034,8 +1034,9 @@ cgenListConcat a b
 
 --{{{  input/output items
 
-genChan, genDest :: A.Variable -> CGen ()
-genDest v = call genVariable' v A.Original (Pointer . stripPointers)
+genDest :: (CType -> CType) -> A.Variable -> CGen ()
+genDest f v = call genVariable' v A.Original (f . Pointer . stripPointers)
+genChan :: A.Variable -> CGen ()
 genChan c = call genVariable' c A.Original (const $ Pointer $ Plain "Channel")
  
 cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
@@ -1045,7 +1046,7 @@ cgenInputItem c (A.InCounted m cv av)
           tell ["ChanIn(wptr,"]
           genChan c
           tell [","]
-          genDest av
+          genDest id av
           tell [","]
           subT <- trivialSubscriptType m t
           call genVariable cv A.Original
@@ -1068,7 +1069,7 @@ cgenInputItem c (A.InVariable m v)
             _ -> return ()
           t <- astTypeOf v
           isMobile <- isMobileType t
-          let rhs = genDest v
+          let rhs = genDest (if isMobile then Pointer else id) v
           case (t, isMobile) of
             (A.Int, _) ->
               do tell ["ChanInInt(wptr,"]
@@ -1648,11 +1649,13 @@ cgenProcAlloc forking n fs as
                     let (s, fct) = case (am, isMobile) of
                               (A.ValAbbrev, _) -> ("ProcParam", id)
                               -- This is not needed unless forking:
-                              (_, True) | forking -> ("ProcMTMove", Pointer)
+                              (_, True) | forking -> ("ProcMTMove", Pointer . Pointer
+                                . stripPointers)
                               -- This will screw things up with barriers proper
                               -- being passed to forking processes,
                               -- but will work for other forking:
-                              _ | forking && t == A.Barrier -> ("ProcMTCopy", id)
+                              _ | forking && t == A.Barrier -> ("ProcMTCopy",
+                                  const $ Pointer $ Plain "mt_barrier_t")
                               _ -> ("ProcParam", id)
                     return $ zip (repeat s) $ realActuals f a fct
                 | (f@(A.Formal am t _), a) <- zip fs as]
