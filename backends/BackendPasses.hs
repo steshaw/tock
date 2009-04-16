@@ -50,6 +50,7 @@ backendPasses =
   , declareSizesArray
   , fixMinInt
   , pullAllocMobile
+  , fixMobileForkParams
 -- This is not needed unless forking:
 --  , mobileReturn
   ]
@@ -517,6 +518,46 @@ simplifySlices = occamOnlyPass "Simplify array slices"
              A.UnknownDimension -> return $ A.ExprVariable m $ specificDimSize 0 v
            return (A.SubscriptedVariable m (A.SubscriptFromFor m' check from (subExprsInt limit from)) v)
     doVariable v = return v
+
+-- | In occam-pi, parameters passed to FORKed processes have a communication semantics.
+--  This particularly affects MOBILE parameters.  The FORKed process will have
+-- a MOBILE FOO parameter (or channel bundle, or some other MOBILE type) which
+-- will be A.Abbrev, which usually means passing an mt_cb_t**.  But since the FORKed
+-- process will outlast the scope in which it is called, we can't actually pass
+-- it an mt_cb_t**.  But the FORKed process also might be called normally in
+-- sequential code with something of type mt_cb_t**, so we can't alter the definition
+-- of the process.
+--
+-- The solution is to instead alter the definition of the /wrapper/ PROC that wraps
+-- the FORKed call.  The wrapper process will receive an mt_cb_t*, and will take
+-- the address of the variable when passing it to the /wrapped/ PROC, thus giving
+-- it a valid mt_cb_t**.
+--
+-- The way we do this is to simply change the AbbrevMode on the wrapper PROC from
+-- A.Abbrev to A.Original, which will have the right effect in the C backend.
+fixMobileForkParams :: PassOn A.Specification
+fixMobileForkParams = cOnlyPass "Fix abbreviation modes of MOBILE params to FORKed processes"
+  [] [] (applyBottomUpM doSpecification)
+  where
+    doSpecification :: Transform A.Specification
+    doSpecification spec@(A.Specification m n (A.Proc m' smrm fs mbody))
+      = do cs <- getCompState
+           case Map.lookup n (csParProcs cs) of
+             Just ForkWrapper ->
+               do fs' <- mapM processFormal fs
+                  let specType' = A.Proc m' smrm fs' mbody
+                  modifyName n $ \nd -> nd { A.ndSpecType = specType' }
+                  return $ A.Specification m n specType'
+             _ -> return spec
+    doSpecification spec = return spec
+
+    processFormal :: Transform A.Formal
+    processFormal f@(A.Formal am t n)
+      = do mob <- isMobileType t
+           if mob
+             then do modifyName n $ \nd -> nd { A.ndAbbrevMode = A.Original }
+                     return $ A.Formal A.Original t n
+             else return f
 
 -- | Finds all processes that have a MOBILE parameter passed in Abbrev mode, and
 -- add the communication back at the end of the process.
