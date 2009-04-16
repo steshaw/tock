@@ -209,8 +209,8 @@ baseStackSize :: Integer
 baseStackSize = 32
 
 -- | Add the stack sizes for called functions to their callers.
-addCalls :: [String] -> Integer -> AAM ()
-addCalls knownProcs unknownSize
+addCalls :: [String] -> AAM ()
+addCalls knownProcs
     =  do fmap <- get
           sequence_ $ map (computeStack True) (Map.keys fmap)
   where
@@ -238,7 +238,7 @@ addCalls knownProcs unknownSize
                           , otherExt = Set.empty
                           }
                 else do lift $ warnPlainP WarnInternal $ "Unknown function " ++ func
-                          ++ "; allocating " ++ show unknownSize ++ " bytes stack"
+                          ++ "; allocating arbitary stack"
                         return $ StackInfo
                           { fixed = 0
                           , occamExt = Set.empty
@@ -254,11 +254,13 @@ addCalls knownProcs unknownSize
        mergeStackInfo (StackInfo n as bs) (StackInfo n' as' bs')
          = StackInfo (n + n') (as `Set.union` as') (bs `Set.union` bs')
 
-substitute :: Integer -> [(String, StackInfo)] -> Either String [(String, Integer)]
-substitute unknownSize origItems
+substituteFull :: Integer -> [(String, StackInfo)] -> Either String [(String, Integer)]
+substituteFull unknownSize origItems
   = case foldl Set.union Set.empty (map (findAllOccamDependencies . snd) origItems)
            `Set.difference` Set.fromList (map fst origItems) of
-      s | Set.null s -> substitute' [] origItems
+      s | Set.null s -> case map fst origItems \\ nub (map fst origItems) of
+           [] -> substitute' [] origItems
+           dups -> throwError $ "Duplicate stack sizes for: " ++ show dups
         | otherwise -> throwError $ "Missing stack sizes for: " ++ show s
   where
     substitute' :: [(String, Integer)] -> [(String, StackInfo)] -> Either String [(String, Integer)]
@@ -287,6 +289,39 @@ substitute unknownSize origItems
         subAll (Right n) = case lookup n newAcc of
                              Nothing -> Right n
                              Just s -> Left s
+
+substitutePartial :: [(String, StackInfo)] -> [(String, StackInfo)]
+substitutePartial origItems = substitute' [] origItems
+  where
+    substitute' :: [(String, StackInfo)] -> [(String, StackInfo)] -> [(String, StackInfo)]
+    substitute' acc [] = acc
+    substitute' acc items
+      | null firstItems -- Infinite loop if we don't stop it:
+         = acc ++ items -- Got as far as we can
+      | otherwise
+         = substitute' (acc++newAcc)
+             [(item, Set.fold subAll (s {occamExt = Set.empty}) (occamExt s))
+             | (item, s) <- rest]
+      where
+        (firstItems, rest) = partition (Set.null . Set.filter isRight . occamExt
+          . snd) items
+
+        newAcc = map (second getFixed) firstItems
+
+        -- We know occamExt must be all Lefts:
+        getFixed (StackInfo {fixed = fix, occamExt = occ, otherExt = ext})
+          = StackInfo {fixed = fix + (maximum $ 0 : [n | Left n <- Set.toList occ])
+                      ,occamExt = Set.empty
+                      ,otherExt = ext
+                      }
+
+        subAll :: Either Integer String -> StackInfo -> StackInfo
+        subAll (Left n) s = s { fixed = fixed s + n}
+        subAll (Right n) s
+          = case lookup n newAcc of
+              Nothing -> s { occamExt = Set.insert (Right n) (occamExt s) }
+              Just ds -> ds { fixed = fixed s + fixed ds
+                            , otherExt = Set.union (otherExt s) (otherExt ds) }
       
 
 -- | Analyse assembler and return C source defining sizes.
@@ -301,15 +336,17 @@ analyseAsm mprocs deps asm
   =  do let stream = parseAsm asm
         veryDebug $ pshow stream
         cs <- getCompState
-        info <- execStateT (collectInfo stream >> addCalls (fromMaybe [] mprocs) (csUnknownStackSize cs)) Map.empty
---        debug $ "Analysed function information:"
---        debug $ concat [printf "  %-40s %5d %5d %s\n"
---                          func (fiStack fi) (fiTotalStack fi)
---                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
---                        | (func, fi) <- Map.toList $ filterNames info]
+        info <- execStateT (collectInfo stream >> addCalls (fromMaybe [] mprocs)) Map.empty
+        debug $ "Analysed function information:"
+        debug $ concat [printf "  %-40s %5d %s %s\n"
+                          func (fiStack fi) (show $ fiTotalStack fi)
+                          (concat $ intersperse " " $ Set.toList $ fiCalls fi)
+                        | (func, fi) <- Map.toList info]
+        let info' = Map.fromList $ substitutePartial
+                      [(s, st) | (s, (FunctionInfo {fiTotalStack=Just st}))
+                                   <- Map.toList info]
         return $ unlines $ map (show . DependsOnSizes) deps ++
-          [show (s, st) | (s, (FunctionInfo {fiTotalStack=Just st}))
-                                           <- Map.toList $ filterNames info]
+                    map show (Map.toList $ filterNames info')
   where
     filterNames = case mprocs of
       Nothing -> id
