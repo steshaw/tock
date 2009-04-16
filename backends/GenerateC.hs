@@ -410,7 +410,7 @@ cgenBytesIn m t v
            tell [")"]
     genBytesIn' t@(A.ChanDataType {})
       = tell ["sizeof(mt_cb_t*)"]
-    genBytesIn' (A.Mobile t@(A.Array {})) = genBytesIn' t
+    genBytesIn' (A.Mobile t@(A.Array {})) = tell ["sizeof(mt_array_t*)"]
     genBytesIn' (A.Mobile _)
       = tell ["sizeof(void*)"]
     genBytesIn' (A.List _)
