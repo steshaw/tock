@@ -53,11 +53,12 @@ import UsageCheckUtils
 import Utils
 
 usageCheckPass :: A.AST -> PassM A.AST
-usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
+usageCheckPass t = do progress "- - Building flow graph"
+                      g' <- buildFlowGraph labelUsageFunctions t
                       (g, roots) <- case g' of
                         Left err -> dieP (findMeta t) err
                         Right (g,rs,_) -> return (g,rs)
-                      debug "Analysing flow graph"
+                      progress "- - Analysing flow graph"
                       reach <- case mapM (findReachDef g) roots >>* foldl Map.union
                         Map.empty of
                           Left err -> dieP emptyMeta $ "findReachDef: " ++
@@ -69,15 +70,15 @@ usageCheckPass t = do g' <- buildFlowGraph labelUsageFunctions t
                                   ++ err
                                 Right c -> return c
                       g' <- labelMapWithNodeIdM (addBK reach cons g) g
-                      debug "Checking flow graph for problems"
+                      progress "- - Checking flow graph for CREW"
                       checkPar (nodeRep . snd)
                         (joinCheckParFunctions
                           (checkArrayUsage NameShared)
                           (checkPlainVarUsage NameShared))
                         g'
-                      debug "Checking parallel assignments"
+                      progress "- - Checking parallel assignments"
                       checkParAssignUsage g' t
-                      debug "Checking PROC arguments"
+                      progress "- - Checking PROC arguments"
                       checkProcCallArgsUsage g' t
 --                      mapM_ (checkInitVar (findMeta t) g) roots
                       debug "Completed usage checking"
@@ -534,7 +535,8 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
     -- are distinct.  So we check plain variables, and array variables
     checkParAssign :: (A.Process, (BK, UsageLabel)) -> m ()
     checkParAssign (A.Assign m vs _, (bk, _))
-      = do checkPlainVarUsage NameShared (m, mockedupParItems)
+      = do debug $ "Checking assignment at: " ++ show m
+           checkPlainVarUsage NameShared (m, mockedupParItems)
            checkArrayUsage NameShared (m, mockedupParItems)
       where
         mockedupParItems :: ParItems (BK, UsageLabel)
