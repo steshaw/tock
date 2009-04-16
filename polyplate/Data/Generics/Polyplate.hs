@@ -129,7 +129,7 @@ module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(.
 --  makeRecurseQ, RecurseQ,
 --  makeDescendQ, DescendQ,
   BaseOp, baseOp,
-  ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpM, OneOp, TwoOpM, TwoOp
+  ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpMRoute, OneOpM, OneOp, TwoOpM, TwoOp
   ) where
 
 import Control.Monad.Identity
@@ -329,6 +329,8 @@ extOpMRoute ops f = (f, ops)
 extOp :: opT -> (t -> t) -> ExtOp opT t
 extOp ops f = (f, ops)
 
+-- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateMRoute'.
+type OneOpMRoute m t outer = ExtOpMRoute m BaseOp t outer
 -- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateM'.
 type OneOpM m t = ExtOpM m BaseOp t
 -- | A handy synonym for an ops set with only one item, to use with 'Polyplate'.

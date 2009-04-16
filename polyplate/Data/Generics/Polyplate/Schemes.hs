@@ -95,6 +95,15 @@ listifyDepth qf = flip execState [] . applyBottomUpM qf'
   where
     qf' x = if qf x then modify (x:) >> return x else return x
 
+-- | Like listifyDepth, but with routes
+listifyDepthRoute :: (PolyplateMRoute t (OneOpMRoute (State [(s, Route s t)]) s t) () (State [(s, Route s t)]) t
+                     ,PolyplateMRoute s () (OneOpMRoute (State [(s, Route s t)]) s t) (State [(s, Route s t)]) t)
+                     => ((s, Route s t) -> Bool) -> t -> [(s, Route s t)]
+listifyDepthRoute qf = flip execState [] . applyBottomUpMRoute qf'
+  where
+    qf' x = if qf x then modify (x:) >> return (fst x) else return (fst x)
+
+
 -- * Check functions to apply monadic checks throughout a data structure
 
 -- | Given a monadic function that operates on items of type \"s\" (without modifying
@@ -131,6 +140,14 @@ applyBottomUpM :: (PolyplateM t (OneOpM m s) () m,
 applyBottomUpM f = makeRecurseM ops
   where
     ops = baseOp `extOpM` makeBottomUpM ops f
+
+applyBottomUpMRoute :: (PolyplateMRoute t (OneOpMRoute m s t) () m t,
+                        PolyplateMRoute s () (OneOpMRoute m s t) m t) =>
+                       ((s, Route s t) -> m s) -> t -> m t
+applyBottomUpMRoute f x = transformMRoute ops () (x, identityRoute)
+  where
+    ops = baseOp `extOpMRoute` makeBottomUpMRoute ops f
+
 
 -- | As 'applyBottomUpM', but applies two functions.  These should not be modifying
 -- the same type.
