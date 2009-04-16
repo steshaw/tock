@@ -458,6 +458,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                              let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
                              (rest, moreNew) <- transformFormals ext m fs
                              return (f : newfs ++ rest, newfs ++ moreNew)
+          -- For externals, we always add extra formals (one per dimension!), even
+          -- for mobile arrays:
+          (A.Mobile (A.Array ds _), Just ExternalOldStyle) ->
+                          do params <- replicateM (length ds) $ makeNonce m "ext_size"
+                             let newfs = map (A.Formal A.ValAbbrev A.Int . A.Name m) params
+                             (rest, moreNew) <- transformFormals ext m fs
+                             return (f : newfs ++ rest, newfs ++ moreNew)
 
           -- For occam PROCs, only bother adding the extra formal if the dimension
           -- is unknown:
@@ -497,6 +504,9 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
     transformActualVariable ext t a v
       =    case (t, ext) of
              (A.Array ds _, Just ExternalOldStyle) ->
+                let acts = map (sub $ A.VariableSizes m v) [0 .. (length ds - 1)]
+                in return $ a : acts
+             (A.Mobile (A.Array ds _), Just ExternalOldStyle) ->
                 let acts = map (sub $ A.VariableSizes m v) [0 .. (length ds - 1)]
                 in return $ a : acts
              -- Note that t is the formal type, not the type of the actual

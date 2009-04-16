@@ -2100,10 +2100,12 @@ cgenProcCall n as
                     if null as
                       then tell ["{int ext_args[] = {};"]
                       else do tell ["{int ext_args[] = {(int)("]
-                              -- We don't use the formals in csExternals because they won't
-                              -- have had array sizes added:
                               (A.Proc _ _ fs _) <- specTypeOfName n
-                              call genActuals (tell ["),(int)("]) fs as
+                              when (length fs /= length as) $
+                                dieP (A.nameMeta n) "Mismatched number of arguments to external call"
+                              let inbetween = tell ["),(int)("]
+                              sequence_ $ intersperse inbetween $ map
+                                (uncurry $ genExternalActual inbetween) $ zip fs as
                               tell [")};"]
                     case c of
                       'B' -> tell ["ExternalCallN("]
@@ -2117,6 +2119,23 @@ cgenProcCall n as
                     (A.Proc _ _ fs _) <- specTypeOfName n
                     call genActuals genComma fs as
                     tell [");\n"]
+  where
+    -- The sizes will be 
+    genExternalActual :: CGen () -> A.Formal -> A.Actual -> CGen ()
+    genExternalActual inbetween f@(A.Formal am t n) a
+      = case (t, a) of
+          (A.Mobile arrT@(A.Array {}), A.ActualVariable v) ->
+            -- The extra dimensions parameters have already been added, but KRoC
+            -- passes both the array data and the address of the mobile, so we
+            -- had better do the same:
+            do call genActual inbetween (A.Formal A.Abbrev arrT n)
+                 (A.ActualVariable $ A.DerefVariable (findMeta v) v)
+               inbetween
+               call genActual inbetween f a
+
+          _ -> call genActual inbetween f a
+           
+
 --}}}
 --{{{  intrinsic procs
 cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
