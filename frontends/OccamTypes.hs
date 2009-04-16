@@ -197,20 +197,19 @@ checkExpressionBool e = checkExpressionType A.Bool e
 
 -- | Pick the more specific of a pair of types.
 betterType :: A.Type -> A.Type -> A.Type
-betterType t1 t2
-    = case betterType' t1 t2 of
-        Left () -> t1
-        Right () -> t2
+betterType A.Infer t = t
+betterType t A.Infer = t
+betterType t@(A.UserDataType _) _ = t
+betterType _ t@(A.UserDataType _) = t
+betterType t1@(A.Array ds1 et1) t2@(A.Array ds2 et2)
+  | length ds1 == length ds2
+     = A.Array (zipWith betterDim ds1 ds2) $ betterType et1 et2
+  | length ds1 < length ds2  = t1
   where
-    betterType' :: A.Type -> A.Type -> Either () ()
-    betterType' A.Infer t = Right ()
-    betterType' t A.Infer = Left ()
-    betterType' t@(A.UserDataType _) _ = Left ()
-    betterType' _ t@(A.UserDataType _) = Right ()
-    betterType' t1@(A.Array ds1 et1) t2@(A.Array ds2 et2)
-      | length ds1 == length ds2 = betterType' et1 et2
-      | length ds1 < length ds2  = Left ()
-    betterType' t _ = Left ()
+    betterDim A.UnknownDimension d@(A.Dimension _) = d
+    -- All other cases (both unknown, right is unknown, both known), use left:
+    betterDim d _ = d
+betterType t _ = t
 
 --}}}
 --{{{  more complex checks
@@ -1241,8 +1240,7 @@ inferTypes = occamOnlyPass "Infer types"
                        do subT <- trivialSubscriptType m underT
                           (elemT, aes') <- doElems subT aes
                           let dim = makeDimension m (length aes)
-                          return (applyDimension dim wantT,
-                                  A.Several m aes')
+                          return (addDimensions [dim] elemT, A.Several m aes')
                     A.Record _ ->
                        do nts <- recordFields m underT
                           aes <- sequence [doArrayElem t ae >>* snd
