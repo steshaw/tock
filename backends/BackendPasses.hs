@@ -117,10 +117,11 @@ pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] [] recurse
     
     doProcess :: Transform A.Process
     doProcess (A.Assign m [v] (A.ExpressionList me [A.AllocMobile ma t (Just e)]))
-      = return $ A.Seq m $ A.Several m $ map (A.Only m) $
-          [A.Assign m [v] $ A.ExpressionList me [A.AllocMobile ma t Nothing]
-          ,A.Assign m [A.DerefVariable m v] $ A.ExpressionList me [e]
-          ]
+      = do t' <- calculateType t e
+           return $ A.Seq m $ A.Several m $ map (A.Only m) $
+             [A.Assign m [v] $ A.ExpressionList me [A.AllocMobile ma t' Nothing]
+             ,A.Assign m [A.DerefVariable m v] $ A.ExpressionList me [e]
+             ]
     doProcess p = descend p
 
     doStructured :: TransformStructured' AllocMobileOps
@@ -128,12 +129,28 @@ pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] [] recurse
       (A.Is mis am t (A.ActualExpression (A.AllocMobile ma tm (Just e)))))
         body)
       = do body' <- recurse body
+           t' <- calculateType t e
            return $ A.Spec mspec (A.Specification mif n $
-             A.Is mis am t $ A.ActualExpression $ A.AllocMobile ma tm Nothing)
+             A.Is mis am t' $ A.ActualExpression $ A.AllocMobile ma t' Nothing)
              $ A.ProcThen ma
                  (A.Assign ma [A.DerefVariable mif $ A.Variable mif n] $ A.ExpressionList ma [e])
                  body'
     doStructured s = descend s
+
+    -- The Mobile wrapper is on before and after
+    calculateType :: A.Type -> A.Expression -> PassM A.Type
+    calculateType (A.Mobile (A.Array ds t)) (A.ExprVariable m v)
+      = return $ A.Mobile (A.Array ds' t)
+        where
+          ds' = [case d of
+                   A.Dimension {} -> d
+                   A.UnknownDimension
+                     -> A.Dimension $ A.ExprVariable m $ specificDimSize i v
+                | (i, d) <- zip [0..] ds]
+    calculateType (A.Mobile (A.Array ds t)) e
+      = diePC (findMeta e) $ formatCode "Cannot work out array dimensions from expression %" e
+    calculateType t@(A.Mobile _) _ = return t
+    calculateType t e = diePC (findMeta e) $ formatCode "Cannot allocate mobile of non-mobile type %" t
 
 -- | Turns any literals equivalent to a MOSTNEG back into a MOSTNEG
 -- The reason for doing this is that C (and presumably C++) don't technically (according
