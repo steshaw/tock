@@ -1446,24 +1446,56 @@ structuredTypeField
 pragma :: OccParser (Maybe NameSpec)
 pragma = do m <- getPosition >>* sourcePosToMeta
             Pragma rawP <- genToken isPragma
-            let prag :: Maybe (Int, String)
+            let prag :: Maybe (Either (OccParser (Maybe NameSpec))
+                              (String, OccParser (Maybe NameSpec)))
                 prag = join $ find isJust
-                 [ (matchRegex (mkRegex pt) rawP >>= listToMaybe) >>* (,) i
-                 | (i, pt) <- zip [0..]
-                        [ "^SHARED +(.*)"
-                        , "^PERMITALIASES +(.*)"
-                        , "^EXTERNAL +\"(.*)\""
-                        , "^TOCKEXTERNAL +\"(.*)\""
-                        , "^TOCKSIZES +\"(.*)\""
-                        , "^TOCKINCLUDE +\"(.*)\""
-                        , "^TOCKNATIVELINK +\"(.*)\""
-                        ]
-                        -- Warning: as things stand, a regex must return a capture,
-                        -- or else the code won't work.  FIXME!
+                 [ fmap (f m) (matchRegex (mkRegex pt) rawP)
+                 | (pt, f) <- pragmas
                  ]
-            mprod <- return $ flip fmap prag $ \(pragType, pragStr) -> (case pragType of
-              0 -> Right $ do
-                vars <- sepBy1 identifier sComma
+            ns <- case prag of
+              Just (Right (pragStr, prod)) -> do
+                let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
+                toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
+                                  , metaLine m, column) pragStr
+                cs <- getCompState
+                case runParser (do {n <- prod; s <- getState; return (n, s)}) cs "" toks of
+                  Left err -> do warnP m WarnUnknownPreprocessorDirective $
+                                   "Unknown PRAGMA (parse failed): " ++ show err
+                                 return Nothing
+                  Right (n, st) -> do setState st
+                                      return n
+              Just (Left norm) -> norm
+              _ -> do warnP m WarnUnknownPreprocessorDirective $
+                        "Unknown PRAGMA type: " ++ show rawP
+                      return Nothing
+            eol
+            return ns
+
+  where
+    -- The Right return expects the given string to be lexed then parsed, whereas
+    -- the Left return is just some code to run as normal, that won't consume
+    -- any input.
+    pragmas :: (Die m, CSM m) => [ (String, Meta -> [String] -> Either (m (Maybe NameSpec))
+      (String, OccParser (Maybe NameSpec)) ) ]
+    pragmas = [ ("^SHARED +(.*)", parseContents handleShared)
+              , ("^PERMITALIASES +(.*)", parseContents handlePermitAliases)
+              , ("^EXTERNAL +\"(.*)\"", parseContents $ handleExternal True)
+              , ("^TOCKEXTERNAL +\"(.*)\"", parseContents $ handleExternal False)
+              , ("^TOCKSIZES +\"(.*)\"", simple handleSizes)
+              , ("^TOCKINCLUDE +\"(.*)\"", simple handleInclude)
+              , ("^TOCKNATIVELINK +\"(.*)\"", simple handleNativeLink)
+              ]
+      where
+        parseContents :: (Meta -> OccParser (Maybe NameSpec))
+          -> Meta -> [String] -> Either a (String, OccParser (Maybe NameSpec))
+        parseContents p m [s] = Right (s, p m)
+
+        simple :: (Die m, CSM m) => (Meta -> [String] -> m (Maybe NameSpec))
+          -> Meta -> [String] -> Either (m (Maybe NameSpec)) a
+        simple p m ss = Left $ p m ss
+
+    handleShared m
+           = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
@@ -1473,8 +1505,9 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
                 return Nothing
-              1 -> Right $ do
-                vars <- sepBy1 identifier sComma
+
+    handlePermitAliases m
+           = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
                   do st <- get
                      A.Name _ n <- case lookup var (csLocalNames st) of
@@ -1484,25 +1517,26 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
                 return Nothing
-              4 -> Left $ do
-                case metaFile m of
+    handleSizes m [pragStr]
+           = do case metaFile m of
                   Nothing -> dieP m "PRAGMA TOCKSIZES in undeterminable file"
                   Just f -> let (f', _) = splitExtension f in
                     modify $ \cs -> cs { csExtraSizes = (f' ++ pragStr) : csExtraSizes cs }
                 return Nothing
-              5 -> Left $ do
-                case metaFile m of
+    handleInclude m [pragStr]
+           = do case metaFile m of
                   Nothing -> dieP m "PRAGMA TOCKINCLUDE in undeterminable file"
                   Just f -> let (f', _) = splitExtension f in
                     modify $ \cs -> cs { csExtraIncludes = (f' ++ pragStr) : csExtraIncludes cs }
                 return Nothing
-              6 -> Left $ do
-                modify $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
+    handleNativeLink m [pragStr]
+           = do modify $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
                 return Nothing
-              pragmaType | pragmaType == 2 || pragmaType == 3 -> Right $ do
-                m <- md
+
+    handleExternal isCExternal m
+           = do m <- md
                 (n, nt, origN, fs, sp) <-
-                  if pragmaType == 2
+                  if isCExternal
                     then do sPROC
                             n <- newProcName
                             fs <- formalList'
@@ -1522,33 +1556,12 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                                 n <- newFunctionName
                                 return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
                                   Nothing)
-                let ext = if pragmaType == 2 then ExternalOldStyle else ExternalOccam
+                let ext = if isCExternal then ExternalOldStyle else ExternalOccam
                 modify $ \st -> st
                   { csExternals = (A.nameName n, ext) : csExternals st
                   }
                 return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
-                
-              , pragStr) -- from way back up there
 
-            ns <- case mprod of
-              Just (Right prod, pragStr) -> do
-                let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
-                toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
-                                  , metaLine m, column) pragStr
-                cs <- getCompState
-                case runParser (do {n <- prod; s <- getState; return (n, s)}) cs "" toks of
-                  Left err -> do warnP m WarnUnknownPreprocessorDirective $
-                                   "Unknown PRAGMA (parse failed): " ++ show err
-                                 return Nothing
-                  Right (n, st) -> do setState st
-                                      return n
-              Just (Left norm, _) -> norm
-              _ -> do warnP m WarnUnknownPreprocessorDirective $
-                        "Unknown PRAGMA type: " ++ show rawP
-                      return Nothing
-            eol
-            return ns
-  where
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
 
