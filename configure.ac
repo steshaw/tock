@@ -197,24 +197,19 @@ AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8]
 # Check the sizes of certain constructs.  We'll need to be cleverer if in future
 # we want to allow cross-compilation.
 
-#There is a subtle trick below.  If you ask autoconf for the size of int
-#in both C and C++, it caches the result from one to the other.
-#To allow for the possibility of the C and C++ compilers having a
-#different size int (seems unlikely, but perhaps possible with cross
-#compilation) we use unsigned int in C++ and int in C.
 AC_LANG(C++)
 AC_CHECK_SIZEOF(bool)
 AC_COMPUTE_INT(CXX_BOOL_SIZE,SIZEOF_BOOL)
 AC_SUBST(CXX_BOOL_SIZE)
-AC_CHECK_SIZEOF(unsigned int)
-AC_COMPUTE_INT(CXX_INT_SIZE,SIZEOF_UNSIGNED_INT)
-AC_SUBST(CXX_INT_SIZE)
 AC_LANG(C)
 AC_CHECK_SIZEOF(_Bool)
 AC_COMPUTE_INT(C_BOOL_SIZE,SIZEOF__BOOL)
 AC_SUBST(C_BOOL_SIZE)
-AC_CHECK_SIZEOF(int)
-AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_INT)
+
+#We use sizeof(void*) to work out the size for INT,
+#because the C int type is 32-bit on both 32-bit and 64-bit platforms (with GCC, x86/x86-64).
+AC_CHECK_SIZEOF(void*)
+AC_COMPUTE_INT(C_INT_SIZE,SIZEOF_VOIDP)
 AC_SUBST(C_INT_SIZE)
 
 if test "x$C_INT_SIZE" = "x2"; then
@@ -226,17 +221,7 @@ fi
 if test "x$C_INT_SIZE" = "x8"; then
 C_INT_EQUIV=Int64
 fi
-if test "x$CXX_INT_SIZE" = "x2"; then
-CXX_INT_EQUIV=Int16
-fi
-if test "x$CXX_INT_SIZE" = "x4"; then
-CXX_INT_EQUIV=Int32
-fi
-if test "x$CXX_INT_SIZE" = "x8"; then
-CXX_INT_EQUIV=Int64
-fi
 AC_SUBST(C_INT_EQUIV)
-AC_SUBST(CXX_INT_EQUIV)
 
 CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # The reason for -fno-strict-overflow and -fno-tree-vrp above is that with the way I have implemented

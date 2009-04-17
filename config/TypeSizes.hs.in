@@ -8,10 +8,10 @@ cBoolSize, cxxBoolSize, cIntSize, cxxIntSize :: Int
 cBoolSize = @C_BOOL_SIZE@
 cxxBoolSize = @CXX_BOOL_SIZE@
 cIntSize = @C_INT_SIZE@
-cxxIntSize = @CXX_INT_SIZE@
+cxxIntSize = cIntSize
 type CIntReplacement = @C_INT_EQUIV@
-type CXXIntReplacement = @CXX_INT_EQUIV@
+type CXXIntReplacement = CIntReplacement
 cIntReplacement, cXXIntReplacement :: A.Type
 cIntReplacement = A.@C_INT_EQUIV@
-cXXIntReplacement = A.@CXX_INT_EQUIV@
+cXXIntReplacement = cIntReplacement
 
