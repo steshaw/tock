@@ -318,6 +318,15 @@ inferTypes = occamOnlyPass "Infer types"
         typeEqForOp :: A.Type -> A.Type -> Bool
         typeEqForOp (A.Array ds t) (A.Array ds' t')
           = (length ds == length ds') && typeEqForOp t t'
+        -- Since we auto-dereference mobiles that are passed to operators, we must
+        -- auto-skip mobile-ness when checking the types, so that we can still
+        -- infer properly if the user is passing a MOBILE INT instead of an INT.
+        --  This does mean you can't overload operators on MOBILE INT differently
+        -- than INT, but I don't see how we could allow that sensibly anyway
+        typeEqForOp (A.Mobile t) t'
+          = typeEqForOp t t'
+        typeEqForOp t (A.Mobile t')
+          = typeEqForOp t t'
         typeEqForOp t t' = t == t'
 
     doActuals :: (PolyplateM a InferTypeOps () PassM, Data a) => Meta -> A.Name -> [A.Formal] ->
