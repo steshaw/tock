@@ -272,7 +272,7 @@ inferTypes = occamOnlyPass "Infer types"
                       -- Must have right argument types:
                       , and $ zipWith (maybe True) (map typeEqForOp ts) mts
                       -- Must have right return type:
-                      , ctx == A.Infer || ctx == rt
+                      , ctx == A.Infer || ctx `typeEqForOp` rt
                       ]
 
                   pickTypes :: [Maybe A.Type] -> [Maybe A.Type]
