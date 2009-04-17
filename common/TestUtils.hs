@@ -630,7 +630,7 @@ testPassShouldFail' testName actualPass startStateTrans =
 --{{{  miscellaneous utilities
 
 markRainTest :: State CompState ()
-markRainTest = modify (\cs -> cs { csFrontend = FrontendRain })
+markRainTest = modifyCompOpts (\cs -> cs { csFrontend = FrontendRain })
 
 castOrFail :: (Typeable b) => String -> String -> Items -> IO b
 castOrFail testName key items = 

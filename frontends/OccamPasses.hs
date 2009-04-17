@@ -61,7 +61,7 @@ occamPasses =
 writeIncFile :: Pass A.AST
 writeIncFile = occamOnlyPass "Write .inc file" [] []
   (passOnlyOnAST "writeIncFile" (\t ->
-    do out <- getCompState >>* csOutputIncFile
+    do out <- getCompOpts >>* csOutputIncFile
        case out of
          Just fn -> do f <- liftIO $ openFile fn WriteMode
                        contents <- emitProcsAsExternal t >>* (unlines . F.toList)

@@ -396,7 +396,7 @@ testOccamPassWarn str check code pass
       (put $ inpS {csWarnings = []}) -- Blank the warnings for the new pass
       (assertEqual str (csNames expS) . csNames)
   where
-    emptyStateWithWarnings = emptyState { csEnabledWarnings = Set.fromList [minBound..maxBound] }
+    emptyStateWithWarnings = emptyState { csOpts = emptyOpts {csEnabledWarnings = Set.fromList [minBound..maxBound]} }
 
 -- | Like testOccamPass, but applies a transformation to the patterns (such as
 -- using stopCaringPattern) before pattern-matching

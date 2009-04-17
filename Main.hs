@@ -58,7 +58,7 @@ import ShowCode
 import Utils
 
 -- Either gives back options, or an exact string to print out:
-type OptFunc = CompState -> ErrorT String IO CompState
+type OptFunc = CompOpts -> ErrorT String IO CompOpts
 
 printString :: String -> ErrorT String IO a
 printString = throwError
@@ -188,7 +188,7 @@ optPrintHelp _ = printString $ usageInfo "Usage: tock [OPTION...] SOURCEFILE" op
 optPrintWarningHelp :: OptFunc
 optPrintWarningHelp _ = printString $ usageInfo "Usage: tock [OPTION...] SOURCEFILE" optionsWarnings
 
-optOnOff :: (String, Bool -> CompState -> CompState) -> String -> OptFunc
+optOnOff :: (String, Bool -> CompOpts -> CompOpts) -> String -> OptFunc
 optOnOff (n, f) s ps
     =  do mode <- case s of
             "on" -> return True
@@ -240,7 +240,7 @@ main = do
                                 Just $ take (length fn - length ".rain") fn)
                           else (id, Nothing)
 
-  res <- runErrorT $ foldl (>>=) (return $ frontendGuess emptyState) opts
+  res <- runErrorT $ foldl (>>=) (return $ frontendGuess emptyOpts) opts
   case res of
     Left str -> putStrLn str
     Right initState -> do
@@ -250,7 +250,7 @@ main = do
             mode -> useOutputOptions (compile mode fn)
 
       -- Run the compiler.
-      v <- runPassM initState operation
+      v <- runPassM (emptyState { csOpts = initState}) operation
       case v of
         (Left e, cs) -> showWarnings (csWarnings cs) >> dieIO e
         (Right r, cs) -> showWarnings (csWarnings cs)
@@ -279,14 +279,14 @@ instance Die FilesPassM where
             -- If removing the files fails, we don't want to die with that
             -- error; we want the user to see the original error, so ignore
             -- errors arising from removing the files:
-            optsPS <- getCompState
+            optsPS <- getCompOpts
             when (not $ csKeepTemporaries optsPS) $
               liftIO $ removeFiles files
             FilesPassM $ dieReport err
 
 compileFull :: String -> Maybe String -> FilesPassM ()
 compileFull inputFile moutputFile
-    =  do optsPS <- getCompState
+    =  do optsPS <- getCompOpts
           outputFile <- case (csOutputFile optsPS, moutputFile) of
                           -- If the user hasn't given an output file, we guess by
                           -- using a stem (input file minus known extension).
@@ -307,7 +307,7 @@ compileFull inputFile moutputFile
           let cFile = outputFile ++ cExtension
               hFile = outputFile ++ hExtension
               iFile = outputFile ++ ".tock.inc"
-          modifyCompState $ \cs -> cs { csOutputIncFile = Just iFile }
+          modifyCompOpts $ \cs -> cs { csOutputIncFile = Just iFile }
           withOutputFile cFile $ \hb ->
             withOutputFile hFile $ \hh ->
                 FilesPassM $ lift $ compile ModeCompile inputFile ((hb, hh), hFile)
@@ -316,7 +316,7 @@ compileFull inputFile moutputFile
             exec $ "indent " ++ cFile
 
           cs <- getCompState
-          case csBackend cs of
+          case csBackend (csOpts cs) of
             BackendC ->
               let sFile = outputFile ++ ".tock.s"
                   oFile = outputFile ++ ".tock.o"
@@ -325,52 +325,55 @@ compileFull inputFile moutputFile
                   postOFile = outputFile ++ ".tock_post.o"
               in
               do sequence_ $ map noteFile $ [sFile, postCFile, postOFile]
-                               ++ if csHasMain cs then [oFile] else []
+                               ++ if csHasMain (csOpts cs) then [oFile] else []
                                -- The object file is a temporary to-be-removed
                                -- iff we are also linking the end product
 
                  -- Compile the C into assembly, and assembly into an object file
-                 exec $ cAsmCommand cFile sFile (csCompilerFlags cs)
-                 exec $ cCommand sFile oFile (csCompilerFlags cs)
+                 exec $ cAsmCommand cFile sFile (csCompilerFlags $ csOpts cs)
+                 exec $ cCommand sFile oFile (csCompilerFlags $ csOpts cs)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" H file
                  sizes <- withOutputFile sizesFile $ \h -> FilesPassM $ lift $
                    postCAnalyse sFile ((h,intErr),intErr)
 
-                 when (csHasMain cs) $ do
+                 when (csHasMain $ csOpts cs) $ do
                    withOutputFile postCFile $ \h ->
-                     computeFinalStackSizes searchReadFile (csUnknownStackSize cs)
+                     computeFinalStackSizes searchReadFile (csUnknownStackSize $ csOpts cs)
                        (Meta (Just sizesFile) 1 1) sizes >>= (liftIO . hPutStr h)
                      
                    -- Compile this new "post" C file into an object file
-                   exec $ cCommand postCFile postOFile (csCompilerFlags cs)
+                   exec $ cCommand postCFile postOFile (csCompilerFlags $ csOpts cs)
 
                    let otherOFiles = [usedFile ++ ".tock.o"
                                      | usedFile <- Set.toList $ csUsedFiles cs]
                    
                    -- Link the object files into a binary
-                   exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile (csCompilerLinkFlags cs)
+                   exec $ cLinkCommand (oFile : postOFile : otherOFiles) outputFile
+                     (csCompilerLinkFlags $ csOpts cs)
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
               do cs <- getCompState
-                 if csHasMain cs
+                 if csHasMain $ csOpts cs
                    then let otherOFiles = [usedFile ++ ".tock.o"
                                           | usedFile <- Set.toList $ csUsedFiles cs]
                      in exec $ cxxCommand cFile outputFile
-                          (concat (intersperse " " otherOFiles) ++ " " ++ csCompilerFlags cs ++ " " ++ csCompilerLinkFlags cs)
+                          (concat (intersperse " " otherOFiles) ++ " "
+                            ++ csCompilerFlags (csOpts cs) ++ " "
+                            ++ csCompilerLinkFlags (csOpts cs))
                    else exec $ cxxCommand cFile (outputFile ++ ".tock.o")
-                          ("-c " ++ csCompilerFlags cs)
+                          ("-c " ++ csCompilerFlags (csOpts cs))
 
             BackendCHP ->
               exec $ hCommand cFile outputFile
             _ -> dieReport (Nothing, "Cannot use specified backend: "
-                                     ++ show (csBackend cs)
+                                     ++ show (csBackend $ csOpts cs)
                                      ++ " with full-compile mode")
 
           -- Finally, remove the temporary files:
           tempFiles <- FilesPassM get
-          when (not $ csKeepTemporaries cs) $
+          when (not $ csKeepTemporaries $ csOpts cs) $
             liftIO $ removeFiles tempFiles
 
   where
@@ -404,7 +407,7 @@ compileFull inputFile moutputFile
 -- | Picks out the handle from the options and passes it to the function:
 useOutputOptions :: (((Handle, Handle), String) -> PassM a) -> PassM a
 useOutputOptions func
-  =  do optsPS <- get
+  =  do optsPS <- getCompOpts
         withHandleFor (csOutputFile optsPS) $ \hb ->
           withHandleFor (csOutputHeaderFile optsPS) $ \hh ->
               func ((hb, hh), csOutputHeaderFile optsPS)
@@ -459,7 +462,7 @@ showTokens html ts = evalState (mapM showToken ts >>* spaceOut) 0
 -- because then it's very easy to pass the state around.
 compile :: CompMode -> String -> ((Handle, Handle), String) -> PassM ()
 compile mode fn (outHandles@(outHandle, _), headerName)
-  =  do optsPS <- get
+  =  do optsPS <- getCompOpts
 
         debug "{{{ Parse"
         progress "Parse"

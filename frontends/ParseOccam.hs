@@ -65,7 +65,7 @@ addLocalName n = do st <- getState
 instance Warn (GenParser tok OccParserState) where
   warnReport w@(_,t,_) = modifyCompState $
     \cs -> cs { csWarnings =
-      if t `Set.member` csEnabledWarnings cs
+      if t `Set.member` csEnabledWarnings (csOpts cs)
         then csWarnings cs ++ [w]
         else csWarnings cs }
 
@@ -1536,7 +1536,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                     modifyCompState $ \cs -> cs { csExtraIncludes = (f' ++ pragStr) : csExtraIncludes cs }
                 return Nothing
     handleNativeLink m [pragStr]
-           = do modifyCompState $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
+           = do modifyCompOpts $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
                 return Nothing
 
     handleExternal isCExternal m

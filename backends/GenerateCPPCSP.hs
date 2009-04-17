@@ -100,7 +100,7 @@ chansToAny :: PassOn A.Type
 chansToAny = cppOnlyPass "Transform channels to ANY"
   [Prop.processTypesChecked]
   [Prop.allChansToAnyOrProtocol]
-  $      \x -> do st <- get
+  $      \x -> do st <- getCompOpts
                   case csFrontend st of
                     FrontendOccam ->
                       do chansToAnyInCompState
@@ -118,7 +118,7 @@ chansToAny = cppOnlyPass "Transform channels to ANY"
     chansToAnyM = applyBottomUpM chansToAny'
     
     chansToAnyInCompState :: PassM ()
-    chansToAnyInCompState = do st <- get
+    chansToAnyInCompState = do st <- getCompState
                                csn <- chansToAnyM (csNames st)
                                put $ st {csNames = csn}
                                return ()
@@ -160,12 +160,12 @@ cppgenTopLevel headerName s
 
           call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ",show m])
 
-          when (csHasMain cs) $ do
+          when (csHasMain $ csOpts cs) $ do
             (name, chans) <- tlpInterface
             tell ["int main (int argc, char** argv) { csp::Start_CPPCSP();"]
             (chanTypeRead, chanTypeWrite, writer, reader) <- 
                       do st <- getCompState
-                         case csFrontend st of
+                         case csFrontend $ csOpts st of
                            FrontendOccam -> return ("tockSendableArrayOfBytes",
                                                     "tockSendableArrayOfBytes",
                                                     "StreamWriterByteArray",

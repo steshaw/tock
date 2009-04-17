@@ -46,7 +46,7 @@ instance Die PassM where
 instance Warn PassM where
   warnReport w@(_,t,_) = lift $ modify $
     \cs -> cs { csWarnings =
-      if t `Set.member` csEnabledWarnings cs
+      if t `Set.member` csEnabledWarnings (csOpts cs)
         then csWarnings cs ++ [w]
         else csWarnings cs }
 
@@ -102,7 +102,7 @@ data Pass t = Pass {
   , passName :: String
   , passPre :: Set.Set Property
   , passPost :: Set.Set Property
-  , passEnabled :: CompState -> Bool
+  , passEnabled :: CompOpts -> Bool
 }
 
 instance Eq (Pass t) where
@@ -130,7 +130,7 @@ runPassM :: CompState -> PassM a -> IO (Either ErrorReport a, CompState)
 runPassM cs pass
     =  flip runStateT cs $ runErrorT pass
 
-enablePassesWhen :: (CompState -> Bool) -> [Pass A.AST] -> [Pass A.AST]
+enablePassesWhen :: (CompOpts -> Bool) -> [Pass A.AST] -> [Pass A.AST]
 enablePassesWhen f
     = map (\p -> p { passEnabled = \c -> f c && (passEnabled p c) })
 
@@ -140,7 +140,7 @@ passOnlyOnAST name = id
 
 type PassMaker t = String -> [Property] -> [Property] -> PassType t -> Pass t
 
-passMakerHelper :: (CompState -> Bool) -> PassMaker t
+passMakerHelper :: (CompOpts -> Bool) -> PassMaker t
 passMakerHelper f name pre post code
   = Pass { passCode = code
          , passName = name
@@ -186,7 +186,7 @@ runPasses (p:ps) ast
 verboseMessage :: (CSMR m, MonadIO m) => Int -> String -> m ()
 verboseMessage n s
     =  do ps <- getCompState
-          when (csVerboseLevel ps >= n) $
+          when (csVerboseLevel (csOpts ps) >= n) $
             liftIO $ hPutStrLn stderr s
 
 -- | Print a progress message.

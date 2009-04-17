@@ -203,7 +203,7 @@ cgenTopLevel headerName s
           sequence_ [tell ["extern int "] >> genName n >> tell ["_stack_size;\n"]
                      | n <- nss]
 
-          when (csHasMain cs) $ do
+          when (csHasMain $ csOpts cs) $ do
             (tlpName, tlpChans) <- tlpInterface
             tell ["extern int "]
             genName tlpName
@@ -215,7 +215,7 @@ cgenTopLevel headerName s
 
           call genStructured TopLevel s (\m _ -> tell ["\n#error Invalid top-level item: ", show m])
 
-          when (csHasMain cs) $ do
+          when (csHasMain $ csOpts cs) $ do
             (tlpName, tlpChans) <- tlpInterface
             chans <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel" | _ <- tlpChans]
             killChans <- sequence [csmLift $ makeNonce emptyMeta "tlp_channel_kill" | _ <- tlpChans]

@@ -97,14 +97,13 @@ data NameAttr = NameShared | NameAliasesPermitted deriving (Typeable, Data, Eq, 
 data ExternalType = ExternalOldStyle | ExternalOccam
   deriving (Typeable, Data, Eq, Show, Ord)
 
--- | State necessary for compilation.
-data CompState = CompState {
-    -- This structure needs to be printable with pshow.
-    -- There are explicit rules for the Maps and Sets used here
-    -- in PrettyShow.hs; if you add any new ones here then remember
-    -- to add matching rules there.
-
-    -- Set by Main (from command-line options)
+-- | Options for the compiler.
+--
+-- CompOpts should contain things are adjustable from the command-line.  They may
+-- also change during compilation; for example, the preprocessor definitions will
+-- be affected by the preprocessor, and other options may be affected by pragmas
+-- in future.
+data CompOpts = CompOpts {
     csMode :: CompMode,
     csBackend :: CompBackend,
     csFrontend :: CompFrontend,
@@ -124,6 +123,21 @@ data CompState = CompState {
     csUnknownStackSize :: Integer,
     csSearchPath :: [String],
     csImplicitModules :: [String],
+
+    csDefinitions :: Map String PreprocDef
+  }
+  deriving (Data, Typeable, Show)
+
+-- | State necessary for compilation.
+data CompState = CompState {
+    -- This structure needs to be printable with pshow.
+    -- There are explicit rules for the Maps and Sets used here
+    -- in PrettyShow.hs; if you add any new ones here then remember
+    -- to add matching rules there.
+
+    -- Set by Main (from command-line options)
+    csOpts :: CompOpts,
+
     -- Extra sizes files to look up.  These are stored without the tock suffix
     csExtraSizes :: [String],
     -- Extra include files, stored without the .tock.h suffix.
@@ -133,7 +147,6 @@ data CompState = CompState {
     csCurrentFile :: String, -- Also used by some later passes!
     -- #USEd files.  These are stored with any (known) extensions removed:
     csUsedFiles :: Set String,
-    csDefinitions :: Map String PreprocDef,
 
     -- Set by Parse
     csMainLocals :: [(String, (A.Name, NameType))],
@@ -159,8 +172,8 @@ data CompState = CompState {
   }
   deriving (Data, Typeable, Show)
 
-emptyState :: CompState
-emptyState = CompState {
+emptyOpts :: CompOpts
+emptyOpts = CompOpts {
     csMode = ModeFull,
     csBackend = BackendC,
     csFrontend = FrontendOccam,
@@ -185,16 +198,22 @@ emptyState = CompState {
     csUnknownStackSize = 512,
     csSearchPath = [".", tockIncludeDir],
     csImplicitModules = [],
+
+    csDefinitions = Map.fromList [("COMPILER.TOCK", PreprocNothing)
+                                 ,("TARGET.BITS.PER.WORD", PreprocInt $ show $ cIntSize * 8)
+                                 ,("TARGET.BYTES.PER.WORD", PreprocInt $ show cIntSize)
+--                                 ,("TARGET.HAS.FPU", PreprocNothing)
+                                 ]
+  }
+
+emptyState :: CompState
+emptyState = CompState {
+    csOpts = emptyOpts,
     csExtraSizes = [],
     csExtraIncludes = [],
 
     csCurrentFile = "none",
     csUsedFiles = Set.empty,
-    csDefinitions = Map.fromList [("COMPILER.TOCK", PreprocNothing)
-                                 ,("TARGET.BITS.PER.WORD", PreprocInt $ show $ cIntSize * 8)
-                                 ,("TARGET.BYTES.PER.WORD", PreprocInt $ show cIntSize)
---                                 ,("TARGET.HAS.FPU", PreprocNothing)
-                                 ],
 
     csMainLocals = [],
     csNames = Map.empty,
@@ -228,6 +247,9 @@ class (Monad m, CSMR m) => CSM m where
 
   modifyCompState :: (CompState -> CompState) -> m ()
   modifyCompState f = (getCompState >>* f) >>= putCompState
+
+modifyCompOpts :: CSM m => (CompOpts -> CompOpts) -> m ()
+modifyCompOpts f = modifyCompState $ \cs -> cs { csOpts = f (csOpts cs) }
 
 -- If it's State CompState, I doubt they will want any other instance than this
 -- one:
@@ -268,6 +290,8 @@ instance (CSMR m, Error e) => CSMR (ErrorT e m) where
 instance (CSMR m, Monoid w) => CSMR (WriterT w m) where
   getCompState = lift getCompState
 
+getCompOpts :: CSMR m => m CompOpts
+getCompOpts = getCompState >>* csOpts
 
 --instance (MonadWriter [WarningReport] m) => Warn m where
 --  warnReport r = tell [r]
@@ -475,7 +499,7 @@ searchFile m filename
     =  do cs <- getCompState
           let currentFile = csCurrentFile cs
           let possibilities = joinPath currentFile filename
-                              : [dir ++ "/" ++ filename | dir <- csSearchPath cs]
+                              : [dir ++ "/" ++ filename | dir <- (csSearchPath . csOpts) cs]
           openOneOf possibilities possibilities
   where
     openOneOf :: [String] -> [String] -> m (Handle, String)

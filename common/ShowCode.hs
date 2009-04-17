@@ -179,7 +179,7 @@ instance ShowRain () where
 showCode :: (CSMR m, ShowOccam a, ShowRain a) => a -> m String
 showCode o
    = do st <- getCompState
-        case csFrontend st of
+        case csFrontend $ csOpts st of
           FrontendOccam -> return $ concat $ snd $ runWriter $ evalStateT (showOccamM o)
             (initialShowCodeState $ transformNames $ csNames st)
           FrontendRain -> return $ concat $ snd $ runWriter $ evalStateT (showRainM o)

@@ -47,7 +47,7 @@ import SimplifyTypes
 import Unnest
 import Utils
 
-commonPasses :: CompState -> [Pass A.AST]
+commonPasses :: CompOpts -> [Pass A.AST]
 commonPasses opts = concat $
   -- Rain does simplifyTypes separately:
   [ enablePassesWhen ((== FrontendOccam) . csFrontend) simplifyTypes
@@ -72,7 +72,7 @@ commonPasses opts = concat $
 --      (passOnlyOnAST "checkUnusedVar" (runChecks checkUnusedVar))]
   ]
 
-filterPasses :: CompState -> [Pass t] -> [Pass t]
+filterPasses :: CompOpts -> [Pass t] -> [Pass t]
 filterPasses opts = filter (\p -> passEnabled p opts)
 
 -- This pass is so small that we may as well just give it here:
@@ -94,7 +94,7 @@ nullStateBodies = Pass
     nullProcFuncDefs x = x
     
 
-getPassList :: CompState -> [Pass A.AST]
+getPassList :: CompOpts -> [Pass A.AST]
 getPassList optsPS = checkList $ filterPasses optsPS $ concat
                                 [ [nullStateBodies]
                                 , enablePassesWhen ((== FrontendOccam) . csFrontend)
@@ -108,7 +108,7 @@ getPassList optsPS = checkList $ filterPasses optsPS $ concat
 
 calculatePassList :: CSMR m => m [Pass A.AST]
 calculatePassList
-    =  do optsPS <- getCompState
+    =  do optsPS <- getCompOpts
           let passes = getPassList optsPS
           return $ if csSanityCheck optsPS
                      then addChecks passes

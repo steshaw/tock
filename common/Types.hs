@@ -330,7 +330,7 @@ returnTypesOfFunction n
 
 returnTypesOfIntrinsic :: (CSMR m, Die m) => Meta -> String -> m [A.Type]
 returnTypesOfIntrinsic m s
- = do frontend <- getCompState >>* csFrontend
+ = do frontend <- getCompOpts >>* csFrontend
       let intrinsicList = case frontend of
             FrontendOccam -> intrinsicFunctions
             FrontendRain -> rainIntrinsicFunctions
@@ -623,7 +623,7 @@ justSize n = return $ BIJust $ makeConstant emptyMeta n
 -- backend. If the backend is not recognised, the C sizes are used.
 justSizeBackends :: CSMR m => Int -> Int -> m BytesInResult
 justSizeBackends c cxx
-    =  do backend <- getCompState >>* csBackend
+    =  do backend <- getCompOpts >>* csBackend
           case backend of
             BackendCPPCSP -> justSize c
             _ -> justSize cxx

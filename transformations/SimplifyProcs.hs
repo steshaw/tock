@@ -82,7 +82,7 @@ addForkNames = occamOnlyPass "Add FORK labels" [] []
            return $ A.Spec m spec scope'
     doStructured (A.Spec m (A.Specification m' n spec@(A.Proc m'' smrm fs mbody)) scope)
       = do cs <- lift getCompState
-           if csHasMain cs && Just n == listToMaybe (map (fst . snd) (csMainLocals cs))
+           if csHasMain (csOpts cs) && Just n == listToMaybe (map (fst . snd) (csMainLocals cs))
              then do scope' <- recurse scope
                      mbody' <- case mbody of
                        Nothing -> return Nothing

@@ -51,11 +51,11 @@ preprocessFile m implicitMods filename
                           then Set.insert (dropTockInc realFilename)
                                  . Set.delete (dropTockInc filename)
                           else id
-          modify (\cs -> cs { csCurrentFile = realFilename
-                            , csUsedFiles = modFunc $ csUsedFiles cs })
+          modifyCompState (\cs -> cs { csCurrentFile = realFilename
+                                     , csUsedFiles = modFunc $ csUsedFiles cs })
           s <- liftIO $ hGetContents handle
           toks <- preprocessSource m implicitMods realFilename s
-          modify (\cs -> cs { csCurrentFile = csCurrentFile origCS })
+          modifyCompState (\cs -> cs { csCurrentFile = csCurrentFile origCS })
           return toks
   where
     -- drops ".tock.inc" from the end if it's there:
@@ -146,7 +146,7 @@ preprocessOccam (Token m (TokPreprocessor s) : ts)
     stripPrefix _ = error "bad TokPreprocessor prefix"
 preprocessOccam (Token _ (TokReserved "##") : Token m (TokIdentifier var) : ts)
     =  do st <- get
-          case Map.lookup var (csDefinitions st) of
+          case Map.lookup var (csDefinitions $ csOpts st) of
             Just (PreprocInt num)    -> toToken $ TokIntLiteral num
             Just (PreprocString str) -> toToken $ TokStringLiteral str
             Just (PreprocNothing)    -> dieP m $ var ++ " is defined, but has no value"
@@ -243,16 +243,16 @@ handleUse m (modName:_)
 handleDefine :: DirectiveFunc
 handleDefine m [definition]
     =  do (var, value) <- runPreprocParser m defineDirective definition
-          st <- get
+          st <- getCompState >>* csOpts
           when (Map.member var $ csDefinitions st) $
             dieP m $ "Preprocessor symbol is already defined: " ++ var
-          put $ st { csDefinitions = Map.insert var value $ csDefinitions st }
+          modifyCompOpts $ \st -> st { csDefinitions = Map.insert var value $ csDefinitions st }
           return return
 
 -- | Handle the @#UNDEF@ directive.
 handleUndef :: DirectiveFunc
 handleUndef m [var]
-    =  do modify $ \st -> st { csDefinitions = Map.delete var $ csDefinitions st }
+    =  do modifyCompOpts $ \st -> st { csDefinitions = Map.delete var $ csDefinitions st }
           return return
 
 -- | Handle the @#IF@ directive.
@@ -408,7 +408,7 @@ expression
 -- | Match a 'PreprocParser' production.
 runPreprocParser :: Meta -> PreprocParser a -> String -> PassM a
 runPreprocParser m prod s
-    =  do st <- get
+    =  do st <- getCompState >>* csOpts
           case runParser wrappedProd (csDefinitions st) (show m) s of
             Left err -> dieP m $ "Error parsing preprocessor instruction: " ++ show err
             Right b -> return b
@@ -423,10 +423,10 @@ runPreprocParser m prod s
 -- | Load and preprocess an occam program.
 preprocessOccamProgram :: String -> PassM [Token]
 preprocessOccamProgram filename
-    =  do mods <- getCompState >>* csImplicitModules
+    =  do mods <- getCompState >>* (csImplicitModules . csOpts)
           toks <- preprocessFile emptyMeta mods filename
           -- Leave the main file name in the csCurrentFile slot:
-          modify $ \cs -> cs { csCurrentFile = filename }
+          modifyCompState $ \cs -> cs { csCurrentFile = filename }
           veryDebug $ "{{{ tokenised source"
           veryDebug $ pshow toks
           veryDebug $ "}}}"

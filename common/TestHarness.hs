@@ -70,8 +70,11 @@ data AutoTest = AutoTest
 automaticTest :: CompFrontend -> Int -> FilePath -> IO Test
 automaticTest fr verb fileName = readFile fileName >>* performTest fr verb fileName
 
+defaultOpts :: CompFrontend -> Int -> CompOpts
+defaultOpts fr v = emptyOpts {csVerboseLevel = v, csFrontend = fr}
+
 defaultState :: CompFrontend -> Int -> CompState
-defaultState fr v = emptyState {csVerboseLevel = v, csFrontend = fr}
+defaultState fr v = emptyState { csOpts = defaultOpts fr v }
 
 -- | Tests if compiling the given source gives any errors.
 -- If there are errors, they are returned.  Upon success, Nothing is returned
@@ -83,7 +86,7 @@ testOccam v source = do (result,_) <- runPassM (defaultState FrontendOccam v) co
   where
     compilation = preprocessOccamSource source
                   >>= parseOccamProgram
-                  >>= runPasses (getPassList $ defaultState FrontendOccam v)
+                  >>= runPasses (getPassList $ defaultOpts FrontendOccam v)
 
 testRain :: Int -> String -> IO (Maybe (Maybe Meta, String))
 testRain v source = do (result,_) <- runPassM (defaultState FrontendRain v) compilation
@@ -92,7 +95,7 @@ testRain v source = do (result,_) <- runPassM (defaultState FrontendRain v) comp
                                  Right _  -> Nothing
   where
     compilation = parseRainProgram "<test>" source
-                  >>= runPasses (getPassList $ defaultState FrontendRain v)
+                  >>= runPasses (getPassList $ defaultOpts FrontendRain v)
 
 -- | Substitutes each substitution into the prologue
 substitute :: AutoTest -> Either String [(Bool, String, String)]
