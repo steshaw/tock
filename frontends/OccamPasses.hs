@@ -194,18 +194,22 @@ foldConstants = occamOnlyPass "Fold constants"
         =  do modifyName n (\nd -> nd { A.ndSpecType = st })
               return s
 
+type CheckConstantsOps = BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option
+  `ExtOpMP` A.SpecType
+
 -- | Check that things that must be constant are.
-checkConstants :: PassOn2 A.Type A.Option
+checkConstants :: PassOnOps CheckConstantsOps
 checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsFolded, Prop.arrayConstructorTypesDone]
   [Prop.constantsChecked]
   recurse
   where
-    ops = baseOp `extOpM` doType `extOpM` doOption
+    ops :: CheckConstantsOps
+    ops = baseOp `extOpM` doType `extOpM` doOption `extOpM` doSpecType
 
-    descend :: DescendM PassM (BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option)
+    descend :: DescendM PassM CheckConstantsOps
     descend = makeDescendM ops
-    recurse :: RecurseM PassM (BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option)
+    recurse :: RecurseM PassM CheckConstantsOps
     recurse = makeRecurseM ops
     
     doType :: A.Type -> PassM A.Type
@@ -220,7 +224,14 @@ checkConstants = occamOnlyPass "Check mandatory constants"
         =  do when (not $ isConstant e) $
                 diePC (findMeta e) $ formatCode "Array dimension must be constant: %" e
               return d
-    doDimension d = return d
+    doDimension A.UnknownDimension = return A.UnknownDimension
+
+    -- Avoid checking that the destination sizes for RETYPES\/RESHAPES are constant
+    doSpecType :: Transform A.SpecType
+    doSpecType st@(A.Retypes _ _ _ v) = recurse v >> return st
+    doSpecType st@(A.RetypesExpr _ _ _ e) = recurse e >> return st
+    doSpecType st = descend st
+    
 
     -- Check case options are constant.
     doOption :: A.Option -> PassM A.Option
@@ -229,7 +240,7 @@ checkConstants = occamOnlyPass "Check mandatory constants"
                            diePC (findMeta e) $ formatCode "Case option must be constant: %" e
                          | e <- es]
               return o
-    doOption o = return o
+    doOption o = descend o
 
 -- | Turns things like cs[0]? into cs?[0], which helps later on in the usage checking
 -- (as we can consider cs? a different array than cs!).
