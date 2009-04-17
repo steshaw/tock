@@ -124,18 +124,18 @@ replaceNames map = recurse
            return $ A.Specification m n' sp'
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: PassOn2 A.Specification A.Process
+removeFreeNames :: PassOnM2 (StateT (Map.Map String [A.Actual]) PassM) A.Specification A.Process
 removeFreeNames = pass "Convert free names to arguments"
   [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved]
   [Prop.freeNamesToArgs]
-  (applyBottomUpM2 doSpecification doProcess)
+  (flip evalStateT Map.empty . applyBottomUpM2 doSpecification doProcess)
   where
-    doSpecification :: A.Specification -> PassM A.Specification
+    doSpecification :: A.Specification -> StateT (Map.Map String [A.Actual]) PassM A.Specification
     doSpecification (A.Specification m n st@(A.Proc mp sm fs (Just p))) =
           do -- If this is the top-level process, we shouldn't add new args --
              -- we know it's not going to be moved by removeNesting, so anything
              -- that it had in scope originally will still be in scope.
-             ps <- get
+             ps <- getCompState
              when (null $ csMainLocals ps) (dieReport (Nothing,"No main process found"))
              let isTLP = (fst $ snd $ head $ csMainLocals ps) == n
 
@@ -158,12 +158,12 @@ removeFreeNames = pass "Convert free names to arguments"
 
              -- Add formals for each of the free names
              let newFs = [A.Formal am t n | (am, t, n) <- zip3 ams types newNames]
-             st' <- replaceNames (zip freeNames newNames) p >>* (A.Proc mp sm (fs ++ newFs) . Just)
+             st' <- lift $ replaceNames (zip freeNames newNames) p >>* (A.Proc mp sm (fs ++ newFs) . Just)
              let spec' = A.Specification m n st'
 
              -- Update the definition of the proc
              nameDef <- lookupName n
-             defineName n (nameDef { A.ndSpecType = st' })
+             lift $ defineName n (nameDef { A.ndSpecType = st' })
 
              -- Note that we should add extra arguments to calls of this proc
              -- when we find them
@@ -173,7 +173,7 @@ removeFreeNames = pass "Convert free names to arguments"
                           | (am, n) <- zip ams freeNames]
              debug $ "removeFreeNames: " ++ show n ++ " has new args " ++ show newAs
              when (newAs /= []) $
-               modify $ (\ps -> ps { csAdditionalArgs = Map.insert (A.nameName n) newAs (csAdditionalArgs ps) })
+               modify $ Map.insert (A.nameName n) newAs
 
              return spec'
     doSpecification spec = return spec
@@ -184,7 +184,7 @@ removeFreeNames = pass "Convert free names to arguments"
     -- Things like data types and PROCs aren't, because they'll be the same
     -- for all instances of a PROC.
     -- Constants aren't, because they'll be pulled up anyway.
-    isFreeName :: A.Name -> PassM Bool
+    isFreeName :: (Die m, CSM m) => A.Name -> m Bool
     isFreeName n
         =  do st <- specTypeOfName n
               isConst <- isConstantName n
@@ -204,10 +204,10 @@ removeFreeNames = pass "Convert free names to arguments"
                 _ -> False
 
     -- | Add the extra arguments we recorded when we saw the definition.
-    doProcess :: A.Process -> PassM A.Process
+    doProcess :: A.Process -> StateT (Map.Map String [A.Actual]) PassM A.Process
     doProcess p@(A.ProcCall m n as)
         =  do st <- get
-              case Map.lookup (A.nameName n) (csAdditionalArgs st) of
+              case Map.lookup (A.nameName n) st of
                 Just add -> return $ A.ProcCall m n (as ++ add)
                 Nothing -> return p
     doProcess p = return p

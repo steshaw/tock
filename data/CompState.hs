@@ -157,7 +157,6 @@ data CompState = CompState {
     csNonceCounter :: Int,
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[PulledItem]],
-    csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Map A.Name ParOrFork,
     csUnifyId :: Int,
     -- The string is the operator, the name is the munged function name, the single
@@ -219,7 +218,6 @@ emptyState = CompState {
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
     csPulledItems = [],
-    csAdditionalArgs = Map.empty,
     csParProcs = Map.empty,
     csUnifyId = 0,
     csOperators = [],
