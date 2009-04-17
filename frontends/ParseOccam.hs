@@ -42,17 +42,27 @@ import ShowCode
 import Types
 import Utils
 
+data OccParserState = OccParserState
+  { csLocalNames :: [(String, (A.Name, NameType))]
+  , compState :: CompState  
+  }
+
 --{{{ the parser monad
-type OccParser = GenParser Token CompState
+type OccParser = GenParser Token OccParserState
 
-instance CSMR (GenParser tok CompState) where
-  getCompState = getState
+instance CSMR (GenParser tok OccParserState) where
+  getCompState = getState >>* compState
 
-instance CSM (GenParser tok CompState) where
-  putCompState = setState
+instance CSM (GenParser tok OccParserState) where
+  putCompState cs = do st <- getState
+                       setState $ st { compState = cs }
+
+addLocalName :: (String, (A.Name, NameType)) -> OccParser ()
+addLocalName n = do st <- getState
+                    setState $ st { csLocalNames = n : csLocalNames st }
 
 -- The other part of the state is actually the built-up list of warnings:
-instance Warn (GenParser tok CompState) where
+instance Warn (GenParser tok OccParserState) where
   warnReport w@(_,t,_) = modifyCompState $
     \cs -> cs { csWarnings =
       if t `Set.member` csEnabledWarnings cs
@@ -60,7 +70,7 @@ instance Warn (GenParser tok CompState) where
         else csWarnings cs }
 
 
-instance Die (GenParser tok CompState) where
+instance Die (GenParser tok OccParserState) where
   dieReport (Just m, err) = do st <- getCompState
                                fail $ packWarnings (csWarnings st) $ packMeta m $ err
   dieReport (Nothing, err) = do st <- getCompState
@@ -391,7 +401,7 @@ intersperseP (f:fs) sep
 --{{{ name scoping
 findName :: A.Name -> NameType -> OccParser A.Name
 findName thisN thisNT
-    =  do st <- getCompState
+    =  do st <- getState
           (origN, origNT) <-
             case lookup (A.nameName thisN) (csLocalNames st) of
               Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
@@ -417,15 +427,15 @@ scopeIn n@(A.Name m s) nt specType am (munged, ns)
             A.ndPlacement = A.Unplaced
           }
           defineName n' nd
-          modifyCompState $ \st -> st { csLocalNames = (s, (n', nt)) : (csLocalNames st) }
+          addLocalName (s, (n', nt))
           return n'
 
 scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m _)
-    =  do st <- getCompState
+    =  do st <- getState
           case csLocalNames st of
             ((_, (old, _)):rest)
-             | old == n -> putCompState $ st { csLocalNames = rest }
+             | old == n -> setState $ st { csLocalNames = rest }
              | otherwise -> dieInternal (Just m, "scoping out not in order; "
                  ++ " tried to scope out: " ++ A.nameName n ++ " but found: " ++ A.nameName old)
             _ -> dieInternal (Just m, "scoping out name when stack is empty")
@@ -1453,7 +1463,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                 let column = metaColumn m + fromMaybe 0 (findIndex (=='\"') rawP)
                 toks <- runLexer' (fromMaybe "<unknown(pragma)>" $ metaFile m
                                   , metaLine m, column) pragStr
-                cs <- getCompState
+                cs <- getState
                 case runParser (do {n <- prod; s <- getState; return (n, s)}) cs "" toks of
                   Left err -> do warnP m WarnUnknownPreprocessorDirective $
                                    "Unknown PRAGMA (parse failed): " ++ show err
@@ -1493,7 +1503,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
     handleShared m
            = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
-                  do st <- getCompState
+                  do st <- getState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
@@ -1505,7 +1515,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
     handlePermitAliases m
            = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
-                  do st <- getCompState
+                  do st <- getState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
@@ -1626,7 +1636,7 @@ claimSpec
 
     getOrigName :: A.Name -> OccParser String
     getOrigName n
-      = do st <- getCompState
+      = do st <- getState
            case lookup n [(munged, orig) | (orig, (munged, _)) <- csLocalNames st] of
              Just orig -> return orig
              Nothing -> dieP (A.nameMeta n) $ "Could not find name: " ++ (A.nameName n)
@@ -2024,7 +2034,8 @@ topLevelItem
            -- Stash the current locals so that we can either restore them
            -- when we get back to the file we included this one from, or
            -- pull the TLP name from them at the end.
-           modifyCompState $ (\ps -> ps { csMainLocals = csLocalNames ps })
+           locals <- getState >>* csLocalNames
+           modifyCompState $ (\ps -> ps { csMainLocals = locals })
            return $ A.Several m []
 
 -- | A source file is a series of nested specifications.
@@ -2034,7 +2045,7 @@ sourceFile :: OccParser (A.AST, CompState)
 sourceFile
     =   do p <- topLevelItem
            s <- getState
-           return (p, s)
+           return (p, compState s)
 --}}}
 --}}}
 
@@ -2042,7 +2053,7 @@ sourceFile
 -- | Parse a token stream with the given production.
 runTockParser :: [Token] -> OccParser t -> CompState -> PassM t
 runTockParser toks prod cs
-    =  do case runParser prod cs "" toks of
+    =  do case runParser prod (OccParserState [] cs) "" toks of
             Left err ->
               -- If a position was encoded into the message, use that;
               -- else use the parser position.

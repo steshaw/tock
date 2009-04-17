@@ -136,7 +136,6 @@ data CompState = CompState {
     csDefinitions :: Map String PreprocDef,
 
     -- Set by Parse
-    csLocalNames :: [(String, (A.Name, NameType))],
     csMainLocals :: [(String, (A.Name, NameType))],
     csNames :: Map String A.NameDef,
     csUnscopedNames :: Map String String,
@@ -203,7 +202,6 @@ emptyState = CompState {
 --                                 ,("TARGET.HAS.FPU", PreprocNothing)
                                  ],
 
-    csLocalNames = [],
     csMainLocals = [],
     csNames = Map.empty,
     csUnscopedNames = Map.empty,
