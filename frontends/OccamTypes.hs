@@ -716,14 +716,9 @@ inferTypes = occamOnlyPass "Infer types"
             -- FIXME: AllocMobile
 
             A.ExprVariable m v ->
-              do ctx <- getTypeContext >>= (T.sequence . fmap (underlyingType m))
+              do ctx <- getTypeContext
                  v' <- recurse v
-                 t <- astTypeOf v' >>= underlyingType m
-                 case (ctx, t) of
-                   (Just (A.Mobile {}), A.Mobile {}) -> return $ A.ExprVariable m v'
-                   (Just _, A.Mobile {}) -> return $ A.ExprVariable m
-                     $ A.DerefVariable m v'
-                   _ -> return $ A.ExprVariable m v'
+                 derefVariableIfNeeded ctx v' >>* A.ExprVariable m
             -- Other expressions don't modify the type context.
             _ -> descend outer
 
@@ -768,7 +763,7 @@ inferTypes = occamOnlyPass "Infer types"
                                 ++ show (map (transformPair (A.nameMeta . fst) showOccam) posss)
         else
            do (_, fs) <- checkFunction m n
-              doActuals m n fs direct es >>* (,) n
+              doActuals m n fs (direct, const return) es >>* (,) n
       where
         direct = error "Cannot direct channels passed to FUNCTIONs"
 
@@ -783,14 +778,16 @@ inferTypes = occamOnlyPass "Infer types"
         typeEqForOp t t' = t == t'
 
     doActuals :: (PolyplateM a InferTypeOps () PassM, Data a) => Meta -> A.Name -> [A.Formal] ->
-      (Meta -> A.Direction -> Transform a) -> Transform [a]
-    doActuals m n fs applyDir as
+      (Meta -> A.Direction -> Transform a, A.Type -> Transform a) -> Transform [a]
+    doActuals m n fs applyDir_Deref as
         =  do checkActualCount m n fs as
-              sequence [doActual m applyDir t a | (A.Formal _ t _, a) <- zip fs as]
+              sequence [doActual m applyDir_Deref t a | (A.Formal _ t _, a) <- zip fs as]
 
-    doActual :: (PolyplateM a InferTypeOps () PassM, Data a) => Meta -> (Meta -> A.Direction -> Transform a) -> A.Type -> Transform a
-    doActual m applyDir (A.ChanEnd dir _ _) a = recurse a >>= applyDir m dir
-    doActual m _ t a = inTypeContext (Just t) $ recurse a
+    -- First function directs, second function dereferences if needed
+    doActual :: (PolyplateM a InferTypeOps () PassM, Data a) =>
+      Meta -> (Meta -> A.Direction -> Transform a, A.Type -> Transform a) -> A.Type -> Transform a
+    doActual m (applyDir, _) (A.ChanEnd dir _ _) a = recurse a >>= applyDir m dir
+    doActual m (_, deref) t a = inTypeContext (Just t) $ recurse a >>= deref t
                         
 
     doDimension :: Transform A.Dimension
@@ -821,7 +818,7 @@ inferTypes = occamOnlyPass "Infer types"
     doAlternative :: Transform A.Alternative
     doAlternative (A.Alternative m pre v im p)
       = do pre' <- inTypeContext (Just A.Bool) $ recurse pre
-           v' <- recurse v
+           v' <- recurse v >>= derefVariableIfNeeded Nothing
            im' <- doInputMode v' im
            p' <- recurse p
            return $ A.Alternative m pre' v' im' p'
@@ -833,13 +830,27 @@ inferTypes = occamOnlyPass "Infer types"
     doInputMode :: A.Variable -> Transform A.InputMode
     doInputMode v (A.InputSimple m iis)
       = do ts <- protocolItems m v >>* either id (const [])
-           iis' <- sequence [inTypeContext (Just t) $ recurse ii
+           iis' <- sequence [doInputItem t ii
                             | (t, ii) <- zip ts iis]
            return $ A.InputSimple m iis'
     doInputMode v (A.InputCase m sv)
       = do ct <- astTypeOf v
            inTypeContext (Just ct) (recurse sv) >>* A.InputCase m
+    doInputMode _ (A.InputTimerRead m ii)
+      = doInputItem A.Int ii >>* A.InputTimerRead m
     doInputMode _ im = inTypeContext (Just A.Int) $ descend im
+
+    doInputItem :: A.Type -> Transform A.InputItem
+    doInputItem t (A.InVariable m v)
+      = (inTypeContext (Just t) (recurse v)
+           >>= derefVariableIfNeeded (Just t)
+        ) >>* A.InVariable m
+    doInputItem t (A.InCounted m cv av)
+      = do cv' <- inTypeContext (Just A.Int) (recurse cv)
+                    >>= derefVariableIfNeeded (Just A.Int)
+           av' <- inTypeContext (Just t) (recurse av)
+                    >>= derefVariableIfNeeded (Just t)
+           return $ A.InCounted m cv' av'
 
     doVariant :: Transform A.Variant
     doVariant (A.Variant m n iis p)
@@ -852,7 +863,7 @@ inferTypes = occamOnlyPass "Infer types"
              Right ps -> case lookup n ps of
                Nothing -> diePC m $ formatCode "Name % is not part of protocol %"
                  n (fromJust ctx)
-               Just ts -> do iis' <- sequence [inTypeContext (Just t) $ recurse ii
+               Just ts -> do iis' <- sequence [doInputItem t ii
                                               | (t, ii) <- zip ts iis]
                              p' <- recurse p
                              return $ A.Variant m n iis' p'
@@ -880,6 +891,7 @@ inferTypes = occamOnlyPass "Infer types"
                do am' <- lift $ recurse am
                   t' <- lift $ recurse t
                   v' <- lift $ inTypeContext (Just t') $ recurse v
+                    >>= derefVariableIfNeeded (Just t')
                   vt <- lift $ astTypeOf v'
                   (t'', v'') <- case (t', vt) of
                     (A.Infer, A.Chan attr innerT) ->
@@ -981,6 +993,9 @@ inferTypes = occamOnlyPass "Infer types"
                                        after
                                        return x)
                     _ -> return func >>* addId
+            A.Retypes m am t v -> lift $ inTypeContext (Just t) $
+              (recurse v >>= derefVariableIfNeeded (Just t)) >>*
+                (addId . A.Retypes m am t)
             A.RetypesExpr _ _ _ _ -> lift $ noTypeContext $ descend st >>* addId
             -- For PROCs that take any channels without direction,
             -- we must determine if we can infer a specific direction
@@ -1081,10 +1096,18 @@ inferTypes = occamOnlyPass "Infer types"
     doProcess p
         = case p of
             A.Assign m vs el ->
+                  -- We do not dereference variables on the LHS of an assignment,
+                  -- instead we promote the things on the RHS to allocations if
+                  -- needed.  After all, if the user does something like:
+                  -- xs := "flibble"
+                  -- where xs is a mobile array, we definitely want to allocate
+                  -- the RHS, rather than dereference the possibly undefined LHS.
                do vs' <- noTypeContext $ recurse vs
                   ts <- mapM astTypeOf vs'
                   el' <- doExpressionList ts el
                   return $ A.Assign m vs' el'
+            -- We don't dereference any of the channel variables, the backend can
+            -- handle that.
             A.Output m v ois ->
                do v' <- recurse v
                   -- At this point we must resolve the "c ! x" ambiguity:
@@ -1116,10 +1139,22 @@ inferTypes = occamOnlyPass "Infer types"
             A.Processor _ _ _ -> inTypeContext (Just A.Int) $ descend p
             A.ProcCall m n as ->
                do fs <- checkProc m n
-                  as' <- doActuals m n fs (\m dir (A.ActualVariable v) -> liftM
-                    A.ActualVariable $ makeEnd m dir v) as
+                  as' <- doActuals m n fs
+                    (\m dir (A.ActualVariable v) -> liftM A.ActualVariable $ makeEnd m dir v
+                    ,\t a -> case a of
+                      A.ActualVariable v -> derefVariableIfNeeded (Just t) v >>* A.ActualVariable
+                      _ -> return a
+                    ) as
                   return $ A.ProcCall m n as'
-            A.IntrinsicProcCall _ _ _ -> noTypeContext $ descend p
+            p@(A.IntrinsicProcCall m n as) ->
+               case lookup n intrinsicProcs of
+                 Nothing -> descend p -- Will fail type-checking anyway
+                 Just params -> sequence [inTypeContext (Just t) $
+                   case a of
+                     A.ActualVariable v ->
+                       (recurse v >>= derefVariableIfNeeded (Just t)) >>* A.ActualVariable
+                     _ -> descend a
+                   | (a, (_,t,_)) <- zip as params] >>* A.IntrinsicProcCall m n                   
             A.Input m v im@(A.InputSimple {})
               -> do v' <- recurse v
                     im' <- doInputMode v' im
@@ -1161,22 +1196,21 @@ inferTypes = occamOnlyPass "Infer types"
 
     doVariable :: Transform A.Variable
     doVariable (A.SubscriptedVariable m s v)
-        =  do v' <- recurse v
+        =  do v' <- noTypeContext (recurse v) >>= derefVariableIfNeeded Nothing
               t <- astTypeOf v'
-              underT <- resolveUserType m t
               s' <- recurse s >>= fixSubscript t
-              v'' <- case underT of
-                A.Mobile {} -> return $ A.DerefVariable m v'
-                _ -> return v'
-              return $ A.SubscriptedVariable m s' v''
-    doVariable v
-        =  do v' <- descend v
-              ctx <- getTypeContext  >>= (T.sequence . fmap (underlyingType (findMeta v)))
-              underT <- astTypeOf v' >>= resolveUserType (findMeta v)
+              return $ A.SubscriptedVariable m s' v'
+    doVariable v = descend v
+
+    derefVariableIfNeeded :: Maybe (A.Type) -> A.Variable -> PassM A.Variable
+    derefVariableIfNeeded ctxOrig v
+        =  do ctx <- (T.sequence . fmap (resolveUserType (findMeta v))) ctxOrig
+              underT <- astTypeOf v >>= resolveUserType (findMeta v)
               case (ctx, underT) of
-                (Just (A.Mobile {}), A.Mobile {}) -> return v'
-                (Just _, A.Mobile {}) -> return $ A.DerefVariable (findMeta v) v'
-                _ -> return v'
+                (Just (A.Mobile {}), A.Mobile {}) -> return v
+                (_, A.Mobile {}) -> return $ A.DerefVariable (findMeta v) v
+                _ -> return v
+    
 
     -- | Resolve the @v[s]@ ambiguity: this takes the type that @v@ is, and
     -- returns the correct 'Subscript'.

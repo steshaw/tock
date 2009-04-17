@@ -182,7 +182,6 @@ plainSubscriptType m (A.Array (_:ds) t)
     = return $ case ds of
                  [] -> t
                  _ -> A.Array ds t
-plainSubscriptType m (A.Mobile t) = plainSubscriptType m t
 plainSubscriptType m t = diePC m $ formatCode "Subscript of non-array type: %" t
 
 -- | Turn an expression into a 'Dimension'.
@@ -256,7 +255,7 @@ typeOfVariable (A.DerefVariable m v)
     = do t <- typeOfVariable v >>= resolveUserType m
          case t of
            A.Mobile innerT -> return innerT
-           _ -> diePC m $ formatCode "Dereference applied to non-mobile variable of type %" t
+           _ -> diePC m $ formatCode "Dereference applied to non-mobile variable % of type %" v t
 typeOfVariable (A.DirectedVariable m dir v)
     = do t <- typeOfVariable v
          case t of
