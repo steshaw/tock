@@ -152,15 +152,11 @@ data CompState = CompState {
     csGlobalSizes :: Map [Int] String,
 
     -- Set by passes
-    csTypeContext :: [Maybe A.Type],
     csNonceCounter :: Int,
     csFunctionReturns :: Map String [A.Type],
     csPulledItems :: [[PulledItem]],
     csParProcs :: Map A.Name ParOrFork,
     csUnifyId :: Int,
-    -- The string is the operator, the name is the munged function name, the single
-    -- type is the return type
-    csOperators :: [(String, A.Name, A.Type, [A.Type])],
     csWarnings :: [WarningReport]
   }
   deriving (Data, Typeable, Show)
@@ -212,13 +208,11 @@ emptyState = CompState {
     csArraySizes = Map.empty,
     csGlobalSizes = Map.empty,
 
-    csTypeContext = [],
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
     csPulledItems = [],
     csParProcs = Map.empty,
     csUnifyId = 0,
-    csOperators = [],
     csWarnings = []
   }
 
@@ -379,26 +373,6 @@ applyPulled ast
     apply (m, Left spec) = A.Spec m spec
     apply (m, Right proc) = A.ProcThen m proc
 
---}}}
-
---{{{  type contexts
--- | Enter a type context.
-pushTypeContext :: CSM m => Maybe A.Type -> m ()
-pushTypeContext t
-    = modifyCompState (\ps -> ps { csTypeContext = t : csTypeContext ps })
-
--- | Leave a type context.
-popTypeContext :: CSM m => m ()
-popTypeContext
-    = modifyCompState (\ps -> ps { csTypeContext = tail $ csTypeContext ps })
-
--- | Get the current type context, if there is one.
-getTypeContext :: CSMR m => m (Maybe A.Type)
-getTypeContext
-    =  do ps <- getCompState
-          case csTypeContext ps of
-            (Just c):_ -> return $ Just c
-            _ -> return Nothing
 --}}}
 
 --{{{ nonces
