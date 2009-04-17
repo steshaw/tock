@@ -160,8 +160,9 @@ data CompState = CompState {
     csAdditionalArgs :: Map String [A.Actual],
     csParProcs :: Map A.Name ParOrFork,
     csUnifyId :: Int,
-    -- The string is the operator, the name is the munged function name
-    csOperators :: [(String, A.Name, [A.Type])],
+    -- The string is the operator, the name is the munged function name, the single
+    -- type is the return type
+    csOperators :: [(String, A.Name, A.Type, [A.Type])],
     csWarnings :: [WarningReport]
   }
   deriving (Data, Typeable, Show)

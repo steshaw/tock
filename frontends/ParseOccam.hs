@@ -712,7 +712,7 @@ stringLiteral :: OccParser (A.Type, A.LiteralRepr)
 stringLiteral
     =  do m <- md
           cs <- stringCont <|> stringLit
-          let aes = A.Several m [A.Only m $ A.Literal m' A.Infer c
+          let aes = A.Several m [A.Only m $ A.Literal m' A.Byte c
                      | c@(A.ByteLiteral m' _) <- cs]
           return (A.Array [A.UnknownDimension] A.Byte, A.ArrayListLiteral m aes)
     <?> "string literal"
