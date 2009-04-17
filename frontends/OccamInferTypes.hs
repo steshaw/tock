@@ -285,7 +285,7 @@ inferTypes = occamOnlyPass "Infer types"
               -- We have to catch errors here because if it's an operator inside
               -- an operator, the type-getting will fail because we haven't resolved
               -- the inner operator yet.
-              origTs <- sequence [astTypeOf e `catchError` (const $ return A.Infer) | e <- es]
+              origTs <- sequence [(astTypeOf e >>= underlyingType m) `catchError` (const $ return A.Infer) | e <- es]
 
               es' <- mapM (uncurry inTypeContext)
                        $ zip (pickTypes [case t of
