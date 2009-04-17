@@ -36,7 +36,7 @@ import Metadata
 import Traversal
 import TypeSizes
 
-type EvalM = ErrorT ErrorReport (StateT CompState Identity)
+type EvalM = ErrorT ErrorReport (State CompState)
 
 instance Die EvalM where
   dieReport = throwError
@@ -90,7 +90,7 @@ evalByte m s
 -- | Run an evaluator operation.
 runEvaluator :: CompState -> EvalM OccValue -> Either ErrorReport OccValue
 runEvaluator ps func
-    = runIdentity (evalStateT (runErrorT func) ps)
+    = evalState (runErrorT func) ps
 
 -- | Evaluate a simple literal expression.
 evalSimpleExpression :: A.Expression -> EvalM OccValue

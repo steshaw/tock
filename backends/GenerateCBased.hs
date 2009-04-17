@@ -67,9 +67,6 @@ type CGen = ReaderT GenOps CGen'
 instance Die CGen where
   dieReport err = lift $ lift $ dieReport err
   
-instance CSMR CGen' where
-  getCompState = lift getCompState
-
 instance CSMR CGen where
   getCompState = lift getCompState
 

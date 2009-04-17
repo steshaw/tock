@@ -43,11 +43,8 @@ type RainParser = GenParser L.Token RainState
 instance CSMR (GenParser tok CompState) where
   getCompState = getState
 
--- We can expose only part of the state to make it look like we are only using
--- CompState:
-instance MonadState CompState (GenParser tok CompState) where
-  get = getState
-  put = setState
+instance CSM (GenParser tok CompState) where
+  putCompState = setState
 
 instance Die (GenParser tok st) where
   dieReport (Just m, err) = fail $ packMeta m err

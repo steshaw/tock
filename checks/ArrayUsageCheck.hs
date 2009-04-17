@@ -644,6 +644,9 @@ canonicalise e@(A.FunctionCall m n es)
     gatherTerms _ e = canonicalise e >>* singleton
 canonicalise e = return e
 
+instance CSMR (ReaderT CompState (Either String)) where
+  getCompState = ask
+
 flatten :: A.Expression -> ReaderT CompState (Either String) [FlattenedExp]
 flatten (A.Literal _ _ (A.IntLiteral _ n)) = return [Const (read n)]
 flatten e@(A.FunctionCall m fn [lhs, rhs])

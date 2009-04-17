@@ -140,6 +140,9 @@ instance MonadState s (ExpInpT (State s)) where
 instance CSMR (ExpInpT (State CompState)) where
   getCompState = get
 
+instance CSM (ExpInpT (State CompState)) where
+  putCompState = put
+
 type O a = ExpInpT (State CompState) a
 type Occ a = O a
 

@@ -48,15 +48,12 @@ type OccParser = GenParser Token CompState
 instance CSMR (GenParser tok CompState) where
   getCompState = getState
 
--- We can expose only part of the state to make it look like we are only using
--- CompState:
-instance MonadState CompState (GenParser tok CompState) where
-  get = getState
-  put = setState
+instance CSM (GenParser tok CompState) where
+  putCompState = setState
 
 -- The other part of the state is actually the built-up list of warnings:
 instance Warn (GenParser tok CompState) where
-  warnReport w@(_,t,_) = modify $
+  warnReport w@(_,t,_) = modifyCompState $
     \cs -> cs { csWarnings =
       if t `Set.member` csEnabledWarnings cs
         then csWarnings cs ++ [w]
@@ -394,7 +391,7 @@ intersperseP (f:fs) sep
 --{{{ name scoping
 findName :: A.Name -> NameType -> OccParser A.Name
 findName thisN thisNT
-    =  do st <- get
+    =  do st <- getCompState
           (origN, origNT) <-
             case lookup (A.nameName thisN) (csLocalNames st) of
               Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
@@ -420,16 +417,15 @@ scopeIn n@(A.Name m s) nt specType am (munged, ns)
             A.ndPlacement = A.Unplaced
           }
           defineName n' nd
-          st <- get
-          put $ st { csLocalNames = (s, (n', nt)) : (csLocalNames st) }
+          modifyCompState $ \st -> st { csLocalNames = (s, (n', nt)) : (csLocalNames st) }
           return n'
 
 scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m _)
-    =  do st <- get
+    =  do st <- getCompState
           case csLocalNames st of
             ((_, (old, _)):rest)
-             | old == n -> put $ st { csLocalNames = rest }
+             | old == n -> putCompState $ st { csLocalNames = rest }
              | otherwise -> dieInternal (Just m, "scoping out not in order; "
                  ++ " tried to scope out: " ++ A.nameName n ++ " but found: " ++ A.nameName old)
             _ -> dieInternal (Just m, "scoping out name when stack is empty")
@@ -1497,11 +1493,11 @@ pragma = do m <- getPosition >>* sourcePosToMeta
     handleShared m
            = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
-                  do st <- get
+                  do st <- getCompState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
-                     modify $ \st -> st {csNameAttr = Map.insertWith Set.union
+                     modifyCompState $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
                 return Nothing
@@ -1509,11 +1505,11 @@ pragma = do m <- getPosition >>* sourcePosToMeta
     handlePermitAliases m
            = do vars <- sepBy1 identifier sComma
                 mapM_ (\var ->
-                  do st <- get
+                  do st <- getCompState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
                        Just def -> return $ fst def
-                     modify $ \st -> st {csNameAttr = Map.insertWith Set.union
+                     modifyCompState $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
                 return Nothing
@@ -1521,16 +1517,16 @@ pragma = do m <- getPosition >>* sourcePosToMeta
            = do case metaFile m of
                   Nothing -> dieP m "PRAGMA TOCKSIZES in undeterminable file"
                   Just f -> let (f', _) = splitExtension f in
-                    modify $ \cs -> cs { csExtraSizes = (f' ++ pragStr) : csExtraSizes cs }
+                    modifyCompState $ \cs -> cs { csExtraSizes = (f' ++ pragStr) : csExtraSizes cs }
                 return Nothing
     handleInclude m [pragStr]
            = do case metaFile m of
                   Nothing -> dieP m "PRAGMA TOCKINCLUDE in undeterminable file"
                   Just f -> let (f', _) = splitExtension f in
-                    modify $ \cs -> cs { csExtraIncludes = (f' ++ pragStr) : csExtraIncludes cs }
+                    modifyCompState $ \cs -> cs { csExtraIncludes = (f' ++ pragStr) : csExtraIncludes cs }
                 return Nothing
     handleNativeLink m [pragStr]
-           = do modify $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
+           = do modifyCompState $ \cs -> cs { csCompilerLinkFlags = csCompilerLinkFlags cs ++ " " ++ pragStr}
                 return Nothing
 
     handleExternal isCExternal m
@@ -1557,7 +1553,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                                 return (n, FunctionName, origN, fs, A.Function m (A.PlainSpec, A.PlainRec) ts fs
                                   Nothing)
                 let ext = if isCExternal then ExternalOldStyle else ExternalOccam
-                modify $ \st -> st
+                modifyCompState $ \st -> st
                   { csExternals = (A.nameName n, ext) : csExternals st
                   }
                 return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
@@ -2028,7 +2024,7 @@ topLevelItem
            -- Stash the current locals so that we can either restore them
            -- when we get back to the file we included this one from, or
            -- pull the TLP name from them at the end.
-           modify $ (\ps -> ps { csMainLocals = csLocalNames ps })
+           modifyCompState $ (\ps -> ps { csMainLocals = csLocalNames ps })
            return $ A.Several m []
 
 -- | A source file is a series of nested specifications.

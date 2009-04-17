@@ -61,12 +61,6 @@ import Utils
 -- A handle/string buffer, the current line, and indent stack (push at head)
 type CGen = StateT (Either [String] Handle, String, [Int]) PassM
 
-instance Die CGen where
-  dieReport err = lift $ dieReport err
-  
-instance CSMR CGen where
-  getCompState = lift getCompState
-
 tell :: [String] -> CGen ()
 tell x = do (hb, cur, curIndent:indentStack) <- get
             let cur' = replace ("\n","\n" ++ replicate curIndent ' ') (cur++concat x)

@@ -71,12 +71,6 @@ type RainTypeCheckOn2 a b = forall t.
 
 type RainTypeCheck a = a -> RainTypeM ()
 
-instance Die RainTypeM where
-  dieReport = lift . dieReport
-
-instance CSMR RainTypeM where
-  getCompState = lift getCompState
-
 lookupMapElseMutVar :: A.TypeRequirements -> UnifyIndex -> RainTypeM (TypeExp A.Type)
 lookupMapElseMutVar reqs k
   = do st <- get

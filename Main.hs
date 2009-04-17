@@ -246,7 +246,7 @@ main = do
     Right initState -> do
       let operation = case csMode initState of
             ModePostC -> useOutputOptions (postCAnalyse fn) >> return ()
-            ModeFull -> evalStateT (compileFull fn fileStem) []
+            ModeFull -> evalStateT (unwrapFilesPassM $ compileFull fn fileStem) []
             mode -> useOutputOptions (compile mode fn)
 
       -- Run the compiler.
@@ -261,25 +261,32 @@ removeFiles = mapM_ (\file -> catch (removeFile file) doNothing)
     doNothing :: IOError -> IO ()
     doNothing _ = return ()
 
+-- We need a newtype because it has its own instance of Die:
+newtype FilesPassM a = FilesPassM (StateT [FilePath] PassM a)
+  deriving (Monad, MonadIO, CSM, CSMR)
+
+unwrapFilesPassM :: FilesPassM a -> StateT [FilePath] PassM a
+unwrapFilesPassM (FilesPassM x) = x
+
 -- When we die inside the StateT [FilePath] monad, we should delete all the
 -- temporary files listed in the state, then die in the PassM monad:
 -- TODO: Not totally sure this technique works if functions inside the PassM
 -- monad die, but there will only be temp files to clean up if postCAnalyse
 -- dies
-instance Die (StateT [FilePath] PassM) where
+instance Die FilesPassM where
   dieReport err
-      =  do files <- get
+      =  do files <- FilesPassM get
             -- If removing the files fails, we don't want to die with that
             -- error; we want the user to see the original error, so ignore
             -- errors arising from removing the files:
-            optsPS <- lift $ getCompState
+            optsPS <- getCompState
             when (not $ csKeepTemporaries optsPS) $
               liftIO $ removeFiles files
-            lift $ dieReport err
+            FilesPassM $ dieReport err
 
-compileFull :: String -> Maybe String -> StateT [FilePath] PassM ()
+compileFull :: String -> Maybe String -> FilesPassM ()
 compileFull inputFile moutputFile
-    =  do optsPS <- lift get
+    =  do optsPS <- getCompState
           outputFile <- case (csOutputFile optsPS, moutputFile) of
                           -- If the user hasn't given an output file, we guess by
                           -- using a stem (input file minus known extension).
@@ -300,15 +307,15 @@ compileFull inputFile moutputFile
           let cFile = outputFile ++ cExtension
               hFile = outputFile ++ hExtension
               iFile = outputFile ++ ".tock.inc"
-          lift $ modify $ \cs -> cs { csOutputIncFile = Just iFile }
-          lift $ withOutputFile cFile $ \hb ->
+          modifyCompState $ \cs -> cs { csOutputIncFile = Just iFile }
+          withOutputFile cFile $ \hb ->
             withOutputFile hFile $ \hh ->
-                compile ModeCompile inputFile ((hb, hh), hFile)
+                FilesPassM $ lift $ compile ModeCompile inputFile ((hb, hh), hFile)
           noteFile cFile
           when (csRunIndent optsPS) $
             exec $ "indent " ++ cFile
 
-          cs <- lift getCompState
+          cs <- getCompState
           case csBackend cs of
             BackendC ->
               let sFile = outputFile ++ ".tock.s"
@@ -327,7 +334,8 @@ compileFull inputFile moutputFile
                  exec $ cCommand sFile oFile (csCompilerFlags cs)
                  -- Analyse the assembly for stack sizes, and output a
                  -- "post" H file
-                 sizes <- lift $ withOutputFile sizesFile $ \h -> postCAnalyse sFile ((h,intErr),intErr)
+                 sizes <- withOutputFile sizesFile $ \h -> FilesPassM $ lift $
+                   postCAnalyse sFile ((h,intErr),intErr)
 
                  when (csHasMain cs) $ do
                    withOutputFile postCFile $ \h ->
@@ -345,7 +353,7 @@ compileFull inputFile moutputFile
 
             -- For C++, just compile the source file directly into a binary
             BackendCPPCSP ->
-              do cs <- lift getCompState
+              do cs <- getCompState
                  if csHasMain cs
                    then let otherOFiles = [usedFile ++ ".tock.o"
                                           | usedFile <- Set.toList $ csUsedFiles cs]
@@ -361,7 +369,7 @@ compileFull inputFile moutputFile
                                      ++ " with full-compile mode")
 
           -- Finally, remove the temporary files:
-          tempFiles <- get
+          tempFiles <- FilesPassM get
           when (not $ csKeepTemporaries cs) $
             liftIO $ removeFiles tempFiles
 
@@ -369,8 +377,8 @@ compileFull inputFile moutputFile
     intErr :: a
     intErr = error "Internal error involving handles"
     
-    noteFile :: Monad m => FilePath -> StateT [FilePath] m ()
-    noteFile fp = modify (\fps -> (fp:fps))
+    noteFile :: FilePath -> FilesPassM ()
+    noteFile fp = FilesPassM $ modify (\fps -> (fp:fps))
 
     withOutputFile :: MonadIO m => FilePath -> (Handle -> m a) -> m a
     withOutputFile path func
@@ -379,17 +387,17 @@ compileFull inputFile moutputFile
               liftIO $ hClose handle
               return x
 
-    exec :: String -> StateT [FilePath] PassM ()
-    exec cmd = do lift $ progress $ "Executing command: " ++ cmd
+    exec :: String -> FilesPassM ()
+    exec cmd = do progress $ "Executing command: " ++ cmd
                   p <- liftIO $ runCommand cmd
                   exitCode <- liftIO $ waitForProcess p
                   case exitCode of
                     ExitSuccess -> return ()
                     ExitFailure n -> dieReport (Nothing, "Command \"" ++ cmd ++ "\" failed: exited with code: " ++ show n)
 
-    searchReadFile :: Meta -> String -> StateT [FilePath] PassM String
+    searchReadFile :: Meta -> String -> FilesPassM String
     searchReadFile m fn
-      = do (h, _) <- lift $ searchFile m fn
+      = do (h, _) <- searchFile m fn
            liftIO $ hGetContents h
            -- Don't use hClose because hGetContents is lazy
 

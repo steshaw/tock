@@ -171,9 +171,6 @@ emptyFI = FunctionInfo {
 -- | Monad for `AnalyseAsm` operations.
 type AAM = StateT (Map.Map String FunctionInfo) PassM
 
-instance CSMR AAM where
-  getCompState = lift getCompState
-
 -- | Collect information about each function that's been defined.
 collectInfo :: [AsmItem] -> AAM ()
 collectInfo ais = collectInfo' ais ""
