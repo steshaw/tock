@@ -293,32 +293,7 @@ inferTypes = occamOnlyPass "Infer types"
                                            _ -> Just t
                                         | t <- origTs])
                              (map recurse es)
-{-
-              es' <- if all (== A.Infer) origTs
-                        && length (findOperatorTs [Nothing | _t <- origTs]) /= 1
-                -- No operand has a definite type, and we can't determine it from
-                -- the return type, so we'll just use what recursing
-                -- with no type context brings back:
-                then noTypeContext $ mapM recurse es
-                -- We do have at least one definite (non-Infer) type, or there
-                -- is only one operator to pick:
-                else case origTs of
-                  -- For binary operators, we'll use the definite type to find
-                  -- an operator and if there's only one possibility, we'll use
-                  -- that as the type contexts:
-                  [A.Infer, t] -> mapM (uncurry inTypeContext)
-                                    $ zip (pickTypes [Nothing, Just t]) (map recurse es)
-                  [t, A.Infer] -> mapM (uncurry inTypeContext)
-                                    $ zip (pickTypes [Just t, Nothing]) (map recurse es)
-                  -- For unary operators, we have a definite type, so don't do
-                  -- anything different;
-                  [_] -> noTypeContext $ mapM recurse es
-                  -- If we have two definite types for binary operators, we again
-                  -- don't do anything different
-                  [_,_] -> noTypeContext $ mapM recurse es
-                  -- Anything else must be some different arity operator:
-                  _ -> dieP m "Operator with strange arity"
--}
+
               tes <- sequence [underlyingTypeOf m e `catchError` (const $ return A.Infer) | e <- es']           
 
               case findOperatorTs $ map Just tes of
