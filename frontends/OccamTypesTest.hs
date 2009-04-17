@@ -28,7 +28,7 @@ import Test.HUnit hiding (State)
 import qualified AST as A
 import CompState
 import Metadata
-import qualified OccamTypes
+import qualified OccamCheckTypes as OccamTypes
 import Pass
 import TestHarness
 import TestUtils

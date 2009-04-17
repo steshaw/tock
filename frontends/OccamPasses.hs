@@ -33,7 +33,8 @@ import EvalConstants
 import EvalLiterals
 import GenerateC -- For nameString
 import Metadata
-import OccamTypes
+import OccamCheckTypes
+import OccamInferTypes
 import Pass
 import qualified Properties as Prop
 import ShowCode
