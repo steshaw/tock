@@ -100,10 +100,11 @@ findRepSolutions reps bks
 -- for any overlapping array indices.
 checkArrayUsage :: forall m. (Die m, CSMR m, MonadIO m) => NameAttr -> (Meta, ParItems (BK, UsageLabel)) -> m ()
 checkArrayUsage sharedAttr (m,p)
-  = do debug $ "checkArrayUsage: " ++ show m
-       indexes <- groupArrayIndexes $ fmap (transformPair id nodeVars) p
-       mapM_ (checkIndexes m) $ Map.toList $ Map.filter
-         ((<= 1) . length . map (\(_,w,r) -> w++r) . F.toList) indexes
+  = do indexes <- groupArrayIndexes $ fmap (transformPair id nodeVars) p
+       let filteredIndexes = Map.toList $ Map.filter
+             ((>= 1) . length . map (\(_,w,r) -> w++r) . F.toList) indexes
+       debug $ "checkArrayUsage: " ++ show m ++ ", " ++ show (length filteredIndexes)
+       mapM_ (checkIndexes m) filteredIndexes
   where
     getDecl :: UsageLabel -> Maybe String
     getDecl = join . fmap getScopeIn . nodeDecl
