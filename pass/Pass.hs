@@ -50,6 +50,30 @@ instance Warn PassM where
         then csWarnings cs ++ [w]
         else csWarnings cs }
 
+-- Instances for the lower half of PassM; an instance in CompState automatically
+-- traverses the ErrorT to reach these:
+instance CSMR (StateT CompState IO) where
+  getCompState = get
+
+instance CSM (StateT CompState IO) where
+  putCompState = put
+  modifyCompState = modify
+
+-- Some instances to support StateT stuff on top of PassM, which some passes do
+-- to add temporary state for that pass.  We can't just define CSM (StateT s m),
+-- because that would conflict with our above instance for CSM (StateT CompState
+-- IO), so instead we provide an instance for StateT that is directly on top of
+-- PassM:
+instance CSMR (StateT s PassM) where
+  getCompState = lift getCompState
+
+instance CSM (StateT s PassM) where
+  putCompState = lift . putCompState
+  modifyCompState = lift . modifyCompState
+
+instance Die (StateT s PassM) where
+  dieReport = lift . dieReport
+
 -- | The type of a pass function.
 -- This is as generic as possible. Passes are used on 'A.AST' in normal use,
 -- but for explicit descent and testing it's useful to be able to run them
@@ -69,6 +93,7 @@ type PassTypeOnOps ops
 
 type PassOn t = PassOnOps (OneOpM PassM t)
 type PassOn2 s t = PassOnOps (TwoOpM PassM s t)
+type PassOnM2 m s t = PassOnOpsM m (TwoOpM m s t)
 type PassTypeOn t = PassTypeOnOps (OneOpM PassM t)
 
 -- | A description of an AST-mangling pass.

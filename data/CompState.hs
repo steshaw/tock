@@ -227,9 +227,36 @@ emptyState = CompState {
   }
 
 -- | Class of monads which keep a CompState.
--- (This is just shorthand for the equivalent MonadState constraint.)
-class (CSMR m, MonadState CompState m) => CSM m
-instance (CSMR m, MonadState CompState m) => CSM m
+-- This used to be a shorthand for MonadState CompState.  The problem with this
+-- was that several Monads (CGen', AAM, and various other per-pass monads) had
+-- a StateT s on top of PassM, which meant you had to use lift to avoid the nested
+-- StateT monads getting confused about the MonadState classes.
+--
+-- The new solution is to have CSM be a specialised analogue to MonadState for
+-- CompState.  This means that we can have an instance for the StateT transformers
+-- of CSM (see the Pass module) that dig down, and thus we can scrap all the lift
+-- calls.
+class (Monad m, CSMR m) => CSM m where
+  putCompState :: CompState -> m ()
+
+  modifyCompState :: (CompState -> CompState) -> m ()
+  modifyCompState f = (getCompState >>* f) >>= putCompState
+
+-- If it's State CompState, I doubt they will want any other instance than this
+-- one:
+instance CSM (State CompState) where
+  putCompState = put
+  modifyCompState = modify
+
+-- Automatically traverse ErrorT looking for CSM:
+instance (CSM m, Error e) => CSM (ErrorT e m) where
+  putCompState = lift . putCompState
+  modifyCompState = lift . modifyCompState
+
+-- Automatically traverse WriterT looking for CSM:
+instance (CSM m, Monoid w) => CSM (WriterT w m) where
+  putCompState = lift . putCompState
+  modifyCompState = lift . modifyCompState
 
 -- | This class is like a specific instance of MonadReader.  I tried playing
 -- with introducing all sorts of MonadReader classes, trying to infer it from
@@ -241,12 +268,6 @@ instance (CSMR m, MonadState CompState m) => CSM m
 -- may have to define your own instance (see for example, ParseOccam or GenerateCBased)
 class Monad m => CSMR m where
   getCompState :: m CompState
-
-instance Monad m => CSMR (ReaderT CompState m) where
-  getCompState = ask
-
-instance Monad m => CSMR (StateT CompState m) where
-  getCompState = get
 
 instance CSMR (Reader CompState) where
   getCompState = ask
@@ -268,12 +289,12 @@ instance (CSMR m, Monoid w) => CSMR (WriterT w m) where
 -- | Add the definition of a name.
 defineName :: CSM m => A.Name -> A.NameDef -> m ()
 defineName n nd
-    = modify $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
+    = modifyCompState $ (\ps -> ps { csNames = Map.insert (A.nameName n) nd (csNames ps) })
 
 -- | Modify the definition of a name.
 modifyName :: CSM m => A.Name -> (A.NameDef -> A.NameDef) -> m ()
 modifyName n f
-    = modify $ (\ps -> ps { csNames = modifyName $ csNames ps })
+    = modifyCompState $ (\ps -> ps { csNames = modifyName $ csNames ps })
   where
     modifyName = Map.adjust f (A.nameName n)
 
@@ -294,7 +315,7 @@ makeUniqueName m s
                      then return $ mungeMeta m
                      -- For #INCLUDEd files, they might be included twice, so we
                      -- still need the extra suffixes:
-                     else do put $ cs { csNameCounter = csNameCounter cs + 1 }
+                     else do putCompState $ cs { csNameCounter = csNameCounter cs + 1 }
                              return $ mungeMeta m ++ "u" ++ show (csNameCounter cs)
          return $ s ++ "_" ++ munged
 
@@ -307,12 +328,12 @@ mungeMeta m  = [if c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'])
 -- | Find an unscoped name -- or define a new one if it doesn't already exist.
 findUnscopedName :: CSM m => A.Name -> m A.Name
 findUnscopedName n@(A.Name m s)
-    =  do st <- get
+    =  do st <- getCompState
           case Map.lookup s (csUnscopedNames st) of
             Just s' -> return $ A.Name m s'
             Nothing ->
               do s' <- makeUniqueName m s
-                 modify (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
+                 modifyCompState (\st -> st { csUnscopedNames = Map.insert s s' (csUnscopedNames st) })
                  let n = A.Name m s'
                  let nd = A.NameDef { A.ndMeta = m
                                     , A.ndName = s'
@@ -330,16 +351,16 @@ findUnscopedName n@(A.Name m s)
 --{{{  pulled items
 -- | Enter a pulled-items context.
 pushPullContext :: CSM m => m ()
-pushPullContext = modify (\ps -> ps { csPulledItems = [] : csPulledItems ps })
+pushPullContext = modifyCompState (\ps -> ps { csPulledItems = [] : csPulledItems ps })
 
 -- | Leave a pulled-items context.
 popPullContext :: CSM m => m ()
-popPullContext = modify (\ps -> ps { csPulledItems = tail $ csPulledItems ps })
+popPullContext = modifyCompState (\ps -> ps { csPulledItems = tail $ csPulledItems ps })
 
 -- | Add a pulled item to the collection.
 addPulled :: CSM m => PulledItem -> m ()
 addPulled item
-    = modify (\ps -> case csPulledItems ps of
+    = modifyCompState (\ps -> case csPulledItems ps of
                        (l:ls) -> ps { csPulledItems = (item:l):ls })
 
 -- | Do we currently have any pulled items?
@@ -353,9 +374,9 @@ havePulled
 -- | Apply pulled items to a Structured.
 applyPulled :: (CSM m, Data a) => A.Structured a -> m (A.Structured a)
 applyPulled ast
-    =  do ps <- get
+    =  do ps <- getCompState
           case csPulledItems ps of
-            (l:ls) -> do put $ ps { csPulledItems = [] : ls }
+            (l:ls) -> do putCompState $ ps { csPulledItems = [] : ls }
                          return $ foldl (\p f -> apply f p) ast l
   where
     apply :: Data a => PulledItem -> A.Structured a -> A.Structured a
@@ -368,12 +389,12 @@ applyPulled ast
 -- | Enter a type context.
 pushTypeContext :: CSM m => Maybe A.Type -> m ()
 pushTypeContext t
-    = modify (\ps -> ps { csTypeContext = t : csTypeContext ps })
+    = modifyCompState (\ps -> ps { csTypeContext = t : csTypeContext ps })
 
 -- | Leave a type context.
 popTypeContext :: CSM m => m ()
 popTypeContext
-    = modify (\ps -> ps { csTypeContext = tail $ csTypeContext ps })
+    = modifyCompState (\ps -> ps { csTypeContext = tail $ csTypeContext ps })
 
 -- | Get the current type context, if there is one.
 getTypeContext :: CSMR m => m (Maybe A.Type)
@@ -388,9 +409,9 @@ getTypeContext
 -- | Generate a throwaway unique name.
 makeNonce :: CSM m => Meta -> String -> m String
 makeNonce m s
-    =  do ps <- get
+    =  do ps <- getCompState
           let i = csNonceCounter ps
-          put ps { csNonceCounter = i + 1 }
+          putCompState ps { csNonceCounter = i + 1 }
           return $ s ++ mungeMeta m ++ "_n" ++ show i
 
 -- | Generate and define a nonce specification.
@@ -463,9 +484,9 @@ findAllProcesses
 
 -- | A new identifer for the unify types in the tree
 getUniqueIdentifer :: CSM m => m Int
-getUniqueIdentifer = do st <- get
+getUniqueIdentifer = do st <- getCompState
                         let n = csUnifyId st
-                        put st {csUnifyId = n + 1}
+                        putCompState st {csUnifyId = n + 1}
                         return n
 
 lookupNameOrError :: CSMR m => A.Name -> m A.NameDef -> m A.NameDef
