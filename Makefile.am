@@ -135,7 +135,7 @@ BUILT_SOURCES += frontends/LexRain.hs
 # For dummy modules:
 modules_DATA = 
 # For dummy lib files:
-tockinc_DATA = occamutl.tock.inc occamutl.tock.h occamutl.tock.sizes
+tockinc_DATA = occamutl.lib.tock.inc occamutl.lib.tock.h occamutl.lib.tock.sizes
 
 CLEANFILES = $(BUILT_SOURCES) $(config_sources)
 
