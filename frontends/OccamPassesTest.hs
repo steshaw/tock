@@ -140,15 +140,15 @@ testCheckConstants = TestList
     , testFail 33 (A.Option m [lit10, lit10, lit10, var] skip)
     ]
   where
-    testOK :: (PolyplateM a (TwoOpM PassM A.Type A.Option) () PassM
-              ,PolyplateM a () (TwoOpM PassM A.Type A.Option) PassM
+    testOK :: (PolyplateM a OccamPasses.CheckConstantsOps () PassM
+              ,PolyplateM a () OccamPasses.CheckConstantsOps PassM
               ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testCheckConstants" ++ show n)
                               orig OccamPasses.checkConstants orig
                               (return ())
-    testFail :: (PolyplateM a (TwoOpM PassM A.Type A.Option) () PassM
-                ,PolyplateM a () (TwoOpM PassM A.Type A.Option) PassM
+    testFail :: (PolyplateM a OccamPasses.CheckConstantsOps () PassM
+                ,PolyplateM a () OccamPasses.CheckConstantsOps PassM
                 ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)

@@ -17,7 +17,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -}
 
 -- | The occam-specific frontend passes.
-module OccamPasses (occamPasses, foldConstants, checkConstants) where
+module OccamPasses (occamPasses, foldConstants, checkConstants, CheckConstantsOps) where
+-- The ops are exported to make testing easier
 
 import Control.Monad.State
 import Data.Generics (Data)
