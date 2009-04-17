@@ -210,9 +210,12 @@ transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
                
     doWaitFor m a = return $ A.Only m a
 
+type SizesM = StateT (Map.Map [Int] String) PassM
+
 -- | Declares an array filled with constant sizes
--- If any extra sizes are declared, will add them to the current context
-getSizes :: Meta -> A.Variable -> [A.Expression] -> PassM (Maybe A.Name)
+-- If any extra sizes are declared, will add them to the current state, which records
+-- a map of constant sizes arrays declared for that size.
+getSizes :: Meta -> A.Variable -> [A.Expression] -> SizesM (Maybe A.Name)
 getSizes m v [] = diePC m $ formatCode "Empty list of dimensions in getSizes for %" v
 getSizes m _ es
   = do eces <- sequence [(evalIntExpression e >>* Right)
@@ -221,7 +224,7 @@ getSizes m _ es
        case splitEither eces of
          (_:_, _) -> return Nothing
          ([], ces) -> do
-           ss <- getCompState >>* csGlobalSizes
+           ss <- get
            case Map.lookup ces ss of
              Just n -> return $ Just $ A.Name m n
              Nothing ->
@@ -232,7 +235,7 @@ getSizes m _ es
                         e = A.Literal m t val in do
                  spec@(A.Specification _ n _) <- makeNonceIsExpr base m t e
                  addPulled (m, Left spec)
-                 modify $ \cs -> cs { csGlobalSizes = Map.insert ces (A.nameName n) ss }
+                 modify $ Map.insert ces (A.nameName n)
                  return $ Just n
 
 -- Forms a slice that drops a certain amount of elements:
@@ -245,7 +248,7 @@ sliceDrop m skip total
 -- The Variable returned will always be Just, but it makes use from findVarSizes
 -- easier
 findSizeForVar :: Meta -> Int -> A.Variable ->
-  PassM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
+  SizesM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
 findSizeForVar m skip v
   = do t <- astTypeOf v
        case stripMobile t of
@@ -282,7 +285,7 @@ findSizeForVar m skip v
 -- Gets the variable that holds the sizes of the given variable.  The first parameter
 -- is the number of dimensions to skip.  Assumes simplifySlices has already been
 -- run
-findVarSizes :: Int -> A.Variable -> PassM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
+findVarSizes :: Int -> A.Variable -> SizesM (Maybe (Maybe A.Name, Maybe A.Variable, [A.Expression]))
 findVarSizes skip v@(A.Variable m _) = findSizeForVar m skip v
 findVarSizes skip (A.DirectedVariable _ _ v) = findVarSizes skip v
 -- Fields are either constant or need a VariableSizes:
@@ -315,17 +318,17 @@ findVarSizes skip (A.VariableSizes m v)
        mn <- getSizes m (A.VariableSizes m v) es
        return $ Just (mn, fmap (A.Variable m) mn, es)
 
-type DeclSizeOps = (ExtOpMSP BaseOp) `ExtOpMP` A.Process
+type DeclSizeOps = ExtOpM SizesM (ExtOpMS SizesM BaseOp) A.Process
 
 -- | Declares a _sizes array for every array, statically sized or dynamically sized.
 -- For each record type it declares a _sizes array too.
-declareSizesArray :: PassASTOnOps DeclSizeOps
+declareSizesArray :: Pass A.AST
 declareSizesArray = occamOnlyPass "Declare array-size arrays"
   (prereq ++ [Prop.slicesSimplified, Prop.arrayConstructorsRemoved])
   [Prop.arraySizesDeclared]
   (passOnlyOnAST "declareSizesArray"
   (\t -> do pushPullContext
-            t' <- recurse t >>= applyPulled
+            t' <- evalStateT (recurse t) Map.empty >>= applyPulled
             popPullContext
             return t'
             ))
@@ -333,12 +336,12 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
     ops :: DeclSizeOps
     ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doProcess
 
-    recurse :: RecurseM PassM DeclSizeOps
+    recurse :: RecurseM SizesM DeclSizeOps
     recurse = makeRecurseM ops
-    descend :: DescendM PassM DeclSizeOps
+    descend :: DescendM SizesM DeclSizeOps
     descend = makeDescendM ops
     
-    defineSizesName :: Meta -> A.Name -> A.SpecType -> PassM ()
+    defineSizesName :: CSM m => Meta -> A.Name -> A.SpecType -> m ()
     defineSizesName m n spec
       = defineName n $ A.NameDef { A.ndMeta = m
                                  , A.ndName = A.nameName n
@@ -349,12 +352,12 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                                  , A.ndPlacement = A.Unplaced
                                  }
 
-    addSizes :: String -> A.Name -> PassM ()
-    addSizes k v = modify $ \cs -> cs { csArraySizes = Map.insert k v $ csArraySizes cs }
+    addSizes :: CSM m => String -> A.Name -> m ()
+    addSizes k v = modifyCompState $ \cs -> cs { csArraySizes = Map.insert k v $ csArraySizes cs }
 
     -- | Generate the @_sizes@ array for a 'Retypes' expression.
     retypesSizes :: Meta -> A.Name -> [A.Dimension] -> A.Type -> A.Variable
-      -> PassM (A.Name, Maybe A.SpecType)
+      -> SizesM (A.Name, Maybe A.SpecType)
     retypesSizes m n_sizes ds elemT v
       =  do biDest <- bytesInType (A.Array ds elemT)
             tSrc <- astTypeOf v
@@ -397,7 +400,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
 
             return (n_sizes, Just sizeSpecType)
 
-    varSizes :: Meta -> A.Name -> A.Variable -> PassM (A.Name, Maybe A.SpecType)
+    varSizes :: Meta -> A.Name -> A.Variable -> SizesM (A.Name, Maybe A.SpecType)
     varSizes m n_sizes abbrevV
       = do sizeExpr <- findVarSizes 0 abbrevV
            case sizeExpr of
@@ -421,9 +424,9 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
         lit = A.ArrayListLiteral m $ A.Several m $ map (A.Only m) es
         t = A.Array [A.Dimension $ makeConstant m (length es)] A.Int
 
-    doStructured :: (Data a, PolyplateM (A.Structured a) DeclSizeOps () PassM
-                           , PolyplateM (A.Structured a) () DeclSizeOps PassM)
-                    => Transform (A.Structured a)
+    doStructured :: (Data a, PolyplateM (A.Structured a) DeclSizeOps () SizesM
+                           , PolyplateM (A.Structured a) () DeclSizeOps SizesM)
+                    => (A.Structured a) -> SizesM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec
            case (spec, t) of
@@ -458,13 +461,13 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
                   -- problems for recursive PROCs with arrays.
                   body' <- recurse body
                   let newspec = A.Proc m' sm args' body'
-                  modify (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec })
+                  modifyCompState (\cs -> cs {csNames = Map.adjust (\nd -> nd { A.ndSpecType = newspec })
                     (A.nameName n) (csNames cs)})
                   return $ A.Spec m (A.Specification m n newspec) s'
              _ -> descend str
     doStructured s = descend s
     
-    transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> PassM ([A.Formal], [A.Formal])
+    transformFormals :: Maybe ExternalType -> Meta -> [A.Formal] -> SizesM ([A.Formal], [A.Formal])
     transformFormals _ _ [] = return ([],[])
     transformFormals ext m ((f@(A.Formal am t n)):fs)
       = case (t, ext) of
@@ -502,21 +505,21 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
           _ -> do (rest, new) <- transformFormals ext m fs
                   return (f : rest, new)
 
-    doProcess :: A.Process -> PassM A.Process
+    doProcess :: A.Process -> SizesM A.Process
     doProcess (A.ProcCall m n params)
       = do ext <- getCompState >>* csExternals >>* lookup (A.nameName n)
            A.Proc _ _ fs _ <- specTypeOfName n
            concatMapM (transformActual ext) (zip fs params) >>* A.ProcCall m n
     doProcess p = descend p
 
-    transformActual :: Maybe ExternalType -> (A.Formal, A.Actual) -> PassM [A.Actual]
+    transformActual :: Maybe ExternalType -> (A.Formal, A.Actual) -> SizesM [A.Actual]
     transformActual ext (A.Formal _ t _, a@(A.ActualVariable v))
       = transformActualVariable ext t a v
     transformActual ext (A.Formal _ t _, a@(A.ActualExpression (A.ExprVariable _ v)))
       = transformActualVariable ext t a v
     transformActual _ (_, a) = return [a]
 
-    transformActualVariable :: Maybe ExternalType -> A.Type -> A.Actual -> A.Variable -> PassM [A.Actual]
+    transformActualVariable :: Maybe ExternalType -> A.Type -> A.Actual -> A.Variable -> SizesM [A.Actual]
     transformActualVariable ext t a v
       =    case (t, ext) of
              (A.Array ds _, Just ExternalOldStyle) ->

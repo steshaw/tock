@@ -148,8 +148,6 @@ data CompState = CompState {
     csExternals :: [(String, ExternalType)],
     -- Maps an array variable name to the name of its _sizes array:
     csArraySizes :: Map String A.Name,
-    -- Stores a map of constant sizes arrays declared for that size:
-    csGlobalSizes :: Map [Int] String,
 
     -- Set by passes
     csNonceCounter :: Int,
@@ -206,7 +204,6 @@ emptyState = CompState {
     csOriginalTopLevelProcs = [],
     csExternals = [],
     csArraySizes = Map.empty,
-    csGlobalSizes = Map.empty,
 
     csNonceCounter = 0,
     csFunctionReturns = Map.empty,
