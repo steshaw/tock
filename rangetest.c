@@ -2,7 +2,7 @@ int g_stopped;
 
 #define occam_stop(pos, nargs, format, args...) do { g_stopped = 1; } while (0)
 
-#define occam_INT_size SIZEOF_INT
+#define occam_INT_size SIZEOF_VOIDP
 #define occam_extra_param 
 #include "support/tock_support.h"
 
