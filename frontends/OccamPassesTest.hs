@@ -50,6 +50,8 @@ startState
                                   undefined
           defineVariable "var" A.Int
 
+          defineOccamOperators
+
 -- | Test 'OccamPasses.foldConstants'.
 testFoldConstants :: Test
 testFoldConstants = TestList

@@ -49,6 +49,7 @@ import Test.QuickCheck
 import qualified AST as A
 import CompState
 import Errors
+import Intrinsics
 import Metadata (emptyMeta)
 import Pass
 import Pattern
@@ -645,3 +646,17 @@ instance Die (StateT CompState IO) where
                                 fail s
 
 --}}}
+
+defineOccamOperators :: CSM m => m ()
+defineOccamOperators
+  = sequence_
+      [ let n = A.Name emptyMeta $ occamDefaultOperator rawOp ts
+            nd = A.NameDef emptyMeta (A.nameName n) rawOp
+              (A.Function emptyMeta (A.PlainSpec, A.PlainRec)
+                 [rt] [A.Formal A.ValAbbrev t (A.Name emptyMeta $ "arg" ++ show i)
+                      | (i, t) <- zip [0..] ts
+                      ] Nothing)
+              A.Original A.NameNonce A.Unplaced
+        in defineName n nd
+      | (rawOp, rt, ts) <- occamIntrinsicOperators
+      ]
