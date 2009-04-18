@@ -776,7 +776,8 @@ squareAndPair lookupBK strip repVars s v lh
               s,
               squareEquations (nub (bkEqA ++ bkEqB) ++ eq,
               nub (bkIneqA ++ bkIneqB) ++ ineq ++ concat (applyAll (eq,ineq) (map addExtra repVars))))
-         bk = case liftM2 (curry product2) (lookupBK (fst labels)) (lookupBK (snd labels)) of
+         bk = case liftM2 (curry product2) (liftM atLeastOne $ lookupBK (fst labels))
+                                           (liftM atLeastOne $ lookupBK (snd labels)) of
                 Right [] -> Right [(([],[]),([],[]))] -- No BK
                 xs -> xs
     in bk >>* map f
@@ -784,6 +785,10 @@ squareAndPair lookupBK strip repVars s v lh
       ,and (map (primeImpliesPlain (eq,ineq)) repVars)
     ]
   where
+    atLeastOne :: [(EqualityProblem, InequalityProblem)] -> [(EqualityProblem, InequalityProblem)]
+    atLeastOne [] = [([], [])]
+    atLeastOne xs = xs
+    
     itemPresent :: CoeffIndex -> [Array CoeffIndex Integer] -> Bool
     itemPresent x = any (\a -> arrayLookupWithDefault 0 a x /= 0)
     
