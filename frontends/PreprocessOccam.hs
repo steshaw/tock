@@ -234,7 +234,7 @@ handleUse m (modName:_)
     mangleModName :: String -> String
     mangleModName mod
         = case splitExtension mod of
-            (base, ext) | ext `elem` ["inc", "lib", "occ", "tce"]
+            (base, ext) | ext `elem` ["inc", "occ", "tce"]
               -> base
             (_, "") -> mod
             _ -> mod -- Not sure what the extension might be...
