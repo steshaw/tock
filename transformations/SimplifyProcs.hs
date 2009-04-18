@@ -252,7 +252,11 @@ flattenAssign = pass "Flatten assignment"
                            A.ndNameSource = A.NameNonce,
                            A.ndPlacement = A.Unplaced
                            }
-                           
+
+                         modifyCompState $ \cs ->
+                           if A.nameName n `elem` csOriginalTopLevelProcs cs
+                             then cs { csOriginalTopLevelProcs = A.nameName n' : csOriginalTopLevelProcs cs}
+                             else cs
                          
                          return (A.Spec m (A.Specification m n' proc))
 
