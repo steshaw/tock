@@ -23,6 +23,8 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer hiding (tell)
 import Data.Generics (Data)
+import Data.HashTable (hashString)
+import Data.Int (Int32)
 import Data.List
 import System.IO
 
@@ -71,14 +73,31 @@ instance CSMR CGen where
   getCompState = lift getCompState
 
 -- Do not nest calls to this function!
-tellToHeader :: CGen a -> CGen a
-tellToHeader act
+-- The function also puts in the #ifndef/#define/#endif stuff that prevents multiple
+-- inclusion.
+tellToHeader :: String -> CGen a -> CGen a
+tellToHeader stem act
   = do st <- get
-       put $ st { cgenBody = cgenHeader st }
+       put $ st { cgenBody = Left [] }
        x <- act
        st' <- get
-       put $ st' { cgenBody = cgenBody st, cgenHeader = cgenBody st' }
+       let Left mainBit = cgenBody st'
+           nonce = "_" ++ stem ++ "_" ++ show (makePosInteger $ hashString $ concat mainBit)
+           contents =
+             "#ifndef " ++ nonce ++ "\n" ++
+             "#define " ++ nonce ++ "\n" ++
+             concat mainBit ++ "\n" ++
+             "#endif\n"
+       case cgenHeader st of
+         Right h -> do liftIO $ hPutStr h contents
+                       put $ st' { cgenBody = cgenBody st }
+         Left ls -> do put $ st' { cgenBody = cgenBody st
+                                 , cgenHeader = Left $ ls ++ [contents]
+                                 }
        return x
+  where
+    makePosInteger :: Int32 -> Integer
+    makePosInteger n = toInteger n + (toInteger (maxBound :: Int32))
 
 tell :: [String] -> CGen ()
 tell x = do st <- get
@@ -138,7 +157,8 @@ data GenOps = GenOps {
     genDirectedVariable :: Meta -> A.Type -> CGen () -> A.Direction -> CGen (),
     genExpression :: A.Expression -> CGen (),
     genFlatArraySize :: [A.Dimension] -> CGen (),
-    genForwardDeclaration :: A.Specification -> CGen(),
+    -- Bool is true if this is for the header:
+    genForwardDeclaration :: Bool -> A.Specification -> CGen(),
     -- | Only used for built-in operators at the moment:
     genFunctionCall :: Meta -> A.Name -> [A.Expression] -> CGen (),
     -- | Gets the current time into the given variable
@@ -169,7 +189,7 @@ data GenOps = GenOps {
     genPoison :: Meta -> A.Variable -> CGen (),
     genProcCall :: A.Name -> [A.Actual] -> CGen (),
     genProcess :: A.Process -> CGen (),
-    genRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen (),
+    genRecordTypeSpec :: Bool -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen (),
     genReplicatorStart :: A.Name -> A.Replicator -> CGen (),
     genReplicatorEnd :: A.Replicator -> CGen (),
     -- | Generates the three bits of a for loop (e.g. @int i = 0; i < 10; i++@ for the given replicator)

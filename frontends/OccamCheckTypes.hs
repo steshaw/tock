@@ -435,6 +435,60 @@ sameType ta@(A.UserDataType {}) tb
 sameType ta tb@(A.UserDataType {})
   = do tb' <- resolveUserType emptyMeta tb
        sameType ta tb'
+
+-- For records, because of the way separate compilation works, the same record
+-- might end up with two different names.  So we consider records to be the same
+-- type, iff:
+-- a. They have the same original name, AND
+-- b. Their attributes are the same, AND
+-- c. There are the same number of fields, AND
+-- d. The fields have matching names, AND
+-- e. The fields have matching types.
+sameType (A.Record na) (A.Record nb)
+  = do nad <- lookupName na
+       nbd <- lookupName nb
+       let matchOn :: Eq a => (A.NameDef -> a) -> Bool
+           matchOn f = f nad == f nbd
+
+           allButTypesSame = and $
+             [matchOn A.ndOrigName
+             ,matchOn $ (\(A.RecordType _ ra _) -> ra) . A.ndSpecType
+             ,matchOn $ (\(A.RecordType _ _ fs) -> length fs) . A.ndSpecType
+             ,matchOn $ (\(A.RecordType _ _ fs) -> map fst fs) . A.ndSpecType
+             ]
+
+           getTypes = (\(A.RecordType _ _ fs) -> map snd fs) . A.ndSpecType
+
+       if allButTypesSame
+         then liftM and $ mapM (uncurry sameType) (zip (getTypes nad) (getTypes nbd))
+         else return False
+-- For protocols (due to separate compilation) we check that the original names
+-- were the same, and that all the types match, similar to records
+sameType (A.UserProtocol na) (A.UserProtocol nb)
+  = do nad <- lookupName na
+       nbd <- lookupName nb
+       if A.ndOrigName nad == A.ndOrigName nbd
+         then case (A.ndSpecType nad, A.ndSpecType nbd) of
+           (A.Protocol _ ats, A.Protocol _ bts)
+             | length ats == length bts
+               -> liftM and $ mapM (uncurry sameType) (zip ats bts)
+           (A.ProtocolCase _ ants, A.ProtocolCase _ bnts)
+             | length ants == length bnts && map fst ants == map fst bnts
+               -> liftM and $ mapM (liftM and . sequence . uncurry (zipWith sameType)) (zip (map snd ants) (map snd bnts))
+           _ -> return False
+         else return False
+-- Finally, for channel bundle types, we proceed as with the others:
+sameType (A.ChanDataType dirA shA na) (A.ChanDataType dirB shB nb)
+  | dirA == dirB && shA == shB
+  = do nad <- lookupName na
+       nbd <- lookupName nb
+       if A.ndOrigName nad == A.ndOrigName nbd
+         then case (A.ndSpecType nad, A.ndSpecType nbd) of
+                (A.ChanBundleType _ arm ants, A.ChanBundleType _ brm bnts)
+                  | arm == brm && length ants == length bnts && map fst ants == map fst bnts
+                    -> liftM and $ mapM (uncurry sameType) (zip (map snd ants) (map snd bnts))
+                _ -> return False
+         else return False
 sameType a b = return $ a == b
 
 -- | Check that the second dimension can be used in a context where the first

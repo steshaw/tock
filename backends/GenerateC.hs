@@ -180,17 +180,22 @@ cgenTopLevel headerName s
           tell ["#include <tock_support_cif.h>\n"]
           cs <- getCompState
 
-          let isTopLevelSpec (A.Specification _ n _)
+          let isHeaderSpec (A.Specification _ n _)
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
+              isBodySpec (A.Specification _ n sp)
+                = A.nameName n `notElem` (csOriginalTopLevelProcs cs)
 
-          tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (reverse $ listifyDepth isTopLevelSpec s)
+          tellToHeader (nameString $ A.Name emptyMeta $ dropPath headerName)
+            $ sequence_ $ map (call genForwardDeclaration True)
+                                       (reverse $ listifyDepth isHeaderSpec s)
+
+          -- The header now contains record types and such, so we need to include
+          -- that before forward-declaring other PROCs:
+          tell ["#include \"", dropPath headerName, "\"\n"]
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
-          sequence_ $ map (call genForwardDeclaration)
-                            (reverse $ listifyDepth (not . isTopLevelSpec) s)
-
-          tell ["#include \"", dropPath headerName, "\"\n"]
+          sequence_ $ map (call genForwardDeclaration False)
+                            (reverse $ listifyDepth (isBodySpec) s)
 
           sequence_ [let usedFile' = if ".tock.inc" `isSuffixOf` usedFile
                            then take (length usedFile - length ".tock.inc") usedFile
@@ -1398,7 +1403,8 @@ cintroduceSpec lvl (A.Specification _ n (A.Is _ _ _ (A.ActualClaim v)))
                               else "MT_CB_SERVER"
                        ,")"]
 cintroduceSpec _ (A.Specification _ _ (A.DataType _ _)) = return ()
-cintroduceSpec _ (A.Specification _ _ (A.RecordType _ _ _)) = return ()
+cintroduceSpec _ (A.Specification _ n (A.RecordType _ ra nts))
+  = call genRecordTypeSpec True n ra nts
 cintroduceSpec _ (A.Specification _ _ (A.ChanBundleType {})) = return ()
 cintroduceSpec _ (A.Specification _ n (A.Protocol _ _)) = return ()
 cintroduceSpec _ (A.Specification _ n (A.ProtocolCase _ ts))
@@ -1446,19 +1452,17 @@ cintroduceSpec _ (A.Specification _ n (A.Forking _))
 --cintroduceSpec (A.Specification _ n (A.RetypesExpr _ am t e))
 cintroduceSpec _ n = call genMissing $ "introduceSpec " ++ show n
 
-cgenRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
-cgenRecordTypeSpec n attr fs
+cgenRecordTypeSpec :: Bool -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
+cgenRecordTypeSpec extraStuff n attr fs
+  | not extraStuff
     =  do tell ["typedef struct{"]
           sequence_ [call genDeclaration NotTopLevel t n True | (n, t) <- fs]
           tell ["}"]
           when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
-          tell ["typedef "]
-          genName n
-          origN <- lookupName n >>* A.ndOrigName
-          tell [" ", nameString $ A.Name emptyMeta origN, ";"]
-          if null [t | (_, A.Mobile t) <- fs]
+  | otherwise
+    =     if null [t | (_, A.Mobile t) <- fs]
             then do genStatic TopLevel n
                     tell ["const word "]
                     genName n
@@ -1493,12 +1497,12 @@ cgenRecordTypeSpec n attr fs
         ] ++ mt t
     mt t = [mobileElemType False t]
 
-cgenForwardDeclaration :: A.Specification -> CGen ()
-cgenForwardDeclaration (A.Specification _ n st@(A.Proc _ _ _ _))
+cgenForwardDeclaration :: Bool -> A.Specification -> CGen ()
+cgenForwardDeclaration _ (A.Specification _ n st@(A.Proc _ _ _ _))
     = genProcSpec TopLevel n st True
-cgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
-    = call genRecordTypeSpec n b fs
-cgenForwardDeclaration _ = return ()
+cgenForwardDeclaration True (A.Specification _ n (A.RecordType _ b fs))
+    = call genRecordTypeSpec False n b fs
+cgenForwardDeclaration _ _ = return ()
 
 cremoveSpec :: A.Specification -> CGen ()
 cremoveSpec (A.Specification m n (A.Declaration _ t))
@@ -1625,6 +1629,7 @@ genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
               tell [" (Workspace wptr"]
               sequence_ [do tell [", "]
                             case origT of
+{-
                               A.Record rn | forwardDecl
                                 -> do origN <- lookupName rn >>* A.ndOrigName
                                       ct <- call getCType (A.nameMeta rn)
@@ -1632,7 +1637,7 @@ genProcSpec lvl n (A.Proc _ (sm, rm) fs (Just p)) forwardDecl
                                       tell [show $ replacePlainType (nameString rn)
                                         (nameString $ A.Name emptyMeta origN) ct
                                         ]
-                              _ -> t
+-}                              _ -> t
                             tell [" "]
                             n
                          | (A.Formal am origT _, (t, n)) <- zip fs rfs]

@@ -43,7 +43,7 @@ import Types
 import Utils
 
 data OccParserState = OccParserState
-  { csLocalNames :: [(String, (A.Name, NameType))]
+  { csLocalNames :: [(String, (A.Name, NameType, Bool))]
   , compState :: CompState  
   }
 
@@ -58,8 +58,9 @@ instance CSM (GenParser tok OccParserState) where
                        setState $ st { compState = cs }
 
 addLocalName :: (String, (A.Name, NameType)) -> OccParser ()
-addLocalName n = do st <- getState
-                    setState $ st { csLocalNames = n : csLocalNames st }
+addLocalName (s, (n, nt))
+  = do st <- getState
+       setState $ st { csLocalNames = (s, (n, nt, True)) : csLocalNames st }
 
 -- The other part of the state is actually the built-up list of warnings:
 instance Warn (GenParser tok OccParserState) where
@@ -403,10 +404,10 @@ findName :: A.Name -> NameType -> OccParser A.Name
 findName thisN thisNT
     =  do st <- getState
           (origN, origNT) <-
-            case lookup (A.nameName thisN) (csLocalNames st) of
-              Nothing -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
-                ++ "; possibilities were: " ++ show (map fst (csLocalNames st))
+            case lookup (A.nameName thisN) [(s, (n, nt)) | (s, (n, nt, True)) <- csLocalNames st] of
               Just def -> return def
+              _ -> dieP (A.nameMeta thisN) $ "name " ++ A.nameName thisN ++ " not defined"
+                ++ "; possibilities were: " ++ show (map fst (csLocalNames st))
           if thisNT /= origNT
             then dieP (A.nameMeta thisN) $ "expected " ++ show thisNT ++ " (" ++ A.nameName origN ++ " is " ++ show origNT ++ ")"
             else return $ thisN { A.nameName = A.nameName origN }
@@ -434,7 +435,7 @@ scopeOut :: A.Name -> OccParser ()
 scopeOut n@(A.Name m _)
     =  do st <- getState
           case csLocalNames st of
-            ((_, (old, _)):rest)
+            ((_, (old, _, _)):rest)
              | old == n -> setState $ st { csLocalNames = rest }
              | otherwise -> dieInternal (Just m, "scoping out not in order; "
                  ++ " tried to scope out: " ++ A.nameName n ++ " but found: " ++ A.nameName old)
@@ -1481,12 +1482,13 @@ pragma = do m <- getPosition >>* sourcePosToMeta
     -- The Right return expects the given string to be lexed then parsed, whereas
     -- the Left return is just some code to run as normal, that won't consume
     -- any input.
-    pragmas :: (Die m, CSM m) => [ (String, Meta -> [String] -> Either (m (Maybe NameSpec))
+    pragmas :: [ (String, Meta -> [String] -> Either (OccParser (Maybe NameSpec))
       (String, OccParser (Maybe NameSpec)) ) ]
     pragmas = [ ("^SHARED +(.*)", parseContents handleShared)
               , ("^PERMITALIASES +(.*)", parseContents handlePermitAliases)
               , ("^EXTERNAL +\"(.*)\"", parseContents $ handleExternal True)
               , ("^TOCKEXTERNAL +\"(.*)\"", parseContents $ handleExternal False)
+              , ("^TOCKUNSCOPE +(.*)", simple handleUnscope)
               , ("^TOCKSIZES +\"(.*)\"", simple handleSizes)
               , ("^TOCKINCLUDE +\"(.*)\"", simple handleInclude)
               , ("^TOCKNATIVELINK +\"(.*)\"", simple handleNativeLink)
@@ -1506,7 +1508,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                   do st <- getState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
-                       Just def -> return $ fst def
+                       Just (n, _, _) -> return n
                      modifyCompState $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameShared) (csNameAttr st)})
                   vars
@@ -1518,7 +1520,7 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                   do st <- getState
                      A.Name _ n <- case lookup var (csLocalNames st) of
                        Nothing -> dieP m $ "name " ++ var ++ " not defined"
-                       Just def -> return $ fst def
+                       Just (n, _, _) -> return n
                      modifyCompState $ \st -> st {csNameAttr = Map.insertWith Set.union
                        n (Set.singleton NameAliasesPermitted) (csNameAttr st)})
                   vars
@@ -1567,6 +1569,17 @@ pragma = do m <- getPosition >>* sourcePosToMeta
                   { csExternals = (A.nameName n, ext) : csExternals st
                   }
                 return $ Just (A.Specification m origN sp, nt, (Just n, A.NameExternal))
+
+    handleUnscope _ [unscope]
+      = do st <- getState
+           setState $ st { csLocalNames = unscopeLatest $ csLocalNames st }
+           return Nothing
+      where
+        unscopeLatest (l@(s, (n, nt, _)): ls)
+          | s == unscope
+             = (s, (n, nt, False)) : ls
+          | otherwise
+             = l : unscopeLatest ls
 
     isPragma (Token _ p@(Pragma {})) = Just p
     isPragma _ = Nothing
@@ -1637,7 +1650,7 @@ claimSpec
     getOrigName :: A.Name -> OccParser String
     getOrigName n
       = do st <- getState
-           case lookup n [(munged, orig) | (orig, (munged, _)) <- csLocalNames st] of
+           case lookup n [(munged, orig) | (orig, (munged, _, True)) <- csLocalNames st] of
              Just orig -> return orig
              Nothing -> dieP (A.nameMeta n) $ "Could not find name: " ++ (A.nameName n)
 
@@ -2035,7 +2048,8 @@ topLevelItem
            -- when we get back to the file we included this one from, or
            -- pull the TLP name from them at the end.
            locals <- getState >>* csLocalNames
-           modifyCompState $ (\ps -> ps { csMainLocals = locals })
+           modifyCompState $ (\ps -> ps { csMainLocals =
+             [(s, (n, nt)) | (s, (n, nt, True)) <- locals] })
            return $ A.Several m []
 
 -- | A source file is a series of nested specifications.

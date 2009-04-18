@@ -64,36 +64,69 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
     do out <- getCompOpts >>* csOutputIncFile
        case out of
          Just fn -> do f <- liftIO $ openFile fn WriteMode
-                       contents <- emitProcsAsExternal t >>* (unlines . F.toList)
-                       liftIO $ hPutStr f contents
+                       (origLines, ns) <- runStateT (emitProcsAsExternal t) []
+                       allLines <- mapM mask ns >>* (F.toList origLines ++)
+                       liftIO $ hPutStr f $ unlines allLines
                        liftIO $ hClose f
          Nothing -> return ()
        return t
   ))
   where
-    emitProcsAsExternal :: A.AST -> PassM (Seq.Seq String)
+    emitProcsAsExternal :: A.AST -> StateT [A.Name] PassM (Seq.Seq String)
     emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Proc _ (A.PlainSpec,_) fs (Just _))) scope)
       = do origN <- lookupName n >>* A.ndOrigName
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \"PROC " ++ origN ++ "("
-             ] ++ intersperse (return ",") (map showCode fs) ++
+             ] ++ intersperse (return ",") (map showFormal fs) ++
              [return $ ") = " ++ nameString n ++ "\""
              ]) >>* concat
-           modify $ \cs -> cs { csOriginalTopLevelProcs =
-             A.nameName n : csOriginalTopLevelProcs cs }
+           recTopLevelName n
            emitProcsAsExternal scope >>* (thisProc Seq.<|)
-    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Function _ (A.PlainSpec,_) ts fs (Just _))) scope)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n (A.Function m (A.PlainSpec,_) ts fs (Just _))) scope)
       = do origN <- lookupName n >>* A.ndOrigName
            thisProc <- sequence (
              [return $ "#PRAGMA TOCKEXTERNAL \""
-             ] ++ intersperse (return ",") (map showCode ts) ++
+             ] ++ intersperse (return ",") (map (showType m) ts) ++
              [return $ " FUNCTION " ++ showFuncName origN ++ "("
-             ] ++ intersperse (return ",") (map showCode fs) ++
+             ] ++ intersperse (return ",") (map showFormal fs) ++
              [return $ ") = " ++ nameString n ++ "\""
              ]) >>* concat
-           modify $ \cs -> cs { csOriginalTopLevelProcs =
-             A.nameName n : csOriginalTopLevelProcs cs }
+           recTopLevelName n
            emitProcsAsExternal scope >>* (thisProc Seq.<|)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n
+      (A.RecordType m ra nts)) scope)
+      = do ts' <- mapM (underlyingType m) ts
+           thisDef <- showCode $ A.Specification m n $ A.RecordType m ra (zip ns ts')
+           recordType n
+           recTopLevelName n
+           emitProcsAsExternal scope >>* (thisDef Seq.<|)
+      where
+        (ns, ts) = unzip nts
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n
+      (A.ChanBundleType m rm nts)) scope)
+      = do ts' <- mapM (underlyingType m) ts
+           thisDef <- showCode $ A.Specification m n $ A.ChanBundleType m rm (zip ns ts')
+           recordType n
+           recTopLevelName n
+           emitProcsAsExternal scope >>* (thisDef Seq.<|)
+      where
+        (ns, ts) = unzip nts
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n
+      (A.Protocol m ts)) scope)
+      = do ts' <- mapM (underlyingType m) ts
+           thisDef <- showCode $ A.Specification m n $ A.Protocol m ts'
+           recordType n
+           recTopLevelName n
+           emitProcsAsExternal scope >>* (thisDef Seq.<|)
+    emitProcsAsExternal (A.Spec _ (A.Specification _ n
+      (A.ProtocolCase m nts)) scope)
+      = do ts' <- mapM (mapM $ underlyingType m) ts
+           thisDef <- showCode $ A.Specification m n $ A.ProtocolCase m (zip ns ts')
+           recordType n
+           recTopLevelName n
+           emitProcsAsExternal scope >>* (thisDef Seq.<|)
+      where
+        (ns, ts) = unzip nts
     emitProcsAsExternal (A.Spec _ (A.Specification _ n _) scope)
       = emitProcsAsExternal scope
     emitProcsAsExternal (A.ProcThen _ _ scope) = emitProcsAsExternal scope
@@ -101,11 +134,31 @@ writeIncFile = occamOnlyPass "Write .inc file" [] []
     emitProcsAsExternal (A.Several _ ss)
       = foldl (liftM2 (Seq.><)) (return Seq.empty) (map emitProcsAsExternal ss)
 
+    -- FIXME: for all the types, we should also output the types that they depend
+    -- on
+
     showFuncName :: String -> String
     showFuncName s | isOperator s = "\"" ++ doubleStars s ++ "\""
                    | otherwise = s
       where
         doubleStars cs = concat [if c == '*' then "**" else [c] | c <- cs]
+
+    recordType :: A.Name -> StateT [A.Name] PassM ()
+    recordType n = modify (n:)
+
+    recTopLevelName :: A.Name -> StateT [A.Name] PassM ()
+    recTopLevelName n = modifyCompState $ \cs -> cs { csOriginalTopLevelProcs =
+             A.nameName n : csOriginalTopLevelProcs cs }
+
+    mask :: A.Name -> PassM String
+    mask n = lookupName n >>* A.ndOrigName >>* ("#PRAGMA TOCKUNSCOPE " ++)
+
+    showType :: Meta -> A.Type -> StateT [A.Name] PassM String
+    showType m = showCode <.< underlyingType m
+
+    showFormal :: A.Formal -> StateT [A.Name] PassM String
+    showFormal (A.Formal am t n) = do t' <- underlyingType (findMeta n) t
+                                      showCode $ A.Formal am t' n
 
 -- | Fixed the types of array constructors according to the replicator count
 fixConstructorTypes :: PassOn A.Expression

@@ -141,16 +141,22 @@ cppgenTopLevel headerName s
 
           cs <- getCompState
 
-          let isTopLevelSpec (A.Specification _ n _)
+          let isHeaderSpec (A.Specification _ n _)
                 = A.nameName n `elem` (csOriginalTopLevelProcs cs)
+              isBodySpec (A.Specification _ n sp)
+                = case sp of
+                    A.RecordType {} -> True
+                    _ -> A.nameName n `elem` (csOriginalTopLevelProcs cs)
 
-          tellToHeader $ sequence_ $ map (call genForwardDeclaration)
-                                       (reverse $ listifyDepth isTopLevelSpec s)
+
+          tellToHeader (nameString $ A.Name emptyMeta $ dropPath headerName)
+            $ sequence_ $ map (call genForwardDeclaration True)
+                                       (reverse $ listifyDepth isHeaderSpec s)
           -- Things like lifted wrapper_procs we still need to forward-declare,
           -- but we do it in the C file, not in the header:
-          sequence_ $ map (call genForwardDeclaration)
+          sequence_ $ map (call genForwardDeclaration False)
                             (reverse $ listifyDepth (\sp@(A.Specification _ n _)
-                              -> not (isTopLevelSpec sp)
+                              -> isBodySpec sp
                                  && A.nameName n `notElem` map fst (csExternals cs)) s)
 
           tell ["#include \"", dropPath headerName, "\"\n"]
@@ -540,8 +546,8 @@ cppgenFormals nameFunc list = seqComma (map (cppgenFormal nameFunc) list)
 cppgenFormal :: (A.Name -> A.Name) -> A.Formal -> CGen ()
 cppgenFormal nameFunc (A.Formal am t n) = call genDecl NotTopLevel am t (nameFunc n)
 
-cppgenForwardDeclaration :: A.Specification -> CGen()
-cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
+cppgenForwardDeclaration :: Bool -> A.Specification -> CGen()
+cppgenForwardDeclaration _ (A.Specification _ n (A.Proc _ (sm, _) fs _))
     =  do --Generate the "process" as a C++ function:
           genStatic TopLevel n
           call genSpecMode sm
@@ -591,9 +597,9 @@ cppgenForwardDeclaration (A.Specification _ n (A.Proc _ (sm, _) fs _))
     genConstructorList :: [A.Formal] -> CGen ()
     genConstructorList fs = mapM_ genConsItem fs
 
-cppgenForwardDeclaration (A.Specification _ n (A.RecordType _ b fs))
-    = call genRecordTypeSpec n b fs
-cppgenForwardDeclaration _ = return ()
+cppgenForwardDeclaration header (A.Specification _ n (A.RecordType _ b fs))
+    = call genRecordTypeSpec (not header) n b fs
+cppgenForwardDeclaration _ _ = return ()
 
 cppintroduceSpec :: Level -> A.Specification -> CGen ()
 --I generate process wrappers for all functions by default:
@@ -923,8 +929,8 @@ cppgenFunctionCall m n es
        tell [")"]
 
 -- Changed because we don't need the mobile descriptor stuff:
-cppgenRecordTypeSpec :: A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
-cppgenRecordTypeSpec n attr fs
+cppgenRecordTypeSpec :: Bool -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
+cppgenRecordTypeSpec True n attr fs
     =  do tell ["typedef struct{"]
           sequence_ [call genDeclaration NotTopLevel t n True | (n, t) <- fs]
           tell ["}"]
@@ -935,3 +941,4 @@ cppgenRecordTypeSpec n attr fs
           genName n
           origN <- lookupName n >>* A.ndOrigName
           tell [" ", nameString $ A.Name emptyMeta origN, ";"]
+cppgenRecordTypeSpec False _ _ _ = return ()

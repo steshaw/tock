@@ -607,7 +607,7 @@ testRecord = TestList
     
     testAllS :: Int -> (String,String) -> (String,String) -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> State CompState () -> (GenOps -> GenOps) -> Test
     testAllS n (eCI,eCR) (eCPPI,eCPPR) rn rb rts st overFunc
-      = testBothS ("testRecord " ++ show n) eCI eCPPI (local overFunc (tcall genRecordTypeSpec rn rb rts)) st
+      = testBothS ("testRecord " ++ show n) eCI eCPPI (local overFunc (tcall genRecordTypeSpec False rn rb rts)) st
     testAllSame n e s0 s1 s2 = testAll n e e s0 s1 s2
     over ops = ops {genDeclaration = override3 (tell . (\x -> ["#ATION_",show x]))
                    ,declareInit = (override3 (Just $ tell ["#INIT"])), declareFree = override3 (Just $ tell ["#FREE"])
