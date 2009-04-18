@@ -36,7 +36,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Array.IArray
 import qualified Data.Foldable as F
-import Data.Generics hiding (GT)
+import Data.Generics (Data, Typeable)
 import Data.Int
 import Data.List
 import qualified Data.Map as Map
@@ -46,6 +46,7 @@ import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
+import Data.Generics.Polyplate.Schemes
 import Errors
 import Metadata
 import Omega
@@ -561,7 +562,7 @@ makeEquations accesses bound
         reps' :: [Var]
         reps' = map (Var . A.Variable emptyMeta) reps
         vs :: [Var]
-        vs = map Var $ listify (const True :: A.Variable -> Bool) e
+        vs = map Var $ listifyDepth (const True :: A.Variable -> Bool) e
     
     -- | A front-end to the setIndexVar' function
     setIndexVar :: A.Variable -> Int -> [FlattenedExp] -> [FlattenedExp]

@@ -19,9 +19,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module UsageCheckUtils (Decl(..), emptyVars, flattenParItems, foldUnionVars, getVarProcCall, getVarProc, labelUsageFunctions, mapUnionVars, ParItems(..), processVarW, transformParItems, UsageLabel(..), Var(..), Vars(..), vars) where
 
 import Control.Applicative
+import Control.Monad.State
 import Control.Monad.Writer (tell)
 import qualified Data.Foldable as F
-import Data.Generics hiding (GT)
+import Data.Generics (Data, Typeable)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -30,6 +31,7 @@ import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
+import Data.Generics.Polyplate.Schemes
 import Errors
 import FlowGraph
 import Metadata
@@ -227,13 +229,13 @@ getVarExpList (A.IntrinsicFunctionCallList _ _ es) = foldUnionVars $ map getVarE
 getVarExpList (A.AllocChannelBundle {}) = emptyVars
 
 getVarExp :: A.Expression -> Vars
-getVarExp = everything unionVars (emptyVars `mkQ` getVarExp')
+getVarExp e = execState (applyBottomUpM getVarExp' e) emptyVars
   where
     --Only need to deal with the two cases where we can see an A.Variable directly;
     --the generic recursion will take care of nested expressions, and even the expressions used as subscripts
-    getVarExp' :: A.Expression -> Vars
-    getVarExp' (A.ExprVariable _ v) = processVarR v
-    getVarExp' _ = emptyVars
+    getVarExp' :: A.Expression -> State Vars A.Expression
+    getVarExp' e@(A.ExprVariable _ v) = modify (unionVars $ processVarR v) >> return e
+    getVarExp' e = return e
 
 getVarSpec :: A.Specification -> Vars
 getVarSpec (A.Specification _ n st) = get st
