@@ -54,6 +54,7 @@ import Errors
 import EvalLiterals
 import Intrinsics
 import Metadata
+import Operators
 import PrettyShow
 import ShowCode
 import Traversal
@@ -698,7 +699,6 @@ specificDimSize :: Int -> A.Variable -> A.Variable
 specificDimSize n v = A.SubscriptedVariable (findMeta v) (A.Subscript (findMeta v) A.NoCheck
   $ makeConstant (findMeta v) n) $ A.VariableSizes (findMeta v) v
 
-
 functionOperator :: (CSMR m, Die m) => A.Name -> m (Maybe String)
 functionOperator n
   = lookupNameOrError n (dieP (A.nameMeta n) $ "Can't find operator definition for " ++ A.nameName n)
@@ -716,91 +716,6 @@ builtInOperator n
              -> Just op
            | otherwise
              -> Nothing
-
-isOperator :: String -> Bool
-isOperator op = any (== op) operatorNames
-
-operatorNames :: [String]
-operatorNames =
-  ["??"
-  ,"@@"
-  ,"$$"
-  ,"%"
-  ,"%%"
-  ,"&&"
-  ,"<%"
-  ,"%>"
-  ,"<&"
-  ,"&>"
-  ,"<]"
-  ,"[>"
-  ,"<@"
-  ,"@>"
-  ,"@"
-  ,"++"
-  ,"!!"
-  ,"=="
-  ,"^"
-  ,"-"
-  ,"MINUS"
-  ,"~"
-  ,"NOT"
-  ,"+"
-  ,"*"
-  ,"/"
-  ,"\\"
-  ,"REM"
-  ,"PLUS"
-  ,"TIMES"
-  ,"AFTER"
-  ,"/\\"
-  ,"\\/"
-  ,"><"
-  ,"BITNOT"
-  ,"BITAND"
-  ,"BITOR"
-  ,"<<"
-  ,">>"
-  ,"AND"
-  ,"OR"
-  ,"="
-  ,"<>"
-  ,"<="
-  ,"<"
-  ,">="
-  ,">"
-  ]
-
--- | This gives a default mapping from operator (such as "+") to a valid name string
--- to be used in the backend (i.e. the Tock support headers), such as "add", which
--- will later be suffixed by the types in question.
-occamOperatorTranslateDefault :: String -> String
-occamOperatorTranslateDefault "+" = "add"
-occamOperatorTranslateDefault "-" = "subtr"
-occamOperatorTranslateDefault "*" = "mul"
-occamOperatorTranslateDefault "/" = "div"
-occamOperatorTranslateDefault "TIMES" = "times"
-occamOperatorTranslateDefault "PLUS" = "plus"
-occamOperatorTranslateDefault "MINUS" = "minus"
-occamOperatorTranslateDefault "AFTER" = "after"
-occamOperatorTranslateDefault ">" = "more"
-occamOperatorTranslateDefault "<" = "less"
-occamOperatorTranslateDefault ">=" = "moreEq"
-occamOperatorTranslateDefault "<=" = "lessEq"
-occamOperatorTranslateDefault "=" = "eq"
-occamOperatorTranslateDefault "<>" = "notEq"
-occamOperatorTranslateDefault "\\" = "rem"
-occamOperatorTranslateDefault "REM" = "REM"
-occamOperatorTranslateDefault "/\\" = "and"
-occamOperatorTranslateDefault "\\/" = "or"
-occamOperatorTranslateDefault "><" = "xor"
-occamOperatorTranslateDefault "<<" = "lshift"
-occamOperatorTranslateDefault ">>" = "rshift"
-occamOperatorTranslateDefault "AND" = "and"
-occamOperatorTranslateDefault "OR" = "or"
-occamOperatorTranslateDefault "NOT" = "not"
-occamOperatorTranslateDefault "~" = "not"
-occamOperatorTranslateDefault cs = "op_" ++ concatMap (show . ord) cs
 
 occamDefaultOperator :: String -> [A.Type] -> String
 occamDefaultOperator op ts = "occam_" ++ occamOperatorTranslateDefault op

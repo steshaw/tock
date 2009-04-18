@@ -164,6 +164,7 @@ tock_SOURCES_hs += common/Errors.hs
 tock_SOURCES_hs += common/EvalConstants.hs
 tock_SOURCES_hs += common/EvalLiterals.hs
 tock_SOURCES_hs += common/Intrinsics.hs
+tock_SOURCES_hs += common/Operators.hs
 tock_SOURCES_hs += common/Pattern.hs
 tock_SOURCES_hs += common/PrettyShow.hs
 tock_SOURCES_hs += common/ShowCode.hs

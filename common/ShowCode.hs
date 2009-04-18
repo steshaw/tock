@@ -45,6 +45,7 @@ import Text.Regex
 
 import qualified AST as A
 import CompState hiding (CSM) -- everything here is read-only
+import Operators
 import Utils
 
 data ShowCodeState = ShowCodeState {
@@ -365,6 +366,22 @@ convOrSpace A.DefaultConversion = space
 convOrSpace A.Round = tell [" ROUND "]
 convOrSpace A.Trunc = tell [" TRUNC "]
 
+showOccamFunctionCall :: A.Name -> [A.Expression] -> CodeWriter ()
+showOccamFunctionCall n es
+  = do mOp <- functionOperator' n
+       case (mOp, es) of
+         (Nothing, _) -> showName n >> tell ["("] >> showWithCommas es >> tell [")"]
+         (Just op, [e]) -> tell [op, " "] >> showOccamM e
+         (Just op, [e,f]) -> showOccamM e >> tell [" ", op, " "] >> showOccamM f
+  where
+    functionOperator' (A.Name _ n)
+      = do origs <- get >>* originalNames
+           case Map.lookup n origs of
+             Nothing -> return Nothing
+             Just orig
+               | isOperator orig -> return $ Just orig
+               | otherwise -> return Nothing
+
 instance ShowOccam A.Expression where
   showOccamM (A.MostPos _ t) = bracket $ tell ["MOSTPOS "] >> showOccamM t
   showOccamM (A.MostNeg _ t) = bracket $ tell ["MOSTNEG "] >> showOccamM t
@@ -375,7 +392,7 @@ instance ShowOccam A.Expression where
   showOccamM (A.Literal _ _ lit) = showOccamM lit
   showOccamM (A.True _) = tell ["TRUE"]
   showOccamM (A.False _) = tell ["FALSE"]
-  showOccamM (A.FunctionCall _ n es) = showName n >> tell ["("] >> showWithCommas es >> tell [")"]
+  showOccamM (A.FunctionCall _ n es) = showOccamFunctionCall n es
   showOccamM (A.IntrinsicFunctionCall _ n es) = tell [n, "("] >> showWithCommas es >> tell [")"]
   showOccamM (A.SubscriptedExpr _ s e) = showSubscriptOccamM e s
   showOccamM (A.BytesInExpr _ e) = bracket $ tell ["BYTESIN "] >> showOccamM e
@@ -599,7 +616,7 @@ showWithSemis ss = sequence_ $ intersperse (tell [" ; "]) $ map showOccamM ss
 instance ShowOccam A.ExpressionList where
   showOccamM (A.ExpressionList _ es) = showWithCommas es
   showOccamM (A.FunctionCallList _ n es)
-    = showOccamM n >> tell ["("] >> showOccamM es >> tell [")"]
+    = showOccamFunctionCall n es
   showOccamM (A.IntrinsicFunctionCallList _ n es)
     = tell [n, "("] >> showOccamM es >> tell [")"]
   showOccamM (A.AllocChannelBundle _ n)
@@ -721,7 +738,6 @@ instance ShowOccam a => ShowOccam [a] where
 instance ShowRain a => ShowRain [a] where
   showRainM xs = tell ["["] >> sequence (intersperse (tell [", "]) $ map
     showRainM xs) >> tell ["]"]
-
 
 -- | Extends an existing (probably generic) function with cases for everything that has a specific ShowOccam and ShowRain instance
 -- This is a bit of manual wiring.  Because we can't generically deduce whether or not 
