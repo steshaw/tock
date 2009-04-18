@@ -69,8 +69,8 @@ singleParamFuncProc body = A.Specification m (simpleName "foo") (A.Function m (A
   A.PlainRec) [A.Int] [A.Formal A.ValAbbrev A.Byte (simpleName "param0")] (Just $ Right body))
 
 -- | Returns the expected body of the single parameter process (when the function had valof0 as a body)
-singleParamBodyExp :: Pattern -- ^ to match: A.Process
-singleParamBodyExp = tag2 A.Seq DontCare $ mOnlyP $
+singleParamBodyExp :: Pattern -- ^ to match: Maybe A.Process
+singleParamBodyExp = mkPattern $ Just $ tag2 A.Seq DontCare $ mOnlyP $
                          tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare)] $ tag2 A.ExpressionList DontCare [intLiteral 0]
 
 -- | Returns the expected specification type of the single parameter process
@@ -108,7 +108,7 @@ testFunctionsToProcs1 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                                                  tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
                                                  tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
                                                  tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $
-                 tag2 A.Seq DontCare $
+                 Just $ tag2 A.Seq DontCare $
                    mOnlyP $ 
                      tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare),tag2 A.Variable DontCare (Named "ret1" DontCare)] $ 
                        tag2 A.ExpressionList DontCare [exprVariable "param0",exprVariable "param1"]
@@ -139,7 +139,7 @@ testFunctionsToProcs2 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
       A.Spec m (singleParamFunc valof0) valof0)
     exp = tag3 A.Specification DontCare (simpleName "fooOuter") procBodyOuter
     procHeader body = tag4 A.Proc DontCare (A.PlainSpec, A.PlainRec) [tag3 A.Formal A.ValAbbrev A.Byte (simpleName "paramOuter0"), tag3 A.Formal A.Abbrev A.Int (Named "retOuter0" DontCare)] body
-    procBodyOuter = procHeader $
+    procBodyOuter = procHeader $ Just $
                  tag2 A.Seq DontCare $                 
                    mSpecP (tag3 A.Specification DontCare (simpleName "foo") (singleParamSpecExp singleParamBodyExp)) $
                      mOnlyP $ 
@@ -197,7 +197,7 @@ testFunctionsToProcs4 = TestCase $ testPassWithItemsStateCheck "testFunctionsToP
                                                  tag3 A.Formal A.Abbrev A.Real32 (simpleName "param1"),
                                                  tag3 A.Formal A.Abbrev A.Int (Named "ret0" DontCare),
                                                  tag3 A.Formal A.Abbrev A.Real32 (Named "ret1" DontCare)] $
-                 tag2 A.Seq DontCare $
+                 Just $ tag2 A.Seq DontCare $
                    mOnlyP $ 
                      tag3 A.Assign DontCare [tag2 A.Variable DontCare (Named "ret0" DontCare),tag2 A.Variable DontCare (Named "ret1" DontCare)] $ 
                        tag2 A.ExpressionList DontCare [exprVariable "param0",exprVariable "param1"]
@@ -260,14 +260,15 @@ testOutExprs = TestList
  [
   -- Test outputting from an expression:
   TestCase $ testPassWithItemsStateCheck "testOutExprs 0" 
-    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM A.Int 1))
       (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
     outExprs (
-      A.Output emptyMeta chan [outXM 1]
+      A.Output emptyMeta chan [outXM A.Int 1]
     )
-    (defineName (xName) $ simpleDefDecl "x" A.Int)
+    (do defineOccamOperators
+        defineName (xName) $ simpleDefDecl "x" A.Int)
     (checkTempVarTypes "testOutExprs 0" [("temp_var", A.Int)])
 
   -- Test outputting from a variable already:
@@ -283,7 +284,7 @@ testOutExprs = TestList
     
   -- Test outputting from multiple output items:
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 2"
-    (tag2 A.Seq DontCare $ (abbr "temp_var0" A.Byte (eXM 1)) $ (abbr "temp_var1" A.Int (intLiteral 2))
+    (tag2 A.Seq DontCare $ (abbr "temp_var0" A.Byte (eXM A.Byte 1)) $ (abbr "temp_var1" A.Int (intLiteral 2))
       (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
         ,mkPattern outX
@@ -292,14 +293,15 @@ testOutExprs = TestList
       )
     )
     outExprs (
-      A.Output emptyMeta chan [outXM 1,outX,A.OutExpression emptyMeta $ intLiteral 2]
+      A.Output emptyMeta chan [outXM A.Byte 1,outX,A.OutExpression emptyMeta $ intLiteral 2]
     )
-    (defineName (xName) $ simpleDefDecl "x" A.Byte)
+    (do defineOccamOperators
+        defineName (xName) $ simpleDefDecl "x" A.Byte)
     (checkTempVarTypes "testOutExprs 2" [("temp_var0", A.Byte),("temp_var1", A.Int)])
     
   -- Test an OutCounted
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 3"
-    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Byte (eXM 1))
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Byte (eXM A.Byte 1))
       (mOnlyP $ tag3 A.Output emptyMeta chan
         [tag3 A.OutCounted emptyMeta 
           (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var0" DontCare)))
@@ -308,22 +310,24 @@ testOutExprs = TestList
       )
     )
     outExprs (
-      A.Output emptyMeta chan [A.OutCounted emptyMeta (eXM 1) (exprVariable "x")]
+      A.Output emptyMeta chan [A.OutCounted emptyMeta (eXM A.Byte 1) (exprVariable "x")]
     )
-    (defineName (xName) $ simpleDefDecl "x" A.Byte)
+    (do defineOccamOperators
+        defineName (xName) $ simpleDefDecl "x" A.Byte)
     (checkTempVarTypes "testOutExprs 3" [("temp_var", A.Byte)])
 
   -- Test that OutputCase is also processed:
   ,TestCase $ testPassWithItemsStateCheck "testOutExprs 4" 
-    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM 1))
+    (tag2 A.Seq DontCare $ (abbr "temp_var" A.Int (eXM A.Int 1))
       (mOnlyP $ tag4 A.OutputCase emptyMeta chan (simpleName "foo")
         [tag2 A.OutExpression emptyMeta (tag2 A.ExprVariable DontCare (tag2 A.Variable DontCare (Named "temp_var" DontCare)))])
     )
     outExprs (
-      A.OutputCase emptyMeta chan (simpleName "foo") [outXM 1]
+      A.OutputCase emptyMeta chan (simpleName "foo") [outXM A.Int 1]
     )
-    (defineName (xName) $ simpleDefDecl "x" A.Int)
-    (checkTempVarTypes "testOutExprs 3" [("temp_var", A.Int)])
+    (do defineOccamOperators
+        defineName (xName) $ simpleDefDecl "x" A.Int)
+    (checkTempVarTypes "testOutExprs 4" [("temp_var", A.Int)])
 
   -- Test that an empty outputcase works okay:
 
@@ -339,8 +343,8 @@ testOutExprs = TestList
  ]
  where
    outX = A.OutExpression emptyMeta $ exprVariable "x"
-   outXM n = A.OutExpression emptyMeta $ eXM n
-   eXM n = buildExpr $ Dy (Var "x") "-" (Lit $ intLiteral n)
+   outXM t n = A.OutExpression emptyMeta $ eXM t n
+   eXM t n = buildExpr $ Dy (Var "x") "-" (Lit $ integerLiteral t n)
   
    abbr key t e = mSpecP
      (tag3 A.Specification DontCare (Named key DontCare)
