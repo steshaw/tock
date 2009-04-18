@@ -454,6 +454,10 @@ instance ShowOccam A.RecordAttr where
     = do when (A.packedRecord attr) $ tell ["PACKED "]
          when (A.mobileRecord attr) $ tell ["MOBILE "]
 
+instance ShowOccam A.RecMode where
+  showOccamM A.Recursive = tell ["RECURSIVE "]
+  showOccamM A.PlainRec = return ()
+
 instance ShowOccam A.Specification where
   -- TODO add specmode to the output
   showOccamM (A.Specification _ n (A.Proc _ sm params (Just body)))
@@ -473,6 +477,15 @@ instance ShowOccam A.Specification where
     = showOccamLine $ (maybeVal am) >> showOccamM t >> space >> showName n >> tell [" IS "] >> showOccamM v >> colon
   showOccamM (A.Specification _ n (A.DataType _ t))
     = showOccamLine $ tell ["DATA TYPE "] >> showName n >> tell [" IS "] >> showOccamM t >> colon
+  showOccamM (A.Specification _ n (A.ChanBundleType _ rm nts))
+    = do showOccamLine $ showOccamM rm >> tell ["CHAN TYPE "] >> showName n
+         occamIndent
+         showOccamLine $ tell ["MOBILE RECORD"]
+         occamIndent
+         mapM_ (\(n,t) -> showOccamLine $ showOccamM t >> space >> showName n >> colon) nts
+         occamOutdent
+         occamOutdent
+         showOccamLine colon
   showOccamM (A.Specification _ n (A.Forking _))
     = showOccamLine $ tell ["FORKING --"] >> showName n
   showOccamM (A.Specification _ n (A.RecordType _ attr fields))
