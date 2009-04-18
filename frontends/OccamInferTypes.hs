@@ -487,33 +487,43 @@ inferTypes = occamOnlyPass "Infer types"
                             case nub dirs of
                               [dir] ->
                                 do let tEnd = A.ChanEnd dir (dirAttr dir attr) innerT
-                                   return (tEnd, A.DirectedVariable m dir v')
-                              _ -> return (vt, v') -- no direction, or two
-                    (A.Infer, _) -> return (vt, v')
+                                   return (tEnd, A.ActualVariable $ A.DirectedVariable m dir v')
+                              _ -> return (vt, A.ActualVariable v') -- no direction, or two
+                    (A.Infer, _) -> return (vt, A.ActualVariable v')
                     (A.ChanEnd dir _ _, _) -> do v'' <- lift $ lift $ makeEnd m dir v'
-                                                 return (t', v'')
+                                                 return (t', A.ActualVariable v'')
                     (A.Array _ (A.ChanEnd dir _ _), _) ->
                                          do v'' <- lift $ lift $ makeEnd m dir v'
-                                            return (t', v'')
+                                            return (t', A.ActualVariable v'')
                     (A.Chan cattr cinnerT, A.ChanEnd dir _ einnerT)
                       -> do cinnerT' <- lift $ recurse cinnerT
                             einnerT' <- lift $ recurse einnerT
                             if cinnerT' /= einnerT'
                               then lift $ diePC m $ formatCode "Inner types of channels do not match in type inference: % %" cinnerT' einnerT'
-                              else return (vt, v')
+                              else return (vt, A.ActualVariable v')
                     (A.Chan attr innerT, A.Chan {}) ->
                          do dirs <- ask >>= (lift . findDir n)
                             case nub dirs of
                               [dir] ->
                                 do let tEnd = A.ChanEnd dir (dirAttr dir attr) innerT
-                                   return (tEnd, A.DirectedVariable m dir v')
-                              _ -> return (t', v') -- no direction, or two
-                    _ -> return (t', v')
-                  return $ addId $ A.Is m am' t'' $ A.ActualVariable v''
+                                   return (tEnd, A.ActualVariable $ A.DirectedVariable m dir v')
+                              _ -> return (t', A.ActualVariable v') -- no direction, or two
+                    (A.Mobile _, A.Mobile _) -> return (t', A.ActualVariable v')
+                    -- This can happen with things like:
+                    -- MOBILE []BYTE y:
+                    -- INITIAL MOBILE []BYTE x IS [y FOR 1]
+                    --
+                    -- The array slice is non-mobile (y is dereferenced), and we
+                    -- need to allocate it:
+                    (A.Mobile _, _)
+                      -> return (t', A.ActualExpression $
+                           A.AllocMobile m t' (Just $ A.ExprVariable m v'))
+                    _ -> return (t', A.ActualVariable v')
+                  return $ addId $ A.Is m am' t'' v''
             A.Is m am t (A.ActualExpression e) -> lift $
                do am' <- recurse am
                   t' <- recurse t
-                  e' <- inTypeContext (Just t') $ recurse e
+                  e' <- inTypeContext (Just t') (recurse e) >>= inferAllocMobile m t'
                   t'' <- case t' of
                            A.Infer -> astTypeOf e'
                            A.Array ds _ | A.UnknownDimension `elem` ds -> astTypeOf e'
