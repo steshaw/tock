@@ -205,7 +205,7 @@ transformWaitFor = cOnlyPass "Transform wait for guards into wait until guards"
                 init ++ [A.Only m $ A.Input m tim
                            (A.InputTimerRead m (A.InVariable m var)),
                          A.Only m $ A.Assign m [var] $ A.ExpressionList m
-                           [addExprsInt (A.ExprVariable m var) e]])
+                           [dyadicExprInt "PLUS" (A.ExprVariable m var) e]])
            return $ A.Only m'' $ A.Alternative m cond tim (A.InputTimerAfter m' (A.ExprVariable m' var)) p
                
     doWaitFor m a = return $ A.Only m a
