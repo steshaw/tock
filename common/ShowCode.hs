@@ -499,10 +499,20 @@ instance ShowOccam A.Specification where
          occamIndent
          showOccamLine $ tell ["MOBILE RECORD"]
          occamIndent
-         mapM_ (\(n,t) -> showOccamLine $ showOccamM t >> space >> showName n >> colon) nts
+         mapM_ showItem nts
          occamOutdent
          occamOutdent
          showOccamLine colon
+    where
+      -- Must put the direction after the variable:
+      showItem (n, A.ChanEnd dir A.Unshared t)
+        = showOccamLine $ do tell ["CHAN "]
+                             showOccamM t
+                             tell [" "]
+                             showName n
+                             showOccamM dir
+                             colon
+
   showOccamM (A.Specification _ n (A.Forking _))
     = showOccamLine $ tell ["FORKING --"] >> showName n
   showOccamM (A.Specification _ n (A.RecordType _ attr fields))
