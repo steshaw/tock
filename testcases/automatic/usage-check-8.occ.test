@@ -134,7 +134,7 @@ PROC m()
   INT x:
   PAR
     PAR i = 0 FOR x - 1
-      both.2(c[i]?, c[i + 1]!
+      both.2(c[i]?, c[i + 1]!)
     read(c[x - 1]?)
 
 %
