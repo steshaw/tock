@@ -130,5 +130,11 @@ PROC m()
     INT x:
     c[9] ? x
 
+%PASS Safe use with unknown bound
+  INT x:
+  PAR
+    PAR i = 0 FOR x - 1
+      both.2(c[i]?, c[i + 1]!
+    read(c[x - 1]?)
 
 %
