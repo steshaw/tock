@@ -182,6 +182,7 @@ plainSubscriptType m (A.Array (_:ds) t)
     = return $ case ds of
                  [] -> t
                  _ -> A.Array ds t
+plainSubscriptType m (A.Mobile t) = plainSubscriptType m t
 plainSubscriptType m t = diePC m $ formatCode "Subscript of non-array type: %" t
 
 -- | Turn an expression into a 'Dimension'.
