@@ -51,7 +51,8 @@ instance Show FlattenedExp where
   show fexp = runIdentity $ showFlattenedExp (return . showOccam) fexp
 
 testCompState :: CompState
-testCompState = emptyState
+testCompState = execState defineOccamOperators emptyState
+
 rr :: ReaderT CompState m a -> m a
 rr = flip runReaderT testCompState
 
