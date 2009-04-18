@@ -33,6 +33,7 @@ import Pass
 import TestHarness
 import TestUtils
 import Traversal
+import TypeSizes
 
 m :: Meta
 m = emptyMeta
@@ -73,6 +74,8 @@ startState
           defineProc "proc0" []
           defineProc "proc1" [("x", A.ValAbbrev, A.Int)]
           defineProc "proc2" [("x", A.ValAbbrev, A.Int), ("y", A.Abbrev, A.Int)]
+
+          defineOccamOperators
   where
     intsT = A.Array [A.UnknownDimension] A.Int
     arrayLit = A.ArrayListLiteral m $ A.Several m []
@@ -627,8 +630,8 @@ testOccamTypes = TestList
 
     retypesV = A.Retypes m A.Abbrev
     retypesE = A.RetypesExpr m A.ValAbbrev
-    known1 = A.Array [dimension 4] A.Byte
-    known2 = A.Array [dimension 2, dimension 2] A.Byte
+    known1 = A.Array [dimension cIntSize] A.Byte
+    known2 = A.Array [dimension 2, dimension $ cIntSize `div` 2] A.Byte
     both = A.Array [dimension 2, A.UnknownDimension] A.Byte
     unknown1 = A.Array [A.UnknownDimension] A.Int
     unknown2 = A.Array [A.UnknownDimension, A.UnknownDimension] A.Int
