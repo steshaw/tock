@@ -2140,8 +2140,8 @@ cgenProcCall n as
                               tell [")};"]
                               return $ sequence_ afters
                     case c of
-                      'B' -> tell ["ExternalCallN("]
-                      'C' -> tell ["BlockingCallN(wptr,"]
+                      'B' -> tell ["BlockingCallN(wptr,"]
+                      'C' -> tell ["ExternalCallN("]
                       _ -> dieP (A.nameMeta n) "Unknown external PROC format"
                     tell [ [if c == '.' then '_' else c | c <- cs]
                          , ",1,ext_args);"]
