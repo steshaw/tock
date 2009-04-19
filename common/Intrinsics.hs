@@ -131,6 +131,7 @@ intrinsicProcs =
     [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
     , ("CAUSEERROR", [])
     , ("RESCHEDULE", [])
+    , ("SETAFF", [(A.ValAbbrev, A.Int, "aff")])
     , ("SETPRI", [(A.ValAbbrev, A.Int, "pri")])
     ] ++ concat [
       (zip ["INT" ++ suffix ++ "TOSTRING", "HEX" ++ suffix ++ "TOSTRING"] $ repeat

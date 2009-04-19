@@ -196,6 +196,7 @@ data GenOps = GenOps {
     genReplicatorLoop :: A.Name -> A.Replicator -> CGen (),
     genReschedule :: CGen(),
     genRetypeSizes :: Meta -> A.Type -> A.Name -> A.Type -> A.Variable -> CGen (),
+    genSetAff :: Meta -> A.Expression -> CGen (),
     genSetPri :: Meta -> A.Expression -> CGen (),
     genSeq :: A.Structured A.Process -> CGen (),
     genSpec :: forall b. Level -> A.Specification -> CGen b -> CGen b,

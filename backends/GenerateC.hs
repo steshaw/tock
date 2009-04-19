@@ -133,6 +133,7 @@ cgenOps = GenOps {
     genReplicatorLoop = cgenReplicatorLoop,
     genReschedule = cgenReschedule,
     genRetypeSizes = cgenRetypeSizes,
+    genSetAff = cgenSetAff,
     genSetPri = cgenSetPri,
     genSeq = cgenSeq,
     genSpec = cgenSpec,
@@ -2182,6 +2183,7 @@ cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
 cgenIntrinsicProc m "CAUSEERROR" [] = call genStop m "CAUSEERROR"
+cgenIntrinsicProc m "SETAFF" [A.ActualExpression e] = call genSetAff m e
 cgenIntrinsicProc m "SETPRI" [A.ActualExpression e] = call genSetPri m e
 cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
   Just amtns -> do tell ["occam_", [if c == '.' then '_' else c | c <- s], "(wptr,"]
@@ -2205,6 +2207,11 @@ cgenAssert m e
           tell [") {\n"]
           call genStop m "assertion failed"
           tell ["}\n"]
+
+cgenSetAff :: Meta -> A.Expression -> CGen ()
+cgenSetAff _ e = do tell ["SetAffinity(wptr,"]
+                    call genExpression e
+                    tell [");"]
 
 cgenSetPri :: Meta -> A.Expression -> CGen ()
 cgenSetPri _ e = do tell ["SetPriority(wptr,"]
