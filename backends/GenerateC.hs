@@ -1500,7 +1500,7 @@ cgenRecordTypeSpec extraStuff n attr fs
 cgenForwardDeclaration :: Bool -> A.Specification -> CGen ()
 cgenForwardDeclaration _ (A.Specification _ n st@(A.Proc _ _ _ _))
     = genProcSpec TopLevel n st True
-cgenForwardDeclaration True (A.Specification _ n (A.RecordType _ b fs))
+cgenForwardDeclaration _ (A.Specification _ n (A.RecordType _ b fs))
     = call genRecordTypeSpec False n b fs
 cgenForwardDeclaration _ _ = return ()
 
