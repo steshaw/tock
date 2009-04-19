@@ -603,7 +603,8 @@ testRecord = TestList
  ]
  where
     testAll :: Int -> (String,String) -> (String,String) -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> Test
-    testAll a b c0 c1 c2 d = testAllS a b c0 c1 c2 d (return ()) over
+    testAll a b c0 c1 c2 d = testAllS a b c0 c1 c2 d (defineName foo $ simpleDef
+      "foo" $ A.RecordType emptyMeta c2 d) over
     
     testAllS :: Int -> (String,String) -> (String,String) -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> State CompState () -> (GenOps -> GenOps) -> Test
     testAllS n (eCI,eCR) (eCPPI,eCPPR) rn rb rts st overFunc
@@ -634,7 +635,7 @@ testSpec = TestList
 
   --IsChannelArray:
   ,testAllSame 500 
-    ("$(" ++ show chanInt ++ ")*foo[]={@,@};","")
+    ("$(" ++ show chanInt ++ ")* foo[]={@,@};","")
     $ A.Is emptyMeta A.Abbrev (A.Array [dimension 2] chanInt) 
       $ A.ActualChannelArray [A.Variable undefined undefined,A.Variable undefined undefined]
 
@@ -647,13 +648,16 @@ testSpec = TestList
     (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanInt,A.Record foo]
   --Abbreviations of channel-ends in C++ should just copy the channel-end, rather than trying to take the address of the temporary returned by writer()/reader()
   --C abbreviations will be of type Channel*, so they can just copy the channel address.
-  ,testAllForTypes 620 (\t -> ("$(" ++ show t ++ ") foo=bar;","")) (\t -> ("$(" ++ show t ++ ") foo=bar;",""))
-    (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanIntIn,chanIntOut]
+  ,testAllForTypes 620 (\t -> ("Channel* const foo=bar;","")) (\t -> ("csp::AltChanin<$(Int)> foo=bar;",""))
+    (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanIntIn]
+  ,testAllForTypes 630 (\t -> ("Channel* const foo=bar;","")) (\t -> ("csp::Chanout<$(Int)> foo=bar;",""))
+    (\t -> A.Is emptyMeta A.Abbrev t $ A.ActualVariable (variable "bar")) [chanIntOut]
+
   
   ,testAllSameForTypes 700 (\t -> ("$(" ++ show t ++ ") const foo=bar;",""))
     (\t -> A.Is emptyMeta A.ValAbbrev t $ A.ActualVariable (variable "bar")) [A.Int,A.Time]
-  ,testAllSameForTypes 710 (\t -> ("$(" ++ show t ++ ") const* const foo=(&bar);",""))
-    (\t -> A.Is emptyMeta A.ValAbbrev t $ A.ActualVariable (variable "bar")) [A.Record foo]
+  ,testAllSameForTypes 710 (\t -> ("$(" ++ show t ++ ") const foo=(&bar);",""))
+    (\t -> A.Is emptyMeta A.ValAbbrev t $ A.ActualVariable (variable "bar")) [A.Record bar2]
   -- I don't think ValAbbrev of channels/channel-ends makes much sense (occam doesn't support it, certainly) so they are not tested here.
   
   --TODO test Is more (involving subscripts, arrays and slices)
@@ -665,10 +669,10 @@ testSpec = TestList
   
   --Retypes:
   -- Normal abbreviation:
-  ,testAllSameS 900 ("int32_t* const foo=(int32_t* const)&y;@","") (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
+  ,testAllSameS 900 ("int32_t* const foo=(int32_t* const)(&y);@","") (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Real32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- Val abbreviation:
-  ,testAllSameS 901 ("int32_t const foo=*(int32_t const*)&y;@","") (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
+  ,testAllSameS 901 ("int32_t const foo=*(int32_t const*)(&y);@","") (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Real32)) (\ops -> ops {genRetypeSizes = override5 at})
   --Abbreviations of records as records:
   ,testAllSameS 910 ("bar* const foo=(bar* const)(&y);@","") (A.Retypes emptyMeta A.Abbrev (A.Record bar) (variable "y"))
@@ -684,28 +688,28 @@ testSpec = TestList
       
   -- Plain-to-array retyping:
   -- single (unknown) dimension:
-  ,testAllSameS 1100 ("uint8_t* foo=(uint8_t*)&y;@","")
+  ,testAllSameS 1100 ("uint8_t* foo=(uint8_t*)(&y);@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension:
-  ,testAllSameS 1101 ("uint8_t* foo=(uint8_t*)&y;@","")
+  ,testAllSameS 1101 ("uint8_t* foo=(uint8_t*)(&y);@","")
     (A.Retypes emptyMeta A.Abbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (unknown) dimension, VAL:
-  ,testAllSameS 1102 ("uint8_t const* foo=(uint8_t const*)&y;@","")
+  ,testAllSameS 1102 ("uint8_t const* foo=(uint8_t const*)(&y);@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [A.UnknownDimension] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- single (known) dimension, VAL:
-  ,testAllSameS 1103 ("uint8_t const* foo=(uint8_t const*)&y;@","")
+  ,testAllSameS 1103 ("uint8_t const* foo=(uint8_t const*)(&y);@","")
     (A.Retypes emptyMeta A.ValAbbrev (A.Array [dimension 4] A.Byte) (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" A.Int32)) (\ops -> ops {genRetypeSizes = override5 at})
   -- TODO test multiple dimensions plain-to-array (mainly for C++)
     
   -- Array-to-plain retyping:
-  ,testAllSameS 1200 ("int32_t* const foo=(int32_t* const)y;@","")
+  ,testAllSameS 1200 ("int32_t* const foo=(int32_t* const)(y);@","")
     (A.Retypes emptyMeta A.Abbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
-  ,testAllSameS 1201 ("int32_t const foo=*(int32_t const*)y;@","")
+  ,testAllSameS 1201 ("int32_t const foo=*(int32_t const*)(y);@","")
     (A.Retypes emptyMeta A.ValAbbrev A.Int32 (variable "y"))
     (defineName (simpleName "y") (simpleDefDecl "y" (A.Array [A.UnknownDimension] A.Byte))) (\ops -> ops {genRetypeSizes = override5 at})
   
@@ -981,7 +985,7 @@ testInput = TestList
   -- Reading a other plain types:
   ,testInputItem 101 "ChanIn(wptr,#,&x,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&x));"
      (A.InVariable emptyMeta $ variable "x") A.Int8
-  ,testInputItem 102 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));")
+  ,testInputItem 102 ("ChanIn(wptr,#,&x,^(" ++ show (A.Record foo) ++ "));")
      ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&x)));")
      (A.InVariable emptyMeta $ variable "x") (A.Record foo)
   -- Reading into a fixed size array:
@@ -990,12 +994,12 @@ testInput = TestList
        (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
     
   -- Reading into subscripted variables:
-  ,testInputItem 110 "ChanInInt(wptr,#,&xs$);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&xs$));"
+  ,testInputItem 110 "ChanInInt(wptr,#,&(xs)$);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&xs$));"
      (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int
   -- Reading a other plain types:
-  ,testInputItem 111 "ChanIn(wptr,#,&xs$,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&xs$));"
+  ,testInputItem 111 "ChanIn(wptr,#,&(xs)$,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&xs$));"
      (A.InVariable emptyMeta $ sub0 $ variable "xs") A.Int8  
-  ,testInputItem 112 ("ChanIn(wptr,#,(&xs$),^(" ++ show (A.Record foo) ++ "));")
+  ,testInputItem 112 ("ChanIn(wptr,#,&(xs)$,^(" ++ show (A.Record foo) ++ "));")
     ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&xs$)));")
     (A.InVariable emptyMeta $ sub0 $ variable "xs") (A.Record foo)
   
@@ -1015,7 +1019,7 @@ testInput = TestList
     (A.InVariable emptyMeta $ variable "x") A.Int
   ,testInputItemProt 301 "ChanIn(wptr,#,&x,^(Int8));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int8),&x));"
     (A.InVariable emptyMeta $ variable "x") A.Int8
-  ,testInputItemProt 302 ("ChanIn(wptr,#,(&x),^(" ++ show (A.Record foo) ++ "));") ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&x)));")
+  ,testInputItemProt 302 ("ChanIn(wptr,#,&x,^(" ++ show (A.Record foo) ++ "));") ("tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(" ++ show (A.Record foo) ++ "),(&x)));")
     (A.InVariable emptyMeta $ variable "x") (A.Record foo)
   ,testInputItemProt 303 "ChanIn(wptr,#,x,^(Array [Dimension 8] Int));" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Array [Dimension 8] Int),x));"
     (A.InVariable emptyMeta $ variable "x") $ A.Array [dimension 8] A.Int
@@ -1053,6 +1057,8 @@ testInput = TestList
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
                         _ -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                 defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t)
+                      defineName (simpleName "foo") $ simpleDef "foo" $
+                        A.RecordType emptyMeta (A.RecordAttr False False) []
        mkArray (A.Array ds t) = A.Array (dimension 6:ds) t
        mkArray t = A.Array [dimension 6] t
  
@@ -1077,7 +1083,7 @@ testOutput = TestList
 --  ,testBothSame "testOutput 1" "^" (overOutputItem (tcall2 genOutput undefined [undefined]))
 --  ,testBothSame "testOutput 2" "^^^" (overOutputItem (tcall2 genOutput undefined [undefined,undefined,undefined]))
  
-  testBothS "testOutput 100" "ChanOutInt(wptr,(&c),bar_foo);^" "tockSendInt((&c)->writer(),bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chan) bar [])) state
+  testBothS "testOutput 100" "ChanOutInt(wptr,&c,bar_foo);^" "tockSendInt((&c)->writer(),bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chan) bar [])) state
   ,testBothS "testOutput 101" "ChanOutInt(wptr,cOut,bar_foo);^" "tockSendInt(cOut,bar_foo);^" (overOutput (tcall3 genOutputCase (A.Variable emptyMeta chanOut) bar [])) state
   
   --Integers are a special case in the C backend:
@@ -1089,7 +1095,7 @@ testOutput = TestList
     "tockSendArrayOfBytes(#,tockSendableArrayOfBytes(&x));"
     (A.OutExpression emptyMeta $ exprVariable "x") A.Int64
   --A record type on the channel of the right type (because records are always referenced by pointer):
-  ,testOutputItem 203 "ChanOut(wptr,#,(&x),^);"
+  ,testOutputItem 203 "ChanOut(wptr,#,&x,^);"
     "tockSendArrayOfBytes(#,tockSendableArrayOfBytes((&x)));"
     (A.OutExpression emptyMeta $ exprVariable "x") (A.Record foo)
   --A fixed size array on the channel of the right type:
@@ -1174,6 +1180,8 @@ testOutput = TestList
                         A.Counted t t' -> do defineName (simpleName "x") $ simpleDefDecl "x" t
                                              defineName (simpleName "xs") $ simpleDefDecl "xs" (mkArray t')
                         _ -> defineName (simpleName "x") $ simpleDefDecl "x" t
+                      defineName (simpleName "foo") $ simpleDef "foo" $
+                        A.RecordType emptyMeta (A.RecordAttr False False) []
        mkArray (A.Array ds t) = A.Array (dimension 6:ds) t
        mkArray t = A.Array [dimension 6] t
  

@@ -872,8 +872,8 @@ cgetCType m origT am
          (A.ChanEnd _ A.Shared _, _, False, _) -> return $ Pointer $ Plain "mt_cb_t"
 
          (A.Chan {}, _, False, A.Original) -> return $ Plain "Channel"
-         (A.Chan {}, _, False, _) -> return $ Pointer $ Plain "Channel"
-         (A.ChanEnd {}, _, False, _) -> return $ Pointer $ Plain "Channel"
+         (A.Chan {}, _, False, _) -> return $ Const $ Pointer $ Plain "Channel"
+         (A.ChanEnd {}, _, False, _) -> return $ Const $ Pointer $ Plain "Channel"
 
          (A.ChanDataType {}, _, _, A.Abbrev) -> return $ Pointer $ Pointer $ Plain "mt_cb_t"
          (A.ChanDataType {}, _, _, _) -> return $ Pointer $ Plain "mt_cb_t"
@@ -1458,9 +1458,9 @@ cintroduceSpec lvl (A.Specification _ n (A.Retypes m am t v))
           tell ["("]
           genCType m t am
           when deref $ tell ["*"]
-          tell [")"]
+          tell [")("]
           rhs
-          tell [";"]
+          tell [");"]
           call genRetypeSizes m t n origT v
 cintroduceSpec _ (A.Specification _ n (A.Rep m rep))
    = call genReplicatorStart n rep

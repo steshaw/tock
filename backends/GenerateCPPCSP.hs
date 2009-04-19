@@ -712,7 +712,7 @@ cppgetCType m t am | isChan t
          return $ extra $ Template chanType [Left innerCT]
   where
     extraEnd = id
-    extraChan = if am == A.Original then id else Pointer
+    extraChan = if am == A.Original then id else Const . Pointer
     
     isChan :: A.Type -> Bool
     isChan (A.Chan _ _) = True
@@ -930,15 +930,11 @@ cppgenFunctionCall m n es
 
 -- Changed because we don't need the mobile descriptor stuff:
 cppgenRecordTypeSpec :: Bool -> A.Name -> A.RecordAttr -> [(A.Name, A.Type)] -> CGen ()
-cppgenRecordTypeSpec True n attr fs
+cppgenRecordTypeSpec False n attr fs
     =  do tell ["typedef struct{"]
           sequence_ [call genDeclaration NotTopLevel t n True | (n, t) <- fs]
           tell ["}"]
           when (A.packedRecord attr || A.mobileRecord attr) $ tell [" occam_struct_packed "]
           genName n
           tell [";"]
-          tell ["typedef "]
-          genName n
-          origN <- lookupName n >>* A.ndOrigName
-          tell [" ", nameString $ A.Name emptyMeta origN, ";"]
-cppgenRecordTypeSpec False _ _ _ = return ()
+cppgenRecordTypeSpec True _ _ _ = return ()
