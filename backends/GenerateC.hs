@@ -185,7 +185,7 @@ cgenTopLevel headerName s
               isBodySpec (A.Specification _ n sp)
                 = A.nameName n `notElem` (csOriginalTopLevelProcs cs)
 
-          tellToHeader (nameString $ A.Name emptyMeta $ dropPath headerName)
+          tellToHeader (mungeToC $ dropPath headerName)
             $ sequence_ $ map (call genForwardDeclaration True)
                                        (reverse $ listifyDepth isHeaderSpec s)
 
@@ -273,6 +273,10 @@ cgenTopLevel headerName s
     dropPath = reverse . takeWhile (/= '/') . reverse
     
     mungeExternalName (_:cs) = [if c == '.' then '_' else c | c <- cs]
+
+    mungeToC cs = [if c `elem` valid then c else '_' | c <- cs]
+      where
+        valid = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_"
 
     -- | Allocate a TLP channel handler process, and return the function that
     -- implements it.
