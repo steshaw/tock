@@ -2003,11 +2003,15 @@ alternative
 guardedAlternative :: OccParser (A.Structured A.Alternative)
 guardedAlternative
     =   do m <- md
-           (makeAlt, alreadyIndented) <- guard
-           when (not alreadyIndented) $ indent
-           p <- process
-           outdent
-           return $ A.Only m (makeAlt p)
+           (makeAlt, alreadyIndentedAfterExt) <- guard
+           if alreadyIndentedAfterExt
+             -- There may or may not be a further process:
+             then (tryVX process outdent >>* (A.Only m . makeAlt))
+                  <|> (outdent >> return (A.Only m $ makeAlt (A.Skip m)))
+             else do indent
+                     p <- process
+                     outdent
+                     return $ A.Only m (makeAlt p)
     <?> "guarded alternative"
 
 guard :: OccParser (A.Process -> A.Alternative, Bool)
