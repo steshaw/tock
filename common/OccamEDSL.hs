@@ -211,7 +211,7 @@ inputCaseOption :: (Castable c A.Variant) => (A.Name, [ExpInp A.Variable], O A.P
 inputCaseOption (n, is, p)
   = do is' <- sequence $ map liftExpInp is
        p' <- p
-       return $ makePlain $ A.Variant emptyMeta n (map (A.InVariable emptyMeta) is') p'
+       return $ makePlain $ A.Variant emptyMeta n (map (A.InVariable emptyMeta) is') p' Nothing
 
 
 oCASEinput :: [O (A.Structured A.Variant)] -> O (A.Structured A.Variant)
@@ -355,13 +355,13 @@ class CanBeInput a where
   inputItem :: a -> A.InputMode
 
 instance CanBeInput A.Variable where
-  inputItem v = A.InputSimple emptyMeta [A.InVariable emptyMeta v]
+  inputItem v = A.InputSimple emptyMeta [A.InVariable emptyMeta v] Nothing
 
 instance CanBeInput [A.Variable] where
-  inputItem = A.InputSimple emptyMeta . map (A.InVariable emptyMeta)
+  inputItem = flip (A.InputSimple emptyMeta) Nothing . map (A.InVariable emptyMeta)
 
 instance CanBeInput (A.Structured A.Variant) where
-  inputItem = A.InputCase emptyMeta
+  inputItem = A.InputCase emptyMeta A.InputCaseNormal
 
 instance CanBeInput A.InputMode where
   inputItem = id

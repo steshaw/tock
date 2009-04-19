@@ -566,14 +566,14 @@ testTransformProtocolInput = TestList
 
    ,TestCase $ testPass "testTransformProtocolInput3"
       (A.Alt emptyMeta True $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
-        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
+        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0] Nothing) $
         A.Seq emptyMeta $ A.Several emptyMeta $ onlySingle ii1 : [A.Only emptyMeta $ A.Skip emptyMeta])
       transformProtocolInput (A.Alt emptyMeta True $ A.Only emptyMeta $ altItems [ii0, ii1])
       (return ())
 
    ,TestCase $ testPass "testTransformProtocolInput4"
       (A.Alt emptyMeta False $ A.Only emptyMeta $ A.Alternative emptyMeta (A.True
-        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0]) $
+        emptyMeta) (variable "c") (A.InputSimple emptyMeta [ii0] Nothing) $
         A.Seq emptyMeta $ A.Several emptyMeta $ map onlySingle [ii1,ii2] ++ [A.Only emptyMeta $ A.Skip emptyMeta])
       transformProtocolInput (A.Alt emptyMeta False $ A.Only emptyMeta $ altItems [ii0, ii1, ii2])
       (return ())
@@ -583,11 +583,12 @@ testTransformProtocolInput = TestList
    ii1 = A.InCounted emptyMeta (variable "y") (variable "z")
    ii2 = A.InVariable emptyMeta (variable "a")
   
-   onlySingle = A.Only emptyMeta . A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta . singleton
+   onlySingle = A.Only emptyMeta . A.Input emptyMeta (variable "c") . flip (A.InputSimple emptyMeta) Nothing . singleton
    onlySingleAlt = A.Only emptyMeta . flip (A.Alternative emptyMeta (A.True
-     emptyMeta) (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta . singleton
-   seqItems = A.Input emptyMeta (variable "c") . A.InputSimple emptyMeta
-   altItems = flip (A.Alternative emptyMeta (A.True emptyMeta) (variable "c")) (A.Skip emptyMeta) . A.InputSimple emptyMeta
+     emptyMeta) (variable "c")) (A.Skip emptyMeta) . flip (A.InputSimple emptyMeta) Nothing . singleton
+   seqItems = A.Input emptyMeta (variable "c") . flip (A.InputSimple emptyMeta) Nothing
+   altItems = flip (A.Alternative emptyMeta (A.True emptyMeta) (variable "c")) (A.Skip emptyMeta)
+                 . flip (A.InputSimple emptyMeta) Nothing
 
 
 testPullRepCounts :: Test

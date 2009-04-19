@@ -605,11 +605,11 @@ testOccamTypes = TestList
     skip = A.Skip m
     jskip = Just skip
     sskip = A.Only m skip
-    insim iis = A.InputSimple m iis
+    insim iis = A.InputSimple m iis Nothing
     inputSimple c iis = A.Input m c $ insim iis
     inputCase c vs = A.Input m c
-                             $ A.InputCase m (A.Several m (map (A.Only m) vs))
-    vari tag iis = A.Variant m (simpleName tag) iis skip
+                             $ A.InputCase m A.InputCaseNormal (A.Several m (map (A.Only m) vs))
+    vari tag iis = A.Variant m (simpleName tag) iis skip Nothing
     outputSimple c ois = A.Output m c ois
     outputCase c tag ois = A.OutputCase m c (simpleName tag) ois
     testRep n r = A.Seq m $ A.Spec m (A.Specification m n (A.Rep m r)) sskip

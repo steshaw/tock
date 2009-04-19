@@ -100,11 +100,11 @@ testGetVarProc = TestList (map doTest tests)
        [A.OutCounted emptyMeta (A.ExprVariable emptyMeta vA) (A.ExprVariable emptyMeta vB)])
 
      -- Test simple inputs:
-     ,(500,[],[tvB],[tvC],A.Input emptyMeta vC (A.InputSimple emptyMeta [A.InVariable emptyMeta vB]))
+     ,(500,[],[tvB],[tvC],A.Input emptyMeta vC (A.InputSimple emptyMeta [A.InVariable emptyMeta vB] Nothing))
      ,(501,[],[tvA,tvB],[tvC],A.Input emptyMeta vC
-       (A.InputSimple emptyMeta [A.InVariable emptyMeta vB,A.InVariable emptyMeta vA]))
+       (A.InputSimple emptyMeta [A.InVariable emptyMeta vB,A.InVariable emptyMeta vA] Nothing))
      ,(502,[],[tvA,tvB],[tvC],A.Input emptyMeta vC 
-       (A.InputSimple emptyMeta [A.InCounted emptyMeta vA vB]))
+       (A.InputSimple emptyMeta [A.InCounted emptyMeta vA vB] Nothing))
     ]
 
    -- This is a custom test because there's no instance of Data for Vars.

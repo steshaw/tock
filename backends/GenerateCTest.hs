@@ -975,9 +975,9 @@ testInput :: Test
 testInput = TestList
  [
   -- Test that genInput passes on the calls properly:
-  testBothSame "testInput 0" "" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined []))
-  ,testBothSame "testInput 1" "^" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [undefined]))
-  ,testBothSame "testInput 2" "^^^" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [undefined, undefined, undefined]))
+  testBothSame "testInput 0" "" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [] Nothing))
+  ,testBothSame "testInput 1" "^" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [undefined] Nothing))
+  ,testBothSame "testInput 2" "^^^" (overInputItemCase (tcall2 genInput undefined $ A.InputSimple undefined [undefined, undefined, undefined] Nothing))
   
   -- Reading an integer (special case in the C backend):
   ,testInputItem 100 "ChanInInt(wptr,#,&x);" "tockRecvArrayOfBytes(#,tockSendableArrayOfBytes(^(Int),&x));"
@@ -1043,9 +1043,9 @@ testInput = TestList
    testInputItem' :: Int -> String -> String -> A.InputItem -> A.Type -> A.Type -> Test
    testInputItem' n eC eCPP ii t ct = TestList
      [
-       testBothS ("testInput " ++ show n) (hashIs "&c" eC) (hashIs "(c).reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
+       testBothS ("testInput " ++ show n) (hashIs "&c" eC) (hashIs "(c).reader()" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii Nothing))
          (state $ A.Chan (A.ChanAttributes A.Unshared A.Unshared))
-       ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii))
+       ,testBothS ("testInput [in] " ++ show n) (hashIs "c" eC) (hashIs "c" eCPP) (over (tcall2 genInputItem (A.Variable emptyMeta $ simpleName "c") ii Nothing))
          (state $ A.ChanEnd A.DirInput A.Unshared)
      ]
      where
@@ -1068,7 +1068,7 @@ testInput = TestList
 --              defineName chanOut $ simpleDefDecl "cIn" (A.Chan A.DirInput (A.ChanAttributes False False) $ A.UserProtocol foo)
 
    overInputItemCase, over :: Override
-   overInputItemCase = local $ \ops -> ops {genInputItem = override2 caret}
+   overInputItemCase = local $ \ops -> ops {genInputItem = override3 caret}
    over = local $ \ops -> ops {genBytesIn = (\_ t _ -> tell ["^(", showSimplerType t, ")"]) , genArraySubscript = override3 dollar}
 
    -- | Show a type, simplifying how Dimensions are show.
