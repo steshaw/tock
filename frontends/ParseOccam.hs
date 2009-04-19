@@ -1127,14 +1127,14 @@ declOf spec nt
           eol
           return (ns, A.Declaration m d, nt)
 
-abbreviation :: OccParser NameSpec
+abbreviation :: OccParser [NameSpec]
 abbreviation
     =   valAbbrev
-    <|> refAbbrev variable VariableName
-    <|> refAbbrev directedChannel ChannelName
-    <|> chanArrayAbbrev
-    <|> refAbbrev timer TimerName
-    <|> refAbbrev port PortName
+    <|> refAbbrev variable VariableName >>* singleton
+    <|> refAbbrev directedChannel ChannelName >>* singleton
+    <|> chanArrayAbbrev >>* singleton
+    <|> refAbbrev timer TimerName >>* singleton
+    <|> refAbbrev port PortName >>* singleton
     <?> "abbreviation"
 
 maybeInfer :: OccParser A.Type -> OccParser A.Type
@@ -1148,15 +1148,19 @@ valAbbrevMode
     =   (sVAL     >> return A.ValAbbrev)
     <|> (sINITIAL >> return A.InitialAbbrev)
 
-valAbbrev :: OccParser NameSpec
+valAbbrev :: OccParser [NameSpec]
 valAbbrev
     =  do m <- md
-          (am, t, n) <-
-            tryVVVX valAbbrevMode (maybeInfer dataSpecifier) newVariableName sIS
-          e <- expression
+          (am, t, ns) <-
+            tryVVVX valAbbrevMode (maybeInfer dataSpecifier) (sepBy1 newVariableName sComma) sIS
+          es <- sepBy1 expression sComma
           sColon
           eol
-          return (A.Specification m n $ A.Is m am t (A.ActualExpression e), VariableName, normalName)
+          when (length ns /= length es) $
+            dieP m "Mismatching number of names and expression in abbreviation"
+          return [(A.Specification m n $ A.Is m am t (A.ActualExpression e)
+                  , VariableName, normalName)
+                 | (n, e) <- zip ns es]
     <?> "abbreviation by value"
 
 refAbbrevMode :: OccParser A.AbbrevMode
