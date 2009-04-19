@@ -163,7 +163,7 @@ getVarProc (A.Output _ chanVar outItems)
     getVarOutputItem :: A.OutputItem -> Vars
     getVarOutputItem (A.OutExpression _ e) = getVarExp e
     getVarOutputItem (A.OutCounted _ ce ae) = (getVarExp ce) `unionVars` (getVarExp ae)
-getVarProc (A.Input _ chanVar (A.InputSimple _ iis))
+getVarProc (A.Input _ chanVar (A.InputSimple _ iis _))
     = return $ (processVarUsed chanVar)
                `unionVars` (mapUnionVars getVarInputItem iis)
   where

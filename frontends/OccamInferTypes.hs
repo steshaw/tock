@@ -416,14 +416,15 @@ inferTypes = occamOnlyPass "Infer types"
            return $ A.AlternativeSkip m pre' p'
 
     doInputMode :: A.Variable -> Infer A.InputMode
-    doInputMode v (A.InputSimple m iis)
+    doInputMode v (A.InputSimple m iis mp)
       = do ts <- protocolItems m v >>* either id (const [])
            iis' <- sequence [doInputItem t ii
                             | (t, ii) <- zip ts iis]
-           return $ A.InputSimple m iis'
-    doInputMode v (A.InputCase m sv)
+           mp' <- recurse mp
+           return $ A.InputSimple m iis' mp'
+    doInputMode v (A.InputCase m ty sv)
       = do ct <- astTypeOf v
-           inTypeContext (Just ct) (recurse sv) >>* A.InputCase m
+           inTypeContext (Just ct) (recurse sv) >>* A.InputCase m ty
     doInputMode _ (A.InputTimerRead m ii)
       = doInputItem A.Int ii >>* A.InputTimerRead m
     doInputMode _ im = inTypeContext (Just A.Int) $ descend im
@@ -441,7 +442,7 @@ inferTypes = occamOnlyPass "Infer types"
            return $ A.InCounted m cv' av'
 
     doVariant :: Infer A.Variant
-    doVariant (A.Variant m n iis p)
+    doVariant (A.Variant m n iis p mp)
       = do ctx <- getTypeContext
            ets <- case ctx of
              Just x -> protocolItems m x
@@ -454,7 +455,8 @@ inferTypes = occamOnlyPass "Infer types"
                Just ts -> do iis' <- sequence [doInputItem t ii
                                               | (t, ii) <- zip ts iis]
                              p' <- recurse p
-                             return $ A.Variant m n iis' p'
+                             mp' <- recurse mp
+                             return $ A.Variant m n iis' p' mp'
 
     doStructured :: ( PolyplateM (A.Structured t) InferTypeOps () InferTypeM
                     , PolyplateM (A.Structured t) () InferTypeOps InferTypeM

@@ -19,7 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Parse occam code into an AST.
 module ParseOccam (parseOccamProgram) where
 
-import Control.Monad (join, liftM)
+import Control.Monad (join, liftM, when)
 import Control.Monad.State (MonadState, modify, get, put)
 import Data.Char
 import Data.List
@@ -125,7 +125,7 @@ plainToken t = genToken test
     test (Token _ t') = if t == t' then Just () else Nothing
 --}}}
 --{{{ symbols
-sAmp, sAssign, sBang, sBar, sColon, sColons, sComma, sEq, sLeft, sLeftR,
+sAmp, sAssign, sBang, sBar, sColon, sColons, sComma, sDoubleQuest, sEq, sLeft, sLeftR,
   sQuest, sRight, sRightR, sSemi
     :: OccParser ()
 
@@ -136,6 +136,7 @@ sBar = reserved "|"
 sColon = reserved ":"
 sColons = reserved "::"
 sComma = reserved ","
+sDoubleQuest = reserved "??"
 sEq = reserved "="
 sLeft = reserved "["
 sLeftR = reserved "("
@@ -1106,7 +1107,7 @@ specification
     =   do m <- md
            (ns, d, nt) <- declaration
            return ([(A.Specification m n d, nt, normalName) | n <- ns], return ())
-    <|> do { a <- abbreviation; return ([a], return ()) }
+    <|> do { a <- abbreviation; return (a, return ()) }
     <|> do { d <- definition; return ([d], return ()) }
     <|> do { n <- pragma ; return (maybeToList n, return ()) }
     <?> "specification"
@@ -1668,37 +1669,60 @@ assignment
 inputProcess :: OccParser A.Process
 inputProcess
     =   do m <- md
-           (c, i) <- input
-           return $ A.Input m c i
+           (c, i, mp) <- input False
+           return $ case mp of
+             Nothing -> A.Input m c i
+             Just p -> A.Seq m $ A.Several m $ map (A.Only m) [A.Input m c i, p]
     <?> "input process"
 
-input :: OccParser (A.Variable, A.InputMode)
-input
-    =   channelInput
-    <|> timerInput
+-- True for in-ALT, False for normal
+input :: Bool ->OccParser (A.Variable, A.InputMode, Maybe A.Process)
+input inAlt
+    =   channelInput inAlt
+    <|> (timerInput >>* (\(a, b) -> (a, b, Nothing)))
     <|> do m <- md
            p <- tryVX port sQuest
            v <- variable
            eol
-           return (p, A.InputSimple m [A.InVariable m v])
+           return (p, A.InputSimple m [A.InVariable m v] Nothing, Nothing)
     <?> "input"
 
-channelInput :: OccParser (A.Variable, A.InputMode)
-channelInput
+channelInput :: Bool -> OccParser (A.Variable, A.InputMode, Maybe A.Process)
+channelInput inAlt
     =   do m <- md
-           c <- tryVX channel sQuest
-           caseInput m c <|> plainInput m c
+           (    do c <- tryVX channel sQuest
+                   caseInput m c <|> plainInput m c
+            <|> do c <- tryVX channel sDoubleQuest
+                   extCaseInput m c <|> extInput m c
+            )
     <?> "channel input"
   where
     caseInput m c
         = do sCASE
              tl <- taggedList
              eol
-             return (c, A.InputCase m (A.Only m (tl (A.Skip m))))
+             return (c, A.InputCase m A.InputCaseNormal (A.Only m (tl (A.Skip m) Nothing)), Nothing)
     plainInput m c
         = do is <- sepBy1 inputItem sSemi
              eol
-             return (c, A.InputSimple m is)
+             return (c, A.InputSimple m is Nothing, Nothing)
+
+    extInput m c
+        = do is <- sepBy1 inputItem sSemi
+             eol
+             indent
+             p <- process
+             mp <- if inAlt then return Nothing else (tryVX process outdent >>* Just) <|> (outdent >> return Nothing)
+             return (c, A.InputSimple m is (Just p), mp)
+
+    extCaseInput m c
+        = do sCASE
+             tl <- taggedList
+             eol
+             indent
+             p <- process
+             mp <- if inAlt then return Nothing else (tryVX process outdent >>* Just) <|> (outdent >> return Nothing)
+             return (c, A.InputCase m A.InputCaseExtended (A.Only m (tl p mp)), Nothing)
 
 timerInput :: OccParser (A.Variable, A.InputMode)
 timerInput
@@ -1708,7 +1732,7 @@ timerInput
              <|> do { sAFTER; e <- expression; eol; return (c, A.InputTimerAfter m e) }
     <?> "timer input"
 
-taggedList :: OccParser (A.Process -> A.Variant)
+taggedList :: OccParser (A.Process -> Maybe A.Process -> A.Variant)
 taggedList
     =  do m <- md
           tag <- tagName
@@ -1732,19 +1756,28 @@ caseInput :: OccParser A.Process
 caseInput
     =   do m <- md
            c <- tryVX channel (sQuest >> sCASE >> eol)
-           vs <- maybeIndentedList m "empty ? CASE" variant
-           return $ A.Input m c (A.InputCase m (A.Several m vs))
+           vs <- maybeIndentedList m "empty ? CASE" (variant A.InputCaseNormal)
+           return $ A.Input m c (A.InputCase m A.InputCaseNormal (A.Several m vs))
+    <|> do m <- md
+           c <- tryVX channel (sDoubleQuest >> sCASE >> eol)
+           vs <- maybeIndentedList m "empty ? CASE" (variant A.InputCaseExtended)
+           return $ A.Input m c (A.InputCase m A.InputCaseExtended (A.Several m vs))
     <?> "case input"
 
-variant :: OccParser (A.Structured A.Variant)
-variant
+variant :: A.InputCaseType -> OccParser (A.Structured A.Variant)
+variant ty
     =   do m <- md
            tl <- tryVX taggedList eol
            indent
            p <- process
-           outdent
-           return $ A.Only m (tl p)
-    <|> handleSpecs specification variant A.Spec
+           case ty of
+             A.InputCaseNormal -> do outdent
+                                     return $ A.Only m (tl p Nothing)
+             A.InputCaseExtended ->
+               do mp <- (tryVX process outdent >>* Just)
+                        <|> (outdent >> return Nothing)
+                  return $ A.Only m (tl p mp)
+    <|> handleSpecs specification (variant ty) A.Spec
     <?> "variant"
 --}}}
 --{{{ output (!)
@@ -1943,39 +1976,48 @@ alternative
     -- guards are below.
     <|> do m <- md
            (b, c) <- tryVXVX expression sAmp channel (sQuest >> sCASE >> eol)
-           vs <- maybeIndentedList m "empty ? CASE" variant
-           return $ A.Only m (A.Alternative m b c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           guardCaseBody m b c A.InputCaseNormal
     <|> do m <- md
            c <- tryVXX channel sQuest (sCASE >> eol)
-           vs <- maybeIndentedList m "empty ? CASE" variant
-           return $ A.Only m (A.Alternative m (A.True m) c (A.InputCase m $ A.Several m vs) (A.Skip m))
+           guardCaseBody m (A.True m) c A.InputCaseNormal
+    <|> do m <- md
+           (b, c) <- tryVXVX expression sAmp channel (sDoubleQuest >> sCASE >> eol)
+           guardCaseBody m b c A.InputCaseExtended
+    <|> do m <- md
+           c <- tryVXX channel sDoubleQuest (sCASE >> eol)
+           guardCaseBody m (A.True m) c A.InputCaseExtended
     <|> guardedAlternative
     <|> handleSpecs specification alternative A.Spec
     <?> "alternative"
+  where
+    guardCaseBody :: Meta -> A.Expression -> A.Variable -> A.InputCaseType -> OccParser (A.Structured A.Alternative)
+    guardCaseBody m b c ty
+      = do vs <- maybeIndentedList m "empty ? CASE" (variant ty)
+           return $ A.Only m (A.Alternative m b c (A.InputCase m ty $ A.Several m vs) (A.Skip m))
 
 guardedAlternative :: OccParser (A.Structured A.Alternative)
 guardedAlternative
     =   do m <- md
-           makeAlt <- guard
-           indent
+           (makeAlt, alreadyIndented) <- guard
+           when (not alreadyIndented) $ indent
            p <- process
            outdent
            return $ A.Only m (makeAlt p)
     <?> "guarded alternative"
 
-guard :: OccParser (A.Process -> A.Alternative)
+guard :: OccParser (A.Process -> A.Alternative, Bool)
 guard
     =   do m <- md
-           (c, im) <- input
-           return $ A.Alternative m (A.True m) c im
+           (c, im, _) <- input True
+           return (A.Alternative m (A.True m) c im, True)
     <|> do m <- md
            sSKIP
            eol
-           return $ A.AlternativeSkip m (A.True m)
+           return (A.AlternativeSkip m (A.True m), False)
     <|> do m <- md
            b <- tryVX expression sAmp
-           do { (c, im) <- input; return $ A.Alternative m b c im }
-             <|> do { sSKIP; eol; return $ A.AlternativeSkip m b }
+           do { (c, im, _) <- input True; return (A.Alternative m b c im, True) }
+             <|> do { sSKIP; eol; return (A.AlternativeSkip m b, False) }
     <?> "guard"
 --}}}
 --{{{ PROC calls

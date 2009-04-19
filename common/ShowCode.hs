@@ -557,9 +557,9 @@ showProtocolItem (n,ts) = sequence_ $ intersperse (tell [" ; "]) $
   showName n : (map showOccamM ts)
   
 instance ShowOccam A.Variant where
-  showOccamM (A.Variant _ n iis p)
+  showOccamM (A.Variant _ n iis p mp)
     = (showOccamLine (sequence_ $ intersperse (tell [" ; "]) $ [showName n] ++ (map showOccamM iis)))
-      >> occamIndent >> showOccamM p >> occamOutdent
+      >> occamIndent >> showOccamM p >> doMaybe (fmap showOccamM mp) >> occamOutdent
            
 instance ShowOccam A.Actual where
   showOccamM (A.ActualVariable v) = showOccamM v
@@ -579,10 +579,19 @@ instance ShowOccam A.InputItem where
   showOccamM (A.InCounted _ cv av) = showOccamM cv >> tell [" :: "] >> showOccamM av
   
 instance ShowOccam A.InputMode where
-  showOccamM (A.InputSimple _ iis)
+  showOccamM (A.InputSimple _ iis Nothing)
     = showOccamLine $ getTempItem >> tell [" ? "] >> (showWithSemis iis)
-  showOccamM (A.InputCase _ str)
-    = (showOccamLine $ getTempItem >> tell [" ? CASE"]) >> occamIndent >> showOccamM str >> occamOutdent
+  showOccamM (A.InputSimple _ iis (Just p))
+    = do showOccamLine $ getTempItem >> tell [" ?? "] >> (showWithSemis iis)
+         occamIndent
+         showOccamM p
+         occamOutdent
+  showOccamM (A.InputCase _ ty str)
+    = (showOccamLine $ getTempItem >> tell [op, "CASE"]) >> occamIndent >> showOccamM str >> occamOutdent
+    where
+      op = case ty of
+             A.InputCaseNormal -> " ? "
+             A.InputCaseExtended -> " ?? "
   showOccamM (A.InputTimerRead _ ii)
     = showOccamLine $ getTempItem >> tell [" ? "] >> showOccamM ii
   showOccamM (A.InputTimerAfter _ e)

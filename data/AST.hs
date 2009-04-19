@@ -360,7 +360,12 @@ data Option =
 -- | An option in a @? CASE@ process.
 -- The name is the protocol tag, followed by zero or more input items, followed
 -- by the process to be executed if that option is matched.
-data Variant = Variant Meta Name [InputItem] Process
+--
+-- If this is part of a normal input, the first process is the process to execute,
+-- and the Maybe item is ignored.  If it is an extended input, the first process
+-- is the one to execute during the extended rendezvous and the Maybe item is the
+-- optional process to execute afterwards
+data Variant = Variant Meta Name [InputItem] Process (Maybe Process)
   deriving (Show, Eq, Typeable, Data)
 
 -- | This represents something that can contain local replicators and
@@ -410,12 +415,16 @@ instance Data a => Data (Structured a) where
   dataTypeOf _ = _struct_DataType
   dataCast1 f  = gcast1 f
 
+data InputCaseType
+  = InputCaseNormal | InputCaseExtended
+    deriving (Eq, Show, Typeable, Data)
+
 -- | The mode in which an input operates.
 data InputMode =
-  -- | A plain input from a channel.
-  InputSimple Meta [InputItem]
+  -- | A plain input from a channel, with a possible extended action.
+  InputSimple Meta [InputItem] (Maybe Process)
   -- | A variant input from a channel.
-  | InputCase Meta (Structured Variant)
+  | InputCase Meta InputCaseType (Structured Variant)
   -- | Read the value of a timer.
   | InputTimerRead Meta InputItem
   -- | Wait for a particular time to go past on a timer.

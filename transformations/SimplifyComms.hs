@@ -21,6 +21,7 @@ module SimplifyComms where
 
 import Control.Monad.State
 import Data.List
+import Data.Maybe
 
 import qualified AST as A
 import CompState
@@ -142,30 +143,60 @@ transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
   (applyBottomUpM doProcess)
   where
     doProcess :: A.Process -> PassM A.Process
-    doProcess (A.Input m v (A.InputCase m' s))
+    doProcess (A.Input m v (A.InputCase m' ty s))
       = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.Original
-           s' <- doStructuredV v s
-           return $ A.Seq m $ A.Spec m' spec $ A.Several m'
-             [A.Only m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)])
-             ,A.Only m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
+           case ty of
+             A.InputCaseNormal -> do 
+               s' <- doStructuredV Nothing v s
+               return $ A.Seq m $ A.Spec m' spec $ A.Several m'
+                 [A.Only m $ A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)] Nothing)
+                 ,A.Only m' $ A.Case m' (A.ExprVariable m $ A.Variable m n) s']
+             A.InputCaseExtended -> do 
+               sA <- doStructuredV (Just A.InputCaseExtended) v s
+               sB <- doStructuredV (Just A.InputCaseNormal) v s
+               return $ A.Seq m $ A.Spec m' spec $ A.Several m' $ map (A.Only m')
+                 [A.Input m v (A.InputSimple m [A.InVariable m (A.Variable m n)]
+                    $ Just (A.Case m' (A.ExprVariable m $ A.Variable m n) sA))
+                 ,A.Case m' (A.ExprVariable m $ A.Variable m n) sB
+                 ]
+                 
     doProcess (A.Alt m pri s)
       = do s' <- doStructuredA s
            return (A.Alt m pri s')
     doProcess p = return p
 
     -- Convert Structured Variant into the equivalent Structured Option.
-    doStructuredV :: A.Variable -> A.Structured A.Variant -> PassM (A.Structured A.Option)
-    doStructuredV chanVar = transformOnly transform
+    --
+    -- For extended inputs, if there are no extra inputs after the tag, we must
+    -- perform the extended action during the extended input on the tag.  This
+    -- is when (Just A.InputCaseExtended) is passed.  If there are extra inputs
+    -- after the tag, we perform SKIP for the extended action, and then do our
+    -- real extended action on the further inputs
+    doStructuredV :: (Maybe A.InputCaseType) -> A.Variable -> A.Structured A.Variant -> PassM (A.Structured A.Option)
+    doStructuredV mty chanVar = transformOnly transform
       where
-        transform m (A.Variant m' n iis p)
+        transform m (A.Variant m' n iis p mp)
             =  do (Right items) <- protocolItems m' chanVar
                   let (Just idx) = elemIndex n (fst $ unzip items)
                   return $ A.Only m $ A.Option m' [makeConstant m' idx] $
-                    if length iis == 0
-                      then p
-                      else A.Seq m' $ A.Several m'
-                             [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis),
+                    case (mty, null iis) of
+                      -- Normal input, no extra inputs:
+                      (Nothing, True) -> p
+                      -- Extended phase, no extra inputs, so do extended process now:
+                      (Just A.InputCaseExtended, True) -> p
+                      -- After extended, no extra inputs, do after process:
+                      (Just A.InputCaseNormal, True) -> fromMaybe (A.Skip m) mp
+                      -- Normal input, extra inputs to do:
+                      (Nothing, False) -> A.Seq m' $ A.Several m'
+                             [A.Only m' $ A.Input m' chanVar (A.InputSimple m' iis Nothing),
                               A.Only (findMeta p) p]
+                      -- Extended phase, extra inputs to do:
+                      (Just A.InputCaseExtended, False) -> A.Skip m
+                      -- After extended, extra inputs to do:
+                      (Just A.InputCaseNormal, False) -> A.Seq m' $ A.Several m'
+                        $ map (A.Only m') $
+                          [A.Input m' chanVar (A.InputSimple m' iis $ Just p)
+                          ] ++ maybeToList mp
 
     -- Transform alt guards.
     doStructuredA :: A.Structured A.Alternative -> PassM (A.Structured A.Alternative)
@@ -173,12 +204,21 @@ transformInputCase = pass "Transform ? CASE statements/guards into plain CASE"
       where
         -- The processes that are the body of input-case guards are always
         -- skip, so we can discard them.
-        doAlternative m (A.Alternative m' e v (A.InputCase m'' s) _)
+        doAlternative m (A.Alternative m' e v (A.InputCase m'' ty s) _)
           = do spec@(A.Specification _ n _) <- defineNonce m "input_tag" (A.Declaration m' A.Int) A.Original
-               s' <- doStructuredV v s
-               return $ A.Spec m' spec $ A.Only m $ 
-                 A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)]) $
-                 A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
+               case ty of
+                 A.InputCaseNormal -> do
+                   s' <- doStructuredV Nothing v s
+                   return $ A.Spec m' spec $ A.Only m $ 
+                     A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)] Nothing) $
+                     A.Case m'' (A.ExprVariable m'' $ A.Variable m n) s'
+                 A.InputCaseExtended -> do
+                   sA <- doStructuredV (Just A.InputCaseExtended) v s
+                   sB <- doStructuredV (Just A.InputCaseNormal) v s
+                   return $ A.Spec m' spec $ A.Only m $ 
+                     A.Alternative m' e v (A.InputSimple m [A.InVariable m (A.Variable m n)] $
+                       Just $ A.Case m'' (A.ExprVariable m'' $ A.Variable m n) sA)
+                       (A.Case m'' (A.ExprVariable m'' $ A.Variable m n) sB)
         -- Leave other guards untouched.
         doAlternative m a = return $ A.Only m a
 
@@ -189,14 +229,18 @@ transformProtocolInput = pass "Flatten sequential protocol inputs into multiple 
   (applyBottomUpM2 doProcess doAlternative)
   where
     doProcess :: A.Process -> PassM A.Process
-    doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_)))
-      = return $ A.Seq m $ A.Several m $
-          map (A.Only m . A.Input m v . A.InputSimple m' . singleton) iis
+    doProcess (A.Input m v (A.InputSimple m' iis@(_:_:_) mp))
+      = return $ A.Seq m $ A.Several m $ map (A.Only m . A.Input m v) $ flatten m' iis mp
     doProcess p = return p
 
+    -- We put the extended input on the final input:
+    flatten :: Meta -> [A.InputItem] -> Maybe A.Process -> [A.InputMode]
+    flatten m [ii] mp = [A.InputSimple m [ii] mp]
+    flatten m (ii:iis) mp = A.InputSimple m [ii] Nothing : flatten m iis mp
+
     doAlternative :: A.Alternative -> PassM A.Alternative
-    doAlternative (A.Alternative m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_)))) body)
-      = return $ A.Alternative m cond v (A.InputSimple m' [firstII]) $ A.Seq m' $ A.Several m' $
-             map (A.Only m' . A.Input m' v . A.InputSimple m' . singleton) otherIIS
+    doAlternative (A.Alternative m cond v (A.InputSimple m' (firstII:(otherIIS@(_:_))) mp) body)
+      = return $ A.Alternative m cond v (A.InputSimple m' [firstII] Nothing) $ A.Seq m' $ A.Several m' $
+             (map (A.Only m' . A.Input m' v) $ flatten m' otherIIS mp)
              ++ [A.Only m' body]
     doAlternative s = return s

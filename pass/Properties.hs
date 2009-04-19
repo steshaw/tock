@@ -391,7 +391,7 @@ seqInputsFlattened :: Property
 seqInputsFlattened = Property "seqInputsFlattened" $ checkNull "seqInputsFlattened" . listify findMultipleInputs
   where
     findMultipleInputs :: A.InputMode -> Bool
-    findMultipleInputs (A.InputSimple _ (_:_:_)) = True
+    findMultipleInputs (A.InputSimple _ (_:_:_) _) = True
     findMultipleInputs _ = False
 
 arraySizesDeclared :: Property

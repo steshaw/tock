@@ -391,7 +391,7 @@ comm isAlt
               (if isAlt
                 then pzero
                 else do {sOut ; exp <- expression ; possSemiColon ; return $ A.Output (findMeta lv) lv [A.OutExpression (findMeta exp) exp] })
-              <|> do {sIn ; rv <- lvalue ; possSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] }
+              <|> do {sIn ; rv <- lvalue ; possSemiColon ; return $ A.Input (findMeta lv) lv $ A.InputSimple (findMeta rv) [A.InVariable (findMeta rv) rv] Nothing }
               <?> (if isAlt then "input statement" else "input or output statement")
           }
        where

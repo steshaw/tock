@@ -336,15 +336,15 @@ checkProcesses x = checkDepthM doProcess x >> return x
     doChoice (A.Choice _ e _) = checkExpressionBool e
 
     doInput :: A.Variable -> A.InputMode -> PassM ()
-    doInput c (A.InputSimple m iis)
+    doInput c (A.InputSimple m iis _)
         =  do t <- checkChannel A.DirInput c
               checkProtocol m t Nothing iis doInputItem
-    doInput c (A.InputCase _ s)
+    doInput c (A.InputCase _ _ s)
         =  do t <- checkChannel A.DirInput c
               checkStructured (doVariant t) s
       where
         doVariant :: A.Type -> A.Variant -> PassM ()
-        doVariant t (A.Variant m tag iis _)
+        doVariant t (A.Variant m tag iis _ _)
             = checkProtocol m t (Just tag) iis doInputItem
     doInput c (A.InputTimerRead m ii)
         =  do t <- checkTimer c

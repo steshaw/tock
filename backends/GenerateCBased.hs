@@ -166,7 +166,7 @@ data GenOps = GenOps {
     -- | Generates an IF statement (which can have replicators, specifications and such things inside it).
     genIf :: Meta -> A.Structured A.Choice -> CGen (),
     genInput :: A.Variable -> A.InputMode -> CGen (),
-    genInputItem :: A.Variable -> A.InputItem -> CGen (),
+    genInputItem :: A.Variable -> A.InputItem -> Maybe A.Process -> CGen (),
     genIntrinsicFunction :: Meta -> String -> [A.Expression] -> CGen (),
     genIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen (),
     genListAssign :: A.Variable -> A.Expression -> CGen (),

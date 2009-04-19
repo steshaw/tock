@@ -309,7 +309,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
     checkWait _ = return ()
 
     checkInputOutput :: RainTypeCheck A.Process
-    checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar]))
+    checkInputOutput p@(A.Input m chanVar (A.InputSimple _ [A.InVariable _ destVar] _))
       = checkInput chanVar destVar m p
     checkInputOutput (A.Input _ _ im@(A.InputTimerFor {})) = checkWait im
     checkInputOutput (A.Input _ _ im@(A.InputTimerAfter {})) = checkWait im
@@ -319,7 +319,7 @@ markCommTypes = checkDepthM2 checkInputOutput checkAltInput
     checkInputOutput _ = return ()
 
     checkAltInput :: RainTypeCheck A.Alternative
-    checkAltInput a@(A.Alternative m _ chanVar (A.InputSimple _ [A.InVariable _ destVar]) body)
+    checkAltInput a@(A.Alternative m _ chanVar (A.InputSimple _ [A.InVariable _ destVar] _) body)
       = checkInput chanVar destVar m a
     checkAltInput (A.Alternative m _ _ im@(A.InputTimerFor {}) _) = checkWait im
     checkAltInput (A.Alternative m _ _ im@(A.InputTimerAfter {}) _) = checkWait im

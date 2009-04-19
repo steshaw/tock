@@ -1044,11 +1044,24 @@ genDest f v = call genVariable' v A.Original (f . Pointer . stripPointers)
 genChan :: A.Variable -> CGen ()
 genChan c = call genVariable' c A.Original (const $ Pointer $ Plain "Channel")
  
-cgenInputItem :: A.Variable -> A.InputItem -> CGen ()
-cgenInputItem c (A.InCounted m cv av)
-    =  do call genInputItem c (A.InVariable m cv)
-          t <- astTypeOf av
-          tell ["ChanIn(wptr,"]
+cgenInputItem :: A.Variable -> A.InputItem -> Maybe A.Process -> CGen ()
+cgenInputItem c (A.InCounted m cv av) mp
+    =  do call genInputItem c (A.InVariable m cv) Nothing
+          case mp of
+            Nothing -> cgenInputItem' ""
+            Just p ->
+                do tell ["ChanXAble(wptr,"]
+                   genChan c
+                   tell [");"]
+                   cgenInputItem' "X"
+                   call genProcess p
+                   tell ["ChanXEnd(wptr,"]
+                   genChan c
+                   tell [");"]
+  where
+    cgenInputItem' x
+     = do t <- astTypeOf av
+          tell ["Chan", x, "In(wptr,"]
           genChan c
           tell [","]
           genDest id av
@@ -1058,7 +1071,19 @@ cgenInputItem c (A.InCounted m cv av)
           tell ["*"]
           call genBytesIn m subT (Right av)
           tell [");"]
-cgenInputItem c (A.InVariable m v)
+cgenInputItem c (A.InVariable m v) mp
+  = case mp of
+      Nothing -> cgenInputItem' ""
+      Just p -> do tell ["ChanXAble(wptr,"]
+                   genChan c
+                   tell [");"]
+                   cgenInputItem' "X"
+                   call genProcess p
+                   tell ["ChanXEnd(wptr,"]
+                   genChan c
+                   tell [");"]
+ where
+  cgenInputItem' x
     =  do case v of
             -- If we are reading into a dereferenced mobile, we must make sure
             -- that something is in that mobile first:
@@ -1075,22 +1100,16 @@ cgenInputItem c (A.InVariable m v)
           t <- astTypeOf v
           isMobile <- isMobileType t
           let rhs = genDest (if isMobile then Pointer else id) v
-          case (t, isMobile) of
-            (A.Int, _) ->
-              do tell ["ChanInInt(wptr,"]
-                 genChan c
-                 tell [","]
-                 rhs
-                 tell [");"]
-            (_, True) ->
+          if isMobile
+            then
               do call genClearMobile m v -- TODO insert this via a pass
-                 tell ["MTChanIn(wptr,"]
+                 tell ["MTChan", x, "In(wptr,"]
                  genChan c
                  tell [",(void**)"]
                  rhs
                  tell [");"]
-            _ ->
-              do tell ["ChanIn(wptr,"]
+            else
+              do tell ["Chan", x, "In(wptr,"]
                  genChan c
                  tell [","]
                  rhs
@@ -1815,7 +1834,7 @@ cgenInput c im
     =  do case im of
             A.InputTimerRead m (A.InVariable m' v) -> call genTimerRead c v
             A.InputTimerAfter m e -> call genTimerWait e
-            A.InputSimple m is -> sequence_ $ map (call genInputItem c) is
+            A.InputSimple m [ii] mp -> call genInputItem c ii mp
             _ -> call genMissing $ "genInput " ++ show im
 
 cgenTimerRead :: A.Variable -> A.Variable -> CGen ()

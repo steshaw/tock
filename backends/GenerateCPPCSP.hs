@@ -329,11 +329,11 @@ cppgenTimerWait e
           time <- genCPPCSPTime e
           tell ["csp::SleepUntil(",time,");"]
 
-cppgenInputItem :: A.Variable -> A.InputItem -> CGen ()
-cppgenInputItem c dest
+cppgenInputItem :: A.Variable -> A.InputItem -> Maybe A.Process -> CGen ()
+cppgenInputItem c dest Nothing
   = case dest of
       (A.InCounted m cv av) -> 
-        do call genInputItem c (A.InVariable m cv)
+        do call genInputItem c (A.InVariable m cv) Nothing
            recvBytes av (
              do call genVariable cv A.Original
                 tell ["*"]
