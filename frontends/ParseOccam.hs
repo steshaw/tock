@@ -1716,7 +1716,7 @@ channelInput inAlt
              eol
              indent
              p <- process
-             mp <- if inAlt then return Nothing else (tryVX process outdent >>* Just) <|> (outdent >> return Nothing)
+             mp <- if inAlt then return (Just $ error "internal ALT error") else (tryVX process outdent >>* Just) <|> (outdent >> return Nothing)
              return (c, A.InputSimple m is (Just p), mp)
 
     extCaseInput m c
@@ -1726,7 +1726,8 @@ channelInput inAlt
              indent
              p <- process
              mp <- if inAlt then return Nothing else (tryVX process outdent >>* Just) <|> (outdent >> return Nothing)
-             return (c, A.InputCase m A.InputCaseExtended (A.Only m (tl p mp)), Nothing)
+             return (c, A.InputCase m A.InputCaseExtended (A.Only m (tl p mp)),
+                        if inAlt then Just $ error "internal ALT error" else Nothing)
 
 timerInput :: OccParser (A.Variable, A.InputMode)
 timerInput
@@ -2012,15 +2013,15 @@ guardedAlternative
 guard :: OccParser (A.Process -> A.Alternative, Bool)
 guard
     =   do m <- md
-           (c, im, _) <- input True
-           return (A.Alternative m (A.True m) c im, True)
+           (c, im, ext) <- input True
+           return (A.Alternative m (A.True m) c im, isJust ext)
     <|> do m <- md
            sSKIP
            eol
            return (A.AlternativeSkip m (A.True m), False)
     <|> do m <- md
            b <- tryVX expression sAmp
-           do { (c, im, _) <- input True; return (A.Alternative m b c im, True) }
+           do { (c, im, ext) <- input True; return (A.Alternative m b c im, isJust ext) }
              <|> do { sSKIP; eol; return (A.AlternativeSkip m b, False) }
     <?> "guard"
 --}}}
