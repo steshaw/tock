@@ -761,11 +761,7 @@ inferTypes = occamOnlyPass "Infer types"
                        (recurse v >>= derefVariableIfNeeded (Just t)) >>* A.ActualVariable
                      _ -> descend a
                    | (a, (_,t,_)) <- zip as params] >>* A.IntrinsicProcCall m n                   
-            A.Input m v im@(A.InputSimple {})
-              -> do v' <- recurse v
-                    im' <- doInputMode v' im
-                    return $ A.Input m v' im'
-            A.Input m v im@(A.InputCase {})
+            A.Input m v im
               -> do v' <- recurse v
                     im' <- doInputMode v' im
                     return $ A.Input m v' im'
