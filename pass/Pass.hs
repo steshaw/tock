@@ -20,6 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Pass where
 
 import Control.Monad.Error
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics (Constr, Data)
@@ -73,6 +74,22 @@ instance CSM (StateT s PassM) where
 
 instance Die (StateT s PassM) where
   dieReport = lift . dieReport
+
+instance Warn (StateT s PassM) where
+  warnReport = lift . warnReport
+
+instance CSMR (ReaderT r PassM) where
+  getCompState = lift getCompState
+
+instance CSM (ReaderT r PassM) where
+  putCompState = lift . putCompState
+  modifyCompState = lift . modifyCompState
+
+instance Die (ReaderT r PassM) where
+  dieReport = lift . dieReport
+
+instance Warn (ReaderT r PassM) where
+  warnReport = lift . warnReport
 
 -- | The type of a pass function.
 -- This is as generic as possible. Passes are used on 'A.AST' in normal use,

@@ -36,7 +36,7 @@ continuationWords
 
 -- | Given the output of the lexer for a single file, add `Indent`, `Outdent`
 -- and `EndOfLine` markers.
-structureOccam :: [Token] -> PassM [Token]
+structureOccam :: forall m. Die m => [Token] -> m [Token]
 structureOccam [] = return []
 structureOccam ts = analyse 1 firstLine ts (Token emptyMeta EndOfLine)
   where
@@ -44,7 +44,7 @@ structureOccam ts = analyse 1 firstLine ts (Token emptyMeta EndOfLine)
     firstLine
         = case ts of ((Token m _):_) -> metaLine m
 
-    analyse :: Int -> Int -> [Token] -> Token -> PassM [Token]
+    analyse :: Int -> Int -> [Token] -> Token -> m [Token]
     -- Add extra EndOfLine at the end of the file.
     analyse prevCol _ [] _ = return $ Token emptyMeta EndOfLine : out
       where out = replicate (prevCol `div` 2) (Token emptyMeta Outdent)
@@ -66,7 +66,7 @@ structureOccam ts = analyse 1 firstLine ts (Token emptyMeta EndOfLine)
                            _ -> False
 
         -- A new line -- look to see what's going on with the indentation.
-        newLine :: [Token] -> PassM [Token]
+        newLine :: [Token] -> m [Token]
         newLine rest
           | col == prevCol + 2   = withEOL $ Token m Indent : rest
           -- FIXME: If col > prevCol, then look to see if there's a VALOF
@@ -79,7 +79,7 @@ structureOccam ts = analyse 1 firstLine ts (Token emptyMeta EndOfLine)
           | otherwise            = bad
             where
               steps = (prevCol - col) `div` 2
-              bad :: PassM [Token]
+              bad :: m [Token]
               bad = dieP m "Invalid indentation"
               -- This is actually the position at which the new line starts
               -- rather than the end of the previous line.

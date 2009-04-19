@@ -21,7 +21,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module PreprocessOccam (preprocessOccamProgram, preprocessOccamSource,
                         preprocessOccam, expandIncludes) where
 
+import Control.Monad.Reader
 import Control.Monad.State
+import Data.HashTable (hashString)
+import Data.Int
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -41,30 +44,37 @@ import PrettyShow
 import StructureOccam
 import Utils
 
+type PreprocessM = ReaderT String PassM
+
 -- | Preprocess a file and return its tokenised form ready for parsing.
-preprocessFile :: Meta -> [String] -> String -> PassM [Token]
-preprocessFile m implicitMods filename
-    =  do (handle, realFilename) <- searchFile m filename
+preprocessFile :: Meta -> [String] -> (String, Bool) -> PreprocessM [Token]
+preprocessFile m implicitMods (filename, mainFile)
+    =  do prevFile <- ask
+          (handle, realFilename) <- searchFile m prevFile filename
           progress $ "Loading source file " ++ realFilename
-          origCS <- get
+          origCS <- getCompState
           let modFunc = if dropTockInc filename `Set.member` csUsedFiles origCS
                           then Set.insert (dropTockInc realFilename)
                                  . Set.delete (dropTockInc filename)
                           else id
-          modifyCompState (\cs -> cs { csCurrentFile = realFilename
-                                     , csUsedFiles = modFunc $ csUsedFiles cs })
           s <- liftIO $ hGetContents handle
-          toks <- preprocessSource m implicitMods realFilename s
-          modifyCompState (\cs -> cs { csCurrentFile = csCurrentFile origCS })
-          return toks
+          modifyCompState $ \cs -> cs { csUsedFiles = modFunc $ csUsedFiles cs }
+          when mainFile $
+            modifyCompState $ \cs -> cs { csCompilationHash = show $ makePosInteger $ hashString s}
+          local (const realFilename) $ preprocessSource m implicitMods realFilename s
+          
   where
     -- drops ".tock.inc" from the end if it's there:
     dropTockInc s
       | ".tock.inc" `isSuffixOf` s = reverse . drop (length ".tock.inc") . reverse $ s
       | otherwise = s
 
+    makePosInteger :: Int32 -> Integer
+    makePosInteger n = toInteger n + (toInteger (maxBound :: Int32))
+
+
 -- | Preprocesses source directly and returns its tokenised form ready for parsing.
-preprocessSource :: Meta -> [String] -> String -> String -> PassM [Token]
+preprocessSource :: Meta -> [String] -> String -> String -> PreprocessM [Token]
 preprocessSource m implicitMods realFilename s
     =  do toks <- runLexer realFilename $ removeASM s
           veryDebug $ "{{{ lexer tokens"
@@ -123,10 +133,10 @@ preprocessSource m implicitMods realFilename s
           | otherwise = curLine : removeASM' moreLines
 
 -- | Expand 'IncludeFile' markers in a token stream.
-expandIncludes :: [Token] -> PassM [Token]
+expandIncludes :: [Token] -> PreprocessM [Token]
 expandIncludes [] = return []
 expandIncludes (Token m (IncludeFile filename) : Token _ EndOfLine : ts)
-    =  do contents <- preprocessFile m [] filename
+    =  do contents <- preprocessFile m [] (filename, False)
           rest <- expandIncludes ts
           return $ contents ++ rest
 expandIncludes (Token m (IncludeFile _) : _)
@@ -134,7 +144,7 @@ expandIncludes (Token m (IncludeFile _) : _)
 expandIncludes (t:ts) = expandIncludes ts >>* (t :)
 
 -- | Preprocess a token stream.
-preprocessOccam :: [Token] -> PassM [Token]
+preprocessOccam :: [Token] -> PreprocessM [Token]
 preprocessOccam [] = return []
 preprocessOccam (Token m (TokPreprocessor s) : ts)
     = handleDirective m (stripPrefix s) ts >>= preprocessOccam
@@ -162,15 +172,15 @@ preprocessOccam (t:ts)
           return $ t : rest
 
 --{{{  preprocessor directive handlers
-type DirectiveFunc = Meta -> [String] -> PassM ([Token] -> PassM [Token])
+type DirectiveFunc = Meta -> [String] -> PreprocessM ([Token] -> PreprocessM [Token])
 
 -- | Call the handler for a preprocessor directive.
-handleDirective :: Meta -> String -> [Token] -> PassM [Token]
+handleDirective :: Meta -> String -> [Token] -> PreprocessM [Token]
 handleDirective m s x
   = do f <- lookup s directives
        f x
   where
-    lookup :: String -> [(Regex, DirectiveFunc)] -> PassM ([Token] -> PassM [Token])
+    lookup :: String -> [(Regex, DirectiveFunc)] -> PreprocessM ([Token] -> PreprocessM [Token])
     -- FIXME: This should really be an error rather than a warning, but
     -- currently we support so few preprocessor directives that this is more
     -- useful.
@@ -261,7 +271,7 @@ handleIf m [condition]
     =  do b <- runPreprocParser m expression condition
           return $ skipCondition b 0
   where
-    skipCondition :: Bool -> Int -> [Token] -> PassM [Token]
+    skipCondition :: Bool -> Int -> [Token] -> PreprocessM [Token]
     skipCondition _ _ [] = dieP m "Couldn't find a matching #ENDIF"
 
     -- At level 0, we flip state on ELSE and finish on ENDIF.
@@ -280,7 +290,7 @@ handleIf m [condition]
     -- And otherwise we copy through tokens if the condition's true.
     skipCondition b n (t:ts) = copyThrough b n t ts
 
-    copyThrough :: Bool -> Int -> Token -> [Token] -> PassM [Token]
+    copyThrough :: Bool -> Int -> Token -> [Token] -> PreprocessM [Token]
     copyThrough True n t ts = skipCondition True n ts >>* (t :)
     copyThrough False n _ ts = skipCondition False n ts
 --}}}
@@ -406,7 +416,7 @@ expression
     <?> "preprocessor complex expression"
 
 -- | Match a 'PreprocParser' production.
-runPreprocParser :: Meta -> PreprocParser a -> String -> PassM a
+runPreprocParser :: Meta -> PreprocParser a -> String -> PreprocessM a
 runPreprocParser m prod s
     =  do st <- getCompState >>* csOpts
           case runParser wrappedProd (csDefinitions st) (show m) s of
@@ -424,9 +434,7 @@ runPreprocParser m prod s
 preprocessOccamProgram :: String -> PassM [Token]
 preprocessOccamProgram filename
     =  do mods <- getCompState >>* (csImplicitModules . csOpts)
-          toks <- preprocessFile emptyMeta mods filename
-          -- Leave the main file name in the csCurrentFile slot:
-          modifyCompState $ \cs -> cs { csCurrentFile = filename }
+          toks <- runReaderT (preprocessFile emptyMeta mods (filename, True)) filename
           veryDebug $ "{{{ tokenised source"
           veryDebug $ pshow toks
           veryDebug $ "}}}"
@@ -434,4 +442,5 @@ preprocessOccamProgram filename
 
 -- | Preprocesses occam source direct from the given String
 preprocessOccamSource :: String -> PassM [Token]
-preprocessOccamSource source = preprocessSource emptyMeta [] "<unknown>" source
+preprocessOccamSource source
+  = runReaderT (preprocessSource emptyMeta [] "<unknown>" source) ""

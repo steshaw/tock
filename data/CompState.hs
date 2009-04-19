@@ -143,8 +143,9 @@ data CompState = CompState {
     -- Extra include files, stored without the .tock.h suffix.
     csExtraIncludes :: [String],
 
-    -- Set by preprocessor
-    csCurrentFile :: String, -- Also used by some later passes!
+    -- A useful C-compatible hash value based on the original source file, used
+    -- as a unique ID during compilation
+    csCompilationHash :: String,
     -- #USEd files.  These are stored with any (known) extensions removed:
     csUsedFiles :: Set String,
 
@@ -212,7 +213,7 @@ emptyState = CompState {
     csExtraSizes = [],
     csExtraIncludes = [],
 
-    csCurrentFile = "none",
+    csCompilationHash = "",
     csUsedFiles = Set.empty,
 
     csMainLocals = [],
@@ -327,7 +328,7 @@ makeUniqueName m s
                      -- For #INCLUDEd files, they might be included twice, so we
                      -- still need the extra suffixes:
                      else do putCompState $ cs { csNameCounter = csNameCounter cs + 1 }
-                             return $ mungeMeta m ++ "u" ++ show (csNameCounter cs)
+                             return $ csCompilationHash cs ++ "u" ++ show (csNameCounter cs)
          return $ s ++ "_" ++ munged
 
 mungeMeta :: Meta -> String
@@ -494,10 +495,9 @@ specTypeOfName n
 
 -- | Open an included file, looking for it in the search path.
 -- Return the open filehandle and the location of the file.
-searchFile :: forall m. (Die m, CSMR m, MonadIO m) => Meta -> String -> m (Handle, String)
-searchFile m filename
+searchFile :: forall m. (Die m, CSMR m, MonadIO m) => Meta -> String -> String -> m (Handle, String)
+searchFile m currentFile filename
     =  do cs <- getCompState
-          let currentFile = csCurrentFile cs
           let possibilities = joinPath currentFile filename
                               : [dir ++ "/" ++ filename | dir <- (csSearchPath . csOpts) cs]
           openOneOf possibilities possibilities

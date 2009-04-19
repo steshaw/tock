@@ -180,9 +180,8 @@ flattenAssign = pass "Flatten assignment"
     assign m _ v m' e = return $ A.Assign m [v] (A.ExpressionList m' [e])
 
     makeCopyProcName :: A.Name -> PassM A.Name
-    makeCopyProcName n = do file <- getCompState >>* csCurrentFile
-                            let m = Meta (Just file) 0 0 
-                            return $ n {A.nameName = "copy_" ++ mungeMeta m ++ A.nameName n}
+    makeCopyProcName n = do hash <- getCompState >>* csCompilationHash
+                            return $ n {A.nameName = "copy_" ++ hash ++ A.nameName n}
 
     complexAssign :: Meta -> A.Type -> A.Variable -> Meta -> A.Expression -> PassM A.Process
     complexAssign m t v m' e

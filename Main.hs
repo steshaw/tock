@@ -400,7 +400,7 @@ compileFull inputFile moutputFile
 
     searchReadFile :: Meta -> String -> FilesPassM String
     searchReadFile m fn
-      = do (h, _) <- searchFile m fn
+      = do (h, _) <- searchFile m inputFile fn
            liftIO $ hGetContents h
            -- Don't use hClose because hGetContents is lazy
 
