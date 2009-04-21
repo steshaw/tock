@@ -19,6 +19,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Tests for the occam preprocessor.
 module PreprocessOccamTest (tests) where
 
+import Control.Monad.Reader
 import Test.HUnit
 
 import LexOccam
@@ -34,7 +35,7 @@ makeTokens = map (Token emptyMeta)
 testPP :: Int -> [TokenType] -> [TokenType] -> Test
 testPP n itts etts = TestCase $ testPass' ("testPP " ++ show n) (makeTokens etts) pass (return ())
   where
-    pass = preprocessOccam (makeTokens itts)
+    pass = runReaderT (preprocessOccam (makeTokens itts)) "<PreProcessOccamTest>"
 
 -- | Test a preprocessor condition string after a series of tokens.
 testPPCondAfter :: Int -> [TokenType] -> String -> Bool -> Test
@@ -52,19 +53,19 @@ testPPCond n = testPPCondAfter n []
 testPPFail :: Int -> [TokenType] -> Test
 testPPFail n itts = TestCase $ testPassShouldFail' ("testPPFail " ++ show n) pass (return ())
   where
-    pass = preprocessOccam (makeTokens itts)
+    pass = runReaderT (preprocessOccam (makeTokens itts)) "<PreProcessOccamTest>"
 
 -- | Test 'expandIncludes' when we're expecting it to succeed.
 testEI :: Int -> [TokenType] -> [TokenType] -> Test
 testEI n itts etts = TestCase $ testPass' ("testEI " ++ show n) (makeTokens etts) pass (return ())
   where
-    pass = expandIncludes (makeTokens itts)
+    pass = runReaderT (expandIncludes (makeTokens itts)) "<PreProcessOccamTest>"
 
 -- | Test 'expandIncludes' when we're expecting it to fail.
 testEIFail :: Int -> [TokenType] -> Test
 testEIFail n itts = TestCase $ testPassShouldFail' ("testEIFail " ++ show n) pass (return ())
   where
-    pass = expandIncludes (makeTokens itts)
+    pass = runReaderT (expandIncludes (makeTokens itts)) "<PreProcessOccamTest>"
 
 --{{{  0xxx  simple stuff
 testSimple :: Test
