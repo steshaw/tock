@@ -129,13 +129,13 @@ genMapInstance k v
        modify (Map.insert tk (show $ typeOf m,
          Detailed (DataBox m) [DataBox (k, v), DataBox k, DataBox v]
          (\(funcSameType, funcNewType) ->
-           [funcSameType ++ " () ops (v, r) = let mns = zip (Map.toList v) (map ((r @->) . routeDataMap) [0..]) in"
-           ,"  do m <- mapM (" ++ funcNewType ++ " ops ()) mns"
+           [funcSameType ++ " _ ops (v, r) = let mns = zip (Map.toList v) (map ((r @->) . routeDataMap) [0..]) in"
+           ,"  do m <- mapM (" ++ funcNewType ++ " ops BaseOpMRoute) mns"
            ,"     return (Map.fromList m)"
            ])
          (\(funcSameType, funcNewType) ->
-           [funcSameType ++ " () ops q v = Node q (map ("
-              ++ funcNewType ++ " ops () Nothing) (Map.toList v))"
+           [funcSameType ++ " _ ops q v = Node q (map ("
+              ++ funcNewType ++ " ops BaseOpMRoute Nothing) (Map.toList v))"
            ])
          ))
   where
@@ -153,13 +153,13 @@ genSetInstance x
        modify (Map.insert tk (show $ typeOf s,
          Detailed (DataBox s) [DataBox x]
          (\(funcSameType, funcNewType) ->
-           [funcSameType ++ " () ops (v, r) = let sns = zip (Set.toList v) (map ((r @->) . routeDataSet) [0..]) in"
-           ,"  do s <- mapM (" ++ funcNewType ++ " ops ()) sns"
+           [funcSameType ++ " _ ops (v, r) = let sns = zip (Set.toList v) (map ((r @->) . routeDataSet) [0..]) in"
+           ,"  do s <- mapM (" ++ funcNewType ++ " ops BaseOpMRoute) sns"
            ,"     return (Set.fromList s)"
            ])
          (\(funcSameType, funcNewType) ->
-           [funcSameType ++ " () ops q v = Node q (map ("
-              ++ funcNewType ++ " ops () Nothing) (Set.toList v))"
+           [funcSameType ++ " _ ops q v = Node q (map ("
+              ++ funcNewType ++ " ops BaseOpMRoute Nothing) (Set.toList v))"
            ])
         ))
   where
@@ -347,23 +347,23 @@ instancesFrom genOverlapped genClass boxes w
     baseInst :: Maybe ([DataBox], (String, String) -> [String]) -> [String]
     baseInst mdoChildren
         = concat
-          [genInst context "()" "(f, ops)" $
+          [genInst context "BaseOpMRoute" "(f :-@ ops)" $
               maybe
                 (if isAlgType wDType
                     -- An algebraic type: apply to each child if we're following.
                     then (concatMap constrCase wCtrs)
                     -- A primitive (or non-represented) type: just return it.
-                    else [funcSameType ++ " () _ (v,_) = return v"])
+                    else [funcSameType ++ " _ _ (v, _) = return v"])
                 (\(_,f) -> f (funcSameType, funcNewType)) mdoChildren
-          ,genInst [] "()" "()" [funcSameType ++ " () () (v,_) = return v"]
+          ,genInst [] "BaseOpMRoute" "BaseOpMRoute" [funcSameType ++ " _ _ (v, _) = return v"]
           ,if genOverlapped == GenWithoutOverlapped then [] else
             genInst
               [ contextSameType "r" "ops" ]
-              "((a, Route a outer) -> m a, r)" "ops" 
-                [funcSameType ++ " (_, rest) ops vr = " ++ funcSameType ++ " rest ops vr"]
+              "(a :-@ r)" "ops" 
+                [funcSameType ++ " (_ :-@ rest) ops vr = " ++ funcSameType ++ " rest ops vr"]
           ,if genClass == GenClassPerType
              then ["class Monad m => PolyplateMRoute" ++ wMunged ++ " o o' m outer where"
-                  ,"  " ++ funcSameType ++ " :: o -> o' -> (" ++ wName
+                  ,"  " ++ funcSameType ++ " :: o m outer -> o' m outer -> (" ++ wName
                     ++ ", Route (" ++ wName ++ ") outer) -> m (" ++ wName ++ ")"
                   ,""
                   ,"instance (Monad m, " ++ contextSameType "o0" "o1" ++ ") =>"
@@ -378,7 +378,7 @@ instancesFrom genOverlapped genClass boxes w
         -- this type, so we can recurse into them.
         context :: [String]
         context
-          = [ contextNewType argType "(f,ops)" "()"
+          = [ contextNewType argType "(f :-@ ops)" "BaseOpMRoute"
             | argType <- nub $ sort $ concatMap ctrArgTypes $
                 maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
 
@@ -387,11 +387,11 @@ instancesFrom genOverlapped genClass boxes w
     -- then stick it back together.
     constrCase :: Constr -> [String]
     constrCase ctr
-        = [ funcSameType ++ " () " ++ (if argNums == [] then "_" else "ops") ++
-            " (" ++ ctrInput ++ ", " ++ (if argNums == [] then "_" else "rt") ++ ")"
+        = [ funcSameType ++ " _ " ++ (if argNums == [] then "_" else "ops") ++
+            " (" ++ ctrInput ++ " , " ++ (if argNums == [] then "_" else "rt") ++ ")"
           , "    = do"
           ] ++
-          [ "         r" ++ show i ++ " <- " ++ funcNewType ++ " ops () (a" ++ show i
+          [ "         r" ++ show i ++ " <- " ++ funcNewType ++ " ops BaseOpMRoute (a" ++ show i
                         ++ ", rt @-> makeRoute [" ++ show i ++ "] "
                         ++ "(\\f (" ++ ctrMod ++ ") -> f b" ++ show i
                         ++ " >>= (\\b" ++ show i ++ " -> return (" ++ ctrMod ++ "))))"
@@ -414,7 +414,7 @@ instancesFrom genOverlapped genClass boxes w
     otherInst wKey containedKeys c cKey
         = if not shouldGen then [] else
             genInst context
-                    ("((" ++ cName ++ ", Route (" ++ cName ++ ") outer) -> m (" ++ cName ++ "), r)")
+                    ("((" ++ cName ++ ") :-@ r)")
                     "ops"
                     impl
       where
@@ -424,19 +424,19 @@ instancesFrom genOverlapped genClass boxes w
           | wKey == cKey
             = (True
               ,[]
-              ,[funcSameType ++ " (f, _) _ vr = f vr"])
+              ,[funcSameType ++ " (f :-@ _) _ vr = f vr"])
           -- This type might contain the type that the transformation acts
           -- upon
           | cKey `Set.member` containedKeys
             = (True
-              ,[contextSameType "r" ("((" ++ cName ++ ", Route (" ++ cName ++ ") outer) -> m (" ++ cName ++ "), ops)")]
-              ,[funcSameType ++ " (f, rest) ops vr = " ++ funcSameType ++ " rest (f, ops) vr"])
+              ,[contextSameType "r" ("((" ++ cName ++ ") :-@ ops)")]
+              ,[funcSameType ++ " (f :-@ rest) ops vr = " ++ funcSameType ++ " rest (f :-@ ops) vr"])
           -- This type can't contain the transformed type; just move on to the
           -- next transformation.
           | genOverlapped == GenWithoutOverlapped
             = (True
               ,[contextSameType "r" "ops"]
-              ,[funcSameType ++ " (_, rest) ops vr = " ++ funcSameType ++ " rest ops vr"])
+              ,[funcSameType ++ " (_ :-@ rest) ops vr = " ++ funcSameType ++ " rest ops vr"])
           -- This is covered by one big overlapping instance:
           | otherwise = (False,[],[])
 

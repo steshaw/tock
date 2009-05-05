@@ -128,7 +128,8 @@ module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(.
   makeDescendM, DescendM, makeDescend, Descend,
 --  makeRecurseQ, RecurseQ,
 --  makeDescendQ, DescendQ,
-  BaseOp, baseOp,
+  BaseOp(..), BaseOpM(..), BaseOpMRoute(..), baseOp, baseOpM, baseOpM', baseOpMRoute,
+  (:-)(..), (:-*)(..), (:-@)(..),
   ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpMRoute, OneOpM, OneOp, TwoOpM, TwoOp
   ) where
 
@@ -178,7 +179,7 @@ import Data.Generics.Polyplate.Route
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
 class Monad m => PolyplateMRoute t o o' m outer where
-  transformMRoute :: o -> o' -> (t, Route t outer) -> m t
+  transformMRoute :: o m outer -> o' m outer -> (t, Route t outer) -> m t
 
 -- | A derivative of PolyplateMRoute without all the route stuff.
 --
@@ -217,7 +218,7 @@ class Monad m => PolyplateMRoute t o o' m outer where
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
 class (Monad m) => PolyplateM t o o' m where
-  transformM :: o -> o' -> t -> m t
+  transformM :: o m -> o' m -> t -> m t
 
 
 instance (Monad m
@@ -242,25 +243,25 @@ instance (PolyplateM t mo mo' Identity, ConvertOpsToIdentity o mo, ConvertOpsToI
 
 -- | A type representing a monadic modifier function that applies the given ops
 -- (opT) in the given monad (m) directly to the given type (t).
-type RecurseM m opT = forall t. PolyplateM t opT () m => t -> m t
+type RecurseM m opT = forall t. PolyplateM t opT BaseOpM m => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a recursive modifier function.
-makeRecurseM :: Monad m => opT -> RecurseM m opT
-makeRecurseM ops = transformM ops ()
+makeRecurseM :: Monad m => opT m -> RecurseM m opT
+makeRecurseM ops = transformM ops baseOpM
 
 -- | A type representing a monadic modifier function that applies the given ops
 -- (opT) in the given monad (m) to the children of the given type (t).
-type DescendM m opT = forall t. PolyplateM t () opT m => t -> m t
+type DescendM m opT = forall t. PolyplateM t BaseOpM opT m => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a descent modifier function that applies the operation to the type's children.
-makeDescendM :: Monad m => opT -> DescendM m opT
-makeDescendM ops = transformM () ops
+makeDescendM :: Monad m => opT m -> DescendM m opT
+makeDescendM ops = transformM baseOpM ops
 
 -- | A type representing a modifier function that applies the given ops
 -- (opT) directly to the given type (t).
-type Recurse opT = forall t. Polyplate t opT () => t -> t
+type Recurse opT = forall t. Polyplate t opT BaseOp => t -> t
 
 -- | Given a set of operations (as described in the 'Polyplate' type-class),
 -- makes a modifier function that applies the operations directly.
@@ -296,48 +297,72 @@ type BaseOp = ()
 baseOp :: BaseOp
 baseOp = ()
 
+baseOpM :: BaseOpM m
+baseOpM = BaseOpM
+
+baseOpM' :: (a -> m a) -> BaseOpM m
+baseOpM' = const BaseOpM
+
+baseOpMRoute :: BaseOpMRoute m outer
+baseOpMRoute = BaseOpMRoute
+
 -- | The type that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
 -- same list.  This is for use with the 'PolyplateM' class.
-type ExtOpM m opT t = (t -> m t, opT)
+--data ((t :: *) :-* (opT :: (* -> *) -> *)) m = (t -> m t) :-* (opT m)
+data (t :-* opT) m = (t -> m t) :-* (opT m)
+--data E t (opT :: (* -> *) -> *) m = (:-*) (t -> m t) (opT m)
+
+infixr 7 :-*
+
+type ExtOpM m opT t = (t :-* opT) m
+
+data BaseOpM m = BaseOpM
+
+data (t :-@ opT) m outer = ((t, Route t outer) -> m t) :-@ (opT m outer)
+
+data BaseOpMRoute m outer = BaseOpMRoute
 
 -- | The type that extends an ops set (opT) in the given monad (m) to be applied
 -- to the given type (t) with routes to the outer type (outer).  This is for use
 -- with the 'PolyplateMRoute' class.
-type ExtOpMRoute m opT t outer = ((t, Route t outer) -> m t, opT)
+type ExtOpMRoute m opT t outer = (t :-@ opT) m outer
+--((t, Route t outer) -> m t, opT)
 
 -- | The type that extends an ops set (opT) to be applied to the given type (t).
 --  You cannot mix monadic and non-monadic operations in the same list.  This is
 -- for use with the 'Polyplate' class.
-type ExtOp opT t = (t -> t, opT)
+data t :- opT = (t -> t) :- opT
+
+type ExtOp opT t = t :- opT
 
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
 -- same list.  This is for use with the 'PolyplateM' class.
-extOpM :: opT -> (t -> m t) -> ExtOpM m opT t
-extOpM ops f = (f, ops)
+extOpM :: opT m -> (t -> m t) -> ExtOpM m opT t
+extOpM ops f = f :-* ops
 
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied
 -- to the given type (t) with routes to the outer type (outer).  This is for use
 -- with the 'PolyplateMRoute' class.
-extOpMRoute :: opT -> ((t, Route t outer) -> m t) -> ExtOpMRoute m opT t outer
-extOpMRoute ops f = (f, ops)
+extOpMRoute :: opT m outer -> ((t, Route t outer) -> m t) -> ExtOpMRoute m opT t outer
+extOpMRoute ops f = f :-@ ops
 
 -- | The function that extends an ops set (opT) in the given monad (m) to be applied to
 -- the given type (t).  You cannot mix monadic and non-monadic operations in the
 -- same list.  This is for use with the 'Polyplate' class.
 extOp :: opT -> (t -> t) -> ExtOp opT t
-extOp ops f = (f, ops)
+extOp ops f = f :- ops
 
 -- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateMRoute'.
-type OneOpMRoute m t outer = ExtOpMRoute m BaseOp t outer
+type OneOpMRoute t = t :-@ BaseOpMRoute
 -- | A handy synonym for a monadic ops set with only one item, to use with 'PolyplateM'.
-type OneOpM m t = ExtOpM m BaseOp t
+type OneOpM t = t :-* BaseOpM
 -- | A handy synonym for an ops set with only one item, to use with 'Polyplate'.
 type OneOp t = ExtOp BaseOp t
 
 -- | A handy synonym for a monadic ops set with only two items, to use with 'PolyplateM'.
-type TwoOpM m s t = ExtOpM m (ExtOpM m BaseOp s) t
+type TwoOpM s t = (s :-* t :-* BaseOpM) --ExtOpM m (ExtOpM m BaseOpM s) t
 -- | A handy synonym for an ops set with only two items, to use with 'Polyplate'.
 type TwoOp s t = ExtOp (ExtOp BaseOp s) t
 
@@ -347,13 +372,13 @@ type TwoOp s t = ExtOp (ExtOp BaseOp s) t
 -- | A helper class to convert non-monadic transformations into monadic ones in
 -- the Identity monad.
 class ConvertOpsToIdentity o o' | o -> o' where
-  convertOpsToIdentity :: o -> o'
+  convertOpsToIdentity :: o -> o' Identity
 
-instance ConvertOpsToIdentity () () where
-  convertOpsToIdentity = id
+instance ConvertOpsToIdentity BaseOp BaseOpM where
+  convertOpsToIdentity = const baseOpM
 
-instance ConvertOpsToIdentity r r' => ConvertOpsToIdentity (a -> a, r) (a -> Identity a, r') where
-  convertOpsToIdentity (f, r) = (return . f, convertOpsToIdentity r)
+instance ConvertOpsToIdentity r r' => ConvertOpsToIdentity (a :- r) (a :-* r') where
+  convertOpsToIdentity (f :- r) = (return . f) :-* (convertOpsToIdentity r)
 
 {-
 -- | A helper class to convert operation lists to have FullSpine at their base
@@ -371,14 +396,18 @@ instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') 
 -- | A helper class to convert operations not expecting a route to those that ignore
 -- the route (which will have the unit type as its outer type).
 class ConvertOpsToIgnoreRoute o o' | o -> o' where
-  convertOpsToIgnoreRoute :: o -> o'
+  convertOpsToIgnoreRoute :: Monad m => o m -> o' m ()
 
-instance ConvertOpsToIgnoreRoute () () where
-  convertOpsToIgnoreRoute = id
+instance ConvertOpsToIgnoreRoute BaseOpM BaseOpMRoute where
+  convertOpsToIgnoreRoute = const baseOpMRoute
 
 instance ConvertOpsToIgnoreRoute r r' =>
-  ConvertOpsToIgnoreRoute (t -> m t, r) ((t, Route t ()) -> m t, r') where
-  convertOpsToIgnoreRoute (f, r) = (f . fst, convertOpsToIgnoreRoute r)
-
+  ConvertOpsToIgnoreRoute (t :-* r) (t :-@ r') where
+  convertOpsToIgnoreRoute (f :-* r) = (f . fst) :-@ (convertOpsToIgnoreRoute r)
+{-
+instance ConvertOpsToIgnoreRoute (r m) (r' m ()) =>
+  ConvertOpsToIgnoreRoute ((t :-* r) m) ((t :-@ r') m ()) where
+  convertOpsToIgnoreRoute (f :-* r) = (f . fst) :-@ (convertOpsToIgnoreRoute r)
+-}
 
 -- }}}
