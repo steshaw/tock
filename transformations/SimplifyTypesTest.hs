@@ -51,8 +51,8 @@ testResolveNamedTypes = TestLabel "testResolveNamedTypes" $ TestList
             (array10 A.Int)
   ]
   where
-    ok :: (PolyplateM a (OneOpM PassM A.Type) () PassM
-          ,PolyplateM a () (OneOpM PassM A.Type) PassM
+    ok :: (PolyplateM a (OneOpM A.Type) BaseOpM
+          ,PolyplateM a BaseOpM (OneOpM A.Type)
           ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testResolveNamedTypes" ++ show n)
                                        exp resolveNamedTypes inp setupState

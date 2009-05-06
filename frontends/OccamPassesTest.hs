@@ -93,8 +93,8 @@ testFoldConstants = TestList
     , test 48 (add var (add const one)) (add var three)
     ]
   where
-    test :: (PolyplateM a (TwoOpM PassM A.Expression A.Specification) () PassM
-            ,PolyplateM a () (TwoOpM PassM A.Expression A.Specification) PassM
+    test :: (PolyplateM a (TwoOpM A.Expression A.Specification) BaseOpM
+            ,PolyplateM a BaseOpM (TwoOpM A.Expression A.Specification)
             ,Data a) => Int -> a -> a -> Test
     test n orig exp = TestCase $ testPass ("testFoldConstants" ++ show n)
                                           exp OccamPasses.foldConstants orig
@@ -142,15 +142,15 @@ testCheckConstants = TestList
     , testFail 33 (A.Option m [lit10, lit10, lit10, var] skip)
     ]
   where
-    testOK :: (PolyplateM a OccamPasses.CheckConstantsOps () PassM
-              ,PolyplateM a () OccamPasses.CheckConstantsOps PassM
+    testOK :: (PolyplateM a OccamPasses.CheckConstantsOps BaseOpM
+              ,PolyplateM a BaseOpM OccamPasses.CheckConstantsOps
               ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testCheckConstants" ++ show n)
                               orig OccamPasses.checkConstants orig
                               (return ())
-    testFail :: (PolyplateM a OccamPasses.CheckConstantsOps () PassM
-                ,PolyplateM a () OccamPasses.CheckConstantsOps PassM
+    testFail :: (PolyplateM a OccamPasses.CheckConstantsOps BaseOpM
+                ,PolyplateM a BaseOpM OccamPasses.CheckConstantsOps
                 ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testCheckConstants" ++ show n)

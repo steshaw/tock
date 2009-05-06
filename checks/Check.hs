@@ -515,9 +515,7 @@ checkInitVar = forAnyFlowNode
                 warnP m WarnUninitialisedVariable $ "Variable(s) read from are not written to before-hand: " ++ vars
 
 findAllProcess :: forall t m a. (Data t, Monad m,
-  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
-                                      (A.Structured t))
-                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t))
+  PolyplateMRoute (A.Structured t) (OneOpMRoute A.Process) BaseOpMRoute)
    => (A.Process -> Bool) -> FlowGraph' m a t -> A.Structured t -> [(A.Process, a)]
 findAllProcess f g t = Map.elems $ Map.intersectionWith (,) astMap nodeMap
   where
@@ -533,9 +531,7 @@ findAllProcess f g t = Map.elems $ Map.intersectionWith (,) astMap nodeMap
       _ -> Nothing
 
 checkParAssignUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t,
-  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
-                                      (A.Structured t))
-                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t)
+  PolyplateMRoute (A.Structured t) (OneOpMRoute A.Process) BaseOpMRoute
   ) => FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
   where
@@ -556,9 +552,8 @@ checkParAssignUsage g = mapM_ checkParAssign . findAllProcess isParAssign g
           $ processVarW v Nothing] | v <- vs]
 
 checkProcCallArgsUsage :: forall m t. (CSMR m, Die m, MonadIO m, Data t,
-  PolyplateMRoute (A.Structured t) (OneOpMRoute (State [(A.Process, Route A.Process (A.Structured t))]) A.Process
-                                      (A.Structured t))
-                  () (State [(A.Process, Route A.Process (A.Structured t))]) (A.Structured t)
+  PolyplateMRoute (A.Structured t) (OneOpMRoute A.Process)
+                  BaseOpMRoute
   ) =>
   FlowGraph' m (BK, UsageLabel) t -> A.Structured t -> m ()
 checkProcCallArgsUsage g = mapM_ checkArgs . findAllProcess isProcCall g

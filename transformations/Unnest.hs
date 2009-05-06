@@ -48,22 +48,22 @@ type NameMap = Map.Map String A.Name
 
 type FreeNameM = State (Map.Map String A.Name)
 
-type FreeNameOps = ExtOpM FreeNameM (ExtOpMS FreeNameM (ExtOpM FreeNameM BaseOp A.Name)) A.SpecType
+type FreeNameOps = A.SpecType :-* (ExtOpMS (A.Name :-* BaseOpM))
 
 -- | Get the set of free names within a block of code.
-freeNamesIn :: PolyplateM t FreeNameOps () FreeNameM  => t -> NameMap
+freeNamesIn :: PolyplateM t FreeNameOps BaseOpM => t -> NameMap
 freeNamesIn = flip execState Map.empty . recurse
   where
     flattenTree :: Tree (Maybe NameMap) -> NameMap
     flattenTree = foldl Map.union Map.empty . catMaybes . flatten
     
-    ops :: FreeNameOps
-    ops = baseOp `extOpM` doName `extOpMS` (ops, doStructured) `extOpM` doSpecType
+    ops :: FreeNameOps FreeNameM
+    ops = baseOpM `extOpM` doName `extOpMS` (ops, doStructured) `extOpM` doSpecType
 
-    recurse :: PolyplateM t FreeNameOps () FreeNameM => t -> FreeNameM t
-    recurse = transformM ops ()
-    descend :: PolyplateM t () FreeNameOps FreeNameM => t -> FreeNameM t
-    descend = transformM () ops
+    recurse :: PolyplateM t FreeNameOps BaseOpM => t -> FreeNameM t
+    recurse = transformM ops baseOpM
+    descend :: PolyplateM t BaseOpM FreeNameOps => t -> FreeNameM t
+    descend = transformM baseOpM ops
     
     ignore :: t -> NameMap
     ignore s = Map.empty
@@ -71,15 +71,15 @@ freeNamesIn = flip execState Map.empty . recurse
     doName :: A.Name -> FreeNameM A.Name
     doName n = modify (Map.insert (A.nameName n) n) >> return n
 
-    doStructured :: (Data a, PolyplateM (A.Structured a) () FreeNameOps FreeNameM
-                           , PolyplateM (A.Structured a) FreeNameOps () FreeNameM
+    doStructured :: (Data a, PolyplateM (A.Structured a) BaseOpM FreeNameOps
+                           , PolyplateM (A.Structured a) FreeNameOps BaseOpM
                     )
       => A.Structured a -> FreeNameM (A.Structured a)
     doStructured x@(A.Spec _ spec s) = doSpec spec s >> return x
     doStructured s = descend s
 
-    doSpec :: (PolyplateM t () FreeNameOps FreeNameM
-              ,PolyplateM t FreeNameOps () FreeNameM) => A.Specification -> t -> FreeNameM ()
+    doSpec :: (PolyplateM t BaseOpM FreeNameOps
+              ,PolyplateM t FreeNameOps BaseOpM) => A.Specification -> t -> FreeNameM ()
     doSpec (A.Specification _ n st) child
         = modify (Map.union $ Map.union fns $ Map.delete (A.nameName n) $ freeNamesIn child)
       where
@@ -98,15 +98,15 @@ freeNamesIn = flip execState Map.empty . recurse
 -- have expressions as dimensions, and those expressions can contain free names
 -- which are being replaced.  This is fine, but when that happens we need to update
 -- CompState so that the type has the replaced name, not the old name.
-replaceNames :: PolyplateM t (TwoOpM PassM A.Name A.Specification) () PassM => [(A.Name, A.Name)] -> t -> PassM t
+replaceNames :: PolyplateM t (TwoOpM A.Name A.Specification) BaseOpM => [(A.Name, A.Name)] -> t -> PassM t
 replaceNames map = recurse
   where
     smap = Map.fromList [(A.nameName f, t) | (f, t) <- map]
 
-    ops :: TwoOpM PassM A.Name A.Specification
-    ops = baseOp `extOpM` doName `extOpM` doSpecification
+    ops :: TwoOpM A.Name A.Specification PassM
+    ops = doName :-* doSpecification :-* baseOpM
 
-    recurse :: RecurseM PassM (TwoOpM PassM A.Name A.Specification)
+    recurse :: RecurseM PassM (TwoOpM A.Name A.Specification)
     recurse = makeRecurseM ops
 
     doName :: Transform A.Name
@@ -124,7 +124,7 @@ replaceNames map = recurse
            return $ A.Specification m n' sp'
 
 -- | Turn free names in PROCs into arguments.
-removeFreeNames :: PassOnM2 (StateT (Map.Map String [A.Actual]) PassM) A.Specification A.Process
+removeFreeNames :: PassOnM2 A.Specification A.Process
 removeFreeNames = pass "Convert free names to arguments"
   [Prop.mainTagged, Prop.parsWrapped, Prop.functionCallsRemoved]
   [Prop.freeNamesToArgs]
@@ -213,7 +213,7 @@ removeFreeNames = pass "Convert free names to arguments"
     doProcess p = return p
 
 -- | Pull nested declarations to the top level.
-removeNesting :: PassASTOnOps (ExtOpMSP BaseOp)
+removeNesting :: PassASTOnOps (ExtOpMS BaseOpM)
 removeNesting = pass "Pull nested definitions to top level"
   [Prop.freeNamesToArgs]
   [Prop.nestedPulled]
@@ -223,16 +223,16 @@ removeNesting = pass "Pull nested definitions to top level"
           popPullContext
           return s')
   where
-    ops :: ExtOpMSP BaseOp
-    ops = baseOp `extOpMS` (ops, doStructured)
+    ops :: ExtOpMSP BaseOpM
+    ops = baseOpM `extOpMS` (ops, doStructured)
 
 
-    recurse :: RecurseM PassM (ExtOpMSP BaseOp)
+    recurse :: RecurseM PassM (ExtOpMS BaseOpM)
     recurse = makeRecurseM ops
-    descend :: DescendM PassM (ExtOpMSP BaseOp)
+    descend :: DescendM PassM (ExtOpMS BaseOpM)
     descend = makeDescendM ops
 
-    doStructured :: TransformStructured (ExtOpMSP BaseOp)
+    doStructured :: TransformStructured (ExtOpMS BaseOpM)
     doStructured s@(A.Spec m spec subS)
         = do spec'@(A.Specification _ n st) <- recurse spec
              isConst <- isConstantName n

@@ -45,15 +45,15 @@ simplifyProcs =
       ]
 
 type ForkM = StateT [A.Name] PassM
-type ForkOps = ExtOpM ForkM (ExtOpMS ForkM BaseOp) A.Process
+type ForkOps = A.Process :-* (ExtOpMS BaseOpM)
 
 -- | Add an extra barrier parameter to every PROC for FORKING
-addForkNames :: PassOnOpsM ForkM ForkOps
+addForkNames :: PassOnOpsM ForkOps
 addForkNames = occamOnlyPass "Add FORK labels" [] []
   (flip evalStateT [] . recurse)
   where
-    ops :: ForkOps
-    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doProcess
+    ops :: ForkOps ForkM
+    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doProcess
 
     recurse :: RecurseM ForkM ForkOps
     recurse = makeRecurseM ops
@@ -153,14 +153,14 @@ removeParAssign = pass "Remove parallel assignment"
     doProcess p = return p
 
 -- | Turn assignment of arrays and records into multiple assignments.
-flattenAssign :: PassOnOps (ExtOpMSP BaseOp `ExtOpMP` A.Process)
+flattenAssign :: PassOnOps (A.Process :-* ExtOpMS BaseOpM)
 flattenAssign = pass "Flatten assignment"
   (Prop.agg_typesDone ++ [Prop.assignParRemoved])
   [Prop.assignFlattened]
   (makeRecurseM ops)
   where
-    ops = baseOp `extOpMS` (ops, makeBottomUpM ops doStructured)
-                 `extOpM` makeBottomUpM ops doProcess
+    ops = baseOpM `extOpMS` (ops, makeBottomUpM ops doStructured)
+                  `extOpM` makeBottomUpM ops doProcess
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m [v] (A.ExpressionList m' [e]))

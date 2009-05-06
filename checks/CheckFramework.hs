@@ -260,15 +260,15 @@ forAnyParItems = undefined
 
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a.
-  (PolyplateMRoute A.AST ((a, Route a A.AST) -> RestartT CheckOptM a, ()) () (RestartT CheckOptM) A.AST
-  ,PolyplateMRoute a () ((a, Route a A.AST) -> RestartT CheckOptM a, ()) (RestartT CheckOptM) A.AST
+  (PolyplateMRoute A.AST (a :-@ BaseOpMRoute) BaseOpMRoute
+  ,PolyplateMRoute a BaseOpMRoute (a :-@ BaseOpMRoute)
   ) =>
     (a -> CheckOptASTM a ()) -> CheckOptM ()
 forAnyASTTopDown origF = CheckOptM $ do
    tr <- get >>* ast
    doTree ops transformMRoute tr
      where
-       ops = baseOp `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM origF)
+       ops = baseOpMRoute `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM origF)
 
 forAnyASTStructTopDown :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
   a) ())) -> CheckOptM ()
@@ -277,7 +277,7 @@ forAnyASTStructTopDown origF = CheckOptM $ do
    doTree ops transformMRoute tr
   where
     ops
-      = baseOp
+      = baseOpMRoute
         `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
         `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
         `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
@@ -286,23 +286,21 @@ forAnyASTStructTopDown origF = CheckOptM $ do
         `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
         `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
 
-type AccumOp b a = (A.Structured a, Route (A.Structured a) A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) (A.Structured a)
-
-type ExtAcc a b = (b, a)
+type ExtAcc a b = b :-@ a
 
 type AccumOps b =
-  BaseOp
-  `ExtAcc` AccumOp b A.Variant
-  `ExtAcc` AccumOp b A.Process
-  `ExtAcc` AccumOp b A.Option
-  `ExtAcc` AccumOp b A.ExpressionList
-  `ExtAcc` AccumOp b A.Choice
-  `ExtAcc` AccumOp b A.Alternative
-  `ExtAcc` AccumOp b ()
-  `ExtAcc` ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b)
+  BaseOpMRoute
+  `ExtAcc` A.Structured A.Variant
+  `ExtAcc` A.Structured A.Process
+  `ExtAcc` A.Structured A.Option
+  `ExtAcc` A.Structured A.ExpressionList
+  `ExtAcc` A.Structured A.Choice
+  `ExtAcc` A.Structured A.Alternative
+  `ExtAcc` A.Structured ()
+  `ExtAcc` b
 
 type SingleOps b
-  = ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
+  = b :-@ BaseOpMRoute
 
 type AccumMap b = Map.Map [Int] b
 
@@ -316,30 +314,30 @@ filterSub r = Map.filterWithKey (\k _ -> not $ r `isPrefixOf` k)
 -- I know the constraints here look horrendous, but it's really just three groups.
 forAnyASTStructBottomUpAccum :: forall b. (Data b,
   -- Allow us to descend into the AST with our full set of ops:
-  PolyplateMRoute A.AST (AccumOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute A.AST (AccumOps b) BaseOpMRoute,
 
   -- Allow us to recurse into each Structured item (and b) with our full set of
   -- ops:
-  PolyplateMRoute (A.Structured A.Variant) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Process) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Option) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.ExpressionList) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Choice) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Alternative) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured ()) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute b () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Variant) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured A.Process) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured A.Option) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured A.ExpressionList) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured A.Choice) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured A.Alternative) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute (A.Structured ()) BaseOpMRoute (AccumOps b),
+  PolyplateMRoute b BaseOpMRoute (AccumOps b),
 
   -- Allow us to descend into each Structured item with just our ops for
   -- b, when our accumulated stuff becomes invalidated
-  PolyplateMRoute (A.Structured A.Variant) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Process) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Option) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.ExpressionList) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Choice) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured A.Alternative) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
-  PolyplateMRoute (A.Structured ()) (SingleOps b) () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST,
+  PolyplateMRoute (A.Structured A.Variant) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured A.Process) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured A.Option) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured A.ExpressionList) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured A.Choice) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured A.Alternative) (SingleOps b) BaseOpMRoute,
+  PolyplateMRoute (A.Structured ()) (SingleOps b) BaseOpMRoute,
   -- For b, we will recurse, not descend:
-  PolyplateMRoute b () (SingleOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+  PolyplateMRoute b BaseOpMRoute (SingleOps b)
 
   ) =>
   (forall a. Data a => (A.Structured a) -> CheckOptASTM' [b] (A.Structured a) ()) -> CheckOptM ()
@@ -347,12 +345,12 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
    tr <- get >>* ast
    doTree ops (\x y z -> flip evalStateT (Map.empty :: AccumMap b) $ transformMRoute x y z) tr
   where
-    ops :: AccumOps b
+    ops :: AccumOps b (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
     ops = applyAccum (undefined::b) allF
 
     keepApplying' ::
-      PolyplateMRoute t ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
-         () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+      PolyplateMRoute t (b :-@ BaseOpMRoute)
+         BaseOpMRoute
       => ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) (Either t t)) ->
          ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) t)
     keepApplying' f xr = do x' <- f xr
@@ -361,13 +359,12 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
                               Left y -> do -- remove all sub-items from state,
                                            -- and then scan the item anew:
                                            modify $ filterSub (routeId $ snd xr)
-                                           transformMRoute (applyAccum (undefined::b) ()) () (y, snd xr)
+                                           transformMRoute (applyAccum (undefined::b) BaseOpMRoute) BaseOpMRoute (y, snd xr)
                                            keepApplying' f (y, snd xr)
 
     wrap :: forall a. (Data a,
-        PolyplateMRoute (A.Structured a) () (AccumOps b) (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
-        , PolyplateMRoute (A.Structured a) ((b, Route b A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) b, ())
-         () (StateT (AccumMap b) (RestartT CheckOptM)) A.AST
+        PolyplateMRoute (A.Structured a) BaseOpMRoute (AccumOps b)
+        , PolyplateMRoute (A.Structured a) (b :-@ BaseOpMRoute) BaseOpMRoute 
       ) => ((A.Structured a, Route (A.Structured a) A.AST, [b]) -> RestartT
       CheckOptM (Either (A.Structured a) (A.Structured a))) -> (A.Structured a, Route (A.Structured
         a) A.AST) -> StateT (AccumMap b) (RestartT
@@ -376,7 +373,7 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
       (routeId y) z))
 
     allF
-      = baseOp
+      = baseOpMRoute
         `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
                       CheckOptASTM' [b] (A.Structured A.Variant) ()))
         `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Process) ->
@@ -400,11 +397,11 @@ type TransFuncS acc b a = (a, Route a b) -> StateT acc (RestartT CheckOptM) a
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
 -- that are requested.
 doTree :: ops ->
-  (ops -> () -> (A.AST, Route A.AST A.AST) -> RestartT CheckOptM A.AST) -> A.AST -> StateT CheckOptData PassM ()
+  (ops -> BaseOpMRoute m outer -> (A.AST, Route A.AST A.AST) -> RestartT CheckOptM A.AST) -> A.AST -> StateT CheckOptData PassM ()
            -- This line applies "apply" to the first thing of the right type in
            -- the given AST; from there, ops recurses for itself
 doTree ops trans tr
-      = do x <- deCheckOptM (getRestartT (trans ops () (tr, identityRoute) >> return ()))
+      = do x <- deCheckOptM (getRestartT (trans ops BaseOpMRoute (tr, identityRoute) >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
@@ -412,15 +409,15 @@ doTree ops trans tr
              Right _ -> return ()
 
 applyAccum :: forall t ops.
-  PolyplateMRoute t () ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
-      (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
-  => t -> ops -> ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
+  PolyplateMRoute t BaseOpMRoute (t :-@ ops)
+  => t -> ops (StateT (AccumMap t) (RestartT CheckOptM)) A.AST -> (t :-@ ops)
+    (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
 applyAccum _ ops = ops'
   where
-    ops' :: ((t, Route t A.AST) -> StateT (AccumMap t) (RestartT CheckOptM) t, ops)
-    ops' = (accum, ops)
+    ops' :: (t :-@ ops) (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
+    ops' = accum :-@ ops
 
-    accum xr = do x' <- transformMRoute () ops' xr
+    accum xr = do x' <- transformMRoute BaseOpMRoute ops' xr
                   modify $ Map.insert (routeId $ snd xr) x'
                   return x'
 

@@ -49,14 +49,14 @@ simplifyAbbrevs =
     ]
 
 -- | Rewrite 'InitialAbbrev' into a variable and an assignment.
-removeInitial :: PassOnOps (ExtOpMSP BaseOp)
+removeInitial :: PassOnOps (ExtOpMS BaseOpM)
 removeInitial
     = pass "Remove INITIAL abbreviations"
            []
            [Prop.initialRemoved]
            (applyBottomUpMS doStructured)
   where
-    doStructured :: TransformStructured (ExtOpMSP BaseOp)
+    doStructured :: TransformStructured (ExtOpMS BaseOpM)
     doStructured (A.Spec m spec s) = doSpec m spec s
     doStructured s = return s
 
@@ -191,20 +191,20 @@ updateAbbrevsInState
     doAbbrevMode s = s
 
 type AbbrevCheckM = StateT [Map.Map Var Bool] PassM
-type ExtAbbM a b = ExtOpM AbbrevCheckM a b
-type AbbrevCheckOps
-  = ExtOpMS AbbrevCheckM BaseOp
-      `ExtAbbM` A.Variable
-      `ExtAbbM` A.Process
-      `ExtAbbM` A.InputItem
 
-abbrevCheckPass :: (PolyplateM t AbbrevCheckOps () AbbrevCheckM, PolyplateM t () AbbrevCheckOps AbbrevCheckM) => Pass t
+type AbbrevCheckOps
+  = ExtOpMS BaseOpM
+      `ExtOpMP` A.Variable
+      `ExtOpMP` A.Process
+      `ExtOpMP` A.InputItem
+
+abbrevCheckPass :: (PolyplateM t AbbrevCheckOps BaseOpM, PolyplateM t BaseOpM AbbrevCheckOps) => Pass t
 abbrevCheckPass
     = pass "Abbreviation checking" [] []
            ({-passOnlyOnAST "abbrevCheck" $ -} flip evalStateT [Map.empty] . recurse)
   where
-    ops :: AbbrevCheckOps
-    ops = baseOp `extOpMS` (ops, doStructured) `extOpM` doVariable
+    ops :: AbbrevCheckOps AbbrevCheckM
+    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doVariable
             `extOpM` doProcess `extOpM` doInputItem
 
     descend :: DescendM AbbrevCheckM AbbrevCheckOps
@@ -212,7 +212,7 @@ abbrevCheckPass
     recurse :: RecurseM AbbrevCheckM AbbrevCheckOps
     recurse = makeRecurseM ops
 
-    pushRecurse :: (PolyplateM a AbbrevCheckOps () AbbrevCheckM) => a -> AbbrevCheckM a
+    pushRecurse :: (PolyplateM a AbbrevCheckOps BaseOpM) => a -> AbbrevCheckM a
     pushRecurse x = modify (Map.empty:) >> recurse x
     pop :: StateT [Map.Map Var Bool] PassM ()
     pop = modify $ \st -> case st of
@@ -232,8 +232,8 @@ abbrevCheckPass
     -- on an abbreviation if either the RHS *or* the LHS is exempt by a PERMITALIASEs
     -- pragma
 
-    doStructured :: (PolyplateM (A.Structured t) () AbbrevCheckOps AbbrevCheckM
-                    ,PolyplateM (A.Structured t) AbbrevCheckOps () AbbrevCheckM, Data t) =>
+    doStructured :: (PolyplateM (A.Structured t) BaseOpM AbbrevCheckOps
+                    ,PolyplateM (A.Structured t) AbbrevCheckOps BaseOpM, Data t) =>
       A.Structured t -> AbbrevCheckM (A.Structured t)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ (A.ActualVariable v))) scope)
       = do nonce <- nameIsNonce n

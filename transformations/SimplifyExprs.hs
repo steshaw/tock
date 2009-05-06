@@ -215,7 +215,7 @@ pullRepCounts = pass "Pull up replicator counts for SEQs, PARs and ALTs"
            return $ A.Seq m $ spec $ A.Only m $ A.Par m p body'
     pullRepCountProc p = return p
 
-transformConstr :: PassOnOps (ExtOpMSP BaseOp)
+transformConstr :: PassOnOps (ExtOpMS BaseOpM)
 transformConstr = pass "Transform array constructors into initialisation code"
   (Prop.agg_namesDone ++ Prop.agg_typesDone ++ [Prop.subscriptsPulledUp])
   [Prop.arrayConstructorsRemoved]
@@ -323,7 +323,7 @@ transformConstr = pass "Transform array constructors into initialisation code"
 
     doStructured s = return s
 
-type PullUpOps = ExtOpMSP BaseOp
+type PullUpOps = ExtOpMS BaseOpM
   `ExtOpMP` A.Process
   `ExtOpMP` A.Structured A.Expression
   `ExtOpMP` A.Specification
@@ -340,8 +340,8 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
   [Prop.functionCallsRemoved, Prop.subscriptsPulledUp]
   recurse
   where
-    ops :: PullUpOps
-    ops = baseOp
+    ops :: PullUpOps PassM
+    ops = baseOpM
           `extOpMS` (ops, doStructured)
           `extOpM` doProcess
           `extOpM` doRepArray

@@ -61,11 +61,11 @@ type RainTypeM = StateT RainTypeState PassM
 
 type RainTypePassType = forall t. t -> StateT RainTypeState PassM t
 
-type RainTypeCheckOn a = forall t. PolyplateM t (OneOpM RainTypeM a) () RainTypeM
+type RainTypeCheckOn a = forall t. PolyplateM t (OneOpM a) BaseOpM
   => t -> RainTypeM ()
 
 type RainTypeCheckOn2 a b = forall t.
-  (PolyplateM t (TwoOpM RainTypeM a b) () RainTypeM
+  (PolyplateM t (TwoOpM a b) BaseOpM
   ) => t -> RainTypeM ()
 
 
@@ -122,14 +122,14 @@ markUnify x y
 
 performTypeUnification ::
   -- | A shorthand for prerequisites when you need to spell them out:
-  (PolyplateM t (OneOpM RainTypeM A.Specification) () RainTypeM
-  ,PolyplateM t (OneOpM RainTypeM A.Process) () RainTypeM
-  ,PolyplateM t (OneOpM RainTypeM A.Expression) () RainTypeM
-  ,PolyplateM t (TwoOpM RainTypeM A.Process A.Expression) () RainTypeM
-  ,PolyplateM t (TwoOpM RainTypeM A.Process A.Choice) () RainTypeM
-  ,PolyplateM t (TwoOpM RainTypeM A.Process A.Alternative) () RainTypeM
-  ,PolyplateM t () (OneOpM PassM A.Type) PassM
-  ,PolyplateM t (OneOpM PassM A.Type) () PassM
+  (PolyplateM t (OneOpM A.Specification) BaseOpM
+  ,PolyplateM t (OneOpM A.Process) BaseOpM
+  ,PolyplateM t (OneOpM A.Expression) BaseOpM
+  ,PolyplateM t (TwoOpM A.Process A.Expression) BaseOpM
+  ,PolyplateM t (TwoOpM A.Process A.Choice) BaseOpM
+  ,PolyplateM t (TwoOpM A.Process A.Alternative) BaseOpM
+  ,PolyplateM t BaseOpM (OneOpM A.Type)
+  ,PolyplateM t (OneOpM A.Type) BaseOpM
   ) => Pass t
 performTypeUnification = rainOnlyPass "Rain Type Checking"
   ([Prop.noInt] ++ Prop.agg_namesDone)

@@ -94,8 +94,8 @@ testRemoveInitial = TestLabel "testRemoveInitial" $ TestList
               inner)
   ]
   where
-    ok :: (PolyplateM a (ExtOpMSP BaseOp) () PassM
-          ,PolyplateM a () (ExtOpMSP BaseOp) PassM
+    ok :: (PolyplateM a (ExtOpMS BaseOpM) BaseOpM
+          ,PolyplateM a BaseOpM (ExtOpMS BaseOpM)
           ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testRemoveInitial" ++ show n)
                                        exp removeInitial inp setupState
@@ -152,7 +152,7 @@ testRemoveResult = TestLabel "testRemoveResult" $ TestList
             (A.Formal A.Abbrev       A.Int foo)
   ]
   where
-    ok :: (Polyplate a (OneOp A.AbbrevMode) ()
+    ok :: (Polyplate a (OneOp A.AbbrevMode) BaseOp
           ,Data a, Data b) => Int -> a -> b -> Test
     ok n inp exp = TestCase $ testPass ("testRemoveResult" ++ show n)
                                        exp removeResult inp setupState

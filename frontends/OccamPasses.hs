@@ -248,7 +248,7 @@ foldConstants = occamOnlyPass "Fold constants"
         =  do modifyName n (\nd -> nd { A.ndSpecType = st })
               return s
 
-type CheckConstantsOps = BaseOp `ExtOpMP` A.Type `ExtOpMP` A.Option
+type CheckConstantsOps = BaseOpM `ExtOpMP` A.Type `ExtOpMP` A.Option
   `ExtOpMP` A.SpecType
 
 -- | Check that things that must be constant are.
@@ -258,8 +258,8 @@ checkConstants = occamOnlyPass "Check mandatory constants"
   [Prop.constantsChecked]
   recurse
   where
-    ops :: CheckConstantsOps
-    ops = baseOp `extOpM` doType `extOpM` doOption `extOpM` doSpecType
+    ops :: CheckConstantsOps PassM
+    ops = baseOpM `extOpM` doType `extOpM` doOption `extOpM` doSpecType
 
     descend :: DescendM PassM CheckConstantsOps
     descend = makeDescendM ops

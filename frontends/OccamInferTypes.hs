@@ -163,7 +163,7 @@ data InferTypeState = InferTypeState
 
 type InferTypeM = StateT InferTypeState PassM
 
-type ExtOpMI ops t = ExtOpM InferTypeM ops t
+type ExtOpMI ops t = t :-* ops
 
 --{{{  type contexts
 
@@ -193,7 +193,7 @@ getTypeContext
 -- I can't put this in the where clause of inferTypes, so it has to be out
 -- here.  It should be the type of ops inside the inferTypes function below.
 type InferTypeOps
-  = ExtOpMS InferTypeM BaseOp
+  = ExtOpMS BaseOpM
     `ExtOpMI` A.Expression
     `ExtOpMI` A.Dimension
     `ExtOpMI` A.Subscript
@@ -212,8 +212,8 @@ inferTypes = occamOnlyPass "Infer types"
   [Prop.inferredTypesRecorded]
   (flip evalStateT (InferTypeState [] []) . recurse)
   where
-    ops :: InferTypeOps
-    ops = baseOp
+    ops :: InferTypeOps InferTypeM
+    ops = baseOpM
           `extOpMS` (ops, doStructured)
           `extOpM` doExpression
           `extOpM` doDimension
@@ -365,14 +365,14 @@ inferTypes = occamOnlyPass "Infer types"
           = typeEqForOp t t'
         typeEqForOp t t' = t == t'
 
-    doActuals :: (PolyplateM a InferTypeOps () InferTypeM, Data a) => Meta -> A.Name -> [A.Formal] ->
+    doActuals :: (PolyplateM a InferTypeOps BaseOpM, Data a) => Meta -> A.Name -> [A.Formal] ->
       (Meta -> A.Direction -> Infer a, A.Type -> Infer a) -> Infer [a]
     doActuals m n fs applyDir_Deref as
         =  do lift $ checkActualCount m n fs as
               sequence [doActual m applyDir_Deref t a | (A.Formal _ t _, a) <- zip fs as]
 
     -- First function directs, second function dereferences if needed
-    doActual :: (PolyplateM a InferTypeOps () InferTypeM, Data a) =>
+    doActual :: (PolyplateM a InferTypeOps BaseOpM, Data a) =>
       Meta -> (Meta -> A.Direction -> Infer a, A.Type -> Infer a) -> A.Type -> Infer a
     doActual m (applyDir, _) (A.ChanEnd dir _ _) a = recurse a >>= applyDir m dir
     doActual m (_, deref) t a = inTypeContext (Just t) $ recurse a >>= deref t
@@ -458,8 +458,8 @@ inferTypes = occamOnlyPass "Infer types"
                              mp' <- recurse mp
                              return $ A.Variant m n iis' p' mp'
 
-    doStructured :: ( PolyplateM (A.Structured t) InferTypeOps () InferTypeM
-                    , PolyplateM (A.Structured t) () InferTypeOps InferTypeM
+    doStructured :: ( PolyplateM (A.Structured t) InferTypeOps BaseOpM
+                    , PolyplateM (A.Structured t) BaseOpM InferTypeOps
                     , Data t) => Infer (A.Structured t)
 
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
@@ -470,8 +470,8 @@ inferTypes = occamOnlyPass "Infer types"
     doStructured s = descend s
 
     -- The second parameter is a modifier (wrapper) for the descent into the body
-    doSpecType :: ( PolyplateM (A.Structured t) InferTypeOps () InferTypeM
-                  , PolyplateM (A.Structured t) () InferTypeOps InferTypeM
+    doSpecType :: ( PolyplateM (A.Structured t) InferTypeOps BaseOpM
+                  , PolyplateM (A.Structured t) BaseOpM InferTypeOps
                   , Data t) => A.Name -> A.SpecType -> ReaderT (A.Structured t) InferTypeM
       (A.SpecType, InferTypeM (A.Structured a) -> InferTypeM (A.Structured a))
     doSpecType n st
@@ -663,19 +663,19 @@ inferTypes = occamOnlyPass "Infer types"
         -- Also, to fit with the normal ops, we must do so in the PassM monad.
         --  Normally we would do this pass in a StateT monad, but to slip inside
         -- PassM, I've used an IORef instead.
-        findDir :: ( PolyplateM a InferTypeOps () InferTypeM
-                   , PolyplateM a () InferTypeOps InferTypeM
+        findDir :: ( PolyplateM a InferTypeOps BaseOpM
+                   , PolyplateM a BaseOpM InferTypeOps
                    ) => A.Name -> a -> InferTypeM [A.Direction]
         findDir n x
           = do r <- liftIO $ newIORef []
                makeRecurseM (makeOps r) x
                liftIO $ readIORef r
           where
-            makeOps :: IORef [A.Direction] -> InferTypeOps
+            makeOps :: IORef [A.Direction] -> InferTypeOps InferTypeM
             makeOps r = ops
               where
-                ops :: InferTypeOps
-                ops = baseOp
+                ops :: InferTypeOps InferTypeM
+                ops = baseOpM
                     `extOpMS` (ops, descend)
                     `extOpM` descend
                     `extOpM` descend

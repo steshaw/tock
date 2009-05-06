@@ -178,8 +178,8 @@ import Data.Generics.Polyplate.Route
 --
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
-class Monad m => PolyplateMRoute t o o' m outer where
-  transformMRoute :: o m outer -> o' m outer -> (t, Route t outer) -> m t
+class PolyplateMRoute t o o' where
+  transformMRoute :: Monad m => o m outer -> o' m outer -> (t, Route t outer) -> m t
 
 -- | A derivative of PolyplateMRoute without all the route stuff.
 --
@@ -217,14 +217,14 @@ class Monad m => PolyplateMRoute t o o' m outer where
 --
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
-class (Monad m) => PolyplateM t o o' m where
-  transformM :: o m -> o' m -> t -> m t
+class PolyplateM t o o' where
+  transformM :: (Monad m) => o m -> o' m -> t -> m t
 
 
-instance (Monad m
-  , PolyplateMRoute t o o' m ()
+instance (
+    PolyplateMRoute t o o'
   , ConvertOpsToIgnoreRoute ro o
-  , ConvertOpsToIgnoreRoute ro' o') => PolyplateM t ro ro' m where
+  , ConvertOpsToIgnoreRoute ro' o') => PolyplateM t ro ro' where
   transformM o o' t = transformMRoute (convertOpsToIgnoreRoute o)
                                       (convertOpsToIgnoreRoute o')
                                       (t, fakeRoute t) 
@@ -238,12 +238,12 @@ instance (Monad m
 class Polyplate t o o' where
   transform :: o -> o' -> t -> t
 
-instance (PolyplateM t mo mo' Identity, ConvertOpsToIdentity o mo, ConvertOpsToIdentity o' mo') => Polyplate t o o' where
+instance (PolyplateM t mo mo', ConvertOpsToIdentity o mo, ConvertOpsToIdentity o' mo') => Polyplate t o o' where
   transform o o' t = runIdentity (transformM (convertOpsToIdentity o) (convertOpsToIdentity o') t)
 
 -- | A type representing a monadic modifier function that applies the given ops
 -- (opT) in the given monad (m) directly to the given type (t).
-type RecurseM m opT = forall t. PolyplateM t opT BaseOpM m => t -> m t
+type RecurseM m opT = forall t. PolyplateM t opT BaseOpM => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a recursive modifier function.
@@ -252,7 +252,7 @@ makeRecurseM ops = transformM ops baseOpM
 
 -- | A type representing a monadic modifier function that applies the given ops
 -- (opT) in the given monad (m) to the children of the given type (t).
-type DescendM m opT = forall t. PolyplateM t BaseOpM opT m => t -> m t
+type DescendM m opT = forall t. PolyplateM t BaseOpM opT => t -> m t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a descent modifier function that applies the operation to the type's children.

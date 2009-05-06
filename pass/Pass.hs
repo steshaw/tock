@@ -97,21 +97,21 @@ instance Warn (ReaderT r PassM) where
 -- against AST fragments of other types as well.
 type PassType t = t -> PassM t
 
-type PassOnOpsM m ops
-  = (PolyplateM t ops () m, PolyplateM t () ops m) => Pass t
+type PassOnOpsM ops
+  = (PolyplateM t ops BaseOpM, PolyplateM t BaseOpM ops) => Pass t
 
-type PassOnOps ops = PassOnOpsM PassM ops
+type PassOnOps ops = PassOnOpsM ops
 
 type PassASTOnOps ops
-  = (PolyplateM A.AST ops () PassM, PolyplateM A.AST () ops PassM) => Pass A.AST
+  = (PolyplateM A.AST ops BaseOpM, PolyplateM A.AST BaseOpM ops) => Pass A.AST
 
 type PassTypeOnOps ops
-  = (PolyplateM t ops () PassM, PolyplateM t () ops PassM) => PassType t
+  = (PolyplateM t ops BaseOpM, PolyplateM t BaseOpM ops) => PassType t
 
-type PassOn t = PassOnOps (OneOpM PassM t)
-type PassOn2 s t = PassOnOps (TwoOpM PassM s t)
-type PassOnM2 m s t = PassOnOpsM m (TwoOpM m s t)
-type PassTypeOn t = PassTypeOnOps (OneOpM PassM t)
+type PassOn t = PassOnOps (OneOpM t)
+type PassOn2 s t = PassOnOps (TwoOpM s t)
+type PassOnM2 s t = PassOnOpsM (TwoOpM s t)
+type PassTypeOn t = PassTypeOnOps (OneOpM t)
 
 -- | A description of an AST-mangling pass.
 data Pass t = Pass {

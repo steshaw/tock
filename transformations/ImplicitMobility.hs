@@ -203,15 +203,15 @@ implicitMobility
 mobiliseArrays :: PassASTOnStruct
 mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
   where
-    ops :: ExtOpMSP BaseOp
-    ops = baseOp `extOpMS` (ops, doStructured)
+    ops :: ExtOpMSP BaseOpM
+    ops = baseOpM `extOpMS` (ops, doStructured)
 
-    recurse :: RecurseM PassM (ExtOpMSP BaseOp)
+    recurse :: RecurseM PassM (ExtOpMS BaseOpM)
     recurse = makeRecurseM ops
-    descend :: DescendM PassM (ExtOpMSP BaseOp)
+    descend :: DescendM PassM (ExtOpMS BaseOpM)
     descend = makeDescendM ops
 
-    doStructured :: TransformStructured' (ExtOpMSP BaseOp)
+    doStructured :: TransformStructured' (ExtOpMS BaseOpM)
     doStructured s@(A.Spec m (A.Specification m' n (A.Declaration m'' t@(A.Array ds
       innerT))) scope)
       = case innerT of
@@ -309,11 +309,11 @@ instance Dereferenceable A.Actual where
 inferDeref :: PassOn2 A.Process A.Variable
 inferDeref = pass "Infer mobile dereferences" [] [] recurse
   where
-    ops = baseOp `extOpM` doProcess `extOpM` doVariable
+    ops = doProcess :-* doVariable :-* baseOpM
 
-    recurse :: RecurseM PassM (TwoOpM PassM A.Process A.Variable)
+    recurse :: RecurseM PassM (TwoOpM A.Process A.Variable)
     recurse = makeRecurseM ops
-    descend :: DescendM PassM (TwoOpM PassM A.Process A.Variable)
+    descend :: DescendM PassM (TwoOpM A.Process A.Variable)
     descend = makeDescendM ops
 
     unify :: (Dereferenceable a, ASTTypeable a, ShowOccam a, ShowRain a) => Meta

@@ -37,11 +37,11 @@ makeBottomUp ops f v = f (makeDescend ops v)
 -- function to first descend into the value before then applying the modifier function.
 --  This can be used to perform a bottom-up depth-first traversal of a structure
 -- (see 'applyBottomUpM').
-makeBottomUpM :: PolyplateM t BaseOpM opT m => opT m -> (t -> m t) -> t -> m t
+makeBottomUpM :: (PolyplateM t BaseOpM opT, Monad m) => opT m -> (t -> m t) -> t -> m t
 makeBottomUpM ops f v = makeDescendM ops v >>= f
 
 -- | As makeBottomUpM, but with routes as well.
-makeBottomUpMRoute :: forall m opT t outer. PolyplateMRoute t BaseOpMRoute opT m outer =>
+makeBottomUpMRoute :: forall m opT t outer. (Monad m, PolyplateMRoute t BaseOpMRoute opT) =>
   opT m outer -> ((t, Route t outer) -> m t) -> (t, Route t outer) -> m t
 makeBottomUpMRoute ops f (v, r)
   = do v' <- transformMRoute base ops (v, r)
@@ -61,11 +61,11 @@ makeTopDown ops f v = makeDescend ops (f v)
 -- function to first apply the modifier function before then descending into the value.
 --  This can be used to perform a top-down depth-first traversal of a structure
 -- (see 'applyTopDownM').
-makeTopDownM :: PolyplateM t BaseOpM opT m => opT m -> (t -> m t) -> t -> m t
+makeTopDownM :: (PolyplateM t BaseOpM opT, Monad m) => opT m -> (t -> m t) -> t -> m t
 makeTopDownM ops f v = f v >>= makeDescendM ops
 
 -- | As makeTopDownM, but with routes as well.
-makeTopDownMRoute :: PolyplateMRoute t BaseOpMRoute opT m outer =>
+makeTopDownMRoute :: (PolyplateMRoute t BaseOpMRoute opT, Monad m) =>
   opT m outer -> ((t, Route t outer) -> m t) -> (t, Route t outer) -> m t
 makeTopDownMRoute ops f (v, r)
   = do v' <- f (v, r)
@@ -89,8 +89,8 @@ makeCheckM ops f v
 -- the item in the list, False to drop it), finds all items of type \"s\" in some
 -- larger item (of type \"t\") that satisfy this function, listed in depth-first
 -- order.
-listifyDepth :: (PolyplateM t (OneOpM s) BaseOpM (State [s])
-                ,PolyplateM s BaseOpM (OneOpM s) (State [s])) => (s -> Bool) -> t -> [s]
+listifyDepth :: (PolyplateM t (OneOpM s) BaseOpM
+                ,PolyplateM s BaseOpM (OneOpM s)) => (s -> Bool) -> t -> [s]
 -- We use applyBottomUp because we are prepending to the list.  If we prepend from
 -- the bottom up, that's the same as appending from the top down, which is what
 -- this function is meant to be doing.
@@ -99,8 +99,8 @@ listifyDepth qf = flip execState [] . applyBottomUpM qf'
     qf' x = if qf x then modify (x:) >> return x else return x
 
 -- | Like listifyDepth, but with routes
-listifyDepthRoute :: (PolyplateMRoute t (OneOpMRoute s) (BaseOpMRoute) (State [(s, Route s t)]) t
-                     ,PolyplateMRoute s (BaseOpMRoute) (OneOpMRoute s) (State [(s, Route s t)]) t)
+listifyDepthRoute :: (PolyplateMRoute t (OneOpMRoute s) (BaseOpMRoute)
+                     ,PolyplateMRoute s (BaseOpMRoute) (OneOpMRoute s))
                      => ((s, Route s t) -> Bool) -> t -> [(s, Route s t)]
 listifyDepthRoute qf = flip execState [] . applyBottomUpMRoute qf'
   where
@@ -115,15 +115,15 @@ listifyDepthRoute qf = flip execState [] . applyBottomUpMRoute qf'
 --
 -- This can be used, for example, to perform checks on items in an error monad,
 -- or to accumulate information in a state monad.
-checkDepthM :: (Monad m, PolyplateM t (OneOpM s) BaseOpM m
-                       , PolyplateM s BaseOpM (OneOpM s) m) => (s -> m ()) -> t -> m ()
+checkDepthM :: (Monad m, PolyplateM t (OneOpM s) BaseOpM
+                       , PolyplateM s BaseOpM (OneOpM s)) => (s -> m ()) -> t -> m ()
 checkDepthM f x = applyBottomUpM (\x -> f x >> return x) x >> return ()
 
 -- | As 'checkDepthM', but takes two functions (one operating on type \"r\", the
 -- other on type \"s\").
-checkDepthM2 :: (Monad m, PolyplateM t (TwoOpM r s) (BaseOpM) m
-                        , PolyplateM r (BaseOpM) (TwoOpM r s) m
-                        , PolyplateM s (BaseOpM) (TwoOpM r s) m
+checkDepthM2 :: (Monad m, PolyplateM t (TwoOpM r s) (BaseOpM)
+                        , PolyplateM r (BaseOpM) (TwoOpM r s)
+                        , PolyplateM s (BaseOpM) (TwoOpM r s)
                         ) =>
   (r -> m ()) -> (s -> m ()) -> t -> m ()
 checkDepthM2 f g x = applyBottomUpM2 (\x -> f x >> return x)
@@ -137,16 +137,17 @@ checkDepthM2 f g x = applyBottomUpM2 (\x -> f x >> return x)
 -- traversal in order of a constructor's children (assuming you are using one of
 -- the generated instances, not your own), descending first and applying the function
 -- afterwards on the way back up.
-applyBottomUpM :: (PolyplateM t (OneOpM s) BaseOpM m,
-                   PolyplateM s BaseOpM (OneOpM s) m) =>
+applyBottomUpM :: (PolyplateM t (OneOpM s) BaseOpM,
+                   PolyplateM s BaseOpM (OneOpM s), Monad m) =>
                   (s -> m s) -> t -> m t
 applyBottomUpM f = makeRecurseM ops
   where
     ops = baseOpM `extOpM` makeBottomUpM ops f
 
 applyBottomUpMRoute :: forall m s t.
-                       (PolyplateMRoute t (OneOpMRoute s) (BaseOpMRoute) m t,
-                        PolyplateMRoute s (BaseOpMRoute) (OneOpMRoute s) m t) =>
+                       (PolyplateMRoute t (OneOpMRoute s) (BaseOpMRoute),
+                        PolyplateMRoute s (BaseOpMRoute) (OneOpMRoute s),
+                        Monad m) =>
                        ((s, Route s t) -> m s) -> t -> m t
 applyBottomUpMRoute f x = transformMRoute ops base (x, identityRoute)
   where
@@ -158,9 +159,10 @@ applyBottomUpMRoute f x = transformMRoute ops base (x, identityRoute)
 
 -- | As 'applyBottomUpM', but applies two functions.  These should not be modifying
 -- the same type.
-applyBottomUpM2 :: (PolyplateM t (TwoOpM sA sB) (BaseOpM) m,
-                    PolyplateM sA (BaseOpM) (TwoOpM sA sB) m,
-                    PolyplateM sB (BaseOpM) (TwoOpM sA sB) m
+applyBottomUpM2 :: (PolyplateM t (TwoOpM sA sB) (BaseOpM),
+                    PolyplateM sA (BaseOpM) (TwoOpM sA sB),
+                    PolyplateM sB (BaseOpM) (TwoOpM sA sB),
+                    Monad m
                    ) =>
                    (sA -> m sA) -> (sB -> m sB) -> t -> m t
 applyBottomUpM2 fA fB = makeRecurseM ops
@@ -190,8 +192,9 @@ applyBottomUp2 fA fB = makeRecurse ops
 -- traversal in order of a constructor's children (assuming you are using one of
 -- the generated instances, not your own), applying the function first and then
 -- descending.
-applyTopDownM :: (PolyplateM t (s :-* BaseOpM) BaseOpM m,
-                  PolyplateM s BaseOpM (s :-* BaseOpM) m) =>
+applyTopDownM :: (PolyplateM t (s :-* BaseOpM) BaseOpM,
+                  PolyplateM s BaseOpM (s :-* BaseOpM),
+                  Monad m) =>
                  (s -> m s) -> t -> m t
 applyTopDownM f = makeRecurseM ops
   where
@@ -199,9 +202,10 @@ applyTopDownM f = makeRecurseM ops
 
 -- | As applyTopDownM, but applies two functions.  These should not be modifying
 -- the same type.
-applyTopDownM2 :: (PolyplateM t (sA :-* sB :-* BaseOpM) BaseOpM m,
-                   PolyplateM sA BaseOpM (sA :-* sB :-* BaseOpM) m,
-                   PolyplateM sB BaseOpM (sA :-* sB :-* BaseOpM) m
+applyTopDownM2 :: (PolyplateM t (sA :-* sB :-* BaseOpM) BaseOpM,
+                   PolyplateM sA BaseOpM (sA :-* sB :-* BaseOpM),
+                   PolyplateM sB BaseOpM (sA :-* sB :-* BaseOpM),
+                   Monad m
                   ) =>
                   (sA -> m sA) -> (sB -> m sB) -> t -> m t
 applyTopDownM2 fA fB = makeRecurseM ops

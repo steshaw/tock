@@ -305,7 +305,7 @@ instancesFrom genOverlapped genClass boxes w
     -- and last arguments swapped.
     genInst :: [String] -> String -> String -> [String] -> [String]
     genInst context ops0 ops1 body
-      = ["instance (Monad m" ++ concatMap (", " ++) context ++ ") =>"
+      = ["instance (" ++ concat (intersperse ", " context) ++ ") =>"
         ,"         " ++ contextSameType ops0 ops1 ++ " where"
         ] ++ map ("  " ++) body
 
@@ -313,17 +313,17 @@ instancesFrom genOverlapped genClass boxes w
     -- sets.  The class name will be the same as genInst.
     contextSameType :: String -> String -> String
     contextSameType ops0 ops1 = case genClass of
-      GenOneClass -> "PolyplateMRoute (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m outer"
-      GenClassPerType -> "PolyplateMRoute" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1 ++ " m outer"
-      GenSlowDelegate -> "PolyplateMRoute' m " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ") outer"
+      GenOneClass -> "PolyplateMRoute (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenClassPerType -> "PolyplateMRoute" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1
+      GenSlowDelegate -> "PolyplateMRoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ")"
 
     -- Generates the name of an instance for a different type (for processing children).
     --  This will be PolyplateM or PolyplateM'.
     contextNewType :: String -> String -> String -> String
     contextNewType cName ops0 ops1 = case genClass of
-      GenOneClass -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m outer"
-      GenClassPerType -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1 ++ " m outer"
-      GenSlowDelegate -> "PolyplateMRoute' m " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ") outer"
+      GenOneClass -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenClassPerType -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenSlowDelegate -> "PolyplateMRoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
       
 
     -- The function to define in the body, and also to use for processing the same
@@ -362,12 +362,12 @@ instancesFrom genOverlapped genClass boxes w
               "(a :-@ r)" "ops" 
                 [funcSameType ++ " (_ :-@ rest) ops vr = " ++ funcSameType ++ " rest ops vr"]
           ,if genClass == GenClassPerType
-             then ["class Monad m => PolyplateMRoute" ++ wMunged ++ " o o' m outer where"
+             then ["class PolyplateMRoute" ++ wMunged ++ " o o' where"
                   ,"  " ++ funcSameType ++ " :: o m outer -> o' m outer -> (" ++ wName
                     ++ ", Route (" ++ wName ++ ") outer) -> m (" ++ wName ++ ")"
                   ,""
-                  ,"instance (Monad m, " ++ contextSameType "o0" "o1" ++ ") =>"
-                  ,"         PolyplateMRoute (" ++ wName ++ ") o0 o1 m outer where"
+                  ,"instance (" ++ contextSameType "o0" "o1" ++ ") =>"
+                  ,"         PolyplateMRoute (" ++ wName ++ ") o0 o1 where"
                   ,"  transformMRoute = " ++ funcSameType
                   ]
              else []
