@@ -133,6 +133,7 @@ module Data.Generics.Polyplate (PolyplateMRoute(..), PolyplateM(..), Polyplate(.
   ExtOpM, extOpM, ExtOpMRoute, extOpMRoute, ExtOp, extOp, OneOpMRoute, OneOpM, OneOp, TwoOpM, TwoOp
   ) where
 
+import Control.Applicative
 import Control.Monad.Identity
 import Data.Maybe
 import Data.Tree
@@ -180,6 +181,7 @@ import Data.Generics.Polyplate.Route
 -- use the helper functions lower down in this module.
 class PolyplateMRoute t o o' where
   transformMRoute :: Monad m => o m outer -> o' m outer -> (t, Route t outer) -> m t
+  transformARoute :: Applicative f => o f outer -> o' f outer -> (t, Route t outer) -> f t
 
 -- | A derivative of PolyplateMRoute without all the route stuff.
 --
@@ -218,8 +220,8 @@ class PolyplateMRoute t o o' where
 -- Generally you will not use this function or type-class directly, but will instead
 -- use the helper functions lower down in this module.
 class PolyplateM t o o' where
-  transformM :: (Monad m) => o m -> o' m -> t -> m t
-
+  transformM :: Monad m => o m -> o' m -> t -> m t
+  transformA :: Applicative f => o f -> o' f -> t -> f t
 
 instance (
     PolyplateMRoute t o o'
@@ -231,6 +233,12 @@ instance (
     where
       fakeRoute :: t -> Route t ()
       fakeRoute = const $ error "transformM"
+  transformA o o' t = transformARoute (convertOpsToIgnoreRoute o)
+                                      (convertOpsToIgnoreRoute o')
+                                      (t, fakeRoute t) 
+    where
+      fakeRoute :: t -> Route t ()
+      fakeRoute = const $ error "transformA"
 
 -- | A non-monadic equivalent of PolyplateM.  All ops sets are of the form:
 --
@@ -266,16 +274,16 @@ type Recurse opT = forall t. Polyplate t opT BaseOp => t -> t
 -- | Given a set of operations (as described in the 'Polyplate' type-class),
 -- makes a modifier function that applies the operations directly.
 makeRecurse :: opT -> Recurse opT
-makeRecurse ops = transform ops ()
+makeRecurse ops = transform ops baseOp
 
 -- | A type representing a modifier function that applies the given ops
 -- (opT) to the children of the given type (t).
-type Descend opT = forall t. Polyplate t () opT => t -> t
+type Descend opT = forall t. Polyplate t BaseOp opT => t -> t
 
 -- | Given a set of operations (as described in the 'PolyplateM' type-class),
 -- makes a descent modifier function that applies the operation to the type's children.
 makeDescend :: opT -> Descend opT
-makeDescend ops = transform () ops
+makeDescend ops = transform baseOp ops
 
 {-
 type RecurseQ a opQ = forall t. PolyplateSpine t opQ () a => t -> Tree (Maybe a)
@@ -395,8 +403,8 @@ instance ConvertSpineOpsToFull b r r' => ConvertSpineOpsToFull b (a, r) (a, r') 
 
 -- | A helper class to convert operations not expecting a route to those that ignore
 -- the route (which will have the unit type as its outer type).
-class ConvertOpsToIgnoreRoute o o' | o -> o' where
-  convertOpsToIgnoreRoute :: Monad m => o m -> o' m ()
+class ConvertOpsToIgnoreRoute (o :: (* -> *) -> *) o' | o -> o' where
+  convertOpsToIgnoreRoute :: o m -> o' m ()
 
 instance ConvertOpsToIgnoreRoute BaseOpM BaseOpMRoute where
   convertOpsToIgnoreRoute = const baseOpMRoute
