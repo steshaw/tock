@@ -20,7 +20,7 @@ GHC_OPTS = \
 	-iflow \
 	-ifrontends \
 	-ipass \
-	-ipolyplate \
+	-ialloy \
 	-ipregen \
 	-itransformations
 
@@ -146,6 +146,9 @@ tock_DEPENDENCIES = $(BUILT_SOURCES) $(config_sources)
 #One entry per line makes it easier to read and easier to modify, even if it is longer
 
 tock_SOURCES_hs = Main.hs
+tock_SOURCES_hs += alloy/Data/Generics/Alloy.hs
+tock_SOURCES_hs += alloy/Data/Generics/Alloy/Route.hs
+tock_SOURCES_hs += alloy/Data/Generics/Alloy/Schemes.hs
 tock_SOURCES_hs += backends/AnalyseAsm.hs
 tock_SOURCES_hs += backends/BackendPasses.hs
 tock_SOURCES_hs += backends/GenerateC.hs
@@ -193,9 +196,6 @@ tock_SOURCES_hs += pass/Pass.hs
 tock_SOURCES_hs += pass/PassList.hs
 tock_SOURCES_hs += pass/Properties.hs
 tock_SOURCES_hs += pass/Traversal.hs
-tock_SOURCES_hs += polyplate/Data/Generics/Polyplate.hs
-tock_SOURCES_hs += polyplate/Data/Generics/Polyplate/Route.hs
-tock_SOURCES_hs += polyplate/Data/Generics/Polyplate/Schemes.hs
 tock_SOURCES_hs += transformations/ImplicitMobility.hs
 tock_SOURCES_hs += transformations/SimplifyAbbrevs.hs
 tock_SOURCES_hs += transformations/SimplifyComms.hs
@@ -233,7 +233,7 @@ tocktest_SOURCES += transformations/SimplifyTypesTest.hs
 
 pregen_sources = data/AST.hs data/CompState.hs config/Paths.hs
 pregen_sources += pregen/PregenUtils.hs
-pregen_sources += polyplate/Data/Generics/Polyplate/GenInstances.hs
+pregen_sources += alloy/Data/Generics/Alloy/GenInstances.hs
 
 GenNavAST_SOURCES = pregen/GenNavAST.hs $(pregen_sources)
 GenOrdAST_SOURCES = pregen/GenOrdAST.hs $(pregen_sources)
@@ -257,8 +257,8 @@ pkginclude_HEADERS += support/tock_intrinsics_float.h
 clean-local:
 	rm -f obj/*.o obj/*.hi
 	rm -f obj/Data/Generics/*.o obj/Data/Generics/*.hi
-	rm -f obj/Data/Generics/Polyplate/*.o obj/Data/Generics/Polyplate/*.hi
-	[ ! -d obj/Data/Generics/Polyplate ] || rmdir obj/Data/Generics/Polyplate
+	rm -f obj/Data/Generics/Alloy/*.o obj/Data/Generics/Alloy/*.hi
+	[ ! -d obj/Data/Generics/Alloy ] || rmdir obj/Data/Generics/Alloy
 	[ ! -d obj/Data/Generics ] || rmdir obj/Data/Generics
 	[ ! -d obj/Data ] || rmdir obj/Data
 	[ ! -d obj ] || rmdir obj
