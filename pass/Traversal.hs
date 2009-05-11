@@ -21,21 +21,34 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Traversal (
     TransformM, Transform, TransformStructured, TransformStructured', TransformStructuredM'
   , CheckM, Check
-  , ExtOpMP, ExtOpMS, ExtOpMSP, extOpMS, PassOnStruct, PassASTOnStruct
+  , ExtOpMS, ExtOpMSP, extOpMS, opMS, PassOnStruct, PassASTOnStruct
   , applyBottomUpMS, ASTStructured
-  , module Data.Generics.Polyplate
-  , module Data.Generics.Polyplate.Schemes
+  , RecurseM, DescendM, BaseOpM, baseOpM, OneOpM, TwoOpM, BaseOpMRoute, baseOpMRoute, OneOpMRoute
+  , module Data.Generics.Alloy
+  , module Data.Generics.Alloy.Schemes
   ) where
 
 import Control.Monad.State
 import Data.Generics (Data)
-import Data.Generics.Polyplate
-import Data.Generics.Polyplate.Schemes
+import Data.Generics.Alloy
+import Data.Generics.Alloy.Schemes
 
 
 import qualified AST as A
 import NavAST()
 import Pass
+
+type RecurseM a b = RecurseA a b
+type DescendM a b = DescendA a b
+type BaseOpM = BaseOpA
+type BaseOpMRoute = BaseOpARoute
+type OneOpM s = OneOpA s
+type OneOpMRoute s = OneOpARoute s
+type TwoOpM s t = TwoOpA s t
+baseOpM :: BaseOpM m
+baseOpM = baseOpA
+baseOpMRoute :: BaseOpMRoute m outer
+baseOpMRoute = baseOpARoute
 
 -- | A transformation for a single 'Data' type.
 type TransformM m t = t -> m t
@@ -51,8 +64,6 @@ type CheckM m t = t -> m ()
 -- | As 'CheckM', but specialised for 'PassM'.
 type Check t = CheckM PassM t
 
-type ExtOpMP opT t = t :-* opT
-
 type ExtOpMS opT =
           (A.Structured ()) :-*
           (A.Structured A.Alternative) :-*
@@ -65,59 +76,59 @@ type ExtOpMS opT =
 
 type ExtOpMSP opT = ExtOpMS opT PassM
 
-type PassOnStruct = PassOnOps (ExtOpMS BaseOpM)
-type PassASTOnStruct = PassASTOnOps (ExtOpMS BaseOpM)
+type PassOnStruct = PassOnOps (ExtOpMS BaseOpA)
+type PassASTOnStruct = PassASTOnOps (ExtOpMS BaseOpA)
 
-class (PolyplateM (A.Structured a) BaseOpM opsM
-      ,PolyplateM (A.Structured a) opsM BaseOpM
+class (AlloyA (A.Structured a) BaseOpA opsM
+      ,AlloyA (A.Structured a) opsM BaseOpA
       ,Data a
       ,Monad m
       ) => ASTStructured a opsM m opsQ r
 
-instance (PolyplateM (A.Structured ()) BaseOpM opsM
-         ,PolyplateM (A.Structured ()) opsM BaseOpM
+instance (AlloyA (A.Structured ()) BaseOpA opsM
+         ,AlloyA (A.Structured ()) opsM BaseOpA
          ,Monad m) => ASTStructured () opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.Alternative) BaseOpM opsM
-         ,PolyplateM (A.Structured A.Alternative) opsM BaseOpM
+instance (AlloyA (A.Structured A.Alternative) BaseOpA opsM
+         ,AlloyA (A.Structured A.Alternative) opsM BaseOpA
          ,Monad m) => ASTStructured A.Alternative opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.Choice) BaseOpM opsM
-         ,PolyplateM (A.Structured A.Choice) opsM BaseOpM
+instance (AlloyA (A.Structured A.Choice) BaseOpA opsM
+         ,AlloyA (A.Structured A.Choice) opsM BaseOpA
          ,Monad m) => ASTStructured A.Choice opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.ExpressionList) BaseOpM opsM
-         ,PolyplateM (A.Structured A.ExpressionList) opsM BaseOpM
+instance (AlloyA (A.Structured A.ExpressionList) BaseOpA opsM
+         ,AlloyA (A.Structured A.ExpressionList) opsM BaseOpA
          ,Monad m) => ASTStructured A.ExpressionList opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.Option) BaseOpM opsM
-         ,PolyplateM (A.Structured A.Option) opsM BaseOpM
+instance (AlloyA (A.Structured A.Option) BaseOpA opsM
+         ,AlloyA (A.Structured A.Option) opsM BaseOpA
          ,Monad m) => ASTStructured A.Option opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.Process) BaseOpM opsM
-         ,PolyplateM (A.Structured A.Process) opsM BaseOpM
+instance (AlloyA (A.Structured A.Process) BaseOpA opsM
+         ,AlloyA (A.Structured A.Process) opsM BaseOpA
          ,Monad m) => ASTStructured A.Process opsM m opsQ r
 
-instance (PolyplateM (A.Structured A.Variant) BaseOpM opsM
-         ,PolyplateM (A.Structured A.Variant) opsM BaseOpM
+instance (AlloyA (A.Structured A.Variant) BaseOpA opsM
+         ,AlloyA (A.Structured A.Variant) opsM BaseOpA
          ,Monad m) => ASTStructured A.Variant opsM m opsQ r
 
 
 extOpMS :: forall m opT op0T.
-          (PolyplateM (A.Structured ()) BaseOpM op0T,
-           PolyplateM (A.Structured A.Alternative) BaseOpM op0T,
-           PolyplateM (A.Structured A.Choice) BaseOpM op0T,
-           PolyplateM (A.Structured A.ExpressionList) BaseOpM op0T,
-           PolyplateM (A.Structured A.Option) BaseOpM op0T,
-           PolyplateM (A.Structured A.Process) BaseOpM op0T,
-           PolyplateM (A.Structured A.Variant) BaseOpM op0T,
-           PolyplateM (A.Structured ()) op0T BaseOpM,
-           PolyplateM (A.Structured A.Alternative) op0T BaseOpM,
-           PolyplateM (A.Structured A.Choice) op0T BaseOpM,
-           PolyplateM (A.Structured A.ExpressionList) op0T BaseOpM,
-           PolyplateM (A.Structured A.Option) op0T BaseOpM,
-           PolyplateM (A.Structured A.Process) op0T BaseOpM,
-           PolyplateM (A.Structured A.Variant) op0T BaseOpM,
+          (AlloyA (A.Structured ()) BaseOpA op0T,
+           AlloyA (A.Structured A.Alternative) BaseOpA op0T,
+           AlloyA (A.Structured A.Choice) BaseOpA op0T,
+           AlloyA (A.Structured A.ExpressionList) BaseOpA op0T,
+           AlloyA (A.Structured A.Option) BaseOpA op0T,
+           AlloyA (A.Structured A.Process) BaseOpA op0T,
+           AlloyA (A.Structured A.Variant) BaseOpA op0T,
+           AlloyA (A.Structured ()) op0T BaseOpA,
+           AlloyA (A.Structured A.Alternative) op0T BaseOpA,
+           AlloyA (A.Structured A.Choice) op0T BaseOpA,
+           AlloyA (A.Structured A.ExpressionList) op0T BaseOpA,
+           AlloyA (A.Structured A.Option) op0T BaseOpA,
+           AlloyA (A.Structured A.Process) op0T BaseOpA,
+           AlloyA (A.Structured A.Variant) op0T BaseOpA,
            Monad m) =>
           opT m ->
           -- Pairing the next two arguments allows us to apply this function infix:
@@ -125,30 +136,45 @@ extOpMS :: forall m opT op0T.
            forall t. ASTStructured t op0T m () () => A.Structured t -> m (A.Structured t)) ->
           ExtOpMS opT m
 extOpMS ops (_, f)
-    = ops
-      `extOpM` (f :: A.Structured A.Variant -> m (A.Structured A.Variant))
-      `extOpM` (f :: A.Structured A.Process -> m (A.Structured A.Process))
-      `extOpM` (f :: A.Structured A.Option -> m (A.Structured A.Option))
-      `extOpM` (f :: A.Structured A.ExpressionList -> m (A.Structured A.ExpressionList))
-      `extOpM` (f :: A.Structured A.Choice -> m (A.Structured A.Choice))
-      `extOpM` (f :: A.Structured A.Alternative -> m (A.Structured A.Alternative))
-      `extOpM` (f :: A.Structured () -> m (A.Structured ()))
+    = f :-* f :-* f :-* f :-* f :-* f :-* f :-* ops
 
-applyBottomUpMS :: (PolyplateM t (ExtOpMS BaseOpM) BaseOpM) =>
-  (forall a. (Data a, PolyplateM (A.Structured a) BaseOpM (ExtOpMS BaseOpM)) =>
+opMS :: forall m op0T.
+          (AlloyA (A.Structured ()) BaseOpA op0T,
+           AlloyA (A.Structured A.Alternative) BaseOpA op0T,
+           AlloyA (A.Structured A.Choice) BaseOpA op0T,
+           AlloyA (A.Structured A.ExpressionList) BaseOpA op0T,
+           AlloyA (A.Structured A.Option) BaseOpA op0T,
+           AlloyA (A.Structured A.Process) BaseOpA op0T,
+           AlloyA (A.Structured A.Variant) BaseOpA op0T,
+           AlloyA (A.Structured ()) op0T BaseOpA,
+           AlloyA (A.Structured A.Alternative) op0T BaseOpA,
+           AlloyA (A.Structured A.Choice) op0T BaseOpA,
+           AlloyA (A.Structured A.ExpressionList) op0T BaseOpA,
+           AlloyA (A.Structured A.Option) op0T BaseOpA,
+           AlloyA (A.Structured A.Process) op0T BaseOpA,
+           AlloyA (A.Structured A.Variant) op0T BaseOpA,
+           Monad m) =>
+          -- Pairing the next two arguments allows us to apply this function infix:
+          (op0T m, -- just a type witness
+           forall t. ASTStructured t op0T m () () => A.Structured t -> m (A.Structured t)) ->
+          ExtOpMS BaseOpA m
+opMS x = extOpMS baseOpA x
+
+applyBottomUpMS :: (AlloyA t (ExtOpMS BaseOpA) BaseOpA) =>
+  (forall a. (Data a, AlloyA (A.Structured a) BaseOpA (ExtOpMS BaseOpA)) =>
      (A.Structured a -> PassM (A.Structured a)))
   -> t -> PassM t
 applyBottomUpMS f = makeRecurseM ops
   where
-    ops = baseOpM `extOpMS` (ops, makeBottomUpM ops f)
+    ops = baseOpA `extOpMS` (ops, makeBottomUpM ops f)
 
 type TransformStructured ops
-  = (PolyplateM (A.Structured t) BaseOpM ops, Data t) => Transform (A.Structured t)
+  = (AlloyA (A.Structured t) BaseOpA ops, Data t) => Transform (A.Structured t)
 
 type TransformStructured' ops
-  = (PolyplateM (A.Structured t) BaseOpM ops
-    ,PolyplateM (A.Structured t) ops BaseOpM, Data t) => Transform (A.Structured t)
+  = (AlloyA (A.Structured t) BaseOpA ops
+    ,AlloyA (A.Structured t) ops BaseOpA, Data t) => Transform (A.Structured t)
 
 type TransformStructuredM' m ops
-  = (PolyplateM (A.Structured t) BaseOpM ops
-    ,PolyplateM (A.Structured t) ops BaseOpM, Data t) => A.Structured t -> m (A.Structured t)
+  = (AlloyA (A.Structured t) BaseOpA ops
+    ,AlloyA (A.Structured t) ops BaseOpA, Data t) => A.Structured t -> m (A.Structured t)

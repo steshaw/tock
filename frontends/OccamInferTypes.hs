@@ -163,8 +163,6 @@ data InferTypeState = InferTypeState
 
 type InferTypeM = StateT InferTypeState PassM
 
-type ExtOpMI ops t = t :-* ops
-
 --{{{  type contexts
 
 -- | Enter a type context.
@@ -193,15 +191,15 @@ getTypeContext
 -- I can't put this in the where clause of inferTypes, so it has to be out
 -- here.  It should be the type of ops inside the inferTypes function below.
 type InferTypeOps
-  = ExtOpMS BaseOpM
-    `ExtOpMI` A.Expression
-    `ExtOpMI` A.Dimension
-    `ExtOpMI` A.Subscript
-    `ExtOpMI` A.Replicator
-    `ExtOpMI` A.Alternative
-    `ExtOpMI` A.Process
-    `ExtOpMI` A.Variable
-    `ExtOpMI` A.Variant
+  = A.Expression
+    :-* A.Dimension
+    :-* A.Subscript
+    :-* A.Replicator
+    :-* A.Alternative
+    :-* A.Process
+    :-* A.Variable
+    :-* A.Variant
+    :-* ExtOpMS BaseOpM
 
 type Infer a = a -> InferTypeM a
 
@@ -213,16 +211,15 @@ inferTypes = occamOnlyPass "Infer types"
   (flip evalStateT (InferTypeState [] []) . recurse)
   where
     ops :: InferTypeOps InferTypeM
-    ops = baseOpM
-          `extOpMS` (ops, doStructured)
-          `extOpM` doExpression
-          `extOpM` doDimension
-          `extOpM` doSubscript
-          `extOpM` doReplicator
-          `extOpM` doAlternative
-          `extOpM` doProcess
-          `extOpM` doVariable
-          `extOpM` doVariant
+    ops =     doExpression
+          :-* doDimension
+          :-* doSubscript
+          :-* doReplicator
+          :-* doAlternative
+          :-* doProcess
+          :-* doVariable
+          :-* doVariant
+          :-* opMS (ops, doStructured)
 
     recurse :: RecurseM InferTypeM InferTypeOps
     recurse = makeRecurseM ops
@@ -365,14 +362,14 @@ inferTypes = occamOnlyPass "Infer types"
           = typeEqForOp t t'
         typeEqForOp t t' = t == t'
 
-    doActuals :: (PolyplateM a InferTypeOps BaseOpM, Data a) => Meta -> A.Name -> [A.Formal] ->
+    doActuals :: (AlloyA a InferTypeOps BaseOpM, Data a) => Meta -> A.Name -> [A.Formal] ->
       (Meta -> A.Direction -> Infer a, A.Type -> Infer a) -> Infer [a]
     doActuals m n fs applyDir_Deref as
         =  do lift $ checkActualCount m n fs as
               sequence [doActual m applyDir_Deref t a | (A.Formal _ t _, a) <- zip fs as]
 
     -- First function directs, second function dereferences if needed
-    doActual :: (PolyplateM a InferTypeOps BaseOpM, Data a) =>
+    doActual :: (AlloyA a InferTypeOps BaseOpM, Data a) =>
       Meta -> (Meta -> A.Direction -> Infer a, A.Type -> Infer a) -> A.Type -> Infer a
     doActual m (applyDir, _) (A.ChanEnd dir _ _) a = recurse a >>= applyDir m dir
     doActual m (_, deref) t a = inTypeContext (Just t) $ recurse a >>= deref t
@@ -458,8 +455,8 @@ inferTypes = occamOnlyPass "Infer types"
                              mp' <- recurse mp
                              return $ A.Variant m n iis' p' mp'
 
-    doStructured :: ( PolyplateM (A.Structured t) InferTypeOps BaseOpM
-                    , PolyplateM (A.Structured t) BaseOpM InferTypeOps
+    doStructured :: ( AlloyA (A.Structured t) InferTypeOps BaseOpM
+                    , AlloyA (A.Structured t) BaseOpM InferTypeOps
                     , Data t) => Infer (A.Structured t)
 
     doStructured (A.Spec mspec s@(A.Specification m n st) body)
@@ -470,8 +467,8 @@ inferTypes = occamOnlyPass "Infer types"
     doStructured s = descend s
 
     -- The second parameter is a modifier (wrapper) for the descent into the body
-    doSpecType :: ( PolyplateM (A.Structured t) InferTypeOps BaseOpM
-                  , PolyplateM (A.Structured t) BaseOpM InferTypeOps
+    doSpecType :: ( AlloyA (A.Structured t) InferTypeOps BaseOpM
+                  , AlloyA (A.Structured t) BaseOpM InferTypeOps
                   , Data t) => A.Name -> A.SpecType -> ReaderT (A.Structured t) InferTypeM
       (A.SpecType, InferTypeM (A.Structured a) -> InferTypeM (A.Structured a))
     doSpecType n st
@@ -663,8 +660,8 @@ inferTypes = occamOnlyPass "Infer types"
         -- Also, to fit with the normal ops, we must do so in the PassM monad.
         --  Normally we would do this pass in a StateT monad, but to slip inside
         -- PassM, I've used an IORef instead.
-        findDir :: ( PolyplateM a InferTypeOps BaseOpM
-                   , PolyplateM a BaseOpM InferTypeOps
+        findDir :: ( AlloyA a InferTypeOps BaseOpM
+                   , AlloyA a BaseOpM InferTypeOps
                    ) => A.Name -> a -> InferTypeM [A.Direction]
         findDir n x
           = do r <- liftIO $ newIORef []
@@ -675,16 +672,15 @@ inferTypes = occamOnlyPass "Infer types"
             makeOps r = ops
               where
                 ops :: InferTypeOps InferTypeM
-                ops = baseOpM
-                    `extOpMS` (ops, descend)
-                    `extOpM` descend
-                    `extOpM` descend
-                    `extOpM` descend
-                    `extOpM` descend
-                    `extOpM` descend
-                    `extOpM` descend
-                    `extOpM` (doVariable r)
-                    `extOpM` descend
+                ops =   descend
+                    :-* descend
+                    :-* descend
+                    :-* descend
+                    :-* descend
+                    :-* descend
+                    :-* (doVariable r)
+                    :-* descend
+                    :-* opMS (ops, descend)
                 descend :: DescendM InferTypeM InferTypeOps
                 descend = makeDescendM ops
 

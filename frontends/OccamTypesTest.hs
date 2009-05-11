@@ -505,28 +505,28 @@ testOccamTypes = TestList
     --}}}
     ]
   where
-    testOK :: (PolyplateM a (OneOpM A.Variable) BaseOpM
-              ,PolyplateM a (OneOpM A.Expression) BaseOpM
-              ,PolyplateM a (OneOpM A.SpecType) BaseOpM
-              ,PolyplateM a (OneOpM A.Process) BaseOpM
-              ,PolyplateM a BaseOpM (OneOpM A.Variable)
-              ,PolyplateM a BaseOpM (OneOpM A.Expression)
-              ,PolyplateM a BaseOpM (OneOpM A.SpecType)
-              ,PolyplateM a BaseOpM (OneOpM A.Process)
+    testOK :: (AlloyA a (OneOpM A.Variable) BaseOpM
+              ,AlloyA a (OneOpM A.Expression) BaseOpM
+              ,AlloyA a (OneOpM A.SpecType) BaseOpM
+              ,AlloyA a (OneOpM A.Process) BaseOpM
+              ,AlloyA a BaseOpM (OneOpM A.Variable)
+              ,AlloyA a BaseOpM (OneOpM A.Expression)
+              ,AlloyA a BaseOpM (OneOpM A.SpecType)
+              ,AlloyA a BaseOpM (OneOpM A.Process)
               ,Show a, Data a) => Int -> a -> Test
     testOK n orig
         = TestCase $ testPass ("testOccamTypes " ++ show n)
                               orig OccamTypes.checkTypes orig
                               startState
 
-    testFail :: (PolyplateM a (OneOpM A.Variable) BaseOpM
-                ,PolyplateM a (OneOpM A.Expression) BaseOpM
-                ,PolyplateM a (OneOpM A.SpecType) BaseOpM
-                ,PolyplateM a (OneOpM A.Process) BaseOpM
-                ,PolyplateM a BaseOpM (OneOpM A.Variable)
-                ,PolyplateM a BaseOpM (OneOpM A.Expression)
-                ,PolyplateM a BaseOpM (OneOpM A.SpecType)
-                ,PolyplateM a BaseOpM (OneOpM A.Process)
+    testFail :: (AlloyA a (OneOpM A.Variable) BaseOpM
+                ,AlloyA a (OneOpM A.Expression) BaseOpM
+                ,AlloyA a (OneOpM A.SpecType) BaseOpM
+                ,AlloyA a (OneOpM A.Process) BaseOpM
+                ,AlloyA a BaseOpM (OneOpM A.Variable)
+                ,AlloyA a BaseOpM (OneOpM A.Expression)
+                ,AlloyA a BaseOpM (OneOpM A.SpecType)
+                ,AlloyA a BaseOpM (OneOpM A.Process)
                 ,Show a, Data a) => Int -> a -> Test
     testFail n orig
         = TestCase $ testPassShouldFail ("testOccamTypes " ++ show n)

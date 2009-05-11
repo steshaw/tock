@@ -36,7 +36,7 @@ import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
-import Data.Generics.Polyplate.Route
+import Data.Generics.Alloy.Route
 import Errors
 import FlowAlgorithms
 import FlowGraph
@@ -260,15 +260,15 @@ forAnyParItems = undefined
 
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a.
-  (PolyplateMRoute A.AST (a :-@ BaseOpMRoute) BaseOpMRoute
-  ,PolyplateMRoute a BaseOpMRoute (a :-@ BaseOpMRoute)
+  (AlloyARoute A.AST (a :-@ BaseOpMRoute) BaseOpMRoute
+  ,AlloyARoute a BaseOpMRoute (a :-@ BaseOpMRoute)
   ) =>
     (a -> CheckOptASTM a ()) -> CheckOptM ()
 forAnyASTTopDown origF = CheckOptM $ do
    tr <- get >>* ast
    doTree ops transformMRoute tr
      where
-       ops = baseOpMRoute `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM origF)
+       ops = (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM origF) :-@ baseOpMRoute
 
 forAnyASTStructTopDown :: (forall a. Data a => (A.Structured a -> CheckOptASTM (A.Structured
   a) ())) -> CheckOptM ()
@@ -277,27 +277,26 @@ forAnyASTStructTopDown origF = CheckOptM $ do
    doTree ops transformMRoute tr
   where
     ops
-      = baseOpMRoute
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.ExpressionList -> CheckOptASTM (A.Structured A.ExpressionList) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Choice -> CheckOptASTM (A.Structured A.Choice) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
-        `extOpMRoute` (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
+      = (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Variant -> CheckOptASTM (A.Structured A.Variant) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Process -> CheckOptASTM (A.Structured A.Process) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Option -> CheckOptASTM (A.Structured A.Option) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.ExpressionList -> CheckOptASTM (A.Structured A.ExpressionList) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Choice -> CheckOptASTM (A.Structured A.Choice) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured A.Alternative -> CheckOptASTM (A.Structured A.Alternative) ()))
+        :-@ (makeTopDownMRoute ops $ keepApplying $ deCheckOptASTM (origF :: A.Structured () -> CheckOptASTM (A.Structured ()) ()))
+        :-@ baseOpMRoute
 
-type ExtAcc a b = b :-@ a
+type AccumOps b = b :-@ StructOps
 
-type AccumOps b =
-  BaseOpMRoute
-  `ExtAcc` A.Structured A.Variant
-  `ExtAcc` A.Structured A.Process
-  `ExtAcc` A.Structured A.Option
-  `ExtAcc` A.Structured A.ExpressionList
-  `ExtAcc` A.Structured A.Choice
-  `ExtAcc` A.Structured A.Alternative
-  `ExtAcc` A.Structured ()
-  `ExtAcc` b
+type StructOps =
+      A.Structured A.Variant
+  :-@ A.Structured A.Process
+  :-@ A.Structured A.Option
+  :-@ A.Structured A.ExpressionList
+  :-@ A.Structured A.Choice
+  :-@ A.Structured A.Alternative
+  :-@ A.Structured ()
+  :-@ BaseOpMRoute
 
 type SingleOps b
   = b :-@ BaseOpMRoute
@@ -314,30 +313,30 @@ filterSub r = Map.filterWithKey (\k _ -> not $ r `isPrefixOf` k)
 -- I know the constraints here look horrendous, but it's really just three groups.
 forAnyASTStructBottomUpAccum :: forall b. (Data b,
   -- Allow us to descend into the AST with our full set of ops:
-  PolyplateMRoute A.AST (AccumOps b) BaseOpMRoute,
+  AlloyARoute A.AST (AccumOps b) BaseOpMRoute,
 
   -- Allow us to recurse into each Structured item (and b) with our full set of
   -- ops:
-  PolyplateMRoute (A.Structured A.Variant) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured A.Process) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured A.Option) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured A.ExpressionList) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured A.Choice) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured A.Alternative) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute (A.Structured ()) BaseOpMRoute (AccumOps b),
-  PolyplateMRoute b BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.Variant) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.Process) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.Option) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.ExpressionList) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.Choice) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured A.Alternative) BaseOpMRoute (AccumOps b),
+  AlloyARoute (A.Structured ()) BaseOpMRoute (AccumOps b),
+  AlloyARoute b BaseOpMRoute (AccumOps b),
 
   -- Allow us to descend into each Structured item with just our ops for
   -- b, when our accumulated stuff becomes invalidated
-  PolyplateMRoute (A.Structured A.Variant) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured A.Process) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured A.Option) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured A.ExpressionList) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured A.Choice) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured A.Alternative) (SingleOps b) BaseOpMRoute,
-  PolyplateMRoute (A.Structured ()) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.Variant) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.Process) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.Option) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.ExpressionList) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.Choice) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured A.Alternative) (SingleOps b) BaseOpMRoute,
+  AlloyARoute (A.Structured ()) (SingleOps b) BaseOpMRoute,
   -- For b, we will recurse, not descend:
-  PolyplateMRoute b BaseOpMRoute (SingleOps b)
+  AlloyARoute b BaseOpMRoute (SingleOps b)
 
   ) =>
   (forall a. Data a => (A.Structured a) -> CheckOptASTM' [b] (A.Structured a) ()) -> CheckOptM ()
@@ -349,7 +348,7 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
     ops = applyAccum (undefined::b) allF
 
     keepApplying' ::
-      PolyplateMRoute t (b :-@ BaseOpMRoute)
+      AlloyARoute t (b :-@ BaseOpMRoute)
          BaseOpMRoute
       => ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) (Either t t)) ->
          ((t, Route t A.AST) -> StateT (AccumMap b) (RestartT CheckOptM) t)
@@ -359,12 +358,12 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
                               Left y -> do -- remove all sub-items from state,
                                            -- and then scan the item anew:
                                            modify $ filterSub (routeId $ snd xr)
-                                           transformMRoute (applyAccum (undefined::b) BaseOpMRoute) BaseOpMRoute (y, snd xr)
+                                           transformMRoute (applyAccum (undefined::b) baseOpMRoute) baseOpMRoute (y, snd xr)
                                            keepApplying' f (y, snd xr)
 
     wrap :: forall a. (Data a,
-        PolyplateMRoute (A.Structured a) BaseOpMRoute (AccumOps b)
-        , PolyplateMRoute (A.Structured a) (b :-@ BaseOpMRoute) BaseOpMRoute 
+        AlloyARoute (A.Structured a) BaseOpMRoute (AccumOps b)
+        , AlloyARoute (A.Structured a) (b :-@ BaseOpMRoute) BaseOpMRoute 
       ) => ((A.Structured a, Route (A.Structured a) A.AST, [b]) -> RestartT
       CheckOptM (Either (A.Structured a) (A.Structured a))) -> (A.Structured a, Route (A.Structured
         a) A.AST) -> StateT (AccumMap b) (RestartT
@@ -373,21 +372,21 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
       (routeId y) z))
 
     allF
-      = baseOpMRoute
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
+      = (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Variant) ->
                       CheckOptASTM' [b] (A.Structured A.Variant) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Process) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Process) ->
                       CheckOptASTM' [b] (A.Structured A.Process) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Option) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Option) ->
                       CheckOptASTM' [b] (A.Structured A.Option) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.ExpressionList) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured A.ExpressionList) ->
                       CheckOptASTM' [b] (A.Structured A.ExpressionList) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Choice) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Choice) ->
                       CheckOptASTM' [b] (A.Structured A.Choice) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Alternative) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured A.Alternative) ->
                       CheckOptASTM' [b] (A.Structured A.Alternative) ()))
-        `extOpMRoute` (wrap $ deCheckOptASTM' (origF :: (A.Structured ()) ->
+        :-@ (wrap $ deCheckOptASTM' (origF :: (A.Structured ()) ->
                       CheckOptASTM' [b] (A.Structured ()) ()))
+        :-@ baseOpMRoute
 
 type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
 type TransFuncAcc acc a = (a, Route a A.AST, acc) -> StateT acc (RestartT CheckOptM) (Either a a)
@@ -401,7 +400,7 @@ doTree :: ops ->
            -- This line applies "apply" to the first thing of the right type in
            -- the given AST; from there, ops recurses for itself
 doTree ops trans tr
-      = do x <- deCheckOptM (getRestartT (trans ops BaseOpMRoute (tr, identityRoute) >> return ()))
+      = do x <- deCheckOptM (getRestartT (trans ops baseOpMRoute (tr, identityRoute) >> return ()))
            case x of
              Left _ -> do -- Restart
                tr' <- get >>* ast
@@ -409,7 +408,7 @@ doTree ops trans tr
              Right _ -> return ()
 
 applyAccum :: forall t ops.
-  PolyplateMRoute t BaseOpMRoute (t :-@ ops)
+  AlloyARoute t BaseOpMRoute (t :-@ ops)
   => t -> ops (StateT (AccumMap t) (RestartT CheckOptM)) A.AST -> (t :-@ ops)
     (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
 applyAccum _ ops = ops'
@@ -417,7 +416,7 @@ applyAccum _ ops = ops'
     ops' :: (t :-@ ops) (StateT (AccumMap t) (RestartT CheckOptM)) A.AST
     ops' = accum :-@ ops
 
-    accum xr = do x' <- transformMRoute BaseOpMRoute ops' xr
+    accum xr = do x' <- transformMRoute baseOpMRoute ops' xr
                   modify $ Map.insert (routeId $ snd xr) x'
                   return x'
 

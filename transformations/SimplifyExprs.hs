@@ -323,14 +323,15 @@ transformConstr = pass "Transform array constructors into initialisation code"
 
     doStructured s = return s
 
-type PullUpOps = ExtOpMS BaseOpM
-  `ExtOpMP` A.Process
-  `ExtOpMP` A.Structured A.Expression
-  `ExtOpMP` A.Specification
-  `ExtOpMP` A.LiteralRepr
-  `ExtOpMP` A.Expression
-  `ExtOpMP` A.Variable
-  `ExtOpMP` A.ExpressionList
+type PullUpOps = 
+      A.Process
+  :-* A.Structured A.Expression
+  :-* A.Specification
+  :-* A.LiteralRepr
+  :-* A.Expression
+  :-* A.Variable
+  :-* A.ExpressionList
+  :-* ExtOpMS BaseOpM
 
 -- | Find things that need to be moved up to their enclosing Structured, and do
 -- so.
@@ -341,15 +342,14 @@ pullUp pullUpArraysInsideRecords = pass "Pull up definitions"
   recurse
   where
     ops :: PullUpOps PassM
-    ops = baseOpM
-          `extOpMS` (ops, doStructured)
-          `extOpM` doProcess
-          `extOpM` doRepArray
-          `extOpM` doSpecification
-          `extOpM` doLiteralRepr
-          `extOpM` doExpression
-          `extOpM` doVariable
-          `extOpM` doExpressionList
+    ops =     doProcess
+          :-* doRepArray
+          :-* doSpecification
+          :-* doLiteralRepr
+          :-* doExpression
+          :-* doVariable
+          :-* doExpressionList
+          :-* opMS (ops, doStructured)
     recurse :: RecurseM PassM PullUpOps
     recurse = makeRecurseM ops
     descend :: DescendM PassM PullUpOps

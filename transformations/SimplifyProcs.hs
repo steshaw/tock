@@ -48,12 +48,12 @@ type ForkM = StateT [A.Name] PassM
 type ForkOps = A.Process :-* (ExtOpMS BaseOpM)
 
 -- | Add an extra barrier parameter to every PROC for FORKING
-addForkNames :: PassOnOpsM ForkOps
+addForkNames :: PassOnOps ForkOps
 addForkNames = occamOnlyPass "Add FORK labels" [] []
   (flip evalStateT [] . recurse)
   where
     ops :: ForkOps ForkM
-    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doProcess
+    ops = doProcess :-* opMS (ops, doStructured)
 
     recurse :: RecurseM ForkM ForkOps
     recurse = makeRecurseM ops
@@ -159,8 +159,7 @@ flattenAssign = pass "Flatten assignment"
   [Prop.assignFlattened]
   (makeRecurseM ops)
   where
-    ops = baseOpM `extOpMS` (ops, makeBottomUpM ops doStructured)
-                  `extOpM` makeBottomUpM ops doProcess
+    ops = makeBottomUpM ops doProcess :-* opMS (ops, makeBottomUpM ops doStructured)
 
     doProcess :: A.Process -> PassM A.Process
     doProcess (A.Assign m [v] (A.ExpressionList m' [e]))

@@ -166,7 +166,7 @@ removeInitial
         specVar (A.Specification m n _) = A.Variable m n
 
 -- | Rewrite 'ResultAbbrev' into just 'Abbrev'.
-removeResult :: Polyplate t (OneOp A.AbbrevMode) () => Pass t
+removeResult :: Alloy t (OneOp A.AbbrevMode) BaseOp => Pass t
 removeResult
     = pass "Remove RESULT abbreviations"
            []
@@ -193,26 +193,25 @@ updateAbbrevsInState
 type AbbrevCheckM = StateT [Map.Map Var Bool] PassM
 
 type AbbrevCheckOps
-  = ExtOpMS BaseOpM
-      `ExtOpMP` A.Variable
-      `ExtOpMP` A.Process
-      `ExtOpMP` A.InputItem
+  = A.Variable
+    :-* A.Process
+    :-* A.InputItem
+    :-* ExtOpMS BaseOpM
 
-abbrevCheckPass :: (PolyplateM t AbbrevCheckOps BaseOpM, PolyplateM t BaseOpM AbbrevCheckOps) => Pass t
+abbrevCheckPass :: (AlloyA t AbbrevCheckOps BaseOpM, AlloyA t BaseOpM AbbrevCheckOps) => Pass t
 abbrevCheckPass
     = pass "Abbreviation checking" [] []
            ({-passOnlyOnAST "abbrevCheck" $ -} flip evalStateT [Map.empty] . recurse)
   where
     ops :: AbbrevCheckOps AbbrevCheckM
-    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doVariable
-            `extOpM` doProcess `extOpM` doInputItem
+    ops = doVariable :-* doProcess :-* doInputItem :-* opMS (ops, doStructured)
 
     descend :: DescendM AbbrevCheckM AbbrevCheckOps
     descend = makeDescendM ops
     recurse :: RecurseM AbbrevCheckM AbbrevCheckOps
     recurse = makeRecurseM ops
 
-    pushRecurse :: (PolyplateM a AbbrevCheckOps BaseOpM) => a -> AbbrevCheckM a
+    pushRecurse :: (AlloyA a AbbrevCheckOps BaseOpM) => a -> AbbrevCheckM a
     pushRecurse x = modify (Map.empty:) >> recurse x
     pop :: StateT [Map.Map Var Bool] PassM ()
     pop = modify $ \st -> case st of
@@ -232,8 +231,8 @@ abbrevCheckPass
     -- on an abbreviation if either the RHS *or* the LHS is exempt by a PERMITALIASEs
     -- pragma
 
-    doStructured :: (PolyplateM (A.Structured t) BaseOpM AbbrevCheckOps
-                    ,PolyplateM (A.Structured t) AbbrevCheckOps BaseOpM, Data t) =>
+    doStructured :: (AlloyA (A.Structured t) BaseOpM AbbrevCheckOps
+                    ,AlloyA (A.Structured t) AbbrevCheckOps BaseOpM, Data t) =>
       A.Structured t -> AbbrevCheckM (A.Structured t)
     doStructured s@(A.Spec _ (A.Specification _ n (A.Is _ A.Abbrev _ (A.ActualVariable v))) scope)
       = do nonce <- nameIsNonce n

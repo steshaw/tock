@@ -30,7 +30,7 @@ import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
-import Data.Generics.Polyplate.Route
+import Data.Generics.Alloy.Route
 import Errors
 import FlowAlgorithms
 import FlowGraph
@@ -204,7 +204,7 @@ mobiliseArrays :: PassASTOnStruct
 mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
   where
     ops :: ExtOpMSP BaseOpM
-    ops = baseOpM `extOpMS` (ops, doStructured)
+    ops = opMS (ops, doStructured)
 
     recurse :: RecurseM PassM (ExtOpMS BaseOpM)
     recurse = makeRecurseM ops

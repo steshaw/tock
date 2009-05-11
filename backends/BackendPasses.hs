@@ -22,7 +22,7 @@ module BackendPasses (backendPasses, transformWaitFor, declareSizesArray) where
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Generics (Data)
-import Data.Generics.Polyplate
+import Data.Generics.Alloy
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -99,7 +99,7 @@ removeUnneededDirections
               _ -> diePC m $ formatCode "Direction applied to non-channel type: %" t
     doVariable v = return v
 
-type AllocMobileOps = ExtOpMS BaseOpM `ExtOpMP` A.Process
+type AllocMobileOps = A.Process :-* ExtOpMS BaseOpM
 
 -- | Pulls up any initialisers for mobile allocations.  I think, after all the
 -- other passes have run, the only place these initialisers should be left is in
@@ -108,7 +108,7 @@ pullAllocMobile :: PassOnOps AllocMobileOps
 pullAllocMobile = cOnlyPass "Pull up mobile initialisers" [] [] recurse
   where
     ops :: AllocMobileOps PassM
-    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doProcess
+    ops = doProcess :-* opMS (ops, doStructured)
 
     recurse :: RecurseM PassM AllocMobileOps
     recurse = makeRecurseM ops
@@ -334,7 +334,7 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
             ))
   where
     ops :: DeclSizeOps SizesM
-    ops = baseOpM `extOpMS` (ops, doStructured) `extOpM` doProcess
+    ops = doProcess :-* opMS (ops, doStructured)
 
     recurse :: RecurseM SizesM DeclSizeOps
     recurse = makeRecurseM ops
@@ -424,8 +424,8 @@ declareSizesArray = occamOnlyPass "Declare array-size arrays"
         lit = A.ArrayListLiteral m $ A.Several m $ map (A.Only m) es
         t = A.Array [A.Dimension $ makeConstant m (length es)] A.Int
 
-    doStructured :: (Data a, PolyplateM (A.Structured a) DeclSizeOps BaseOpM
-                           , PolyplateM (A.Structured a) BaseOpM DeclSizeOps)
+    doStructured :: (Data a, AlloyA (A.Structured a) DeclSizeOps BaseOpM
+                           , AlloyA (A.Structured a) BaseOpM DeclSizeOps)
                     => (A.Structured a) -> SizesM (A.Structured a)
     doStructured str@(A.Spec m sp@(A.Specification m' n spec) s)
       = do t <- typeOfSpec spec

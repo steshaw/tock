@@ -24,7 +24,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Generics (Constr, Data)
-import Data.Generics.Polyplate
+import Data.Generics.Alloy
 import Data.List
 import Data.Ord
 import qualified Data.Set as Set
@@ -97,21 +97,19 @@ instance Warn (ReaderT r PassM) where
 -- against AST fragments of other types as well.
 type PassType t = t -> PassM t
 
-type PassOnOpsM ops
-  = (PolyplateM t ops BaseOpM, PolyplateM t BaseOpM ops) => Pass t
-
-type PassOnOps ops = PassOnOpsM ops
+type PassOnOps ops
+  = (AlloyA t ops BaseOpA, AlloyA t BaseOpA ops) => Pass t
 
 type PassASTOnOps ops
-  = (PolyplateM A.AST ops BaseOpM, PolyplateM A.AST BaseOpM ops) => Pass A.AST
+  = (AlloyA A.AST ops BaseOpA, AlloyA A.AST BaseOpA ops) => Pass A.AST
 
 type PassTypeOnOps ops
-  = (PolyplateM t ops BaseOpM, PolyplateM t BaseOpM ops) => PassType t
+  = (AlloyA t ops BaseOpA, AlloyA t BaseOpA ops) => PassType t
 
-type PassOn t = PassOnOps (OneOpM t)
-type PassOn2 s t = PassOnOps (TwoOpM s t)
-type PassOnM2 s t = PassOnOpsM (TwoOpM s t)
-type PassTypeOn t = PassTypeOnOps (OneOpM t)
+type PassOn t = PassOnOps (OneOpA t)
+type PassOn2 s t = PassOnOps (TwoOpA s t)
+type PassTypeOn t = PassTypeOnOps (OneOpA t)
+type PassTypeOn2 s t = PassTypeOnOps (TwoOpA s t)
 
 -- | A description of an AST-mangling pass.
 data Pass t = Pass {

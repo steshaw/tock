@@ -23,7 +23,7 @@ import Data.List
 import System.Environment
 import qualified Data.Set as Set
 
-import Data.Generics.Polyplate.GenInstances
+import Data.Generics.Alloy.GenInstances
 
 import qualified AST
 import qualified CompState
@@ -65,8 +65,8 @@ main = do
       ,""
       ,"import Control.Applicative"
       ,"import Control.Monad"
-      ,"import Data.Generics.Polyplate"
-      ,if isSpine then "" else "import Data.Generics.Polyplate.Route"
+      ,"import Data.Generics.Alloy"
+      ,if isSpine then "" else "import Data.Generics.Alloy.Route"
       ,""
       ,"import Data.Map (Map)"
       ,"import qualified Data.Map as Map"

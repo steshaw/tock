@@ -31,7 +31,7 @@ import qualified Data.Traversable as T
 
 import qualified AST as A
 import CompState
-import Data.Generics.Polyplate.Schemes
+import Data.Generics.Alloy.Schemes
 import Errors
 import FlowGraph
 import Metadata

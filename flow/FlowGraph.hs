@@ -52,7 +52,7 @@ import Data.Maybe
 
 import qualified AST as A
 import CompState
-import Data.Generics.Polyplate.Route
+import Data.Generics.Alloy.Route
 import Metadata
 import FlowUtils
 import Utils

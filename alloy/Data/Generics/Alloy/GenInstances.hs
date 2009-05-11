@@ -35,7 +35,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
 -- > deriving instance Typeable Foo
 -- > deriving instance Data Foo
-module Data.Generics.Polyplate.GenInstances
+module Data.Generics.Alloy.GenInstances
   (GenOverlappedOption(..), GenClassOption(..),
    GenInstance, genInstance, genMapInstance, genSetInstance, genInstances,
    writeInstances, writeInstancesTo) where
@@ -58,7 +58,7 @@ data GenOverlappedOption = GenWithOverlapped | GenWithoutOverlapped
   deriving (Eq)
 
 -- | The option controlling whether the generated instances have one class per
--- type, or just generate instances of the primary Polyplate class.  Having one
+-- type, or just generate instances of the primary Alloy class.  Having one
 -- class per type compiles faster on GHC, but can give less clear error messages
 -- due to the name munging that goes on.
 data GenClassOption
@@ -142,7 +142,7 @@ genMapInstance k v
          (\(funcSameType, funcNewType) -> concat [
            [funcSameType b ++ " _ ops (v, r) = let mns = zip (Map.toList v) (map ((r @->) . routeDataMap) [0..]) in"
            ,"  " ++ funcPlain b ++ " Map.fromList " ++ funcAp b
-             ++ " (" ++ funcTraverse b ++ " (" ++ funcNewType b ++ " ops BaseOpMRoute) mns)"
+             ++ " (" ++ funcTraverse b ++ " (" ++ funcNewType b ++ " ops BaseOpARoute) mns)"
            ]
            | b <- [True, False]])
          ))
@@ -163,7 +163,7 @@ genSetInstance x
          (\(funcSameType, funcNewType) -> concat [
            [funcSameType b ++ " _ ops (v, r) = let sns = zip (Set.toList v) (map ((r @->) . routeDataSet) [0..]) in"
            ,"  " ++ funcPlain b ++ " Set.fromList " ++ funcAp b
-             ++ " (" ++ funcTraverse b ++ " (" ++ funcNewType b ++ " ops BaseOpMRoute) sns)"
+             ++ " (" ++ funcTraverse b ++ " (" ++ funcNewType b ++ " ops BaseOpARoute) sns)"
            ] | b <- [True, False]])
 
         ))
@@ -172,9 +172,9 @@ genSetInstance x
     s = undefined
 
     
--- Explanation of Polyplate's instances:
+-- Explanation of Alloy's instances:
 --
--- Polyplate is a type-class system for automatically applying generic transformations
+-- Alloy is a type-class system for automatically applying generic transformations
 -- to the first instance of a specific type in a large data structure.
 --
 -- A set of operations is represented as a tuple list, e.g.
@@ -183,7 +183,7 @@ genSetInstance x
 --
 -- The unit type is the list terminator.
 --
--- The Polyplate class takes four parameters:
+-- The Alloy class takes four parameters:
 --
 -- * The first is the type currently being processed.
 --
@@ -198,7 +198,7 @@ genSetInstance x
 -- 
 -- * The "exact match" instance.  These are of the form:
 -- 
--- > instance Monad m => PolyplateM a (a -> m a, r) ops m where
+-- > instance Monad m => AlloyA a (a -> m a, r) ops m where
 -- >   transformM (f,_) _ v = f v
 -- 
 -- This just applies the transformation directly, as you can see, ignoring the
@@ -211,10 +211,10 @@ genSetInstance x
 -- This is of the form:
 -- 
 -- > instance (Monad m,
--- >           PolyplateM Bar (f,ops) () m,
--- >           PolyplateM Baz (f,ops) () m,
--- >           PolyplateM Quux (f,ops) () m) =>
--- >         PolyplateM Foo () (f, ops) m where
+-- >           AlloyA Bar (f,ops) () m,
+-- >           AlloyA Baz (f,ops) () m,
+-- >           AlloyA Quux (f,ops) () m) =>
+-- >         AlloyA Foo () (f, ops) m where
 -- >  transformM () ops (ConstrBar a0)
 -- >    = do r0 <- transformM ops () a0
 -- >         return (ConstrBar r0)
@@ -234,8 +234,8 @@ genSetInstance x
 --
 -- * The "can contain" instance.  This is of the form:
 --
--- > instance (Monad m, PolyplateM t r (a -> m a, ops) m) =>
--- >         PolyplateM t (a -> m a, r) ops m where
+-- > instance (Monad m, AlloyA t r (a -> m a, ops) m) =>
+-- >         AlloyA t (a -> m a, r) ops m where
 -- >  transformM (f, rest) ops v = transformM rest (f, ops) v
 --
 -- Here, the type being considered, t, /can/ contain the type referred to by the
@@ -245,8 +245,8 @@ genSetInstance x
 --
 -- * The "cannot contain" instance.  This is of the form:
 --
--- > instance (Monad m, PolyplateM t r ops m) =>
--- >         PolyplateM t (a -> m a, r) ops m where
+-- > instance (Monad m, AlloyA t r ops m) =>
+-- >         AlloyA t (a -> m a, r) ops m where
 -- >  transformM (_, rest) ops v = transformM rest ops v
 --
 -- This instance is based on the logic that if we have worked out that a big type
@@ -262,7 +262,7 @@ genSetInstance x
 
 
 -- | Instances for a particular data type (i.e. where that data type is the
--- first argument to 'Polyplate').
+-- first argument to 'Alloy').
 instancesFrom :: forall t. Data t => GenOverlappedOption -> GenClassOption -> [Witness] -> t -> IO [String]
 instancesFrom genOverlapped genClass boxes w
     = do (specialProcessChildren, containedTypes) <-
@@ -302,11 +302,11 @@ instancesFrom genOverlapped genClass boxes w
     -- the right-hand ops, and a list of lines for the body of the class, generates
     -- an instance.
     --
-    -- For GenOneClass this will be an instance of PolyplateM.
+    -- For GenOneClass this will be an instance of AlloyA.
     --
-    -- For GenClassPerType this will be an instance of PolyplateMFoo (or whatever)
+    -- For GenClassPerType this will be an instance of AlloyAFoo (or whatever)
     --
-    -- For GenSlowDelegate this will be an instance of PolyplateM', with the first
+    -- For GenSlowDelegate this will be an instance of AlloyA', with the first
     -- and last arguments swapped.
     genInst :: [String] -> String -> String -> [String] -> [String]
     genInst context ops0 ops1 body
@@ -318,17 +318,17 @@ instancesFrom genOverlapped genClass boxes w
     -- sets.  The class name will be the same as genInst.
     contextSameType :: String -> String -> String
     contextSameType ops0 ops1 = case genClass of
-      GenOneClass -> "PolyplateMRoute (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1
-      GenClassPerType -> "PolyplateMRoute" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1
-      GenSlowDelegate -> "PolyplateMRoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ")"
+      GenOneClass -> "AlloyARoute (" ++ wName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenClassPerType -> "AlloyARoute" ++ wMunged ++" " ++ ops0 ++ " " ++ ops1
+      GenSlowDelegate -> "AlloyARoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ wName ++ ")"
 
     -- Generates the name of an instance for a different type (for processing children).
-    --  This will be PolyplateM or PolyplateM'.
+    --  This will be AlloyA or AlloyA'.
     contextNewType :: String -> String -> String -> String
     contextNewType cName ops0 ops1 = case genClass of
-      GenOneClass -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
-      GenClassPerType -> "PolyplateMRoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
-      GenSlowDelegate -> "PolyplateMRoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
+      GenOneClass -> "AlloyARoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenClassPerType -> "AlloyARoute (" ++ cName ++ ") " ++ ops0 ++ " " ++ ops1
+      GenSlowDelegate -> "AlloyARoute' " ++ ops0 ++ " " ++ ops1 ++ " (" ++ cName ++ ")"
       
 
     -- The function to define in the body, and also to use for processing the same
@@ -356,7 +356,7 @@ instancesFrom genOverlapped genClass boxes w
     baseInst :: Maybe ([DataBox], (Bool -> String, Bool -> String) -> [String]) -> [String]
     baseInst mdoChildren
         = concat
-          [genInst context "BaseOpMRoute" "(f :-@ ops)" $
+          [genInst context "BaseOpARoute" "(f :-@ ops)" $
               maybe
                 (concat
                 [if isAlgType wDType
@@ -366,7 +366,7 @@ instancesFrom genOverlapped genClass boxes w
                     else [funcSameType b ++ " _ _ (v, _) = " ++ funcPlain b ++ " v"]
                 | b <- [True, False]])
                 (\(_,f) -> f (funcSameType, funcNewType)) mdoChildren
-          ,genInst [] "BaseOpMRoute" "BaseOpMRoute"
+          ,genInst [] "BaseOpARoute" "BaseOpARoute"
              [funcSameType b ++ " _ _ (v, _) = " ++ funcPlain b ++ " v" | b <- [True, False]]
           ,if genOverlapped == GenWithoutOverlapped then [] else
             genInst
@@ -375,14 +375,14 @@ instancesFrom genOverlapped genClass boxes w
                 [funcSameType b ++ " (_ :-@ rest) ops vr = " ++ funcSameType b ++ " rest ops vr"
                 | b <- [True, False]]
           ,if genClass == GenClassPerType
-             then ["class PolyplateMRoute" ++ wMunged ++ " o o' where"
+             then ["class AlloyARoute" ++ wMunged ++ " o o' where"
                   ,"  " ++ funcSameType True ++ " :: Monad m => o m outer -> o' m outer -> (" ++ wName
                     ++ ", Route (" ++ wName ++ ") outer) -> m (" ++ wName ++ ")"
                   ,"  " ++ funcSameType False ++ " :: Applicative a => o a outer -> o' a outer -> (" ++ wName
                     ++ ", Route (" ++ wName ++ ") outer) -> a (" ++ wName ++ ")"
                   ,""
                   ,"instance (" ++ contextSameType "o0" "o1" ++ ") =>"
-                  ,"         PolyplateMRoute (" ++ wName ++ ") o0 o1 where"
+                  ,"         AlloyARoute (" ++ wName ++ ") o0 o1 where"
                   ,"  transformMRoute = " ++ funcSameType True
                   ,"  transformARoute = " ++ funcSameType False
                   ]
@@ -390,11 +390,11 @@ instancesFrom genOverlapped genClass boxes w
           ]
       where
         -- | Class context for 'baseInst'.
-        -- We need an instance of Polyplate for each of the types directly contained within
+        -- We need an instance of Alloy for each of the types directly contained within
         -- this type, so we can recurse into them.
         context :: [String]
         context
-          = [ contextNewType argType "(f :-@ ops)" "BaseOpMRoute"
+          = [ contextNewType argType "(f :-@ ops)" "BaseOpARoute"
             | argType <- nub $ sort $ concatMap ctrArgTypes $
                 maybe (map ctrArgs wCtrs) ((:[]) . fst) mdoChildren]
 
@@ -407,7 +407,7 @@ instancesFrom genOverlapped genClass boxes w
             " (" ++ ctrInput ++ " , " ++ (if argNums == [] then "_" else "rt") ++ ")"
           , "    = " ++ funcPlain b ++ " " ++ ctrName
           ] ++
-          [ " " ++ funcAp b ++ " (" ++ funcNewType b ++ " ops BaseOpMRoute (a" ++ show i
+          [ " " ++ funcAp b ++ " (" ++ funcNewType b ++ " ops BaseOpARoute (a" ++ show i
                         ++ ", rt @-> makeRoute [" ++ show i ++ "] "
                         ++ "(\\f (" ++ ctrMod ++ ") -> f b" ++ show i
                         ++ " >>= (\\b" ++ show i ++ " -> return (" ++ ctrMod ++ ")))))"
@@ -455,8 +455,8 @@ instancesFrom genOverlapped genClass boxes w
           | otherwise = (False,[],[])
 
 -- | Generates all the given instances (eliminating any duplicates)
--- with the given options.  The return is a pair of a list of instances of PolyplateMRoute,
--- and a list of instances of PolyplateSpine
+-- with the given options.  The return is a pair of a list of instances of AlloyARoute,
+-- and a list of instances of AlloySpine
 genInstances :: GenOverlappedOption -> GenClassOption -> [GenInstance] ->
   IO [String]
 genInstances op1 op2 insts

@@ -49,14 +49,14 @@ ok = return ()
 -- This is actually a series of smaller passes that check particular types
 -- inside the AST, but it doesn't really make sense to split it up.
 checkTypes ::
- (PolyplateM t (OneOpM A.Variable) BaseOpM
- ,PolyplateM t (OneOpM A.Expression) BaseOpM
- ,PolyplateM t (OneOpM A.SpecType) BaseOpM
- ,PolyplateM t (OneOpM A.Process) BaseOpM
- ,PolyplateM t BaseOpM (OneOpM A.Variable)
- ,PolyplateM t BaseOpM (OneOpM A.Expression)
- ,PolyplateM t BaseOpM (OneOpM A.SpecType)
- ,PolyplateM t BaseOpM (OneOpM A.Process)
+ (AlloyA t (OneOpM A.Variable) BaseOpM
+ ,AlloyA t (OneOpM A.Expression) BaseOpM
+ ,AlloyA t (OneOpM A.SpecType) BaseOpM
+ ,AlloyA t (OneOpM A.Process) BaseOpM
+ ,AlloyA t BaseOpM (OneOpM A.Variable)
+ ,AlloyA t BaseOpM (OneOpM A.Expression)
+ ,AlloyA t BaseOpM (OneOpM A.SpecType)
+ ,AlloyA t BaseOpM (OneOpM A.Process)
  ) => Pass t
 checkTypes = occamOnlyPass "Check types"
   [Prop.inferredTypesRecorded, Prop.ambiguitiesResolved]

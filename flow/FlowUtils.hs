@@ -25,7 +25,7 @@ import Data.Generics (Data, Typeable)
 import Data.Graph.Inductive hiding (run)
 
 import qualified AST as A
-import Data.Generics.Polyplate.Route
+import Data.Generics.Alloy.Route
 import Metadata
 import TreeUtils
 import Utils

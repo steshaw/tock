@@ -35,7 +35,7 @@ import Test.QuickCheck
 
 import qualified AST as A
 import CompState
-import Data.Generics.Polyplate.Route
+import Data.Generics.Alloy.Route
 import FlowGraph
 import Metadata
 import PrettyShow
