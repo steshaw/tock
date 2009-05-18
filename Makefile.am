@@ -12,6 +12,21 @@ GHC_OPTS = \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
 	\
+	-hide-all-packages \
+	-package array \
+	-package base \
+	-package containers \
+	-package directory \
+	-package fgl \
+	-package HUnit \
+	-package mtl \
+	-package parsec \
+	-package pretty \
+	-package process \
+	-package QuickCheck \
+	-package random \
+	-package regex-compat \
+	\
 	-ibackends \
 	-ichecks \
 	-icommon \

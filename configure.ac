@@ -63,11 +63,17 @@ AC_DEFUN([AC_NEED_HASKELL_LIB],
   fi
 ])
 
+AC_NEED_HASKELL_LIB([array],LIB_array)
+AC_NEED_HASKELL_LIB([containers],LIB_containers)
+AC_NEED_HASKELL_LIB([directory],LIB_directory)
 AC_NEED_HASKELL_LIB([mtl],LIB_mtl)
 AC_NEED_HASKELL_LIB([HUnit],LIB_hunit)
 AC_NEED_HASKELL_LIB([parsec],LIB_parsec)
+AC_NEED_HASKELL_LIB([pretty],LIB_pretty)
 AC_NEED_HASKELL_LIB([fgl],LIB_fgl)
+AC_NEED_HASKELL_LIB([process],LIB_process)
 AC_NEED_HASKELL_LIB([QuickCheck],LIB_quickcheck)
+AC_NEED_HASKELL_LIB([random],LIB_random)
 AC_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
 AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
 AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
