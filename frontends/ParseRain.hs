@@ -24,7 +24,7 @@ import Control.Monad.State (MonadState, liftIO, get, put)
 import Data.Generics (Data)
 import Data.List
 import Data.Maybe
-import qualified IO
+import qualified System.IO as IO
 import Text.ParserCombinators.Parsec
 
 import qualified AST as A

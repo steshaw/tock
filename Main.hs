@@ -25,13 +25,13 @@ import Control.Monad.State
 import Control.Monad.Writer
 import Data.Either
 import Data.Generics (Data)
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
-import List
-import System
 import System.Console.GetOpt
 import System.Directory
+import System.Environment
 import System.Exit
 import System.IO
 import System.Process
