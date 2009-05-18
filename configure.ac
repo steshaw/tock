@@ -64,6 +64,7 @@ AC_DEFUN([AC_NEED_HASKELL_LIB],
 ])
 
 AC_NEED_HASKELL_LIB([array],LIB_array)
+AC_NEED_HASKELL_LIB([base],LIB_base)
 AC_NEED_HASKELL_LIB([containers],LIB_containers)
 AC_NEED_HASKELL_LIB([directory],LIB_directory)
 AC_NEED_HASKELL_LIB([mtl],LIB_mtl)
@@ -77,6 +78,24 @@ AC_NEED_HASKELL_LIB([random],LIB_random)
 AC_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
 AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
 AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
+
+AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
+[
+  AC_MSG_CHECKING([for $1 library, major version $2])
+  $3=`ghc-pkg list $1 | grep $1 | grep -oE "$1-$2[[.0-9]]+" | tail -n 1`
+  if test "x$$3" = "x"; then
+    AC_MSG_ERROR([$1-$2* not found])
+  else
+    AC_MSG_RESULT([$$3])
+  fi
+])
+
+#GHC 6.10 and later have base-3 and base-4.  For now, we're sticking with
+#base-3, but we need to know the exact version to tell GHC.  We filter
+#for base-3, and take the last one (since ghc-pkg lists them in ascending order)
+AC_PICK_HASKELL_LIB_VER([base],[3],[LIB_VER_base])
+#For now, we need QuickCheck 1:
+AC_PICK_HASKELL_LIB_VER([QuickCheck],[1],[LIB_VER_quickcheck])
 
 PKG_CHECK_MODULES(CCSP, ccsp-1.6 >= 1.6.3,,
 	AC_MSG_WARN([CCSP not located using pkg-config; you will not be able to compile output from the C backend on this machine: ] $CCSP_PKG_ERRORS)
@@ -264,6 +283,8 @@ AC_SUBST(TOCK_CXXLDFLAGS)
 AC_SUBST(ccsp_available)
 AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
+AC_SUBST(LIB_VER_base)
+AC_SUBST(LIB_VER_quickcheck)
 
 AC_CONFIG_FILES([Makefile config/TypeSizes.hs config/CompilerCommands.hs])
 AC_OUTPUT

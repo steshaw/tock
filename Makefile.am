@@ -14,7 +14,7 @@ GHC_OPTS = \
 	\
 	-hide-all-packages \
 	-package array \
-	-package base \
+	-package @LIB_VER_base@ \
 	-package containers \
 	-package directory \
 	-package fgl \
@@ -23,7 +23,7 @@ GHC_OPTS = \
 	-package parsec \
 	-package pretty \
 	-package process \
-	-package QuickCheck \
+	-package @LIB_VER_quickcheck@ \
 	-package random \
 	-package regex-compat \
 	\
