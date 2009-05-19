@@ -201,6 +201,7 @@ subscriptType sub A.Infer
     = return $ A.Infer
 subscriptType sub t@(A.UserDataType _)
     = resolveUserType (findMeta sub) t >>= subscriptType sub
+subscriptType sub (A.Mobile t) = subscriptType sub t
 subscriptType (A.SubscriptFromFor m _ _ count) (A.Array (_:ds) t)
     = return $ A.Array (dimensionFromExpr count : ds) t
 subscriptType (A.SubscriptFrom m _ base) (A.Array (d:ds) t)

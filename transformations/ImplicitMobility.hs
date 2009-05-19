@@ -306,10 +306,11 @@ inferDeref = pass "Infer mobile dereferences" [] [] recurse
 
     doProcess :: Transform A.Process
     doProcess (A.ProcCall m n as)
-      = do A.Proc _ _ fs _ <- specTypeOfName n
+      = do as' <- recurse as
+           A.Proc _ _ fs _ <- specTypeOfName n
            ts <- mapM astTypeOf fs
-           as' <- mapM (uncurry $ unify m) (zip ts as)
-           return $ A.ProcCall m n as'
+           as'' <- mapM (uncurry $ unify m) (zip ts as')
+           return $ A.ProcCall m n as''
     doProcess (A.IntrinsicProcCall m n as)
       = do let Just amtns = lookup n intrinsicProcs
            as' <- mapM (uncurry $ unify m) (zip (map mid amtns) as)
