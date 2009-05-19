@@ -143,7 +143,7 @@ optDefine s ps = return $ ps { csDefinitions = Map.insert name
   ( case filter (null . snd) $ reads (safeTail val) of
       ((n::Integer, _) : _)   -> PreprocInt $ show n
       [] | null val  -> PreprocNothing
-         | otherwise -> PreprocString $ safeTail val
+         | otherwise -> PreprocString $ "\"" ++ safeTail val ++ "\""
   )
   (csDefinitions ps) }  
   where
