@@ -140,14 +140,17 @@ optSearchPath s ps = return $ ps { csSearchPath = csSearchPath ps ++ splitOnColo
 
 optDefine :: String -> OptFunc
 optDefine s ps = return $ ps { csDefinitions = Map.insert name
-  ( case filter (null . snd) $ reads val of
-      ((n, _) : _)  -> PreprocInt n
-      _ | null val  -> PreprocNothing
-        | otherwise -> PreprocString val
+  ( case filter (null . snd) $ reads (safeTail val) of
+      ((n::Integer, _) : _)   -> PreprocInt $ show n
+      [] | null val  -> PreprocNothing
+         | otherwise -> PreprocString $ safeTail val
   )
   (csDefinitions ps) }  
   where
     (name, val) = span (/= '=') s
+    safeTail :: [a] -> [a]
+    safeTail [] = []
+    safeTail (_:xs) = xs
 
 optImplicitModule :: String -> OptFunc
 optImplicitModule s ps = return $ ps { csImplicitModules = csImplicitModules ps ++ [s] }
@@ -241,6 +244,8 @@ main = do
   case res of
     Left str -> putStrLn str
     Right initState -> do
+      when (csVerboseLevel initState >= 3) $
+         liftIO $ hPutStrLn stderr $ "Initial state with args: " ++ show initState
       let operation = case csMode initState of
             ModePostC -> useOutputOptions (postCAnalyse fn) >> return ()
             ModeFull -> evalStateT (unwrapFilesPassM $ compileFull fn fileStem) []
