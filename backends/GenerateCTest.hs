@@ -31,7 +31,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- do a similar trick.
 module GenerateCTest (tests) where
 
-import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Monad.Writer hiding (tell)
@@ -186,11 +185,11 @@ testBothSame a b c = testBothSameS a b c (return ())
   
 -- | These functions are here for a historical reason, and are all defined
 -- to be call.
-tcall, tcall2, tcall3, tcall4, tcall5 :: CGenCall a => (GenOps -> a) -> a
+tcall, tcall2, tcall3, _tcall4, tcall5 :: CGenCall a => (GenOps -> a) -> a
 tcall = call
 tcall2 = call
 tcall3 = call
-tcall4 = call
+_tcall4 = call
 tcall5 = call
 
 type Override = CGen () -> CGen ()
@@ -1191,9 +1190,8 @@ testOutput = TestList
    state = do defineName chan $ simpleDefDecl "c" (A.Chan (A.ChanAttributes A.Unshared A.Unshared) $ A.UserProtocol foo)
               defineName chanOut $ simpleDefDecl "cOut" (A.ChanEnd A.DirOutput A.Unshared $ A.UserProtocol foo)
               defineName foo $ simpleDef "foo" $ A.ProtocolCase emptyMeta [(simpleName "bar", [])]
-   overOutput, overOutputItem, over :: Override
+   overOutput, over :: Override
    overOutput = local $ \ops -> ops {genOutput = override2 caret}
-   overOutputItem = local $ \ops -> ops {genOutputItem = override3 caret}
    over = local $ \ops -> ops {genBytesIn = override3 caret}
 
 testBytesIn :: Test

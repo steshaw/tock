@@ -23,7 +23,6 @@ import Control.Monad.State
 import Data.Generics (Data)
 import qualified Data.Map as Map
 import Data.Maybe
-import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState

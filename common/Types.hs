@@ -57,7 +57,6 @@ import Metadata
 import Operators
 import PrettyShow
 import ShowCode
-import Traversal
 import TypeSizes
 import Utils
 

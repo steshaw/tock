@@ -27,7 +27,6 @@ import Data.Maybe
 
 import qualified AST as A
 import CompState
-import Errors
 import ImplicitMobility
 import Metadata
 import Pass

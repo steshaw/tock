@@ -19,7 +19,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module UsageCheckAlgorithms (checkPar, findConstraints, findReachDef, joinCheckParFunctions) where
 
 import Control.Monad
-import Data.Generics (Data)
 import Data.Graph.Inductive
 import Data.List
 import qualified Data.Map as Map

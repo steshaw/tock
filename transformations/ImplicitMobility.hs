@@ -20,7 +20,6 @@ module ImplicitMobility (implicitMobility, mobiliseArrays, inferDeref) where
 
 import Control.Monad
 import Control.Monad.Trans
-import Data.Generics (Data)
 import Data.Graph.Inductive
 import Data.Graph.Inductive.Query.DFS
 import qualified Data.Map as Map
@@ -48,27 +47,6 @@ effectDecision :: Var -> Decision -> AlterAST PassM () -> A.AST -> PassM A.AST
 effectDecision _ Move _ = return -- Move is the default
 effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper alterProc
   where
-    derefExp :: A.Expression -> PassM A.Expression
-    derefExp e
-      = do t <- astTypeOf e
-           {-case t of
-             A.Mobile (A.List _) -> return ()
-             A.List _ -> return ()
-             _ -> dieP (findMeta e) $
-               "Cannot dereference a non-list assignment RHS: " ++ show t -}
-           case e of
-             A.ExprVariable m' v ->
-               if (Var v == targetVar)
-                 then return $ A.CloneMobile m' $ A.ExprVariable m' v
-                 else return e
-             -- TODO handle concat expressions with repeated vars
-             {-
-             A.Dyadic m A.Concat lhs rhs ->
-               do lhs' <- derefExp lhs
-                  rhs' <- derefExp rhs
-                  return $ A.Dyadic m A.Concat lhs' rhs'
-             -}
-             _ -> return e
     alterProc :: A.Process -> PassM A.Process
     alterProc (A.Assign m lhs (A.ExpressionList m' [e]))
       = return $ A.Assign m lhs $ A.ExpressionList m' [A.CloneMobile m' e]

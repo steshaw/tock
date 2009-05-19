@@ -23,16 +23,13 @@ module SimplifyTypes (
   ) where
 
 import Control.Monad.State
-import qualified Data.Traversable as T
 
 import qualified AST as A
-import CompState
 import Metadata
 import Pass
 import qualified Properties as Prop
 import Traversal
 import Types
-import Utils
 
 simplifyTypes :: [Pass A.AST]
 simplifyTypes

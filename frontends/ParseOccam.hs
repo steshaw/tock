@@ -20,7 +20,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module ParseOccam (parseOccamProgram) where
 
 import Control.Monad (join, liftM, when)
-import Control.Monad.State (MonadState, modify, get, put)
+import Control.Monad.State (MonadState, get, put)
 import Data.Char
 import Data.List
 import qualified Data.Map as Map
@@ -147,24 +147,19 @@ sSemi = reserved ";"
 --}}}
 --{{{ keywords
 
-sAFTER, sALT, sAND, sANY, sAT, sBITAND, sBITNOT, sBITOR, sBOOL, sBYTE,
-  sBYTESIN, sCASE, sCHAN, sCLAIM, sCLONE, sDATA, sDEFINED, sELSE, sFALSE,
-  sFOR, sFORK, sFORKING, sFROM, sFUNCTION, sIF, sINLINE, sIN, sINITIAL, sINT,
-  sINT16, sINT32, sINT64, sIS, sMINUS, sMOBILE, sMOSTNEG, sMOSTPOS, sNOT, sOF,
-  sOFFSETOF, sOR, sPACKED, sPAR, sPLACE, sPLACED, sPLUS, sPORT, sPRI, sPROC,
-  sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD, sREC_RECURSIVE, sREM,
-  sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSHARED, sSIZE, sSKIP, sSTEP,
-  sSTOP, sTIMER, sTIMES, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE,
+sAFTER, sALT, sANY, sAT, sBOOL, sBYTE, sBYTESIN, sCASE, sCHAN, sCLAIM, sCLONE,
+  sDATA, sDEFINED, sELSE, sFALSE, sFOR, sFORK, sFORKING, sFROM, sFUNCTION,
+  sIF, sINLINE, sIN, sINITIAL, sINT, sINT16, sINT32, sINT64, sIS, sMOBILE,
+  sMOSTNEG, sMOSTPOS, sOF, sOFFSETOF, sPACKED, sPAR, sPLACE, sPLACED, sPORT,
+  sPRI, sPROC, sPROCESSOR, sPROTOCOL, sREAL32, sREAL64, sRECORD,
+  sREC_RECURSIVE, sRESHAPES, sRESULT, sRETYPES, sROUND, sSEQ, sSHARED, sSIZE,
+  sSKIP, sSTEP, sSTOP, sTIMER, sTRUE, sTRUNC, sTYPE, sVAL, sVALOF, sWHILE,
   sWORKSPACE, sVECSPACE :: OccParser ()
 
 sAFTER = reserved "AFTER"
 sALT = reserved "ALT"
-sAND = reserved "AND"
 sANY = reserved "ANY"
 sAT = reserved "AT"
-sBITAND = reserved "BITAND"
-sBITNOT = reserved "BITNOT"
-sBITOR = reserved "BITOR"
 sBOOL = reserved "BOOL"
 sBYTE = reserved "BYTE"
 sBYTESIN = reserved "BYTESIN"
@@ -190,19 +185,15 @@ sINT16 = reserved "INT16"
 sINT32 = reserved "INT32"
 sINT64 = reserved "INT64"
 sIS = reserved "IS"
-sMINUS = reserved "MINUS"
 sMOBILE = reserved "MOBILE"
 sMOSTNEG = reserved "MOSTNEG"
 sMOSTPOS = reserved "MOSTPOS"
-sNOT = reserved "NOT"
 sOF = reserved "OF"
 sOFFSETOF = reserved "OFFSETOF"
-sOR = reserved "OR"
 sPACKED = reserved "PACKED"
 sPAR = reserved "PAR"
 sPLACE = reserved "PLACE"
 sPLACED = reserved "PLACED"
-sPLUS = reserved "PLUS"
 sPORT = reserved "PORT"
 sPRI = reserved "PRI"
 sPROC = reserved "PROC"
@@ -212,7 +203,6 @@ sREAL32 = reserved "REAL32"
 sREAL64 = reserved "REAL64"
 sREC_RECURSIVE = reserved "REC" <|> reserved "RECURSIVE"
 sRECORD = reserved "RECORD"
-sREM = reserved "REM"
 sRESHAPES = reserved "RESHAPES"
 sRESULT = reserved "RESULT"
 sRETYPES = reserved "RETYPES"
@@ -224,7 +214,6 @@ sSKIP = reserved "SKIP"
 sSTEP = reserved "STEP"
 sSTOP = reserved "STOP"
 sTIMER = reserved "TIMER"
-sTIMES = reserved "TIMES"
 sTRUE = reserved "TRUE"
 sTRUNC = reserved "TRUNC"
 sTYPE = reserved "TYPE"
@@ -281,8 +270,8 @@ tryXVV a b c = try (do { a; bv <- b; cv <- c; return (bv, cv) })
 tryVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser a
 tryVXX a b c = try (do { av <- a; b; c; return av })
 
-tryVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser (a, c)
-tryVXV a b c = try (do { av <- a; b; cv <- c; return (av, cv) })
+_tryVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser (a, c)
+_tryVXV a b c = try (do { av <- a; b; cv <- c; return (av, cv) })
 
 tryVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser (a, b)
 tryVVX a b c = try (do { av <- a; bv <- b; c; return (av, bv) })
@@ -293,17 +282,17 @@ tryXXX a b c = try (do { a; b; c; return () })
 tryXVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (b, d)
 tryXVXV a b c d = try (do { a; bv <- b; c; dv <- d; return (bv, dv) })
 
-tryXVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (b, c)
-tryXVVX a b c d = try (do { a; bv <- b; cv <- c; d; return (bv, cv) })
+_tryXVVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (b, c)
+_tryXVVX a b c d = try (do { a; bv <- b; cv <- c; d; return (bv, cv) })
 
-tryVXXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, d)
-tryVXXV a b c d = try (do { av <- a; b; c; dv <- d; return (av, dv) })
+_tryVXXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, d)
+_tryVXXV a b c d = try (do { av <- a; b; c; dv <- d; return (av, dv) })
 
 tryVXVX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, c)
 tryVXVX a b c d = try (do { av <- a; b; cv <- c; d; return (av, cv) })
 
-tryVVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b)
-tryVVXX a b c d = try (do { av <- a; bv <- b; c; d; return (av, bv) })
+_tryVVXX :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b)
+_tryVVXX a b c d = try (do { av <- a; bv <- b; c; d; return (av, bv) })
 
 tryVVXV :: OccParser a -> OccParser b -> OccParser c -> OccParser d -> OccParser (a, b, d)
 tryVVXV a b c d = try (do { av <- a; bv <- b; c; dv <- d; return (av, bv, dv) })
@@ -530,8 +519,8 @@ recordName = name RecordName
 timerName = name TimerName
 variableName = name VariableName
 
-newChannelName, newChanBundleName, newDataTypeName, newFunctionName, newPortName,
-  newProcName, newProtocolName, newRecordName, newTimerName, newUDOName,
+newChannelName, newChanBundleName, newDataTypeName, newFunctionName, _newPortName,
+  newProcName, newProtocolName, newRecordName, _newTimerName, newUDOName,
   newVariableName
     :: OccParser A.Name
 
@@ -539,11 +528,11 @@ newChannelName = newName ChannelName
 newChanBundleName = newName ChanBundleName
 newDataTypeName = newName DataTypeName
 newFunctionName = newName FunctionName
-newPortName = newName PortName
+_newPortName = newName PortName
 newProcName = newName ProcName
 newProtocolName = newName ProtocolName
 newRecordName = newName RecordName
-newTimerName = newName TimerName
+_newTimerName = newName TimerName
 newVariableName = newName VariableName
 
 newUDOName = do m <- md

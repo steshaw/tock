@@ -100,9 +100,9 @@ genInstance = GenInstance . findTypesIn
 data Witness
   = Plain { witness :: DataBox }
     | Detailed { witness :: DataBox
-               , directlyContains :: [DataBox]
+               , _directlyContains :: [DataBox]
                -- First is funcSameType, second is funcNewType:
-               , processChildrenMod :: (Bool -> String, Bool -> String) -> [String]
+               , _processChildrenMod :: (Bool -> String, Bool -> String) -> [String]
                }
 
 -- The Eq instance is based on the inner type.
@@ -518,10 +518,6 @@ findTypesIn start = doType start
             = sequence_ [doType x' | DataBox x' <- args]
           where
             args = gmapQ DataBox (asTypeOf (fromConstr ctr) x)
-
--- | Reduce a 'TypeMap' to only the types in a particular module.
-filterModule :: String -> TypeMap -> TypeMap
-filterModule prefix = Map.filter (((prefix ++ ".") `isPrefixOf`) . fst)
 
 -- | Reduce a 'TypeMap' to a list of 'Witness'es, sorted by name.
 justBoxes :: TypeMap -> [Witness]

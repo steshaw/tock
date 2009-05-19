@@ -31,7 +31,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- language based on the 'csFrontend' in 'CompState', it is inside the CSM monad.
 module PrettyShow (pshow) where
 
-import Control.Monad.State
 import Data.Generics
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -41,7 +40,6 @@ import qualified AST as A
 import CompState hiding (CSM) -- everything here is read-only
 import Metadata
 import Pattern
-import ShowCode
 
 -- This is ugly -- but it looks like you can't easily define a generic function
 -- even for a single tuple type, since it has to parameterise over multiple Data

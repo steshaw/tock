@@ -26,7 +26,6 @@ import Test.HUnit hiding (State)
 import CompState
 import qualified AST as A
 import Metadata
-import Pass
 import Pattern
 import SimplifyAbbrevs
 import TagAST

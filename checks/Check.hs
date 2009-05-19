@@ -22,7 +22,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- the control-flow graph means that we only need to concentrate on each node that isn't nested.
 module Check (checkInitVarPass, usageCheckPass, checkUnusedVar) where
 
-import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Trans
 import Data.Generics (Data)
@@ -178,7 +177,7 @@ addBK mp mp2 g nid n
           -- no information about A even if the branch is taken).  We do know that
           -- if the branch is not taken, A cannot be true, but that's dealt with
           -- because a negated OR ends up as an AND, see above.
-          | fn == bop "OR" = let f = liftM deAnd . g in
+          | fn == bop "OR" = 
               do lhs' <- g lhs >>* deAnd
                  rhs' <- g rhs >>* deAnd
                  return $ And $ map (\(x,y) -> x `mappend` y) $ product2 (lhs', rhs')
@@ -302,8 +301,8 @@ filterPlain' Everything = return Everything
 filterPlain' (NormalSet s) = filterPlain >>* flip Set.filter s >>* NormalSet
 
 data VarsBK = VarsBK {
-  readVarsBK :: Map.Map Var BK
-  ,writtenVarsBK :: Map.Map Var ([A.Expression], BK)
+  _readVarsBK :: Map.Map Var BK
+  ,_writtenVarsBK :: Map.Map Var ([A.Expression], BK)
 }
 
 -- | Unions all the maps into one, with possible BK for read, and possible BK for written.

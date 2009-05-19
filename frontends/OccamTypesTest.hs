@@ -29,7 +29,6 @@ import qualified AST as A
 import CompState
 import Metadata
 import qualified OccamCheckTypes as OccamTypes
-import Pass
 import TestHarness
 import TestUtils
 import Traversal

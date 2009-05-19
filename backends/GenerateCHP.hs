@@ -49,8 +49,6 @@ import System.IO
 import Text.Printf
 
 import qualified AST as A
-import CompState
-import Errors
 import EvalLiterals
 import Metadata
 import Pass
@@ -93,7 +91,7 @@ genName n = let unders = [if c == '.' then '_' else c | c <- A.nameName n] in
     then tell ["_",unders]
     else tell [unders]
 
-
+genMissing :: String -> CGen ()
 genMissing = flip genMissing' ()
 
 genMissing' :: Data a => String -> a -> CGen()

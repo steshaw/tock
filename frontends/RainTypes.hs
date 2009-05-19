@@ -59,8 +59,6 @@ startState = RainTypeState {
 
 type RainTypeM = StateT RainTypeState PassM
 
-type RainTypePassType = forall t. t -> StateT RainTypeState PassM t
-
 type RainTypeCheckOn a = forall t. AlloyA t (OneOpM a) BaseOpM
   => t -> RainTypeM ()
 

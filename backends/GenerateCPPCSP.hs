@@ -32,7 +32,6 @@ module GenerateCPPCSP (cppcspPrereq, cppgenOps, generateCPPCSP, genCPPCSPPasses)
 
 import Control.Monad.State
 import Data.Char
-import Data.Generics (Data)
 import Data.List
 import Data.Maybe
 import qualified Data.Set as Set
@@ -373,23 +372,11 @@ cppgenOutputItem _ chan item
                      genPoint v
                      tell ["));"]
 
-byteArrayChan :: A.Type -> Bool
-byteArrayChan (A.Chan _ (A.UserProtocol _)) = True
-byteArrayChan (A.Chan _ A.Any) = True
-byteArrayChan (A.Chan _ (A.Counted _ _)) = True
-byteArrayChan (A.ChanEnd _ _ (A.UserProtocol _)) = True
-byteArrayChan (A.ChanEnd _ _ A.Any) = True
-byteArrayChan (A.ChanEnd _ _ (A.Counted _ _)) = True
-byteArrayChan _ = False
-
 genPoint :: A.Variable -> CGen()
 genPoint v = do t <- astTypeOf v
                 when (not $ isPoint t) $ tell ["&"]
                 call genVariable v A.Original
-genNonPoint :: A.Variable -> CGen()
-genNonPoint v = do t <- astTypeOf v
-                   when (isPoint t) $ tell ["*"]
-                   call genVariable v A.Original
+
 isPoint :: A.Type -> Bool
 isPoint (A.Record _) = True
 isPoint (A.Array _ _) = True

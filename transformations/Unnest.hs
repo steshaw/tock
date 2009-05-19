@@ -19,19 +19,16 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | Flatten nested declarations.
 module Unnest (unnest, removeNesting) where
 
-import Control.Monad.Identity
 import Control.Monad.State
 import Data.Generics (Data)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Tree
 
 import qualified AST as A
 import CompState
 import Errors
 import EvalConstants
-import Metadata
 import Pass
 import qualified Properties as Prop
 import Traversal
@@ -54,9 +51,6 @@ type FreeNameOps = A.SpecType :-* A.Name :-* ExtOpMS BaseOpM
 freeNamesIn :: AlloyA t FreeNameOps BaseOpM => t -> NameMap
 freeNamesIn = flip execState Map.empty . recurse
   where
-    flattenTree :: Tree (Maybe NameMap) -> NameMap
-    flattenTree = foldl Map.union Map.empty . catMaybes . flatten
-    
     ops :: FreeNameOps FreeNameM
     ops = doSpecType :-* doName :-* opMS (ops, doStructured)
 
@@ -65,9 +59,6 @@ freeNamesIn = flip execState Map.empty . recurse
     descend :: DescendA FreeNameM FreeNameOps
     descend = makeDescendM ops
     
-    ignore :: t -> NameMap
-    ignore s = Map.empty
-
     doName :: A.Name -> FreeNameM A.Name
     doName n = modify (Map.insert (A.nameName n) n) >> return n
 

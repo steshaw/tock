@@ -22,7 +22,6 @@ import Control.Monad.Error
 import Control.Monad.Reader
 import Data.Graph.Inductive
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Prelude hiding (fail)
 import Test.HUnit
 
@@ -36,9 +35,7 @@ import OccamEDSL
 import TestFramework
 import TestUtils hiding (Var)
 import Types
-import UsageCheckAlgorithms
 import UsageCheckUtils
-import Utils
 
 
 --Shorthands for some variables to simplify the list of tests in this file
@@ -132,8 +129,8 @@ type TestM = ReaderT CompState (Either String)
 instance Warn TestM where
   warnReport (_,_,s) = throwError s
 
-buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph TestM UsageLabel
-buildTestFlowGraph ns es start end v
+_buildTestFlowGraph :: [(Int, [Var], [Var])] -> [(Int, Int, EdgeLabel)] -> Int -> Int -> String -> FlowGraph TestM UsageLabel
+_buildTestFlowGraph ns es start end v
   = mkGraph
       ([(-1,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeIn False v) Nothing
         emptyVars),(-2,makeTestNode emptyMeta $ Usage Nothing (Just $ ScopeOut v) Nothing

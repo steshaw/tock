@@ -20,11 +20,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module Main (main) where
 
 import Control.Monad.Error
-import Control.Monad.Identity
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Either
-import Data.Generics (Data)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -41,7 +39,6 @@ import qualified AST as A
 import CompilerCommands
 import CompState
 import Errors
-import FlowGraph
 import GenerateC
 import GenerateCHP
 import GenerateCPPCSP

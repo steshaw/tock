@@ -24,7 +24,6 @@ module GenTagAST where
 
 import Data.Char
 import Data.Generics
-import Data.List (intersperse)
 
 import PregenUtils
 import Utils

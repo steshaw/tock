@@ -74,19 +74,6 @@ inTypeContext ctx body
 noTypeContext :: InferTypeM a -> InferTypeM a
 noTypeContext = inTypeContext Nothing
 
--- | Run an operation in the type context that results from subscripting
--- the current type context.
--- If the current type context is 'Nothing', the resulting one will be too.
-inSubscriptedContext :: Meta -> InferTypeM a -> InferTypeM a
-inSubscriptedContext m body
-    =  do ctx <- getTypeContext
-          subCtx <- case ctx of
-                      Just t@(A.Array _ _) ->
-                        trivialSubscriptType m t >>* Just
-                      Just t -> diePC m $ formatCode "Attempting to subscript non-array type %" t
-                      Nothing -> return Nothing
-          inTypeContext subCtx body
-
 --}}}
 
 addDirections :: PassOn2 A.Process A.Alternative

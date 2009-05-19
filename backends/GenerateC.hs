@@ -125,6 +125,7 @@ cgenOps = GenOps {
     genOutputItem = cgenOutputItem,
     genOverArray = cgenOverArray,
     genPar = cgenPar,
+    genPoison = error "genPoison",
     genProcCall = cgenProcCall,
     genProcess = cgenProcess,
     genRecordTypeSpec = cgenRecordTypeSpec,
@@ -1825,8 +1826,6 @@ cgenAssign m [vA, vB] (A.AllocChannelBundle _ n)
          tell ["="]
          call genVariable' vA A.Original (const $ Pointer $ Plain "mt_cb_t")
          tell [";"]
-  where
-    el e = A.ExpressionList m [e]
 cgenAssign m _ _ = call genMissing "Cannot perform assignment with multiple destinations or multiple sources"
 
 isPOD :: A.Type -> Bool
@@ -2132,7 +2131,8 @@ cgenProcCall n as
                               (A.Proc _ _ fs _) <- specTypeOfName n
                               when (length fs /= length as) $
                                 dieP (A.nameMeta n) "Mismatched number of arguments to external call"
-                              let inbetween = tell ["),(int)("] >> return (return ())
+                              let inbetween :: CGen (CGen ())
+                                  inbetween = tell ["),(int)("] >> return (return ())
                               afters <- flip evalStateT 0 $ sequence
                                 $ intersperse (lift inbetween)
                                 $ map (uncurry $ genExternalActual (inbetween >> return ()))

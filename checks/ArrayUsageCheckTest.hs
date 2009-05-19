@@ -149,13 +149,13 @@ negateVars = map (transformPair id negate)
 n ** var = map (transformPair id (* n)) var
 con :: Integer -> [(Int,Integer)]
 con c = [(0,c)]
-i,j,k,m,n,p :: [(Int, Integer)]
+i,j,k,m,n,_p :: [(Int, Integer)]
 i = [(1,1)]
 j = [(2,1)]
 k = [(3,1)]
 m = [(4,1)]
 n = [(5,1)]
-p = [(6,1)]
+_p = [(6,1)]
 
 -- Turns a list like [(i,3),(j,4)] into proper answers
 answers :: [([(Int, Integer)],Integer)] -> Map.Map CoeffIndex Integer
@@ -483,11 +483,6 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
             makeParItems [Map.fromList [(UsageCheckUtils.Var $ variable "i",
               [RepBoundsIncl (variable "i") repFrom (subOneInt $ addExprsInt repFrom repFor)])]] exprs) upperBound)
   
-    pairLatterTwo (l,a,b,c) = (l,a,(b,c))
-
-    joinMapping :: [VarMap] -> ([HandyEq],[HandyIneq]) -> [(VarMap,[HandyEq],[HandyIneq])]
-    joinMapping vms (eq,ineq) = map (\vm -> (vm,eq,ineq)) vms
-  
     i_mapping :: VarMap
     i_mapping = Map.singleton (Scale 1 $ (exprVariable "i",0)) 1
     ij_mapping :: VarMap
@@ -509,10 +504,6 @@ testMakeEquations = TestLabel "testMakeEquations" $ TestList
 
     rep_i_mapping :: VarMap
     rep_i_mapping = Map.fromList [((Scale 1 (exprVariable "i",0)),1), ((Scale 1 (exprVariable "i",1)),2)]
-    rep_i_mapping' :: VarMap
-    rep_i_mapping' = Map.fromList [((Scale 1 (exprVariable "i",0)),2), ((Scale 1 (exprVariable "i",1)),1)]
-
-    both_rep_i = joinMapping [rep_i_mapping, rep_i_mapping']
     
     rep_i_mod_mapping :: Integer -> VarMap
     rep_i_mod_mapping n = Map.fromList [((Scale 1 (exprVariable "i",0)),1), ((Scale 1 (exprVariable "i",1)),2)
@@ -552,6 +543,7 @@ instance Show MakeEquationInput where
   show = const ""
 
 instance Arbitrary MakeEquationInput where
+  coarbitrary = error "coarbitrary"
   arbitrary = generateEquationInput >>* MEI
 
 frequency' :: [(Int, StateT s Gen a)] -> StateT s Gen a
@@ -938,9 +930,6 @@ assertEquivalentProblems title exp act
     showLabel :: (A.Expression, [ModuloCase]) -> String
     showLabel = showPairCustom showOccam show
   
-    showFunc :: (Int, [(EqualityProblem, InequalityProblem)]) -> String
-    showFunc = showPairCustom show $ showListCustom $ showProblem
-  
     fst3 :: (a,b,c) -> a
     fst3 (a,_,_) = a
   
@@ -968,13 +957,6 @@ assertEquivalentProblems title exp act
 
         resize :: [Array CoeffIndex Integer] -> [Array CoeffIndex Integer]
         resize = map (makeArraySize (0, size) 0)
-
-  
-        
-    pairPairs (xa,ya) (xb,yb) = ((xa,xb), (ya,yb))
-    
-    sortProblem :: [(EqualityProblem, InequalityProblem)] -> [(EqualityProblem, InequalityProblem)]
-    sortProblem = sort
 
 -- QuickCheck tests for Omega Test:
 -- The idea is to begin with a random list of integers, representing answers.
@@ -1072,6 +1054,7 @@ generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>=
     makeAns = Map.fromList
 
 instance Arbitrary OmegaTestInput where
+  coarbitrary = error "coarbitrary"
   arbitrary = generateProblem >>* OMI
 
 qcOmegaEquality :: [LabelledQuickCheckTest]
@@ -1157,6 +1140,7 @@ normaliseEquality eq = case listToMaybe $ filter (/= 0) $ elems eq of
 newtype OmegaPruneInput = OPI MutatedProblem deriving (Show)
 
 instance Arbitrary OmegaPruneInput where
+  coarbitrary = error "coarbitrary"
   arbitrary = ((generateProblem >>* snd)  >>= (return . snd) >>= mutateEquations) >>* OPI
 
 qcOmegaPrune :: [LabelledQuickCheckTest]

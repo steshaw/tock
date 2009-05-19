@@ -135,8 +135,6 @@ module Data.Generics.Alloy (AlloyARoute(..), AlloyA(..), Alloy(..),
 
 import Control.Applicative
 import Control.Monad.Identity
-import Data.Maybe
-import Data.Tree
 
 import Data.Generics.Alloy.Route
 

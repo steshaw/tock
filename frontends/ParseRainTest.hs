@@ -35,6 +35,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- and then turn these into Patterns where any Meta tag that is "m" is ignored during the comparison.
 module ParseRainTest (tests) where
 
+import Test.HUnit
+
+{-
 import Data.Generics (Data)
 import Prelude hiding (fail)
 import Test.HUnit
@@ -137,7 +140,6 @@ emptyBlock = A.Seq m emptySeveral
 --subExpr' ::= exprItem | monadicArithOp subExpr' | "(" expression ")"
 
 
-{-
 testExprs :: [ParseTest A.Expression]
 testExprs =
  [
@@ -784,11 +786,11 @@ tests = TestLabel "ParseRainTest" $ TestList
 -- functions
 -- typedefs
 
-
+{-
   where
     parseTest :: Show a => ParseTest a -> Test
     parseTest (ExpPass test) = TestCase (testParsePass test)
     parseTest (ExpFail test) = TestCase (testParseFail test)
     parseTests :: Show a => [ParseTest a] -> Test
     parseTests tests = TestList (map parseTest tests)
-
+-}

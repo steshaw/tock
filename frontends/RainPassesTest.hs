@@ -31,7 +31,7 @@ module RainPassesTest (tests) where
 
 import Control.Monad.State
 import Control.Monad.Identity
-import Data.Generics (Data, Typeable)
+import Data.Generics (Typeable)
 import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
@@ -219,7 +219,7 @@ testUnique4 = TestCase $ testPassWithItemsStateCheck "testUnique4" exp uniquifyA
 
 --Easy way to string two passes together; creates a pass-like function that applies the left-hand pass then the right-hand pass.  Associative.
 (>>>) :: Pass t -> Pass t -> Pass t
-(>>>) f0 f1 = Pass {passCode = passCode f1 <.< passCode f0}
+(>>>) f0 f1 = f0 {passCode = passCode f1 <.< passCode f0}
 
 --Normally, process names in Rain are not mangled.  And this should be fine in all cases - but not for the main process (which would
 --result in a function called main.  Therefore we must mangle main.  Ideally into a nonce, but for now into ____main

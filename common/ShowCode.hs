@@ -40,7 +40,6 @@ import Control.Monad.Writer
 import Data.Generics (Data, gshow)
 import Data.List
 import qualified Data.Map as Map
-import Text.PrettyPrint.HughesPJ hiding (space, colon, semi)
 import Text.Regex
 
 import qualified AST as A
@@ -305,9 +304,6 @@ instance ShowRain A.Type where
     = case dir of
         A.DirInput -> tell [if attr == A.Shared then "shared" else "", " ?"] >> showRainM t
         A.DirOutput -> tell [if attr == A.Shared then "shared" else "", " !"] >> showRainM t
-    where
-      ao :: Bool -> String
-      ao b = if b then "any" else "one"  
   showRainM A.Time = tell ["time"]
   -- Mobility is not explicit in Rain, but we should indicate it:
   showRainM (A.Mobile t) = tell ["<mobile>"] >> showRainM t

@@ -31,7 +31,6 @@ import qualified Data.Set as Set
 
 import qualified AST as A
 import CompState
-import Errors
 import Metadata
 import OrdAST()
 import Pass

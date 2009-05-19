@@ -558,6 +558,7 @@ enforceSize1 f = sized $ \n -> if n == 0 then resize 1 f else f
 
 -- | An instance of Arbitrary for A.Structured that wraps the "genStructured" function.
 instance Arbitrary (QC (A.Process, Map.Map [Meta] A.Process)) where
+  coarbitrary = error "coarbitrary"
   arbitrary = enforceSize1 $ sized $ \n -> evalStateT (genProcess n) (Id 0) >>* findEmpty >>* QC
     where
       -- Copies the value for the empty-list key into the first element of the tuple:

@@ -26,9 +26,7 @@ module EvalConstants
 
 import Control.Monad.Error
 import Control.Monad.State
-import Data.Bits
 import Data.Char
-import Data.Int
 import Data.Maybe
 import Foreign
 import Numeric

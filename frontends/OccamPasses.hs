@@ -21,7 +21,6 @@ module OccamPasses (occamPasses, foldConstants, checkConstants, CheckConstantsOp
 -- The ops are exported to make testing easier
 
 import Control.Monad.State
-import Data.Generics (Data)
 import Data.List
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as F

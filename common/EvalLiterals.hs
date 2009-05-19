@@ -20,7 +20,6 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 module EvalLiterals where
 
 import Control.Monad.Error
-import Control.Monad.Identity
 import Control.Monad.State
 import Data.Char
 import Data.Generics (Data, Typeable)

@@ -22,7 +22,6 @@ module BackendPasses (backendPasses, transformWaitFor, declareSizesArray) where
 import Control.Monad.Error
 import Control.Monad.State
 import Data.Generics (Data)
-import Data.Generics.Alloy
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -33,7 +32,6 @@ import Errors
 import EvalConstants
 import Metadata
 import Pass
-import PrettyShow
 import qualified Properties as Prop
 import ShowCode
 import Traversal

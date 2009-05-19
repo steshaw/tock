@@ -21,7 +21,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | A module with tests for various miscellaneous things in the common directory.
 module CommonTest (tests) where
 
-import Data.Generics (Constr, Data, Typeable)
+import Data.Generics (Constr, Data)
 import Test.HUnit hiding (State)
 
 import qualified AST as A
@@ -120,9 +120,6 @@ testDecomp = TestList
  where
    doTest :: (Eq a, Show a) => Int -> Maybe a -> Maybe a -> Test
    doTest n exp act = TestCase $ assertEqual ("testDecomp " ++ show n) exp act
-
-data NotPartOfAST = NotPartOfAST Int
-  deriving (Show, Typeable, Data)
 
 --Returns the list of tests:
 tests :: Test

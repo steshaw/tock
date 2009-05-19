@@ -31,7 +31,6 @@ import Data.Graph.Inductive hiding (apply)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Set as Set
 
 import qualified AST as A
@@ -46,9 +45,6 @@ import Pass
 import Traversal
 import UsageCheckUtils
 import Utils
-
--- Temp:
-todo = error "TODO"
 
 -- Each data analysis only works on a connected sub-graph.  For forward data flow
 -- this begins at the root node (the one with no predecessors, and thus is the
@@ -253,11 +249,6 @@ getFlowMeta = CheckOptFlowM $
        Nothing -> return emptyMeta
        Just l -> return $ getNodeMeta l
 
-
-
-forAnyParItems :: (ParItems a -> CheckOptM ()) -> CheckOptM ()
-forAnyParItems = undefined
-
 -- | This function currently only supports one type
 forAnyASTTopDown :: forall a.
   (AlloyARoute A.AST (a :-@ BaseOpMRoute) BaseOpMRoute
@@ -388,10 +379,6 @@ forAnyASTStructBottomUpAccum origF = CheckOptM $ do
                       CheckOptASTM' [b] (A.Structured ()) ()))
         :-@ baseOpMRoute
 
-type TransFunc a = (a, Route a A.AST) -> RestartT CheckOptM (Either a a)
-type TransFuncAcc acc a = (a, Route a A.AST, acc) -> StateT acc (RestartT CheckOptM) (Either a a)
-type TransFuncS acc b a = (a, Route a b) -> StateT acc (RestartT CheckOptM) a
-
 -- | Given a TypeSet, a function to apply to everything of type a, a route
 -- location to begin at and an AST, transforms the tree.  Handles any restarts
 -- that are requested.
@@ -460,12 +447,6 @@ runChecksPass c = pass "<Check>" [] [] (runChecks c)
 
 --getParItems :: CheckOptM (ParItems ())
 --getParItems = CheckOptM (\d -> Right (d, fromMaybe (generateParItems $ ast d) (parItems d)))
-
-getParItems' :: CheckOptASTM t (ParItems ())
-getParItems' = todo
-
-generateParItems :: A.AST -> ParItems ()
-generateParItems = todo
 
 -- | Performs the given action for the given child.  [0] is the first argument
 -- of the current node's constructor, [2,1] is the second argument of the constructor

@@ -19,30 +19,28 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- | A module testing things from the RainTypes module.
 module RainTypesTest (vioTests) where
 
-import Control.Monad.State
-import Control.Monad.Error
+--import Control.Monad.Error
 import Control.Monad.Writer
-import Data.Generics (Data)
-import qualified Data.Map as Map
+--import Data.Generics (Data)
+--import qualified Data.Map as Map
 import Test.HUnit hiding (State)
 
-import qualified AST as A
-import CompState
-import Errors
-import Metadata
-import Pass
-import Pattern
-import RainTypes
-import TagAST
-import TestHarness
-import TestUtils
-import TreeUtils
-import Types
-import TypeUnification
-import Utils
 
-m :: Meta
-m = emptyMeta
+--import qualified AST as A
+import CompState
+--import Errors
+--import Metadata
+--import Pass
+--import Pattern
+--import RainTypes
+--import TagAST
+import TestHarness
+--import TestUtils
+--import TreeUtils
+--import Types
+--import TypeUnification
+--import Utils
+
 
 -- | Tests that constants in expressions are folded properly.  TODO these tests could do with a lot of expanding.
 -- It may even be easiest to use QuickCheck for the testing.
@@ -57,7 +55,7 @@ constantFoldTest = TestList [] {-
   ,foldCon 102 (lit (- two63)) (Dy (lit $ two63 - 1) A.Plus (lit 1))
   
   ,foldCon 110 (Dy (Var "x") A.Plus (lit 2)) (Dy (Var "x") A.Plus (Dy (lit 1) A.Plus (lit 1)))
- ] -}
+ ]
  where
    two63 :: Integer
    two63 = 9223372036854775808
@@ -73,7 +71,7 @@ constantFoldTest = TestList [] {-
 
    lit :: Integer -> ExprHelper
    lit n = Lit $ int64Literal n
-
+-}
 testUnify :: Test
 testUnify = TestList [] {-
  [pass [] [] []

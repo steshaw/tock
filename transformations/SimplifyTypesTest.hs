@@ -25,17 +25,9 @@ import Test.HUnit hiding (State)
 
 import CompState
 import qualified AST as A
-import Metadata
-import Pass
-import Pattern
 import SimplifyTypes
-import TagAST
 import TestUtils
 import Traversal
-import TreeUtils
-
-m :: Meta
-m = emptyMeta
 
 setupState :: State CompState ()
 setupState

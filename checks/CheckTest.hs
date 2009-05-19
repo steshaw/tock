@@ -25,7 +25,6 @@ import qualified AST as A
 import Check
 import CheckFramework
 import CompState
-import Metadata
 import OccamEDSL
 import TestHarness
 import TestUtils

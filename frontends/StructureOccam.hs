@@ -22,7 +22,6 @@ module StructureOccam (structureOccam) where
 import Errors
 import LexOccam
 import Metadata
-import Pass
 
 -- | Reserved words that, if found at the end of a line, indicate the next
 -- line is a continuation.
