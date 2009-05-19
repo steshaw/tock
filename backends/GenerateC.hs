@@ -701,7 +701,8 @@ cgenVariableWithAM checkValid v am fct
        ct <- call getCType m t am >>* fct
        -- Temporary, for debugging:
        -- tell ["/* ", show (snd iv), " , trying to get: ", show ct, " */"]
-       dressUp m iv ct
+       vtext <- showCode v
+       dressUp (m, "for variable: " ++ vtext) iv ct
   where
     m = findMeta v
 
@@ -724,13 +725,15 @@ cgenVariableWithAM checkValid v am fct
                   return (do tell ["("]
                              cast
                              tell ["(("]
-                             dressUp m (cg, ct) (Pointer $ Plain "mt_array_t")
+                             vtext <- showCode v
+                             dressUp (m, "for variable: " ++ vtext) (cg, ct) (Pointer $ Plain "mt_array_t")
                              tell [")->data))"]
                          , Pointer $ innerCT)
              _ -> inner v
     inner wholeV@(A.DirectedVariable m dir v)
       = do (cg, ctInner) <- inner v
-           let cg' = dressUp m (cg, ctInner) (stripPointers ctInner)
+           vtext <- showCode v
+           let cg' = dressUp (m, "for variable: " ++ vtext) (cg, ctInner) (stripPointers ctInner)
            t <- astTypeOf v
            wholeT <- astTypeOf wholeV
            ct <- call getCType m wholeT A.Original

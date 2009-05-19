@@ -319,7 +319,7 @@ closeEnough _ _ = False
 
 -- Given some code to generate, and its type, and the type that you actually want,
 -- adds the required decorators.  Only pass it simplified types!
-dressUp :: Meta -> (CGen (), CType) -> CType -> CGen ()
+dressUp :: (Meta, String) -> (CGen (), CType) -> CType -> CGen ()
 dressUp _ (gen, t) t' | t `closeEnough` t' = gen
 --Every line after here is not close enough, so we know equality fails:
 dressUp m (gen, Pointer t) (Pointer t')
@@ -332,8 +332,8 @@ dressUp m (gen, t) (Pointer t')
   = dressUp m (tell ["&"] >> gen, t) t'
 dressUp m (gen, Pointer t) t'
   = dressUp m (tell ["*"] >> gen, t) t'
-dressUp m (gen, t) t'
-  = dieP m $ "Types cannot be brought together: " ++ show t ++ " and " ++ show t'
+dressUp (m, s) (gen, t) t'
+  = dieP m $ "Types cannot be brought together (" ++ s ++ "): " ++ show t ++ " and " ++ show t'
 
 genType :: A.Type -> CGen ()
 genType t = do ct <- call getCType emptyMeta t A.Original
