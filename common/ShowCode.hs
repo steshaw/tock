@@ -546,6 +546,7 @@ instance ShowOccam A.Specification where
     = do item <- currentContext
          (showOccamLine (return (item ++ " ") >> showName n >> showOccamM rep))
            -- TODO handle the indent
+  showOccamM s = tell ["Missing case: ", show s]
 
   
 showProtocolItem :: (A.Name, [A.Type]) -> CodeWriter ()
