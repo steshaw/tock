@@ -260,6 +260,7 @@ implicitMobility
               printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
+-- This leaves alone proc parameters for now
 mobiliseArrays :: PassASTOnStruct
 mobiliseArrays = pass "Make all arrays mobile" [] [] recurse
   where
@@ -366,14 +367,19 @@ instance Dereferenceable A.Actual where
   deref m (A.ActualVariable v) = fmap A.ActualVariable $ deref m v
   deref m (A.ActualExpression e) = fmap A.ActualExpression $ deref m e
 
-inferDeref :: PassOn2 A.Process A.Variable
+type InferDerefOps = A.Process :-* A.Variable :-* A.Expression :-* A.SpecType :-* BaseOpM
+
+-- We mainly need this wherever we may have non-mobile arrays, such as proc calls,
+-- and record literals and so on
+inferDeref :: PassOnOps InferDerefOps
 inferDeref = pass "Infer mobile dereferences" [] [] recurse
   where
-    ops = doProcess :-* doVariable :-* baseOpM
+    ops :: InferDerefOps PassM
+    ops = doProcess :-* doVariable :-* doExpression :-* doSpec :-* baseOpM
 
-    recurse :: RecurseM PassM (TwoOpM A.Process A.Variable)
+    recurse :: RecurseM PassM InferDerefOps
     recurse = makeRecurseM ops
-    descend :: DescendM PassM (TwoOpM A.Process A.Variable)
+    descend :: DescendM PassM InferDerefOps
     descend = makeDescendM ops
 
     unify :: (Dereferenceable a, ASTTypeable a, ShowOccam a, ShowRain a) => Meta
@@ -394,11 +400,56 @@ inferDeref = pass "Infer mobile dereferences" [] [] recurse
            as'' <- mapM (uncurry $ unify m) (zip ts as')
            return $ A.ProcCall m n as''
     doProcess (A.IntrinsicProcCall m n as)
-      = do let Just amtns = lookup n intrinsicProcs
-           as' <- mapM (uncurry $ unify m) (zip (map mid amtns) as)
-           return $ A.IntrinsicProcCall m n as'
+      = do as' <- recurse as
+           let Just amtns = lookup n intrinsicProcs
+           as'' <- mapM (uncurry $ unify m) (zip (map mid amtns) as')
+           return $ A.IntrinsicProcCall m n as''
       where mid (_,y,_) = y
+    doProcess (A.Output m c ois)
+      = do ts <- protocolItems m c >>* either id (concatMap snd)
+           sequence [ case oi of
+                        A.OutExpression m' e -> (recurse e >>= revUnify t) >>* A.OutExpression m'
+                        _ -> descend oi
+                    | (oi, t) <- zip ois ts] >>* A.Output m c
     doProcess p = descend p
+
+    revUnify :: A.Type -> A.Expression -> PassM A.Expression
+    revUnify (A.Mobile innerT) e
+      = do t <- astTypeOf e
+           case t of
+             A.Mobile {} -> return e
+             _ -> return $ A.AllocMobile (findMeta e) (A.Mobile innerT) (Just e)
+    revUnify _ e = return e
+
+    doSpec :: Transform A.SpecType
+    doSpec (A.Function a b ts d (Just (Left el)))
+      = do el' <- recurse el >>= transformOnly (\m -> liftM (A.Only m) . doEL)
+           return $ A.Function a b ts d (Just $ Left el')
+      where
+        doEL :: Transform A.ExpressionList
+        doEL (A.ExpressionList m es)
+          = mapM (uncurry $ unify m) (zip ts es) >>* A.ExpressionList m
+        doEL el = descend el
+    doSpec s = descend s
+    
+
+    doExpression :: Transform A.Expression
+    doExpression (A.FunctionCall m n as)
+      = do as' <- recurse as
+           A.Function _ _ _ fs _ <- specTypeOfName n
+           ts <- mapM astTypeOf fs
+           as'' <- mapM (uncurry $ unify m) (zip ts as')
+           return $ A.FunctionCall m n as''
+    doExpression (A.IntrinsicFunctionCall m n as)
+      = do as' <- recurse as
+           let Just amtns = fmap snd $ lookup n intrinsicFunctions
+           as'' <- mapM (uncurry $ unify m) (zip (map fst amtns) as')
+           return $ A.IntrinsicFunctionCall m n as''
+      where mid (_,y,_) = y
+    doExpression (A.Literal m t@(A.Record n) (A.RecordLiteral m' es))
+      = do ts <- recordFields m t >>* map snd
+           mapM (uncurry $ unify m) (zip ts es) >>* (A.Literal m t . A.RecordLiteral m')
+    doExpression e = descend e
 
     doVariable :: Transform A.Variable
     doVariable all@(A.SubscriptedVariable m sub v)
