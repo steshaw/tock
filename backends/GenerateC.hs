@@ -312,7 +312,11 @@ genRightB = tell ["}"]
 -- | Map an operation over every item of an occam array.
 cgenOverArray :: Meta -> A.Variable -> (SubscripterFunction -> Maybe (CGen ())) -> CGen ()
 cgenOverArray m var func
-    =  do A.Array ds _ <- astTypeOf var
+    =  do vart <- astTypeOf var
+          ds <- case vart of
+                  A.Array ds _ -> return ds
+                  A.Mobile (A.Array ds _) -> return ds
+                  _ -> diePC m $ formatCode "genOverArray called on non-array type %" vart
           specs <- sequence [csmLift $ makeNonceVariable "i" m A.Int A.Original | _ <- ds]
           let indices = [A.Variable m n | A.Specification _ n _ <- specs]
 
