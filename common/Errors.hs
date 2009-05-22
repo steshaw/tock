@@ -39,6 +39,9 @@ instance Error ErrorReport where
 class Monad m => Die m where
   dieReport :: ErrorReport -> m a
 
+instance Die (Either ErrorReport) where
+  dieReport = throwError
+
 -- | Fail, giving a position and an error message.
 dieP :: Die m => Meta -> String -> m a
 dieP m s = dieReport (Just m,s)

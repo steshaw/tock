@@ -18,10 +18,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 module ImplicitMobility (implicitMobility, mobiliseArrays, inferDeref) where
 
-import Control.Monad
+import Control.Arrow
+import Control.Monad.Error
+import Control.Monad.State
 import Control.Monad.Trans
 import Data.Graph.Inductive
 import Data.Graph.Inductive.Query.DFS
+import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -84,6 +87,76 @@ calculateUsedAgainAfter g startNode
         in (readFromVars `Set.union` addTo) `Set.difference` Map.keysSet writtenToVars
       Nothing -> error "Node label not found in calculateUsedAgainAfter"
 
+type UsedParM = StateT (Set.Set Node) (Either ErrorReport)
+
+instance Die UsedParM where
+  dieReport = lift . dieReport
+
+type NodeToVars = Map.Map Node (Map.Map Var Int)
+
+--TODO prevent going round in circles forever!
+calculateUsedInParallel :: Monad m => FlowGraph m UsageLabel -> [Node] -> Node -> Either
+  ErrorReport NodeToVars
+calculateUsedInParallel g roots startNode
+  = flip evalStateT Set.empty $ liftM combine $ mapM proceedSeq (roots `intersect` rdfs [startNode] g)
+  where
+    combine :: [NodeToVars] -> NodeToVars
+    combine = foldl (Map.unionWith (Map.unionWith (+))) Map.empty
+    add :: NodeToVars -> NodeToVars -> NodeToVars
+    add = Map.unionWith (Map.unionWith (+))
+
+    isESeq :: EdgeLabel -> Bool
+    isESeq (ESeq {}) = True
+    isESeq _ = False
+
+    nodeData :: Node -> Bool -> NodeToVars
+    nodeData n rep = maybe Map.empty (Map.singleton n . flip setToMap x) $
+      fmap (readVars . nodeVars . getNodeData) $ lab g n
+      where
+        x :: Int
+        x = if rep then 2 else 1
+
+    isRep :: Node -> Bool
+    isRep = isJust . maybe Nothing nodeRep . fmap getNodeData . lab g
+
+    proceedSeq :: Node -> UsedParM NodeToVars
+    proceedSeq n
+      = do been <- get
+           modify (Set.insert n)
+           if n `Set.member` been
+             then return Map.empty
+             else let myvs = nodeData n False in case nub $ map snd $ lsuc g n of
+               [EStartPar i] -> do r <- mapM (proceedPar (i, isRep n)) (suc g n)
+                                   let (ns, vs) = (catMaybes *** combine) $ unzip r
+                                   liftM (add (add myvs vs) . combine) $ mapM proceedSeq ns
+               es | all isESeq es -> liftM (add myvs . combine) $ mapM proceedSeq $ suc g n
+               es -> dieP (getMetaSafe g n) $ "Unexpected edge types in proceedSeq: " ++ show es
+
+    proceedPar :: (Integer, Bool) -> Node -> UsedParM (Maybe Node, NodeToVars)
+    proceedPar (i, rep) n
+      = do been <- get
+           modify (Set.insert n)
+           if n `Set.member` been
+             then return (Nothing, Map.empty)
+             else let myvs = nodeData n rep in case nub $ map snd $ lsuc g n of
+               [EStartPar i'] -> do r <- mapM (proceedPar (i', isRep n)) (suc g n)
+                                    let (ns, vs) = (catMaybes *** combine) $ unzip r
+                                    case nub ns of
+                                      [n'] -> liftM (second (add $ add myvs vs)) $ proceedPar (i, rep) n'
+                                      _ -> dieP (getMetaSafe g n) "More than one node at end of par in proceedPar"
+               [EEndPar i'] | i == i' ->  return (listToMaybe $ suc g n, myvs)
+               es | all isESeq es -> do r <- mapM (proceedPar (i, rep)) $ suc g n
+                                        let (ns, vs) = (catMaybes *** combine) $ unzip r
+                                        case nub ns of
+                                          [n'] -> return (Just n', add myvs vs)
+                                          [] -> return (Nothing, add myvs vs)
+                                          ns' -> dieP (getMetaSafe g n) $ "More than one node at end of par in proceedPar:"
+                                            ++ show (map (getMetaSafe g) ns')
+               _ -> dieP (getMetaSafe g n) $ "Unexpected edge types in proceedPar"
+
+getMetaSafe :: Monad m => FlowGraph m UsageLabel -> Node -> Meta
+getMetaSafe g = maybe emptyMeta getNodeMeta . lab g
+
 
 --TODO rememember to take note of declarations/scope, otherwise this:
 -- seqeach (..) {int:x; ... x = 3;}
@@ -100,10 +173,11 @@ printMoveCopyDecisions decs
 
 data Decision = Move | Copy Meta deriving (Show, Ord, Eq)
 
-makeMoveCopyDecisions :: forall m. Monad m => FlowGraph m UsageLabel -> [Node] ->
+makeMoveCopyDecisions :: forall m. Monad m => FlowGraph m UsageLabel -> [Node] -> [Node] ->
   PassM Decisions
-makeMoveCopyDecisions grOrig ns
+makeMoveCopyDecisions grOrig roots ns
   = do namesWithTypes <- getCompState >>* csNames >>= T.mapM (typeOfSpec . A.ndSpecType)
+       --liftIO $ putStrLn $ graphviz' $ nmap getNodeMeta grOrig
        let mobVars = Set.mapMonotonic (Var . A.Variable emptyMeta . A.Name emptyMeta)
                      . Map.keysSet
                      . Map.filter isJustMobileType
@@ -131,24 +205,32 @@ makeMoveCopyDecisions grOrig ns
       PassM (Map.Map (Node, Var) Decision)
     processConnected gr m n = case calculateUsedAgainAfter gr n of
       Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
-      Right mvs -> foldM (processNode gr mvs) m $ Map.keys mvs
+      Right mvs -> case calculateUsedInParallel gr roots n of
+        Left err -> throwError err
+        Right mp -> --liftIO $ putStrLn $ show mp
+                    foldM (processNode gr mvs mp) m $ Map.keys mvs
 
     -- Processes all the variables at a given node
-    processNode :: FlowGraph m UsageLabel -> Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision
-      -> Node -> PassM (Map.Map (Node, Var) Decision)
-    processNode gr mvs m n
+    processNode :: FlowGraph m UsageLabel -> Map.Map Node (Set.Set Var) ->
+      NodeToVars
+      -> Map.Map (Node, Var) Decision -> Node -> PassM (Map.Map (Node, Var) Decision)
+    processNode gr mvs mp m n
       = case fmap (readVars . nodeVars . getNodeData) $ lab gr n of
           Nothing -> dieP emptyMeta "Did not find node label during implicit mobility"
-          Just rvs -> return $ foldl (process n mvs) m $ Set.toList rvs
+          Just rvs -> return $ foldl (process n mvs mp) m $ Set.toList rvs
 
     -- Processes a single variable at a given node
-    process :: Node -> Map.Map Node (Set.Set Var) -> Map.Map (Node, Var) Decision ->
+    process :: Node -> Map.Map Node (Set.Set Var) -> NodeToVars -> Map.Map (Node, Var) Decision ->
       Var -> Map.Map (Node, Var) Decision
-    process n useAgain prev v = let s = Map.findWithDefault Set.empty n useAgain
+    process n useAgain usedInPar prev v = let s = Map.findWithDefault Set.empty n useAgain
+                                              uvs = Map.findWithDefault Map.empty n usedInPar
+                                              u = Map.findWithDefault 1 v uvs
       in Map.insert (n, v)
         (if v `Set.member` s
            then Copy $ findMeta $ Set.findMin $ Set.filter (== v) s
-           else Move) prev
+           else if u > 1
+                  then Copy $ getMetaSafe grOrig n
+                  else Move) prev
 
 type Decisions = Map.Map (Node, Var) Decision
 
@@ -174,7 +256,7 @@ implicitMobility
          Right (g, roots, terms) ->
            -- We go from the terminator nodes, because we are performing backward
            -- data-flow analysis
-           do decs <- makeMoveCopyDecisions g terms
+           do decs <- makeMoveCopyDecisions g roots terms
               printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
