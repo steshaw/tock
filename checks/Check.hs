@@ -337,7 +337,7 @@ checkPlainVarUsage sharedAttr (m, p) = check p
   where
     addBK :: BK -> Vars -> m VarsBK
     addBK bk vs
-      = do let read = Map.fromAscList $ zip (Set.toAscList $ readVars vs) (repeat bk)
+      = do let read = setToMap (readVars vs) bk
            splitUsed <- splitEnds' $ Set.toList $ usedVars vs
            splitWritten <- concatMapM splitEnds (Map.toList $ writtenVars vs) >>* Map.fromList
            let used = Map.fromList (zip splitUsed (repeat ([], bk)))
@@ -418,8 +418,7 @@ checkPlainVarUsage sharedAttr (m, p) = check p
            examineVars' <- mapM (filterMapByKeyM (liftM not . isSharedType)) examineVars
            checkCREW examineVars'
       where
-        difference m s = m `Map.difference` (Map.fromAscList $ zip (Set.toAscList
-          s) (repeat ()))
+        difference m s = m `Map.difference` setToMap s ()
 
         isSharedType :: Var -> m Bool
         isSharedType v = do t <- astTypeOf v

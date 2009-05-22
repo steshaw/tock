@@ -433,3 +433,5 @@ replace (find, repl) big
                  then repl ++ replace (find, repl) (drop (length find) poss)
                  else head poss : replace (find, repl) (tail poss)
 
+setToMap :: Ord k => Set.Set k -> v -> Map.Map k v
+setToMap s v = Map.fromAscList $ zip (Set.toAscList s) (repeat v)
