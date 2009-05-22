@@ -9,20 +9,17 @@ tockIncludeFlags :: String
 tockIncludeFlags = "-I. -I" ++ pkgIncludeDir
 
 cCommand :: String -> String -> String -> String
-cCommand inp out extra = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ inp
-  ++ " " ++ extra
+cCommand inp out extra = "@CC@ @TOCK_CFLAGS@ " ++ tockIncludeFlags ++ " -c -o " ++ out ++ " " ++ extra ++ " " ++ inp
 
 cAsmCommand :: String -> String -> String -> String
-cAsmCommand inp out extra = "@CC@ @TOCK_CFLAGS@ -S " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++
-  " " ++ extra
+cAsmCommand inp out extra = "@CC@ @TOCK_CFLAGS@ -S " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ extra ++ " " ++ inp
 
 cLinkCommand :: [String] -> String -> String -> String
 cLinkCommand files out extra = "@CC@ @TOCK_CFLAGS@ -o " ++ out ++ " " ++ (concat (intersperse " " files)) ++ " @TOCK_CLDFLAGS@"
   ++ " " ++ extra
 
 cxxCommand :: String -> String -> String -> String
-cxxCommand inp out extra = "@CXX@ @TOCK_CXXFLAGS@ " ++ tockIncludeFlags ++ " -o " ++ out ++ " " ++ inp ++ " @TOCK_CXXLDFLAGS@"
-  ++ " " ++ extra
+cxxCommand inp out extra = "@CXX@ @TOCK_CXXFLAGS@ " ++ tockIncludeFlags ++ " -o " ++ out ++ " @TOCK_CXXLDFLAGS@ " ++ extra ++ " " ++ inp
 
 hCommand :: String -> String -> String
 hCommand inp out = "@GHC@ --make " ++ inp ++ " -o " ++ out
