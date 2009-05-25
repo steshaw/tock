@@ -130,6 +130,7 @@ intrinsicProcs :: [(String, [(A.AbbrevMode, A.Type, String)])]
 intrinsicProcs =
     [ ("ASSERT", [(A.ValAbbrev, A.Bool, "value")])
     , ("CAUSEERROR", [])
+    , ("EXIT", [(A.ValAbbrev, A.Int, "code")])
     , ("RESCHEDULE", [])
     , ("SETAFF", [(A.ValAbbrev, A.Int, "aff")])
     , ("SETPRI", [(A.ValAbbrev, A.Int, "pri")])

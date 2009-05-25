@@ -2183,6 +2183,10 @@ cgenIntrinsicProc :: Meta -> String -> [A.Actual] -> CGen ()
 cgenIntrinsicProc m "ASSERT" [A.ActualExpression e] = call genAssert m e
 cgenIntrinsicProc _ "RESCHEDULE" [] = call genReschedule
 cgenIntrinsicProc m "CAUSEERROR" [] = call genStop m "CAUSEERROR"
+cgenIntrinsicProc m "EXIT" [A.ActualExpression e]
+  = do tell ["exit("]
+       call genExpression e
+       tell [");"]
 cgenIntrinsicProc m "SETAFF" [A.ActualExpression e] = call genSetAff m e
 cgenIntrinsicProc m "SETPRI" [A.ActualExpression e] = call genSetPri m e
 cgenIntrinsicProc m s as = case lookup s intrinsicProcs of
