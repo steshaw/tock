@@ -22,6 +22,7 @@ import Control.Arrow
 import Control.Monad.Error
 import Control.Monad.State
 import Control.Monad.Trans
+import qualified Data.Foldable as F
 import Data.Graph.Inductive
 import Data.Graph.Inductive.Query.DFS
 import Data.List
@@ -47,27 +48,40 @@ import UsageCheckUtils
 import Utils
 
 effectDecision :: Var -> Decision -> AlterAST PassM () -> A.AST -> PassM A.AST
-effectDecision _ Move _ = return -- Move is the default
-effectDecision targetVar (Copy _) (AlterProcess wrapper) = routeModify wrapper alterProc
+effectDecision targetVar dec (AlterProcess wrapper)
+  | isJust (decUsedAfter dec) || decUsedInPar dec = routeModify wrapper alterProc
   where
     alterProc :: A.Process -> PassM A.Process
-    alterProc (A.Assign m lhs (A.ExpressionList m' [e]))
+    alterProc (A.Assign m lhs (A.ExpressionList m' [e@(A.ExprVariable _ v)]))
+      | Var v == targetVar
       = return $ A.Assign m lhs $ A.ExpressionList m' [A.CloneMobile m' e]
-    alterProc (A.Output m cv [A.OutExpression m' e])
-      = return $ A.Output m cv [A.OutExpression m' $ A.CloneMobile m' e]
-    alterProc x = dieP (findMeta x) "Cannot alter process to copy"
-effectDecision _ (Copy _) _ = return
+    alterProc (A.Output m cv [A.OutExpression m' e@(A.ExprVariable _ v)])
+      | Var v == targetVar
+      = do liftIO $ putStrLn $ show m ++ " COPY"
+           return $ A.Output m cv [A.OutExpression m' $ A.CloneMobile m' e]
+    alterProc x = return x
+--    alterProc x = dieP (findMeta x) "Cannot alter process to copy"
+effectDecision targetVar dec (AlterSpec wrapper)
+  | decUsedAfter dec /= Just UseSubscripted = routeModify wrapper alterSpec
+  where
+    alterSpec :: A.Specification -> PassM A.Specification
+    alterSpec (A.Specification m n (A.Is m' am (A.Mobile t) (A.ActualExpression (A.AllocMobile m'' t' me))))
+      | Var (A.Variable emptyMeta n) == targetVar
+      = return $ A.Specification m n $ A.Declaration m' (A.Mobile t)
+    alterSpec s = do liftIO $ putStrLn $ "Not altering spec: " ++ show s
+                     return s
+effectDecision _ _ _ = return
+
+calculate :: (Monad m, Eq a) => GraphFuncs Node EdgeLabel a -> a
+  -> FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node a)
+calculate funcs def g startNode
+  = flowAlgorithm funcs (rdfs [startNode] g) (startNode, def)
 
 -- | Calculates a map from each node to a set of variables that will be
 -- used again afterwards.  Used in this context means it can possibly be
 -- read from before being written to
-calculateUsedAgainAfter :: Monad m => FlowGraph m UsageLabel -> Node -> Either String (Map.Map Node
- (Set.Set Var))
-calculateUsedAgainAfter g startNode
-  = flowAlgorithm funcs (rdfs [startNode] g) (startNode, Set.empty)
-  where
-    funcs :: GraphFuncs Node EdgeLabel (Set.Set Var)
-    funcs = GF     
+readAgainAfterFuncs :: Monad m => FlowGraph m UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
+readAgainAfterFuncs g = GF
       { nodeFunc = iterate
       -- Backwards data flow:
       , nodesToProcess = lsuc g
@@ -75,7 +89,7 @@ calculateUsedAgainAfter g startNode
       , defVal = Set.empty
       , userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab g
       }
-
+  where
     iterate :: (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set
       Var
     iterate node prevVars maybeVars = case lab g (fst node) of
@@ -85,7 +99,39 @@ calculateUsedAgainAfter g startNode
             writtenToVars = writtenVars vs
             addTo = fromMaybe prevVars maybeVars
         in (readFromVars `Set.union` addTo) `Set.difference` Map.keysSet writtenToVars
-      Nothing -> error "Node label not found in calculateUsedAgainAfter"
+      Nothing -> error "Node label not found in readAgainAfterFuncs"
+
+-- | Calculates whether each variable is used at all before being entirely overwritten.
+--  This calculation can then be used to remove unnecessary mobile allocations
+-- from the flow graph.  The set is all the variables that are used again before
+-- overwriting; the allocations can be removed for all variables not in the set.
+usedBeforeOverwriteFuncs :: Monad m => FlowGraph m UsageLabel -> GraphFuncs Node EdgeLabel (Set.Set Var)
+usedBeforeOverwriteFuncs g = GF
+  { nodeFunc = iterate
+  -- Backwards data flow:
+      , nodesToProcess = lsuc g
+      , nodesToReAdd = lpre g
+      , defVal = Set.empty
+      , userErrLabel = ("for node at: " ++) . show . fmap getNodeMeta . lab g
+      }
+  where
+    iterate :: (Node, EdgeLabel) -> Set.Set Var -> Maybe (Set.Set Var) -> Set.Set Var
+    iterate node prevVars maybeVars = case lab g (fst node) of
+      Just ul -> let vs = nodeVars $ getNodeData ul
+                     addTo = fromMaybe prevVars maybeVars
+                     writtenIndirect = concat [map Var $ listifyInner (const True) v
+                                              | Var v <- Map.keys $ writtenVars vs]
+                 in (readVars vs `Set.union` addTo `Set.union` Set.fromList writtenIndirect)
+                      `Set.difference` Map.keysSet (writtenVars vs)
+      Nothing -> error "Node label not found in usedBeforeOverwriteFuncs"
+
+listifyInner :: (AlloyA t BaseOpA (OneOpA s)
+                ,AlloyA s BaseOpA (OneOpA s)) => (s -> Bool) -> t -> [s]
+listifyInner qf = flip execState [] . makeDescendM ops
+  where
+    ops = makeBottomUpM ops qf' :-* baseOpA
+    qf' x = if qf x then modify (x:) >> return x else return x
+
 
 type UsedParM = StateT (Set.Set Node) (Either ErrorReport)
 
@@ -94,7 +140,6 @@ instance Die UsedParM where
 
 type NodeToVars = Map.Map Node (Map.Map Var Int)
 
---TODO prevent going round in circles forever!
 calculateUsedInParallel :: Monad m => FlowGraph m UsageLabel -> [Node] -> Node -> Either
   ErrorReport NodeToVars
 calculateUsedInParallel g roots startNode
@@ -168,10 +213,29 @@ printMoveCopyDecisions decs
   = mapM_ printDec $ Map.toList decs
   where
     printDec :: ((Node, Var), Decision) -> PassM ()
-    printDec ((_,v), dec) = astTypeOf v >>= \t -> (liftIO $ putStrLn $
-      show (findMeta v) ++ show v ++ " " ++ show t ++ " " ++ show dec)
+    printDec ((n,v), dec) = astTypeOf v >>= \t -> (liftIO $ putStrLn $
+      show (findMeta v) ++ show (n, v) ++ " " ++ show t ++ " " ++ show dec)
 
-data Decision = Move | Copy Meta deriving (Show, Ord, Eq)
+data WriteType = WriteWhole | UseSubscripted deriving (Show, Ord, Eq)
+
+data Decision = Decision
+  { decMeta :: Meta
+  , decUsedAfter :: Maybe WriteType
+  , decUsedInPar :: Bool
+  } deriving (Show, Ord, Eq)
+
+-- These two fields are subtly different.  readAfter is where the variable is
+-- read from before being overwritten, either by being written-to in place or
+-- completely, or falling out of scope.
+--
+-- usedBeforeOverwrite indicates whether the allocated mobile is used again at
+-- all (for reading, or writing) before being replaced by a new mobile or falling
+-- out of scope.
+data Info = Info
+  { readAfter :: Set.Set Var
+  , usedBeforeOverwite :: Set.Set Var
+  }
+  deriving Show
 
 makeMoveCopyDecisions :: forall m. Monad m => FlowGraph m UsageLabel -> [Node] -> [Node] ->
   PassM Decisions
@@ -182,55 +246,72 @@ makeMoveCopyDecisions grOrig roots ns
                      . Map.keysSet
                      . Map.filter isJustMobileType
                      $ namesWithTypes
-       foldM (processConnected $ nmap (fmap $ filterVars mobVars) grOrig) (Map.empty) ns
+       processed <- foldM (processConnected $ nmap (fmap $ filterVars mobVars) grOrig) (Map.empty) ns
+       return $ Map.filterWithKey (\(_, v) _ -> v `Set.member` mobVars) processed
   where
     isJustMobileType :: Maybe A.Type -> Bool
     isJustMobileType (Just (A.Mobile {})) = True
     isJustMobileType _ = False
+
+    containsVar :: Var -> Var -> Bool
+    containsVar (Var big) small = not $ null $ listifyDepth ((== small) . Var) big
+
+    containsAnyVars :: Var -> Set.Set Var -> Bool
+    containsAnyVars v = F.any (v `containsVar`)
     
     filterVars :: Set.Set Var -> UsageLabel -> UsageLabel
     filterVars keep u
       = u { nodeVars = filterNodeVars (nodeVars u) }
       where
-        keepM = Map.fromAscList $ flip zip (repeat ()) $ Set.toAscList keep
+        keepM = setToMap keep ()
 
         filterNodeVars :: Vars -> Vars
         filterNodeVars vs
-          = vs { readVars = readVars vs `Set.intersection` keep
-               , writtenVars = writtenVars vs `Map.intersection` keepM
-               , usedVars = readVars vs `Set.intersection` keep }
+          = vs { readVars = Set.filter (`containsAnyVars` keep) $ readVars vs
+               , writtenVars = Map.filterWithKey (\k _ -> k `containsAnyVars` keep) $ writtenVars vs
+               , usedVars = Set.filter (`containsAnyVars` keep) $ readVars vs }
     
     -- Processes the entire sub-graph that is connected to the given node
     processConnected :: FlowGraph m UsageLabel -> Map.Map (Node, Var) Decision -> Node ->
       PassM (Map.Map (Node, Var) Decision)
-    processConnected gr m n = case calculateUsedAgainAfter gr n of
+    processConnected gr m n = case fmap (fmap (uncurry Info)) $ calculate gf (Set.empty, Set.empty) gr n of
       Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
       Right mvs -> case calculateUsedInParallel gr roots n of
         Left err -> throwError err
-        Right mp -> --liftIO $ putStrLn $ show mp
-                    foldM (processNode gr mvs mp) m $ Map.keys mvs
+        Right mp -> foldM (processNode gr mvs mp) m $ Map.keys mvs
+      where
+        gf = joinGraphFuncs (readAgainAfterFuncs gr) (usedBeforeOverwriteFuncs gr)
 
     -- Processes all the variables at a given node
-    processNode :: FlowGraph m UsageLabel -> Map.Map Node (Set.Set Var) ->
+    processNode :: FlowGraph m UsageLabel -> Map.Map Node Info ->
       NodeToVars
       -> Map.Map (Node, Var) Decision -> Node -> PassM (Map.Map (Node, Var) Decision)
     processNode gr mvs mp m n
-      = case fmap (readVars . nodeVars . getNodeData) $ lab gr n of
+      = case fmap (nodeVars . getNodeData) $ lab gr n of
           Nothing -> dieP emptyMeta "Did not find node label during implicit mobility"
-          Just rvs -> return $ foldl (process n mvs mp) m $ Set.toList rvs
+          Just nvs -> return $ foldl (process n mvs mp) m $
+            Set.toList (readVars nvs) ++ Map.keys (writtenVars nvs)
 
     -- Processes a single variable at a given node
-    process :: Node -> Map.Map Node (Set.Set Var) -> NodeToVars -> Map.Map (Node, Var) Decision ->
+    process :: Node -> Map.Map Node Info -> NodeToVars -> Map.Map (Node, Var) Decision ->
       Var -> Map.Map (Node, Var) Decision
-    process n useAgain usedInPar prev v = let s = Map.findWithDefault Set.empty n useAgain
+    process n useAgain usedInPar prev v = let s = Map.findWithDefault (Info Set.empty Set.empty) n useAgain
                                               uvs = Map.findWithDefault Map.empty n usedInPar
                                               u = Map.findWithDefault 1 v uvs
       in Map.insert (n, v)
-        (if v `Set.member` s
-           then Copy $ findMeta $ Set.findMin $ Set.filter (== v) s
-           else if u > 1
-                  then Copy $ getMetaSafe grOrig n
-                  else Move) prev
+        (Decision
+          { decMeta = maybe (getMetaSafe grOrig n) findMeta $ getElem v (readAfter s)
+          , decUsedAfter = case (v `Set.member` readAfter s, v `Set.member` usedBeforeOverwite s) of
+              (False, True) -> Just UseSubscripted
+              (False, False) -> Nothing
+              (True, True) -> Just UseSubscripted
+              (True, False) -> Just WriteWhole
+          , decUsedInPar = u > 1
+          }) prev
+
+-- Gets the element from the set that matches the given one by equality.
+getElem :: Ord a => a -> Set.Set a -> Maybe a
+getElem x = listToMaybe . Set.elems . Set.union (Set.singleton x)
 
 type Decisions = Map.Map (Node, Var) Decision
 
@@ -257,7 +338,7 @@ implicitMobility
            -- We go from the terminator nodes, because we are performing backward
            -- data-flow analysis
            do decs <- makeMoveCopyDecisions g roots terms
-              printMoveCopyDecisions decs
+              --printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
 -- This leaves alone proc parameters for now

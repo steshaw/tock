@@ -1332,9 +1332,10 @@ cdeclareInit m rt@(A.Record _) var
 cdeclareInit m t@(A.Mobile t') var
   = Just $ do call genVariableUnchecked var A.Original
               tell ["=NULL;"]
-              case t' of
+{-              case t' of
                 A.Array ds _ | A.UnknownDimension `elem` ds -> return ()
                 _ -> call genAssign m [var] $ A.ExpressionList m [A.AllocMobile m t Nothing]
+                  -}
 cdeclareInit m (A.ChanDataType {}) var
   = Just $ do call genVariable' var A.Original (const $ Pointer $ Plain "mt_cb_t")
               tell ["=NULL;"]
