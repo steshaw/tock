@@ -48,6 +48,24 @@ data GraphFuncs n e result = GF {
    ,userErrLabel :: n -> String
   }
 
+-- Joins together two sets of GraphFuncs into one.  For nodesToProcess, nodesToReAdd
+-- and userErrLabel it takes the functions from the first argument.  The first
+-- two should be identical to that for the second argument.  This is only common
+-- sense; if you try to combine a forward flow algorithm with a backwards flow
+-- algorithm, it's not going to work!
+joinGraphFuncs :: GraphFuncs n e resultA -> GraphFuncs n e resultB -> GraphFuncs
+  n e (resultA, resultB)
+joinGraphFuncs gfA gfB
+  = GF { nodeFunc = \ne (rA, rB) mrAB ->
+           (nodeFunc gfA ne rA (fmap fst mrAB)
+           ,nodeFunc gfB ne rB (fmap snd mrAB)
+           )
+       , nodesToProcess = nodesToProcess gfA
+       , nodesToReAdd = nodesToReAdd gfB
+       , defVal = (defVal gfA, defVal gfB)
+       , userErrLabel = userErrLabel gfA
+       }
+
 -- | Given the graph functions, a list of nodes and an entry node, performs
 -- an iterative data-flow analysis.  All the nodes in the list should be connected to
 -- the starting node, and there should be no nodes without nodes to process
