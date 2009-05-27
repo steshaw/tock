@@ -34,6 +34,7 @@ import CompState
 import Data.Generics.Alloy.Schemes
 import Errors
 import FlowGraph
+import Intrinsics
 import Metadata
 import OrdAST()
 import ShowCode
@@ -174,15 +175,24 @@ getVarProc (A.Input _ chanVar (A.InputSimple _ iis _))
         = mkWrittenVars [(variableToVar v, Nothing)]
 getVarProc p@(A.ProcCall _ _ _)
     = getVarProcCall p >>* foldUnionVars
+getVarProc p@(A.IntrinsicProcCall _ _ _)
+    = getVarProcCall p >>* foldUnionVars
 getVarProc _ = return emptyVars
 
 getVarProcCall :: (Die m, CSMR m) => A.Process -> m [Vars]
 getVarProcCall (A.ProcCall _ proc as)
     =  do st <- specTypeOfName proc
           let fs = case st of A.Proc _ _ fs _ -> fs
-
           sequence [getVarActual f a
                     | (f, a) <- zip fs as]
+getVarProcCall (A.IntrinsicProcCall m proc as)
+    =  do let def = lookup proc intrinsicProcs
+          case def of
+            Nothing -> dieP m $ "Could not find definition for intrinsic PROC: " ++ proc
+            Just amtns ->
+              sequence [getVarActual (A.Formal am t (A.Name m n)) a
+                       | ((am,t,n), a) <- zip amtns as]
+
 
 getVarActual :: (Die m, CSMR m) => A.Formal -> A.Actual -> m Vars
 getVarActual _ (A.ActualExpression e) = return $ getVarExp e
