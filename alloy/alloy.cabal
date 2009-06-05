@@ -2,9 +2,15 @@ Name: Alloy
 Version: 1.0.0
 License: BSD3
 Author: Adam Sampson and Neil Brown
+Copyright: Copyright 2008-2009, University of Kent
+Maintainer: neil@twistedsquare.com
 Cabal-Version: >= 1.2
 Build-type: Simple
 Synopsis: Generic programming library
+Description: Alloy is a generic programming library for performing traversals
+             of data and applying specific operations to certain types.
+Category: Generics
+Tested-With: GHC==6.8.2
 Library
   if (impl(ghc < 6.10))
     Build-Depends: base >= 3 && < 4, containers, mtl
