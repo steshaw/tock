@@ -307,19 +307,18 @@ baseOpA = BaseOpA
 baseOpARoute :: BaseOpARoute m outer
 baseOpARoute = BaseOpARoute
 
--- | The type that extends an ops set (opT) in the given monad (m) to be applied to
--- the given type (t).  You cannot mix monadic and non-monadic operations in the
--- same list.  This is for use with the 'AlloyA' class.
---data ((t :: *) :-* (opT :: (* -> *) -> *)) m = (t -> m t) :-* (opT m)
+-- | The type that extends an opset (opT) in the given
+-- monad/applicative-functor (m) to be applied to the given type (t).  This is
+-- for use with the 'AlloyA' class.
 data (t :-* opT) m = (t -> m t) :-* (opT m)
 
 infixr 7 :-*
 
 data BaseOpA m = BaseOpA
 
--- | The type that extends an ops set (opT) in the given monad (m) to be applied
--- to the given type (t) with routes to the outer type (outer).  This is for use
--- with the 'AlloyARoute' class.
+-- | The type that extends an applicative/monadic opset (opT) in the given
+-- functor/monad (m) to be applied to the given type (t) with routes to the
+-- outer type (outer).  This is for use with the 'AlloyARoute' class.
 data (t :-@ opT) m outer = ((t, Route t outer) -> m t) :-@ (opT m outer)
 
 infixr 7 :-@
@@ -327,23 +326,24 @@ infixr 7 :-@
 data BaseOpARoute m outer = BaseOpARoute
 
 
--- | The type that extends an ops set (opT) to be applied to the given type (t).
---  You cannot mix monadic and non-monadic operations in the same list.  This is
--- for use with the 'Alloy' class.
+-- | The type that extends an opset (opT) to be applied to the given type (t).
+-- This is for use with the 'Alloy' class.
 data t :- opT = (t -> t) :- opT
 
 infixr 7 :-
 
--- | A handy synonym for a monadic ops set with only one item, to use with 'AlloyARoute'.
+-- | A handy synonym for a monadic/applicative opset with only one item, to use with 'AlloyARoute'.
 type OneOpARoute t = t :-@ BaseOpARoute
--- | A handy synonym for a monadic ops set with only one item, to use with 'AlloyA'.
+-- | A handy synonym for a monadic/applicative opset with only one item, to use with 'AlloyA'.
 type OneOpA t = t :-* BaseOpA
--- | A handy synonym for an ops set with only one item, to use with 'Alloy'.
+-- | A handy synonym for an opset with only one item, to use with 'Alloy'.
 type OneOp t = t :- BaseOp
 
--- | A handy synonym for a monadic ops set with only two items, to use with 'AlloyA'.
-type TwoOpA s t = (s :-* t :-* BaseOpA) --ExtOpM m (ExtOpM m BaseOpA s) t
--- | A handy synonym for an ops set with only two items, to use with 'Alloy'.
+-- | A handy synonym for a monadic/applicative opset with only two items, to use with 'AlloyARoute'.
+type TwoOpARoute s t = (s :-@ t :-@ BaseOpARoute)
+-- | A handy synonym for a monadic/applicative opset with only two items, to use with 'AlloyA'.
+type TwoOpA s t = (s :-* t :-* BaseOpA)
+-- | A handy synonym for an opset with only two items, to use with 'Alloy'.
 type TwoOp s t = s :- t :- BaseOp
 
 
