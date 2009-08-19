@@ -28,6 +28,13 @@ import Utils
 data GraphFuncs n e result = GF {
    -- (Node, Edge) -> current value for said node -> current aggregate effect for
    -- the current node -> new aggregate effect
+   -- The first parameter is the node from nodesToProcess that is connected to
+   -- the target node for which the value is being processed (the edge is the connection).
+   -- The second parameter is the current value for that node from nodesToProcess
+   -- (from last time it was processed).
+   --  The third parameter is Nothing for the first node from nodesToProcess that
+   -- is calculated, and Just with the previous answer otherwise.
+   -- 
    -- If it is the first node to be processed for this iteration, it will be
    -- given Nothing, otherwise the result is fed back when processing the next
    -- node.  The second parameter is from the last iteration.

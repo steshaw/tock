@@ -97,7 +97,8 @@ readAgainAfterFuncs g = GF
         let vs = nodeVars $ getNodeData ul
             readFromVars = readVars vs
             writtenToVars = writtenVars vs
-            addTo = fromMaybe prevVars maybeVars
+            -- prevVars is the value from the node after us.
+            addTo = fromMaybe Set.empty maybeVars `Set.union` prevVars
         in (readFromVars `Set.union` addTo) `Set.difference` Map.keysSet writtenToVars
       Nothing -> error "Node label not found in readAgainAfterFuncs"
 
@@ -278,7 +279,8 @@ makeMoveCopyDecisions grOrig roots ns
       Left err -> dieP (getNodeMeta $ fromJust $ lab gr n) err
       Right mvs -> case calculateUsedInParallel gr roots n of
         Left err -> throwError err
-        Right mp -> foldM (processNode gr mvs mp) m $ Map.keys mvs
+        Right mp -> do debug $ show (grOrig, gr, mvs)
+                       foldM (processNode gr mvs mp) m $ Map.keys mvs
       where
         gf = joinGraphFuncs (readAgainAfterFuncs gr) (usedBeforeOverwriteFuncs gr)
 
@@ -338,7 +340,7 @@ implicitMobility
            -- We go from the terminator nodes, because we are performing backward
            -- data-flow analysis
            do decs <- makeMoveCopyDecisions g roots terms
-              --printMoveCopyDecisions decs
+              printMoveCopyDecisions decs
               effectMoveCopyDecisions g decs t)
 
 -- This leaves alone proc parameters for now
