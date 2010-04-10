@@ -114,7 +114,7 @@ AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
 #for base-3, and take the last one (since ghc-pkg lists them in ascending order)
 if test $ghc_version_major -ge 6 -a $ghc_version_mid -le 8; then
   AC_PICK_HASKELL_LIB_VER([base],[3],[LIB_VER_base])
-  LIB_VER_syb = LIB_VER_BASE
+  LIB_VER_syb="$LIB_VER_base"
 else
   AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
   AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
