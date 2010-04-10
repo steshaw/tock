@@ -31,6 +31,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- language based on the 'csFrontend' in 'CompState', it is inside the CSM monad.
 module PrettyShow (pshow) where
 
+import Data.Function (on)
 import Data.Generics
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -101,9 +102,8 @@ showStringPattern = concatMap showCharPattern
 --Checks whether every item in a pattern list is (effectively) a Char
 wholeString :: [Pattern] -> Bool
 wholeString ((Match con []):ps)
-  = case (constrRep con) of
-      StringConstr _ -> True && (wholeString ps)
-      _ -> False
+  = (constrType con ==* dataTypeOf "") && (wholeString ps)
+  where (==*) = (==) `on` dataTypeName
 wholeString (_:_) = False
 wholeString [] = True
 
