@@ -785,8 +785,8 @@ testRetypeSizes = TestList
    over = local $ \ops -> ops {genBytesIn = showBytesInParams, genStop = override2 at}
 
 defRecord :: String -> String -> A.Type -> State CompState ()
-defRecord rec mem t = defineName (simpleName rec) $
-  A.NameDef emptyMeta rec rec
+defRecord record mem t = defineName (simpleName record) $
+  A.NameDef emptyMeta record record
     (A.RecordType emptyMeta (A.RecordAttr False False) [(simpleName mem,t)])
     A.Original A.NameUser A.Unplaced
 

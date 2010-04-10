@@ -1210,8 +1210,8 @@ definition
            sTYPE
            do { n <- tryVX newDataTypeName sIS; t <- dataType; sColon; eol;
                   return (A.Specification m n (A.DataType m t), DataTypeName, normalName) }
-             <|> do { n <- newRecordName; eol; indent; rec <- structuredType; outdent; sColon; eol;
-                  return (A.Specification m n rec, RecordName, normalName) }
+             <|> do { n <- newRecordName; eol; indent; record <- structuredType; outdent; sColon; eol;
+                  return (A.Specification m n record, RecordName, normalName) }
     <|> do m <- md
            rm <- tryVX (recMode sCHAN) sTYPE >>* fst
            n <- newChanBundleName

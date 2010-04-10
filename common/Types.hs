@@ -136,8 +136,8 @@ typeOfSpec = liftM (fmap fst) . typeOfSpec'
 --{{{  identifying types
 -- | Get the fields of a record type.
 recordFields :: (CSMR m, Die m) => Meta -> A.Type -> m [(A.Name, A.Type)]
-recordFields m (A.Record rec)
-    =  do st <- specTypeOfName rec
+recordFields m (A.Record record)
+    =  do st <- specTypeOfName record
           case st of
             A.RecordType _ _ fs -> return fs
             _ -> dieP m "not record type"
@@ -159,8 +159,8 @@ recordFields m (A.ChanDataType A.DirOutput _ n)
 recordFields m _ = dieP m "not record type"
 
 recordAttr :: (CSMR m, Die m) => Meta -> A.Type -> m A.RecordAttr
-recordAttr m (A.Record rec)
-    =  do st <- specTypeOfName rec
+recordAttr m (A.Record record)
+    =  do st <- specTypeOfName record
           case st of
             A.RecordType _ attr _ -> return attr
             _ -> dieP m "not record type"

@@ -102,16 +102,16 @@ instance F.Foldable ParItems where
 instance T.Traversable ParItems where
   -- traverse :: Applicative f => (a -> f b) -> ParItems a -> f (ParItems b)
   -- <*> :: Applicative f => f (a -> b) -> f a -> f b
-  traverse f (ParItems ps) = liftA ParItems $ rec ps
+  traverse f (ParItems ps) = liftA ParItems $ g ps
     where
-      -- rec :: Applicative f => [ParItems a] -> f [ParItems b]
-      rec [] = pure []
-      rec (p:ps) = liftA2 (:) (T.traverse f p) (rec ps)
+      -- g :: Applicative f => [ParItems a] -> f [ParItems b]
+      g [] = pure []
+      g (p:ps) = liftA2 (:) (T.traverse f p) (g ps)
   traverse f (RepParItem nr p) = liftA (RepParItem nr) $ T.traverse f p
-  traverse f (SeqItems ss) = liftA SeqItems $ rec ss
+  traverse f (SeqItems ss) = liftA SeqItems $ g ss
     where
-      rec [] = pure []
-      rec (s:ss) = liftA2 (:) (f s) (rec ss)
+      g [] = pure []
+      g (s:ss) = liftA2 (:) (f s) (g ss)
 
 -- Gets all the items inside a ParItems and returns them in a flat list.
 flattenParItems :: ParItems a -> [a]
