@@ -61,6 +61,7 @@ if GHC68
 #GHC_OPTS += -XTypeSynonymInstances
 
 GHC_OPTS += -XUndecidableInstances
+GHC_OPTS += -XImpredicativeTypes
 GHC_OPTS += -fglasgow-exts
 GHC_OPTS += -fwarn-tabs -fwarn-monomorphism-restriction
 else
