@@ -62,12 +62,17 @@ if GHC68
 #GHC_OPTS += -XTypeSynonymInstances
 
 GHC_OPTS += -XUndecidableInstances
-GHC_OPTS += -XImpredicativeTypes
-GHC_OPTS += -fglasgow-exts
 GHC_OPTS += -fwarn-tabs -fwarn-monomorphism-restriction
 else
-GHC_OPTS +=	-fglasgow-exts -fallow-undecidable-instances
+# GHC 6.7 or earlier.
+GHC_OPTS += -fallow-undecidable-instances
 endif
+
+if GHC610
+GHC_OPTS += -XImpredicativeTypes
+endif
+
+GHC_OPTS += -fglasgow-exts
 
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) $(config_sources)
 	@MKDIR_P@ obj

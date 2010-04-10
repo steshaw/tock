@@ -88,6 +88,7 @@ fi
 AC_MSG_RESULT([OK])
 
 AM_CONDITIONAL([GHC68],[test $ghc_version -ge 6008000])
+AM_CONDITIONAL([GHC610],[test $ghc_version -ge 6010000])
 
 AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
 [
