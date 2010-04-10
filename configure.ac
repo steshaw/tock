@@ -79,6 +79,25 @@ AC_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
 AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
 AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
 
+AC_MSG_CHECKING([Checking GHC version])
+
+ghc_version=`ghc --numeric-version`
+ghc_version_major=`echo $ghc_version |  awk -F . '{print $1}'`
+ghc_version_mid=`echo $ghc_version |  awk -F . '{print $2}'`
+ghc_version_minor=`echo $ghc_version |  awk -F . '{print $3}'`
+
+AC_MSG_RESULT($ghc_version_major.$ghc_version_mid.$ghc_version_minor)
+
+AC_MSG_CHECKING([Checking that GHC version is at least 6.6.x])
+
+if test $ghc_version_major -lt 6 -o $ghc_version_mid -lt 6; then
+	AC_MSG_ERROR([GHC of at least version 6.6.x is required])
+else
+	AC_MSG_RESULT([ok])
+fi
+
+AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8])
+
 AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
 [
   AC_MSG_CHECKING([for $1 library, major version $2])
@@ -93,7 +112,13 @@ AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
 #GHC 6.10 and later have base-3 and base-4.  For now, we're sticking with
 #base-3, but we need to know the exact version to tell GHC.  We filter
 #for base-3, and take the last one (since ghc-pkg lists them in ascending order)
-AC_PICK_HASKELL_LIB_VER([base],[3],[LIB_VER_base])
+if test $ghc_version_major -ge 6 -a $ghc_version_mid -le 8; then
+  AC_PICK_HASKELL_LIB_VER([base],[3],[LIB_VER_base])
+  LIB_VER_syb = LIB_VER_BASE
+else
+  AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
+  AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
+fi
 #For now, we need QuickCheck 1:
 AC_PICK_HASKELL_LIB_VER([QuickCheck],[1],[LIB_VER_quickcheck])
 
@@ -200,25 +225,6 @@ AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
 CFLAGS="$old_CFLAGS"
 
 
-AC_MSG_CHECKING([Checking GHC version])
-
-ghc_version=`ghc --numeric-version`
-ghc_version_major=`echo $ghc_version |  awk -F . '{print $1}'`
-ghc_version_mid=`echo $ghc_version |  awk -F . '{print $2}'`
-ghc_version_minor=`echo $ghc_version |  awk -F . '{print $3}'`
-
-AC_MSG_RESULT($ghc_version_major.$ghc_version_mid.$ghc_version_minor)
-
-AC_MSG_CHECKING([Checking that GHC version is at least 6.6.x])
-
-if test $ghc_version_major -lt 6 -o $ghc_version_mid -lt 6; then
-	AC_MSG_ERROR([GHC of at least version 6.6.x is required])
-else
-	AC_MSG_RESULT([ok])
-fi
-
-AM_CONDITIONAL([GHC68],[test $ghc_version_major -ge 6 -a $ghc_version_mid -ge 8])
-
 # Check the sizes of certain constructs.  We'll need to be cleverer if in future
 # we want to allow cross-compilation.
 
@@ -285,6 +291,7 @@ AC_SUBST(cppcsp_available)
 AC_SUBST(MKDIR_P)
 AC_SUBST(LIB_VER_base)
 AC_SUBST(LIB_VER_quickcheck)
+AC_SUBST(LIB_VER_syb)
 
 AC_CONFIG_FILES([Makefile config/TypeSizes.hs config/CompilerCommands.hs])
 AC_OUTPUT

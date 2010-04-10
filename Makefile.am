@@ -26,6 +26,7 @@ GHC_OPTS = \
 	-package @LIB_VER_quickcheck@ \
 	-package random \
 	-package regex-compat \
+        -package @LIB_VER_syb@ \
 	\
 	-ibackends \
 	-ichecks \
