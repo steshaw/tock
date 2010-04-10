@@ -352,14 +352,14 @@ checkTreeForConstr :: Data a => [Constr] -> a -> [AnyDataItem]
 checkTreeForConstr cons = makeCheckFunction $ zip (map constrType cons) cons
   where
     makeCheckFunction :: Data a => [(DataType, Constr)] -> (a -> [AnyDataItem])
-    makeCheckFunction tcs = listify' (anyFunc $ ((map makeCheckFunction' tcs) :: [GenericQ Bool]))
+    makeCheckFunction tcs = listify' (anyFunc $ ((map makeCheckFunction' tcs) :: [GenericQ' Bool]))
 
     -- anyFunc takes a list of generic queries, and returns a single generic query that ORs the results together
     -- Note that this is not the same as using foldl and extQ, because extQ deals with type-specific cases,
     -- not generic queries as we have here.
-    anyFunc :: [GenericQ Bool] -> GenericQ Bool
+    anyFunc :: [GenericQ' Bool] -> GenericQ Bool
     anyFunc [] _ = False
-    anyFunc (f:fs) x = (f x) || (anyFunc fs x)
+    anyFunc (f:fs) x = (unGQ f x) || (anyFunc fs x)
 
     -- listify expects a type-specific function as its parameter, not a generic query.
     -- This function only differs from listify by using a generic query, and wrapping the result in an AnyDataItem wrapper.
@@ -370,10 +370,9 @@ checkTreeForConstr cons = makeCheckFunction $ zip (map constrType cons) cons
         f' x = if (f x) then [ADI x] else []
 
     -- checks that the DataType and Constr match the given Data item.
-    makeCheckFunction' :: (DataType, Constr) -> (GenericQ Bool)
-    makeCheckFunction' (tr,con) d = (show (dataTypeOf d) == show tr) && (c == con) && (show c == show con)
-      where
-        c = toConstr d
+    makeCheckFunction' :: (DataType, Constr) -> (GenericQ' Bool)
+    makeCheckFunction' (tr,con) = GQ (\d -> let c = toConstr d
+      in (show (dataTypeOf d) == show tr) && (c == con) && (show c == show con))
 
 -- | Converts a 0-argument constructor into its Constr form.
 con0 :: Data a => a -> Constr
