@@ -45,6 +45,8 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- > main = writeInstancesTo GenWithoutOverlapped GenOneClass
 -- >          [genInstance (undefined :: Company)]
 -- >          ["module Instances where"
+-- >          ,"import Control.Applicative"
+-- >          ,"import Control.Monad"
 -- >          ,"import Data.Generics.Alloy"
 -- >          ,"import Data.Generics.Alloy.Route"
 -- >          ,"import Data.Maybe"
