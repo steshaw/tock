@@ -125,7 +125,7 @@ doPattern p@(Match c ps) =
            --It's a string:
        then doString (showStringPattern folded)
            --It's some other kind of list:
-       else doList (mkQ empty doPattern) folded
+       else doList (mkQ Text.PrettyPrint.HughesPJ.empty doPattern) folded
      --It's neither a list nor a tuple:
      else parens $ (text (showConstr c)) $+$ (sep items)
    where
