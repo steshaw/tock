@@ -30,7 +30,7 @@ import Data.Ord
 import qualified Data.Set as Set
 import Prelude hiding ((**),fail)
 import Test.HUnit
-import Test.QuickCheck hiding (check)
+import Test.QuickCheck
 
 
 import ArrayUsageCheck
@@ -543,7 +543,6 @@ instance Show MakeEquationInput where
   show = const ""
 
 instance Arbitrary MakeEquationInput where
-  coarbitrary = error "coarbitrary"
   arbitrary = generateEquationInput >>* MEI
 
 frequency' :: [(Int, StateT s Gen a)] -> StateT s Gen a
@@ -1054,7 +1053,6 @@ generateProblem = choose (1,10) >>= (\n -> replicateM n $ choose (-20,20)) >>=
     makeAns = Map.fromList
 
 instance Arbitrary OmegaTestInput where
-  coarbitrary = error "coarbitrary"
   arbitrary = generateProblem >>* OMI
 
 qcOmegaEquality :: [LabelledQuickCheckTest]
@@ -1140,7 +1138,6 @@ normaliseEquality eq = case listToMaybe $ filter (/= 0) $ elems eq of
 newtype OmegaPruneInput = OPI MutatedProblem deriving (Show)
 
 instance Arbitrary OmegaPruneInput where
-  coarbitrary = error "coarbitrary"
   arbitrary = ((generateProblem >>* snd)  >>= (return . snd) >>= mutateEquations) >>* OPI
 
 qcOmegaPrune :: [LabelledQuickCheckTest]

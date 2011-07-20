@@ -78,33 +78,19 @@ scaleQC (low,med,high,ext) test level
       QC_Extensive -> run ext test
   where
     run :: Testable a => Int -> a -> Test
-    run n = testCheck $ defaultConfig { configMaxTest = n }
+    run n = testCheck $ stdArgs { maxSuccess = n }
 
 -- | Run a QuickCheck test as an HUnit test.
-testCheck :: Testable a => Config -> a -> Test
-testCheck config property =
-    TestCase $ do rnd <- newStdGen
-                  tests config (evaluate property) rnd 0 0 []
-  where
-    -- | The 'tests' function from QuickCheck, modified to throw assertion
-    -- failures when something goes wrong. (This is taken from MissingH.)
-    tests :: Config -> Gen Result -> StdGen -> Int -> Int -> [[String]] -> IO ()
-    tests config gen rnd0 ntest nfail stamps
-      | ntest == configMaxTest config = return ()
-      | nfail == configMaxFail config
-        = assertFailure $ "Arguments exhausted after " ++ show ntest ++ " tests"
-      | otherwise
-        = case ok result of
-            Nothing ->
-              tests config gen rnd1 ntest (nfail+1) stamps
-            Just True ->
-              tests config gen rnd1 (ntest+1) nfail (stamp result:stamps)
-            Just False ->
-              assertFailure $ "Falsifiable, after " ++ show ntest
-                              ++ " tests:\n" ++ unlines (arguments result)
-         where
-          result      = generate (configSize config ntest) rnd2 gen
-          (rnd1,rnd2) = split rnd0
+testCheck :: Testable a => Args -> a -> Test
+testCheck args property =
+    TestCase $ do result <- quickCheckWithResult args property
+                  case result of
+                    Success _ _ _ -> return ()
+                    GaveUp _ _ _ -> return ()
+                    Failure numTests _ _ _ reason _ _ ->
+                      assertFailure $ "Falsifiable, after " ++ show numTests ++ " tests:\n" ++ reason
+                    NoExpectedFailure numTests _ _ ->
+                      assertFailure $ "No expected failure, after " ++ show numTests ++ " tests"
 
 --}}}
 --{{{  building AST fragments and patterns

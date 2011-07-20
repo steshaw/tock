@@ -111,8 +111,6 @@ else
   AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
   AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
 fi
-#For now, we need QuickCheck 1:
-AC_PICK_HASKELL_LIB_VER([QuickCheck],[1],[LIB_VER_quickcheck])
 
 PKG_CHECK_MODULES(CCSP, ccsp-1.6 >= 1.6.3,,
 	AC_MSG_WARN([CCSP not located using pkg-config; you will not be able to compile output from the C backend on this machine: ] $CCSP_PKG_ERRORS)

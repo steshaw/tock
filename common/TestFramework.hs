@@ -23,14 +23,21 @@ module TestFramework where
 import Control.Monad.Error
 import Data.Generics (Data)
 import System.IO.Unsafe
+import System.Random (mkStdGen)
 import Test.HUnit hiding (Testable)
-import Test.QuickCheck hiding (check)
+import Test.QuickCheck
+import qualified Test.QuickCheck.Property as QCP
 
 import PrettyShow
 
-instance Error Result where
+-- Test.QuickCheck.Property is qualified because QuickCheck 2 has two different
+-- types both called Result: the one that Test.QuickCheck exports represents
+-- the result of running a set of tests, and QCP.Result the result of a single
+-- test. The latter's what QC 1 called Result, and what we want here.
+
+instance Error QCP.Result where
   noMsg = strMsg ""
-  strMsg s = Result (Just False) [s] []
+  strMsg s = QCP.failed { QCP.reason = s }
 
 class Monad m => TestMonad m r | m -> r where
   runTest :: m () -> r
@@ -42,9 +49,9 @@ instance TestMonad IO Assertion where
   testFailure = assertFailure
   runIO = id
   
-instance TestMonad (Either Result) Result where
-  runTest = either id (const $ Result (Just True) [] [])
-  testFailure s = Left $ Result (Just False) [] [s]
+instance TestMonad (Either QCP.Result) QCP.Result where
+  runTest = either id (const QCP.succeeded)
+  testFailure s = Left $ QCP.failed { QCP.reason = s }
   runIO f = return (unsafePerformIO f)
 
 compareForResult :: TestMonad m r => String -> (a -> String) -> (a -> a -> Bool) -> a -> a -> m ()
@@ -59,10 +66,10 @@ compareForResult msg showFunc cmpFunc exp act
 (*&&*) :: TestMonad m r => m () -> m () -> m ()
 (*&&*) = (>>)
 
-type QCProp = Either Result ()
+type QCProp = Either QCP.Result ()
 
 -- | A type-constrained version of runTest for QuickCheck Testable things:
-runQCTest :: QCProp -> Result
+runQCTest :: QCProp -> QCP.Result
 runQCTest = runTest
 
 testEqual :: (Show a, Eq a, TestMonad m r) => String -> a -> a -> m ()

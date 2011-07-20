@@ -178,20 +178,17 @@ testTransformWaitFor5 = TestCase $ testPass "testTransformWaitFor5" exp transfor
 newtype PosInts = PosInts [Int] deriving (Show)
 
 instance Arbitrary PosInts where
-  coarbitrary = error "coarbitrary"
   arbitrary = do len <- choose (1, 10)
                  replicateM len (choose (1,1000)) >>* PosInts
 
 newtype PosInt = PosInt Int deriving (Show)
 
 instance Arbitrary PosInt where
-  coarbitrary = error "coarbitrary"
   arbitrary = choose (1,20) >>* PosInt
 
 newtype StaticTypeList = StaticTypeList [A.Type] deriving (Show)
 
 instance Arbitrary StaticTypeList where
-  coarbitrary = error "coarbitrary"
   arbitrary = do len <- choose (1,10)
                  tl <- replicateM len $ frequency
                    [ (10, return A.Int)
@@ -206,7 +203,6 @@ instance Arbitrary StaticTypeList where
 newtype DynTypeList = DynTypeList [A.Type] deriving (Show)
 
 instance Arbitrary DynTypeList where
-  coarbitrary = error "coarbitrary"
   arbitrary = do len <- choose (1,10)
                  tl <- replicateM len $ frequency
                    [ (10, return A.Int)
@@ -224,7 +220,6 @@ instance Arbitrary DynTypeList where
 newtype AbbrevTypesIs = AbbrevTypesIs ([A.Dimension], [A.Dimension], [A.Subscript]) deriving (Show)
 
 instance Arbitrary AbbrevTypesIs where
-  coarbitrary = error "coarbitrary"
   arbitrary = do lenSrc <- choose (1,10)
                  lenDest <- choose (1, lenSrc)
                  srcDims <- replicateM lenSrc $ oneof [return A.UnknownDimension, choose (1,1000) >>* dimension]

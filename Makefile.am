@@ -23,7 +23,7 @@ GHC_OPTS = \
 	-package parsec \
 	-package pretty \
 	-package process \
-	-package @LIB_VER_quickcheck@ \
+	-package QuickCheck \
 	-package random \
 	-package regex-compat \
         -package @LIB_VER_syb@ \
