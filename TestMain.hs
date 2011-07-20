@@ -53,7 +53,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 -- * "StructureOccamTest"
 --
 -- * "UsageCheckTest"
-module TestMain () where
+module TestMain (main) where
 
 import Control.Monad
 import Data.List
