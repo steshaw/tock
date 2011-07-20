@@ -277,13 +277,7 @@ pkginclude_HEADERS += support/tock_intrinsics_arith.h
 pkginclude_HEADERS += support/tock_intrinsics_float.h
 
 clean-local:
-	rm -f obj/*.o obj/*.hi
-	rm -f obj/Data/Generics/*.o obj/Data/Generics/*.hi
-	rm -f obj/Data/Generics/Alloy/*.o obj/Data/Generics/Alloy/*.hi
-	[ ! -d obj/Data/Generics/Alloy ] || rmdir obj/Data/Generics/Alloy
-	[ ! -d obj/Data/Generics ] || rmdir obj/Data/Generics
-	[ ! -d obj/Data ] || rmdir obj/Data
-	[ ! -d obj ] || rmdir obj
+	rm -fr obj
 
 # We post-process the Haddock output with M4 so that we can include SVG images.
 haddock:
