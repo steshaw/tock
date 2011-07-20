@@ -453,7 +453,7 @@ inferTypes = occamOnlyPass "Infer types"
               wrap (recurse body) >>* A.Spec mspec (A.Specification m n st')
     doStructured s = descend s
 
-    -- The second parameter is a modifier (wrapper) for the descent into the body
+    -- The second result is a modifier (wrapper) for the descent into the body
     doSpecType :: ( AlloyA (A.Structured t) InferTypeOps BaseOpM
                   , AlloyA (A.Structured t) BaseOpM InferTypeOps
                   , Data t) => A.Name -> A.SpecType -> ReaderT (A.Structured t) InferTypeM
