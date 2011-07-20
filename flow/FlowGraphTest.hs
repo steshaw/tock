@@ -620,6 +620,15 @@ genNumsToTotal n = do ch <- choose (1,n)
                       chs <- genNumsToTotal (n-ch)
                       return (ch:chs)
 
+-- | Helper type to test genNumsToTotal.
+data NumsTotalling = NumsTotalling Int [Int]
+  deriving (Show)
+
+instance Arbitrary NumsTotalling where
+  arbitrary = do n <- arbitrary
+                 ns <- genNumsToTotal n
+                 return $ NumsTotalling n ns
+
 -- | A function that takes a generator for an item, and generates a list of those,
 -- dividing up the size at random.  The list will be length log_2(N) on average, I think.
 genList :: (Int -> GenL a) -> Int -> GenL [a]
@@ -836,9 +845,9 @@ testModify =
       where
         g' = A.Only emptyMeta g
   
-    -- | This tests our genNumsToTotal function, which is itself a test generator; nasty!
-    prop_gennums :: Int -> QCProp
-    prop_gennums n = generate 0 (mkStdGen 0) (genNumsToTotal n >>* sum) *==* n
+    -- | This tests our genNumsToTotal function, which is itself a test generator.
+    prop_gennums :: NumsTotalling -> QCProp
+    prop_gennums (NumsTotalling n ns) = n *==* sum ns
 
     -- | Repeatedly pairs the map with each element of the powerset of its keys
     helper :: Monad m => Map.Map Meta (A.Structured a -> m (A.Structured a)) -> [(Map.Map Meta (A.Structured a -> m (A.Structured a)), [Meta])]
