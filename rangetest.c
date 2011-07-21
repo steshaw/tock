@@ -1,6 +1,7 @@
-int g_stopped;
+#include <setjmp.h>
 
-#define occam_stop(pos, nargs, format, args...) do { g_stopped = 1; } while (0)
+jmp_buf g_stopped;
+#define occam_stop(pos, nargs, format, args...) longjmp(g_stopped, 1)
 
 #define occam_INT_size SIZEOF_VOIDP
 #define occam_extra_param 
@@ -9,33 +10,27 @@ int g_stopped;
 #define report_failure(msg, args...) { printf(msg, ##args); }
 
 #define testf(call) do { \
-	g_stopped = 0; \
-	call; \
-	if (g_stopped == 1) { \
-		passes++; \
-	} else { \
+	if (setjmp(g_stopped) == 0) { \
+		call; \
 		failures++; \
 		report_failure(#call " failed, expected to stop, got: %lld\n", (int64_t)call); \
+	} else { \
+		passes++; \
 	} \
   } while(0)
 
 #define testp(exp, call) do { \
-	g_stopped = 0; \
-	if (exp == call) { \
-		if (g_stopped == 0) { \
+	if (setjmp(g_stopped) == 0) { \
+		if (exp == call) { \
 			passes++; \
 		} else { \
-  			failures++; \
-  			report_failure(#call "failed, unexpectedly stopped\n"); \
-  		} \
-  	} else { \
-  		failures++; \
-  		if (g_stopped == 1) { \
-  			report_failure(#call "failed, unexpectedly stopped\n"); \
-		} else { \
-  			report_failure(#call " failed, expected %lld, got %lld\n", (int64_t)exp, (int64_t)call); \
-  		} \
-  	} \
+			failures++; \
+			report_failure(#call " failed, expected %lld, got %lld\n", (int64_t)exp, (int64_t)call); \
+		} \
+	} else { \
+		failures++; \
+		report_failure(#call "failed, unexpectedly stopped\n"); \
+	} \
   } while (0)
 
 #define mult(x,y) (x*y)
@@ -44,12 +39,18 @@ int g_stopped;
 #define test_commutative(t,f,fe) \
 	do {int done_x = 0; for (t x = 0; !(x == 0 && done_x == 1);x+=1) { done_x = 1;\
 		int done_y = 0; for (t y = 0; !(y == x && done_y == 1);y+=1) { done_y = 1;\
-			g_stopped = 0; \
-			const t r0 = f(x,y,""); \
-			const int stopped_earlier = g_stopped; \
-			g_stopped = 0; \
-			const t r1 = f(y,x,""); \
-			const int stopped_later = g_stopped; \
+			t r0 = 0, r1 = 0; \
+			int stopped_earlier = 0, stopped_later = 0; \
+			if (setjmp(g_stopped) == 0) { \
+				r0 = f(x,y,""); \
+			} else { \
+				stopped_earlier = 1; \
+			} \
+			if (setjmp(g_stopped) == 0) { \
+				r1 = f(y,x,""); \
+			} else { \
+				stopped_later = 1; \
+			} \
 			if (stopped_later == 1 && stopped_earlier == 1) {} else if \
 			  (stopped_earlier == 0 && stopped_later == 0 && r0 == r1) { \
 				if ((int)(t)(fe((int)x,(int)y)) != (int)(fe((int)x,(int)y))) { \
