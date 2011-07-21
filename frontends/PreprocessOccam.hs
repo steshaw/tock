@@ -1,6 +1,6 @@
 {-
 Tock: a compiler for parallel languages
-Copyright (C) 2007  University of Kent
+Copyright (C) 2007, 2009  University of Kent
 Copyright (C) 2008  Adam Sampson <ats@offog.org>
 
 This program is free software; you can redistribute it and/or modify it
