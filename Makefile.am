@@ -159,7 +159,8 @@ modules_DATA =
 # For dummy lib files:
 tockinc_DATA = occamutl.lib.tock.inc occamutl.lib.tock.h occamutl.lib.tock.sizes
 
-CLEANFILES = $(BUILT_SOURCES) $(config_sources)
+CLEANFILES = $(BUILT_SOURCES)
+DISTCLEANFILES = $(config_sources)
 
 EXTRA_DIST = docextra testcases/automatic
 
