@@ -129,11 +129,13 @@ tockincdir=$(TOCKINCDIR)
 tocklibdir=$(TOCKLIBDIR)
 
 config/Paths.hs: config/Paths.hs.in Makefile
-	@sed -e 's,@@pkgincludedir@@,$(pkgincludedir),g' config/Paths.hs.in \
-	  | sed -e 's,@@tockdir@@,$(TOCKDIR),g' \
-	  | sed -e 's,@@tockmoddir@@,$(TOCKMODDIR),g' \
-	  | sed -e 's,@@tockincdir@@,$(TOCKINCDIR),g' \
-	  | sed -e 's,@@tocklibdir@@,$(TOCKLIBDIR),g' >config/Paths.hs
+	@sed \
+		-e 's,@@pkgincludedir@@,$(pkgincludedir),g' \
+		-e 's,@@tockdir@@,$(TOCKDIR),g' \
+		-e 's,@@tockmoddir@@,$(TOCKMODDIR),g' \
+		-e 's,@@tockincdir@@,$(TOCKINCDIR),g' \
+		-e 's,@@tocklibdir@@,$(TOCKLIBDIR),g' \
+		config/Paths.hs.in >config/Paths.hs
 
 data/NavAST.hs: GenNavAST$(EXEEXT)
 	./GenNavAST$(EXEEXT) data/NavAST.hs
