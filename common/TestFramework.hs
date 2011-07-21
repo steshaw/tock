@@ -37,7 +37,7 @@ import PrettyShow
 
 instance Error QCP.Result where
   noMsg = strMsg ""
-  strMsg s = QCP.failed { QCP.reason = s }
+  strMsg s = QCP.result { QCP.ok = Just False, QCP.reason = s }
 
 class Monad m => TestMonad m r | m -> r where
   runTest :: m () -> r
@@ -51,7 +51,7 @@ instance TestMonad IO Assertion where
   
 instance TestMonad (Either QCP.Result) QCP.Result where
   runTest = either id (const QCP.succeeded)
-  testFailure s = Left $ QCP.failed { QCP.reason = s }
+  testFailure s = Left $ QCP.result { QCP.ok = Just False, QCP.reason = s }
   runIO f = return (unsafePerformIO f)
 
 compareForResult :: TestMonad m r => String -> (a -> String) -> (a -> a -> Bool) -> a -> a -> m ()

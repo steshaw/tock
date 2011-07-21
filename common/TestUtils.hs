@@ -85,12 +85,12 @@ testCheck :: Testable a => Args -> a -> Test
 testCheck args property =
     TestCase $ do result <- quickCheckWithResult args property
                   case result of
-                    Success _ _ _ -> return ()
-                    GaveUp _ _ _ -> return ()
-                    Failure numTests _ _ _ reason _ _ ->
-                      assertFailure $ "Falsifiable, after " ++ show numTests ++ " tests:\n" ++ reason
-                    NoExpectedFailure numTests _ _ ->
-                      assertFailure $ "No expected failure, after " ++ show numTests ++ " tests"
+                    Success {} -> return ()
+                    GaveUp {} -> return ()
+                    Failure {} ->
+                      assertFailure $ "Falsifiable: " ++ (reason result)
+                    NoExpectedFailure {} ->
+                      assertFailure $ "No expected failure"
 
 --}}}
 --{{{  building AST fragments and patterns
