@@ -77,23 +77,28 @@ GHC_OPTS += -fglasgow-exts
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tock$(EXEEXT) --make Main -odir obj -hidir obj
+	@touch tock$(EXEEXT)
 
 #The order of the -main-is and --make flags is important here:
 tocktest$(EXEEXT): $(BUILT_SOURCES) $(tocktest_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tocktest$(EXEEXT) -main-is TestMain --make TestMain -odir obj -hidir obj
+	@touch tocktest$(EXEEXT)
 
 GenNavAST$(EXEEXT): $(GenNavAST_SOURCES) data/OrdAST.hs
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenNavAST$(EXEEXT) -main-is GenNavAST --make GenNavAST -odir obj -hidir obj
+	@touch GenNavAST$(EXEEXT)
 
 GenOrdAST$(EXEEXT): $(GenOrdAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenOrdAST$(EXEEXT) -main-is GenOrdAST --make GenOrdAST -odir obj -hidir obj
+	@touch GenOrdAST$(EXEEXT)
 
 GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o GenTagAST$(EXEEXT) -main-is GenTagAST --make GenTagAST -odir obj -hidir obj
+	@touch GenTagAST$(EXEEXT)
 
 # Both these results are near-identical.  The -g flag to alex tells it to generate
 # a lexer optimised for GHC.  The other part of the rule inserts the
