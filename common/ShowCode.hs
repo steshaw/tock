@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fallow-incoherent-instances #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-
 Tock: a compiler for parallel languages
 Copyright (C) 2007, 2008, 2009  University of Kent

@@ -6,11 +6,28 @@ GHC_OPTS = \
 	-fwarn-missing-fields \
 	-fwarn-missing-methods \
 	-fwarn-missing-signatures \
+	-fwarn-monomorphism-restriction \
 	-fwarn-overlapping-patterns \
 	-fwarn-simple-patterns \
+	-fwarn-tabs \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
 	-fwarn-unused-imports \
+	\
+	-XDeriveDataTypeable \
+	-XExistentialQuantification \
+	-XFlexibleContexts \
+	-XFlexibleInstances \
+	-XFunctionalDependencies \
+	-XGeneralizedNewtypeDeriving \
+	-XImpredicativeTypes \
+	-XKindSignatures \
+	-XMultiParamTypeClasses \
+	-XRank2Types \
+	-XScopedTypeVariables \
+	-XTypeOperators \
+	-XTypeSynonymInstances \
+	-XUndecidableInstances \
 	\
 	-hide-all-packages \
 	-package array \
@@ -40,40 +57,6 @@ GHC_OPTS = \
 	-ipregen \
 	-itransformations
 
-if GHC68
-# I'd like to spell out all the flags for GHC 6.8 as follows.
-# But it seems that on GHC 6.8.2 (i386), this causes a GHC panic,
-# which I believe is related to the use of unsafeCoerce#.  So if anyone
-# else tries to do this in future, make sure to test on GHC 6.8.2 (which
-# is currently the latest version on Ubuntu and Gentoo)
-#
-# Addendum: I tried again once unsafeCoerce# was removed, but now it seems
-# that -Werror is being secretly activated, which is possibly due to
-# the GHC bug we had trouble with before (only fixed in 6.10 I think).
-
-#GHC_OPTS += -XDeriveDataTypeable
-#GHC_OPTS += -XExistentialQuantification
-#GHC_OPTS += -XFlexibleContexts
-#GHC_OPTS += -XFlexibleInstances
-#GHC_OPTS += -XFunctionalDependencies
-#GHC_OPTS += -XMultiParamTypeClasses
-#GHC_OPTS += -XRank2Types
-#GHC_OPTS += -XScopedTypeVariables
-#GHC_OPTS += -XTypeSynonymInstances
-
-GHC_OPTS += -XUndecidableInstances
-GHC_OPTS += -fwarn-tabs -fwarn-monomorphism-restriction
-else
-# GHC 6.7 or earlier.
-GHC_OPTS += -fallow-undecidable-instances
-endif
-
-if GHC610
-GHC_OPTS += -XImpredicativeTypes
-endif
-
-GHC_OPTS += -fglasgow-exts
-
 tock$(EXEEXT): $(BUILT_SOURCES) $(tock_SOURCES) $(config_sources)
 	@MKDIR_P@ obj
 	ghc $(GHC_OPTS) -o tock$(EXEEXT) --make Main -odir obj -hidir obj
@@ -102,28 +85,19 @@ GenTagAST$(EXEEXT): $(GenTagAST_SOURCES)
 
 # Both these results are near-identical.  The -g flag to alex tells it to generate
 # a lexer optimised for GHC.  The other part of the rule inserts the
-# -fno-warn-tabs flag under GHC >= 6.8, but doesn't add anything under previous
-# versions of GHC
+# -fno-warn-tabs flag.
 
 frontends/LexOccam.hs: frontends/LexOccam.x
 	alex -g frontends/LexOccam.x -o frontends/LexOccam.temphs
-if GHC68
 	echo "{-# OPTIONS_GHC -fno-warn-tabs -fno-warn-monomorphism-restriction #-}" > frontends/LexOccam.hs
 	cat frontends/LexOccam.temphs >> frontends/LexOccam.hs
 	rm frontends/LexOccam.temphs
-else
-	mv frontends/LexOccam.temphs frontends/LexOccam.hs
-endif
 
 frontends/LexRain.hs: frontends/LexRain.x
 	alex -g frontends/LexRain.x -o frontends/LexRain.temphs
-if GHC68
 	echo "{-# OPTIONS_GHC -fno-warn-tabs -fno-warn-monomorphism-restriction #-}" > frontends/LexRain.hs
 	cat frontends/LexRain.temphs >> frontends/LexRain.hs
 	rm frontends/LexRain.temphs
-else
-	mv frontends/LexRain.temphs frontends/LexRain.hs
-endif
 
 TOCKDIR=$(DATADIR)/tock
 TOCKMODDIR=$(TOCKDIR)/modules

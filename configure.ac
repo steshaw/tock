@@ -82,13 +82,10 @@ AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
 ghc_version=`ghc --numeric-version | awk -F . '{printf "%d%03d%03d\n", $1, $2, $3}'`
 
 AC_MSG_CHECKING([whether GHC version is reasonable])
-if test $ghc_version -lt 6006000; then
-	AC_MSG_ERROR([GHC 6.6 or later is required])
+if test $ghc_version -lt 6012000; then
+	AC_MSG_ERROR([GHC 6.12 or later is required])
 fi
 AC_MSG_RESULT([OK])
-
-AM_CONDITIONAL([GHC68],[test $ghc_version -ge 6008000])
-AM_CONDITIONAL([GHC610],[test $ghc_version -ge 6010000])
 
 AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
 [
@@ -101,16 +98,8 @@ AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
   fi
 ])
 
-#GHC 6.10 and later have base-3 and base-4.  For now, we're sticking with
-#base-3, but we need to know the exact version to tell GHC.  We filter
-#for base-3, and take the last one (since ghc-pkg lists them in ascending order)
-if test $ghc_version -lt 6010000; then
-  AC_PICK_HASKELL_LIB_VER([base],[3],[LIB_VER_base])
-  LIB_VER_syb="$LIB_VER_base"
-else
-  AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
-  AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
-fi
+AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
+AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
 
 PKG_CHECK_MODULES(CCSP, ccsp-1.6 >= 1.6.3,,
 	AC_MSG_WARN([CCSP not located using pkg-config; you will not be able to compile output from the C backend on this machine: ] $CCSP_PKG_ERRORS)
