@@ -131,77 +131,58 @@ if test "x$cppcsp_available$ccsp_available" = "xfalsefalse"; then
 fi
 
 
-#Check whether their compiler supports the -fgnu89-inline flag:
-#Must use the C language for this:
-AC_LANG(C)
-AC_MSG_CHECKING([whether -fgnu89-inline flag is accepted])
-old_CFLAGS="$CFLAGS"
-CFLAGS="-fgnu89-inline"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+# TOCK_CHECK_CFLAGS(flags,if-true,if-false)
+AC_DEFUN([TOCK_CHECK_CFLAGS],[
+  AC_MSG_CHECKING([whether C compiler accepts $1])
+  AC_LANG_PUSH(C)
+  old_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $1"
+  AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),[
+    AC_MSG_RESULT([yes])
+    $2
+  ],[
+    AC_MSG_RESULT([no])
+    $3
+  ])
+  CFLAGS="$old_CFLAGS"
+  AC_LANG_POP(C)
+])
+
+TOCK_CHECK_CFLAGS([-fgnu89-inline],[
   gnu89_inline=-fgnu89-inline
-  ,
-  AC_MSG_RESULT([no])
+],[
   gnu89_inline=
-)
+])
 
-#Check whether GCC accepts the -fno-strict-overflow setting:
-AC_MSG_CHECKING([whether -fno-strict-overflow flag is accepted])
-CFLAGS="-fno-strict-overflow"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+TOCK_CHECK_CFLAGS([-fno-strict-overflow],[
   no_strict_overflow=-fno-strict-overflow
-  ,
-  AC_MSG_RESULT([no])
+],[
   no_strict_overflow=
-)
+])
 
-#Check whether GCC accepts the -fno-strict-aliasing setting:
-AC_MSG_CHECKING([whether -fno-strict-aliasing flag is accepted])
-CFLAGS="-fno-strict-aliasing"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+TOCK_CHECK_CFLAGS([-fno-strict-aliasing],[
   no_strict_aliasing=-fno-strict-aliasing
-  ,
-  AC_MSG_RESULT([no])
+],[
   no_strict_aliasing=
-)
+])
 
-#Check whether GCC accepts the -fno-tree-vrp setting:
-AC_MSG_CHECKING([whether -fno-tree-vrp flag is accepted])
-CFLAGS="-fno-tree-vrp"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+TOCK_CHECK_CFLAGS([-fno-tree-vrp],[
   no_tree_vrp=-fno-tree-vrp
-  ,
-  AC_MSG_RESULT([no])
+],[
   no_tree_vrp=
-)
+])
 
-#Check whether GCC accepts the -Wno-unused-parameter -Wno-unused-variable flags:
-AC_MSG_CHECKING([whether -Wno-unused-parameter and -Wno-unused-variable flags are accepted])
-CFLAGS="-Wno-unused-parameter -Wno-unused-variable"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+TOCK_CHECK_CFLAGS([-Wno-unused-parameter -Wno-unused-variable],[
   no_unused="-Wno-unused-parameter -Wno-unused-variable"
-  ,
-  AC_MSG_RESULT([no])
+],[
   no_unused=
-)
+])
 
-#Check whether GCC accepts the -Werror=cast-qual option
-AC_MSG_CHECKING([whether -Werror=cast-qual flag is accepted])
-CFLAGS="-Werror=cast-qual"
-AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[ ]]),
-  AC_MSG_RESULT([yes])
+TOCK_CHECK_CFLAGS([-Werror=cast-qual],[
   warn_error="-Werror=cast-qual"
-  ,
-  AC_MSG_RESULT([no])
+],[
   warn_error=
-)
-
-
-CFLAGS="$old_CFLAGS"
+])
 
 
 # Check the sizes of certain constructs.  We'll need to be cleverer if in future
