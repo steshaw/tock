@@ -2,13 +2,13 @@ GHC_OPTS = \
 	-fcontext-stack=400 \
 	-fwarn-deprecations \
 	-fwarn-duplicate-exports \
+	-fwarn-incomplete-patterns \
 	-fwarn-incomplete-record-updates \
 	-fwarn-missing-fields \
 	-fwarn-missing-methods \
 	-fwarn-missing-signatures \
 	-fwarn-monomorphism-restriction \
 	-fwarn-overlapping-patterns \
-	-fwarn-simple-patterns \
 	-fwarn-tabs \
 	-fwarn-type-defaults \
 	-fwarn-unused-binds \
