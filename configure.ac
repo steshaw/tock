@@ -24,8 +24,8 @@ if test "x$ac_cv_prog_cc_c99" = "xno"; then
   ccsp_available=false
 fi
 
-#AC_NEED_PROG(progname,progvar)
-AC_DEFUN([AC_NEED_PROG],
+#TOCK_NEED_PROG(progname,progvar)
+AC_DEFUN([TOCK_NEED_PROG],
 [
   AC_CHECK_PROG($2,$1,[true],[false])
   if test x$$2 = "xfalse"; then
@@ -35,10 +35,10 @@ AC_DEFUN([AC_NEED_PROG],
 
 #Check that they have alex, GHC, svn and the CCSP headers:
 
-AC_NEED_PROG(ghc,HAVE_ghc)
+TOCK_NEED_PROG(ghc,HAVE_ghc)
 AC_PATH_PROG(GHC,ghc)
-AC_NEED_PROG(ghc-pkg,HAVE_ghcpkg)
-AC_NEED_PROG(alex,HAVE_alex)
+TOCK_NEED_PROG(ghc-pkg,HAVE_ghcpkg)
+TOCK_NEED_PROG(alex,HAVE_alex)
 
 AC_CHECK_PROG([HAVE_SVN],[svn],[true],[false])
 if test "x$HAVE_SVN" = "xfalse"; then
@@ -52,7 +52,7 @@ fi
 
 #Test that they have the right GHC libraries installed (such as hunit, mtl)
 
-AC_DEFUN([AC_NEED_HASKELL_LIB],
+AC_DEFUN([TOCK_NEED_HASKELL_LIB],
 [
   AC_MSG_CHECKING([for Haskell library $1])
   $2=`ghc-pkg list $1 | grep $1`
@@ -63,21 +63,21 @@ AC_DEFUN([AC_NEED_HASKELL_LIB],
   fi
 ])
 
-AC_NEED_HASKELL_LIB([array],LIB_array)
-AC_NEED_HASKELL_LIB([base],LIB_base)
-AC_NEED_HASKELL_LIB([containers],LIB_containers)
-AC_NEED_HASKELL_LIB([directory],LIB_directory)
-AC_NEED_HASKELL_LIB([mtl],LIB_mtl)
-AC_NEED_HASKELL_LIB([HUnit],LIB_hunit)
-AC_NEED_HASKELL_LIB([parsec],LIB_parsec)
-AC_NEED_HASKELL_LIB([pretty],LIB_pretty)
-AC_NEED_HASKELL_LIB([fgl],LIB_fgl)
-AC_NEED_HASKELL_LIB([process],LIB_process)
-AC_NEED_HASKELL_LIB([QuickCheck],LIB_quickcheck)
-AC_NEED_HASKELL_LIB([random],LIB_random)
-AC_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
-AC_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
-AC_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
+TOCK_NEED_HASKELL_LIB([array],LIB_array)
+TOCK_NEED_HASKELL_LIB([base],LIB_base)
+TOCK_NEED_HASKELL_LIB([containers],LIB_containers)
+TOCK_NEED_HASKELL_LIB([directory],LIB_directory)
+TOCK_NEED_HASKELL_LIB([mtl],LIB_mtl)
+TOCK_NEED_HASKELL_LIB([HUnit],LIB_hunit)
+TOCK_NEED_HASKELL_LIB([parsec],LIB_parsec)
+TOCK_NEED_HASKELL_LIB([pretty],LIB_pretty)
+TOCK_NEED_HASKELL_LIB([fgl],LIB_fgl)
+TOCK_NEED_HASKELL_LIB([process],LIB_process)
+TOCK_NEED_HASKELL_LIB([QuickCheck],LIB_quickcheck)
+TOCK_NEED_HASKELL_LIB([random],LIB_random)
+TOCK_NEED_HASKELL_LIB([regex-base],LIB_regexbase)
+TOCK_NEED_HASKELL_LIB([regex-compat],LIB_regexcompat)
+TOCK_NEED_HASKELL_LIB([regex-posix],LIB_regexposix)
 
 ghc_version=`ghc --numeric-version | awk -F . '{printf "%d%03d%03d\n", $1, $2, $3}'`
 
@@ -87,7 +87,7 @@ if test $ghc_version -lt 6012000; then
 fi
 AC_MSG_RESULT([OK])
 
-AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
+AC_DEFUN([TOCK_PICK_HASKELL_LIB_VER],
 [
   AC_MSG_CHECKING([for $1 library, major version $2])
   $3=`ghc-pkg list $1 | grep $1 | grep -oE "$1-$2[[.0-9]]+" | tail -n 1`
@@ -98,8 +98,8 @@ AC_DEFUN([AC_PICK_HASKELL_LIB_VER],
   fi
 ])
 
-AC_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
-AC_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
+TOCK_PICK_HASKELL_LIB_VER([base],[4],[LIB_VER_base])
+TOCK_PICK_HASKELL_LIB_VER([syb],[0],LIB_VER_syb)
 
 PKG_CHECK_MODULES(CCSP, ccsp-1.6 >= 1.6.3,,
 	AC_MSG_WARN([CCSP not located using pkg-config; you will not be able to compile output from the C backend on this machine: ] $CCSP_PKG_ERRORS)
