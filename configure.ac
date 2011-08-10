@@ -240,6 +240,10 @@ CFLAGS="$CFLAGS $no_strict_overflow $no_tree_vrp"
 # when compiled with -O2.  One mitigation I have found is to turn off these
 # particular optimisations.  Since GCC 4.3.2 will be around for a long time,
 # we have to leave in -fno-tree-vrp and -fno-strict-overflow for a long time too.
+#
+# ... and the bug is still present as of GCC 4.6:
+#   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=35634
+#
 # UPDATE: According to my GCC bug, http://gcc.gnu.org/bugzilla/show_bug.cgi?id=38929
 # this problem can be fixed instead by changing my x++ into x+=1 in my code.  I've done
 # that, but I'm also leaving these flags in so that any other code (for example,
